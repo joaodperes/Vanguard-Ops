@@ -1,0 +1,1178 @@
+// Player progression service — shared helpers used by API routes
+import { db } from "@/lib/db";
+import {
+  WEAPONS,
+  ATTACHMENTS,
+  WEAPON_SKINS,
+  PLAYER_SKINS,
+  levelForXp,
+  totalXpForLevel,
+  REWARDS,
+  type ResolvedLoadout,
+  resolveLoadout,
+  ACHIEVEMENTS,
+  dailyChallengeSet,
+  weeklyChallengeSet,
+  weeklyChallengeKey,
+  ELITE_QUESTS,
+  DAILY_ELITE_CHANCE,
+  WEEKLY_ELITE_CHANCE,
+  shouldPromoteToElite,
+  promoteChallengeToElite,
+  type ChallengeMetric,
+  type ChallengeDef,
+  WEAPON_CHALLENGES,
+  weaponById,
+  isStandardSkin,
+  SKIN_WILDCARD_WEAPON_ID,
+} from "@/lib/game-data";
+
+export interface MatchResultInput {
+  playerKey: string;
+  kills: number;
+  deaths: number;
+  headshots: number;
+  won: boolean;
+  mode: "ffa" | "tdm" | "survival" | "gungame";
+  score: number;
+  online?: boolean;
+  durationSec?: number;
+  placement?: number;
+  weaponId?: string;
+  multikills?: number;       // number of double-kill or better streaks achieved in this match
+  survivalWaves?: number;    // survival: highest wave reached
+  // 19a+19b: Highest kill streak achieved in this match (kills within the 5s
+  // streak window). The engine tracks this in registerPlayerKill (updating
+  // bestStreak whenever the current streak exceeds it) and forwards it in
+  // MatchEndResult. applyMatchResult updates the player's lifetime bestKillstreak
+  // (Player model column) which drives the Triple Threat / Killstreak King /
+  // Untouchable Force tiered achievements.
+  bestStreak?: number;
+  // Per-kill difficulty breakdown (one entry per kill). Values: "easy"|"normal"|"hard"|"veteran"|"enemy_player".
+  // Used to scale XP/credits by victim difficulty. Optional — legacy callers omit it.
+  killDifficulties?: string[];
+  // Per-weapon kill/headshot tallies for the match. Used by Gun Game (where the
+  // player cycles through all weapons in GUN_GAME_PROGRESSION) to attribute kills
+  // to the weapon actually used for each kill — instead of attributing all kills
+  // to `weaponId` (the match-start weapon). The challenge-check block reads this
+  // map to evaluate per-weapon skin challenges for EVERY weapon that got kills.
+  // Optional — non-gungame callers omit it (kills default to `weaponId`).
+  perWeaponKills?: Record<string, { kills: number; headshots: number }>;
+}
+
+export async function getOrCreatePlayer(playerKey: string, name?: string) {
+  let player = await db.player.findUnique({
+    where: { playerKey },
+    include: {
+      weaponUnlocks: true,
+      skinUnlocks: true,
+      attachmentUnlocks: true,
+      loadout: true,
+      achievements: true,
+    },
+  });
+  if (!player) {
+    // Race-condition-safe create: if another concurrent request inserted this
+    // playerKey between our findUnique and create, Prisma throws P2002. Catch
+    // it and re-fetch. This is critical for /api/challenges which calls
+    // getOrCreatePlayer via 3 parallel view functions (daily/weekly/elite).
+    try {
+      player = await db.player.create({
+        data: {
+          playerKey,
+          name: name && name.trim() ? name.trim().slice(0, 20) : "Recruit",
+        },
+        include: {
+          weaponUnlocks: true,
+          skinUnlocks: true,
+          attachmentUnlocks: true,
+          loadout: true,
+          achievements: true,
+        },
+      });
+    } catch (e: any) {
+      if (e?.code === "P2002") {
+        // Another concurrent request inserted this player — re-fetch.
+        player = await db.player.findUnique({
+          where: { playerKey },
+          include: {
+            weaponUnlocks: true,
+            skinUnlocks: true,
+            attachmentUnlocks: true,
+            loadout: true,
+            achievements: true,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
+  }
+  // At this point `player` is non-null in practice — either it existed, we
+  // just created it, or we re-fetched after a P2002 race. The non-null assertion
+  // lets downstream code use `player.id` etc. without per-call null checks.
+  return player!;
+}
+
+export interface PlayerProfileView {
+  playerKey: string;
+  name: string;
+  level: number;
+  xp: number;
+  credits: number;
+  kills: number;
+  deaths: number;
+  matchesPlayed: number;
+  matchesWon: number;
+  survivalBestWave: number;
+  kd: number;
+  selectedSkin: string;
+  xpProgress: { current: number; needed: number; level: number };
+  unlocks: {
+    weapons: string[];
+    // Flat lists — preserved for backward-compat with the Profile collection grid.
+    weaponSkins: string[];
+    playerSkins: string[];
+    attachments: string[];
+    // Per-weapon unlock maps (new). Keyed by weaponId.
+    // `attachmentsByWeapon[weaponId]` = attachment IDs unlocked for that weapon.
+    // `skinsByWeapon[weaponId]` = skin IDs unlocked for that weapon (always
+    //   includes "default" and any free-by-level baseline skins).
+    attachmentsByWeapon: Record<string, string[]>;
+    skinsByWeapon: Record<string, string[]>;
+  };
+  loadout: ResolvedLoadout;
+  // Lifetime per-weapon kill/headshot progress, keyed by weaponId. Source of
+  // truth for weapon challenge progress (Breacher "Close Quarters", Longshot
+  // "Marksman", etc.). In gungame the player cycles through many weapons per
+  // match — MatchRecord.weaponId only stores the match-start weapon, so this
+  // map (backed by the WeaponProgress table) is needed for accurate per-weapon
+  // lifetime counts across all game modes.
+  weaponProgress: Record<string, { kills: number; headshots: number }>;
+}
+
+export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
+  const player = await getOrCreatePlayer(playerKey);
+  if (!player) return null;
+  if (!player.loadout) {
+    await db.loadout.create({ data: { playerId: player.id } });
+  }
+  const fresh = player.loadout
+    ? player
+    : await db.player.findUnique({
+        where: { playerKey },
+        include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true, loadout: true },
+      });
+  const p = fresh!;
+  const level = levelForXp(p.xp);
+  // Use the shared XP-curve helpers so this stays in sync with game-data.ts.
+  const base = totalXpForLevel(level);
+  const next = totalXpForLevel(level + 1);
+
+  // Build per-weapon unlock maps from the (now weaponId-bearing) DB rows.
+  const attachmentsByWeapon: Record<string, string[]> = {};
+  const skinsByWeapon: Record<string, string[]> = {};
+  for (const u of p.attachmentUnlocks) {
+    if (!attachmentsByWeapon[u.weaponId]) attachmentsByWeapon[u.weaponId] = [];
+    if (!attachmentsByWeapon[u.weaponId].includes(u.attachmentId)) attachmentsByWeapon[u.weaponId].push(u.attachmentId);
+  }
+  for (const u of p.skinUnlocks) {
+    if (!skinsByWeapon[u.weaponId]) skinsByWeapon[u.weaponId] = [];
+    if (!skinsByWeapon[u.weaponId].includes(u.skinId)) skinsByWeapon[u.weaponId].push(u.skinId);
+  }
+  // "default" skin is always available on every weapon. Also include any free-by-level
+  // baseline skins (unlockCost === 0) — they're universal cosmetics everyone has access to.
+  const baselineSkins = WEAPON_SKINS.filter((s) => s.id === "default" || (s.unlockCost === 0 && s.unlockLevel <= level)).map((s) => s.id);
+  // Standard-tier skins unlock globally — a single SkinUnlock row (with
+  // weaponId="*" OR any specific weaponId) grants the skin on ALL weapons.
+  // Non-standard (rare/legendary future) skins remain per-weapon.
+  const globallyUnlockedStandardSkins = new Set<string>();
+  for (const u of p.skinUnlocks) {
+    const skinDef = WEAPON_SKINS.find((s) => s.id === u.skinId);
+    if (skinDef && isStandardSkin(skinDef)) {
+      globallyUnlockedStandardSkins.add(u.skinId);
+    }
+  }
+  for (const w of WEAPONS) {
+    if (!skinsByWeapon[w.id]) skinsByWeapon[w.id] = [];
+    // Baseline free skins (default + any free-by-level).
+    for (const s of baselineSkins) {
+      if (!skinsByWeapon[w.id].includes(s)) skinsByWeapon[w.id].push(s);
+    }
+    // Standard skins unlocked on any weapon (or wildcard) — apply globally.
+    for (const s of globallyUnlockedStandardSkins) {
+      if (!skinsByWeapon[w.id].includes(s)) skinsByWeapon[w.id].push(s);
+    }
+  }
+
+  // Flat lists (for legacy Profile collection grid): unique attachment/skin IDs
+  // unlocked for ANY weapon.
+  const flatAttachments = Array.from(new Set(p.attachmentUnlocks.map((u) => u.attachmentId)));
+  const flatSkins = Array.from(new Set(p.skinUnlocks.map((u) => u.skinId)));
+
+  // Resolve loadout, validating the equipped skin is unlocked for the equipped primary.
+  const primaryId = p.loadout?.primaryWeapon ?? "rifle_ar";
+  const secondaryId = p.loadout?.secondaryWeapon ?? "pistol_side";
+  const meleeId = p.loadout?.meleeWeapon ?? "knife_tactical";
+  const unlockedSkinsForWeapon = skinsByWeapon[primaryId] ?? ["default"];
+  const unlockedSkinsForSecondary = skinsByWeapon[secondaryId] ?? ["default"];
+  const unlockedSkinsForMelee = skinsByWeapon[meleeId] ?? ["default"];
+  const loadout = resolveLoadout({
+    primaryWeapon: primaryId,
+    secondaryWeapon: secondaryId,
+    meleeWeapon: meleeId,
+    weaponSkin: p.loadout?.weaponSkin ?? "default",
+    secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
+    meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",
+    playerSkin: p.loadout?.playerSkin ?? p.selectedSkin ?? "default",
+    attachments: p.loadout?.attachments ?? "{}",
+    secondaryAttachments: p.loadout?.secondaryAttachments ?? "{}",
+    meleeAttachments: p.loadout?.meleeAttachments ?? "{}",
+    unlockedSkinsForWeapon,
+    unlockedSkinsForSecondary,
+    unlockedSkinsForMelee,
+  });
+  // Lifetime per-weapon kill/headshot progress for the profile view. Used by
+  // the Armory to surface challenge progress bars (e.g. "Breacher: 47/50 kills").
+  // Source: WeaponProgress table (updated on every match completion).
+  const wpRows = await db.weaponProgress.findMany({ where: { playerId: p.id } });
+  const weaponProgress: Record<string, { kills: number; headshots: number }> = {};
+  for (const row of wpRows) {
+    weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots };
+  }
+  return {
+    playerKey: p.playerKey,
+    name: p.name,
+    level,
+    xp: p.xp,
+    credits: p.credits,
+    kills: p.kills,
+    deaths: p.deaths,
+    matchesPlayed: p.matchesPlayed,
+    matchesWon: p.matchesWon,
+    survivalBestWave: p.survivalBestWave,
+    kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
+    selectedSkin: p.selectedSkin,
+    xpProgress: { current: p.xp - base, needed: next - base, level },
+    unlocks: {
+      weapons: p.weaponUnlocks.map((u) => u.weaponId),
+      weaponSkins: flatSkins,
+      playerSkins: Array.from(new Set([p.selectedSkin, ...PLAYER_SKINS.filter((s) => s.unlockCost === 0 && s.unlockLevel <= level).map((s) => s.id)])),
+      attachments: flatAttachments,
+      attachmentsByWeapon,
+      skinsByWeapon,
+    },
+    loadout,
+    weaponProgress,
+  };
+}
+
+// Determine which items a player has unlocked by virtue of level (auto-unlocked, free).
+// NOTE: attachments and weapon skins are no longer auto-unlocked by level —
+// they're earned per-weapon via purchases (attachments) or weapon challenges (skins).
+// The auto-unlock lists for those are intentionally empty; the entries are kept
+// in the return shape for backward-compat with consumers that read these fields.
+export function autoUnlockedItems(level: number) {
+  return {
+    weapons: WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    attachments: [] as string[],
+    weaponSkins: [] as string[],
+    playerSkins: PLAYER_SKINS.filter((s) => s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
+  };
+}
+
+// Merge DB unlocks with auto-unlocked (free) items.
+export function effectiveUnlocks(level: number, dbUnlocks: { weapons: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] }) {
+  const auto = autoUnlockedItems(level);
+  return {
+    weapons: Array.from(new Set([...auto.weapons, ...dbUnlocks.weapons])),
+    weaponSkins: Array.from(new Set([...auto.weaponSkins, ...dbUnlocks.weaponSkins])),
+    playerSkins: Array.from(new Set([...auto.playerSkins, ...dbUnlocks.playerSkins])),
+    attachments: Array.from(new Set([...auto.attachments, ...dbUnlocks.attachments])),
+  };
+}
+
+export interface AwardResult {
+  xpGained: number;
+  creditsGained: number;
+  leveledUp: boolean;
+  newLevel: number;
+  newUnlocks: { weapons: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
+  // Per-weapon skin challenges completed during this match.
+  newWeaponChallenges: { challengeId: string; weaponId: string; skinId: string; title: string; description: string }[];
+  newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[];
+  challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[];
+  bonusXp: number;
+  bonusCredits: number;
+}
+
+// Compute the metric delta for a single match against a challenge metric type.
+function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
+  switch (metric) {
+    case "kills": return m.kills;
+    case "headshots": return m.headshots;
+    case "wins": return m.won ? 1 : 0;
+    case "matches": return 1;
+    case "tdm_kills": return m.mode === "tdm" ? m.kills : 0;
+    case "ffa_kills": return m.mode === "ffa" ? m.kills : 0;
+    // Per-weapon metrics: in Gun Game the player cycles through ALL weapon
+    // types, so we must attribute kills via `perWeaponKills` (the map of
+    // weaponId → {kills, headshots} for this match) rather than `weaponId`
+    // (which is only the match-start weapon). For non-gungame modes where
+    // perWeaponKills is absent, fall back to checking `weaponId`.
+    //
+    // "kills_with_shotgun" credits kills from ANY shotgun-category weapon
+    // (shotgun_br, shotgun_auto, shotgun_combat) — not just the Breacher.
+    // Likewise "kills_with_sniper" credits any sniper (sniper_lr, sniper_scout).
+    // This makes the daily "Breacher" (10 shotgun kills) and "Longshot" (8
+    // sniper kills) challenges progress correctly in Gun Game, where the
+    // player may use a different shotgun/sniper each match.
+    case "kills_with_shotgun": {
+      const pw = m.perWeaponKills;
+      if (pw && Object.keys(pw).length > 0) {
+        let sum = 0;
+        for (const [wid, vals] of Object.entries(pw)) {
+          if (wid === "shotgun_br" || wid === "shotgun_auto" || wid === "shotgun_combat") {
+            sum += vals.kills;
+          }
+        }
+        return sum;
+      }
+      const wid = m.weaponId ?? "";
+      return (wid === "shotgun_br" || wid === "shotgun_auto" || wid === "shotgun_combat") ? m.kills : 0;
+    }
+    case "kills_with_sniper": {
+      const pw = m.perWeaponKills;
+      if (pw && Object.keys(pw).length > 0) {
+        let sum = 0;
+        for (const [wid, vals] of Object.entries(pw)) {
+          if (wid === "sniper_lr" || wid === "sniper_scout") {
+            sum += vals.kills;
+          }
+        }
+        return sum;
+      }
+      const wid = m.weaponId ?? "";
+      return (wid === "sniper_lr" || wid === "sniper_scout") ? m.kills : 0;
+    }
+    case "multikills": return m.multikills ?? 0;
+    case "survival_kills": return m.mode === "survival" ? m.kills : 0;
+    case "survival_waves": return m.mode === "survival" ? (m.survivalWaves ?? 0) : 0;
+    // Gun Game kills count toward the gungame-specific metric (and the
+    // generic "kills" metric above). Treated like FFA for challenge tracking.
+    case "gungame_kills": return m.mode === "gungame" ? m.kills : 0;
+    // ---- Round 18-d: Secondary + Melee kill challenges ----
+    // Sum kills from ALL sidearm-category weapons (pistol_side, pistol_magnum,
+    // pistol_burst, pistol_machine, launcher_rocket) or ALL melee-category
+    // weapons (knife_tactical, shiv, machete, hammer) via perWeaponKills.
+    // If perWeaponKills is absent, fall back to checking the match-start weapon.
+    case "kills_with_secondary": {
+      const pw = m.perWeaponKills;
+      if (pw && Object.keys(pw).length > 0) {
+        let sum = 0;
+        for (const [wid, vals] of Object.entries(pw)) {
+          if (weaponById(wid).category === "sidearm") sum += vals.kills;
+        }
+        return sum;
+      }
+      return weaponById(m.weaponId ?? "rifle_ar").category === "sidearm" ? m.kills : 0;
+    }
+    case "kills_with_melee": {
+      const pw = m.perWeaponKills;
+      if (pw && Object.keys(pw).length > 0) {
+        let sum = 0;
+        for (const [wid, vals] of Object.entries(pw)) {
+          if (weaponById(wid).category === "melee") sum += vals.kills;
+        }
+        return sum;
+      }
+      return weaponById(m.weaponId ?? "rifle_ar").category === "melee" ? m.kills : 0;
+    }
+    // "level" is a lifetime stat — no per-match delta. Elite quests handle it
+    // separately via eliteLifetimeValue().
+    case "level": return 0;
+    default: return 0;
+  }
+}
+
+export async function applyMatchResult(input: MatchResultInput): Promise<AwardResult> {
+  const player = await getOrCreatePlayer(input.playerKey);
+  const oldLevel = levelForXp(player.xp);
+
+  // ---- Per-kill XP scaled by victim difficulty ----
+  // The engine sends a killDifficulties[] array (one entry per kill, values:
+  // "easy" | "normal" | "hard" | "veteran" | "enemy_player"). Each tier awards
+  // a different amount of XP/credits — harder victims pay more. If the array
+  // is missing (legacy client), fall back to the flat per-kill reward.
+  const DIFF_XP: Record<string, number> = { easy: 10, normal: 15, hard: 22, veteran: 30, enemy_player: 30 };
+  const DIFF_CR: Record<string, number> = { easy: 4, normal: 6, hard: 10, veteran: 14, enemy_player: 14 };
+  const diffs = input.killDifficulties ?? [];
+  let killXp = 0;
+  let killCredits = 0;
+  if (diffs.length > 0 && diffs.length <= input.kills + 5) {
+    // Sum per-kill difficulty rewards. Cap at input.kills to avoid abuse.
+    for (let i = 0; i < Math.min(diffs.length, input.kills); i++) {
+      const d = diffs[i];
+      killXp += DIFF_XP[d] ?? DIFF_XP.normal;
+      killCredits += DIFF_CR[d] ?? DIFF_CR.normal;
+    }
+    // Headshots add a small bonus on top (per headshot, regardless of which kill).
+    killXp += input.headshots * REWARDS.headshotXpBonus;
+    killCredits += input.headshots * REWARDS.headshotCreditsBonus;
+  } else {
+    // Legacy path: flat per-kill reward.
+    killXp = input.kills * REWARDS.killXp + input.headshots * REWARDS.headshotXpBonus;
+    killCredits = input.kills * REWARDS.killCredits + input.headshots * REWARDS.headshotCreditsBonus;
+  }
+  // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
+  // Wave-clear bonus compensates (see below).
+  if (input.mode === "survival") {
+    killXp = Math.round(killXp * 0.4);
+    killCredits = Math.round(killCredits * 0.4);
+  }
+  const winXp = input.won ? REWARDS.winXpBonus : 0;
+  const winCredits = input.won ? REWARDS.winCreditsBonus : 0;
+  let xpGained = killXp + winXp + REWARDS.participationXp;
+  let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
+
+  // --- 19a+19b: Kill-streak bonus (stacks with headshot bonus above) ---
+  // Each "multi-kill" (double-kill or better streak, tracked by the engine as
+  // multikillsCount and forwarded here as input.multikills) awards a flat
+  // +50 XP / +25 CR bonus on top of the per-kill rewards. This makes chained
+  // kills meaningfully more rewarding than the same kills spread out, and
+  // naturally stacks with the boosted headshot bonus (both are added to
+  // xpGained/creditsGained independently). 50 XP per multikill ≈ 2 normal
+  // kills' worth; 25 CR per multikill ≈ 3 normal kills' worth — a noticeable
+  // but not economy-breaking boost. The streak bonus shows up under "bonus"
+  // in the results screen (see bonusXp/bonusCredits calc below).
+  if (input.multikills && input.multikills > 0) {
+    xpGained += input.multikills * 50;
+    creditsGained += input.multikills * 25;
+  }
+
+  // --- Survival mode: wave-clear bonus that scales with progress ---
+  // Each wave survived awards +60 XP / +20 credits (compounding reward for deeper runs).
+  let survivalWaves = 0;
+  if (input.mode === "survival") {
+    survivalWaves = Math.max(0, Math.floor(input.survivalWaves ?? 0));
+    const waveBonusXp = survivalWaves * 60;
+    const waveBonusCredits = survivalWaves * 20;
+    xpGained += waveBonusXp;
+    creditsGained += waveBonusCredits;
+  }
+
+  const newXp = player.xp + xpGained;
+  const newLevel = levelForXp(newXp);
+  const leveledUp = newLevel > oldLevel;
+
+  // Auto-grant items unlocked by the new level (free ones).
+  // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
+  // auto-granted by level — they're per-weapon (purchased or challenge-earned).
+  const newUnlocks = { weapons: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
+  if (leveledUp) {
+    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+      for (const w of WEAPONS) if (w.unlockLevel === lvl && w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
+    }
+  }
+
+  // --- 17-C: Quest-completion counters ---
+  // Local accumulators for how many challenges (by type) were newly awarded
+  // during THIS match. Added to the Player's lifetime counters in the final
+  // transaction. Used by the new quest achievements (Daily Devotee, Weekly
+  // Warrior, Elite Hunter, Quest Master).
+  let dailyAwardedCount = 0;
+  let weeklyAwardedCount = 0;
+  let eliteAwardedCount = 0;
+
+  // --- Daily challenges progress (with per-player elite promotion 17-C) ---
+  // The effective set may include elite variants (3× goal, 3× reward, suffixed
+  // `_elite` id) for challenges that rolled a promotion this period. Elite
+  // variants are stored with isElite=true so they can be queried/filtered.
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const todaysChallenges = effectiveDailyChallenges(player.playerKey, dayKey);
+  const challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
+  for (const ch of todaysChallenges) {
+    const delta = metricDelta(ch.metric, input);
+    if (delta <= 0) continue;
+    const isElite = ch.id.endsWith("_elite");
+    const existing = await db.dailyChallenge.findUnique({
+      where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey } },
+    });
+    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const justCompleted = !existing?.completed && newProgress >= ch.goal;
+    if (existing) {
+      await db.dailyChallenge.update({
+        where: { id: existing.id },
+        data: { progress: newProgress, completed: justCompleted || existing.completed },
+      });
+    } else {
+      await db.dailyChallenge.create({
+        data: { playerId: player.id, challengeId: ch.id, dayKey, type: "daily", isElite, progress: newProgress, goal: ch.goal, completed: justCompleted },
+      });
+    }
+    // Auto-award on completion (no manual claim needed — keeps UX simple)
+    if (justCompleted && !existing?.awarded) {
+      await db.dailyChallenge.update({
+        where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey } },
+        data: { awarded: true },
+      });
+      challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      xpGained += ch.rewardXp;
+      creditsGained += ch.rewardCredits;
+      // Increment the appropriate quest counter. Elite variants count toward
+      // the elite counter (NOT the daily counter) + the total counter.
+      if (isElite) eliteAwardedCount++;
+      else dailyAwardedCount++;
+    }
+  }
+
+  // --- Weekly challenges progress (2 rotating objectives, ISO week, with elite promotion) ---
+  const weekKey = weeklyChallengeKey();
+  const thisWeeksChallenges = effectiveWeeklyChallenges(player.playerKey, weekKey);
+  for (const ch of thisWeeksChallenges) {
+    const delta = metricDelta(ch.metric, input);
+    if (delta <= 0) continue;
+    const isElite = ch.id.endsWith("_elite");
+    const existing = await db.dailyChallenge.findUnique({
+      where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey: weekKey } },
+    });
+    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const justCompleted = !existing?.completed && newProgress >= ch.goal;
+    if (existing) {
+      await db.dailyChallenge.update({
+        where: { id: existing.id },
+        data: { progress: newProgress, completed: justCompleted || existing.completed },
+      });
+    } else {
+      await db.dailyChallenge.create({
+        data: { playerId: player.id, challengeId: ch.id, dayKey: weekKey, type: "weekly", isElite, progress: newProgress, goal: ch.goal, completed: justCompleted },
+      });
+    }
+    if (justCompleted && !existing?.awarded) {
+      await db.dailyChallenge.update({
+        where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey: weekKey } },
+        data: { awarded: true },
+      });
+      challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      xpGained += ch.rewardXp;
+      creditsGained += ch.rewardCredits;
+      if (isElite) eliteAwardedCount++;
+      else weeklyAwardedCount++;
+    }
+  }
+
+  // --- Achievements check (lifetime stats, including quest counters 17-C) ---
+  // Run AFTER the daily/weekly loops so the new quest-completion counters
+  // reflect this match's awards (Player counters + per-match increments).
+  const newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
+  const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
+  const lifetimeHeadshots = (headshotAgg._sum.headshots ?? 0) + input.headshots;
+  const totalAwardedThisMatch = dailyAwardedCount + weeklyAwardedCount + eliteAwardedCount;
+  const lifetimeStats = {
+    kills: player.kills + input.kills,
+    wins: player.matchesWon + (input.won ? 1 : 0),
+    matches: player.matchesPlayed + 1,
+    level: newLevel,
+    credits_earned_total: player.credits + creditsGained,
+    survival_waves: Math.max(player.survivalBestWave, survivalWaves),
+    // 17-C: post-match lifetime quest counters (existing + this match's awards)
+    daily_challenges_completed: player.dailyChallengesCompleted + dailyAwardedCount,
+    weekly_challenges_completed: player.weeklyChallengesCompleted + weeklyAwardedCount,
+    elite_challenges_completed: player.eliteChallengesCompleted + eliteAwardedCount,
+    total_challenges_completed: player.totalChallengesCompleted + totalAwardedThisMatch,
+    // 19a+19b: lifetime best kill streak — the highest single-match streak
+    // across all matches. Updated here from input.bestStreak (the engine's
+    // per-match bestStreak field). Drives the Triple Threat / Killstreak King /
+    // Untouchable Force tiered achievements.
+    best_killstreak: Math.max(player.bestKillstreak, input.bestStreak ?? 0),
+  };
+  const getStatValue = (metric: string): number => {
+    switch (metric) {
+      case "kills": return lifetimeStats.kills;
+      case "headshots": return lifetimeHeadshots;
+      case "wins": return lifetimeStats.wins;
+      case "matches": return lifetimeStats.matches;
+      case "level": return lifetimeStats.level;
+      case "credits_earned_total": return lifetimeStats.credits_earned_total;
+      case "survival_waves": return lifetimeStats.survival_waves;
+      case "daily_challenges_completed": return lifetimeStats.daily_challenges_completed;
+      case "weekly_challenges_completed": return lifetimeStats.weekly_challenges_completed;
+      case "elite_challenges_completed": return lifetimeStats.elite_challenges_completed;
+      case "total_challenges_completed": return lifetimeStats.total_challenges_completed;
+      // 19a+19b: lifetime best kill streak (Player.bestKillstreak). Set by
+      // Math.max above when this match's bestStreak exceeds the prior best.
+      case "best_killstreak": return lifetimeStats.best_killstreak;
+      default: return 0;
+    }
+  };
+
+  const earnedAchievementIds = new Set(player.achievements?.map((a) => a.achievementId) ?? []);
+  for (const ach of ACHIEVEMENTS) {
+    if (earnedAchievementIds.has(ach.id)) continue;
+    if (getStatValue(ach.metric) >= ach.goal) {
+      newAchievements.push({ id: ach.id, title: ach.title, rewardXp: ach.rewardXp, rewardCredits: ach.rewardCredits });
+      xpGained += ach.rewardXp;
+      creditsGained += ach.rewardCredits;
+    }
+  }
+
+  // NOTE (17-C): The legacy lifetime ELITE_QUESTS block has been removed.
+  // Elite is now a per-period promotion of daily/weekly challenges (handled
+  // in the loops above). Old DB rows with type="elite" / dayKey="elite" are
+  // left orphaned (no automatic cleanup) — they don't affect new logic.
+
+  const bonusXp = xpGained - (killXp + winXp + REWARDS.participationXp);
+  const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
+
+  // --- Per-weapon skin challenges (kills / headshots milestones) ---
+  // The equipped weapon for this match may have just crossed a challenge goal.
+  // We compute the post-match totals for each weapon that got kills this match
+  // (existing DB aggregates + this match's contribution) and create SkinUnlock
+  // rows for any newly-completed challenges. Standard-tier skins unlock globally
+  // (one SkinUnlock row with weaponId="*"); non-standard (future) skins are PER-WEAPON.
+  //
+  // GUN GAME NOTE: In gungame mode the player cycles through every weapon in
+  // GUN_GAME_PROGRESSION (pistol → SMG → rifle → … → knife). The engine tracks
+  // per-weapon kill/headshot tallies in `input.perWeaponKills`. We use that map
+  // to attribute this match's kills to the weapon actually used for each kill —
+  // so the Breacher's "Close Quarters" challenge progresses on shotgun kills
+  // even though the match-start weapon (pistol_side) is what's stored in
+  // `input.weaponId` / MatchRecord.weaponId. Non-gungame callers omit the map;
+  // their kills default to `input.weaponId` (the equipped weapon) as before.
+  const equippedWeaponId = input.weaponId ?? player.loadout?.primaryWeapon ?? "rifle_ar";
+  const newWeaponChallenges: { challengeId: string; weaponId: string; skinId: string; title: string; description: string }[] = [];
+  // Build the set of weapons that got kills this match: always include the
+  // equipped/start weapon, plus every weapon in perWeaponKills (gungame).
+  const perWeaponKillsInput = input.perWeaponKills ?? {};
+  const hasPerWeapon = input.perWeaponKills != null;
+  const weaponsToCheck = new Set<string>();
+  if (equippedWeaponId) weaponsToCheck.add(equippedWeaponId);
+  for (const wid of Object.keys(perWeaponKillsInput)) weaponsToCheck.add(wid);
+  // Pre-filter to catalog weapons that actually have challenges defined —
+  // avoids issuing pointless DB aggregate queries for unknown weapons.
+  const catalogWeaponIds = new Set(WEAPONS.map((w) => w.id));
+  const challengeWeaponIds = new Set(WEAPON_CHALLENGES.map((c) => c.weaponId));
+  const anyWeaponToCheck = [...weaponsToCheck].some((wid) => catalogWeaponIds.has(wid) && challengeWeaponIds.has(wid));
+  if (anyWeaponToCheck) {
+    // Fetch ALL of the player's skin unlocks ONCE — we'll check both per-weapon AND
+    // wildcard rows when deciding if a standard skin is already unlocked.
+    const allPlayerSkinUnlocks = await db.skinUnlock.findMany({
+      where: { playerId: player.id },
+    });
+    // Map skinId -> set of weaponIds it's been unlocked for (including "*").
+    const skinUnlockMap = new Map<string, Set<string>>();
+    for (const u of allPlayerSkinUnlocks) {
+      if (!skinUnlockMap.has(u.skinId)) skinUnlockMap.set(u.skinId, new Set());
+      skinUnlockMap.get(u.skinId)!.add(u.weaponId);
+    }
+    for (const wid of weaponsToCheck) {
+      // Skip non-catalog weapons or weapons with no challenges defined.
+      if (!catalogWeaponIds.has(wid)) continue;
+      if (!challengeWeaponIds.has(wid)) continue;
+      // Helper: is this skinId already unlocked for the current weapon?
+      // Standard skins: unlocked if ANY row exists for it (globally).
+      // Non-standard: unlocked only if a row exists with weaponId === wid OR "*".
+      const isSkinAlreadyUnlocked = (skinId: string): boolean => {
+        const weaponIds = skinUnlockMap.get(skinId);
+        if (!weaponIds || weaponIds.size === 0) return false;
+        const skinDef = WEAPON_SKINS.find((s) => s.id === skinId);
+        if (skinDef && isStandardSkin(skinDef)) return true; // any unlock = global
+        return weaponIds.has(wid) || weaponIds.has(SKIN_WILDCARD_WEAPON_ID);
+      };
+      // Lifetime kills/headshots for this weapon come from the WeaponProgress
+      // table (updated on every match completion). NOTE: MatchRecord.weaponId
+      // only stores the match-start weapon (pistol_side in gungame), so aggregating
+      // MatchRecord would ALWAYS return 0 for the other weapons cycled through in
+      // gungame. WeaponProgress is updated from perWeaponKills (gungame) or the
+      // equipped weapon (other modes) inside the $transaction below.
+      const wp = await db.weaponProgress.findUnique({
+        where: { playerId_weaponId: { playerId: player.id, weaponId: wid } },
+      });
+      // This match's contribution to this weapon. If the caller sent perWeaponKills
+      // (gungame), use the per-weapon tally (0 if no entry for this weapon). Otherwise
+      // (non-gungame / legacy), attribute all kills/headshots to the equipped weapon.
+      const matchKills = hasPerWeapon
+        ? (perWeaponKillsInput[wid]?.kills ?? 0)
+        : (wid === equippedWeaponId ? input.kills : 0);
+      const matchHeadshots = hasPerWeapon
+        ? (perWeaponKillsInput[wid]?.headshots ?? 0)
+        : (wid === equippedWeaponId ? input.headshots : 0);
+      const weaponKills = (wp?.kills ?? 0) + matchKills;
+      const weaponHeadshots = (wp?.headshots ?? 0) + matchHeadshots;
+      for (const ch of WEAPON_CHALLENGES) {
+        if (ch.weaponId !== wid) continue;
+        if (isSkinAlreadyUnlocked(ch.skinId)) continue;
+        const value = ch.metric === "kills" ? weaponKills : weaponHeadshots;
+        if (value >= ch.goal) {
+          newWeaponChallenges.push({
+            challengeId: ch.id,
+            weaponId: ch.weaponId,
+            skinId: ch.skinId,
+            title: ch.title,
+            description: ch.description,
+          });
+        }
+      }
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.player.update({
+      where: { id: player.id },
+      data: {
+        xp: player.xp + xpGained,
+        credits: player.credits + creditsGained,
+        kills: player.kills + input.kills,
+        deaths: player.deaths + input.deaths,
+        matchesPlayed: player.matchesPlayed + 1,
+        matchesWon: player.matchesWon + (input.won ? 1 : 0),
+        survivalBestWave: Math.max(player.survivalBestWave, survivalWaves),
+        // 17-C: increment lifetime quest-completion counters
+        dailyChallengesCompleted: player.dailyChallengesCompleted + dailyAwardedCount,
+        weeklyChallengesCompleted: player.weeklyChallengesCompleted + weeklyAwardedCount,
+        eliteChallengesCompleted: player.eliteChallengesCompleted + eliteAwardedCount,
+        totalChallengesCompleted: player.totalChallengesCompleted + totalAwardedThisMatch,
+        // 19a+19b: update lifetime best kill streak. Math.max so a lower
+        // bestStreak this match doesn't overwrite a higher prior best.
+        bestKillstreak: Math.max(player.bestKillstreak, input.bestStreak ?? 0),
+      },
+    });
+    if (newUnlocks.weapons.length) await tx.weaponUnlock.createMany({ data: newUnlocks.weapons.map((id) => ({ playerId: player.id, weaponId: id })) });
+    // Per-weapon skin unlocks from completed weapon challenges.
+    // Standard-tier skins are written with weaponId="*" so the unlock applies
+    // GLOBALLY (the skin becomes available on every weapon). Non-standard
+    // (future rare/legendary) skins keep the specific weaponId.
+    // NOTE: skipDuplicates omitted — SQLite's createMany doesn't support it
+    // (Prisma throws "Unknown argument `skipDuplicates`"). The
+    // isSkinAlreadyUnlocked() filter above already prevents duplicates from
+    // reaching this createMany, so we don't need DB-level dedup here.
+    if (newWeaponChallenges.length) {
+      await tx.skinUnlock.createMany({
+        data: newWeaponChallenges.map((c) => {
+          const skinDef = WEAPON_SKINS.find((s) => s.id === c.skinId);
+          const isStandard = skinDef ? isStandardSkin(skinDef) : true;
+          return {
+            playerId: player.id,
+            weaponId: isStandard ? SKIN_WILDCARD_WEAPON_ID : c.weaponId,
+            skinId: c.skinId,
+          };
+        }),
+      });
+    }
+    if (newAchievements.length) await tx.playerAchievement.createMany({ data: newAchievements.map((a) => ({ playerId: player.id, achievementId: a.id })) });
+    // Update lifetime per-weapon progress. WeaponProgress is the source of truth
+    // for weapon challenge checks (above). In gungame, the player cycles through
+    // many weapons per match — MatchRecord.weaponId only stores the match-start
+    // weapon, so we'd lose per-weapon kills between matches without this table.
+    // Non-gungame callers omit perWeaponKills; we attribute all kills/headshots
+    // to the equipped weapon in that case (matching the challenge-check logic).
+    const perWeaponKillsForTx = input.perWeaponKills ?? {};
+    const equippedForTx = equippedWeaponId;
+    const weaponContributions: Record<string, { kills: number; headshots: number }> = {};
+    if (hasPerWeapon) {
+      for (const [wid, vals] of Object.entries(perWeaponKillsForTx)) {
+        weaponContributions[wid] = { kills: vals.kills, headshots: vals.headshots };
+      }
+    } else if (equippedForTx) {
+      weaponContributions[equippedForTx] = { kills: input.kills, headshots: input.headshots };
+    }
+    for (const [wid, vals] of Object.entries(weaponContributions)) {
+      if (vals.kills === 0 && vals.headshots === 0) continue;
+      const existing = await tx.weaponProgress.findUnique({ where: { playerId_weaponId: { playerId: player.id, weaponId: wid } } });
+      await tx.weaponProgress.upsert({
+        where: { playerId_weaponId: { playerId: player.id, weaponId: wid } },
+        create: { playerId: player.id, weaponId: wid, kills: vals.kills, headshots: vals.headshots },
+        update: { kills: (existing?.kills ?? 0) + vals.kills, headshots: (existing?.headshots ?? 0) + vals.headshots },
+      });
+    }
+    // Append a match record for the history view
+    await tx.matchRecord.create({
+      data: {
+        playerId: player.id,
+        mode: input.mode,
+        online: input.online ?? false,
+        kills: input.kills,
+        deaths: input.deaths,
+        headshots: input.headshots,
+        score: input.score,
+        placement: input.placement ?? 1,
+        won: input.won,
+        durationSec: input.durationSec ?? 0,
+        weaponId: input.weaponId ?? "rifle_ar",
+        waves: survivalWaves,
+      },
+    });
+  });
+
+  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newAchievements, challengeAwards, bonusXp, bonusCredits };
+}
+
+// --- Profile enrichment: recent matches, achievements, daily challenge progress ---
+export interface MatchRecordView {
+  id: string;
+  mode: string;
+  online: boolean;
+  kills: number;
+  deaths: number;
+  headshots: number;
+  score: number;
+  placement: number;
+  won: boolean;
+  durationSec: number;
+  weaponId: string;
+  waves: number;
+  playedAt: string;
+}
+
+export interface DailyChallengeView {
+  challengeId: string;
+  title: string;
+  description: string;
+  icon: string;
+  metric: ChallengeMetric;
+  goal: number;
+  progress: number;
+  completed: boolean;
+  awarded: boolean;
+  rewardXp: number;
+  rewardCredits: number;
+  // 17-C: true if this is an elite-promoted variant of the base daily
+  // challenge (3× goal, 3× reward, purple/pink UI treatment).
+  isElite: boolean;
+}
+
+export interface AchievementView {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  tier: string;
+  metric: string;
+  goal: number;
+  currentValue: number;
+  earned: boolean;
+  earnedAt?: string;
+  rewardXp: number;
+  rewardCredits: number;
+}
+
+export async function getRecentMatches(playerKey: string, limit = 20): Promise<MatchRecordView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  const records = await db.matchRecord.findMany({
+    where: { playerId: player.id },
+    orderBy: { playedAt: "desc" },
+    take: limit,
+  });
+  return records.map((r) => ({
+    id: r.id, mode: r.mode, online: r.online, kills: r.kills, deaths: r.deaths,
+    headshots: r.headshots, score: r.score, placement: r.placement, won: r.won,
+    durationSec: r.durationSec, weaponId: r.weaponId, waves: r.waves, playedAt: r.playedAt.toISOString(),
+  }));
+}
+
+// ---- Weekly challenges ----
+export interface WeeklyChallengeView {
+  challengeId: string;
+  title: string;
+  description: string;
+  icon: string;
+  metric: ChallengeMetric;
+  goal: number;
+  progress: number;
+  completed: boolean;
+  awarded: boolean;
+  rewardXp: number;
+  rewardCredits: number;
+  weekKey: string;
+  // 17-C: true if this is an elite-promoted variant of the base weekly
+  // challenge (3× goal, 3× reward, purple/pink UI treatment).
+  isElite: boolean;
+}
+
+// 17-C: Build the player's effective daily challenge set, applying per-player
+// elite promotion. Each base daily challenge has a deterministic DAILY_ELITE_CHANCE
+// chance (per playerKey + dayKey + challengeId) of being replaced by its elite
+// variant (3× goal, 3× reward, suffixed `_elite` id). Returns the array of
+// effective ChallengeDefs (some may be elite variants).
+function effectiveDailyChallenges(playerKey: string, dayKey: string): ChallengeDef[] {
+  const base = dailyChallengeSet();
+  return base.map((c) =>
+    shouldPromoteToElite(playerKey, dayKey, c.id, DAILY_ELITE_CHANCE)
+      ? promoteChallengeToElite(c)
+      : c,
+  );
+}
+
+// 17-C: Same as effectiveDailyChallenges but for the weekly set with
+// WEEKLY_ELITE_CHANCE.
+function effectiveWeeklyChallenges(playerKey: string, weekKey: string): ChallengeDef[] {
+  const base = weeklyChallengeSet();
+  return base.map((c) =>
+    shouldPromoteToElite(playerKey, weekKey, c.id, WEEKLY_ELITE_CHANCE)
+      ? promoteChallengeToElite(c)
+      : c,
+  );
+}
+
+export async function getDailyChallengesView(playerKey: string): Promise<DailyChallengeView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const set = effectiveDailyChallenges(player.playerKey, dayKey);
+  const progress = await db.dailyChallenge.findMany({ where: { playerId: player.id, dayKey } });
+  const byId = new Map(progress.map((p) => [p.challengeId, p]));
+  return set.map((c) => {
+    const p = byId.get(c.id);
+    // isElite is inferred from the suffixed id (the base id won't have a row
+    // because we never wrote one — only the suffixed one is created on first
+    // progress update). This avoids needing the DB column for the view layer
+    // (the column is for queryability / future analytics).
+    const isElite = c.id.endsWith("_elite");
+    return {
+      challengeId: c.id,
+      title: c.title,
+      description: c.description,
+      icon: c.icon,
+      metric: c.metric,
+      goal: c.goal,
+      progress: p?.progress ?? 0,
+      completed: p?.completed ?? false,
+      awarded: p?.awarded ?? false,
+      rewardXp: c.rewardXp,
+      rewardCredits: c.rewardCredits,
+      isElite,
+    };
+  });
+}
+
+export async function getWeeklyChallengesView(playerKey: string): Promise<WeeklyChallengeView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  const weekKey = weeklyChallengeKey();
+  const set = effectiveWeeklyChallenges(player.playerKey, weekKey);
+  const progress = await db.dailyChallenge.findMany({ where: { playerId: player.id, dayKey: weekKey } });
+  const byId = new Map(progress.map((p) => [p.challengeId, p]));
+  return set.map((c) => {
+    const p = byId.get(c.id);
+    const isElite = c.id.endsWith("_elite");
+    return {
+      challengeId: c.id,
+      title: c.title,
+      description: c.description,
+      icon: c.icon,
+      metric: c.metric,
+      goal: c.goal,
+      progress: p?.progress ?? 0,
+      completed: p?.completed ?? false,
+      awarded: p?.awarded ?? false,
+      rewardXp: c.rewardXp,
+      rewardCredits: c.rewardCredits,
+      weekKey,
+      isElite,
+    };
+  });
+}
+
+// ---- Elite quests (LEGACY LIFETIME view) ----
+// 17-C: kept for backward-compat with old DB rows that have type="elite" /
+// dayKey="elite" from prior migrations. The new Elite system is per-period
+// (daily/weekly) elite variants — see getDailyChallengesView / getWeeklyChallengesView
+// above. This function still reads the legacy lifetime rows so existing data
+// isn't orphaned, but is no longer called by /api/challenges (which now only
+// returns daily + weekly + their elite variants).
+export interface EliteQuestView {
+  challengeId: string;
+  title: string;
+  description: string;
+  icon: string;
+  metric: ChallengeMetric;
+  goal: number;
+  progress: number;        // current lifetime stat value (clamped to goal for display)
+  completed: boolean;
+  awarded: boolean;
+  rewardXp: number;
+  rewardCredits: number;
+}
+
+export async function getEliteQuestsView(playerKey: string): Promise<EliteQuestView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  const elitePeriodKey = "elite";
+  const rows = await db.dailyChallenge.findMany({ where: { playerId: player.id, dayKey: elitePeriodKey } });
+  const byId = new Map(rows.map((r) => [r.challengeId, r]));
+  // Lifetime stats — computed from the player + match record aggregates (same
+  // pattern as getAchievementsView).
+  const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
+  const lifetimeHeadshots = headshotAgg._sum.headshots ?? 0;
+  const level = levelForXp(player.xp);
+  const statFor = (metric: ChallengeMetric): number => {
+    switch (metric) {
+      case "kills": return player.kills;
+      case "headshots": return lifetimeHeadshots;
+      case "wins": return player.matchesWon;
+      case "matches": return player.matchesPlayed;
+      case "level": return level;
+      case "survival_waves": return player.survivalBestWave;
+      default: return 0;
+    }
+  };
+  return ELITE_QUESTS.map((q) => {
+    const r = byId.get(q.id);
+    const current = statFor(q.metric);
+    const completed = (r?.completed ?? false) || current >= q.goal;
+    return {
+      challengeId: q.id,
+      title: q.title,
+      description: q.description,
+      icon: q.icon,
+      metric: q.metric,
+      goal: q.goal,
+      progress: Math.min(q.goal, Math.max(r?.progress ?? 0, current)),
+      completed,
+      awarded: r?.awarded ?? false,
+      rewardXp: q.rewardXp,
+      rewardCredits: q.rewardCredits,
+    };
+  });
+}
+
+export async function getAchievementsView(playerKey: string): Promise<AchievementView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  const earned = await db.playerAchievement.findMany({ where: { playerId: player.id } });
+  const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
+  const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
+  const lifetimeHeadshots = headshotAgg._sum.headshots ?? 0;
+  const statFor = (metric: string): number => {
+    switch (metric) {
+      case "kills": return player.kills;
+      case "headshots": return lifetimeHeadshots;
+      case "wins": return player.matchesWon;
+      case "matches": return player.matchesPlayed;
+      case "level": return levelForXp(player.xp);
+      case "credits_earned_total": return player.credits;
+      case "survival_waves": return player.survivalBestWave;
+      // 17-C: quest-completion lifetime counters (stored on Player)
+      case "daily_challenges_completed": return player.dailyChallengesCompleted;
+      case "weekly_challenges_completed": return player.weeklyChallengesCompleted;
+      case "elite_challenges_completed": return player.eliteChallengesCompleted;
+      case "total_challenges_completed": return player.totalChallengesCompleted;
+      // 19a+19b: lifetime best kill streak (Player.bestKillstreak)
+      case "best_killstreak": return player.bestKillstreak;
+      default: return 0;
+    }
+  };
+  return ACHIEVEMENTS.map((a) => {
+    const e = earnedMap.get(a.id);
+    return {
+      id: a.id, title: a.title, description: a.description, icon: a.icon, tier: a.tier,
+      metric: a.metric, goal: a.goal, currentValue: statFor(a.metric),
+      earned: !!e, earnedAt: e?.toISOString(), rewardXp: a.rewardXp, rewardCredits: a.rewardCredits,
+    };
+  });
+}
+
+// --- Per-weapon progress (kills / headshots) for the Armory challenge view ---
+export interface WeaponProgressView {
+  weaponId: string;
+  kills: number;
+  headshots: number;
+}
+
+// Aggregate lifetime kills + headshots for a single weapon, used to display
+// per-weapon challenge progress in the Armory.
+export async function getWeaponProgress(playerKey: string, weaponId: string): Promise<WeaponProgressView> {
+  const player = await getOrCreatePlayer(playerKey);
+  if (!player) return { weaponId, kills: 0, headshots: 0 };
+  const agg = await db.matchRecord.aggregate({
+    where: { playerId: player.id, weaponId },
+    _sum: { kills: true, headshots: true },
+  });
+  return {
+    weaponId,
+    kills: agg._sum.kills ?? 0,
+    headshots: agg._sum.headshots ?? 0,
+  };
+}
+
+// Aggregate lifetime kills + headshots for EVERY weapon the player has used.
+// Returns a map keyed by weaponId. Used by the Armory to render all weapon
+// challenge progress tiles without N round-trips.
+export async function getAllWeaponProgress(playerKey: string): Promise<Record<string, WeaponProgressView>> {
+  const player = await getOrCreatePlayer(playerKey);
+  if (!player) return {};
+  const rows = await db.matchRecord.groupBy({
+    by: ["weaponId"],
+    where: { playerId: player.id },
+    _sum: { kills: true, headshots: true },
+  });
+  const out: Record<string, WeaponProgressView> = {};
+  for (const r of rows) {
+    out[r.weaponId] = {
+      weaponId: r.weaponId,
+      kills: r._sum.kills ?? 0,
+      headshots: r._sum.headshots ?? 0,
+    };
+  }
+  return out;
+}
+
+// Per-weapon challenge view: for a single weapon, return each challenge with
+// the player's current progress, completion state, and the unlocked skin id.
+export interface WeaponChallengeView {
+  challengeId: string;
+  weaponId: string;
+  skinId: string;
+  metric: "kills" | "headshots";
+  goal: number;
+  progress: number;
+  completed: boolean;
+  title: string;
+  description: string;
+}
+
+export async function getWeaponChallengesView(playerKey: string, weaponId: string): Promise<WeaponChallengeView[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  if (!player) return [];
+  const progress = await getWeaponProgress(playerKey, weaponId);
+  const unlockedSkins = await db.skinUnlock.findMany({
+    where: { playerId: player.id, weaponId },
+  });
+  const unlockedSkinIds = new Set(unlockedSkins.map((u) => u.skinId));
+  // "default" is always unlocked; baseline free-by-level skins are also unlocked.
+  const level = levelForXp(player.xp);
+  for (const s of WEAPON_SKINS) {
+    if (s.id === "default" || (s.unlockCost === 0 && s.unlockLevel <= level)) unlockedSkinIds.add(s.id);
+  }
+  const challenges = WEAPON_CHALLENGES.filter((c) => c.weaponId === weaponId);
+  return challenges.map((c) => {
+    const value = c.metric === "kills" ? progress.kills : progress.headshots;
+    return {
+      challengeId: c.id,
+      weaponId: c.weaponId,
+      skinId: c.skinId,
+      metric: c.metric,
+      goal: c.goal,
+      progress: Math.min(c.goal, value),
+      completed: unlockedSkinIds.has(c.skinId),
+      title: c.title,
+      description: c.description,
+    };
+  });
+}
+
+// Per-weapon attachment unlock view: returns the attachment IDs the player has
+// unlocked for a specific weapon.
+export async function getWeaponAttachmentUnlocks(playerKey: string, weaponId: string): Promise<string[]> {
+  const player = await getOrCreatePlayer(playerKey);
+  if (!player) return [];
+  const rows = await db.attachmentUnlock.findMany({
+    where: { playerId: player.id, weaponId },
+  });
+  return rows.map((r) => r.attachmentId);
+}
+
+// Normalize an unknown weapon id to a valid catalog id (fallback to rifle_ar).
+export function safeWeaponId(id: string | undefined | null): string {
+  if (id && WEAPONS.some((w) => w.id === id)) return id;
+  return "rifle_ar";
+}
+// Re-export for callers that already import from player-service.
+export { weaponById };

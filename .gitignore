@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Next.js and build output
+.next/
+out/
+build/
+dist/
+coverage/
+.turbo/
+.vercel/
+
+# Generated files
+next-env.d.ts
+*.tsbuildinfo
+
+# Local environment and secrets
+.env*
+!.env.example
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Temp
+*.patch

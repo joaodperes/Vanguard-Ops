@@ -1,0 +1,214 @@
+// Prisma schema for VANGUARD OPS — browser FPS progression & loadouts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A player profile. Keyed by a client-generated playerKey (stored in localStorage)
+/// so the game works without authentication. One row per persistent player.
+/// If a User account exists, it owns exactly one Player row.
+model Player {
+  id              String   @id @default(cuid())
+  playerKey       String   @unique
+  name            String
+  level           Int      @default(1)
+  xp              Int      @default(0)
+  credits         Int      @default(0)
+  kills           Int      @default(0)
+  deaths          Int      @default(0)
+  matchesPlayed   Int      @default(0)
+  matchesWon      Int      @default(0)
+  survivalBestWave Int     @default(0)
+  selectedSkin    String   @default("default")
+  // 17-C: Quest-completion lifetime counters (used by the 4 quest achievements).
+  // Incremented in applyMatchResult when a challenge transitions to awarded=true.
+  dailyChallengesCompleted   Int @default(0)
+  weeklyChallengesCompleted  Int @default(0)
+  eliteChallengesCompleted   Int @default(0)
+  totalChallengesCompleted   Int @default(0)
+  // 19a+19b: Lifetime highest kill streak (kills within the 5s streak window).
+  // Updated in applyMatchResult via Math.max(player.bestKillstreak, input.bestStreak).
+  // Drives the Triple Threat (3) / Killstreak King (5) / Untouchable Force (10)
+  // tiered achievements.
+  bestKillstreak             Int @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User?
+  weaponUnlocks   WeaponUnlock[]
+  skinUnlocks     SkinUnlock[]
+  attachmentUnlocks AttachmentUnlock[]
+  loadout         Loadout?
+  matchRecords    MatchRecord[]
+  achievements    PlayerAchievement[]
+  dailyChallenges DailyChallenge[]
+  weaponProgress  WeaponProgress[]
+
+  @@index([playerKey])
+}
+
+/// An optional account (email + password) that owns a Player profile.
+/// Enables cross-device progression. Guest players have no User row.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  playerId     String   @unique
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+}
+
+/// Weapons a player has unlocked. Weapon id matches the static catalog.
+model WeaponUnlock {
+  id        String   @id @default(cuid())
+  playerId  String
+  weaponId  String
+  unlockedAt DateTime @default(now())
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, weaponId])
+}
+
+/// Weapon skins a player has unlocked. Skins are unlocked PER-WEAPON via
+/// weapon challenges (kills/headshots milestones). The unique constraint
+/// (playerId, weaponId, skinId) lets the same skin be re-earned on different
+/// weapons and tracks which weapon each skin unlock applies to.
+model SkinUnlock {
+  id        String   @id @default(cuid())
+  playerId  String
+  weaponId  String
+  skinId    String
+  unlockedAt DateTime @default(now())
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, weaponId, skinId])
+  @@index([playerId, weaponId])
+}
+
+/// Attachments a player has unlocked PER-WEAPON. The unique constraint is
+/// (playerId, weaponId, attachmentId) — the same attachment must be unlocked
+/// separately for each weapon it can be equipped on.
+model AttachmentUnlock {
+  id        String   @id @default(cuid())
+  playerId  String
+  weaponId  String
+  attachmentId String
+  unlockedAt DateTime @default(now())
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, weaponId, attachmentId])
+  @@index([playerId, weaponId])
+}
+
+/// The player's currently equipped loadout. One-to-one with Player.
+model Loadout {
+  id              String   @id @default(cuid())
+  playerId        String   @unique
+  primaryWeapon   String   @default("rifle_ar")
+  secondaryWeapon String   @default("pistol_side")
+  meleeWeapon     String   @default("knife_tactical")
+  /// Skin for the PRIMARY weapon (per-weapon, like attachments).
+  weaponSkin      String   @default("default")
+  /// Skin for the SECONDARY (sidearm) weapon. Per-weapon so changing a skin on
+  /// one weapon doesn't change it for all weapons.
+  secondaryWeaponSkin String @default("default")
+  /// Skin for the MELEE weapon.
+  meleeWeaponSkin     String @default("default")
+  playerSkin      String   @default("default")
+  /// JSON string of selected attachment ids keyed by slot for the PRIMARY weapon:
+  /// {"sight":"red_dot","barrel":"suppressor","grip":"vertical"}
+  attachments     String   @default("{}")
+  /// JSON string of attachment ids for the SECONDARY (sidearm) slot. Sidearms
+  /// support attachments just like primaries. Default empty ("{}").
+  secondaryAttachments String @default("{}")
+  /// JSON string of attachment ids for the MELEE slot. Melee weapons don't
+  /// take attachments — this column exists for forward-compat (future melee
+  /// weapons could have skins/attachments). Default empty ("{}").
+  meleeAttachments     String @default("{}")
+  updatedAt       DateTime @updatedAt
+  player          Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+/// A single match record — appended on every match completion. Used for the
+/// profile "Recent Matches" list and headshot/weapon-kill aggregation.
+model MatchRecord {
+  id           String   @id @default(cuid())
+  playerId     String
+  mode         String   // "ffa" | "tdm" | "survival"
+  online       Boolean  @default(false)
+  kills        Int
+  deaths       Int
+  headshots    Int
+  score        Int
+  placement    Int      // 1-based
+  won          Boolean
+  durationSec  Int
+  weaponId     String   @default("rifle_ar")
+  waves        Int      @default(0)   // survival: highest wave reached
+  playedAt     DateTime @default(now())
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, playedAt])
+}
+
+/// Lifetime per-weapon kill/headshot progress. Updated on every match completion.
+/// Used by weapon challenge checks (WEAPON_CHALLENGES) to determine skin unlocks.
+/// In Gun Game, the player cycles through many weapons per match — MatchRecord.weaponId
+/// only stores the match-start weapon, so we need this table to accurately track
+/// per-weapon lifetime kills across all game modes.
+model WeaponProgress {
+  id        String   @id @default(cuid())
+  playerId  String
+  weaponId  String
+  kills     Int      @default(0)
+  headshots Int      @default(0)
+  updatedAt DateTime @updatedAt
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// Achievements earned by the player. One row per achievement id.
+model PlayerAchievement {
+  id          String   @id @default(cuid())
+  playerId    String
+  achievementId String
+  earnedAt    DateTime @default(now())
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, achievementId])
+}
+
+/// Daily / Weekly challenge progress. Keyed by (player, challenge id, period
+/// key). The `type` field is "daily" or "weekly" (rotating, period-bound).
+/// `isElite` marks a promoted elite variant — same period as its parent
+/// (daily elite resets daily, weekly elite resets weekly) but with 3x goal
+/// and 3x reward. The challenge id is suffixed with `_elite` when promoted
+/// so the (playerId, challengeId, dayKey) unique key won't collide with the
+/// base challenge. `periodKey` (column `dayKey`) is YYYY-MM-DD for daily
+/// and YYYY-Www for weekly. Awarded flag prevents double-claiming rewards.
+model DailyChallenge {
+  id           String   @id @default(cuid())
+  playerId     String
+  challengeId  String
+  dayKey       String   // YYYY-MM-DD (daily) | YYYY-Www (weekly) | "elite" (legacy lifetime)
+  type         String   @default("daily")  // "daily" | "weekly" | "elite" (legacy lifetime)
+  isElite      Boolean  @default(false)    // 17-C: true if this is an elite-promoted variant
+  progress     Int      @default(0)
+  goal         Int
+  completed    Boolean  @default(false)
+  awarded      Boolean  @default(false)
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, challengeId, dayKey])
+  @@index([playerId, dayKey])
+  @@index([playerId, type])
+}

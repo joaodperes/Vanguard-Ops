@@ -1,0 +1,108 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { resolvePlayerKey } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
+
+// GET /api/profile/export?playerKey=...
+// Exports the player's entire progression as a JSON file. The player can save
+// this file as a backup. If the server DB is ever wiped (e.g. a redeploy that
+// loses the persistent volume), the player can restore via /api/profile/import.
+//
+// The export includes: player row, all unlocks (weapons/skins/attachments),
+// loadout, match records, achievements, daily challenges, and weapon progress.
+// It does NOT include User (email/password) rows — those are tied to accounts
+// and can't be restored without re-registering.
+export async function GET(req: NextRequest) {
+  const qp = req.nextUrl.searchParams.get("playerKey") ?? undefined;
+  const { playerKey } = await resolvePlayerKey(req, qp);
+  if (!playerKey) {
+    return NextResponse.json({ error: "playerKey required" }, { status: 400 });
+  }
+
+  const player = await db.player.findUnique({
+    where: { playerKey },
+    include: {
+      weaponUnlocks: true,
+      skinUnlocks: true,
+      attachmentUnlocks: true,
+      loadout: true,
+      matchRecords: true,
+      achievements: true,
+      dailyChallenges: true,
+      weaponProgress: true,
+    },
+  });
+
+  if (!player) {
+    return NextResponse.json({ error: "player not found" }, { status: 404 });
+  }
+
+  const exportData = {
+    format: "vanguard-ops-profile-v1",
+    exportedAt: new Date().toISOString(),
+    playerKey: player.playerKey,
+    player: {
+      name: player.name,
+      level: player.level,
+      xp: player.xp,
+      credits: player.credits,
+      kills: player.kills,
+      deaths: player.deaths,
+      matchesPlayed: player.matchesPlayed,
+      matchesWon: player.matchesWon,
+      survivalBestWave: player.survivalBestWave,
+      selectedSkin: player.selectedSkin,
+      dailyChallengesCompleted: player.dailyChallengesCompleted,
+      weeklyChallengesCompleted: player.weeklyChallengesCompleted,
+      eliteChallengesCompleted: player.eliteChallengesCompleted,
+      totalChallengesCompleted: player.totalChallengesCompleted,
+      // 19a+19b: include lifetime best kill streak so profile transfers
+      // preserve streak-achievement progress (Triple Threat / Killstreak King /
+      // Untouchable Force).
+      bestKillstreak: player.bestKillstreak,
+    },
+    weaponUnlocks: player.weaponUnlocks.map((u) => ({ weaponId: u.weaponId })),
+    skinUnlocks: player.skinUnlocks.map((u) => ({ weaponId: u.weaponId, skinId: u.skinId })),
+    attachmentUnlocks: player.attachmentUnlocks.map((u) => ({ weaponId: u.weaponId, attachmentId: u.attachmentId })),
+    loadout: player.loadout
+      ? {
+          primaryWeapon: player.loadout.primaryWeapon,
+          secondaryWeapon: player.loadout.secondaryWeapon,
+          meleeWeapon: player.loadout.meleeWeapon,
+          weaponSkin: player.loadout.weaponSkin,
+          playerSkin: player.loadout.playerSkin,
+          attachments: player.loadout.attachments,
+          secondaryAttachments: player.loadout.secondaryAttachments,
+          meleeAttachments: player.loadout.meleeAttachments,
+        }
+      : null,
+    achievements: player.achievements.map((a) => ({ achievementId: a.achievementId, earnedAt: a.earnedAt })),
+    weaponProgress: player.weaponProgress.map((w) => ({ weaponId: w.weaponId, kills: w.kills, headshots: w.headshots })),
+    // Match records can be large; include them for completeness but they're
+    // optional on import (the import can skip them to save space).
+    matchRecords: player.matchRecords.map((m) => ({
+      mode: m.mode,
+      online: m.online,
+      kills: m.kills,
+      deaths: m.deaths,
+      headshots: m.headshots,
+      score: m.score,
+      placement: m.placement,
+      won: m.won,
+      durationSec: m.durationSec,
+      weaponId: m.weaponId,
+      waves: m.waves,
+      playedAt: m.playedAt,
+    })),
+  };
+
+  // Return as a downloadable JSON attachment.
+  return new NextResponse(JSON.stringify(exportData, null, 2), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="vanguard-ops-profile-${player.name.replace(/[^a-zA-Z0-9]/g, "_")}.json"`,
+    },
+  });
+}
