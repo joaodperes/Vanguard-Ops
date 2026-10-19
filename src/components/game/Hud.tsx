@@ -5,7 +5,7 @@ import type { GameMode } from "@/lib/game-protocol";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById } from "@/lib/game-data";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
