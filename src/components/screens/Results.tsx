@@ -112,7 +112,7 @@ export function Results() {
 
               {(rewards.bonusXp ?? 0) > 0 && (
                 <div className="text-xs text-white/40 flex items-center gap-1.5">
-                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from achievements &amp; challenges
+                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from objectives, streaks &amp; challenges
                 </div>
               )}
 
