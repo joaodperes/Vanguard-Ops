@@ -393,7 +393,7 @@ export function Play() {
                       <div>
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
-                          {[0, 15, 25, 30, 50, 60, 75, 100].map((s) => (
+                          {[0, 15, 25, 30, 40, 50, 60, 75, 100].map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
