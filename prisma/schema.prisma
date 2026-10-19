@@ -141,7 +141,7 @@ model Loadout {
 model MatchRecord {
   id           String   @id @default(cuid())
   playerId     String
-  mode         String   // "ffa" | "tdm" | "survival"
+  mode         String   // "ffa" | "tdm" | "killconfirmed" | "survival" | "gungame"
   online       Boolean  @default(false)
   kills        Int
   deaths       Int
