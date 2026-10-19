@@ -4511,8 +4511,21 @@ export class FPSEngine {
         ai.acquiredTargetAt = now;
       }
       if (!enemy) {
-        const list = c.team === "red" ? this.map.spawns.red : c.team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
-        ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+        // Bots seek dogtags in offline Kill Confirmed, just like online bots.
+        const candidate = this.opts.mode === "killconfirmed"
+          ? [...this.kcTags.values()].map(item => item.tag)
+              .filter(tag => Math.abs(tag.pos[1] - c.pos[1]) < 3)
+              .sort((a, b) =>
+                Math.hypot(a.pos[0] - c.pos[0], a.pos[2] - c.pos[2]) -
+                Math.hypot(b.pos[0] - c.pos[0], b.pos[2] - c.pos[2])
+              )[0]
+          : undefined;
+        if (candidate && Math.hypot(candidate.pos[0] - c.pos[0], candidate.pos[2] - c.pos[2]) < 40) {
+          ai.wanderTarget = candidate.pos;
+        } else {
+          const list = c.team === "red" ? this.map.spawns.red : c.team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
+          ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+        }
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
