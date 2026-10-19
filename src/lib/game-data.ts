@@ -1587,7 +1587,7 @@ export const ACHIEVEMENT_TIER_COLORS: Record<string, string> = {
 // MATCH SETTINGS — configurable per-match options.
 // ============================================================================
 export interface MatchModeConfig {
-  id: "ffa" | "tdm" | "survival" | "gungame";
+  id: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
   label: string;
   description: string;
   icon: string;
@@ -1623,6 +1623,18 @@ export const MATCH_MODES: Record<string, MatchModeConfig> = {
     timeOptions: [8, 10, 15],
     teamBased: true,
     accentColor: "#3b82f6",
+  },
+  killconfirmed: {
+    id: "killconfirmed",
+    label: "Kill Confirmed",
+    description: "Recover enemy dogtags to score. Collect allied tags to deny points.",
+    icon: "Tags",
+    defaultScoreLimit: 40,
+    scoreOptions: [25, 40, 60, 75],
+    defaultTimeLimit: 10,
+    timeOptions: [5, 8, 10, 15],
+    teamBased: true,
+    accentColor: "#22d3ee",
   },
   survival: {
     id: "survival",
