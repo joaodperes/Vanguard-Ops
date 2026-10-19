@@ -174,8 +174,8 @@ export function Play() {
       roomName: roomConfig.roomName.trim() || undefined,
       botDifficulty: roomConfig.botDifficulty,
       // Round 19i: Pass custom limits for FFA/TDM.
-      scoreLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.scoreLimit : undefined,
-      timeLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.timeLimit : undefined,
+      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.scoreLimit : undefined,
+      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.timeLimit : undefined,
     };
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
@@ -192,7 +192,7 @@ export function Play() {
   };
 
   // ---- Join Room from the browser ----
-  // For TDM rooms, the caller passes the chosen team (red/blue/auto). For FFA /
+  // For team-based rooms, the caller passes the chosen team (red/blue/auto). For FFA /
   // survival, team is undefined (the server assigns automatically).
   const handleJoin = (room: RoomSummary, password: string | null, team?: "red" | "blue" | "auto") => {
     const cfg = MATCH_MODES[room.mode];
@@ -272,9 +272,9 @@ export function Play() {
               <div className="space-y-5">
                 {/* Game mode */}
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {(["ffa", "tdm", "survival", "gungame"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode })} />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {(["ffa", "tdm", "killconfirmed", "survival", "gungame"] as GameMode[]).map((m) => (
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
                 </Section>
@@ -387,11 +387,11 @@ export function Play() {
                 )}
 
                 {/* Round 19i/20b: Match Limits (FFA/TDM only) */}
-                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm") && (
-                  <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the kill target and/or time limit (at least one required)">
+                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed") && (
+                  <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> Kill Target</Label>
+                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {[0, 15, 25, 30, 50, 60, 75, 100].map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s })}
@@ -612,7 +612,7 @@ function RoomBrowser({
   const { rooms, status, refresh } = lobby;
 
   const submitJoin = (room: RoomSummary) => {
-    const needsTeam = room.mode === "tdm";
+    const needsTeam = room.mode === "tdm" || room.mode === "killconfirmed";
     if (room.hasPassword || needsTeam) {
       setPending({ room, needsTeam });
       setPwInput("");
@@ -747,7 +747,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
   const cfg = MATCH_MODES[room.mode];
   const mapDef = MAP_LIST.find((m) => m.id === room.mapId);
   const full = room.humans >= room.capacity;
-  const Icon = room.mode === "ffa" ? Users : room.mode === "tdm" ? Shield : room.mode === "gungame" ? Swords : Skull;
+  const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed") ? Shield : room.mode === "gungame" ? Swords : Skull;
   const inLobby = room.state === "lobby";
 
   return (
@@ -856,7 +856,7 @@ function SummaryRow({ label, value, accent }: { label: string; value: string; ac
 
 function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: boolean; onSelect: (m: GameMode) => void }) {
   const cfg = MATCH_MODES[mode];
-  const Icon = mode === "ffa" ? Users : mode === "tdm" ? Shield : mode === "survival" ? Skull : Swords;
+  const Icon = mode === "ffa" ? Users : mode === "tdm" ? Shield : mode === "killconfirmed" ? Target : mode === "survival" ? Skull : Swords;
   return (
     <button
       onClick={() => onSelect(mode)}
