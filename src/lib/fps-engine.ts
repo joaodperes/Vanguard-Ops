@@ -3572,6 +3572,7 @@ export class FPSEngine {
   private checkWin() {
     if (this.matchEnded) return;
     if (this.opts.mode === "survival") return; // endless — game over handled on reinforcement depletion
+    if (this.scoreLimit <= 0) return; // time-only match
     // Round 20: Gun Game win condition is handled by advanceLocalGungameTier()
     // (reach the final melee tier + get a kill = win). Do NOT check scoreLimit
     // here — the total kill count can exceed the progression length (due to
