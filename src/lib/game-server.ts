@@ -488,7 +488,7 @@ function createLobbyRoom(
   // Survival and Gun Game ignore custom limits (survival is endless; gungame uses
   // the progression length as the score limit).
   if (!isSurvival && !isGungame) {
-    if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit > 0) config.scoreLimit = cfg.scoreLimit;
+    if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
@@ -839,6 +839,7 @@ function tickKillConfirmedTags(room: Room, now: number) {
 function checkWin(room: Room) {
   if (room.ended) return;
   if (room.mode === "survival") return; // endless — game over handled on reinforcement depletion
+  if (room.config.scoreLimit <= 0) return; // time-limited match without a score target
   if (room.mode === "ffa" || room.mode === "gungame") {
     for (const [, k] of room.scores) if (k >= room.config.scoreLimit) return endMatch(room);
   } else {
