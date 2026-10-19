@@ -74,6 +74,8 @@ export default function Page() {
           // can update the player's lifetime bestKillstreak (Triple Threat /
           // Killstreak King / Untouchable Force achievements).
           bestStreak: r.bestStreak ?? 0,
+           confirmations: r.confirmations ?? 0,
+           denials: r.denials ?? 0,
           survivalWaves: (r as any).survivalWaves ?? 0,
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
