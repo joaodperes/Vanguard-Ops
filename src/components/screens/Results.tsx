@@ -74,7 +74,13 @@ export function Results() {
             <StatBox icon={<TrendingUp className="w-4 h-4" />} value={kd} label="K/D" color="text-amber-400" />
             <StatBox icon={<Crosshair className="w-4 h-4" />} value={`${r.headshots} (${hsPct}%)`} label="Headshots" color="text-purple-400" />
           </div>
-          {(r.multikills ?? 0) > 0 && (
+          {r.mode === "killconfirmed" && (
+              <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 gap-3 text-center">
+                <div><div className="text-cyan-300 text-xl font-black">{r.confirmations ?? r.score}</div><div className="text-white/50 text-xs uppercase">Tags Confirmed</div></div>
+                <div><div className="text-emerald-300 text-xl font-black">{r.denials ?? 0}</div><div className="text-white/50 text-xs uppercase">Tags Denied</div></div>
+              </div>
+            )}
+            {(r.multikills ?? 0) > 0 && (
             <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2 text-xs text-white/60">
               <Flame className="w-3.5 h-3.5 text-rose-400" />
               Achieved <span className="text-rose-300 font-bold">{r.multikills}</span> multi-kill{(r.multikills ?? 0) > 1 ? "s" : ""} this match
