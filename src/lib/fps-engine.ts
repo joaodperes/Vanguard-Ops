@@ -1944,10 +1944,11 @@ export class FPSEngine {
     if (this.matchEnded) return null;
     if (!this.matchStartedAt) return null;
     const isSurvival = this.opts.mode === "survival";
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
-      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : this.kills, isBot: false,
+      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
@@ -1956,10 +1957,11 @@ export class FPSEngine {
     const won = false;
     return {
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, won,
-      score: isSurvival ? this.survivalWave : this.kills, mode: this.opts.mode, standings,
+      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.survivalWave } as any : {}),
     };
   }
@@ -3488,6 +3490,85 @@ export class FPSEngine {
     }, RESPAWN_DELAY_MS);
   }
 
+  // --- Kill Confirmed dogtags (server-synced online, simulated offline) ---
+  private addKillConfirmedTag(tag: KillConfirmedTag) {
+    if (this.kcTags.has(tag.id)) return;
+    const group = new THREE.Group();
+    const tint = tag.victimTeam === "red" ? 0xff4757 : 0x22d3ee;
+    const pendant = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.34),
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.92 })
+    );
+    pendant.rotation.z = Math.PI / 4;
+    group.add(pendant);
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.53, 0.035, 5, 20),
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.7 })
+    );
+    halo.rotation.x = Math.PI / 2;
+    group.add(halo);
+    group.position.set(tag.pos[0], tag.pos[1] + 1, tag.pos[2]);
+    this.scene.add(group);
+    this.kcTags.set(tag.id, { tag, mesh: group });
+  }
+  private removeKillConfirmedTag(id: string) {
+    const item = this.kcTags.get(id);
+    if (!item) return;
+    this.scene.remove(item.mesh);
+    item.mesh.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      obj.geometry.dispose();
+      const material = obj.material;
+      if (Array.isArray(material)) material.forEach(m => m.dispose());
+      else material.dispose();
+    });
+    this.kcTags.delete(id);
+  }
+  private syncKillConfirmedTags(tags: KillConfirmedTag[]) {
+    const ids = new Set(tags.map(t => t.id));
+    for (const id of [...this.kcTags.keys()]) if (!ids.has(id)) this.removeKillConfirmedTag(id);
+    for (const tag of tags) this.addKillConfirmedTag(tag);
+  }
+  private dropLocalKillConfirmedTag(victimId: string, victimTeam: string, pos: Vec3) {
+    if (this.opts.mode !== "killconfirmed" || (victimTeam !== "red" && victimTeam !== "blue")) return;
+    this.addKillConfirmedTag({
+      id: "offline-tag-" + (++this.kcNextTagId),
+      victimId, victimTeam, pos: [...pos] as Vec3,
+      expiresAt: Date.now() + KC_TAG_LIFETIME_MS,
+    });
+  }
+  private animateKillConfirmedTags(now: number) {
+    for (const item of this.kcTags.values()) {
+      item.mesh.position.y = item.tag.pos[1] + 1 + Math.sin(now * 0.004 + item.tag.pos[0]) * 0.14;
+      item.mesh.rotation.y += 0.012;
+    }
+  }
+  private collectOfflineKillConfirmedTags() {
+    const now = Date.now();
+    for (const [id, item] of this.kcTags) {
+      if (now >= item.tag.expiresAt) { this.removeKillConfirmedTag(id); continue; }
+      const candidates: { id: string; team: string; pos: Vec3; c?: Combatant }[] = [];
+      if (this.alive) candidates.push({ id: this.selfId, team: this.opts.team as string, pos: [this.pos.x, this.pos.y, this.pos.z] });
+      for (const c of this.combatants.values()) if (c.alive && c.isBot) candidates.push({ id: c.id, team: c.team, pos: c.pos, c });
+      for (const player of candidates) {
+        if (player.team !== "red" && player.team !== "blue") continue;
+        if (Math.hypot(player.pos[0] - item.tag.pos[0], player.pos[2] - item.tag.pos[2]) > KC_PICKUP_RADIUS) continue;
+        if (Math.abs(player.pos[1] - item.tag.pos[1]) > 2.6) continue;
+        const action = player.team === item.tag.victimTeam ? "deny" : "confirm";
+        this.removeKillConfirmedTag(id);
+        if (action === "confirm") {
+          this.teamScores[player.team as "red" | "blue"]++;
+          if (player.id === this.selfId) this.confirmations++;
+          else if (player.c) player.c.score++;
+        } else if (player.id === this.selfId) this.denials++;
+        if (player.id === this.selfId) this.tagNotice = { action, at: performance.now() };
+        if (action === "confirm") this.checkWin();
+        break;
+      }
+      if (this.matchEnded) return;
+    }
+  }
+
   private checkWin() {
     if (this.matchEnded) return;
     if (this.opts.mode === "survival") return; // endless — game over handled on reinforcement depletion
@@ -3507,6 +3588,7 @@ export class FPSEngine {
     if (this.matchEnded) return;
     this.matchEnded = true;
     const isSurvival = this.opts.mode === "survival";
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
     // this.selfId BEFORE adding the self entry — otherwise the player appears
     // twice in the standings (showing up as both 1st and 2nd place in the
@@ -3516,7 +3598,7 @@ export class FPSEngine {
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
-      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : this.kills, isBot: false,
+      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
@@ -3526,17 +3608,21 @@ export class FPSEngine {
     // which is always false for FFA-style modes, so the player could never
     // "win" a Gun Game match (Win Rate stayed 0%).
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
+    const ownTeam = this.opts.team as "red" | "blue";
+    const otherTeam = ownTeam === "red" ? "blue" : "red";
     const won = isSurvival ? false
+      : this.opts.mode === "killconfirmed" ? this.teamScores[ownTeam] > this.teamScores[otherTeam]
       : isFfaStyle ? (standings[0]?.id === this.selfId)
       : (this.teamScores[this.opts.team as "red" | "blue"] >= this.scoreLimit);
     // End-of-match SFX: victory fanfare or defeat tone.
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.round((performance.now() - this.matchStartedAt) / 1000);
     this.opts.onMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : this.kills, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.survivalWave } as any : {}),
     });
   }
@@ -3562,7 +3648,7 @@ export class FPSEngine {
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const won = isSurvival ? false
-      : this.opts.mode === "tdm" ? winnerTeam === this.opts.team
+      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
@@ -3570,10 +3656,11 @@ export class FPSEngine {
     const durationSec = Math.round((performance.now() - this.matchStartedAt) / 1000);
     this.opts.onMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: me?.score ?? this.survivalWave } as any : {}),
     });
   }
@@ -4434,7 +4521,7 @@ export class FPSEngine {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: this.yaw, pitch: this.pitch, health: this.health,
       alive: this.alive, weaponId: this.weaponId, weaponSkinId: this.opts.loadout.weaponSkinId,
-      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.kills,
+      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations : this.kills,
     };
     const tgt = targetIsSelf ? selfCombatant : target;
     if (tgt && tgt.alive) {
@@ -5100,6 +5187,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
