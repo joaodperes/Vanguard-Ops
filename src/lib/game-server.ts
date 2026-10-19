@@ -1031,9 +1031,21 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.acquiredTargetAt = now;
     }
     if (!enemy) {
-      // wander
-      const list = bot.team === "red" ? room.map.spawns.red : bot.team === "blue" ? room.map.spawns.blue : room.map.spawns.ffa;
-      ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+      // In Kill Confirmed, bots push toward unclaimed tags instead of aimlessly
+      // wandering: both collecting enemy tags and denying friendly tags matter.
+      const candidate = room.mode === "killconfirmed"
+        ? [...room.tags.values()].filter(tag => Math.abs(tag.pos[1] - bot.pos[1]) < 3)
+            .sort((a, b) =>
+              Math.hypot(a.pos[0] - bot.pos[0], a.pos[2] - bot.pos[2]) -
+              Math.hypot(b.pos[0] - bot.pos[0], b.pos[2] - bot.pos[2])
+            )[0]
+        : undefined;
+      if (candidate && Math.hypot(candidate.pos[0] - bot.pos[0], candidate.pos[2] - bot.pos[2]) < 40) {
+        ai.wanderTarget = candidate.pos;
+      } else {
+        const list = bot.team === "red" ? room.map.spawns.red : bot.team === "blue" ? room.map.spawns.blue : room.map.spawns.ffa;
+        ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+      }
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
