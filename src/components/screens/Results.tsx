@@ -57,7 +57,7 @@ export function Results() {
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {playConfig.mode === "tdm" ? "Team Deathmatch" : "Free-For-All"} · Match Over
+            {playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "survival" ? "Endless Survival" : "Free-For-All"} · Match Over
           </h1>
           <p className="text-white/50 mt-2">
             {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
