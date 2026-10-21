@@ -6,7 +6,6 @@ import {
   ATTACHMENTS,
   PLAYER_SKINS,
   WEAPON_SKINS,
-  skinChallengesForWeapon,
   levelForXp,
   weaponById,
   weaponAttachmentSlots,
@@ -14,7 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
-import { attachmentChallenge, armoryChallengeProgress, operatorContract } from "@/lib/armory-challenges";
+import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +118,7 @@ export async function POST(req: NextRequest) {
       where: { playerId_weaponId_skinId: { playerId: player.id, weaponId: weapon.id, skinId: itemId } },
     });
     if (owned) return NextResponse.json({ error: "already owned" }, { status: 400 });
-    const goalDefs = skinChallengesForWeapon(weapon.id, itemId);
+    const goalDefs = skinChallengesForWeaponAndSkin(weapon.id, itemId);
     if (!goalDefs.length) return NextResponse.json({ error: "skin has no valid challenge" }, { status: 403 });
     const stat = await db.weaponProgress.findUnique({
       where: { playerId_weaponId: { playerId: player.id, weaponId: weapon.id } },
