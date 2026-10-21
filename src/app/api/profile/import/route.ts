@@ -40,6 +40,7 @@ interface ExportData {
   weaponUnlocks?: { weaponId: string }[];
   skinUnlocks?: { weaponId: string; skinId: string }[];
   attachmentUnlocks?: { weaponId: string; attachmentId: string }[];
+  playerSkinUnlocks?: { skinId: string }[];
   loadout?: {
     primaryWeapon: string;
     secondaryWeapon: string;
@@ -174,6 +175,22 @@ export async function POST(req: NextRequest) {
     if (toCreate.length) await db.attachmentUnlock.createMany({ data: toCreate.map((u) => ({ playerId: player.id, weaponId: u.weaponId, attachmentId: u.attachmentId })) });
   }
 
+  // Old exports have no ownership list. Grandfather their equipped operator
+  // without inventing ownership for skins not represented in the file.
+  const candidateOperatorSkins = [
+    ...(data.playerSkinUnlocks ?? []).map(u => u.skinId),
+    data.player.selectedSkin,
+  ].filter(id => typeof id === "string" && id !== "default");
+  if (candidateOperatorSkins.length) {
+    const existingOps = new Set(
+      (await db.playerSkinUnlock.findMany({ where: { playerId: player.id } })).map(u => u.skinId),
+    );
+    const toCreate = [...new Set(candidateOperatorSkins)].filter(id => !existingOps.has(id));
+    if (toCreate.length) await db.playerSkinUnlock.createMany({
+      data: toCreate.map(skinId => ({ playerId: player.id, skinId })),
+    });
+  }
+
   // --- Restore loadout ---
   if (data.loadout) {
     if (player.loadout) {
@@ -267,6 +284,7 @@ export async function POST(req: NextRequest) {
       weaponUnlocks: data.weaponUnlocks?.length ?? 0,
       skinUnlocks: data.skinUnlocks?.length ?? 0,
       attachmentUnlocks: data.attachmentUnlocks?.length ?? 0,
+      playerSkinUnlocks: data.playerSkinUnlocks?.length ?? 0,
       achievements: data.achievements?.length ?? 0,
       weaponProgress: data.weaponProgress?.length ?? 0,
       matchRecords: data.matchRecords?.length ?? 0,
