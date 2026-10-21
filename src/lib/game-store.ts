@@ -114,7 +114,7 @@ export const useGame = create<GameStore>((set, get) => ({
   screen: "auth",
   playConfig: { mode: "ffa", botCount: 5, online: false, scoreLimit: 30, timeLimit: 8, mapId: "compound", botDifficulty: "normal" },
   matchResult: null,
-  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2 },
+  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2, survivalTier: "default" },
   roomConnect: null,
   authState: "checking",
   session: null,
