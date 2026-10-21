@@ -12,7 +12,7 @@ import { botGroundHeight, botMoveBlocked } from "./bot-physics";
 type Hazard = { type: string; pos: readonly number[]; size: readonly number[] };
 type Node = { x: number; z: number; y: number; g: number; f: number; key: string };
 const GRID = 2;
-const STEP = 0.36;  // generated stairs are <= 0.5 tall
+const STEP = 0.2;   // sample narrow 0.3-wide high-rise treads without skipping a riser
 const MAX_EXPANSIONS = 1000;
 const DIRECTIONS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]] as const;
 
