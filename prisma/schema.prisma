@@ -42,6 +42,7 @@ model Player {
   user            User?
   weaponUnlocks   WeaponUnlock[]
   skinUnlocks     SkinUnlock[]
+  playerSkinUnlocks PlayerSkinUnlock[]
   attachmentUnlocks AttachmentUnlock[]
   loadout         Loadout?
   matchRecords    MatchRecord[]
@@ -90,6 +91,19 @@ model SkinUnlock {
 
   @@unique([playerId, weaponId, skinId])
   @@index([playerId, weaponId])
+}
+
+/// Operator skin purchases are permanent and independent of selection.
+/// Existing selectedSkin is grandfathered into ownership for old profiles.
+model PlayerSkinUnlock {
+  id         String   @id @default(cuid())
+  playerId   String
+  skinId     String
+  unlockedAt DateTime @default(now())
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, skinId])
+  @@index([playerId])
 }
 
 /// Attachments a player has unlocked PER-WEAPON. The unique constraint is
