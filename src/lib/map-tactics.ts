@@ -48,7 +48,7 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
     elevated(-24,-41,6.4), elevated(24,-41,6.4),
     elevated(-24,41,6.4), elevated(24,41,6.4),
     // Ground access junction near the north bridge gate.
-    wall(-8,-28,8,1.0), wall(8,-28,8,1.0),
+    wall(-8,-28,9,1.0), wall(8,-28,9,1.0),
   ],
   bunker: [
     // Mechanical rooms and staggered passages in the formerly vacant outer ring.
@@ -100,7 +100,7 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
     wall(-13,-41,10,1.5,3), wall(13,41,10,1.5,3),
     wall(-13,41,10,1.5,3), wall(13,-41,10,1.5,3),
     // Destructible north shop shutter at (0,-46).
-    wall(-9,-46,10,1.3,3), wall(9,-46,10,1.3,3),
+    wall(-9,-46,11,1.3,3), wall(9,-46,11,1.3,3),
     // Sculptural planter/advertising islands between tower and corner decks.
     low(-24,10,3,4,1.6), low(24,-10,3,4,1.6),
     low(-24,-10,3,4,1.6), low(24,10,3,4,1.6),
