@@ -1,5 +1,6 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
+import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
 import {
   WEAPONS,
@@ -40,7 +41,8 @@ export interface MatchResultInput {
   placement?: number;
   weaponId?: string;
   multikills?: number;       // number of double-kill or better streaks achieved in this match
-  survivalWaves?: number;    // survival: highest wave reached
+  survivalWaves?: number;    // completed waves, not merely the wave spawned
+  survivalTier?: SurvivalTier;
   // 19a+19b: Highest kill streak achieved in this match (kills within the 5s
   // streak window). The engine tracks this in registerPlayerKill (updating
   // bestStreak whenever the current streak exceeds it) and forwards it in
@@ -391,7 +393,24 @@ function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
   }
 }
 
+async function getSurvivalProgressById(playerId: string): Promise<SurvivalProgress> {
+  const [defaultWins, hard, elite, nightmare] = await Promise.all([
+    db.matchRecord.count({where:{playerId,mode:"survival",won:true}}),
+    db.matchRecord.aggregate({where:{playerId,mode:"survival_hard"},_max:{waves:true}}),
+    db.matchRecord.aggregate({where:{playerId,mode:"survival_elite"},_max:{waves:true}}),
+    db.matchRecord.aggregate({where:{playerId,mode:"survival_nightmare"},_max:{waves:true}}),
+  ]);
+  return {defaultWins,hardBest:hard._max.waves ?? 0,eliteBest:elite._max.waves ?? 0,nightmareBest:nightmare._max.waves ?? 0};
+}
+export async function getSurvivalProgress(playerKey:string):Promise<SurvivalProgress> {
+  const player=await getOrCreatePlayer(playerKey);
+  return getSurvivalProgressById(player.id);
+}
+
 export async function applyMatchResult(input: MatchResultInput): Promise<AwardResult> {
+  const survivalTier = normalizeSurvivalTier(input.survivalTier);
+  const survivalProgressBefore = input.mode === "survival" ? await getSurvivalProgress(input.playerKey) : null;
+  if (input.mode === "survival") input.won = survivalTier === "default" && !!input.won && (input.survivalWaves ?? 0) >= 30;
   const player = await getOrCreatePlayer(input.playerKey);
   const oldLevel = levelForXp(player.xp);
 
@@ -451,10 +470,15 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   let survivalWaves = 0;
   if (input.mode === "survival") {
     survivalWaves = Math.max(0, Math.floor(input.survivalWaves ?? 0));
-    const waveBonusXp = survivalWaves * 60;
-    const waveBonusCredits = survivalWaves * 20;
+    const rewardMul = survivalTier === "nightmare" ? 2 : survivalTier === "elite" ? 1.6 : survivalTier === "hard" ? 1.25 : 1;
+    const waveBonusXp = Math.round(survivalWaves * 60 * rewardMul);
+    const waveBonusCredits = Math.round(survivalWaves * 20 * rewardMul);
     xpGained += waveBonusXp;
     creditsGained += waveBonusCredits;
+    if (input.won && survivalTier === "default") {
+      xpGained += 12000;
+      creditsGained += 6000;
+    }
   }
 
   const newXp = player.xp + xpGained;
@@ -565,6 +589,13 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
   const lifetimeHeadshots = (headshotAgg._sum.headshots ?? 0) + input.headshots;
   const totalAwardedThisMatch = dailyAwardedCount + weeklyAwardedCount + eliteAwardedCount;
+  const survivalProgress = survivalProgressBefore ?? {defaultWins:0,hardBest:0,eliteBest:0,nightmareBest:0};
+  if (input.mode === "survival") {
+    if (survivalTier === "default" && input.won) survivalProgress.defaultWins++;
+    if (survivalTier === "hard") survivalProgress.hardBest = Math.max(survivalProgress.hardBest,survivalWaves);
+    if (survivalTier === "elite") survivalProgress.eliteBest = Math.max(survivalProgress.eliteBest,survivalWaves);
+    if (survivalTier === "nightmare") survivalProgress.nightmareBest = Math.max(survivalProgress.nightmareBest,survivalWaves);
+  }
   const lifetimeStats = {
     kills: player.kills + input.kills,
     wins: player.matchesWon + (input.won ? 1 : 0),
@@ -592,6 +623,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       case "level": return lifetimeStats.level;
       case "credits_earned_total": return lifetimeStats.credits_earned_total;
       case "survival_waves": return lifetimeStats.survival_waves;
+      case "survival_default_wins": return survivalProgress.defaultWins;
+      case "survival_hard_waves": return survivalProgress.hardBest;
+      case "survival_elite_waves": return survivalProgress.eliteBest;
+      case "survival_nightmare_waves": return survivalProgress.nightmareBest;
       case "daily_challenges_completed": return lifetimeStats.daily_challenges_completed;
       case "weekly_challenges_completed": return lifetimeStats.weekly_challenges_completed;
       case "elite_challenges_completed": return lifetimeStats.elite_challenges_completed;
@@ -768,7 +803,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     await tx.matchRecord.create({
       data: {
         playerId: player.id,
-        mode: input.mode,
+        mode: input.mode === "survival" ? survivalRecordMode(survivalTier) : input.mode,
         online: input.online ?? false,
         kills: input.kills,
         deaths: input.deaths,
@@ -1018,6 +1053,7 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
   const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
   const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
   const lifetimeHeadshots = headshotAgg._sum.headshots ?? 0;
+  const survivalProgress = await getSurvivalProgressById(player.id);
   const statFor = (metric: string): number => {
     switch (metric) {
       case "kills": return player.kills;
@@ -1027,6 +1063,10 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
       case "level": return levelForXp(player.xp);
       case "credits_earned_total": return player.credits;
       case "survival_waves": return player.survivalBestWave;
+      case "survival_default_wins": return survivalProgress.defaultWins;
+      case "survival_hard_waves": return survivalProgress.hardBest;
+      case "survival_elite_waves": return survivalProgress.eliteBest;
+      case "survival_nightmare_waves": return survivalProgress.nightmareBest;
       // 17-C: quest-completion lifetime counters (stored on Player)
       case "daily_challenges_completed": return player.dailyChallengesCompleted;
       case "weekly_challenges_completed": return player.weeklyChallengesCompleted;
