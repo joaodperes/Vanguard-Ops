@@ -2,6 +2,7 @@
 import { db } from "@/lib/db";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -68,7 +69,7 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
     include: {
       weaponUnlocks: true,
       skinUnlocks: true,
-      attachmentUnlocks: true,
+      attachmentUnlocks: true,      playerSkinUnlocks: true,
       loadout: true,
       achievements: true,
     },
@@ -87,7 +88,7 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
         include: {
           weaponUnlocks: true,
           skinUnlocks: true,
-          attachmentUnlocks: true,
+          attachmentUnlocks: true,          playerSkinUnlocks: true,
           loadout: true,
           achievements: true,
         },
@@ -100,7 +101,7 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
           include: {
             weaponUnlocks: true,
             skinUnlocks: true,
-            attachmentUnlocks: true,
+            attachmentUnlocks: true,            playerSkinUnlocks: true,
             loadout: true,
             achievements: true,
           },
@@ -151,6 +152,7 @@ export interface PlayerProfileView {
   // map (backed by the WeaponProgress table) is needed for accurate per-weapon
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number }>;
+  operatorContracts: ArmoryChallengeView[];
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
@@ -163,7 +165,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     ? player
     : await db.player.findUnique({
         where: { playerKey },
-        include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true, loadout: true },
+        include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true, playerSkinUnlocks: true, loadout: true },
       });
   const p = fresh!;
   const level = levelForXp(p.xp);
@@ -235,6 +237,11 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Source: WeaponProgress table (updated on every match completion).
   const wpRows = historicProgress;
   const weaponProgress: Record<string, { kills: number; headshots: number }> = {};
+  const totalHeadshots = wpRows.reduce((sum, row) => sum + row.headshots, 0);
+  const operatorContracts = OPERATOR_CONTRACTS.map(ch => armoryChallengeProgress(ch, {
+    kills: 0, headshots: 0, totalKills: p.kills,
+    totalHeadshots, matches: p.matchesPlayed, wins: p.matchesWon,
+  }));
   for (const row of wpRows) {
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots };
   }
@@ -255,13 +262,14 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     unlocks: {
       weapons: p.weaponUnlocks.map((u) => u.weaponId),
       weaponSkins: flatSkins,
-      playerSkins: Array.from(new Set([p.selectedSkin, ...PLAYER_SKINS.filter((s) => s.unlockCost === 0 && s.unlockLevel <= level).map((s) => s.id)])),
+      playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId)])),
       attachments: flatAttachments,
       attachmentsByWeapon,
       skinsByWeapon,
     },
     loadout,
     weaponProgress,
+    operatorContracts,
   };
 }
 
@@ -657,6 +665,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
 
   // --- Per-weapon skin challenges (kills / headshots milestones) ---
+  // Completing the goal opens the CREDIT PURCHASE in the Armory.
+  // SkinUnlock rows represent purchases/legacy grants, not newly earned eligibility.
   // The equipped weapon for this match may have just crossed a challenge goal.
   // We compute the post-match totals for each weapon that got kills this match
   // (existing DB aggregates + this match's contribution) and create SkinUnlock
@@ -731,7 +741,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         if (ch.weaponId !== wid) continue;
         if (isSkinAlreadyUnlocked(ch.skinId)) continue;
         const value = ch.metric === "kills" ? weaponKills : weaponHeadshots;
-        if (value >= ch.goal) {
+        const prior = ch.metric === "kills" ? (wp?.kills ?? 0) : (wp?.headshots ?? 0);
+        if (value >= ch.goal && prior < ch.goal) {
           newWeaponChallenges.push({
             challengeId: ch.id,
             weaponId: ch.weaponId,
@@ -766,13 +777,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       },
     });
     if (newUnlocks.weapons.length) await tx.weaponUnlock.createMany({ data: newUnlocks.weapons.map((id) => ({ playerId: player.id, weaponId: id })) });
-    // Every weapon has its own challenge progression; no wildcard grants.
-    if (newWeaponChallenges.length) {
-      await tx.skinUnlock.createMany({
-        data: Array.from(new Map(newWeaponChallenges.map(c=>[`${c.weaponId}:${c.skinId}`,c])).values())
-          .map(c=>({playerId:player.id,weaponId:c.weaponId,skinId:c.skinId})),
-      });
-    }
+    // SkinUnlock is now created only when a player purchases an earned skin.
     if (newAchievements.length) await tx.playerAchievement.createMany({ data: newAchievements.map((a) => ({ playerId: player.id, achievementId: a.id })) });
     // Update lifetime per-weapon progress. WeaponProgress is the source of truth
     // for weapon challenge checks (above). In gungame, the player cycles through
