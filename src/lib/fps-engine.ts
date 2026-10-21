@@ -4480,6 +4480,8 @@ export class FPSEngine {
     const me = standings.find((s: any) => s.id === this.selfId);
     const placement = standings.findIndex((s: any) => s.id === this.selfId) + 1;
     const isSurvival = this.opts.mode === "survival";
+    // The final kill ends Standard before a further snapshot can mark waveActive=false.
+    if (isSurvival && winnerTeam === "blue") this.survivalWaveActive = false;
     // Gun Game is FFA — winnerTeam may be "ffa" OR the server may report the
     // winner id differently. Treat gungame like ffa: the local player wins if
     // they're at the top of the standings.
