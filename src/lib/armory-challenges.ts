@@ -7,10 +7,44 @@
  * This catalog is deliberately separate from Survival mode and achievements.
  */
 import {
-  ATTACHMENTS, WEAPONS, PLAYER_SKINS,
+  ATTACHMENTS, WEAPONS, PLAYER_SKINS, WEAPON_SKINS, WEAPON_CHALLENGES,
+  type WeaponChallengeDef,
   compatibleAttachments, weaponAttachmentSlots,
   type AttachmentDef, type WeaponDef,
 } from "./game-data";
+
+/** A skin challenge exists for every purchasable (weapon, skin) pair.
+ * Keep hand-authored catalog challenges intact, generate missing newer-weapon
+ * entries deterministically so no gun has inaccessible cosmetic choices.
+ */
+export function skinChallengesForWeaponAndSkin(weaponId: string, skinId: string): WeaponChallengeDef[] {
+  if (!WEAPONS.some(w => w.id === weaponId) ||
+      !WEAPON_SKINS.some(s => s.id === skinId && s.id !== "default")) return [];
+  const authored = WEAPON_CHALLENGES.filter(c => c.weaponId === weaponId && c.skinId === skinId);
+  if (authored.length) return authored;
+  const weapon = WEAPONS.find(w => w.id === weaponId)!;
+  const goals: Record<string, { metric: "kills" | "headshots"; goal: number }> = {
+    arctic: { metric: "kills", goal: 15 },
+    crimson: { metric: "kills", goal: 30 },
+    emerald: { metric: "kills", goal: 55 },
+    carbon: { metric: "headshots", goal: 25 },
+    neon: { metric: "kills", goal: 100 },
+    inferno: { metric: "kills", goal: 175 },
+    gold: { metric: "kills", goal: 275 },
+  };
+  const goal = goals[skinId];
+  if (!goal) return [];
+  return [{
+    id: `mastery:${weaponId}:${skinId}`,
+    weaponId, skinId, goal: goal.goal, metric: goal.metric,
+    title: `${weapon.name} ${skinId.replace(/_/g, " ")} mastery`,
+    description: `Get ${goal.goal} ${goal.metric === "kills" ? "kills" : "headshots"} with the ${weapon.name}.`,
+  }];
+}
+export function allSkinChallengesForWeapon(weaponId: string): WeaponChallengeDef[] {
+  return WEAPON_SKINS.filter(s => s.id !== "default")
+    .flatMap(s => skinChallengesForWeaponAndSkin(weaponId, s.id));
+}
 
 export type ArmoryMetric = "kills" | "headshots" | "matches" | "wins" | "totalKills" | "totalHeadshots";
 export interface ArmoryChallengeDef {
