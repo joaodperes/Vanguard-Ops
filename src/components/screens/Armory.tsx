@@ -663,6 +663,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                     weaponId={w.id}
                     equippedId={equippedAttsForSlot[aSlot]}
                     unlockedForWeapon={unlockedForWeapon}
+                    progress={progress}
                     level={level}
                     credits={credits}
                     busy={busy}
@@ -678,7 +679,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
             <div className="text-white/40 text-xs mb-3">
-              Each weapon has its own skin challenges. Finish the listed requirement before equipping that skin on this weapon.
+              Complete a weapon-specific challenge, then purchase the skin for its existing credit price before equipping.
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
@@ -695,6 +696,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                 const isOwned = isUnlocked || isBaseline;
                 const isUnlockable = !isOwned && !!challenge;
                 const isHardLocked = !isOwned && !challenge;
+                const canBuySkin = !isOwned && !!challenge?.completed && credits >= s.unlockCost;
+                const skinBusyKey = `${s.id}:${w.id}`;
                 return (
                   <div
                     key={s.id}
@@ -750,7 +753,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           {/* "UNLOCK" label above the progress bar — clear callout
                               that this skin is locked-but-earnable via the challenge. */}
                           <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" />Unlock
+                            <Lock className="w-2.5 h-2.5" />{challenge?.completed ? "Challenge complete — purchase available" : "Challenge in progress"}
                           </div>
                           <div className="text-white/60 text-[10px] break-words">{challenge!.title}</div>
                           <div className="mt-1 flex items-center gap-2">
@@ -773,12 +776,15 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <Check className="w-2.5 h-2.5 mr-0.5" />Equipped
                       </Badge>
                     ) : isOwned && canEquipSkin ? (
-                      <Button
-                        size="sm"
-                        onClick={() => onEquipSkin(s.id)}
-                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0"
-                      >
+                      <Button size="sm" onClick={() => onEquipSkin(s.id)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0">
                         Equip
+                      </Button>
+                    ) : !isOwned && !!challenge ? (
+                      <Button size="sm" disabled={!canBuySkin || busy === skinBusyKey}
+                        onClick={() => onPurchase("weaponSkin", s.id, s.unlockCost, s.name, w.id)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0 disabled:opacity-50">
+                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{s.unlockCost}</> : "Complete trial"}
                       </Button>
                     ) : null}
                   </div>
@@ -789,12 +795,17 @@ function CustomizeModal(props: CustomizeModalProps) {
 
           {/* CHALLENGES TAB — per-weapon skin challenges with progress */}
           <TabsContent value="challenges" className="mt-4">
-            {progress && (
-              <div className="mb-3 text-[11px] text-white/50 flex items-center gap-4">
-                <span>Weapon kills: <span className="text-amber-300 font-mono tabular-nums">{progress.kills}</span></span>
-                <span>Headshots: <span className="text-amber-300 font-mono tabular-nums">{progress.headshots}</span></span>
+            <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).title}</span>
+                <span className="text-white/50">Rank {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).rank}/5</span>
               </div>
-            )}
+              <div className="mt-1 text-white/50">
+                {progress?.kills ?? 0} kills · {progress?.headshots ?? 0} headshots
+                {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next &&
+                  ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.kills} kills / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.headshots} headshots`}
+              </div>
+            </div>
             {challengeViews.length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">No challenges defined for this weapon.</div>
             ) : (
@@ -813,7 +824,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                             {c.completed && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[9px]"><Check className="w-2.5 h-2.5 mr-0.5" />Done</Badge>}
                           </div>
                           <div className="text-white/50 text-[11px]">{c.description}</div>
-                          <div className="text-white/40 text-[10px] mt-0.5">Reward: <span style={{ color: rarityColor }}>{skin.name}</span> skin</div>
+                          <div className="text-white/40 text-[10px] mt-0.5">Reward: unlock purchase of <span style={{ color: rarityColor }}>{skin.name}</span> skin for {skin.unlockCost} CR</div>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
