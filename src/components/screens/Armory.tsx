@@ -9,6 +9,7 @@ import {
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
+import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress } from "@/lib/armory-challenges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -118,7 +119,7 @@ export function Armory() {
   }, [playerKey, profile?.matchesPlayed]);
 
   const purchase = async (
-    kind: "weapon" | "attachment" | "playerSkin",
+    kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin",
     itemId: string,
     cost: number,
     name: string,
@@ -307,8 +308,9 @@ export function Armory() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
                 const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (s.unlockLevel <= level && s.unlockCost === 0);
-                const lockedByLevel = level < s.unlockLevel;
-                const canBuy = !isOwned && !lockedByLevel && credits >= s.unlockCost;
+                const contract = profile?.operatorContracts.find(c => c.rewardId === s.id);
+                const challengeReady = s.id === "default" || !!contract?.completed;
+                const canBuy = !isOwned && challengeReady && credits >= s.unlockCost;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const equipped = profile?.loadout.playerSkin.id === s.id;
                 return (
@@ -330,6 +332,16 @@ export function Armory() {
                     </div>
                     <div className="text-white font-bold text-sm">{s.name}</div>
                     <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{s.rarity}</div>
+                    {!isOwned && contract && (
+                      <div className="w-full mb-2">
+                        <div className="text-[10px] text-white/60 mb-1">{contract.description}</div>
+                        <div className="h-1.5 rounded bg-black/60 overflow-hidden">
+                          <div className={contract.completed ? "h-full bg-emerald-500" : "h-full bg-amber-500"}
+                            style={{ width: `${Math.min(100, contract.progress / contract.goal * 100)}%` }} />
+                        </div>
+                        <div className="mt-1 text-[10px] text-white/50">{contract.progress}/{contract.goal} · {contract.completed ? "Available to purchase" : "Contract in progress"}</div>
+                      </div>
+                    )}
                     {isOwned
                       ? (equipped
                           ? <Badge variant="outline" className="border-amber-500/30 text-amber-300 text-xs">In Use</Badge>
@@ -340,7 +352,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {busy === s.id ? "…" : lockedByLevel ? `LVL ${s.unlockLevel}` : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {busy === s.id ? "…" : !challengeReady ? "Complete contract" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
@@ -351,7 +363,7 @@ export function Armory() {
       </main>
 
       <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Earn XP &amp; credits by playing matches. Skins unlock through per-weapon challenges — no microtransactions.</div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Earn XP &amp; credits by playing matches. Complete permanent challenges to unlock purchases — no microtransactions.</div>
       </footer>
 
       {/* Customize modal — opens when the user clicks "Customize" on a weapon card. */}
@@ -393,7 +405,7 @@ interface WeaponSlotSectionProps {
   progress: WeaponProgressMap;
   challenges: WeaponChallengesMap;
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
   defaultOpen?: boolean;
 }
@@ -552,7 +564,7 @@ interface CustomizeModalProps {
   progress: { weaponId: string; kills: number; headshots: number } | null;
   challengeViews: WeaponChallengeView[];
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquipAttachment: (slot: WeaponSlot, attSlot: AttachmentSlot, attId: string | null) => Promise<void>;
   onEquipSkin: (skinId: string) => Promise<void>;
 }
@@ -838,7 +850,7 @@ interface ModalAttachmentSlotProps {
   credits: number;
   busy: string | null;
   slot: WeaponSlot;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquip: (attId: string | null) => void;
 }
 
