@@ -1071,7 +1071,7 @@ function checkWin(room: Room) {
   if (room.mode === "survival") return; // endless — game over handled on reinforcement depletion
   if (room.mode === "gungame") return; // ONLY the final melee-tier kill ends Gun Game (applyDamage).
   if (room.config.scoreLimit <= 0) return; // zero disables score target
-  if (room.mode === "ffa" || room.mode === "gungame") {
+  if (room.mode === "ffa") {
     for (const [, k] of room.scores) if (k >= room.config.scoreLimit) return endMatch(room);
   } else {
     if (room.teamScores.red >= room.config.scoreLimit || room.teamScores.blue >= room.config.scoreLimit) return endMatch(room);
