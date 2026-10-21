@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyMatchResult, type MatchResultInput } from "@/lib/player-service";
 import { resolvePlayerKey } from "@/lib/auth";
+import { normalizeSurvivalTier } from "@/lib/survival";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     // streak achievements.
     bestStreak: Math.max(0, Math.min(30, Math.floor((input as any).bestStreak ?? 0))),
     survivalWaves: Math.max(0, Math.min(999, Math.floor((input as any).survivalWaves ?? 0))),
+    survivalTier: normalizeSurvivalTier(input.survivalTier),
     // Per-kill difficulty breakdown for difficulty-scaled XP. Cap the array
     // length at the (sanity-capped) kill count to avoid abuse.
     killDifficulties: Array.isArray(input.killDifficulties)
