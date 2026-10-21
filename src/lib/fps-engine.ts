@@ -18,6 +18,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint } from "@/lib/bot-routing";
+import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -77,6 +78,7 @@ export interface EngineOptions {
   startedAt?: number;          // performance.now() at match start
   autoAdsOnFire?: boolean;     // automatically ADS when firing (default false)
   invertY?: boolean;           // invert vertical look (default false)
+  survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
   masterVolume?: number;       // 0..100, default 80. Drives the SoundManager gain.
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
@@ -173,6 +175,9 @@ export interface HudState {
   meleeWeaponId: string;
   // survival mode info (undefined for FFA/TDM)
   survivalWave?: number;
+  survivalTier?: SurvivalTier;
+  survivalModifierNames?: string[];
+  survivalBossWave?: boolean;
   survivalEnemiesLeft?: number;
   survivalReinforcements?: number;
   survivalMaxReinforcements?: number;
@@ -213,6 +218,7 @@ export interface MatchEndResult {
   bestStreak?: number;
   weaponId?: string;
   survivalWaves?: number;
+  survivalTier?: SurvivalTier;
   // Per-kill difficulty breakdown (one entry per kill). Used by the rewards API
   // to scale XP/credits by victim difficulty. Values: easy|normal|hard|veteran|enemy_player.
   killDifficulties?: string[];
@@ -687,6 +693,9 @@ export class FPSEngine {
 
   // survival mode (offline)
   private survivalWave = 0;
+  private survivalTier: SurvivalTier = "default";
+  private survivalBossTimers = new Map<string,{phase:number;nextPhaseAt:number;nextSkillAt:number}>();
+  private getSurvivalClearedWaves() { return survivalWavesCleared(this.survivalWave,this.survivalWaveActive); }
   private survivalEnemiesLeft = 0;
   private survivalReinforcements = 0;
   private survivalMaxReinforcements = 5;
@@ -861,6 +870,7 @@ export class FPSEngine {
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
     this.invertY = opts.invertY ?? false;
     this.botDifficulty = opts.botDifficulty ?? "normal";
+    this.survivalTier = normalizeSurvivalTier(opts.survivalTier);
     // If we're creating a room, we know upfront that we're the host entering a
     // lobby. The server will confirm via roomJoined, but setting this early
     // lets the GameCanvas render the lobby overlay before the socket connects.
@@ -2528,7 +2538,7 @@ export class FPSEngine {
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
-      ...(isSurvival ? { survivalWaves: this.survivalWave } as any : {}),
+      ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
   }
 
@@ -2679,8 +2689,9 @@ export class FPSEngine {
     // Set the banner timestamp so the HUD shows "WAVE N — X enemies incoming"
     // for ~3.5 seconds after the wave starts.
     this.survivalWaveBannerAt = performance.now();
-    const count = survivalWaveBotCount(this.survivalWave);
-    const hpMul = survivalWaveHealthMul(this.survivalWave);
+    const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
+    const count=Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+    const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // ---- Round 18-b: expanded random weapon pool ----
     // Previously only 6 weapons cycled. Now use ALL primary + secondary weapons
     // (excluding melee and launcher — those are problematic for bot AI) for
@@ -2702,15 +2713,22 @@ export class FPSEngine {
     // direction. The pickSpawn function already maximizes distance from
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
-      const id = "svbot_" + this.survivalWave + "_" + n;
+      const boss=mutators.boss && n === count-1;
+      const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
-      const wid = botWeapons[Math.floor(Math.random() * botWeapons.length)];
+      const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
+      const ai=this.makeBotAI(sp);
+      ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1);
+      ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
+      if(mutators.skillBoost>0) ai.difficulty="veteran";
+      ai.ammoInMag=weaponById(wid).stats.magSize;
+      if(boss) this.survivalBossTimers.set(id,{phase:0,nextPhaseAt:performance.now()+5000,nextSkillAt:performance.now()+8500});
       const c: Combatant = {
-        id, name: `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
-        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul), alive: true,
+        id, name: boss ? `BOSS · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
         weaponId: wid, weaponSkinId: "default", playerSkinId: skins[n % skins.length],
         kills: 0, deaths: 0, score: 0,
-        ai: this.makeBotAI(sp),
+        ai,
       };
       this.combatants.set(id, c);
       this.addCombatantMesh(c);
@@ -2737,6 +2755,10 @@ export class FPSEngine {
             if (c.group) this.scene.remove(c.group);
             this.combatants.delete(id);
           }
+        }
+        if(this.survivalTier==="default" && this.survivalWave >= 30) {
+          this.finalizeMatchLocal();
+          return;
         }
         this.survivalPrepLeft = SURVIVAL_PREP_SEC;
       }
@@ -3194,7 +3216,8 @@ export class FPSEngine {
           this.survivalEnemiesLeft = (msg as any).enemiesLeft ?? this.survivalEnemiesLeft;
           this.survivalReinforcements = (msg as any).reinforcements ?? this.survivalReinforcements;
           this.survivalPrepLeft = (msg as any).prepLeft ?? this.survivalPrepLeft;
-          this.survivalWaveActive = this.survivalEnemiesLeft > 0;
+          this.survivalWaveActive = (msg as any).waveActive ?? (this.survivalEnemiesLeft>0);
+          this.survivalTier=normalizeSurvivalTier((msg as any).survivalTier ?? this.survivalTier);
         }
         // Sync the server-side pre-match countdown. When > 0, the client's
         // update loop freezes local gameplay (movement, firing) and renders
@@ -3431,6 +3454,7 @@ export class FPSEngine {
       case "roomJoined":
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
+        this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
@@ -3468,6 +3492,7 @@ export class FPSEngine {
         this.preMatchCountdown = FPSEngine.PRE_MATCH_COUNTDOWN_SEC;
         this.matchStartedAt = performance.now() + this.preMatchCountdown * 1000;
         if (msg.config) {
+          this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
@@ -4423,7 +4448,7 @@ export class FPSEngine {
     // which is always false for FFA-style modes, so the player could never
     // "win" a Gun Game match (Win Rate stayed 0%).
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
-    const won = isSurvival ? false
+    const won = isSurvival ? (this.survivalTier==="default" && this.getSurvivalClearedWaves()>=30)
       : isFfaStyle ? (standings[0]?.id === this.selfId)
       : (this.teamScores[this.opts.team as "red" | "blue"] >
          this.teamScores[this.opts.team === "red" ? "blue" : "red"]);
@@ -4435,7 +4460,7 @@ export class FPSEngine {
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
-      ...(isSurvival ? { survivalWaves: this.survivalWave } as any : {}),
+      ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
 
@@ -4459,7 +4484,7 @@ export class FPSEngine {
     // winner id differently. Treat gungame like ffa: the local player wins if
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
-    const won = isSurvival ? false
+    const won = isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
       : this.opts.mode === "tdm" ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
@@ -4472,7 +4497,7 @@ export class FPSEngine {
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
-      ...(isSurvival ? { survivalWaves: me?.score ?? this.survivalWave } as any : {}),
+      ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
 
@@ -5351,6 +5376,21 @@ export class FPSEngine {
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
     const ai = c.ai!;
+    const boss=this.survivalBossTimers.get(c.id);
+    if (boss) {
+      if(now>=boss.nextPhaseAt) {
+        boss.phase=(boss.phase+1)%3;
+        c.weaponId=["lmg_hv","shotgun_auto","rifle_heavy"][boss.phase];
+        ai.ammoInMag=weaponById(c.weaponId).stats.magSize;
+        ai.burstShotsLeft=0; ai.burstEndsAt=0;
+        boss.nextPhaseAt=now+5500;
+      }
+      if(now>=boss.nextSkillAt) {
+        boss.nextSkillAt=now+12500;
+        const d=Math.hypot(this.pos.x-c.pos[0],this.pos.z-c.pos[2]);
+        if(this.alive && d<11) this.takeDamage(Math.round(28*(1-d/15)),c.name,c.team,false,c.weaponId);
+      }
+    }
     const w = weaponById(c.weaponId);
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
@@ -5756,7 +5796,8 @@ export class FPSEngine {
       // by 35% to give players more survivability (Round 18-b balance fix).
       // Net: wave 1 = 65% damage, wave 8 = 65%*1.42 = 92%, wave 14 = 65%*1.78 = 116%.
       // This gives players a much better early game while still ramping up.
-      if (this.opts.mode === "survival") dmg *= 0.65 * survivalWaveDamageMul(this.survivalWave);
+      if (this.opts.mode === "survival")
+        dmg *= 0.65 * survivalWaveDamageMul(this.survivalWave) * survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
       // Round 20h: Check local player spawn protection — skip damage if protected.
       if (nearest.victim.id === this.selfId && this.selfSpawnProtectedUntil > Date.now()) {
         return; // player is spawn-protected — no damage
@@ -5954,6 +5995,9 @@ export class FPSEngine {
       meleeWeaponId: this.meleeWeaponId,
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
+        survivalTier: this.survivalTier,
+        survivalModifierNames: survivalWaveMutators(this.survivalTier,this.survivalWave).names,
+        survivalBossWave: survivalWaveMutators(this.survivalTier,this.survivalWave).boss,
         survivalEnemiesLeft: this.survivalEnemiesLeft,
         survivalReinforcements: this.survivalReinforcements,
         survivalMaxReinforcements: this.survivalMaxReinforcements,
