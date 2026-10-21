@@ -1826,7 +1826,7 @@ io.on("connection", (socket) => {
   console.log(`[VANGUARD] socket connected: ${socket.id}`);
   socket.on("message", async (msg: C2S) => {
     try {
-      handle(socket, msg);
+      await handle(socket, msg);
     } catch (e) {
       console.error("msg error", e);
     }
@@ -1870,7 +1870,7 @@ io.on("connection", (socket) => {
   });
 });
 
-function handle(socket: any, msg: C2S) {
+async function handle(socket: any, msg: C2S) {
   switch (msg.t) {
     case "joinMatch": {
       console.log(`[VANGUARD] joinMatch from ${socket.id}: mode=${msg.mode} bots=${msg.botCount} name=${msg.name} map=${msg.mapId ?? "compound"}`);
