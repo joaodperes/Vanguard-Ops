@@ -4,7 +4,7 @@ import {
   compatibleAttachments, weaponAttachmentSlots,
 } from "../src/lib/game-data";
 import {
-  attachmentChallenge, operatorContract, OPERATOR_CONTRACTS,
+  attachmentChallenge, operatorContract, OPERATOR_CONTRACTS, skinChallengesForWeaponAndSkin,
   armoryChallengeProgress, WEAPON_MASTERY_TIERS, weaponMasteryProgress,
 } from "../src/lib/armory-challenges";
 
@@ -22,7 +22,7 @@ describe("permanent challenge-based Armory eligibility", () => {
           expect(challenge?.weaponId).toBe(weapon.id);
           expect(challenge?.rewardId).toBe(attachmentId);
           expect(["kills", "headshots"]).toContain(challenge?.metric);
-          expect(challenge?.id).not.toBe(keys.has(challenge?.id ?? ""));
+          expect(keys.has(challenge!.id)).toBe(false);
           keys.add(challenge!.id);
           // Ownership prices are the existing catalog values (no cost redesign).
           expect(att.unlockCost).toBeGreaterThan(0);
@@ -63,7 +63,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   test("every paid weapon skin has a weapon-specific challenge", () => {
     for (const weapon of WEAPONS) {
       for (const skin of WEAPON_SKINS.filter(s => s.id !== "default")) {
-        const challenges = WEAPON_CHALLENGES.filter(c => c.weaponId === weapon.id && c.skinId === skin.id);
+        const challenges = skinChallengesForWeaponAndSkin(weapon.id, skin.id);
         expect(challenges.length).toBeGreaterThanOrEqual(1);
         expect(skin.unlockCost).toBeGreaterThan(0);
       }
