@@ -285,6 +285,21 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       </div>
       )}
 
+      {mode === "survival" && (
+        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-[90vw] max-w-xl ${isTouch?"top-11":"top-16"}`}>
+          <span className="text-[10px] tracking-widest font-bold uppercase text-amber-200">
+            {(hud.survivalTier ?? "default").toUpperCase()} SURVIVAL
+            {hud.survivalTier === "default" ? " · CLEAR 30" : " · ENDLESS"}
+          </span>
+          {(hud.survivalModifierNames?.length ?? 0) > 0 && (
+            <div className="text-[10px] text-rose-300 font-bold mt-1">
+              Mutators: {hud.survivalModifierNames!.join(" · ")}
+            </div>
+          )}
+          {hud.survivalBossWave && <div className="text-xs text-red-400 font-black uppercase tracking-widest mt-1 animate-pulse">Boss Wave · Heavy weapons / Shockwave</div>}
+        </div>
+      )}
+
       {/* Gun Game progression indicator (gungame mode only) — sits below the top scoreboard */}
       {mode === "gungame" && hud.gungameTotal !== undefined && (
         <GunGameProgress
