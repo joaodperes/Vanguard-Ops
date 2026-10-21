@@ -75,7 +75,8 @@ export default function Page() {
           // can update the player's lifetime bestKillstreak (Triple Threat /
           // Killstreak King / Untouchable Force achievements).
           bestStreak: r.bestStreak ?? 0,
-          survivalWaves: (r as any).survivalWaves ?? 0,
+          survivalWaves: r.survivalWaves ?? 0,
+          survivalTier: r.survivalTier ?? "default",
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
         }),
@@ -168,6 +169,7 @@ export default function Page() {
           mode={playConfig.mode}
           botCount={playConfig.botCount}
           botDifficulty={playConfig.botDifficulty}
+          survivalTier={playConfig.survivalTier ?? "default"}
           online={playConfig.online}
           playerName={profile.name}
           playerKey={playerKey}
