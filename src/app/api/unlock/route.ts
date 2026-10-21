@@ -93,6 +93,16 @@ export async function POST(req: NextRequest) {
           data: { credits: { decrement: def.unlockCost } },
         });
         if (!charged.count) throw new Error("NOT_ENOUGH_CREDITS");
+        // Preserve the legacy currently-equipped operator entitlement
+        // before buying a replacement, even though older versions did not
+        // record historical purchases separately.
+        if (player.selectedSkin !== "default") {
+          await tx.playerSkinUnlock.upsert({
+            where: { playerId_skinId: { playerId: player.id, skinId: player.selectedSkin } },
+            create: { playerId: player.id, skinId: player.selectedSkin },
+            update: {},
+          });
+        }
         await tx.playerSkinUnlock.create({ data: { playerId: player.id, skinId: itemId } });
         await tx.player.update({ where: { id: player.id }, data: { selectedSkin: itemId } });
         await tx.loadout.updateMany({ where: { playerId: player.id }, data: { playerSkin: itemId } });
