@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
+import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
@@ -97,6 +98,7 @@ function useLobby(active: boolean) {
 export function Play() {
   const { profile, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
   const [tab, setTab] = useState<"create" | "browse">("create");
+  const [mapPaceFilter, setMapPaceFilter] = useState<"all" | MapPace>("all");
   const lobby = useLobby(tab === "browse");
   // Round 20a: Server status indicator. The game server runs on port 3003
   // (started by instrumentation.ts). Connection strategy depends on environment:
@@ -454,9 +456,26 @@ export function Play() {
                 )}
 
                 {/* Map choice */}
-                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Pick the battleground">
+                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Choose the combat pace and map footprint">
+                  <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter maps by size and combat pace">
+                    {([
+                      ["all", "All sizes"], ["compact", "Compact · intense"],
+                      ["balanced", "Balanced"], ["tactical", "Tactical · spacious"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value} type="button"
+                        aria-pressed={mapPaceFilter === value}
+                        onClick={() => setMapPaceFilter(value)}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          mapPaceFilter === value
+                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                            : "border-white/10 bg-black/30 text-white/55 hover:border-white/30"
+                        }`}
+                      >{label}</button>
+                    ))}
+                  </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {MAP_LIST.map((m) => {
+                    {MAP_LIST.filter((m) => mapPaceFilter === "all" || MAP_FOOTPRINT[m.id].pace === mapPaceFilter).map((m) => {
                       const selected = roomConfig.mapId === m.id;
                       const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
                       return (
@@ -484,8 +503,10 @@ export function Play() {
                                 )}
                               </div>
                               <div className="text-white/50 text-[11px] leading-snug mb-1.5 line-clamp-2">{m.description}</div>
-                              <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {m.size * 2}×{m.size * 2}</span>
+                              <div className="text-cyan-200/70 text-[11px] mb-1.5">{MAP_FOOTPRINT[m.id].description}</div>
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{MAP_FOOTPRINT[m.id].pace}</span>
+                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.size * 2)}×{Math.round(m.size * 2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
                               </div>
                             </div>
