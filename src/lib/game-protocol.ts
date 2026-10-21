@@ -4,6 +4,7 @@
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
+import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
 
 export type Vec3 = [number, number, number];
@@ -38,6 +39,7 @@ export interface RoomSummary {
   humans: number;       // current human player count
   capacity: number;     // total slots
   hasStarted: boolean;  // match in progress (always true once created)
+  survivalTier?: SurvivalTier;
   state?: "lobby" | "playing";  // current room phase (lobby = waiting for host to start)
   createdAt: number;    // epoch ms
 }
@@ -67,6 +69,7 @@ export interface CreateRoomConfig {
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
+  survivalTier?: SurvivalTier; // default / hard / elite / nightmare
 }
 
 // ---- Combat constants -------------------------------------------------------
@@ -1301,6 +1304,7 @@ export interface MatchConfig {
   scoreLimit: number;     // kills to win (per player in FFA, per team in TDM). 0 = endless (survival)
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
+  survivalTier?: SurvivalTier;
 }
 
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
@@ -1309,6 +1313,7 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
   scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : 0,
   timeLimit: mode === "survival" || mode === "gungame" ? 0 : 360,
   friendlyFire: false,
+  survivalTier: mode === "survival" ? "default" : undefined,
 });
 
 // ---- Gun Game weapon progression ----
