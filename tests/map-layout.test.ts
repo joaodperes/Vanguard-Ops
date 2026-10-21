@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAP_LIST, type MapDef } from "../src/lib/game-protocol";
+import { MAP_LIST } from "../src/lib/game-protocol";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "../src/lib/map-tactics";
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
@@ -30,6 +30,17 @@ describe("authored map combat layouts", () => {
               Math.abs(point[1] - env.pos[1]) < 2;
             expect(overlaps).toBe(false);
           }
+        }
+      }
+    }
+  });
+
+  test("all player and bot spawns avoid blocking cover", () => {
+    for (const map of MAP_LIST) {
+      const collision = makeEnvironmentMap(map).cover;
+      for (const points of Object.values(map.spawns)) {
+        for (const point of points) {
+          expect(botPositionEmbedded(collision, point)).toBe(false);
         }
       }
     }
