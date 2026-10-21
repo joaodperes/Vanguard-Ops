@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
@@ -145,7 +146,19 @@ export async function POST(req: NextRequest) {
       where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
     });
     // A completed challenge is only eligibility to buy, not permission to equip.
-    return owned ? skinId : undefined;
+    if (owned) return skinId;
+    // Legacy wildcard grants existed before paid per-weapon unlocks. Preserve
+    // only if this specific weapon already completed its own skin challenge.
+    const legacy = await db.skinUnlock.findUnique({
+      where: { playerId_weaponId_skinId: { playerId: player.id, weaponId: "*", skinId } },
+    });
+    if (!legacy) return undefined;
+    const stats = await db.weaponProgress.findUnique({
+      where: { playerId_weaponId: { playerId: player.id, weaponId } },
+    });
+    return skinChallengesForWeaponAndSkin(weaponId, skinId).some(ch =>
+      (ch.metric === "kills" ? stats?.kills ?? 0 : stats?.headshots ?? 0) >= ch.goal,
+    ) ? skinId : undefined;
   };
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
   const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
@@ -188,6 +201,15 @@ export async function POST(req: NextRequest) {
     },
   });
   if (playerSkin !== undefined) {
+    // The old Armory only stored the last selected operator, not every
+    // purchase. Preserve this last known legacy entitlement before switching.
+    if (player.selectedSkin !== "default") {
+      await db.playerSkinUnlock.upsert({
+        where: { playerId_skinId: { playerId: player.id, skinId: player.selectedSkin } },
+        create: { playerId: player.id, skinId: player.selectedSkin },
+        update: {},
+      });
+    }
     await db.player.update({ where: { id: player.id }, data: { selectedSkin: playerSkin } });
   }
   const view = await buildProfileView(playerKey);
