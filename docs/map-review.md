@@ -7,6 +7,37 @@ Source baseline: `src/lib/game-protocol.ts`, `src/lib/dynamic-environment.ts`,
 **Purpose:** replace scattered cover and template hazards with designed fighting spaces,
 meaningful routes and reliable bot traversal. Keep map edits isolated from Movement V2.
 
+## Implementation status — 21 October 2026
+
+**The source-level tactical layout pass is now implemented on `dev`.**
+The rest of this document retains the original diagnosis and proposed design
+goals for comparison. Gameplay balance is **not yet playtested**.
+
+- `src/lib/map-tactics.ts`: 118 authored tactical cover elements across
+  all six arenas, plus outer spawn rotations for the previously underused ring.
+- `src/lib/game-protocol.ts`: map-specific environmental interactions
+  (security gates, cargo transfer, fuel service, damaged equipment, etc.);
+  hard-cover wings accompany breakable doors.
+- Repositioned all 75 existing stair approaches so their crests terminate
+  beside a same-height supported roof or walkway. Structural geometry audit
+  reports zero disconnected crests (proximity check only).
+- Shipyard stacked containers now represent actual 4.8-unit upper decks;
+  rooftop spawns were moved clear of crossing crane geometry.
+- Neon Plaza cross-bridges have playable headroom above the lower decks,
+  with corresponding stair and upper-cover placement updates.
+- All 320 original and added FFA/TDM spawn entries pass the source-level
+  XZ/vertical collision proximity audit (including duplicates by mode).
+- `src/lib/bot-routing.ts`: layered route states, gradual climb probes,
+  hazard exclusion, 2.5-unit controlled drop cap and a per-search budget.
+  Both `fps-engine.ts` and `game-server.ts` use it when elevation or
+  obstacles require a route.
+
+**Still needing a live playtest:** line-of-sight quality, pathfinding reliability
+under real bot movement, route choice with moving cover, spawn combat fairness,
+travel times, server/client synchronisation, and geometry/performance regressions.
+
+---
+
 ## Overall diagnosis
 
 The arena half-extents are already 60–64 world units (120–128 across), so they
