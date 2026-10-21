@@ -83,7 +83,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
 
   const difficulty = Math.max(0, Math.min(3, Math.floor(attachment.unlockCost / 180)));
   let metric: ArmoryMetric = "kills";
-  let goal: number;
+  let goal = 12;
   switch (attachment.slot) {
     case "sight":
       goal = 12 + difficulty * 8; // early functional optics are approachable
