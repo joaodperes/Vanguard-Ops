@@ -45,7 +45,7 @@ export function FAQ() {
               <ul className="space-y-1.5">
                 <li><strong className="text-amber-300">Free-For-All (FFA):</strong> Everyone vs everyone. No teams. First to the kill limit (or highest kills when time runs out) wins.</li>
                 <li><strong className="text-rose-300">Team Deathmatch (TDM):</strong> Red vs Blue. Kills count toward your team&rsquo;s score. First team to the kill limit wins.</li>
-                <li><strong className="text-emerald-300">Survival (PvE):</strong> 1–2 humans vs endless waves of bots. You have a limited pool of reinforcements — when everyone is out, the game ends. Each wave gets harder.</li>
+                <li><strong className="text-emerald-300">Survival (PvE):</strong> Solo or duo with limited reinforcements. Clear 30 waves on Standard for a large XP/credits reward and unlock Hard (endless, mutators change every 5 waves). Clear Hard wave 20 for Elite (mutators every wave and a boss every 10 waves), then Elite wave 20 for Nightmare (mutators stack instead of rotate).</li>
                 <li><strong className="text-purple-300">Gun Game:</strong> Advance through a rotating 30-weapon list, finishing with Rocket Launcher and Melee. Weapons use base stats without Armory attachments; your chosen passive perk remains active. Free-for-all format — no teams.</li>
               </ul>
             </FaqItem>
