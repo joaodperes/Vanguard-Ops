@@ -82,6 +82,30 @@ describe("authored map combat layouts", () => {
     }
   });
 
+  test("every staircase crest joins a reachable-height roof or walkway", () => {
+    for (const map of MAP_LIST) {
+      const steps = map.cover.filter(box => box.kind === "stair");
+      let crests = 0;
+      for (const box of steps) {
+        const top = box.pos[1] + box.size[1];
+        const higherNeighbour = steps.some(other => other !== box &&
+          other.pos[1] + other.size[1] > top + 0.15 &&
+          other.pos[1] + other.size[1] < top + 0.7 &&
+          Math.hypot(other.pos[0] - box.pos[0], other.pos[2] - box.pos[2]) < 2.1);
+        if (higherNeighbour) continue;
+        crests++;
+        const supported = map.cover.some(support => support.kind !== "stair" && support.kind !== "accent" &&
+          Math.abs(support.pos[1] + support.size[1] - top) < 0.65 &&
+          Math.hypot(
+            Math.max(0, Math.abs(support.pos[0] - box.pos[0]) - support.size[0]),
+            Math.max(0, Math.abs(support.pos[2] - box.pos[2]) - support.size[2]),
+          ) < 1.1);
+        expect(supported).toBe(true);
+      }
+      expect(crests).toBeGreaterThan(0);
+    }
+  });
+
   test("cover bounds and environments have finite authored coordinates", () => {
     for (const map of MAP_LIST) {
       for (const cover of map.cover) {
