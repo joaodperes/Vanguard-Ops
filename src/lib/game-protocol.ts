@@ -283,7 +283,7 @@ const COMPOUND_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
     [-26, 0, -26], [26, 0, -26], [-26, 0, 26], [26, 0, 26],
     [0, 0, -28], [0, 0, 28], [-28, 0, 0], [28, 0, 0],
-    [-14, 0, -14], [14, 0, 14], [-14, 0, 14], [14, 0, -14],
+    [-15, 0, -8], [15, 0, 8], [-15, 0, 8], [15, 0, -8],
     [-20, 0, 0], [20, 0, 0], [0, 0, -20], [0, 0, 20],
     [-8, 0, -22], [8, 0, 22], [-22, 0, 8], [22, 0, -8],
   ],
@@ -393,7 +393,7 @@ const SKYBRIDGE_COVER: CoverBox[] = [
 
 const SKYBRIDGE_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
-    [-30, 0, -30], [30, 0, -30], [-30, 0, 30], [30, 0, 30],
+    [-30, 0, -30], [30, 0, -27], [-30, 0, 27], [30, 0, 30],
     [0, 0, -32], [0, 0, 32], [-32, 0, 0], [32, 0, 0],
     [-15, 0, -15], [15, 0, 15], [-15, 0, 15], [15, 0, -15],
     [-25, 0, 0], [25, 0, 0], [0, 0, -25], [0, 0, 25],
@@ -496,9 +496,9 @@ const BUNKER_COVER: CoverBox[] = [
 
 const BUNKER_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
-    [-24, 0, -24], [24, 0, -24], [-24, 0, 24], [24, 0, 24],
+    [-27, 0, -24], [24, 0, -24], [-24, 0, 24], [27, 0, 24],
     [0, 0, -26], [0, 0, 26], [-26, 0, 0], [26, 0, 0],
-    [-12, 0, -12], [12, 0, 12], [-12, 0, 12], [12, 0, -12],
+    [-15, 0, -12], [15, 0, 12], [-15, 0, 12], [15, 0, -12],
     [-16, 0, 0], [16, 0, 0], [0, 0, -16], [0, 0, 16],
     // Elevated spawns on walkway
     [0, 3.95, -22], [0, 3.95, 22], [-22, 3.95, 0], [22, 3.95, 0],
@@ -628,11 +628,11 @@ const SHIPYARD_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
     [-12, 4.85, -4], [12, 4.85, 4], [0, 5.15, -10], [0, 5.15, 10],
   ],
   red: [
-    [-26, 0, -20], [-26, 0, 0], [-26, 0, 20], [-22, 0, -26], [-22, 0, 26],
+    [-26, 0, -20], [-31, 0, 0], [-26, 0, 20], [-22, 0, -26], [-27, 0, 26],
     [-12, 4.85, -4], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
   ],
   blue: [
-    [26, 0, -20], [26, 0, 0], [26, 0, 20], [22, 0, -26], [22, 0, 26],
+    [26, 0, -20], [31, 0, 0], [26, 0, 20], [27, 0, -26], [22, 0, 26],
     [12, 4.85, 4], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
   ],
 };
@@ -760,8 +760,8 @@ const TERMINAL_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
     [-30, 0, -30], [30, 0, -30], [-30, 0, 30], [30, 0, 30],
     [0, 0, -32], [0, 0, 32], [-32, 0, 0], [32, 0, 0],
     [-16, 0, -16], [16, 0, 16], [-16, 0, 16], [16, 0, -16],
-    [-22, 0, -8], [22, 0, 8], [-8, 0, -22], [8, 0, 22],
-    [-24, 0, 0], [24, 0, 0], [0, 0, -24], [0, 0, 24],
+    [-26, 0, -8], [26, 0, 8], [-8, 0, -22], [8, 0, 22],
+    [-30, 0, 0], [30, 0, 0], [0, 0, -24], [0, 0, 24],
     // Elevated: walkway
     [0, 5.15, -10], [0, 5.15, 10], [-10, 5.15, 0], [10, 5.15, 0],
   ],
@@ -815,16 +815,16 @@ const ARENA_NEON_COVER: CoverBox[] = [
   ...stairs(30, -25, 2.5, 5, 5, 5, "z", 1),
   ...stairs(-30, 25, 2.5, 5, 5, 5, "z", -1),
   ...stairs(30, 25, 2.5, 5, 5, 5, "z", -1),
-  // 2 elevated bridges at y=4 connecting opposite corners (long axis-aligned spans)
+  // 2 elevated bridges at y=6 connecting opposite corners (long axis-aligned spans)
   // Bridge 1: north edge — connects NW corner platform to NE corner platform
-  { pos: [0, 4, -30], size: [35, 0.3, 1.5], kind: "platform" },
-  // Bridge 2: south edge — connects SW corner platform to SE corner platform
-  { pos: [0, 4, 30], size: [35, 0.3, 1.5], kind: "platform" },
-  // Stairs up from corner platforms (y=2.5) to bridges (y=4) at each bridge end
-  ...stairs(-23, -31.5, 4, 8, 2, 5, "z", -1),
-  ...stairs(23, -31.5, 4, 8, 2, 5, "z", -1),
-  ...stairs(-23, 31.5, 4, 8, 2, 5, "z", 1),
-  ...stairs(23, 31.5, 4, 8, 2, 5, "z", 1),
+  { pos: [0, 6, -30], size: [35, 0.3, 1.5], kind: "platform" },
+  // Bridge 2: south edge — provides a separate upper crossing above the decks
+  { pos: [0, 6, 30], size: [35, 0.3, 1.5], kind: "platform" },
+  // Independent ground-to-bridge stair approaches; lower decks retain overhead clearance
+  ...stairs(-23, -31.5, 6, 12, 2, 5, "z", -1),
+  ...stairs(23, -31.5, 6, 12, 2, 5, "z", -1),
+  ...stairs(-23, 31.5, 6, 12, 2, 5, "z", 1),
+  ...stairs(23, 31.5, 6, 12, 2, 5, "z", 1),
   // Perimeter walls (tall thin boxes around the dense 128x128 arena)
   { pos: [0, 5, -62], size: [64, 5, 0.5], kind: "cover" },
   { pos: [0, 5, 62], size: [64, 5, 0.5], kind: "cover" },
@@ -890,8 +890,8 @@ const ARENA_NEON_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
     // Scattered around the perimeter (compressed for 128x128 dense plaza)
     [-55, 0, -55], [55, 0, -55], [-55, 0, 55], [55, 0, 55],
-    [0, 0, -55], [0, 0, 55], [-55, 0, 0], [55, 0, 0],
-    [-50, 0, -50], [50, 0, 50], [-50, 0, 50], [50, 0, -50],
+    [6, 0, -54], [-6, 0, 54], [-54, 0, 6], [54, 0, -6],
+    [-47, 0, -50], [47, 0, 50], [-47, 0, 50], [47, 0, -50],
     [-55, 0, -30], [55, 0, 30], [-30, 0, -55], [30, 0, 55],
     [-40, 0, 0], [40, 0, 0], [0, 0, -40], [0, 0, 40],
     // Elevated: corner platforms
@@ -899,14 +899,14 @@ const ARENA_NEON_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ],
   red: [
     // Red corner: NW (compressed for 128x128 dense plaza)
-    [-55, 0, -55], [-55, 0, -40], [-55, 0, -25], [-55, 0, 0],
-    [-50, 0, -50], [-40, 0, -55], [-30, 2.95, -30], [-45, 0, -45],
+    [-55, 0, -55], [-55, 0, -40], [-55, 0, -25], [-54, 0, 6],
+    [-47, 0, -50], [-40, 0, -55], [-30, 2.95, -30], [-45, 0, -45],
     [-50, 0, -35], [-45, 0, -50],
   ],
   blue: [
     // Blue corner: SE (opposite, compressed for 128x128 dense plaza)
-    [55, 0, 55], [55, 0, 40], [55, 0, 25], [55, 0, 0],
-    [50, 0, 50], [40, 0, 55], [30, 2.95, 30], [45, 0, 45],
+    [55, 0, 55], [55, 0, 40], [55, 0, 25], [54, 0, -6],
+    [47, 0, 50], [40, 0, 55], [30, 2.95, 30], [45, 0, 45],
     [50, 0, 35], [45, 0, 50],
   ],
 };
@@ -919,11 +919,11 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
   { pos: [30, 5, -30], color: 0xff2d95, intensity: 1.8, distance: 14 },
   { pos: [-30, 5, 30], color: 0xff2d95, intensity: 1.8, distance: 14 },
   { pos: [30, 5, 30], color: 0xff2d95, intensity: 1.8, distance: 14 },
-  // Purple bridge lights (along the elevated bridges at y=4)
-  { pos: [-15, 6, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [15, 6, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [-15, 6, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [15, 6, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  // Purple bridge lights (along the elevated bridges at y=6)
+  { pos: [-15, 8, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [15, 8, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [-15, 8, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [15, 8, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
   // Cyan accent lights scattered along the perimeter (compressed to +-55 for 128x128 dense plaza)
   { pos: [-55, 4, -55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
   { pos: [55, 4, -55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
@@ -1128,7 +1128,7 @@ export const MAPS: Record<MapId, MapDef> = {
     environment: ENVIRONMENTS.arena_neon,
     name: "Neon Plaza",
     shortName: "NPN",
-    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=4. Vertical arcade-shooter heaven.",
+    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=6. Vertical arcade-shooter heaven.",
     size: 64,
     wallHeight: 14,
     cover: [...ARENA_NEON_COVER, ...TACTICAL_COVER.arena_neon],
