@@ -5410,10 +5410,11 @@ export class FPSEngine {
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
       else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
       // Obstacle-aware chase navigation around the dense Bunker centre.
-      if(dist>ideal+3 && (this.opts.mapId==="bunker" ||
+      if((dist > ideal + 3 || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
+          (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size);
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment);
           ai.nextRouteAt=now+850;
         }
         const waypoint=ai.routeWaypoint;
@@ -5561,9 +5562,9 @@ export class FPSEngine {
         // so the bot faces where it's going.
         let fx = dx / d, fz = dz / d;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
-        if(patrolBlocked || this.opts.mapId === "bunker") {
+        if(patrolBlocked || Math.abs(ai.wanderTarget[1] - c.pos[1]) > 1.3 || this.opts.mapId === "bunker") {
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size);
+            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size,3,this.map.environment);
             ai.nextRouteAt=now+850;
           }
           const waypoint=ai.routeWaypoint;
