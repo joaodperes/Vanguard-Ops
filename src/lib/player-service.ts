@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
-import { OPERATOR_CONTRACTS, armoryChallengeProgress, type ArmoryChallengeView } from "./armory-challenges";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -69,7 +69,8 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
     include: {
       weaponUnlocks: true,
       skinUnlocks: true,
-      attachmentUnlocks: true,      playerSkinUnlocks: true,
+      attachmentUnlocks: true,
+      playerSkinUnlocks: true,
       loadout: true,
       achievements: true,
     },
@@ -88,7 +89,8 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
         include: {
           weaponUnlocks: true,
           skinUnlocks: true,
-          attachmentUnlocks: true,          playerSkinUnlocks: true,
+          attachmentUnlocks: true,
+          playerSkinUnlocks: true,
           loadout: true,
           achievements: true,
         },
@@ -101,7 +103,8 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
           include: {
             weaponUnlocks: true,
             skinUnlocks: true,
-            attachmentUnlocks: true,            playerSkinUnlocks: true,
+            attachmentUnlocks: true,
+            playerSkinUnlocks: true,
             loadout: true,
             achievements: true,
           },
@@ -165,7 +168,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     ? player
     : await db.player.findUnique({
         where: { playerKey },
-        include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true, playerSkinUnlocks: true, loadout: true },
+        include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true,
+ playerSkinUnlocks: true, loadout: true },
       });
   const p = fresh!;
   const level = levelForXp(p.xp);
@@ -693,7 +697,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // Pre-filter to catalog weapons that actually have challenges defined —
   // avoids issuing pointless DB aggregate queries for unknown weapons.
   const catalogWeaponIds = new Set(WEAPONS.map((w) => w.id));
-  const challengeWeaponIds = new Set(WEAPON_CHALLENGES.map((c) => c.weaponId));
+  const challengeWeaponIds = new Set(WEAPONS.map(w => w.id));
   const anyWeaponToCheck = [...weaponsToCheck].some((wid) => catalogWeaponIds.has(wid) && challengeWeaponIds.has(wid));
   if (anyWeaponToCheck) {
     // Fetch ALL of the player's skin unlocks ONCE — we'll check both per-weapon AND
@@ -737,8 +741,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         : (wid === equippedWeaponId ? input.headshots : 0);
       const weaponKills = (wp?.kills ?? 0) + matchKills;
       const weaponHeadshots = (wp?.headshots ?? 0) + matchHeadshots;
-      for (const ch of WEAPON_CHALLENGES) {
-        if (ch.weaponId !== wid) continue;
+      for (const ch of allSkinChallengesForWeapon(wid)) {
         if (isSkinAlreadyUnlocked(ch.skinId)) continue;
         const value = ch.metric === "kills" ? weaponKills : weaponHeadshots;
         const prior = ch.metric === "kills" ? (wp?.kills ?? 0) : (wp?.headshots ?? 0);
@@ -1163,7 +1166,7 @@ export async function getWeaponChallengesView(playerKey: string, weaponId: strin
   for (const s of WEAPON_SKINS) {
     if (s.id === "default") unlockedSkinIds.add(s.id);
   }
-  const challenges = WEAPON_CHALLENGES.filter((c) => c.weaponId === weaponId);
+  const challenges = allSkinChallengesForWeapon(weaponId);
   return challenges.map((c) => {
     const value = c.metric === "kills" ? progress.kills : progress.headshots;
     return {
