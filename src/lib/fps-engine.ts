@@ -18,7 +18,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint } from "@/lib/bot-routing";
-import { MOVEMENT, allowsAdsWhileSprinting } from "@/lib/movement-rules";
+import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity } from "@/lib/movement-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -464,6 +464,10 @@ export class FPSEngine {
   private alive = true;
   private respawnAt = 0;
   private onGround = true;
+  private lastGroundedAt = -Infinity;
+  private lastJumpPressedAt = -Infinity;
+  private wasJumpHeld = false;
+  private touchAutoSprintActive = false;
 
   // weapon
   private weaponId: string;
@@ -3683,6 +3687,12 @@ export class FPSEngine {
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
     this.vel.set(0, 0, 0);
+    this.onGround = true;
+    this.lastGroundedAt = -Infinity;
+    this.lastJumpPressedAt = -Infinity;
+    this.wasJumpHeld = !!this.keys["Space"];
+    this.touchJumpQueued = false;
+    this.touchAutoSprintActive = false;
     this.health = MAX_HEALTH; this.alive = true;
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
     this.ammoInMag = this.eff.magSize; this.reloading = false;
@@ -5156,24 +5166,14 @@ export class FPSEngine {
 
   private updateMovement(dt: number) {
     if (performance.now() < this.equipmentStunUntil) return;
-    // ---- Movement speed model ----
-    // Base walk speed: 7.5 u/s (was 6 — feels more responsive / arcade-y).
-    // ADS halves speed. Sprint adds +60% (only when moving forward).
-    // Per-weapon moveSpeed multiplier still applies (LMG slower, SMG faster).
-    // ---- Auto-sprint (touch / mobile) ----
-    // On mobile there is no dedicated Sprint button. Instead, pushing the
-    // movement joystick hard past a magnitude threshold (0.85) in the forward
-    // direction engages sprint automatically. This matches the user's request:
-    // "push move direction more for sprint instead of walk". The existing
-    // `touchSprint` flag is kept for backward compatibility but is no longer
-    // driven by any on-screen button.
-    let touchAutoSprint = false;
-    if (this.touchMode) {
-      const joyMag = Math.hypot(this.touchMoveX, this.touchMoveY);
-      // touchMoveY = -1 means full forward; require a meaningful forward push
-      // so backpedal / pure strafe never triggers auto-sprint.
-      touchAutoSprint = joyMag > 0.85 && this.touchMoveY < -0.5;
-    }
+    // Maintain mobile sprint hysteresis so small joystick fluctuations do not
+    // repeatedly cancel sprint. The touch overlay uses the same shared rule.
+    const touchAutoSprint = this.touchMode && shouldTouchAutoSprint(
+      Math.hypot(this.touchMoveX, this.touchMoveY),
+      -this.touchMoveY,
+      this.touchAutoSprintActive,
+    );
+    this.touchAutoSprintActive = touchAutoSprint;
     const isSprintKey = this.keys["ShiftLeft"] || this.keys["ShiftRight"] || this.touchSprint || touchAutoSprint;
     // Sprint only when moving forward AND not ADS AND weapon allows it (melee always sprints).
     const fwd = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
@@ -5230,9 +5230,8 @@ export class FPSEngine {
     if (this.sprinting && this.aiming) speedMul = MOVEMENT.sprintAdsMultiplier;
     else if (this.aiming) speedMul = 0.55;
     else if (this.sprinting) speedMul = MOVEMENT.sprintMultiplier;  // was 1.6 — higher sprint speed for better map traversal
-    // Air control: reduce horizontal acceleration when airborne so jumps feel
-    // committed but still steerable (arcade feel — not floaty, not locked).
-    const airControl = this.onGround ? 1.0 : 0.55;
+    // Momentum is intentionally preserved in the air; ground stopping and
+    // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
     const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul;
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
@@ -5244,14 +5243,28 @@ export class FPSEngine {
       }
     }
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
-    // Smooth horizontal velocity (less snappy stops, more fluid feel).
-    const accel = this.onGround ? 12 : 6;  // acceleration rate
-    this.vel.x += (move.x - this.vel.x) * Math.min(1, dt * accel * airControl);
-    this.vel.z += (move.z - this.vel.z) * Math.min(1, dt * accel * airControl);
-    // Jump: stronger jump (7.5 up) + small forward boost when sprinting (arcade hop).
-    const wantJump = (this.keys["Space"] || (this.touchMode && this.touchJumpQueued)) && this.onGround;
+    // Exponential response is stable across variable frame times. Separate
+    // acceleration, braking, reversal, and aerial steering behavior.
+    [this.vel.x, this.vel.z] = responsiveHorizontalVelocity(
+      this.vel.x, this.vel.z, move.x, move.z, this.onGround, dt,
+    );
+
+    // Press-edge jump with landing buffer + ledge grace. Holding Space cannot
+    // repeatedly bunny-hop; tap once shortly before landing or after a ledge.
+    const now = performance.now();
+    const jumpHeld = !!this.keys["Space"];
+    if ((jumpHeld && !this.wasJumpHeld) || (this.touchMode && this.touchJumpQueued)) {
+      this.lastJumpPressedAt = now;
+    }
+    this.wasJumpHeld = jumpHeld;
+    this.touchJumpQueued = false;
+    if (this.onGround) this.lastGroundedAt = now;
+    const wantJump = now - this.lastJumpPressedAt <= MOVEMENT.jumpBufferMs &&
+      (this.onGround || now - this.lastGroundedAt <= MOVEMENT.coyoteMs);
     if (wantJump) {
-      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);  // was 6 — higher jump for better platforming
+      this.lastJumpPressedAt = -Infinity;
+      this.lastGroundedAt = -Infinity;
+      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);
       this.onGround = false;
       // Tiny forward sprint-hop boost for that arcade momentum feel.
       if (this.sprinting) {
@@ -5260,7 +5273,6 @@ export class FPSEngine {
       }
       this.sound.play("footstep", { volume: 0.4 });
     }
-    this.touchJumpQueued = false;
     // Gravity: slightly stronger so jumps don't feel floaty.
     this.vel.y -= MOVEMENT.gravity * dt;
 
