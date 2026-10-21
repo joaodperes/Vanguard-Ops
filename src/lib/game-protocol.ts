@@ -3,6 +3,7 @@
 // Imported by BOTH the Next.js client (`@/lib/game-protocol`) and the
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
+import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame";
@@ -930,49 +931,67 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
   { pos: [55, 4, 55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
 ];
 
-/** Map-specific placements, with stable IDs for state replication. */
+/** Map interactions are part of designed combat routes. Preserve stable IDs.
+ * Hazard locations are not spawn sites; jump pads launch to authored surfaces.
+ * Moving platforms are optional side-route props, never mandatory bot links.
+ */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   compound: [
-    { id: "compound_fire", type: "fire", pos: [-33, 0, -10], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "compound_spikes", type: "spikes", pos: [33, 0, 10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "compound_jump", type: "jump_pad", pos: [0, 0, 40], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "compound_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 6 },
-    { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, 19], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Fuel service yard east of the northern security checkpoint.
+    { id: "compound_fire", type: "fire", pos: [38, 0, -28], size: [2.4, 1.6, 2.4], dps: 24 },
+    // Timed security crossing next to the alternate north gate.
+    { id: "compound_spikes", type: "spikes", pos: [18, 0, -34], size: [1.8, 0.4, 1.8], damage: 32, period: 4.4, activeFor: 1.5 },
+    // South lane launch: reaches elevated walkway at z≈42.
+    { id: "compound_jump", type: "jump_pad", pos: [22, 0, 32], size: [1.8, 0.2, 1.8], launch: [0, 16, 8] },
+    // Breachable service gate, between the new concrete checkpoint walls.
+    { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, -34], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
   skybridge: [
-    { id: "skybridge_fire", type: "fire", pos: [-30, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "skybridge_spikes", type: "spikes", pos: [30, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "skybridge_jump", type: "jump_pad", pos: [0, 0, 25], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "skybridge_platform", type: "moving_platform", pos: [-8, 0.85, 25], size: [2.5, 0.25, 2.5], to: [8, 0.85, 25], period: 6 },
-    { id: "skybridge_wall", type: "destructible_wall", pos: [0, 1.6, -25], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Maintenance bay faults, on opposite sides of the elevated transit structure.
+    { id: "skybridge_fire", type: "fire", pos: [-26, 0, -23], size: [2.2, 1.5, 2.2], dps: 24 },
+    { id: "skybridge_spikes", type: "spikes", pos: [26, 0, 23], size: [1.9, 0.4, 1.9], damage: 32, period: 4.5, activeFor: 1.6 },
+    // Alternate shortcut onto the central tower; stairs remain the bot-safe way.
+    { id: "skybridge_jump", type: "jump_pad", pos: [0, 0, 18], size: [1.8, 0.2, 1.8], launch: [0, 20, -13] },
+    // North transit security door creates a flank only when destroyed.
+    { id: "skybridge_wall", type: "destructible_wall", pos: [0, 1.5, -28], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
   bunker: [
-    { id: "bunker_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "bunker_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "bunker_jump", type: "jump_pad", pos: [0, 0, 33], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "bunker_platform", type: "moving_platform", pos: [-8, 0.85, 32], size: [2.5, 0.25, 2.5], to: [8, 0.85, 32], period: 6 },
-    { id: "bunker_wall", type: "destructible_wall", pos: [0, 1.5, -30], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Damaged generator room and timed security floor; neither blocks spawns.
+    { id: "bunker_fire", type: "fire", pos: [-43, 0, -33], size: [2.2, 1.5, 2.2], dps: 24 },
+    { id: "bunker_spikes", type: "spikes", pos: [0, 0, -44], size: [1.8, 0.4, 1.8], damage: 32, period: 4.6, activeFor: 1.6 },
+    // Breakable north bulkhead opens a short route between service corridors.
+    { id: "bunker_wall", type: "destructible_wall", pos: [0, 1.5, -35], size: [2.8, 1.5, 0.45], hp: 220 },
   ],
   shipyard: [
-    { id: "shipyard_fire", type: "fire", pos: [-32, 0, 6], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "shipyard_spikes", type: "spikes", pos: [32, 0, -6], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "shipyard_jump", type: "jump_pad", pos: [0, 0, 42], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "shipyard_platform", type: "moving_platform", pos: [-8, 0.85, 36], size: [2.5, 0.25, 2.5], to: [8, 0.85, 36], period: 6 },
-    { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Cargo/fuel handling area, separated from the original spawn grid.
+    { id: "shipyard_fire", type: "fire", pos: [33, 0, 31], size: [2.3, 1.6, 2.3], dps: 24 },
+    // Moving dock machinery on the western loading route.
+    { id: "shipyard_spikes", type: "spikes", pos: [-34, 0, -12], size: [1.8, 0.4, 1.8], damage: 32, period: 4.8, activeFor: 1.6 },
+    // Launch towards the south container roofs; stairs provide backup access.
+    { id: "shipyard_jump", type: "jump_pad", pos: [16, 0, 20], size: [1.8, 0.2, 1.8], launch: [0, 14, 8] },
+    // Cargo transfer cart, deliberately not essential to navigation.
+    { id: "shipyard_platform", type: "moving_platform", pos: [-9, 0.85, 40], size: [2.5, 0.25, 2.5], to: [9, 0.85, 40], period: 7 },
+    // Container-checkpoint gate with static wall wings.
+    { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -38], size: [2.8, 1.5, 0.45], hp: 200 },
   ],
   terminal: [
-    { id: "terminal_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "terminal_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "terminal_jump", type: "jump_pad", pos: [0, 0, 30], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "terminal_platform", type: "moving_platform", pos: [-8, 0.85, 33], size: [2.5, 0.25, 2.5], to: [8, 0.85, 33], period: 6 },
-    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Timed checkpoint floor beyond security doors, not random concourse fire.
+    { id: "terminal_spikes", type: "spikes", pos: [0, 0, -46], size: [1.8, 0.4, 1.8], damage: 28, period: 4.8, activeFor: 1.4 },
+    // Baggage transport: an optional interaction on the outer concourse.
+    { id: "terminal_platform", type: "moving_platform", pos: [-10, 0.85, 37], size: [2.6, 0.25, 2.6], to: [10, 0.85, 37], period: 7 },
+    // Security partition: breaking it opens the centre lane.
+    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -40], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
   arena_neon: [
-    { id: "arena_neon_fire", type: "fire", pos: [-35, 0, 10], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "arena_neon_spikes", type: "spikes", pos: [35, 0, -10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "arena_neon_jump", type: "jump_pad", pos: [0, 0, 35], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 38], size: [2.5, 0.25, 2.5], to: [8, 0.85, 38], period: 6 },
-    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -35], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Damaged power panel and flashing electrical grid mark risky flank routes.
+    { id: "arena_neon_fire", type: "fire", pos: [39, 0, 27], size: [2.3, 1.6, 2.3], dps: 24 },
+    { id: "arena_neon_spikes", type: "spikes", pos: [-23, 0, -22], size: [1.8, 0.4, 1.8], damage: 32, period: 4.2, activeFor: 1.5 },
+    // Boost toward the southeast balcony without eliminating stair paths.
+    { id: "arena_neon_jump", type: "jump_pad", pos: [21, 0, 17], size: [1.8, 0.2, 1.8], launch: [7, 15, 8] },
+    // Holographic shuttle travels across the south arcade.
+    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 7 },
+    // Breachable storefront shutter between permanent flanking partitions.
+    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -46], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
 };
 export const MAPS: Record<MapId, MapDef> = {
@@ -984,8 +1003,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Symmetric arena with a central raised platform and four corner bunkers. Balanced for all ranges.",
     size: 64,
     wallHeight: 10,
-    cover: COMPOUND_COVER,
-    spawns: COMPOUND_SPAWNS,
+    cover: [...COMPOUND_COVER, ...TACTICAL_COVER.compound],
+    spawns: {
+      ffa: [...COMPOUND_SPAWNS.ffa, ...OUTER_SPAWNS.compound.ffa],
+      red: [...COMPOUND_SPAWNS.red, ...OUTER_SPAWNS.compound.red],
+      blue: [...COMPOUND_SPAWNS.blue, ...OUTER_SPAWNS.compound.blue],
+    },
     accentColor: "#f59e0b",
     theme: {
       floor: 0x2a3038, floorPattern: 0x1a1f26, wall: 0x1a1f26, cover: 0x3b424c, coverAccent: 0xf59e0b,
@@ -1008,8 +1031,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Vertical-focused map with crossing catwalks and corner sniper towers. Height is power.",
     size: 64,
     wallHeight: 14,
-    cover: SKYBRIDGE_COVER,
-    spawns: SKYBRIDGE_SPAWNS,
+    cover: [...SKYBRIDGE_COVER, ...TACTICAL_COVER.skybridge],
+    spawns: {
+      ffa: [...SKYBRIDGE_SPAWNS.ffa, ...OUTER_SPAWNS.skybridge.ffa],
+      red: [...SKYBRIDGE_SPAWNS.red, ...OUTER_SPAWNS.skybridge.red],
+      blue: [...SKYBRIDGE_SPAWNS.blue, ...OUTER_SPAWNS.skybridge.blue],
+    },
     accentColor: "#06b6d4",
     theme: {
       floor: 0x1e2935, floorPattern: 0x0f1722, wall: 0x0f1722, cover: 0x334155, coverAccent: 0x06b6d4,
@@ -1032,8 +1059,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Tight enclosed CQC with a perimeter upper walkway. Close-quarters brutality.",
     size: 60,
     wallHeight: 9,
-    cover: BUNKER_COVER,
-    spawns: BUNKER_SPAWNS,
+    cover: [...BUNKER_COVER, ...TACTICAL_COVER.bunker],
+    spawns: {
+      ffa: [...BUNKER_SPAWNS.ffa, ...OUTER_SPAWNS.bunker.ffa],
+      red: [...BUNKER_SPAWNS.red, ...OUTER_SPAWNS.bunker.red],
+      blue: [...BUNKER_SPAWNS.blue, ...OUTER_SPAWNS.bunker.blue],
+    },
     accentColor: "#ef4444",
     theme: {
       floor: 0x2a2020, floorPattern: 0x1a1414, wall: 0x1a1414, cover: 0x3b2c2c, coverAccent: 0xef4444,
@@ -1056,8 +1087,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Tight industrial dockside — stacked containers, crane walkways, brutal close-quarters firefights.",
     size: 62,
     wallHeight: 11,
-    cover: SHIPYARD_COVER,
-    spawns: SHIPYARD_SPAWNS,
+    cover: [...SHIPYARD_COVER, ...TACTICAL_COVER.shipyard],
+    spawns: {
+      ffa: [...SHIPYARD_SPAWNS.ffa, ...OUTER_SPAWNS.shipyard.ffa],
+      red: [...SHIPYARD_SPAWNS.red, ...OUTER_SPAWNS.shipyard.red],
+      blue: [...SHIPYARD_SPAWNS.blue, ...OUTER_SPAWNS.shipyard.blue],
+    },
     accentColor: "#ff8c1a",
     theme: {
       floor: 0x1c2128, floorPattern: 0x10141a, wall: 0x14181f, cover: 0x3a3026, coverAccent: 0xff8c1a,
@@ -1074,8 +1109,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Modern airport concourse — polished floors, glass walls, second-level walkway. Classic mid-range engagements.",
     size: 64,
     wallHeight: 12,
-    cover: TERMINAL_COVER,
-    spawns: TERMINAL_SPAWNS,
+    cover: [...TERMINAL_COVER, ...TACTICAL_COVER.terminal],
+    spawns: {
+      ffa: [...TERMINAL_SPAWNS.ffa, ...OUTER_SPAWNS.terminal.ffa],
+      red: [...TERMINAL_SPAWNS.red, ...OUTER_SPAWNS.terminal.red],
+      blue: [...TERMINAL_SPAWNS.blue, ...OUTER_SPAWNS.terminal.blue],
+    },
     accentColor: "#38bdf8",
     theme: {
       floor: 0x2c3036, floorPattern: 0x1e2228, wall: 0x1c2026, cover: 0x3c424c, coverAccent: 0x38bdf8,
@@ -1092,8 +1131,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=4. Vertical arcade-shooter heaven.",
     size: 64,
     wallHeight: 14,
-    cover: ARENA_NEON_COVER,
-    spawns: ARENA_NEON_SPAWNS,
+    cover: [...ARENA_NEON_COVER, ...TACTICAL_COVER.arena_neon],
+    spawns: {
+      ffa: [...ARENA_NEON_SPAWNS.ffa, ...OUTER_SPAWNS.arena_neon.ffa],
+      red: [...ARENA_NEON_SPAWNS.red, ...OUTER_SPAWNS.arena_neon.red],
+      blue: [...ARENA_NEON_SPAWNS.blue, ...OUTER_SPAWNS.arena_neon.blue],
+    },
     accentColor: "#ff2d95",
     theme: {
       floor: 0x1a0a2e, floorPattern: 0x0f0518, wall: 0x120829, cover: 0x2a1147, coverAccent: 0xff2d95,
