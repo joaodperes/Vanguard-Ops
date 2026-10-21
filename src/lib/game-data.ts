@@ -1681,6 +1681,10 @@ export interface AchievementDef {
     | "level"
     | "credits_earned_total"
     | "survival_waves"
+    | "survival_default_wins"
+    | "survival_hard_waves"
+    | "survival_elite_waves"
+    | "survival_nightmare_waves"
     // 17-C: quest-completion lifetime counters (Player model columns)
     | "daily_challenges_completed"
     | "weekly_challenges_completed"
@@ -1719,6 +1723,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "surv_5", title: "Survivor", description: "Survive 5 waves in a single Survival run", icon: "Shield", metric: "survival_waves", goal: 5, tier: "bronze", rewardXp: 250, rewardCredits: 125, category: "pve" },
   { id: "surv_10", title: "Last Bastion", description: "Survive 10 waves in a single Survival run", icon: "Shield", metric: "survival_waves", goal: 10, tier: "silver", rewardXp: 700, rewardCredits: 350, category: "pve" },
   { id: "surv_20", title: "Untouchable", description: "Survive 20 waves in a single Survival run", icon: "Crown", metric: "survival_waves", goal: 20, tier: "gold", rewardXp: 2000, rewardCredits: 1000, category: "pve" },
+  { id: "surv_default_victory", title: "Hold the Line", description: "Clear all 30 Standard Survival waves", icon: "Trophy", metric: "survival_default_wins", goal: 1, tier: "gold", rewardXp: 2500, rewardCredits: 1250, category: "pve" },
+  { id: "surv_hard_10", title: "Against the Odds", description: "Clear 10 Hard Survival waves", icon: "Shield", metric: "survival_hard_waves", goal: 10, tier: "silver", rewardXp: 750, rewardCredits: 400, category: "pve" },
+  { id: "surv_hard_20", title: "Unbreakable", description: "Reach 20 completed waves on Hard and unlock Elite", icon: "Crown", metric: "survival_hard_waves", goal: 20, tier: "gold", rewardXp: 2000, rewardCredits: 1000, category: "pve" },
+  { id: "surv_elite_boss", title: "Boss Slayer", description: "Defeat Elite's wave-10 boss", icon: "Swords", metric: "survival_elite_waves", goal: 10, tier: "silver", rewardXp: 1200, rewardCredits: 600, category: "pve" },
+  { id: "surv_elite_20", title: "Elite Vanguard", description: "Clear 20 Elite waves and unlock Nightmare", icon: "Crown", metric: "survival_elite_waves", goal: 20, tier: "platinum", rewardXp: 3500, rewardCredits: 1800, category: "pve" },
+  { id: "surv_nightmare_10", title: "Night Terror", description: "Defeat Nightmare's wave-10 boss", icon: "Flame", metric: "survival_nightmare_waves", goal: 10, tier: "gold", rewardXp: 2000, rewardCredits: 1100, category: "pve" },
+  { id: "surv_nightmare_20", title: "Beyond the Abyss", description: "Clear 20 Nightmare waves", icon: "Crown", metric: "survival_nightmare_waves", goal: 20, tier: "platinum", rewardXp: 6000, rewardCredits: 3000, category: "pve" },
   // ---- 17-C: Quest-completion milestones (lifetime counters on Player) ----
   { id: "quest_daily_10", title: "Daily Devotee", description: "Complete 10 daily challenges", icon: "Calendar", metric: "daily_challenges_completed", goal: 10, tier: "bronze", rewardXp: 300, rewardCredits: 150, category: "pvp" },
   { id: "quest_weekly_5", title: "Weekly Warrior", description: "Complete 5 weekly challenges", icon: "Star", metric: "weekly_challenges_completed", goal: 5, tier: "silver", rewardXp: 800, rewardCredits: 400, category: "pvp" },
@@ -1783,8 +1794,8 @@ export const MATCH_MODES: Record<string, MatchModeConfig> = {
   },
   survival: {
     id: "survival",
-    label: "Endless Survival",
-    description: "Solo or co-op (2 players). Survive endless waves of escalating bots. Score = waves cleared.",
+    label: "Survival",
+    description: "Clear 30 waves on Standard, then unlock Hard, Elite and Nightmare endless tiers.",
     icon: "Skull",
     defaultScoreLimit: 0,   // no kill limit — endless
     scoreOptions: [0],
