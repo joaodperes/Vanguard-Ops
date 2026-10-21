@@ -857,6 +857,7 @@ interface ModalAttachmentSlotProps {
   weaponId: string;
   equippedId: string | null;
   unlockedForWeapon: string[];
+  progress: { weaponId: string; kills: number; headshots: number } | null;
   level: number;
   credits: number;
   busy: string | null;
@@ -865,7 +866,7 @@ interface ModalAttachmentSlotProps {
   onEquip: (attId: string | null) => void;
 }
 
-function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, level, credits, busy, onPurchase, onEquip }: ModalAttachmentSlotProps) {
+function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip }: ModalAttachmentSlotProps) {
   // compatibleAttachments already filters by weaponCategories — so this list
   // contains ONLY attachments that fit this weapon. If empty, the slot is
   // hidden entirely by the parent (AttachmentSlotSection).
@@ -896,8 +897,12 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
         </button>
         {attachments.map((a) => {
           const isOwned = unlockedForWeapon.includes(a.id);
-          const lockedByLevel = level < a.unlockLevel;
-          const canBuy = !isOwned && !lockedByLevel && credits >= a.unlockCost;
+          const ch = attachmentChallenge(weaponId, a.id);
+          const chProgress = ch ? armoryChallengeProgress(ch, {
+            kills: progress?.kills ?? 0, headshots: progress?.headshots ?? 0,
+            matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
+          }) : null;
+          const canBuy = !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
           const sightInfo = a.sightType ? SIGHT_DEFS[a.sightType] : null;
           const rarityColor = a.unlockCost >= 1600 ? RARITY_COLORS.epic : a.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
           const busyKey = `${a.id}:${weaponId}`;
@@ -912,6 +917,12 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
                 <div className="text-white/40 text-[10px] mb-1">{a.description}</div>
+                {!isOwned && chProgress && (
+                  <div className="text-[10px] text-white/55 mb-1">
+                    {chProgress.description} <span className="text-amber-300">{chProgress.progress}/{chProgress.goal}</span>
+                    {chProgress.completed && <span className="text-emerald-300"> · Ready to purchase</span>}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(a.effects).map(([k, v]) => (
                     <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${isBonusGood(k, v!) ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-rose-500/15 text-rose-300 border border-rose-500/20"}`}>
@@ -939,7 +950,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                     onClick={() => onPurchase("attachment", a.id, a.unlockCost, a.name, weaponId)}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 disabled:opacity-50"
                   >
-                    {busy === busyKey ? "…" : lockedByLevel ? <><Lock className="w-3 h-3 mr-0.5" />LVL {a.unlockLevel}</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
+                    {busy === busyKey ? "…" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Trial</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
                   </Button>
                 )}
               </div>
