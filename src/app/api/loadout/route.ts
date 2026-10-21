@@ -140,25 +140,12 @@ export async function POST(req: NextRequest) {
   // primary weapon, the secondary skin against the secondary weapon, etc.
   const sanitizeSkinForWeapon = async (skinId: string | undefined, weaponId: string): Promise<string | undefined> => {
     if (skinId === undefined || skinId === "default") return skinId;
-    const skinDef = WEAPON_SKINS.find((s) => s.id === skinId);
-    const isStd = skinDef ? isStandardSkin(skinDef) : true;
-    const existingSkin = isStd
-      ? await db.skinUnlock.findFirst({ where: { playerId: player.id, skinId } })
-      : await db.skinUnlock.findUnique({
-          where: {
-            playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId },
-          },
-        });
-    if (!existingSkin) {
-      // Maybe it's a challenge reward skin for this weapon that was auto-granted.
-      const isChallengeSkin = isStd
-        ? WEAPON_CHALLENGES.some((c) => c.skinId === skinId)
-        : WEAPON_CHALLENGES.some((c) => c.weaponId === weaponId && c.skinId === skinId);
-      if (isChallengeSkin) {
-        return undefined; // drop — not yet unlocked
-      }
-    }
-    return skinId;
+    if (!WEAPON_SKINS.some(s => s.id === skinId)) return undefined;
+    const owned = await db.skinUnlock.findUnique({
+      where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
+    });
+    // A completed challenge is only eligibility to buy, not permission to equip.
+    return owned ? skinId : undefined;
   };
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
   const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
@@ -166,6 +153,11 @@ export async function POST(req: NextRequest) {
   const sanitizedWeaponSkin = await sanitizeSkinForWeapon(weaponSkin, effectivePrimary);
   const sanitizedSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin, effectiveSecondary);
   const sanitizedMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin, effectiveMelee);
+  if (playerSkin !== undefined &&
+      playerSkin !== "default" && playerSkin !== player.selectedSkin &&
+      !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
+    return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+  }
 
   await db.loadout.upsert({
     where: { playerId: player.id },
@@ -189,12 +181,15 @@ export async function POST(req: NextRequest) {
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),
-      ...(playerSkin !== undefined ? { playerSkin, selectedSkin: playerSkin } : {}),
+      ...(playerSkin !== undefined ? { playerSkin } : {}),
       ...(attsJson !== undefined ? { attachments: attsJson } : {}),
       ...(secAttsJson !== undefined ? { secondaryAttachments: secAttsJson } : {}),
       ...(melAttsJson !== undefined ? { meleeAttachments: melAttsJson } : {}),
     },
   });
+  if (playerSkin !== undefined) {
+    await db.player.update({ where: { id: player.id }, data: { selectedSkin: playerSkin } });
+  }
   const view = await buildProfileView(playerKey);
   return NextResponse.json(view);
 }
