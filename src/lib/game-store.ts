@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
+import type { SurvivalTier } from "@/lib/survival";
 
 export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "faq" | "playing" | "results";
 
@@ -14,6 +15,7 @@ export interface PlayConfig {
   timeLimit: number; // minutes
   mapId: MapId;
   botDifficulty: BotDifficulty;
+  survivalTier?: SurvivalTier;
 }
 
 // Room creation form state for the Play screen's "Create a Room" tab.
@@ -31,6 +33,7 @@ export interface RoomConfig {
   gungamePreset: "all" | "cqc" | "long_range";
   gungameMultiplier: number;
   survivalPlayers: 1 | 2;
+  survivalTier: SurvivalTier;
 }
 
 // When joining/creating a room, the engine needs to know how to connect:
@@ -61,6 +64,7 @@ export interface MatchResultView {
   placement?: number;
   multikills?: number;
   survivalWaves?: number;
+  survivalTier?: SurvivalTier;
   weaponId?: string;
 }
 
