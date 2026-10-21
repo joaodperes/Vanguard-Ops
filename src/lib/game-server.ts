@@ -17,6 +17,8 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint } from "./bot-routing";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
+import { getSurvivalProgress } from "./player-service";
+import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared } from "./survival";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
@@ -74,6 +76,7 @@ interface BotAI {
   // The resolved difficulty for this bot (never "mixed" — that's rolled at
   // spawn time into one of easy/normal/hard/veteran). Used for rewards scaling.
   difficulty: Exclude<BotDifficulty, "mixed">;
+  boss?: {phase:number;nextPhaseAt:number;nextSkillAt:number};
   // ---- Stuck detection / recovery (mirrors the offline engine) ----
   // Tracks when the bot started being stuck (ms timestamp). 0 = not stuck.
   // Each tick we measure how far the bot moved since lastPosX/lastPosZ; if it
@@ -411,6 +414,7 @@ function roomSummary(r: Room): RoomSummary {
     capacity: r.capacity,
     state: r.state === "ended" ? "lobby" : r.state,
     hasStarted: r.state === "playing",
+    survivalTier: r.config.survivalTier,
     createdAt: r.startTime,
   };
 }
@@ -491,6 +495,7 @@ function createLobbyRoom(
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
+  config.survivalTier = isSurvival ? normalizeSurvivalTier(cfg.survivalTier) : undefined;
   // Round 19i: Apply custom match limits from the host's room config (FFA/TDM only).
   // Survival and Gun Game ignore custom limits (survival is endless; gungame uses
   // the progression length as the score limit).
@@ -663,6 +668,8 @@ function snapshot(room: Room): S2C {
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
     (base as any).wave = room.wave;
+    (base as any).survivalTier = room.config.survivalTier;
+    (base as any).waveActive = room.waveActive;
     (base as any).enemiesLeft = enemiesLeft;
     (base as any).reinforcements = room.reinforcements;
     (base as any).prepLeft = Math.max(0, Math.ceil(room.prepLeft));
@@ -963,7 +970,12 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   // Survival: bots hit harder as waves progress, BUT base damage is reduced
   // by 35% for player survivability (Round 18-b balance fix).
-  if (room.mode === "survival" && attacker?.isBot) dmg *= 0.65 * survivalWaveDamageMul(room.wave);
+  if (room.mode === "survival" && attacker?.isBot) {
+    const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
+    dmg *= 0.65 * survivalWaveDamageMul(room.wave) * mutators.damageMul;
+  }
+  // Boss armor: prevents burst weapons from trivializing boss encounters.
+  if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
   room.lastDamagedAt.set(victim.id, Date.now());
   victim.health -= dmg;
   const killed = victim.health <= 0;
@@ -1098,7 +1110,8 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;
   if (room.mode === "tdm") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
-  else if (room.mode === "survival") winnerTeam = null;
+  else if (room.mode === "survival") winnerTeam =
+    room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
   else winnerTeam = standings[0] ? standings[0].team : null;
   io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam } as S2C);
   // cleanup room after a delay
@@ -1125,8 +1138,10 @@ function startSurvivalWave(room: Room) {
   for (const [id, b] of room.bots) {
     if (!b.alive) room.bots.delete(id);
   }
-  const count = survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
-  const hpMul = survivalWaveHealthMul(room.wave);
+  const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
+  const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
+  const count = Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+  const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // ---- Round 18-b: expanded random weapon pool ----
   // Use ALL primary + secondary weapons (excluding melee and launcher) for
   // maximum gameplay variety. Each bot gets a truly random weapon.
@@ -1151,11 +1166,17 @@ function startSurvivalWave(room: Room) {
     const loadout = botLoadout();
     loadout.weaponId = pool[Math.floor(Math.random() * pool.length)];
     loadout.playerSkinId = skins[n % skins.length];
+    const boss = mutators.boss && n === count-1;
+    if (boss) loadout.weaponId = "lmg_hv";
     const ai = makeBotAI(sp, loadout.weaponId, waveDiff, room.wave);
+    ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
+    ai.skill = Math.min(0.98,ai.skill + mutators.skillBoost);
+    if (mutators.skillBoost > 0) ai.difficulty = "veteran";
+    if (boss) ai.boss={phase:0,nextPhaseAt:Date.now()+5000,nextSkillAt:Date.now()+8500};
     ai.ammoInMag = weaponById(loadout.weaponId).stats.magSize;
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
-      id, name: `W${room.wave}·${n + 1}`, team: "red", isBot: true,
-      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul), alive: true,
+      id, name: boss ? `BOSS · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
+      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
       weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
       kills: 0, deaths: 0, lastShotAt: 0,
       spawnProtectedUntil: Date.now() + 3000,
@@ -1271,6 +1292,10 @@ function tickRoom(room: Room) {
         const aliveBots = [...room.bots.values()].filter((b) => b.alive).length;
         if (aliveBots === 0) {
           room.waveActive = false;
+          if (room.config.survivalTier === "default" && room.wave >= 30) {
+            endMatch(room);
+            return;
+          }
           room.prepLeft = SURVIVAL_PREP_SEC;
         }
       }
@@ -1355,6 +1380,27 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
 function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire }, now: number) {
   if ((room.equipmentStun.get(bot.id) ?? 0) > now) return;
   const ai = bot.ai;
+  if (ai.boss) {
+    if (now >= ai.boss.nextPhaseAt) {
+      ai.boss.phase=(ai.boss.phase+1)%3;
+      bot.weaponId=["lmg_hv","shotgun_auto","rifle_heavy"][ai.boss.phase];
+      bot.loadout.weaponId=bot.weaponId;
+      ai.ammoInMag=weaponById(bot.weaponId).stats.magSize;
+      ai.burstEndsAt=0;
+      ai.burstShotsLeft=0;
+      ai.boss.nextPhaseAt=now+5500;
+    }
+    // Shockwave: periodic boss skill separate from gunfire. Nearby operatives
+    // take a capped hit, so cover, distance and mobility still matter.
+    if (now >= ai.boss.nextSkillAt) {
+      ai.boss.nextSkillAt=now+12500;
+      for (const p of room.players.values()) {
+        if (!p.alive) continue;
+        const d=Math.hypot(p.pos[0]-bot.pos[0],p.pos[2]-bot.pos[2]);
+        if (d < 11) applyDamage(room,bot.id,p,Math.round(28*(1-d/15)),false,bot.weaponId);
+      }
+    }
+  }
   const weapon = weaponById(bot.weaponId);
   const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
@@ -1778,7 +1824,7 @@ function hasLineOfSight(room: Room, from: Vec3, to: Vec3): boolean {
 // ---- Connection handling ----------------------------------------------------
 io.on("connection", (socket) => {
   console.log(`[VANGUARD] socket connected: ${socket.id}`);
-  socket.on("message", (msg: C2S) => {
+  socket.on("message", async (msg: C2S) => {
     try {
       handle(socket, msg);
     } catch (e) {
@@ -2177,6 +2223,21 @@ function handle(socket: any, msg: C2S) {
     }
     case "createRoom": {
       const cfg = msg.config;
+      if (cfg.mode === "survival") {
+        const tier=normalizeSurvivalTier(cfg.survivalTier);
+        if (tier !== "default") {
+          try {
+            const progress=await getSurvivalProgress(msg.playerKey);
+            if (!survivalUnlocked(tier,progress)) {
+              socket.emit("message",{t:"roomError",message:"Clear the preceding Survival milestone to unlock this tier."} as S2C);
+              break;
+            }
+          } catch {
+            socket.emit("message",{t:"roomError",message:"Unable to verify your Survival unlocks."} as S2C);
+            break;
+          }
+        }
+      }
       console.log(`[VANGUARD] createRoom from ${socket.id}: mode=${cfg.mode} map=${cfg.mapId} teamSize=${cfg.teamSize} fillBots=${cfg.fillWithBots} diff=${cfg.botDifficulty} pw=${cfg.password ? "yes" : "no"}`);
       const room = createLobbyRoom(socket.id, msg.name, msg.loadout, cfg);
       socketToRoom.set(socket.id, room.id);
