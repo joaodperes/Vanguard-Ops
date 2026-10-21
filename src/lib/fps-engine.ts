@@ -39,7 +39,7 @@ import {
   withinEnvironment, spikesActive, closestCoverHit,
 } from "@/lib/dynamic-environment";
 import {
-  botGroundHeight, botMoveBlocked as blocksBotMotion,
+  BOT_STEP_HEIGHT, botGroundHeight, botMoveBlocked as blocksBotMotion,
   resolveBotOverlap, botNextFeetY,
 } from "@/lib/bot-physics";
 
@@ -427,7 +427,7 @@ function groundHeightAt(cover: CoverBox[], x: number, z: number, feetY: number, 
     const hx = cov.size[0], hz = cov.size[2];
     const topY = cov.pos[1] + cov.size[1];
     // Only consider surfaces the player can stand on (top of box), within step reach
-    if (topY > feetY + 1.3) continue;   // too high to step onto (1.3 allows climbing most stairs + low cover for verticality)
+    if (topY > feetY + BOT_STEP_HEIGHT) continue; // same step capability as server/local bots
     if (topY <= ground) continue;
     if (Math.abs(x - cx) < hx + radius * 0.5 && Math.abs(z - cz) < hz + radius * 0.5) {
       ground = topY;
@@ -5286,6 +5286,7 @@ export class FPSEngine {
     next.x += this.vel.x * dt;
     next.z += this.vel.z * dt;
     next.y += this.vel.y * dt;
+    const desiredHorizontalX = next.x, desiredHorizontalZ = next.z;
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
     const r = PLAYER_RADIUS;
@@ -5294,7 +5295,7 @@ export class FPSEngine {
       const hx = cov.size[0], hz = cov.size[2];
       const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
       // If player can step onto this box (top is within step reach), don't block horizontally
-      if (maxY - next.y < 1.3 && maxY > next.y) continue;
+      if (maxY - next.y < BOT_STEP_HEIGHT && maxY > next.y) continue;
       // Skip if player is above the box top (standing on it) or below the box bottom
       if (next.y >= maxY - 0.05) continue;
       if (next.y + PLAYER_HEIGHT < minY) continue;
@@ -5309,6 +5310,10 @@ export class FPSEngine {
     const lim = this.map.size - 1;
     next.x = Math.max(-lim, Math.min(lim, next.x));
     next.z = Math.max(-lim, Math.min(lim, next.z));
+    // Don't keep accumulating velocity into a wall; removes wall-hugging
+    // jitter and makes direction changes immediately responsive.
+    if (Math.abs(next.x - desiredHorizontalX) > 0.001) this.vel.x = 0;
+    if (Math.abs(next.z - desiredHorizontalZ) > 0.001) this.vel.z = 0;
 
     // ---- Vertical collision: stand on top of platforms/stairs ----
     const groundY = groundHeightAt(this.map.cover, next.x, next.z, next.y, r);
