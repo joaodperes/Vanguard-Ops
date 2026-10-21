@@ -168,9 +168,9 @@ const COMPOUND_COVER: CoverBox[] = [
   // Central raised platform (top at y=2.5) — dominates map center
   { pos: [0, 1.25, 0], size: [4, 1.25, 4], kind: "platform" },
   // Stairs up to platform (south side, ascending north)
-  ...stairs(0, 6, 2.5, 5, 3, 5, "z", -1),
+  ...stairs(0, 4, 2.5, 5, 3, 5, "z", 1),
   // Stairs up to platform (north side, ascending south)
-  ...stairs(0, -6, 2.5, 5, 3, 5, "z", 1),
+  ...stairs(0, -4, 2.5, 5, 3, 5, "z", -1),
   // 4 corner bunkers (L-shaped, walkable tops at y=3)
   // NW corner
   { pos: [-14, 1.5, -14], size: [4, 1.5, 1], kind: "cover" },
@@ -185,13 +185,13 @@ const COMPOUND_COVER: CoverBox[] = [
   { pos: [14, 1.5, 14], size: [4, 1.5, 1], kind: "cover" },
   { pos: [14, 1.5, 14], size: [1, 1.5, 4], kind: "cover" },
   // Stairs to NW bunker top
-  ...stairs(-19, -10, 3, 6, 3, 6, "z", 1),
+  ...stairs(-18, -14, 3, 6, 3, 6, "x", -1),
   // Stairs to NE bunker top
-  ...stairs(19, -10, 3, 6, 3, 6, "z", 1),
+  ...stairs(18, -14, 3, 6, 3, 6, "x", 1),
   // Stairs to SW bunker top
-  ...stairs(-19, 10, 3, 6, 3, 6, "z", -1),
+  ...stairs(-18, 14, 3, 6, 3, 6, "x", -1),
   // Stairs to SE bunker top
-  ...stairs(19, 10, 3, 6, 3, 6, "z", -1),
+  ...stairs(18, 14, 3, 6, 3, 6, "x", 1),
   // Mid-lane crates (low cover, jumpable)
   { pos: [-9, 0.6, 0], size: [1.2, 0.6, 1.2], kind: "cover" },
   { pos: [9, 0.6, 0], size: [1.2, 0.6, 1.2], kind: "cover" },
@@ -212,21 +212,21 @@ const COMPOUND_COVER: CoverBox[] = [
   { pos: [42, 2.5, -42], size: [2, 2.5, 2], kind: "cover" },
   { pos: [-42, 2.5, 42], size: [2, 2.5, 2], kind: "cover" },
   // Stairs up to each new building's roof (top at y=5)
-  ...stairs(42, -36, 5, 6, 3, 5, "z", 1),
-  ...stairs(-42, 36, 5, 6, 3, 5, "z", -1),
+  ...stairs(42, -40, 5, 10, 3, 5, "z", 1),
+  ...stairs(-42, 40, 5, 10, 3, 5, "z", -1),
   // Elevated platform (top at y=3) at SE outer corner + stair access
   { pos: [42, 3, 42], size: [4, 0.3, 4], kind: "platform" },
-  ...stairs(42, 36, 3, 5, 3, 5, "z", -1),
+  ...stairs(42, 38, 3, 6, 3, 5, "z", -1),
   // ---- Verticality: elevated cross-map walkway at y=4 connecting the buildings ----
   // Players can traverse the map from up high, accessing all 4 corners.
   { pos: [0, 4, -42], size: [42, 0.3, 1.2], kind: "platform" },
   { pos: [0, 4, 42], size: [42, 0.3, 1.2], kind: "platform" },
-  ...stairs(0, -36, 4, 6, 2, 5, "z", 1),
-  ...stairs(0, 36, 4, 6, 2, 5, "z", -1),
+  ...stairs(0, -40.8, 4, 8, 2, 5, "z", 1),
+  ...stairs(0, 40.8, 4, 8, 2, 5, "z", -1),
   // Central elevated catwalk (y=3) over the central platform — a mid-level perch
   { pos: [0, 3, 0], size: [10, 0.25, 1.2], kind: "platform" },
-  ...stairs(0, 5, 3, 5, 1.5, 4, "z", -1),
-  ...stairs(0, -5, 3, 5, 1.5, 4, "z", 1),
+  ...stairs(7, 1.2, 3, 6, 1.5, 4, "z", 1),
+  ...stairs(-7, -1.2, 3, 6, 1.5, 4, "z", -1),
   // Accent lights on building tops (emissive stripes for art direction)
   { pos: [42, 5.05, -42], size: [2, 0.03, 2], kind: "accent" },
   { pos: [-42, 5.05, 42], size: [2, 0.03, 2], kind: "accent" },
@@ -302,9 +302,9 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   // Central tower (tall, accessible top at y=6)
   { pos: [0, 3, 0], size: [3, 3, 3], kind: "platform" },
   // Stairs to central tower top (south side)
-  ...stairs(0, 8, 6, 8, 3, 8, "z", -1),
+  ...stairs(0, 3, 6, 12, 3, 8, "z", 1),
   // Stairs to central tower top (north side)
-  ...stairs(0, -8, 6, 8, 3, 8, "z", 1),
+  ...stairs(0, -3, 6, 12, 3, 8, "z", -1),
   // East-west elevated catwalk at y=4
   { pos: [0, 4, -10], size: [14, 0.4, 1.5], kind: "platform" },
   { pos: [0, 4, 10], size: [14, 0.4, 1.5], kind: "platform" },
@@ -317,20 +317,20 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   { pos: [-22, 4, 22], size: [3, 4, 3], kind: "platform" },
   { pos: [22, 4, 22], size: [3, 4, 3], kind: "platform" },
   // Ramps to corner towers (stairs)
-  ...stairs(-18, -16, 8, 8, 3, 6, "z", 1),
-  ...stairs(18, -16, 8, 8, 3, 6, "z", 1),
-  ...stairs(-18, 16, 8, 8, 3, 6, "z", -1),
-  ...stairs(18, 16, 8, 8, 3, 6, "z", -1),
+  ...stairs(-22, -19, 8, 16, 3, 6, "z", 1),
+  ...stairs(22, -19, 8, 16, 3, 6, "z", 1),
+  ...stairs(-22, 19, 8, 16, 3, 6, "z", -1),
+  ...stairs(22, 19, 8, 16, 3, 6, "z", -1),
   // Stairs up to east-west catwalks
-  ...stairs(-6, -16, 4, 5, 2, 6, "z", 1),
-  ...stairs(6, -16, 4, 5, 2, 6, "z", 1),
-  ...stairs(-6, 16, 4, 5, 2, 6, "z", -1),
-  ...stairs(6, 16, 4, 5, 2, 6, "z", -1),
+  ...stairs(-6, -11.5, 4, 8, 2, 6, "z", -1),
+  ...stairs(6, -11.5, 4, 8, 2, 6, "z", -1),
+  ...stairs(-6, 11.5, 4, 8, 2, 6, "z", 1),
+  ...stairs(6, 11.5, 4, 8, 2, 6, "z", 1),
   // Stairs up to north-south catwalks
-  ...stairs(-16, -6, 4, 5, 2, 6, "x", 1),
-  ...stairs(-16, 6, 4, 5, 2, 6, "x", 1),
-  ...stairs(16, -6, 4, 5, 2, 6, "x", -1),
-  ...stairs(16, 6, 4, 5, 2, 6, "x", -1),
+  ...stairs(-11.5, -6, 4, 8, 2, 6, "x", -1),
+  ...stairs(-11.5, 6, 4, 8, 2, 6, "x", -1),
+  ...stairs(11.5, -6, 4, 8, 2, 6, "x", 1),
+  ...stairs(11.5, 6, 4, 8, 2, 6, "x", 1),
   // Lower-level cover (crates and walls)
   { pos: [-6, 0.6, -6], size: [1.2, 0.6, 1.2], kind: "cover" },
   { pos: [6, 0.6, 6], size: [1.2, 0.6, 1.2], kind: "cover" },
@@ -345,14 +345,14 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   { pos: [40, 5, 0], size: [2, 5, 2], kind: "platform" },
   { pos: [-40, 5, 0], size: [2, 5, 2], kind: "platform" },
   // Stairs up to the new outer towers (to y=10)
-  ...stairs(40, 6, 10, 8, 3, 6, "z", -1),
-  ...stairs(-40, -6, 10, 8, 3, 6, "z", 1),
+  ...stairs(40, 2, 10, 20, 3, 6, "z", 1),
+  ...stairs(-40, -2, 10, 20, 3, 6, "z", -1),
   // Outer elevated catwalks at y=6 (east-west, longer than the originals)
   { pos: [0, 6, -40], size: [40, 0.4, 1.5], kind: "platform" },
   { pos: [0, 6, 40], size: [40, 0.4, 1.5], kind: "platform" },
   // Stairs up to the outer catwalks
-  ...stairs(0, -36, 6, 7, 4, 6, "z", 1),
-  ...stairs(0, 36, 6, 7, 4, 6, "z", -1),
+  ...stairs(0, -38.5, 6, 12, 4, 6, "z", 1),
+  ...stairs(0, 38.5, 6, 12, 4, 6, "z", -1),
   // Perimeter walls (tall thin boxes)
   { pos: [0, 4, -62], size: [62, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 62], size: [62, 4, 0.5], kind: "cover" },
@@ -415,19 +415,19 @@ const BUNKER_COVER: CoverBox[] = [
   // Central bunker (square, walkable roof at y=4)
   { pos: [0, 2, 0], size: [3.5, 2, 3.5], kind: "platform" },
   // Stairs to central bunker roof (south)
-  ...stairs(0, 6, 4, 8, 3, 5, "z", -1),
+  ...stairs(0, 3.5, 4, 8, 3, 5, "z", 1),
   // Stairs to central bunker roof (north)
-  ...stairs(0, -6, 4, 8, 3, 5, "z", 1),
+  ...stairs(0, -3.5, 4, 8, 3, 5, "z", -1),
   // Perimeter upper walkway at y=3.5 (4 sides)
   { pos: [0, 3.5, -22], size: [22, 0.4, 1.5], kind: "platform" },
   { pos: [0, 3.5, 22], size: [22, 0.4, 1.5], kind: "platform" },
   { pos: [-22, 3.5, 0], size: [1.5, 0.4, 22], kind: "platform" },
   { pos: [22, 3.5, 0], size: [1.5, 0.4, 22], kind: "platform" },
   // Stairs to perimeter walkway (4 corners)
-  ...stairs(-18, -18, 3.5, 7, 3, 5, "z", 1),
-  ...stairs(18, -18, 3.5, 7, 3, 5, "z", 1),
-  ...stairs(-18, 18, 3.5, 7, 3, 5, "z", -1),
-  ...stairs(18, 18, 3.5, 7, 3, 5, "z", -1),
+  ...stairs(-18, -20.5, 3.5, 7, 3, 5, "z", 1),
+  ...stairs(18, -20.5, 3.5, 7, 3, 5, "z", 1),
+  ...stairs(-18, 20.5, 3.5, 7, 3, 5, "z", -1),
+  ...stairs(18, 20.5, 3.5, 7, 3, 5, "z", -1),
   // Inner walls (corridors)
   { pos: [-8, 1.5, -10], size: [0.5, 1.5, 6], kind: "cover" },
   { pos: [8, 1.5, 10], size: [0.5, 1.5, 6], kind: "cover" },
@@ -450,24 +450,24 @@ const BUNKER_COVER: CoverBox[] = [
   { pos: [-50, 5, 0], size: [1.5, 0.4, 50], kind: "platform" },
   { pos: [50, 5, 0], size: [1.5, 0.4, 50], kind: "platform" },
   // Stairs up to the outer walkway (4 corners)
-  ...stairs(-44, -44, 5, 7, 3, 5, "z", 1),
-  ...stairs(44, -44, 5, 7, 3, 5, "z", 1),
-  ...stairs(-44, 44, 5, 7, 3, 5, "z", -1),
-  ...stairs(44, 44, 5, 7, 3, 5, "z", -1),
+  ...stairs(-44, -48.5, 5, 10, 3, 5, "z", 1),
+  ...stairs(44, -48.5, 5, 10, 3, 5, "z", 1),
+  ...stairs(-44, 48.5, 5, 10, 3, 5, "z", -1),
+  ...stairs(44, 48.5, 5, 10, 3, 5, "z", -1),
   // Two tall "bunker" boxes (top at y=4, 3x3 footprint) at outer midpoints
   { pos: [40, 2, 0], size: [1.5, 2, 1.5], kind: "cover" },
   { pos: [-40, 2, 0], size: [1.5, 2, 1.5], kind: "cover" },
   // Stairs to the new bunker tops
-  ...stairs(40, 6, 4, 6, 3, 5, "z", -1),
+  ...stairs(40, 1.5, 4, 8, 3, 5, "z", 1),
   // ---- Verticality: central elevated bridge at y=4 connecting east and west bunkers ----
   // A high perch overlooking the central bunker — accessible from both sides.
   { pos: [0, 4, 0], size: [30, 0.25, 1.2], kind: "platform" },
-  ...stairs(15, 0, 4, 6, 1.5, 5, "x", -1),
-  ...stairs(-15, 0, 4, 6, 1.5, 5, "x", 1),
+  ...stairs(15, 1.2, 4, 8, 1.5, 5, "z", 1),
+  ...stairs(-15, -1.2, 4, 8, 1.5, 5, "z", -1),
   // Accent stripes on the bunker tops (emissive — art direction)
   { pos: [40, 4.05, 0], size: [1.5, 0.03, 1.5], kind: "accent" },
   { pos: [-40, 4.05, 0], size: [1.5, 0.03, 1.5], kind: "accent" },
-  ...stairs(-40, -6, 4, 6, 3, 5, "z", 1),
+  ...stairs(-40, -1.5, 4, 8, 3, 5, "z", -1),
   // Outer perimeter walls (solid, taller than the walkway)
   { pos: [0, 4, -58], size: [58, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 58], size: [58, 4, 0.5], kind: "cover" },
@@ -522,20 +522,20 @@ const SHIPYARD_COVER: CoverBox[] = [
   // feel impenetrable. Now it's a clean raised platform with wide-open ramps.
   { pos: [0, 0.6, 0], size: [5, 0.6, 8], kind: "platform" },
   // Wide ramps up to the central platform from all 4 directions (walkable, no jumping)
-  ...stairs(0, 9, 1.2, 4, 5, 5, "z", -1),
-  ...stairs(0, -9, 1.2, 4, 5, 5, "z", 1),
-  ...stairs(9, 0, 1.2, 4, 5, 5, "x", -1),
-  ...stairs(-9, 0, 1.2, 4, 5, 5, "x", 1),
+  ...stairs(0, 8, 1.2, 4, 5, 5, "z", 1),
+  ...stairs(0, -8, 1.2, 4, 5, 5, "z", -1),
+  ...stairs(5, 0, 1.2, 4, 5, 5, "x", 1),
+  ...stairs(-5, 0, 1.2, 4, 5, 5, "x", -1),
   // Shipping containers (rust-orange). Some stacked 2-high to create vertical play.
   // West row (3 containers, middle one stacked)
   { pos: [-12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
   { pos: [-12, 1.2, 0], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [-12, 2.4, 0], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [-12, 3.6, 0], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   { pos: [-12, 1.2, 10], size: [2.5, 1.2, 6], kind: "cover" },
   // East row (3 containers, middle one stacked)
   { pos: [12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
   { pos: [12, 1.2, 0], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [12, 2.4, 0], size: [2.5, 1.2, 6], kind: "cover" },    // stacked
+  { pos: [12, 3.6, 0], size: [2.5, 1.2, 6], kind: "cover" },    // stacked
   { pos: [12, 1.2, 10], size: [2.5, 1.2, 6], kind: "cover" },
   // North + south container clusters (perpendicular, narrower corridors)
   { pos: [-5, 1.2, -16], size: [6, 1.2, 2.5], kind: "cover" },
@@ -543,39 +543,39 @@ const SHIPYARD_COVER: CoverBox[] = [
   { pos: [-5, 1.2, 16], size: [6, 1.2, 2.5], kind: "cover" },
   { pos: [5, 1.2, 16], size: [6, 1.2, 2.5], kind: "cover" },
   // Stairs up onto the stacked containers (west + east) — container-top sniper perches
-  ...stairs(-7, 0, 2.4, 4, 2.5, 4, "x", -1),
-  ...stairs(7, 0, 2.4, 4, 2.5, 4, "x", 1),
+  ...stairs(-14.5, 0, 4.8, 10, 2.5, 8, "x", -1),
+  ...stairs(14.5, 0, 4.8, 10, 2.5, 8, "x", 1),
   // Elevated crane walkway crossing east-west at y=5
   { pos: [0, 5, 0], size: [20, 0.3, 1.2], kind: "platform" },
   // Crane walkway crossing north-south at y=5
   { pos: [0, 5, 0], size: [1.2, 0.3, 20], kind: "platform" },
   // Stairs up to crane walkway (NW + SE corners)
-  ...stairs(-7, -7, 5, 7, 1.5, 5, "z", 1),
-  ...stairs(7, 7, 5, 7, 1.5, 5, "z", -1),
+  ...stairs(-7, -1.2, 5, 10, 1.5, 6, "z", -1),
+  ...stairs(7, 1.2, 5, 10, 1.5, 6, "z", 1),
   // Crane tower support (visual + walkable top) at the walkway intersection
   { pos: [0, 2.5, 0], size: [0.6, 2.5, 0.6], kind: "cover" },
   // Industrial hazard stripes on container tops (emissive accent)
-  { pos: [-12, 2.45, 0], size: [2.5, 0.05, 6], kind: "accent" },
-  { pos: [12, 2.45, 0], size: [2.5, 0.05, 6], kind: "accent" },
+  { pos: [-12, 4.85, 0], size: [2.5, 0.05, 6], kind: "accent" },
+  { pos: [12, 4.85, 0], size: [2.5, 0.05, 6], kind: "accent" },
   // ---- M1 (Maps Expansion): outer ring + multi-level cover (size 30 -> 62) ----
   // Additional shipping container stacks (stacked 2-high) at outer east/west
   { pos: [40, 1.2, -20], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [40, 2.4, -20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [40, 3.6, -20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   { pos: [-40, 1.2, 20], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [-40, 2.4, 20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [-40, 3.6, 20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   // Stairs up onto the new stacked containers
-  ...stairs(35, -20, 2.4, 4, 2.5, 4, "x", -1),
-  ...stairs(-35, 20, 2.4, 4, 2.5, 4, "x", 1),
+  ...stairs(42.5, -20, 4.8, 10, 2.5, 8, "x", 1),
+  ...stairs(-42.5, 20, 4.8, 10, 2.5, 8, "x", -1),
   // Tall crane tower (top at y=6, 3x3 footprint) at outer NE corner
   { pos: [45, 3, -45], size: [1.5, 3, 1.5], kind: "platform" },
-  ...stairs(45, -39, 6, 7, 2, 5, "z", 1),
+  ...stairs(45, -43.5, 6, 12, 2, 5, "z", 1),
   // Outer elevated crane walkway at y=5 (east-west, longer span)
   { pos: [0, 5, -45], size: [45, 0.3, 1.2], kind: "platform" },
   // Stairs up to the outer walkway
-  ...stairs(0, -39, 5, 7, 2, 5, "z", 1),
+  ...stairs(0, -43.8, 5, 10, 2, 5, "z", 1),
   // Second outer walkway (north side, y=5) for more vertical connectivity
   { pos: [0, 5, 45], size: [45, 0.3, 1.2], kind: "platform" },
-  ...stairs(0, 39, 5, 7, 2, 5, "z", -1),
+  ...stairs(0, 43.8, 5, 10, 2, 5, "z", -1),
   // Perimeter walls
   { pos: [0, 4, -60], size: [60, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 60], size: [60, 4, 0.5], kind: "cover" },
@@ -625,15 +625,15 @@ const SHIPYARD_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
     [-16, 0, -16], [16, 0, 16], [-16, 0, 16], [16, 0, -16],
     [-20, 0, -8], [20, 0, 8], [-8, 0, -20], [8, 0, 20],
     // Elevated: container tops + crane walkway
-    [-12, 2.45, 0], [12, 2.45, 0], [0, 5.15, -10], [0, 5.15, 10],
+    [-12, 4.85, 0], [12, 4.85, 0], [0, 5.15, -10], [0, 5.15, 10],
   ],
   red: [
     [-26, 0, -20], [-26, 0, 0], [-26, 0, 20], [-22, 0, -26], [-22, 0, 26],
-    [-12, 2.45, 0], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
+    [-12, 4.85, 0], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
   ],
   blue: [
     [26, 0, -20], [26, 0, 0], [26, 0, 20], [22, 0, -26], [22, 0, 26],
-    [12, 2.45, 0], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
+    [12, 4.85, 0], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
   ],
 };
 
@@ -674,8 +674,8 @@ const TERMINAL_COVER: CoverBox[] = [
   { pos: [0, 5.6, -1.2], size: [16, 0.5, 0.1], kind: "accent" },
   { pos: [0, 5.6, 1.2], size: [16, 0.5, 0.1], kind: "accent" },
   // Stairs up to walkway (east + west ends)
-  ...stairs(14, 0, 5, 7, 2, 6, "x", -1),
-  ...stairs(-14, 0, 5, 7, 2, 6, "x", 1),
+  ...stairs(16, 0, 5, 10, 2, 6, "x", 1),
+  ...stairs(-16, 0, 5, 10, 2, 6, "x", -1),
   // 6 pillars along the central spine
   { pos: [-6, 1.5, -6], size: [0.6, 1.5, 0.6], kind: "cover" },
   { pos: [6, 1.5, -6], size: [0.6, 1.5, 0.6], kind: "cover" },
@@ -699,13 +699,13 @@ const TERMINAL_COVER: CoverBox[] = [
   { pos: [0, 5, -45], size: [50, 0.3, 2], kind: "platform" },
   { pos: [0, 5, 45], size: [50, 0.3, 2], kind: "platform" },
   // Stairs up to the outer walkway extensions
-  ...stairs(0, -38, 5, 7, 3, 6, "z", 1),
-  ...stairs(0, 38, 5, 7, 3, 6, "z", -1),
+  ...stairs(0, -43, 5, 10, 3, 6, "z", 1),
+  ...stairs(0, 43, 5, 10, 3, 6, "z", -1),
   // Tall kiosk "buildings" (top at y=4, 3x3 footprint) at outer NE/SW
   { pos: [42, 2, -42], size: [1.5, 2, 1.5], kind: "cover" },
   { pos: [-42, 2, 42], size: [1.5, 2, 1.5], kind: "cover" },
-  ...stairs(42, -36, 4, 6, 2, 5, "z", 1),
-  ...stairs(-42, 36, 4, 6, 2, 5, "z", -1),
+  ...stairs(42, -40.5, 4, 8, 2, 5, "z", 1),
+  ...stairs(-42, 40.5, 4, 8, 2, 5, "z", -1),
   // Outer shop kiosk rows (4 each on east and west outer edges)
   { pos: [50, 1.5, -30], size: [2, 1.5, 2], kind: "cover" },
   { pos: [50, 1.5, -10], size: [2, 1.5, 2], kind: "cover" },
@@ -800,31 +800,31 @@ const ARENA_NEON_COVER: CoverBox[] = [
   // Mid-platform balcony extending south from the tower at y=3.5 (second-story ledge)
   { pos: [0, 3.5, 5], size: [3, 0.3, 2], kind: "platform" },
   // Stairs from ground up to mid-platform (south side, ascending north to y=3.5)
-  ...stairs(0, 10, 3.5, 7, 3, 6, "z", -1),
+  ...stairs(0, 7, 3.5, 7, 3, 6, "z", 1),
   // Stairs from ground up to tower top (north side, to y=6)
-  ...stairs(0, -10, 6, 8, 3, 8, "z", 1),
+  ...stairs(0, -3.5, 6, 12, 3, 8, "z", -1),
   // Stairs from ground up to tower top (east face, ascending west to y=6)
-  ...stairs(10, 0, 6, 8, 3, 8, "x", -1),
+  ...stairs(3.5, 0, 6, 12, 3, 8, "x", 1),
   // 4 corner platforms at y=2.5 (walkable tops) — reachable via stair-step ramps
   { pos: [-30, 2.5, -30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [30, 2.5, -30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [-30, 2.5, 30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [30, 2.5, 30], size: [5, 0.4, 5], kind: "platform" },
   // Stair-step ramps up to each corner platform (to y=2.5)
-  ...stairs(-30, -22, 2.5, 5, 5, 5, "z", 1),
-  ...stairs(30, -22, 2.5, 5, 5, 5, "z", 1),
-  ...stairs(-30, 22, 2.5, 5, 5, 5, "z", -1),
-  ...stairs(30, 22, 2.5, 5, 5, 5, "z", -1),
+  ...stairs(-30, -25, 2.5, 5, 5, 5, "z", 1),
+  ...stairs(30, -25, 2.5, 5, 5, 5, "z", 1),
+  ...stairs(-30, 25, 2.5, 5, 5, 5, "z", -1),
+  ...stairs(30, 25, 2.5, 5, 5, 5, "z", -1),
   // 2 elevated bridges at y=4 connecting opposite corners (long axis-aligned spans)
   // Bridge 1: north edge — connects NW corner platform to NE corner platform
   { pos: [0, 4, -30], size: [35, 0.3, 1.5], kind: "platform" },
   // Bridge 2: south edge — connects SW corner platform to SE corner platform
   { pos: [0, 4, 30], size: [35, 0.3, 1.5], kind: "platform" },
   // Stairs up from corner platforms (y=2.5) to bridges (y=4) at each bridge end
-  ...stairs(-15, -30, 4, 4, 2, 3, "x", 1),
-  ...stairs(15, -30, 4, 4, 2, 3, "x", -1),
-  ...stairs(-15, 30, 4, 4, 2, 3, "x", 1),
-  ...stairs(15, 30, 4, 4, 2, 3, "x", -1),
+  ...stairs(-23, -31.5, 4, 8, 2, 5, "z", -1),
+  ...stairs(23, -31.5, 4, 8, 2, 5, "z", -1),
+  ...stairs(-23, 31.5, 4, 8, 2, 5, "z", 1),
+  ...stairs(23, 31.5, 4, 8, 2, 5, "z", 1),
   // Perimeter walls (tall thin boxes around the dense 128x128 arena)
   { pos: [0, 5, -62], size: [64, 5, 0.5], kind: "cover" },
   { pos: [0, 5, 62], size: [64, 5, 0.5], kind: "cover" },
