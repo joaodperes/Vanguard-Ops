@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "@/lib/fps-engine";
 import type { LoadoutWire, GameMode, MapId, BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
+import type { SurvivalTier } from "@/lib/survival";
 import { Hud } from "./Hud";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
@@ -14,6 +15,7 @@ interface Props {
   mode: GameMode;
   botCount: number;
   botDifficulty: BotDifficulty;  // resolved per-room difficulty (from roomConnect.config or playConfig)
+  survivalTier?: SurvivalTier;
   online: boolean;
   playerName: string;
   playerKey: string;
@@ -26,7 +28,7 @@ interface Props {
   onExitWithStats?: (r: MatchEndResult) => void;  // called when user leaves mid-match (saves progression)
 }
 
-export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
+export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<FPSEngine | null>(null);
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
@@ -53,6 +55,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
       autoAdsOnFire: settings.autoAdsOnFire,
       invertY: settings.invertY,
       botDifficulty,
+      survivalTier,
       masterVolume: settings.masterVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
@@ -156,7 +159,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">TAP TO PLAY</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
             <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
-            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Endless Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
+            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
           </div>
         </button>
       )}
