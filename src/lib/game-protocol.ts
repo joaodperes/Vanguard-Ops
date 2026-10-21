@@ -4,6 +4,7 @@
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
+import { applyMapFootprint } from "./map-footprint";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame";
@@ -994,7 +995,7 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
     { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -46], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
 };
-export const MAPS: Record<MapId, MapDef> = {
+const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
@@ -1145,6 +1146,16 @@ export const MAPS: Record<MapId, MapDef> = {
     },
     lights: ARENA_NEON_LIGHTS,
   },
+};
+
+/** Expose fully scaled layouts consistently to solo and multiplayer clients. */
+export const MAPS: Record<MapId, MapDef> = {
+  compound: applyMapFootprint(BASE_MAPS.compound),
+  skybridge: applyMapFootprint(BASE_MAPS.skybridge),
+  bunker: applyMapFootprint(BASE_MAPS.bunker),
+  shipyard: applyMapFootprint(BASE_MAPS.shipyard),
+  terminal: applyMapFootprint(BASE_MAPS.terminal),
+  arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
 };
 
 export const MAP_LIST: MapDef[] = [MAPS.compound, MAPS.skybridge, MAPS.bunker, MAPS.shipyard, MAPS.terminal, MAPS.arena_neon];
