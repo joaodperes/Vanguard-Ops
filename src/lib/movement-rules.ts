@@ -33,6 +33,14 @@ export function shouldTouchAutoSprint(magnitude: number, forward: number, wasAct
     magnitude >= (wasActive ? MOVEMENT.touchSprintOff : MOVEMENT.touchSprintOn);
 }
 
+/** Whether a recent input may launch from the ground or during ledge grace. */
+export function canUseBufferedJump(now: number, pressedAt: number, groundedAt: number, grounded: boolean): boolean {
+  const pressAge = now - pressedAt;
+  const ledgeAge = now - groundedAt;
+  return pressAge >= 0 && pressAge <= MOVEMENT.jumpBufferMs &&
+    (grounded || (ledgeAge >= 0 && ledgeAge <= MOVEMENT.coyoteMs));
+}
+
 /** Frame-rate-independent velocity response; zero input brakes, reversal turns fast. */
 export function responsiveHorizontalVelocity(
   vx: number, vz: number, targetX: number, targetZ: number, grounded: boolean, dt: number,
