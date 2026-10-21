@@ -18,7 +18,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint } from "@/lib/bot-routing";
-import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity } from "@/lib/movement-rules";
+import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -2108,6 +2108,11 @@ export class FPSEngine {
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => {
+      // Record the edge in the browser event itself. Even a fast tap that starts
+      // and ends between render frames must be eligible for jump buffering.
+      if (e.code === "Space" && !e.repeat && !this.keys[e.code]) {
+        this.lastJumpPressedAt = performance.now();
+      }
       this.keys[e.code] = true;
       if (e.code === "KeyR") this.startReload();
       if (e.code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode)) {
@@ -5259,8 +5264,9 @@ export class FPSEngine {
     this.wasJumpHeld = jumpHeld;
     this.touchJumpQueued = false;
     if (this.onGround) this.lastGroundedAt = now;
-    const wantJump = now - this.lastJumpPressedAt <= MOVEMENT.jumpBufferMs &&
-      (this.onGround || now - this.lastGroundedAt <= MOVEMENT.coyoteMs);
+    const wantJump = canUseBufferedJump(
+      now, this.lastJumpPressedAt, this.lastGroundedAt, this.onGround,
+    );
     if (wantJump) {
       this.lastJumpPressedAt = -Infinity;
       this.lastGroundedAt = -Infinity;
