@@ -107,8 +107,8 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
     low(-43,-31,3.5,3,1.5), low(43,31,3.5,3,1.5),
     low(-43,31,3.5,3,1.5), low(43,-31,3.5,3,1.5),
     // Cover on bridge platforms without fully obstructing travel.
-    elevated(-21,-31,4.3), elevated(21,-31,4.3),
-    elevated(-21,31,4.3), elevated(21,31,4.3),
+    elevated(-21,-31,6.3), elevated(21,-31,6.3),
+    elevated(-21,31,6.3), elevated(21,31,6.3),
   ],
 };
 
