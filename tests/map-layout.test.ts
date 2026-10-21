@@ -62,6 +62,14 @@ describe("authored map combat layouts", () => {
           box.size[1] >= 1);
         expect(barriers.some(box => box.pos[0] < door.pos[0] - 3)).toBe(true);
         expect(barriers.some(box => box.pos[0] > door.pos[0] + 3)).toBe(true);
+        // The breach should matter: no gap wide enough to walk through
+        // before its central destructible panel is removed.
+        const left = barriers.filter(box => box.pos[0] < door.pos[0] - 3)
+          .reduce((edge,box) => Math.max(edge, box.pos[0] + box.size[0]), -Infinity);
+        const right = barriers.filter(box => box.pos[0] > door.pos[0] + 3)
+          .reduce((edge,box) => Math.min(edge, box.pos[0] - box.size[0]), Infinity);
+        expect(door.pos[0] - door.size[0] - left).toBeLessThan(0.9);
+        expect(right - (door.pos[0] + door.size[0])).toBeLessThan(0.9);
       }
     }
   });
