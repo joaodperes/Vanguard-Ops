@@ -2255,6 +2255,21 @@ function handle(socket: any, msg: C2S) {
       break;
     }
     case "joinRoom": {
+      const targetRoom=rooms.get(msg.roomId);
+      if (targetRoom?.mode==="survival") {
+        const tier=normalizeSurvivalTier(targetRoom.config.survivalTier);
+        if(tier!=="default") {
+          try {
+            if(!survivalUnlocked(tier,await getSurvivalProgress(msg.playerKey))) {
+              socket.emit("message",{t:"roomError",message:"Unlock this Survival tier before joining this room."} as S2C);
+              break;
+            }
+          } catch {
+            socket.emit("message",{t:"roomError",message:"Could not verify Survival progression."} as S2C);
+            break;
+          }
+        }
+      }
       console.log(`[VANGUARD] joinRoom from ${socket.id}: roomId=${msg.roomId} name=${msg.name} team=${msg.team ?? "auto"}`);
       const { room, error } = joinLobbyRoom(socket.id, msg.name, msg.loadout, msg.roomId, msg.password ?? null, msg.team);
       if (!room || error) {
