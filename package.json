@@ -12,7 +12,11 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "test:maps": "bun test tests/map-layout.test.ts",
+    "test:bots": "bun test tests/bot-routing.test.ts",
+    "test:smoke": "bun test tests",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
