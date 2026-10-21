@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
 import { weaponById } from "@/lib/game-data";
+import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 export function Results() {
   const { matchResult, profile, setScreen, playConfig } = useGame();
@@ -57,13 +58,27 @@ export function Results() {
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {playConfig.mode === "tdm" ? "Team Deathmatch" : "Free-For-All"} · Match Over
+            {playConfig.mode === "survival" ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival` : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : "Free-For-All"} · Match Over
           </h1>
           <p className="text-white/50 mt-2">
-            {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
+            {playConfig.mode === "survival" ? `${r.survivalWaves ?? 0} waves cleared` : playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
             {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
           </p>
         </div>
+
+        {playConfig.mode === "survival" && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
+            <div className="text-amber-300 font-bold text-lg">
+              {r.won ? "STANDARD SURVIVAL CONQUERED" : `WAVES CLEARED · ${r.survivalWaves ?? 0}`}
+            </div>
+            <div className="text-white/50 text-xs mt-1">
+              {r.won ? "30-wave victory bonus awarded · Hard mode unlocked"
+                : r.survivalTier === "hard" && (r.survivalWaves ?? 0)>=20 ? "Elite unlocked"
+                : r.survivalTier === "elite" && (r.survivalWaves ?? 0)>=20 ? "Nightmare unlocked"
+                : "Your longest completed run is saved to your profile"}
+            </div>
+          </div>
+        )}
 
         {/* personal stats */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
