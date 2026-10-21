@@ -27,6 +27,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnlocked, type SurvivalProgress } from "@/lib/survival";
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
 // difficulty per bot at spawn time. Colors avoid indigo/blue per project rules.
@@ -96,10 +97,19 @@ function useLobby(active: boolean) {
 // Play screen
 // ============================================================================
 export function Play() {
-  const { profile, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
+  const { profile, playerKey, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
   const [tab, setTab] = useState<"create" | "browse">("create");
   const [mapPaceFilter, setMapPaceFilter] = useState<"all" | MapPace>("all");
   const lobby = useLobby(tab === "browse");
+  const [survivalProgress,setSurvivalProgress]=useState<SurvivalProgress>(ZERO_SURVIVAL_PROGRESS);
+  useEffect(()=>{
+    let cancelled=false;
+    fetch(`/api/survival/progress?playerKey=${encodeURIComponent(playerKey)}`)
+      .then(r=>r.ok?r.json():ZERO_SURVIVAL_PROGRESS)
+      .then(d=>{if(!cancelled)setSurvivalProgress(d);})
+      .catch(()=>{});
+    return ()=>{cancelled=true;};
+  },[playerKey]);
   // Round 20a: Server status indicator. The game server runs on port 3003
   // (started by instrumentation.ts). Connection strategy depends on environment:
   // - Sandbox (Caddy on :81): check via "?XTransformPort=3003" (Caddy routes it)
@@ -164,6 +174,10 @@ export function Play() {
   // ---- Create Room: launch the match via the engine ----
   const handleCreate = () => {
     const mode = roomConfig.mode;
+    if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
+      toast.error("This Survival tier is locked. Clear the previous milestone first.");
+      return;
+    }
     const teamSize = roomConfig.teamSize;
     const cfg = MATCH_MODES[mode];
     const cap = roomCapacity(mode, teamSize, roomConfig.survivalPlayers);
@@ -178,6 +192,7 @@ export function Play() {
       gungamePreset: roomConfig.mode === "gungame" ? roomConfig.gungamePreset : undefined,
       gungameMultiplier: roomConfig.mode === "gungame" ? roomConfig.gungameMultiplier : undefined,
       survivalPlayers: roomConfig.survivalPlayers,
+      survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
       // Round 19i: Pass custom limits for FFA/TDM.
       scoreLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.scoreLimit : undefined,
       timeLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.timeLimit : undefined,
@@ -191,6 +206,7 @@ export function Play() {
       scoreLimit: cfg.defaultScoreLimit,
       timeLimit: cfg.defaultTimeLimit,
       botDifficulty: roomConfig.botDifficulty,
+      survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
     });
     setScreen("playing");
     toast.success(`Creating room "${config.roomName || `${profile?.name ?? "Host"}'s Room`}"…`);
@@ -210,6 +226,7 @@ export function Play() {
       scoreLimit: cfg.defaultScoreLimit,
       timeLimit: cfg.defaultTimeLimit,
       botDifficulty: "normal",  // joiners inherit the room's difficulty (server-authoritative)
+      survivalTier: room.survivalTier ?? "default",
     });
     setScreen("playing");
     toast.success(`Joining "${room.name}"…`);
@@ -331,6 +348,30 @@ export function Play() {
                     </div>
                   )}
                 </Section>
+
+                {roomConfig.mode === "survival" && (
+                  <Section icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {SURVIVAL_TIERS.map(tier=>{
+                        const info=SURVIVAL_TIER_INFO[tier];
+                        const unlocked=survivalUnlocked(tier,survivalProgress);
+                        const selected=roomConfig.survivalTier===tier;
+                        const progress=tier==="hard" ? "Unlock: win Standard (wave 30)" : tier==="elite" ? "Unlock: clear Hard wave 20" : tier==="nightmare" ? "Unlock: clear Elite wave 20" : "Available from the start";
+                        return (
+                          <button key={tier} type="button" disabled={!unlocked} onClick={()=>setRoomConfig({survivalTier:tier})}
+                            className={`text-left p-3 rounded-xl border transition-colors ${selected ? "border-amber-400/70 bg-amber-500/10" : unlocked ? "border-white/10 bg-black/30 hover:border-white/30" : "border-white/5 bg-black/20 opacity-50 cursor-not-allowed"}`}>
+                            <div className="flex items-center justify-between font-bold text-sm" style={{color:info.color}}>{info.label}{!unlocked && <Lock className="w-3.5 h-3.5" />}</div>
+                            <p className="text-white/60 text-xs mt-1 leading-relaxed">{info.description}</p>
+                            <div className="text-[10px] text-white/40 mt-2">{unlocked?"Unlocked":progress}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 text-xs text-white/50">
+                      Standard wins: {survivalProgress.defaultWins} · Hard best: {survivalProgress.hardBest} · Elite best: {survivalProgress.eliteBest} · Nightmare best: {survivalProgress.nightmareBest}
+                    </div>
+                  </Section>
+                )}
 
                 {/* Fill with bots */}
                 <Section icon={<Bot className="w-4 h-4 text-emerald-400" />} title="Bot Fill" hint="Bots occupy empty slots; humans replace them on join">
@@ -564,6 +605,7 @@ export function Play() {
                       label={roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Slots" : roomConfig.mode === "survival" ? "Squad" : "Teams"}
                       value={roomConfig.mode === "survival" ? `${roomConfig.survivalPlayers} player${roomConfig.survivalPlayers === 2 ? "s" : ""}` : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}
                     />
+                    {roomConfig.mode === "survival" && <SummaryRow label="Survival Tier" value={SURVIVAL_TIER_INFO[roomConfig.survivalTier].label} accent={SURVIVAL_TIER_INFO[roomConfig.survivalTier].color} />}
                     <SummaryRow label="Map" value={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.name ?? "—"} accent={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.accentColor} />
                     <SummaryRow
                       label="Bots"
@@ -610,7 +652,7 @@ export function Play() {
 
                     <Button
                       onClick={handleCreate}
-                      disabled={serverOnline === false}
+                      disabled={serverOnline === false || (roomConfig.mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress))}
                       className="w-full mt-5 h-11 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {serverOnline === false ? (
