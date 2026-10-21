@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       weaponUnlocks: true,
       skinUnlocks: true,
       attachmentUnlocks: true,
+      playerSkinUnlocks: true,
       loadout: true,
       matchRecords: true,
       achievements: true,
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest) {
     weaponUnlocks: player.weaponUnlocks.map((u) => ({ weaponId: u.weaponId })),
     skinUnlocks: player.skinUnlocks.map((u) => ({ weaponId: u.weaponId, skinId: u.skinId })),
     attachmentUnlocks: player.attachmentUnlocks.map((u) => ({ weaponId: u.weaponId, attachmentId: u.attachmentId })),
+    playerSkinUnlocks: player.playerSkinUnlocks.map(u => ({ skinId: u.skinId })),
     loadout: player.loadout
       ? {
           primaryWeapon: player.loadout.primaryWeapon,
