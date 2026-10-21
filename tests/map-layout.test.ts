@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { MAP_LIST } from "../src/lib/game-protocol";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "../src/lib/map-tactics";
+import { MAP_FOOTPRINT } from "../src/lib/map-footprint";
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
@@ -18,8 +19,20 @@ describe("authored map combat layouts", () => {
   test("every new spawn has solid-cover and hazard clearance", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
-      for (const [team, points] of Object.entries(OUTER_SPAWNS[map.id])) {
-        for (const point of points) {
+      for (const team of ["ffa", "red", "blue"] as const) {
+        const authored = OUTER_SPAWNS[map.id][team];
+        // MAP_LIST already scales every spawn, wall and hazard together.
+        // Check the *actual* appended spawn positions, not unscaled design
+        // coordinates against the compact/tactical arena bounds.
+        const points = map.spawns[team].slice(-authored.length);
+        expect(points).toHaveLength(authored.length);
+        for (let i = 0; i < points.length; i++) {
+          const point = points[i];
+          const design = authored[i];
+          const factor = MAP_FOOTPRINT[map.id].scale;
+          expect(point[0]).toBeCloseTo(design[0] * factor, 2);
+          expect(point[2]).toBeCloseTo(design[2] * factor, 2);
+          expect(point[1]).toBe(design[1]);
           expect(Math.abs(point[0])).toBeLessThan(map.size - 2);
           expect(Math.abs(point[2])).toBeLessThan(map.size - 2);
           expect(botPositionEmbedded(collision, point)).toBe(false);
