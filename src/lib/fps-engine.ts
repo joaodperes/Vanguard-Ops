@@ -5869,7 +5869,7 @@ export class FPSEngine {
       scavengerPacksNearby: this.activePerkId === "scavenger"
         ? [...this.scavengerPickups.values()].filter(p =>
             Math.hypot(this.pos.x - p.pos[0], this.pos.z - p.pos[2]) <= 45).length : 0,
-      matchEnding: this.matchFinishingLabel,
+      matchEnding: this.matchFinishingLabel ?? undefined,
       quickMeleeAt: this.quickMeleeFeedbackAt,
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
