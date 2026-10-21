@@ -1,8 +1,8 @@
 name: Vanguard Ops dev validation
 
+# Run only when explicitly requested. Avoid charging private-repo
+# Actions minutes and sending CI email on every development commit.
 on:
-  push:
-    branches: [dev]
   workflow_dispatch:
 
 permissions:
