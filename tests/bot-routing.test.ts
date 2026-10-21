@@ -25,6 +25,16 @@ describe("shared height-aware bot navigation", () => {
     expect(waypoint![0]).toBeLessThanOrEqual(4);
   });
 
+  test("substep sampling climbs narrow high-rise stair treads", () => {
+    const cover: CoverBox[] = [
+      { pos:[0,5,0], size:[2,5,3], kind:"platform" },
+      ...stairs(0,3,10,20,3,6,"z",1),
+    ];
+    const height = botTraversableEdge([0,0,10],0,2.9,cover);
+    expect(height).not.toBeNull();
+    expect(height!).toBeGreaterThan(9.4);
+  });
+
   test("blocks hazard edges instead of treating them as safe geometry", () => {
     const danger = [{ type:"fire", pos:[0,0,0], size:[1.5,1,1.5] }];
     expect(botTraversableEdge([-4,0,0],4,0,[],danger)).toBeNull();
