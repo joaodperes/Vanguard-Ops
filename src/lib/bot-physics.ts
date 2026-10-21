@@ -26,10 +26,14 @@ export function botGroundHeight(cover: CoverBox[], x: number, z: number, feetY: 
     if (c.kind === "accent") continue;
     const top = c.pos[1] + c.size[1];
     if (top <= ground || top > feetY + BOT_STEP_HEIGHT) continue;
-    // Require bot's center to reach the actual support surface; inflating this
-    // footprint caused bots to climb a roof while still outside its edge.
-    if (Math.abs(x - c.pos[0]) <= c.size[0] + EPS &&
-        Math.abs(z - c.pos[2]) <= c.size[2] + EPS) ground = top;
+    // Narrow stair treads can be shorter than the bot's capsule radius.
+    // Contact with a step begins at the capsule front, before its centre
+    // reaches that tread. Recognize stair support at capsule contact so each
+    // successive 0.5-high riser is walkable; NEVER inflate normal roofs,
+    // crates or platforms, which would allow stepping up outside their edge.
+    const reach = c.kind === "stair" ? PLAYER_RADIUS : 0;
+    if (Math.abs(x - c.pos[0]) <= c.size[0] + reach + EPS &&
+        Math.abs(z - c.pos[2]) <= c.size[2] + reach + EPS) ground = top;
   }
   return ground;
 }
