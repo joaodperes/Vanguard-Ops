@@ -496,12 +496,12 @@ function WeaponCard(props: WeaponCardProps) {
         <div className="text-white font-bold text-base">{w.name}</div>
         <div className="text-white/40 text-xs uppercase tracking-wide">{w.category} · LVL {w.unlockLevel}</div>
       </div>
-      <p className="text-white/50 text-xs mb-3 flex-1">{w.description}</p>
+      <p className="text-white/50 text-xs mb-2 flex-1">{w.description}</p>
       {/* stat bars */}
       <div className="space-y-1.5 mb-3">
         <StatBar label="DMG" value={w.stats.damage} max={120} color="bg-rose-500" />
         <StatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
-        <StatBar label="MAG" value={w.stats.magSize} max={80} color="bg-emerald-500" />
+        <StatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
         <StatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
       </div>
       {/* handling stats */}
@@ -618,7 +618,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
             <ModalStatBar label="DMG" value={w.stats.damage} max={120} color="bg-rose-500" />
             <ModalStatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
-            <ModalStatBar label="MAG" value={w.stats.magSize} max={80} color="bg-emerald-500" />
+            <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
             <ModalStatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
           </div>
         </DialogHeader>
@@ -666,13 +666,13 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
             <div className="text-white/40 text-xs mb-3">
-              Standard skins are universal — once unlocked via any weapon's challenge, they apply to every weapon. The equipped skin is global (shown on all weapons in-game).
+              Each weapon has its own skin challenges. Finish the listed requirement before equipping that skin on this weapon.
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
                 const isUnlocked = unlockedSkinsForWeapon.has(s.id);
                 const challenge = challengeViews.find((c) => c.skinId === s.id);
-                const isBaseline = s.id === "default" || (s.unlockCost === 0 && s.unlockLevel <= level);
+                const isBaseline = s.id === "default";
                 const isEquipped = canEquipSkin && equippedSkinId === s.id;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const pct = challenge ? Math.min(100, (challenge.progress / challenge.goal) * 100) : isUnlocked ? 100 : 0;
@@ -686,7 +686,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                 return (
                   <div
                     key={s.id}
-                    className={`relative rounded-lg border p-2.5 flex items-center gap-2.5 transition-colors ${
+                    className={`relative rounded-lg border p-2.5 flex flex-wrap sm:flex-nowrap items-center gap-2.5 min-w-0 transition-colors ${
                       isEquipped
                         ? "border-amber-500/50 bg-amber-500/5"
                         : isOwned
@@ -716,9 +716,9 @@ function CustomizeModal(props: CustomizeModalProps) {
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-white text-xs font-semibold">{s.name}</span>
+                    <div className="flex-1 min-w-0 break-words">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
+                        <span className="text-white text-xs font-semibold break-words min-w-0">{s.name}</span>
                         <span className="text-[9px] uppercase font-semibold" style={{ color: rarityColor }}>{s.rarity}</span>
                         {s.tier === "standard" && <span className="text-[9px] uppercase text-emerald-400/70 font-semibold">STANDARD</span>}
                         {/* Owned badge — small green pill to make ownership status
@@ -740,7 +740,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
                             <Lock className="w-2.5 h-2.5" />Unlock
                           </div>
-                          <div className="text-white/60 text-[10px] truncate">{challenge!.title}</div>
+                          <div className="text-white/60 text-[10px] break-words">{challenge!.title}</div>
                           <div className="mt-1 flex items-center gap-2">
                             <div className="flex-1 h-1 bg-black/60 rounded-full overflow-hidden">
                               <div className={`h-full ${challenge!.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
@@ -899,9 +899,8 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
                 {isEquipped ? (
-                  <Badge variant="outline" className="border-amber-500/40 text-amber-300 text-[9px]">
-                    <Check className="w-2.5 h-2.5 mr-0.5" />Equipped
-                  </Badge>
+                  <Button size="sm" variant="outline" onClick={() => onEquip(null)}
+                    className="border-amber-500/40 text-amber-300 text-[10px] h-7 px-2">Unequip</Button>
                 ) : isOwned ? (
                   <Button
                     size="sm"

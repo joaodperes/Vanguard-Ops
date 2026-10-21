@@ -16,9 +16,9 @@ export type TeamSize = (typeof TEAM_SIZES)[number];
 // Total combatant capacity for a room given mode + team size.
 // FFA: teamSize*2 total slots (no teams, just a player cap).
 // TDM: teamSize per side → teamSize*2 total.
-// Survival: always 2 humans (co-op), bots come per-wave.
-export function roomCapacity(mode: GameMode, teamSize: TeamSize): number {
-  if (mode === "survival") return 2;
+// Survival: configurable solo or duo lobby; wave bots are independent of capacity.
+export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers: 1 | 2 = 2): number {
+  if (mode === "survival") return survivalPlayers;
   return teamSize * 2;
 }
 
@@ -62,6 +62,9 @@ export interface CreateRoomConfig {
   // progression length as the score limit).
   scoreLimit?: number;      // kills to win (per player FFA, per team TDM)
   timeLimit?: number;       // seconds (0 = no time limit)
+  gungamePreset?: "all" | "cqc" | "long_range";
+  gungameMultiplier?: number; // whole list 1–5 times; default 1
+  survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
 }
 
 // ---- Combat constants -------------------------------------------------------
@@ -78,6 +81,7 @@ export interface CoverBox {
   pos: Vec3;     // center
   size: Vec3;    // half-extents
   kind?: "solid" | "cover" | "accent" | "platform" | "stair";
+  environmentId?: string; // dynamically updated solid; not part of the static map geometry
 }
 
 // Staircase builder: steps rise along ±z (or ±x) axis.
@@ -135,6 +139,14 @@ export interface MapAccentLight {
   distance: number;   // attenuation radius, typically 12–20
 }
 
+/** Map-authored interactive objects. Coordinates follow CoverBox half-extents. */
+export type EnvironmentObject =
+  | { id: string; type: "fire"; pos: Vec3; size: Vec3; dps: number }
+  | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number }
+  | { id: string; type: "jump_pad"; pos: Vec3; size: Vec3; launch: Vec3 }
+  | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
+  | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
+
 export interface MapDef {
   id: MapId;
   name: string;
@@ -143,6 +155,7 @@ export interface MapDef {
   size: number;          // half-extents (arena is 2*size x 2*size)
   wallHeight: number;
   cover: CoverBox[];
+  environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
   theme: MapTheme;
   accentColor: string;   // for UI badge
@@ -917,9 +930,55 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
   { pos: [55, 4, 55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
 ];
 
+/** Map-specific placements, with stable IDs for state replication. */
+const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  compound: [
+    { id: "compound_fire", type: "fire", pos: [-33, 0, -10], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "compound_spikes", type: "spikes", pos: [33, 0, 10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "compound_jump", type: "jump_pad", pos: [0, 0, 40], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "compound_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 6 },
+    { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, 19], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+  skybridge: [
+    { id: "skybridge_fire", type: "fire", pos: [-30, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "skybridge_spikes", type: "spikes", pos: [30, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "skybridge_jump", type: "jump_pad", pos: [0, 0, 25], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "skybridge_platform", type: "moving_platform", pos: [-8, 0.85, 25], size: [2.5, 0.25, 2.5], to: [8, 0.85, 25], period: 6 },
+    { id: "skybridge_wall", type: "destructible_wall", pos: [0, 1.6, -25], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+  bunker: [
+    { id: "bunker_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "bunker_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "bunker_jump", type: "jump_pad", pos: [0, 0, 33], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "bunker_platform", type: "moving_platform", pos: [-8, 0.85, 32], size: [2.5, 0.25, 2.5], to: [8, 0.85, 32], period: 6 },
+    { id: "bunker_wall", type: "destructible_wall", pos: [0, 1.5, -30], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+  shipyard: [
+    { id: "shipyard_fire", type: "fire", pos: [-32, 0, 6], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "shipyard_spikes", type: "spikes", pos: [32, 0, -6], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "shipyard_jump", type: "jump_pad", pos: [0, 0, 42], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "shipyard_platform", type: "moving_platform", pos: [-8, 0.85, 36], size: [2.5, 0.25, 2.5], to: [8, 0.85, 36], period: 6 },
+    { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+  terminal: [
+    { id: "terminal_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "terminal_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "terminal_jump", type: "jump_pad", pos: [0, 0, 30], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "terminal_platform", type: "moving_platform", pos: [-8, 0.85, 33], size: [2.5, 0.25, 2.5], to: [8, 0.85, 33], period: 6 },
+    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+  arena_neon: [
+    { id: "arena_neon_fire", type: "fire", pos: [-35, 0, 10], size: [2.5, 1.6, 2.5], dps: 24 },
+    { id: "arena_neon_spikes", type: "spikes", pos: [35, 0, -10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
+    { id: "arena_neon_jump", type: "jump_pad", pos: [0, 0, 35], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
+    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 38], size: [2.5, 0.25, 2.5], to: [8, 0.85, 38], period: 6 },
+    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -35], size: [2.8, 1.5, 0.4], hp: 180 },
+  ],
+};
 export const MAPS: Record<MapId, MapDef> = {
   compound: {
     id: "compound",
+    environment: ENVIRONMENTS.compound,
     name: "Compound",
     shortName: "CMP",
     description: "Symmetric arena with a central raised platform and four corner bunkers. Balanced for all ranges.",
@@ -943,6 +1002,7 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   skybridge: {
     id: "skybridge",
+    environment: ENVIRONMENTS.skybridge,
     name: "Skybridge",
     shortName: "SKY",
     description: "Vertical-focused map with crossing catwalks and corner sniper towers. Height is power.",
@@ -966,6 +1026,7 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   bunker: {
     id: "bunker",
+    environment: ENVIRONMENTS.bunker,
     name: "Bunker",
     shortName: "BNK",
     description: "Tight enclosed CQC with a perimeter upper walkway. Close-quarters brutality.",
@@ -989,6 +1050,7 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   shipyard: {
     id: "shipyard",
+    environment: ENVIRONMENTS.shipyard,
     name: "Shipyard",
     shortName: "SHY",
     description: "Tight industrial dockside — stacked containers, crane walkways, brutal close-quarters firefights.",
@@ -1006,6 +1068,7 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   terminal: {
     id: "terminal",
+    environment: ENVIRONMENTS.terminal,
     name: "Terminal",
     shortName: "TRM",
     description: "Modern airport concourse — polished floors, glass walls, second-level walkway. Classic mid-range engagements.",
@@ -1023,6 +1086,7 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   arena_neon: {
     id: "arena_neon",
+    environment: ENVIRONMENTS.arena_neon,
     name: "Neon Plaza",
     shortName: "NPN",
     description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=4. Vertical arcade-shooter heaven.",
@@ -1055,6 +1119,9 @@ export const SPAWN_POINTS = MAPS.compound.spawns;
 
 // ---- Network protocol -------------------------------------------------------
 export interface LoadoutWire {
+  perkId?: import("./perks").PerkId;
+  /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
+  equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
   // Secondary (sidearm) and melee weapon ids — used by the engine to support
   // in-match weapon swapping (keys 1/2/3, or on-screen buttons on mobile).
@@ -1103,9 +1170,13 @@ export interface PlayerNet {
 export type C2S =
   | { t: "joinMatch"; playerKey: string; name: string; mode: GameMode; botCount: number; loadout: LoadoutWire; team?: "red" | "blue"; mapId?: MapId }
   | { t: "leaveMatch" }
-  | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean }
+  | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string }   // server-side raycast
   | { t: "reload" }
+  | { t: "recoverBolt"; boltId: string }
+  | { t: "quickMelee" }
+  | { t: "collectScavenger"; id: string }
+  | { t: "useEquipment" } // deprecated; server ignores this packet
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" }   // player changed weapon slot
   // ---- Room lobby system ----
@@ -1136,16 +1207,29 @@ export interface LobbyPlayer {
 }
 
 export type S2C =
+  | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
+  | { t: "scavengerRemove"; id: string }
+  | { t: "scavengerCollected"; id: string }
+  | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; flightMs?: number }
+  | { t: "equipmentStatus"; effect: "flash" | "stun"; durationMs: number }
+  | { t: "equipmentState"; remaining: number }
+  | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[] }
+  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[] }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
+  | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
+  | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }
   | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[]; winnerTeam: string | null }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }
+  | { t: "boltDrop"; id: string; ownerId: string; pos: Vec3; expiresAt: number }
+  | { t: "boltRemoved"; id: string }
+  | { t: "boltRecovered"; id: string; ownerId: string }
+  | { t: "arcFx"; from: Vec3; to: Vec3 }
   // ---- Room lobby system ----
   | { t: "roomList"; rooms: RoomSummary[] }
   | { t: "roomJoined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[]; roomName: string; state?: "lobby" | "playing"; isHost?: boolean }
@@ -1169,7 +1253,7 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
   mode,
   botCount,
   scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : 0,
-  timeLimit: mode === "survival" ? 0 : 360,
+  timeLimit: mode === "survival" || mode === "gungame" ? 0 : 360,
   friendlyFire: false,
 });
 
@@ -1178,47 +1262,83 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
 // fixed list of specific weapon IDs. The STRUCTURE is always the same:
 //   sidearm → smg → shotgun → assault → dmr → sniper → lmg → launcher → melee
 // But the SPECIFIC weapon in each slot is randomly chosen from the catalog when
-// a match starts. So even though slot 6 is always "sniper", each match might
+// a match starts. So even when a slot calls for "sniper", each match might
 // have a different sniper there. Only ONE melee slot exists — always the last
-// tier (the final kill wins the match).
+// tier of each cycle (the last cycle's final kill wins the match).
 //
 // This replaces the old GUN_GAME_PROGRESSION (which was a fixed list of 18
 // weapon IDs). The old list is kept as GUN_GAME_TYPE_PROGRESSION_FALLBACK for
 // backward compat / offline mode where the engine still reads a flat list.
+// 30 unique stages per cycle: 28 different firearms, then RL-7 Rocket Launcher
+// and a final melee elimination. Presets prioritize their preferred range, but
+// automatically fill from other weapon categories when too few unique weapons
+// exist; they never repeat the same gun just to satisfy a category count.
 export const GUN_GAME_TYPE_PROGRESSION: string[] = [
-  "sidearm",      // 1: pistol start (warm-up)
-  "sidearm",      // 2: second sidearm
-  "smg",          // 3: SMG
-  "smg",          // 4: second SMG
-  "shotgun",      // 5: shotgun
-  "shotgun",      // 6: second shotgun
-  "assault",      // 7: assault rifle
-  "assault",      // 8: second assault rifle
-  "dmr",          // 9: DMR
-  "dmr",          // 10: second DMR
-  "sniper",       // 11: sniper (one-shot body kill tier)
-  "lmg",          // 12: LMG (suppression tier)
-  "sidearm",      // 13: heavy sidearm (magnum/launcher)
-  "melee",        // 14: FINAL — melee weapon (one kill with this wins)
+  "sidearm",
+  "smg",
+  "shotgun",
+  "assault",
+  "sidearm",
+  "smg",
+  "shotgun",
+  "assault",
+  "dmr",
+  "smg",
+  "sidearm",
+  "assault",
+  "dmr",
+  "shotgun",
+  "assault",
+  "sniper",
+  "dmr",
+  "lmg",
+  "sidearm",
+  "assault",
+  "dmr",
+  "sniper",
+  "lmg",
+  "sidearm",
+  "assault",
+  "dmr",
+  "sniper",
+  "lmg",
+  "launcher",
+  "melee"
 ];
 
-// The old fixed weapon-ID list. Kept as a fallback for offline mode and for
-// resolveGungameWeapons() to pick from. Also re-exported for any code that
-// still references it directly. Updated to include new weapons.
+// Offline/back-compat fallback is equally unique, including the rocket finish.
 export const GUN_GAME_PROGRESSION: string[] = [
-  "pistol_side", "pistol_burst", "smg_compact",
-  "smg_kp", "rifle_burst",
-  "smg_vector", "shotgun_br",
-  "shotgun_combat", "rifle_ar",
-  "dmr_scout", "rifle_heavy",
-  "lmg_light", "sniper_scout",
-  "dmr_heavy", "sniper_lr",
-  "lmg_hv", "shotgun_auto",
-  "rifle_dm", "launcher_rocket",
-  "knife_tactical",
+  "pistol_arc",
+  "smg_kp",
+  "shotgun_br",
+  "rifle_electron",
+  "pistol_side",
+  "smg_vector",
+  "shotgun_auto",
+  "rifle_falcon",
+  "crossbow_reclaimer",
+  "smg_compact",
+  "pistol_magnum",
+  "rifle_hydra",
+  "dmr_cyclone",
+  "shotgun_combat",
+  "rifle_ar",
+  "sniper_lr",
+  "dmr_whisper",
+  "lmg_hv",
+  "pistol_burst",
+  "rifle_burst",
+  "rifle_dm",
+  "sniper_scout",
+  "lmg_light",
+  "pistol_machine",
+  "rifle_heavy",
+  "dmr_scout",
+  "sniper_heavy",
+  "lmg_heavy",
+  "launcher_rocket",
+  "knife_tactical"
 ];
-
-// Fallback first-weapon ID (used when gungameWeapons isn't resolved yet).
 export const GUN_GAME_TYPE_PROGRESSION_FALLBACK: string[] = GUN_GAME_PROGRESSION;
 
 // ---- Survival wave configuration ----

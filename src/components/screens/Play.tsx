@@ -164,7 +164,7 @@ export function Play() {
     const mode = roomConfig.mode;
     const teamSize = roomConfig.teamSize;
     const cfg = MATCH_MODES[mode];
-    const cap = roomCapacity(mode, teamSize);
+    const cap = roomCapacity(mode, teamSize, roomConfig.survivalPlayers);
     const config: CreateRoomConfig = {
       mode,
       mapId: roomConfig.mapId,
@@ -173,6 +173,9 @@ export function Play() {
       password: roomConfig.password.trim() ? roomConfig.password.trim() : null,
       roomName: roomConfig.roomName.trim() || undefined,
       botDifficulty: roomConfig.botDifficulty,
+      gungamePreset: roomConfig.mode === "gungame" ? roomConfig.gungamePreset : undefined,
+      gungameMultiplier: roomConfig.mode === "gungame" ? roomConfig.gungameMultiplier : undefined,
+      survivalPlayers: roomConfig.survivalPlayers,
       // Round 19i: Pass custom limits for FFA/TDM.
       scoreLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.scoreLimit : undefined,
       timeLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.timeLimit : undefined,
@@ -210,7 +213,7 @@ export function Play() {
     toast.success(`Joining "${room.name}"…`);
   };
 
-  const cap = roomCapacity(roomConfig.mode, roomConfig.teamSize);
+  const cap = roomCapacity(roomConfig.mode, roomConfig.teamSize, roomConfig.survivalPlayers);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -287,17 +290,18 @@ export function Play() {
                     roomConfig.mode === "ffa" || roomConfig.mode === "gungame"
                       ? "Total combatants in the match (no teams)"
                       : roomConfig.mode === "survival"
-                      ? "Survival is co-op — 2 operatives vs endless waves"
+                      ? "Play solo or as a duo; duo waves spawn 1.75× as many enemies"
                       : "Players per team · red vs blue"
                   }
                 >
                   {roomConfig.mode === "survival" ? (
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
-                      <Shield className="w-5 h-5 text-amber-400" />
-                      <div>
-                        <div className="text-white font-semibold text-sm">2-Player Co-op</div>
-                        <div className="text-white/50 text-xs">Survival is always 2 humans. Bots spawn per wave.</div>
-                      </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {([1, 2] as const).map(n => <button key={n} type="button"
+                        onClick={() => setRoomConfig({ survivalPlayers: n })}
+                        className={`p-4 rounded-xl border text-center transition-colors ${roomConfig.survivalPlayers === n ? "border-amber-400 bg-amber-500/10 text-amber-200" : "border-white/10 bg-zinc-900/50 text-white/60 hover:border-white/25"}`}>
+                        <div className="text-lg font-bold">{n === 1 ? "Solo" : "2-Player Co-op"}</div>
+                        <div className="text-xs opacity-70">{n === 1 ? "1× wave enemies" : "1.75× wave enemies"}</div>
+                      </button>)}
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-3">
@@ -387,6 +391,34 @@ export function Play() {
                 )}
 
                 {/* Round 19i/20b: Match Limits (FFA/TDM only) */}
+                {roomConfig.mode === "gungame" && (
+                  <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
+                    <div>
+                      <div className="text-white font-semibold text-sm mb-1">Gun Game weapon pool</div>
+                      <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {([ {id:"all",label:"All Weapons"},{id:"cqc",label:"Close Quarters"},{id:"long_range",label:"Long Range"}] as const).map(o => (
+                          <button type="button" key={o.id} onClick={() => setRoomConfig({gungamePreset:o.id})}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold ${roomConfig.gungamePreset === o.id ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-white font-semibold text-sm mb-2">Weapon list multiplier</div>
+                      <div className="flex flex-wrap gap-2">
+                        {([1,2,3,4,5] as const).map(n => (
+                          <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
+                            className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                            {n}×
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
+                    </div>
+                  </div>
+                )}
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm") && (
                   <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the kill target and/or time limit (at least one required)">
                     <div className="space-y-3">
@@ -509,7 +541,7 @@ export function Play() {
                     <SummaryRow label="Mode" value={MATCH_MODES[roomConfig.mode].label} accent={MATCH_MODES[roomConfig.mode].accentColor} />
                     <SummaryRow
                       label={roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Slots" : roomConfig.mode === "survival" ? "Squad" : "Teams"}
-                      value={roomConfig.mode === "survival" ? "2 co-op" : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}
+                      value={roomConfig.mode === "survival" ? `${roomConfig.survivalPlayers} player${roomConfig.survivalPlayers === 2 ? "s" : ""}` : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}
                     />
                     <SummaryRow label="Map" value={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.name ?? "—"} accent={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.accentColor} />
                     <SummaryRow
@@ -529,7 +561,10 @@ export function Play() {
                       />
                     )}
                     {roomConfig.mode === "gungame" && (
-                      <SummaryRow label="Score Limit" value={`${MATCH_MODES.gungame.defaultScoreLimit} kills (cycle)`} accent="#a855f7" />
+                      <>
+                        <SummaryRow label="Weapon Pool" value={roomConfig.gungamePreset === "cqc" ? "Close Quarters" : roomConfig.gungamePreset === "long_range" ? "Long Range" : "All Weapons"} accent="#a855f7" />
+                        <SummaryRow label="Gun Game" value={`${30 * roomConfig.gungameMultiplier} tiers · ${roomConfig.gungameMultiplier} ${roomConfig.gungameMultiplier === 1 ? "cycle" : "cycles"}`} accent="#a855f7" />
+                      </>
                     )}
                     <SummaryRow label="Password" value={roomConfig.password.trim() ? "Protected" : "Open"} accent={roomConfig.password.trim() ? "#f59e0b" : undefined} />
 
@@ -546,7 +581,7 @@ export function Play() {
                           <div className="text-white text-sm font-semibold truncate">{equippedWeapon.name}</div>
                           <div className="text-white/40 text-[10px] uppercase">{equippedWeapon.category}</div>
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => setScreen("loadout")} className="text-white/50 hover:text-white h-7 px-2 text-xs">
+                        <Button size="sm" variant="ghost" onClick={() => setScreen("armory")} className="text-white/50 hover:text-white h-7 px-2 text-xs">
                           Edit
                         </Button>
                       </div>

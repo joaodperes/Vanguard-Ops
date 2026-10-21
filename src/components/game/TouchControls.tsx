@@ -185,8 +185,11 @@ export function TouchControls({ engine }: Props) {
           Reload is a small button to the LEFT of Fire so it's reachable with
           the same thumb without overlapping the look-drag area. */}
       <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none" }}>
-        {/* Reload — small, sits to the left of Fire */}
+        {/* Reload and quick melee share one thumb column to avoid overflowing smaller phones. */}
         <div className="flex flex-col gap-3 items-center mb-1">
+          <ActionBtn label="Melee" icon={<PocketKnife className="w-5 h-5" />}
+            onDown={() => engine?.touchQuickMelee()}
+            color="border-amber-500/60 bg-amber-600/25 text-amber-100" />
           <ActionBtn
             label="Reload"
             icon={<RefreshCw className="w-5 h-5" />}

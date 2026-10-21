@@ -35,6 +35,8 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
   const [touchStarted, setTouchStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
+  const [matchOutro, setMatchOutro] = useState<MatchEndResult | null>(null);
+  const outroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
@@ -44,6 +46,8 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
     const engine = new FPSEngine(containerRef.current, {
       mode, botCount, online, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
       mapId,
+      gungamePreset: roomConnect?.config?.gungamePreset,
+      gungameMultiplier: roomConnect?.config?.gungameMultiplier,
       sensitivity: settings.sensitivity,
       fov: settings.fov,
       autoAdsOnFire: settings.autoAdsOnFire,
@@ -59,7 +63,12 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
       onMatchEnd: (r) => {
         if (endedRef.current) return;
         endedRef.current = true;
-        onMatchEnd(r);
+        if (mode === "gungame") {
+          // Leave the arena visible for a brief match-complete sequence instead
+          // of immediately tearing down the canvas for the results screen.
+          setMatchOutro(r);
+          outroTimer.current = setTimeout(() => onMatchEnd(r), 2500);
+        } else onMatchEnd(r);
       },
       onRoomError: (message) => {
         // Server rejected the create/join (wrong password, full room, etc.).
@@ -87,6 +96,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
     }, 500);
     return () => {
       clearInterval(socketPoll);
+      if (outroTimer.current) clearTimeout(outroTimer.current);
       engine.dispose();
       engineRef.current = null;
     };
@@ -131,7 +141,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">CLICK TO PLAY</div>
             <div className="text-sm text-white/60">WASD move · Mouse aim · L-Click fire · R-Click ADS · R reload · Shift sprint · Space jump</div>
-            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · Q quick-swap · Tab scoreboard</div>
+            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard</div>
             <div className="text-xs text-amber-300/70 mt-2">A 5-second countdown will start once you enter the match.</div>
           </div>
         </div>
@@ -145,7 +155,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
           <div className="bg-black/70 backdrop-blur-sm border border-amber-500/30 rounded-xl px-8 py-6 text-center">
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">TAP TO PLAY</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
-            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload</div>
+            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
             <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Endless Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
           </div>
         </button>
@@ -161,6 +171,13 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
           onLeave={handleExit}
           socketConnected={socketConnected}
         />
+      )}
+      {matchOutro && (
+        <div className="absolute inset-0 z-[70] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto">
+          <div className="text-4xl font-black tracking-widest text-amber-300">{matchOutro.won ? "VICTORY" : "MATCH COMPLETE"}</div>
+          <p className="mt-3 text-white/80 uppercase tracking-widest">Gun Game · {matchOutro.kills} kills</p>
+          <p className="mt-4 text-sm text-white/50 animate-pulse">Finalizing results…</p>
+        </div>
       )}
       {/* Failsafe exit button while lobby overlay is somehow missing but the
           engine is still in lobby (e.g. before the first lobbySnapshot arrives). */}

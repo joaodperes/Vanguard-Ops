@@ -11,6 +11,7 @@ import { Results } from "@/components/screens/Results";
 import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import type { LoadoutWire } from "@/lib/game-protocol";
+import { perkSelection } from "@/lib/perks";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
@@ -119,6 +120,7 @@ export default function Page() {
   const loadoutWire: LoadoutWire | null = profile?.loadout
     ? {
         weaponId: profile.loadout.weapon.id,
+        perkId: perkSelection(),
         secondaryWeaponId: profile.loadout.secondary?.id ?? "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
         weaponSkinId: profile.loadout.weaponSkin.id,

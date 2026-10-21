@@ -108,8 +108,6 @@ export function Settings() {
         <Section icon={<Eye className="w-4 h-4" />} title="HUD Display" desc="Toggle optional HUD elements">
           <div className="grid sm:grid-cols-2 gap-3">
             <Toggle label="Show Ping" desc="Display network latency" value={settings.showPing} onChange={(v) => update({ showPing: v })} />
-            <Toggle label="Show FPS" desc="Display frame rate counter" value={settings.showFps} onChange={(v) => update({ showFps: v })} />
-            <Toggle label="Damage Numbers" desc="Show floating damage indicators (future)" value={settings.damageNumbers} onChange={(v) => update({ damageNumbers: v })} />
           </div>
         </Section>
 
@@ -141,7 +139,7 @@ export function Settings() {
         </Section>
 
         {/* Audio (reserved) */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio" desc="Master volume (reserved for future audio)">
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio" desc="Master volume for game and weapon effects">
           <div>
             <div className="flex justify-between text-xs text-white/50 mb-1">
               <span>Master Volume</span>

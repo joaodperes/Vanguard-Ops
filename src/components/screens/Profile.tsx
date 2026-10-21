@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -40,7 +41,7 @@ export function Profile() {
   const rank = rankForLevel(lvl);
   const next = nextRank(lvl);
   const totalWeapons = WEAPONS.length;
-  const totalWSkins = WEAPON_SKINS.length;
+  const totalWSkins = WEAPON_SKINS.length * WEAPONS.length;
   const totalPSkins = PLAYER_SKINS.length;
   // Attachments unlock PER-WEAPON (AttachmentUnlock is keyed by playerId+weaponId+attachmentId).
   // So the meaningful totals count (weapon, attachment) PAIRS, not distinct attachment types.
@@ -69,10 +70,15 @@ export function Profile() {
   for (const w of WEAPONS) {
     ownedAttachmentPairs += (attachmentsByWeapon[w.id]?.length ?? 0);
   }
-  const ownedW = WEAPONS.filter((w) => profile.unlocks.weapons.includes(w.id) || w.unlockLevel <= lvl).length;
+  const ownedW = WEAPONS.filter(w => ownsWeapon(w, lvl, profile.unlocks.weapons)).length;
   const ownedA = ownedAttachmentPairs;
-  const ownedWS = WEAPON_SKINS.filter((s) => profile.unlocks.weaponSkins.includes(s.id) || s.id === "default").length;
-  const ownedPS = PLAYER_SKINS.filter((s) => profile.unlocks.playerSkins.includes(s.id) || s.unlockLevel <= lvl).length;
+  const skinPairs = WEAPONS.flatMap(w => WEAPON_SKINS.map(s => ({
+    id: `${w.id}:${s.id}`, name: s.name, sub: w.name,
+    owned: ownsWeaponSkin(w.id, s.id, lvl, profile.unlocks.weapons, profile.unlocks.skinsByWeapon ?? {}, WEAPONS),
+    color: RARITY_COLORS[s.rarity],
+  })));
+  const ownedWS = skinPairs.filter(pair => pair.owned).length;
+  const ownedPS = PLAYER_SKINS.filter(s => ownsOperativeSkin(s, lvl, profile.unlocks.playerSkins)).length;
   const earnedAchievements = achievements.filter((a) => a.earned).length;
   const totalAchievements = achievements.length || 1;
   const xpPct = Math.min(100, (profile.xpProgress.current / profile.xpProgress.needed) * 100);
@@ -163,7 +169,7 @@ export function Profile() {
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress</h3>
               <div className="grid sm:grid-cols-2 gap-4">
                 <Progress label="Weapons" value={ownedW} total={totalWeapons} color="from-rose-500 to-amber-500" />
-                <Progress label="Attachment Unlocks" value={ownedA} total={totalAttachmentPairs} color="from-amber-500 to-yellow-500" sub="Unlocked per-weapon" />
+                <Progress label="Owned Attachments" value={ownedA} total={totalAttachmentPairs} color="from-amber-500 to-yellow-500" sub="Owned per-weapon" />
                 <Progress label="Weapon Skins" value={ownedWS} total={totalWSkins} color="from-purple-500 to-pink-500" />
                 <Progress label="Operative Skins" value={ownedPS} total={totalPSkins} color="from-emerald-500 to-cyan-500" />
               </div>
@@ -385,7 +391,7 @@ export function Profile() {
           {/* COLLECTION */}
           <TabsContent value="collection" className="mt-5">
             <div className="grid sm:grid-cols-2 gap-5">
-              <CollectionGrid title="Weapons" items={WEAPONS.map((w) => ({ id: w.id, name: w.name, owned: profile.unlocks.weapons.includes(w.id) || w.unlockLevel <= lvl, color: RARITY_COLORS[w.unlockCost >= 3500 ? "legendary" : w.unlockCost >= 2000 ? "epic" : w.unlockCost >= 800 ? "rare" : "common"] }))} />
+              <CollectionGrid title="Weapons" items={WEAPONS.map((w) => ({ id: w.id, name: w.name, owned: ownsWeapon(w, lvl, profile.unlocks.weapons), color: RARITY_COLORS[w.unlockCost >= 3500 ? "legendary" : w.unlockCost >= 2000 ? "epic" : w.unlockCost >= 800 ? "rare" : "common"] }))} />
               <CollectionGrid
                 title="Attachments"
                 total={totalAttachmentPairs}
@@ -405,15 +411,15 @@ export function Profile() {
                   };
                 })}
               />
-              <CollectionGrid title="Weapon Skins" items={WEAPON_SKINS.map((s) => ({ id: s.id, name: s.name, owned: profile.unlocks.weaponSkins.includes(s.id) || s.id === "default", color: RARITY_COLORS[s.rarity] }))} />
-              <CollectionGrid title="Operative Skins" items={PLAYER_SKINS.map((s) => ({ id: s.id, name: s.name, owned: profile.unlocks.playerSkins.includes(s.id) || s.unlockLevel <= lvl, color: RARITY_COLORS[s.rarity] }))} />
+              <CollectionGrid title="Weapon Skins" items={skinPairs} />
+              <CollectionGrid title="Operative Skins" items={PLAYER_SKINS.map((s) => ({ id: s.id, name: s.name, owned: ownsOperativeSkin(s, lvl, profile.unlocks.playerSkins), color: RARITY_COLORS[s.rarity] }))} />
             </div>
           </TabsContent>
         </Tabs>
       </main>
 
       <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Play matches to earn XP, level up, and unlock new gear.</div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Collection displays gear you own (purchased, earned, or freely granted at your level).</div>
       </footer>
     </div>
   );
@@ -445,7 +451,9 @@ function Progress({ label, value, total, color, sub }: { label: string; value: n
 }
 
 function CollectionGrid({ title, items, total }: { title: string; items: { id: string; name: string; owned: boolean; color: string; sub?: string }[]; total?: number }) {
-  const owned = items.filter((i) => i.owned).length;
+  const owned = total !== undefined && title === "Attachments"
+    ? items.reduce((sum, item) => sum + Number(item.sub?.split("/")[0] ?? 0), 0)
+    : items.filter(i => i.owned).length;
   const headerTotal = total ?? items.length;
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-4">
@@ -453,7 +461,7 @@ function CollectionGrid({ title, items, total }: { title: string; items: { id: s
         <h3 className="text-white font-bold tracking-wide uppercase text-sm">{title}</h3>
         <span className="text-xs text-white/50 tabular-nums">{owned} / {headerTotal}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid grid-cols-2 gap-2 ${title === "Weapon Skins" ? "max-h-[28rem] overflow-y-auto pr-1" : ""}`}>
         {items.map((i) => (
           <div key={i.id} className={`p-2 rounded-lg border text-xs flex items-center gap-2 ${i.owned ? "border-white/10 bg-black/30" : "border-white/5 bg-black/20 opacity-50"}`}>
             <span className="w-1 h-4 rounded-full" style={{ background: i.owned ? i.color : "#333" }} />

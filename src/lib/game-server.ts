@@ -5,21 +5,41 @@
 // Started inside the Next.js process via src/instrumentation.ts so it stays
 // alive as long as the dev server (the sandbox reaps detached processes).
 // ============================================================================
+import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
+import { equipmentById } from "./equipment"; // retained only for legacy internal types
+import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
+import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
+import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
+import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
+import { calculateThrowPath } from "./throw-trajectory";
+import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
+import { chooseBotPatrolPoint } from "./bot-patrol";
+import { botNextWaypoint } from "./bot-routing";
+import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
-  LoadoutWire, Vec3, MapId, MapDef, CoverBox, RoomSummary, CreateRoomConfig, TeamSize,
+  LoadoutWire, Vec3, MapId, MapDef, RoomSummary, CreateRoomConfig, TeamSize,
   BotDifficulty, KillDifficulty,
 } from "./game-protocol";
 import {
-  getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
+  getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
   roomCapacity, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, WEAPONS, type AttachmentSlot,
 } from "./game-data";
+import {
+  makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
+  environmentPosition, withinEnvironment, spikesActive, closestCoverHit,
+} from "./dynamic-environment";
+import {
+  botGroundHeight, botMoveBlocked as blocksBotMotion,
+  resolveBotOverlap, botNextFeetY,
+} from "./bot-physics";
 
 const httpServer: HttpServer = createServer();
 const io = new Server(httpServer, {
@@ -39,6 +59,7 @@ interface BotAI {
   reloadingUntil: number;
   strafeDir: number;
   moveSpeed: number;
+  sprinting?: boolean;
   // ---- Humanization (mirrors the offline engine) ----
   acquiredTargetAt: number;
   skill: number;
@@ -60,8 +81,13 @@ interface BotAI {
   // stuck. If still stuck after 1.2s, force a recovery (new wander target +
   // sideways nudge) so bots never jam forever against a wall/corner.
   stuckSince: number;
+  nextRouteAt?: number;
+  routeWaypoint?: Vec3 | null;
   lastPosX: number;
   lastPosZ: number;
+  envJumpVelocityY?: number;
+  envLaunchX?: number;
+  envLaunchZ?: number;
 }
 
 interface Room {
@@ -109,11 +135,33 @@ interface Room {
   // TYPE list is fixed (e.g. slot 4 is always "sniper"), the specific sniper
   // is randomly chosen when the match starts — so each match feels different.
   gungameWeapons: string[];
+  gungamePreset: "all" | "cqc" | "long_range";
+  gungameMultiplier: number;
+  sprintState: Map<string, boolean>;
   // ---- Pre-match countdown (server-side) ----
   // When > 0, the match is in a "get ready" phase. Bots are frozen (no AI, no
   // shooting). Human players can still move and look around. The countdown
   // ticks down in the tickRoom loop; when it hits 0, normal gameplay resumes.
   preMatchCountdown: number;
+  environmentTime: number;             // seconds since the fight became active
+  environmentWalls: Map<string, number>;
+  environmentCooldown: Map<string, number>;
+  specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
+  boltReadyAt: Map<string, number>;
+  boltCharges: Map<string, number>;
+  droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
+  poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number }>;
+  equipmentCharges: Map<string, number>;
+  equipmentLastAt: Map<string, number>;
+  equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
+  equipmentStun: Map<string, number>;
+  quickMeleeAt: Map<string, number>;
+  lastDamagedAt: Map<string, number>;
+  scavengerDrops: Map<string, { id: string; pos: Vec3; expiresAt: number; ownerTeam: string }>;
+
+  // Per-player allowance for fast intra-burst shots; never accept unlimited
+  // packets at burst cadence or a remote player could bypass fire-rate limits.
+  burstState: Map<string, { weaponId: string; shotsRemaining: number; nextAt: number; until: number }>;
 }
 
 const rooms = new Map<string, Room>();
@@ -129,56 +177,8 @@ function genId(prefix: string) {
 // (pistol → smg → shotgun → ... → melee) but the SPECIFIC weapons vary per
 // match. Only ONE melee slot exists (the last tier — a kill with it wins).
 // We also avoid repeating the same weapon within a match where possible.
-function resolveGungameWeapons(): string[] {
-  const used = new Set<string>();
-  const result: string[] = [];
-  for (let ti = 0; ti < GUN_GAME_TYPE_PROGRESSION.length; ti++) {
-    const type = GUN_GAME_TYPE_PROGRESSION[ti];
-    // Round 20: Exclude launcher_rocket from early sidearm tiers — it's too
-    // powerful as a starting weapon. Only allow it in the "heavy sidearm"
-    // tier (index 12, the second-to-last before melee).
-    const isHeavySidearmTier = ti === 12; // the "heavy sidearm" slot before melee
-    const candidates = WEAPONS.filter((w) => {
-      if (w.category !== type) return false;
-      // Exclude launcher from non-heavy tiers (it's too strong as a starter).
-      if (w.id === "launcher_rocket" && !isHeavySidearmTier) return false;
-      return true;
-    });
-    if (candidates.length === 0) {
-      // Fallback: use the old flat progression's weapon for this index.
-      result.push(GUN_GAME_TYPE_PROGRESSION_FALLBACK[result.length] ?? "pistol_side");
-      continue;
-    }
-    // For the heavy sidearm tier, PREFER magnum/launcher (the "heavy" sidearms).
-    let pool = candidates.filter((w) => !used.has(w.id));
-    if (pool.length === 0) pool = candidates;
-    if (isHeavySidearmTier) {
-      // Prefer the heaviest sidearms (magnum, launcher) for this tier.
-      const heavy = pool.filter((w) => w.id === "launcher_rocket" || w.id === "pistol_magnum");
-      if (heavy.length > 0) pool = heavy;
-    }
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    result.push(pick.id);
-    used.add(pick.id);
-  }
-  return result;
-}
-
-// Vertical ground-height helper: returns the highest walkable surface at (x,z)
-// that is at or below feetY + stepTolerance.
-function groundHeightAt(cover: CoverBox[], x: number, z: number, feetY: number, radius: number): number {
-  let ground = 0;
-  for (const cov of cover) {
-    const cx = cov.pos[0], cz = cov.pos[2];
-    const hx = cov.size[0], hz = cov.size[2];
-    const topY = cov.pos[1] + cov.size[1];
-    if (topY > feetY + 0.6) continue;
-    if (topY <= ground) continue;
-    if (Math.abs(x - cx) < hx + radius * 0.5 && Math.abs(z - cz) < hz + radius * 0.5) {
-      ground = topY;
-    }
-  }
-  return ground;
+function resolveGungameWeapons(preset?: string, multiplier?: number): string[] {
+  return buildGunGameWeapons(preset, multiplier);
 }
 
 function pickSpawn(team: string, room: Room): Vec3 {
@@ -221,7 +221,7 @@ function pickSpawn(team: string, room: Room): Vec3 {
   const farScored = scored.filter((p) => p.score >= MIN_SPAWN_DIST);
   const chosen = (farScored.length > 0 ? farScored : scored)[0].sp;
   // Snap Y to ground level at that XZ (so elevated spawns sit on top of platforms)
-  const groundY = groundHeightAt(room.map.cover, chosen[0], chosen[2], 50, PLAYER_RADIUS);
+  const groundY = botGroundHeight(room.map.cover, chosen[0], chosen[2], chosen[1]);
   return [chosen[0], Math.max(chosen[1], groundY), chosen[2]];
 }
 
@@ -289,8 +289,9 @@ function spawnBots(room: Room) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-      weaponId: gungameWeaponId, weaponSkinId: loadout.weaponSkinId, playerSkinId: loadout.playerSkinId,
+      weaponId: gungameWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
       kills: 0, deaths: 0, lastShotAt: 0,
+      spawnProtectedUntil: Date.now() + 3000,
       ai, loadout,
     };
     room.bots.set(id, bot);
@@ -315,7 +316,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
     ammoInMag: 30,
     reloadingUntil: 0,
     strafeDir: Math.random() < 0.5 ? 1 : -1,
-    moveSpeed: 0.55 + Math.random() * 0.3,
+    moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(difficulty),
     acquiredTargetAt: 0,
     skill,
     burstShotsLeft: 0,
@@ -336,12 +337,12 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
 function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const id = genId("match");
   const config = DEFAULT_CONFIG(mode, botCount);
-  const map = getMap(mapId);
+  const map = makeEnvironmentMap(getMap(mapId));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
   // Gun Game: the score limit IS the progression length — first player to
   // cycle through every weapon (and get a kill with the knife) wins.
-  if (isGungame) config.scoreLimit = GUN_GAME_PROGRESSION.length;
+  if (isGungame) { config.scoreLimit = 0; config.timeLimit = 0; }
   // Legacy quick-match rooms: derive lobby metadata from botCount.
   const teamSize: TeamSize = (botCount <= 3 ? 3 : botCount <= 5 ? 5 : 7);
   const capacity = roomCapacity(mode, teamSize);
@@ -359,14 +360,21 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     botDifficulty: "normal",
     gungameProgress: new Map(),
     gungameWeapons: [],
+    gungamePreset: "all", gungameMultiplier: 1, sprintState: new Map(),
     preMatchCountdown: 5,
+    environmentTime: 0,
+    environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
+    environmentCooldown: new Map(),
+    specialHeat: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    burstState: new Map(),
   };
   rooms.set(id, room);
   // ---- Gun Game: resolve the per-match weapon list BEFORE spawning bots ----
   // (so bots spawn with the correct first-tier weapon).
   if (isGungame) {
-    room.gungameWeapons = resolveGungameWeapons();
-    room.config.scoreLimit = room.gungameWeapons.length;
+    room.gungameWeapons = resolveGungameWeapons(room.gungamePreset, room.gungameMultiplier);
+    room.config.scoreLimit = 0; // progression, never raw kill count
+    room.timeLeft = 0;
   }
   if (!isSurvival) spawnBots(room);
   room.tick = setInterval(() => tickRoom(room), 1000 / 20);
@@ -477,9 +485,9 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
-  const map = getMap(cfg.mapId);
+  const map = makeEnvironmentMap(getMap(cfg.mapId));
   const teamSize = cfg.teamSize;
-  const capacity = roomCapacity(mode, teamSize);
+  const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 1 ? 1 : 2);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
@@ -487,7 +495,7 @@ function createLobbyRoom(
   // Survival and Gun Game ignore custom limits (survival is endless; gungame uses
   // the progression length as the score limit).
   if (!isSurvival && !isGungame) {
-    if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit > 0) config.scoreLimit = cfg.scoreLimit;
+    if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
@@ -508,7 +516,15 @@ function createLobbyRoom(
     botDifficulty: cfg.botDifficulty || "normal",
     gungameProgress: new Map(),
     gungameWeapons: [],
+    gungamePreset: normalizeGunGameConfig(cfg.gungamePreset, cfg.gungameMultiplier).preset,
+    gungameMultiplier: normalizeGunGameConfig(cfg.gungamePreset, cfg.gungameMultiplier).multiplier,
+    sprintState: new Map(),
     preMatchCountdown: 0,  // lobby rooms set this when startMatch fires
+    environmentTime: 0,
+    environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
+    environmentCooldown: new Map(),
+    specialHeat: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    burstState: new Map(),
   };
   rooms.set(id, room);
   // Add the host as the first player. Host picks red team in TDM by default.
@@ -521,7 +537,7 @@ function createLobbyRoom(
   const host: PlayerNet = {
     id: socketId, name: name.slice(0, 20) || "Host", team: team as any, isBot: false,
     pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-    weaponId: hostWeaponId, weaponSkinId: loadout.weaponSkinId, playerSkinId: loadout.playerSkinId,
+    weaponId: hostWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
     kills: 0, deaths: 0, lastShotAt: 0,
     spawnProtectedUntil: Date.now() + 3000,
   };
@@ -544,6 +560,8 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   if (room.hostSocketId !== socketId) return false;  // only the host can start
   room.state = "playing";
   room.startTime = Date.now();
+  room.environmentTime = 0;
+  room.environmentCooldown.clear();
   room.timeLeft = room.config.timeLimit;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
@@ -556,15 +574,19 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   //   - The SPECIFIC weapons vary per match (different sniper each time, etc.).
   //   - Only ONE melee slot exists (always the last tier).
   if (room.mode === "gungame") {
-    room.gungameWeapons = resolveGungameWeapons();
-    room.config.scoreLimit = room.gungameWeapons.length;
+    room.gungameWeapons = resolveGungameWeapons(room.gungamePreset, room.gungameMultiplier);
+    room.config.scoreLimit = 0; // final-tier kill is the only victory trigger
+    room.config.timeLimit = 0;
+    room.timeLeft = 0;
   }
   for (const p of room.players.values()) {
     p.kills = 0; p.deaths = 0; p.health = MAX_HEALTH; p.alive = true;
+    room.burstState.delete(p.id);
     // Reset gungame progress + weaponId for everyone (in case of restart).
     if (room.mode === "gungame") {
       room.gungameProgress.set(p.id, 0);
       p.weaponId = room.gungameWeapons[0];
+      p.weaponSkinId = "default";
     }
   }
   // Spawn bots to fill empty slots (survival spawns per-wave instead).
@@ -612,7 +634,7 @@ function joinLobbyRoom(
   const p: PlayerNet = {
     id: socketId, name: name.slice(0, 20) || "Recruit", team: team as any, isBot: false,
     pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-    weaponId: joinWeaponId, weaponSkinId: loadout.weaponSkinId, playerSkinId: loadout.playerSkinId,
+    weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
     kills: 0, deaths: 0, lastShotAt: 0,
     spawnProtectedUntil: Date.now() + 3000,
   };
@@ -631,7 +653,13 @@ function snapshot(room: Room): S2C {
   }
   const scores: Record<string, number> = {};
   for (const [id, k] of room.scores) scores[id] = k;
-  const base: S2C = { t: "snapshot", players, scores, teamScores: room.teamScores, timeLeft: Math.max(0, Math.ceil(room.timeLeft)) };
+  const base: S2C = {
+    t: "snapshot", players, scores, teamScores: room.teamScores,
+    timeLeft: Math.max(0, Math.ceil(room.timeLeft)),
+    environmentTime: room.environmentTime,
+    environmentWalls: Object.fromEntries(room.environmentWalls),
+    scavengerDrops: [...room.scavengerDrops.values()].map(d => ({ id: d.id, pos: d.pos, expiresAt: d.expiresAt })),
+  };
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
     (base as any).wave = room.wave;
@@ -659,11 +687,33 @@ function toSnap(p: PlayerNet): SnapshotPlayer {
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
     kills: p.kills, deaths: p.deaths, aiming: false, reloading: false,
+    spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
   };
 }
 
 function allCombatants(room: Room): PlayerNet[] {
   return [...room.players.values(), ...room.bots.values()];
+}
+
+// ---- Headshot collision -----------------------------------------------------
+// Keep this in sync with the humanoid built by addCombatantMesh:
+// the visible 0.26 × 0.28 × 0.26 head is centered 1.62 units above the feet.
+// A little padding compensates for animation/network interpolation and makes
+// accurately aimed shots reliable. We still use the existing capsule for the
+// rest of the body, but NEVER its coarse headshot classification.
+const HEAD_CENTER_Y = 1.62;
+const HEAD_HALF_EXTENTS: Vec3 = [0.19, 0.18, 0.19];
+
+function rayCombatantHit(origin: Vec3, dir: Vec3, feet: Vec3): { t: number; head: boolean } | null {
+  const headCenter: Vec3 = [feet[0], feet[1] + HEAD_CENTER_Y, feet[2]];
+  const headT = rayBox(origin, dir, headCenter, HEAD_HALF_EXTENTS);
+  // Prefer the actual head intersection instead of an overlapping torso capsule.
+  // Using headT (not the capsule's earlier entry) also respects cover occlusion.
+  if (headT !== null && headT >= 0) return { t: headT, head: true };
+
+  const bodyCenter: Vec3 = [feet[0], feet[1] + PLAYER_HEIGHT / 2, feet[2]];
+  const bodyHit = rayCapsule(origin, dir, bodyCenter, PLAYER_RADIUS, PLAYER_HEIGHT);
+  return bodyHit && bodyHit.t >= 0 ? { t: bodyHit.t, head: false } : null;
 }
 
 // ---- LOS & hit detection ----------------------------------------------------
@@ -685,6 +735,23 @@ function damageAtRange(base: number, dist: number, range: number): number {
   return base * (1 - 0.4 * t);
 }
 
+/** Broadcast gunfire reveal only to nearby enemy clients; suppressors shrink its radius. */
+function broadcastRadarPing(room: Room, shooter: PlayerNet, suppressed: boolean) {
+  const now = Date.now();
+  for (const viewer of room.players.values()) {
+    if (!viewer.alive || viewer.id === shooter.id || friendlyOnRadar(room.mode, viewer.team, shooter.team)) continue;
+    if (!canHearGunshot({ x: viewer.pos[0], z: viewer.pos[2] }, { x: shooter.pos[0], z: shooter.pos[2] }, suppressed)) continue;
+    const viewerPerk = room.loadouts.get(viewer.id)?.perkId;
+    io.to(viewer.id).emit("message", { t: "radarPing", attackerId: shooter.id, pos: shooter.pos, expiresAt: radarExpiresAt(now, viewerPerk), durationMs: radarDurationMs(viewerPerk) } as S2C);
+  }
+}
+/** Immediately clear third-person shield before the next snapshot. */
+function clearSpawnProtection(room: Room, combatant: PlayerNet) {
+  if (!combatant.spawnProtectedUntil) return;
+  combatant.spawnProtectedUntil = 0;
+  io.to(room.id).emit("message", { t: "protectionEnded", playerId: combatant.id } as S2C);
+}
+
 function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weaponId: string, range: number): { victim: PlayerNet; t: number; head: boolean } | null {
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const attackerTeam = attacker?.team;
@@ -693,9 +760,8 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
     if (p.id === attackerId) continue;
     if (!p.alive) continue;
     if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
-    const center: Vec3 = [p.pos[0], p.pos[1] + PLAYER_HEIGHT / 2, p.pos[2]];
-    const hit = rayCapsule(origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
-    if (hit && hit.t >= 0 && hit.t <= range * 1.6) {
+    const hit = rayCombatantHit(origin, dir, p.pos);
+    if (hit && hit.t <= range * 1.6) {
       if (!nearest || hit.t < nearest.t) nearest = { victim: p, t: hit.t, head: hit.head };
     }
   }
@@ -713,6 +779,181 @@ function victimKillDifficulty(victim: PlayerNet): KillDifficulty {
   return "enemy_player";
 }
 
+// ---- Special weapons: shared authoritative server state ----
+function allowHeatShot(room: Room, playerId: string, special: Extract<NonNullable<ReturnType<typeof weaponById>["special"]>, {kind:"heat"}>, now: number): boolean {
+  const key = playerId;
+  const old = room.specialHeat.get(key) ?? { ...freshHeat(), updatedAt: now, ventUntil: 0 };
+  if (old.ventUntil > now) return false;
+  if (old.ventUntil && old.ventUntil <= now) { old.heat = 0; old.locked = false; old.ventUntil = 0; }
+  const state = coolHeat(old, special, (now - old.updatedAt) / 1000, now);
+  const shot = addHeat(state, special, now);
+  room.specialHeat.set(key, { ...(shot ?? state), updatedAt: now, ventUntil: 0 });
+  return shot !== null;
+}
+
+function canChainThroughCover(room: Room, from: ArcCandidate, to: ArcCandidate): boolean {
+  const o: Vec3 = [from.pos[0], from.pos[1] + 1.1, from.pos[2]];
+  const delta: Vec3 = [to.pos[0] - from.pos[0], to.pos[1] - from.pos[1], to.pos[2] - from.pos[2]];
+  const distance = Math.hypot(...delta) || 1;
+  const dir: Vec3 = [delta[0] / distance, delta[1] / distance, delta[2] / distance];
+  return !room.map.cover.some(box => { const t = rayBox(o, dir, box.pos, box.size); return t !== null && t >= 0 && t < distance; });
+}
+
+function applyArcChains(room: Room, attacker: PlayerNet, first: PlayerNet, baseDamage: number, special: Extract<NonNullable<ReturnType<typeof weaponById>["special"]>, {kind:"arc"}>) {
+  let from: ArcCandidate = { id: first.id, pos: first.pos, team: first.team, alive: true };
+  const visited = new Set([first.id]);
+  for (let jump = 1; jump <= special.jumps && !room.ended; jump++) {
+    const candidates: ArcCandidate[] = allCombatants(room)
+      .filter(c => c.id !== attacker.id && (room.mode === "ffa" || room.mode === "gungame" || c.team !== attacker.team))
+      .map(c => ({ id: c.id, pos: c.pos, team: c.team, alive: c.alive, protected: !!c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now() }));
+    const next = nextArcTarget(from, candidates, visited, special.radius, true, (a, b) => canChainThroughCover(room, a, b));
+    if (!next) break;
+    visited.add(next.id);
+    const fromPoint: Vec3 = [from.pos[0], from.pos[1] + 1.1, from.pos[2]];
+    const toPoint: Vec3 = [next.pos[0], next.pos[1] + 1.1, next.pos[2]];
+    io.to(room.id).emit("message", { t: "arcFx", from: fromPoint, to: toPoint } as S2C);
+    const victim = allCombatants(room).find(c => c.id === next.id);
+    if (victim?.alive) applyDamage(room, attacker.id, victim, baseDamage * Math.pow(special.decay, jump), false, "pistol_arc");
+    from = next;
+  }
+}
+
+function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Vec3, range: number): Vec3 {
+  const d = Math.hypot(...dir) || 1;
+  const nd: Vec3 = [dir[0] / d, dir[1] / d, dir[2] / d];
+  let distance = range;
+  const cover = closestCoverHit(room.map.cover, origin, nd, distance, rayBox);
+  if (cover) distance = Math.max(0, cover.distance);
+  for (const c of allCombatants(room)) {
+    if (c.id === attackerId || !c.alive) continue;
+    const hit = rayCapsule(origin, nd, [c.pos[0], c.pos[1] + PLAYER_HEIGHT / 2, c.pos[2]], PLAYER_RADIUS, PLAYER_HEIGHT);
+    if (hit && hit.t >= 0 && hit.t < distance) distance = hit.t;
+  }
+  // Bolts are collectible on the floor, including bolts that hit walls/players.
+  return [origin[0] + nd[0] * distance, 0.4, origin[2] + nd[2] * distance];
+}
+
+/** Only the server chooses the item and explosion; client submits no position,
+ * damage, victim list or equipment ID. */
+function serverUseEquipment(room: Room, playerId: string): number | null {
+  if (room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return null;
+  const player=room.players.get(playerId);
+  if (!player?.alive || (room.equipmentStun.get(playerId) ?? 0)>Date.now()) return null;
+  const def=equipmentById(room.loadouts.get(playerId)?.equipmentId);
+  const left=room.equipmentCharges.get(playerId) ?? def.charges;
+  const now=Date.now();
+  if (!left || now-(room.equipmentLastAt.get(playerId)??0)<def.cooldownMs) return null;
+  room.equipmentLastAt.set(playerId,now);
+  room.equipmentCharges.set(playerId,left-1);
+  const cp=Math.cos(player.pitch);
+  const dir: Vec3=[Math.sin(player.yaw)*cp,Math.sin(player.pitch),Math.cos(player.yaw)*cp];
+  const from: Vec3=[player.pos[0],player.pos[1]+EYE_HEIGHT*.86,player.pos[2]];
+  const path=calculateThrowPath(from,dir,def.id, (at,vector,distance)=> {
+    const collision=closestCoverHit(room.map.cover,at,vector,distance,rayBox);
+    return collision?.distance ?? null;
+  },player.pos[1]+.12);
+  const impact=path.impact;
+  if(def.type==="mine") {
+    const mineId=genId("mine");
+    room.equipmentMines.set(mineId,{ownerId:playerId,pos:impact,expiresAt:now+45000});
+    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:impact,ownerId:playerId,mineId,mineState:"placed"} as S2C);
+  } else {
+    // Clients reconstruct the full throw from sampled positions. This first
+    // event is visual only; impact damage is applied after the flight time.
+    const sampled=path.points.filter((_,i)=>i%3===0 || i===path.points.length-1);
+    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:impact,ownerId:playerId,path:sampled,flightMs:path.flightMs} as S2C);
+    setTimeout(()=>{
+      if(room.ended || room.state!=="playing")return;
+      if(def.type==="knife" || def.type==="poison" || def.type==="taser") {
+        // Segment-based projectile collision: the first unprotected enemy near
+        // the actual flight path is hit, rather than a hitscan shot at button-down.
+        let closest:{victim:PlayerNet;distance:number}|null=null;
+        for(const victim of allCombatants(room)) {
+          if(!victim.alive || victim.id===playerId || room.mode!=="ffa" && victim.team===player.team ||
+              victim.spawnProtectedUntil && victim.spawnProtectedUntil>Date.now())continue;
+          const center: Vec3=[victim.pos[0],victim.pos[1]+1.0,victim.pos[2]];
+          for(let i=1;i<path.points.length;i++){
+            const a=path.points[i-1],b=path.points[i];
+            const vx=b[0]-a[0],vy=b[1]-a[1],vz=b[2]-a[2];
+            const sq=vx*vx+vy*vy+vz*vz || 1;
+            const t=Math.max(0,Math.min(1,((center[0]-a[0])*vx+(center[1]-a[1])*vy+(center[2]-a[2])*vz)/sq));
+            const d=Math.hypot(center[0]-a[0]-vx*t,center[1]-a[1]-vy*t,center[2]-a[2]-vz*t);
+            if(d<.82 && (!closest || i+t<closest.distance))closest={victim,distance:i+t};
+          }
+        }
+        if(closest){const target:PlayerNet=closest.victim;
+          applyDamage(room,playerId,target,def.damage,false,`equipment_${def.id}`);
+          if(target.alive && def.type==="poison")room.poison.set(target.id,{attackerId:playerId,weaponId:`equipment_${def.id}`,expiresAt:Date.now()+4500,tickAt:Date.now()+500});
+          if(target.alive && def.type==="taser"){
+            room.equipmentStun.set(target.id,Date.now()+1700);
+            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:1700} as S2C);
+          }
+        }
+      } else {
+        // Blast occurs at landing, not at release. Flash affects the thrower
+        // too when caught in line of sight, with stronger exposure nearby.
+        for(const victim of allCombatants(room)) {
+          if(!victim.alive || def.type!=="flash" && (victim.id===playerId || room.mode!=="ffa" && victim.team===player.team))continue;
+          if(victim.spawnProtectedUntil && victim.spawnProtectedUntil>Date.now())continue;
+          const dst=Math.hypot(victim.pos[0]-impact[0],victim.pos[2]-impact[2]);
+          if(dst>def.radius || !hasLineOfSight(room,[impact[0],impact[1]+.3,impact[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))continue;
+          if(def.type==="blast")applyDamage(room,playerId,victim,Math.max(12,def.damage*(1-dst/def.radius)),false,`equipment_${def.id}`);
+          if(def.type==="flash"){
+            const duration=Math.round(1100+1800*(1-dst/def.radius));
+            room.equipmentStun.set(victim.id,Date.now()+duration);
+            if(!victim.isBot)io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"flash",durationMs:duration} as S2C);
+          }
+        }
+      }
+    },path.flightMs);
+  }
+  return left-1;
+}
+
+function tickSpecialEffects(room: Room, now: number) {
+  for (const [id,mine] of room.equipmentMines) {
+    if (now > mine.expiresAt) {
+      room.equipmentMines.delete(id);
+      io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
+      continue;
+    }
+    const owner = room.players.get(mine.ownerId);
+    if (!owner) {
+      room.equipmentMines.delete(id);
+      io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
+      continue;
+    }
+    const enemies = allCombatants(room).filter(c => c.alive && c.id !== mine.ownerId &&
+      (room.mode === "ffa" || c.team !== owner.team) &&
+      !(c.spawnProtectedUntil && c.spawnProtectedUntil > now));
+    if (!enemies.some(c => Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]) < 2.5)) continue;
+    room.equipmentMines.delete(id); // exactly one activation
+    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:"mine",position:mine.pos,ownerId:mine.ownerId,mineId:id,mineState:"triggered"} as S2C);
+    for (const c of enemies) {
+      const dist = Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]);
+      if (dist > 3.3) continue;
+      if (!hasLineOfSight(room,[mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]])) continue;
+      applyDamage(room,mine.ownerId,c,Math.max(12,100*(1-dist/3.3)),false,"equipment_mine");
+    }
+    if (room.ended) return;
+  }
+  for (const [id, drop] of room.droppedBolts) {
+    if (now >= drop.expiresAt) {
+      room.droppedBolts.delete(id);
+      io.to(room.id).emit("message", { t: "boltRemoved", id } as S2C);
+    }
+  }
+  for (const [id, dot] of room.poison) {
+    const victim = allCombatants(room).find(c => c.id === id);
+    if (!victim?.alive || now >= dot.expiresAt) { room.poison.delete(id); continue; }
+    if (now >= dot.tickAt) {
+      dot.tickAt = now + 500;
+      applyDamage(room, dot.attackerId, victim, 2, false, dot.weaponId);
+      if (room.ended) break;
+    }
+  }
+}
+
 function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string) {
   if (!victim.alive) return;
   // Spawn protection: skip damage entirely if the victim is within their grace period.
@@ -723,6 +964,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Survival: bots hit harder as waves progress, BUT base damage is reduced
   // by 35% for player survivability (Round 18-b balance fix).
   if (room.mode === "survival" && attacker?.isBot) dmg *= 0.65 * survivalWaveDamageMul(room.wave);
+  room.lastDamagedAt.set(victim.id, Date.now());
   victim.health -= dmg;
   const killed = victim.health <= 0;
   // For rewards scaling: attach the victim's difficulty to the hit event when
@@ -736,6 +978,16 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if (killed) {
     victim.alive = false;
     victim.deaths += 1;
+    if (shouldCreateScavengerDrop(attacker?.id, victim.id)) {
+      // Create a shared ammo cache on every enemy elimination, even if a Scavenger
+      // player joins later or the perk wasn't yet registered when this shot landed.
+      // Only players with Scavenger may collect it. Visibility is client-filtered.
+      const id = genId("ammo");
+      const pos: Vec3 = [victim.pos[0], victim.pos[1] + 0.16, victim.pos[2]];
+      const expiresAt = Date.now() + SCAVENGER_DROP_LIFETIME_MS;
+      room.scavengerDrops.set(id, { id, pos, expiresAt, ownerTeam: victim.team });
+      io.to(room.id).emit("message", { t: "scavengerDrop", id, pos, expiresAt } as S2C);
+    }
     if (attacker) {
       attacker.kills += 1;
       room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
@@ -767,14 +1019,15 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       if (attacker) {
         const idx = room.gungameProgress.get(attackerId) ?? 0;
         const last = room.gungameWeapons.length - 1;
-        if (idx >= last) {
-          // Final-weapon kill — match ends now.
-          endMatch(room);
-        } else {
+        if (canCompleteGunGame(idx, room.gungameWeapons, attacker.weaponId)) {
+          // Only a validated final-tier melee kill may finish Gun Game.
+          endMatch(room, "gungame_victory");
+        } else if (idx < last) {
           const newIdx = Math.min(last, idx + 1);
           room.gungameProgress.set(attackerId, newIdx);
           const newWeaponId = room.gungameWeapons[newIdx];
           attacker.weaponId = newWeaponId;
+          if (attacker.isBot && room.bots.has(attacker.id)) { const botAI = room.bots.get(attacker.id)!.ai; botAI.ammoInMag = weaponById(newWeaponId).stats.magSize; botAI.reloadingUntil = 0; }
           io.to(room.id).emit("message", {
             t: "gungameProgress", playerId: attackerId, weaponIndex: newIdx, weaponId: newWeaponId,
           } as S2C);
@@ -789,13 +1042,21 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
 }
 
 function scheduleRespawn(room: Room, p: PlayerNet) {
+  room.burstState.delete(p.id);
+  room.poison.delete(p.id);
+  room.specialHeat.delete(p.id);
+  room.boltReadyAt.delete(p.id);
+  room.boltCharges.delete(p.id);
   if (room.respawnTimers.has(p.id)) return;
   const delay = room.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
   const timer = setTimeout(() => {
     const sp = pickSpawn(p.team, room);
     p.pos = sp;
-    p.health = MAX_HEALTH;
+    p.health = MAX_HEALTH; room.lastDamagedAt.delete(p.id);
     p.alive = true;
+    const reserve = equipmentById(room.loadouts.get(p.id)?.equipmentId).charges;
+    room.equipmentCharges.set(p.id,reserve);
+    if (!p.isBot) io.to(p.id).emit("message",{t:"equipmentState",remaining:reserve} as S2C);
     // Spawn protection: 2.5s grace period after respawn so the player can orient
     // before bots start shooting them. Bots also skip spawn-protected targets.
     p.spawnProtectedUntil = Date.now() + 2500;
@@ -808,6 +1069,8 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
 function checkWin(room: Room) {
   if (room.ended) return;
   if (room.mode === "survival") return; // endless — game over handled on reinforcement depletion
+  if (room.mode === "gungame") return; // ONLY the final melee-tier kill ends Gun Game (applyDamage).
+  if (room.config.scoreLimit <= 0) return; // zero disables score target
   if (room.mode === "ffa" || room.mode === "gungame") {
     for (const [, k] of room.scores) if (k >= room.config.scoreLimit) return endMatch(room);
   } else {
@@ -815,12 +1078,20 @@ function checkWin(room: Room) {
   }
 }
 
-function endMatch(room: Room) {
+function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
+  // Prevent stale kill-count or timer handlers ending an active Gun Game.
+  // A room with no humans may still be cleaned up normally.
+  if (room.mode === "gungame" && room.players.size > 0 && reason !== "gungame_victory") return;
   if (room.ended) return;
   room.ended = true;
   room.state = "ended";
   if (room.tick) clearInterval(room.tick);
   room.tick = null;
+  // No late respawn events while players watch the match-end sequence.
+  for (const timer of room.respawnTimers.values()) {
+    clearTimeout(timer as unknown as ReturnType<typeof setTimeout>);
+  }
+  room.respawnTimers.clear();
   const standings = allCombatants(room).map((p) => ({
     id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths,
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
@@ -854,7 +1125,7 @@ function startSurvivalWave(room: Room) {
   for (const [id, b] of room.bots) {
     if (!b.alive) room.bots.delete(id);
   }
-  const count = survivalWaveBotCount(room.wave);
+  const count = survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
   const hpMul = survivalWaveHealthMul(room.wave);
   // ---- Round 18-b: expanded random weapon pool ----
   // Use ALL primary + secondary weapons (excluding melee and launcher) for
@@ -885,8 +1156,9 @@ function startSurvivalWave(room: Room) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: `W${room.wave}·${n + 1}`, team: "red", isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul), alive: true,
-      weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: loadout.playerSkinId,
+      weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
       kills: 0, deaths: 0, lastShotAt: 0,
+      spawnProtectedUntil: Date.now() + 3000,
       ai, loadout,
     };
     room.bots.set(id, bot);
@@ -895,6 +1167,64 @@ function startSurvivalWave(room: Room) {
 }
 
 // ---- Bot AI -----------------------------------------------------------------
+/** Authoritative map-object damage. Player shots cannot request a wall's new HP. */
+function damageEnvironmentWall(room: Room, id: string, damage: number): void {
+  const hp = room.environmentWalls.get(id);
+  if (hp === undefined || hp <= 0 || !Number.isFinite(damage) || damage <= 0) return;
+  const next = Math.max(0, hp - damage);
+  room.environmentWalls.set(id, next);
+  if (next <= 0) breakEnvironmentWall(room.map, id);  // instantly unblocks shots + bots
+}
+
+function tickEnvironment(room: Room, dt: number): void {
+  const beforeTime = room.environmentTime;
+  room.environmentTime += dt;
+  const now = Date.now();
+  for (const o of room.map.environment ?? []) {
+    if (o.type === "moving_platform") {
+      const oldPos = environmentPosition(o, beforeTime);
+      const newPos = environmentPosition(o, room.environmentTime);
+      // Only bots are moved here. Human riding is client-predicted via the same curve.
+      for (const b of room.bots.values()) {
+        if (!b.alive) continue;
+        const top = oldPos[1] + o.size[1];
+        if (Math.abs(b.pos[1] - top) < 0.30 &&
+            Math.abs(b.pos[0] - oldPos[0]) <= o.size[0] &&
+            Math.abs(b.pos[2] - oldPos[2]) <= o.size[2]) {
+          b.pos = [b.pos[0] + newPos[0] - oldPos[0], b.pos[1] + newPos[1] - oldPos[1], b.pos[2] + newPos[2] - oldPos[2]];
+        }
+      }
+      moveEnvironmentCover(room.map, o, room.environmentTime);
+      continue;
+    }
+    if (o.type === "jump_pad") {
+      for (const bot of room.bots.values()) {
+        if (!bot.alive || bot.ai.envJumpVelocityY !== undefined || !withinEnvironment(o, bot.pos)) continue;
+        const key = `${bot.id}|${o.id}|jump`;
+        if (now < (room.environmentCooldown.get(key) ?? 0)) continue;
+        room.environmentCooldown.set(key, now + 900);
+        bot.ai.envJumpVelocityY = o.launch[1];
+        bot.ai.envLaunchX = o.launch[0];
+        bot.ai.envLaunchZ = o.launch[2];
+        bot.pos[1] += 0.12;
+      }
+      continue;
+    }
+    if (o.type !== "fire" && o.type !== "spikes") continue;
+    if (o.type === "spikes" && !spikesActive(o, room.environmentTime)) continue;
+    for (const player of allCombatants(room)) {
+      if (!player.alive || !withinEnvironment(o, player.pos)) continue;
+      if (player.spawnProtectedUntil && player.spawnProtectedUntil > now) continue;
+      const key = `${player.id}|${o.id}`;
+      const interval = o.type === "fire" ? 250 : 900;
+      if (now < (room.environmentCooldown.get(key) ?? 0)) continue;
+      room.environmentCooldown.set(key, now + interval);
+      applyDamage(room, "world", player, o.type === "fire" ? o.dps * interval / 1000 : o.damage, false, o.type === "fire" ? "env_fire" : "env_spikes");
+      if (room.ended) return;
+    }
+  }
+}
+
 function tickRoom(room: Room) {
   if (room.ended) return;
   // ---- Pre-match countdown: decrement FIRST for ALL modes (including survival) ----
@@ -904,8 +1234,26 @@ function tickRoom(room: Room) {
   // the mode-specific branches) so every mode's countdown ticks down uniformly.
   if (room.preMatchCountdown > 0) {
     room.preMatchCountdown -= 1 / 20;
-    if (room.preMatchCountdown < 0) room.preMatchCountdown = 0;
+    if (room.preMatchCountdown <= 0) {
+      room.preMatchCountdown = 0;
+      // Protection starts after the countdown, not during the lobby/countdown.
+      const until = Date.now() + 2500;
+      for (const p of allCombatants(room)) if (p.alive) p.spawnProtectedUntil = until;
+    }
   }
+  if (room.preMatchCountdown <= 0) {
+    tickEnvironment(room, 1 / 20);
+    if (!room.ended) {
+      const gameNow = Date.now();
+      tickSpecialEffects(room, gameNow);
+      // Server-authoritative regen; never heal during an active damage window.
+      for (const c of allCombatants(room)) {
+        if (c.alive && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId))
+          c.health = Math.min(MAX_HEALTH, c.health + 26 / 20);
+      }
+    }
+  }
+  if (room.ended) return;
   if (room.mode === "survival") {
     // Survival: no time limit. Run wave state machine.
     // Only tick the wave prep/wave-active logic once the pre-match countdown
@@ -936,13 +1284,14 @@ function tickRoom(room: Room) {
         updateBotAI(room, bot, now);
       }
     }
+    tickScavengerDrops(room, now);
     io.to(room.id).emit("message", snapshot(room));
     return;
   }
   // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
   // timeLeft = 0 means "no limit" — the match runs until the kill target
   // is reached. Previously, a 0 timeLimit caused the match to end instantly.
-  if (room.timeLeft > 0) {
+  if (room.preMatchCountdown <= 0 && room.timeLeft > 0) {
     room.timeLeft -= 1 / 20;
     if (room.timeLeft <= 0) return endMatch(room);
   }
@@ -954,8 +1303,31 @@ function tickRoom(room: Room) {
       updateBotAI(room, bot, now);
     }
   }
+  tickScavengerDrops(room, now);
   // broadcast ~ every tick (20Hz). Could throttle to 15Hz to save bandwidth but fine.
   io.to(room.id).emit("message", snapshot(room));
+}
+
+function tickScavengerDrops(room: Room, now: number): void {
+  for (const [id, drop] of room.scavengerDrops) {
+    if (now >= drop.expiresAt) {
+      room.scavengerDrops.delete(id);
+      io.to(room.id).emit("message", { t: "scavengerRemove", id } as S2C);
+      continue;
+    }
+    for (const player of room.players.values()) {
+      if (!canCollectScavengerDrop({
+        now, expiresAt: drop.expiresAt,
+        distance: Math.hypot(player.pos[0] - drop.pos[0], player.pos[2] - drop.pos[2]),
+        alive: player.alive, perkId: room.loadouts.get(player.id)?.perkId,
+        mode: room.mode, collectorTeam: player.team, defeatedTeam: drop.ownerTeam,
+      })) continue;
+      room.scavengerDrops.delete(id);
+      io.to(room.id).emit("message", { t: "scavengerRemove", id } as S2C);
+      io.to(player.id).emit("message", { t: "scavengerCollected", id } as S2C);
+      break;
+    }
+  }
 }
 
 function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
@@ -981,12 +1353,14 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
 }
 
 function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire }, now: number) {
+  if ((room.equipmentStun.get(bot.id) ?? 0) > now) return;
   const ai = bot.ai;
   const weapon = weaponById(bot.weaponId);
-  const eff = computeEffectiveStats(weapon, bot.loadout.attachments as Record<AttachmentSlot, string | null>);
+  const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
+  bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
 
   if (now > ai.nextDecisionAt) {
-    ai.nextDecisionAt = now + 400 + Math.random() * 600;
+    ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
     const enemy = nearestEnemy(room, bot);
     const prevTarget = ai.targetId;
     ai.targetId = enemy ? enemy.id : null;
@@ -994,10 +1368,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
-    if (!enemy) {
-      // wander
-      const list = bot.team === "red" ? room.map.spawns.red : bot.team === "blue" ? room.map.spawns.blue : room.map.spawns.ffa;
-      ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+    if (!enemy && (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5 ||
+        Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 0.01)) {
+      ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
+        room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
@@ -1010,10 +1384,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const dy = (target.pos[1] + 1.5) - (bot.pos[1] + 1.5);
     const desiredYaw = Math.atan2(dx, dz);
     // Skill-scaled turn speed + slow-varying aim error (mirrors the offline engine).
-    const turnLerp = 0.08 + ai.skill * 0.18;
+    const turnLerp = botTurnLerp(ai.difficulty, ai.skill);
     if (now > ai.nextAimErrorAt) {
       ai.nextAimErrorAt = now + 350 + Math.random() * 400;
-      const errMag = (1 - ai.skill) * 0.18 + 0.02;
+      const errMag = ((1 - ai.skill) * 0.18 + 0.02) * botAimDriftMultiplier(ai.difficulty);
       ai.aimErrorYaw = (Math.random() - 0.5) * errMag * 2;
       ai.aimErrorPitch = (Math.random() - 0.5) * errMag * 2;
     }
@@ -1027,7 +1401,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.sprayDriftPitch *= 0.92;
     }
 
-    const moveSpeed = ai.moveSpeed * 6 * eff.moveSpeed; // units per second-ish scaled by tick
+    ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
+    const moveSpeed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed;
     const ideal = 14;
     let mvx = 0, mvz = 0;
     if (dist > ideal + 3) {
@@ -1040,6 +1415,19 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       // strafe
       mvx = Math.cos(bot.yaw) * ai.strafeDir * moveSpeed / 20 * 0.7;
       mvz = -Math.sin(bot.yaw) * ai.strafeDir * moveSpeed / 20 * 0.7;
+    }
+    // Bunker centre is a maze of tall blocks. Navigate toward a clear A*
+    // waypoint when the direct chase lane is obstructed; keep weapon aim on target.
+    if (dist > ideal+3 && (room.map.id==="bunker" ||
+      botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]))) {
+      if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size);
+        ai.nextRouteAt=now+850;
+      }
+      const waypoint=ai.routeWaypoint;
+      if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],len=Math.hypot(wx,wz);
+        if(len>.25){mvx=wx/len*moveSpeed/20;mvz=wz/len*moveSpeed/20;}else ai.nextRouteAt=0;
+      }
     }
     // Substepped movement with wall collision (ported from the offline engine).
     // Without this, online bots teleport through walls/cover to reach the player.
@@ -1080,16 +1468,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // cover push-out and BEFORE the ground snap so the snap uses the
     // separated XZ position.
     separateBots(room, bot, bot.pos[1]);
-    // Vertical: snap bot to ground height at new XZ so they climb stairs naturally.
-    // NOTE: pass feetY directly (NOT +1) — the +1 gave bots ~1.6 units of vertical
-    // "reach", letting them climb 1.5-high walls and appear to phase through solid
-    // objects. With feetY as-is, the step threshold (1.3) is the only reach.
-    const gh = groundHeightAt(room.map.cover, bot.pos[0], bot.pos[2], bot.pos[1], PLAYER_RADIUS);
-    bot.pos[1] += (gh - bot.pos[1]) * 0.4;
-    bot.pos = clampToArena(room, bot.pos);
-
     // ---- Reaction delay (skill-scaled) ----
-    const REACTION_MS = (1 - ai.skill) * 650 + 120 + Math.random() * 130;
+    const REACTION_MS = botReactionDelay(ai.difficulty);
     const reacted = now - ai.acquiredTargetAt >= REACTION_MS;
 
     // ---- Burst fire for auto weapons ----
@@ -1106,7 +1486,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
 
     // shooting
-    if (reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
+    if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
       const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
@@ -1123,8 +1503,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           didHit = true;
         }
       }
-      io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: bot.loadout.attachments.barrel === "barrel_suppressor" } as S2C);
+      io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor" } as S2C);
+      broadcastRadarPing(room, bot, room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor");
       ai.ammoInMag--;
+      clearSpawnProtection(room, bot); // bot firing also cancels its protective shield
       ai.lastFiredAt = now;
       // Accumulate spray drift from this shot.
       const driftKick = eff.recoil * 0.0024 * (1 - ai.skill * 0.5);
@@ -1151,7 +1533,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const enemyVisible = dist < 35;
     const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
     const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
-    if ((ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+    if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       ai.reloadingUntil = now + eff.reloadTime * 1000;
       ai.ammoInMag = eff.magSize;
       ai.burstShotsLeft = 0;
@@ -1159,6 +1541,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       io.to(room.id).emit("message", { t: "reloadFx", playerId: bot.id } as S2C);
     }
   } else {
+    ai.sprinting = false;
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
     const dx = ai.wanderTarget[0] - bot.pos[0];
     const dz = ai.wanderTarget[2] - bot.pos[2];
@@ -1170,20 +1553,40 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       // headbutting it. The yaw is set to the rotated direction so the bot
       // faces where it's going.
       let fx = dx / d, fz = dz / d;
+      const patrolBlocked = botMoveBlocked(room, bot.pos, [bot.pos[0]+fx*4, bot.pos[1], bot.pos[2]+fz*4], bot.pos[1]);
+      if (patrolBlocked || room.map.id === "bunker") {
+        if(now > (ai.nextRouteAt??0) || !ai.routeWaypoint){
+          ai.routeWaypoint=botNextWaypoint(bot.pos,ai.wanderTarget,room.map.cover,room.map.size);
+          ai.nextRouteAt=now+850;
+        }
+        const waypoint=ai.routeWaypoint;
+        if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],wd=Math.hypot(wx,wz);
+          if(wd>.25){fx=wx/wd;fz=wz/wd;}else ai.nextRouteAt=0;
+        }
+      }
       const probeFrom: Vec3 = [bot.pos[0], bot.pos[1], bot.pos[2]];
       const probeTo: Vec3 = [bot.pos[0] + fx * 2, bot.pos[1], bot.pos[2] + fz * 2];
       if (botMoveBlocked(room, probeFrom, probeTo, bot.pos[1])) {
-        const turn = ai.strafeDir * (35 * Math.PI / 180);
-        const cosT = Math.cos(turn), sinT = Math.sin(turn);
-        const rfx = fx * cosT - fz * sinT;
-        const rfz = fx * sinT + fz * cosT;
-        fx = rfx; fz = rfz;
+        // Scan alternate headings, instead of repeatedly steering 35° into
+        // the same wall. Favor the previous strafe direction for smooth motion.
+        const baseX = fx, baseZ = fz;
+        const turns = [35, -35, 70, -70, 105, -105, 145, -145, 180];
+        let clear = false;
+        for (const angle of turns) {
+          const theta = angle * ai.strafeDir * Math.PI / 180;
+          const hx = baseX*Math.cos(theta)-baseZ*Math.sin(theta);
+          const hz = baseX*Math.sin(theta)+baseZ*Math.cos(theta);
+          if (!botMoveBlocked(room, probeFrom, [bot.pos[0]+hx*1.5,bot.pos[1],bot.pos[2]+hz*1.5],bot.pos[1])) {
+            fx=hx; fz=hz; clear=true; break;
+          }
+        }
+        if (!clear) ai.strafeDir = -ai.strafeDir;
         bot.yaw = Math.atan2(fx, fz);
       } else {
         bot.yaw = lerpAngle(bot.yaw, Math.atan2(dx, dz), 0.15);
       }
-      const mvx = fx * ai.moveSpeed * 5 / 20;
-      const mvz = fz * ai.moveSpeed * 5 / 20;
+      const mvx = fx * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier / 20;
+      const mvz = fz * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier / 20;
       // Substepped collision-aware movement (same as the chase path).
       // Task 16-a: SUBSTEP=0.15 (was 0.2), with slide-along-wall + 45° diagonal.
       const moveLen = Math.hypot(mvx, mvz);
@@ -1212,12 +1615,27 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       bot.pos = collideBots(room, bot.pos, bot.pos[1]);
       // Task 16-a: soft bot-vs-bot separation (same as engage path).
       separateBots(room, bot, bot.pos[1]);
-      // Wander path: same ground-height snap (no +1 reach — see engage path above).
-      const gh = groundHeightAt(room.map.cover, bot.pos[0], bot.pos[2], bot.pos[1], PLAYER_RADIUS);
-      bot.pos[1] += (gh - bot.pos[1]) * 0.4;
-      bot.pos = clampToArena(room, bot.pos);
+
     }
   }
+  // Apply the same vertical/collision resolution to chasing, wandering AND
+  // stationary bots. A stationary bot must still descend from a ledge.
+  bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
+  if (bot.ai.envJumpVelocityY !== undefined) {
+    const dy = bot.ai.envJumpVelocityY;
+    bot.pos = [bot.pos[0] + (bot.ai.envLaunchX ?? 0) / 20,
+      bot.pos[1] + dy / 20,
+      bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
+    bot.ai.envJumpVelocityY = dy - 22 / 20;
+    const ground = botGroundHeight(room.map.cover, bot.pos[0], bot.pos[2], bot.pos[1]);
+    if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
+      bot.pos[1] = ground;
+      bot.ai.envJumpVelocityY = undefined;
+    }
+  } else {
+    bot.pos[1] = botNextFeetY(room.map.cover, bot.pos, 1 / 20);
+  }
+  bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   // ---- Task 16-a: stuck detection & recovery (mirrors the offline engine) ----
   // Measure how far the bot moved THIS tick (vs the position recorded at the
   // end of the previous tick). If the bot has a movement intent (target
@@ -1235,17 +1653,17 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.stuckSince = 0;
     }
     if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
-      // Recovery: pick a new random spawn point as the wander target.
-      const list = bot.team === "red" ? room.map.spawns.red : bot.team === "blue" ? room.map.spawns.blue : room.map.spawns.ffa;
-      ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+      // Recovery: change patrol objective (prefer enemy territory in TDM).
+      ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
+        room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
       ai.targetId = null;        // wander instead of engaging
       ai.strafeDir = -ai.strafeDir;
       ai.stuckSince = 0;
       // Nudge sideways so the bot has a chance to unstick from the corner.
-      bot.pos[0] += (Math.random() - 0.5) * 0.6;
-      bot.pos[2] += (Math.random() - 0.5) * 0.6;
-      // Re-run the cover push-out so the nudge doesn't embed the bot in a wall.
-      bot.pos = collideBots(room, bot.pos, bot.pos[1]);
+      const before: Vec3 = [...bot.pos];
+      const tryPos: Vec3 = [before[0] + (Math.random() - 0.5) * 0.6, before[1], before[2] + (Math.random() - 0.5) * 0.6];
+      if (!botMoveBlocked(room, before, tryPos, before[1])) bot.pos = tryPos;
+      bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
     }
   }
   // Record this tick's position for next tick's stuck measurement.
@@ -1285,81 +1703,16 @@ function randSpread(s: number): Vec3 {
 // would put the bot inside any blocking cover box. Uses 3 samples (from, to,
 // midpoint) so thin walls can't be tunneled.
 function botMoveBlocked(room: Room, from: Vec3, to: Vec3, currentY: number): boolean {
-  const r = PLAYER_RADIUS;
-  for (const cov of room.map.cover) {
-    // Skip accent (decorative) and stair (walkable ramp) boxes — they don't block.
-    if (cov.kind === "accent" || cov.kind === "stair") continue;
-    const cx = cov.pos[0], cz = cov.pos[2];
-    const hx = cov.size[0], hz = cov.size[2];
-    const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
-    // If the bot can step onto this box (top within step reach), don't block.
-    if (maxY - currentY < 1.3 && maxY > currentY) continue;
-    // Skip if bot is above the box top (standing on it) or below the bottom.
-    if (currentY >= maxY - 0.05) continue;
-    if (currentY + PLAYER_HEIGHT < minY) continue;
-    const samples: Vec3[] = [from, to, [(from[0] + to[0]) * 0.5, from[1], (from[2] + to[2]) * 0.5]];
-    for (const s of samples) {
-      if (Math.abs(s[0] - cx) < hx + r && Math.abs(s[2] - cz) < hz + r) return true;
-    }
+  if (blocksBotMotion(room.map.cover, from, to, currentY)) return true;
+  for (const o of room.map.environment ?? []) {
+    if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, room.environmentTime))) continue;
+    if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
   }
   return false;
 }
 
-// Iterative push-out: resolves overlap with blocking cover boxes by pushing
-// the bot out along the least-overlapping axis. 6 passes handle corners +
-// adjacent walls + dense cover clusters (Task 16-a — bumped from 3 to 6 in
-// preparation for the density increase in Task 16-b which creates clusters of
-// adjacent boxes where 3 passes could leave residual overlap).
-//
-// TUNNELING DEFENSE-IN-DEPTH: if a bot tunneled THROUGH a thin wall during a
-// fast frame (despite the tightened SUBSTEP=0.15 + botMoveBlocked probe), the
-// `Math.sign(out[0] - b.cx)` push-out could point to the WRONG side (the far
-// side), embedding the bot past the box edge. As a safety net, clamp the
-// result so the bot never ends up more than `b.hx + r + 0.1` from the box
-// center on the pushed axis — bounds the worst case so a wrong sign can't
-// fling the bot deep into another wall. The primary tunneling defence is the
-// substep + botMoveBlocked (which we've tightened); this clamp is just
-// insurance for the rare edge case where multiple boxes interact.
 function collideBots(room: Room, pos: Vec3, currentY: number): Vec3 {
-  const r = PLAYER_RADIUS;
-  const out: Vec3 = [pos[0], pos[1], pos[2]];
-  const blocking: { cx: number; cz: number; hx: number; hz: number }[] = [];
-  for (const cov of room.map.cover) {
-    if (cov.kind === "accent" || cov.kind === "stair") continue;
-    const cx = cov.pos[0], cz = cov.pos[2];
-    const hx = cov.size[0], hz = cov.size[2];
-    const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
-    if (maxY - currentY < 1.3 && maxY > currentY) continue;
-    if (currentY >= maxY - 0.05) continue;
-    if (currentY + PLAYER_HEIGHT < minY) continue;
-    blocking.push({ cx, cz, hx, hz });
-  }
-  for (let pass = 0; pass < 6; pass++) {
-    let any = false;
-    for (const b of blocking) {
-      if (Math.abs(out[0] - b.cx) < b.hx + r && Math.abs(out[2] - b.cz) < b.hz + r) {
-        const overlapX = b.hx + r - Math.abs(out[0] - b.cx);
-        const overlapZ = b.hz + r - Math.abs(out[2] - b.cz);
-        if (overlapX < overlapZ) {
-          out[0] = b.cx + Math.sign(out[0] - b.cx) * (b.hx + r);
-          // Tunneling defense-in-depth: clamp so the bot never ends up more than
-          // b.hx + r + 0.1 from the box center on the pushed axis. The push-out
-          // above sets it to exactly b.hx + r (so this is a no-op normally), but
-          // if a wrong sign (from tunneling through a thin wall) or a multi-box
-          // interaction pushed it further, this clamp bounds the overshoot.
-          const maxDistX = b.hx + r + 0.1;
-          if (Math.abs(out[0] - b.cx) > maxDistX) out[0] = b.cx + Math.sign(out[0] - b.cx) * maxDistX;
-        } else {
-          out[2] = b.cz + Math.sign(out[2] - b.cz) * (b.hz + r);
-          const maxDistZ = b.hz + r + 0.1;
-          if (Math.abs(out[2] - b.cz) > maxDistZ) out[2] = b.cz + Math.sign(out[2] - b.cz) * maxDistZ;
-        }
-        any = true;
-      }
-    }
-    if (!any) break;
-  }
-  return out;
+  return resolveBotOverlap(room.map.cover, pos, currentY);
 }
 
 // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -1399,8 +1752,9 @@ function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: numb
     // half — symmetric separation over successive frames). Soft lerp (0.5)
     // so it's a gentle nudge, not a snap.
     const push = overlap * 0.5 * 0.5;
-    bot.pos[0] += (ddx / dist) * push;
-    bot.pos[2] += (ddz / dist) * push;
+    const before: Vec3 = [...bot.pos];
+    const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
+    if (!blocksBotMotion(room.map.cover, before, after, currentY)) bot.pos = after;
   }
 }
 
@@ -1485,7 +1839,7 @@ function handle(socket: any, msg: C2S) {
       const p: PlayerNet = {
         id: socket.id, name: msg.name?.slice(0, 20) || "Recruit", team, isBot: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-        weaponId: joinWeaponId, weaponSkinId: msg.loadout.weaponSkinId, playerSkinId: msg.loadout.playerSkinId,
+        weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : msg.loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : msg.loadout.playerSkinId,
         kills: 0, deaths: 0, lastShotAt: 0,
         spawnProtectedUntil: Date.now() + 3000,
       };
@@ -1524,9 +1878,52 @@ function handle(socket: any, msg: C2S) {
       if (room.state !== "playing") return;
       const p = room.players.get(socket.id);
       if (!p || !p.alive) return;
-      p.pos = clampToArena(room, msg.pos);
+      if ((room.equipmentStun.get(socket.id) ?? 0) <= Date.now()) p.pos = clampToArena(room, msg.pos);
+      room.sprintState.set(socket.id, !!msg.sprinting);
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
+      break;
+    }
+    case "collectScavenger": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room || room.state !== "playing") return;
+      const p = room.players.get(socket.id);
+      const drop = room.scavengerDrops.get(msg.id);
+      if (!p || !drop || !canCollectScavengerDrop({
+        now: Date.now(), expiresAt: drop.expiresAt,
+        distance: Math.hypot(p.pos[0] - drop.pos[0], p.pos[2] - drop.pos[2]),
+        alive: p.alive, perkId: room.loadouts.get(p.id)?.perkId,
+        mode: room.mode, collectorTeam: p.team, defeatedTeam: drop.ownerTeam,
+      })) return;
+      room.scavengerDrops.delete(msg.id);
+      io.to(room.id).emit("message", { t: "scavengerRemove", id: msg.id } as S2C);
+      io.to(socket.id).emit("message", { t: "scavengerCollected", id: msg.id } as S2C);
+      break;
+    }
+    case "quickMelee": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return;
+      const p = room.players.get(socket.id);
+      if (!p?.alive) return;
+      const now = Date.now();
+      if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < QUICK_MELEE_COOLDOWN_MS) return;
+      room.quickMeleeAt.set(socket.id, now);
+      clearSpawnProtection(room, p);
+      const target = chooseQuickMeleeTarget(p.pos, p.yaw,
+        allCombatants(room).filter(c => c.id !== p.id).map(c => ({
+          id: c.id, pos: c.pos, alive: c.alive,
+          protected: (c.spawnProtectedUntil ?? 0) > now,
+          friendly: room.config.friendlyFire === false && room.mode !== "ffa" && c.team === p.team,
+        })),
+        (c, dist) => {
+          const eye: Vec3 = [p.pos[0], p.pos[1] + 1.1, p.pos[2]];
+          const dir: Vec3 = [(c.pos[0]-p.pos[0])/dist, 0, (c.pos[2]-p.pos[2])/dist];
+          return !losBlocked(room, eye, dir, dist - 0.15);
+        });
+      if (target) {
+        const victim = room.players.get(target.id) ?? room.bots.get(target.id);
+        if (victim) applyDamage(room, socket.id, victim, QUICK_MELEE_DAMAGE, false, "knife_tactical");
+      }
       break;
     }
     case "shot": {
@@ -1538,13 +1935,48 @@ function handle(socket: any, msg: C2S) {
       // humans shouldn't be able to shoot either — prevents pre-countdown kills).
       if (room.preMatchCountdown > 0) return;
       const p = room.players.get(socket.id);
-      if (!p || !p.alive) return;
+      if (!p || !p.alive || (room.equipmentStun.get(socket.id) ?? 0) > Date.now()) return;
+      // Sprinting players must lower their weapon before shooting.
+      if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
       if (weapon.id !== p.weaponId) return;
       const now = Date.now();
-      const minGap = 1000 / Math.max(1, weapon.stats.fireRate) * 0.8;
-      if (now - p.lastShotAt < minGap) return;
+      const interval = 1000 / Math.max(1, weapon.stats.fireRate);
+      const burstSize = weapon.stats.burst ?? 1;
+      if (burstSize > 1) {
+        const previous = room.burstState.get(socket.id);
+        if (previous?.weaponId === weapon.id && previous.shotsRemaining > 0 && now <= previous.until) {
+          // A burst's follow-up shots arrive roughly 3x faster than the stated
+          // fire rate. Permit only the remaining shots, in order and on cadence.
+          if (now < previous.nextAt) return;
+          previous.shotsRemaining--;
+          previous.nextAt = now + interval / 3 * 0.65;
+          if (previous.shotsRemaining === 0) previous.until = now + interval * 0.8;
+        } else {
+          // Begin a new burst only after the previous burst's cooldown.
+          if (previous?.weaponId === weapon.id && now < previous.until) return;
+          room.burstState.set(socket.id, {
+            weaponId: weapon.id, shotsRemaining: burstSize - 1,
+            nextAt: now + interval / 3 * 0.65,
+            until: now + 1500, // abandoned bursts expire; never remain infinite
+          });
+        }
+      } else if (now - p.lastShotAt < interval * 0.8) return;
+      // Validate the muzzle origin for new special weapons before doing any effects.
+      if (weapon.special) {
+        if (![...msg.origin, ...msg.dir].every(Number.isFinite)) return;
+        if (Math.hypot(msg.origin[0] - p.pos[0], msg.origin[1] - p.pos[1], msg.origin[2] - p.pos[2]) > 3) return;
+        if (Math.abs(Math.hypot(...msg.dir) - 1) > 0.2) return;
+      }
+      if (weapon.special?.kind === "heat" && !allowHeatShot(room, socket.id, weapon.special, now)) return;
+      if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
+      if (weapon.special?.kind === "bolt") {
+        const charges = room.boltCharges.get(socket.id) ?? 0;
+        if (charges > 0) room.boltCharges.set(socket.id, charges - 1);
+        room.boltReadyAt.set(socket.id, now + (charges > 0 ? weapon.special.quickReloadSeconds : weapon.stats.reloadTime) * 1000);
+      }
       p.lastShotAt = now;
+      clearSpawnProtection(room, p); // accepted shot immediately removes visual shield + immunity
       const loadout = room.loadouts.get(socket.id);
       // Pick the correct attachment map for the player's CURRENT slot — the
       // server validates shots against the same effective stats the client sees.
@@ -1557,7 +1989,9 @@ function handle(socket: any, msg: C2S) {
           attsForShot = loadout.meleeAttachments as Record<string, string | null>;
         }
       }
+      if (room.mode === "gungame") attsForShot = { sight: null, barrel: null, grip: null, magazine: null };
       const eff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
+      const boltImpact = weapon.special?.kind === "bolt" ? serverBoltLanding(room, socket.id, msg.origin, msg.dir, eff.range) : null;
       // Rocket launcher: SPLASH damage (AoE). Instead of a single hitscan ray,
       // compute the impact point (first cover or combatant hit along the ray)
       // and apply area-of-effect damage to all enemies within the splash radius.
@@ -1569,16 +2003,18 @@ function handle(socket: any, msg: C2S) {
         const dir: Vec3 = [msg.dir[0] / dlen, msg.dir[1] / dlen, msg.dir[2] / dlen];
         // Compute the impact point: nearest cover box OR combatant along the ray.
         let impactT = eff.range;
-        for (const cov of room.map.cover) {
-          const t = rayBox(msg.origin, dir, cov.pos, cov.size);
-          if (t !== null && t < impactT) impactT = t;
-        }
+        const coverImpact = closestCoverHit(room.map.cover, msg.origin, dir, impactT, rayBox);
+        if (coverImpact) impactT = coverImpact.distance;
         for (const e of allCombatants(room)) {
           if (e.id === socket.id || !e.alive) continue;
           if (room.config.friendlyFire === false && e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
           const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
           const hit = rayCapsule(msg.origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
           if (hit && hit.t >= 0 && hit.t < impactT) impactT = hit.t;
+        }
+        if (coverImpact?.box.environmentId && room.environmentWalls.has(coverImpact.box.environmentId) &&
+            impactT >= coverImpact.distance - 1e-5) {
+          damageEnvironmentWall(room, coverImpact.box.environmentId, eff.damage);
         }
         const impact: Vec3 = [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
         const splashRadius = 8;
@@ -1619,22 +2055,75 @@ function handle(socket: any, msg: C2S) {
         const pellets = weapon.stats.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
           const dir = pellets > 1 ? normalize(add(msg.dir, randSpread(eff.spread))) : msg.dir;
+          // A bullet first intersects cover. Damage destructible walls instead of
+          // allowing it to continue through the wall in the same pellet.
+          const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, eff.range * 1.6, rayBox);
           const hit = fireRay(room, socket.id, msg.origin, dir, msg.weaponId, eff.range);
+          if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
+              (!hit || hit.t >= coverHit.distance)) {
+            damageEnvironmentWall(room, coverHit.box.environmentId, eff.damage);
+            continue;
+          }
           if (hit) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
             const dmg = damageAtRange(baseDmg, hit.t, eff.range);
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId);
+            if (weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
+            if (weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
+              room.poison.set(hit.victim.id, { attackerId: socket.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });
+            }
           }
         }
       }
-      io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: msg.dir, weaponId: msg.weaponId, attackerId: socket.id, skinId: msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor" } as S2C);
+      if (weapon.special?.kind === "bolt") {
+        const pos = boltImpact!;
+        const id = genId("bolt");
+        const expiresAt = now + weapon.special.lifetimeMs;
+        room.droppedBolts.set(id, { id, ownerId: socket.id, pos, expiresAt });
+        io.to(room.id).emit("message", { t: "boltDrop", id, ownerId: socket.id, pos, expiresAt } as S2C);
+      }
+      io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: msg.dir, weaponId: msg.weaponId, attackerId: socket.id, skinId: room.mode === "gungame" ? "default" : msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor" } as S2C);
+      broadcastRadarPing(room, p, attsForShot?.barrel === "barrel_suppressor");
       break;
     }
     case "reload": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
       if (room.state !== "playing") return;
+      const player = room.players.get(socket.id);
+      if (!player?.alive) return;
+      const loadout = room.loadouts.get(socket.id);
+      const magazine = loadout?.secondaryWeaponId === player.weaponId
+        ? loadout.secondaryAttachments?.magazine : loadout?.attachments?.magazine;
+      if (room.sprintState.get(socket.id) && loadout?.perkId !== "field_loader") return;
+      const special = weaponById(player.weaponId).special;
+      if (special?.kind === "heat") {
+        const now = Date.now();
+        const old = room.specialHeat.get(socket.id) ?? { ...freshHeat(), updatedAt: now, ventUntil: 0 };
+        if (old.ventUntil > now) return;
+        if (old.heat <= 0) return;
+        room.specialHeat.set(socket.id, { ...old, ventUntil: now + special.ventSeconds * (loadout?.perkId === "quickdraw" ? 0.8 : 1) * 1000 });
+      }
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
+      break;
+    }
+    case "recoverBolt": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room || room.state !== "playing") return;
+      const player = room.players.get(socket.id);
+      const bolt = room.droppedBolts.get(msg.boltId);
+      if (!player?.alive || !bolt || bolt.ownerId !== socket.id || Date.now() >= bolt.expiresAt) return;
+      const special = weaponById("crossbow_reclaimer").special;
+      if (special?.kind !== "bolt") return;
+      if (Math.hypot(player.pos[0] - bolt.pos[0], player.pos[2] - bolt.pos[2]) > special.pickupRadius) return;
+      room.droppedBolts.delete(bolt.id);
+      const now = Date.now();
+      if (now < (room.boltReadyAt.get(socket.id) ?? 0)) {
+        room.boltReadyAt.set(socket.id, Math.min(room.boltReadyAt.get(socket.id)!, now + special.quickReloadSeconds * 1000));
+      } else {
+        room.boltCharges.set(socket.id, Math.min(3, (room.boltCharges.get(socket.id) ?? 0) + 1));
+      }
+      io.to(room.id).emit("message", { t: "boltRecovered", id: bolt.id, ownerId: socket.id } as S2C);
       break;
     }
     case "weaponSwap": {

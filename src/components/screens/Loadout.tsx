@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
+import { PERKS, PERK_STORAGE_KEY, perkSelection, perkById, type PerkId } from "@/lib/perks";
 import {
   WEAPONS,
   weaponById,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Coins, Save, Crosshair, Zap, Swords, ChevronDown } from "lucide-react";
+import { Check, Coins, Save, Crosshair, Zap, Swords, ChevronDown, Package } from "lucide-react";
 import { toast } from "sonner";
 
 // ============================================================================
@@ -42,7 +43,10 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   const [secondary, setSecondary] = useState(current?.secondary.id ?? "pistol_side");
   const [melee, setMelee] = useState(current?.melee.id ?? "knife_tactical");
   // Which slot's dropdown is currently open. Only one can be open at a time.
-  const [openSlot, setOpenSlot] = useState<WeaponSlot | null>(null);
+  const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
+  const [perkId, setPerkId] = useState<PerkId>("field_loader");
+  const [savedPerk, setSavedPerk] = useState<PerkId>("field_loader");
+  useEffect(() => { const selected = perkSelection(); setPerkId(selected); setSavedPerk(selected); }, []);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -91,11 +95,24 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   const dirty = current && (
     primary !== current.weapon.id ||
     secondary !== current.secondary.id ||
-    melee !== current.melee.id
+    melee !== current.melee.id ||
+    perkId !== savedPerk
   );
 
   const save = async () => {
     setSaving(true);
+    // Perks are account-agnostic, free passive choices persisted locally.
+    const saveLocalPerk = () => {
+      try { localStorage.setItem(PERK_STORAGE_KEY, perkId); } catch {}
+      setSavedPerk(perkId);
+    };
+    if (primary === current?.weapon.id && secondary === current?.secondary.id && melee === current?.melee.id) {
+      saveLocalPerk();
+      toast.success("Perk equipped");
+      setSaving(false);
+      onSaved?.();
+      return;
+    }
     try {
       const res = await fetch("/api/loadout", {
         method: "POST",
@@ -108,6 +125,7 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
         }),
       });
       if (res.ok) {
+        saveLocalPerk();
         toast.success("Loadout saved");
         await refreshProfile();
         onSaved?.();
@@ -141,7 +159,7 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           <Save className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Saving…" : "Save Loadout"}
         </Button>
       </div>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <SlotCard
           slot="primary"
           label="Primary"
@@ -178,6 +196,35 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           onSelect={(id) => { setMelee(id); setOpenSlot(null); }}
           compact={compact}
         />
+        <div className="relative" data-slot-dropdown>
+          <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-4 h-4 text-amber-400" />
+              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Passive Perk</span>
+              <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
+            </div>
+            <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black`}>
+              <Zap className="w-7 h-7 text-amber-400/70" />
+              <span className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">Specialization</span>
+            </div>
+            <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
+            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
+            <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
+              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+              <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
+              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "perk" ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {openSlot === "perk" && (
+            <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+              {PERKS.map(perk => <button key={perk.id} type="button" onClick={() => {setPerkId(perk.id);setOpenSlot(null)}}
+                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 hover:bg-white/5 ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                <span className="font-semibold">{perk.name}</span>
+                <span className="text-white/40 leading-relaxed">{perk.description}</span>
+              </button>)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

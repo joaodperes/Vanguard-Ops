@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
+import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById } from "@/lib/game-data";
 import type { WeaponCategory } from "@/lib/game-data";
@@ -40,6 +41,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
   const [killstreakShown, setKillstreakShown] = useState<string | null>(null);
+  const [eliminationShown, setEliminationShown] = useState<HudState["lastElimination"]>();
+  useEffect(() => {
+    if (!hud.lastElimination?.at) return;
+    setEliminationShown(hud.lastElimination);
+    const timeout = setTimeout(() => setEliminationShown(undefined), 1500);
+    return () => clearTimeout(timeout);
+  }, [hud.lastElimination?.at]);
 
   useEffect(() => {
     const dn = (e: KeyboardEvent) => {
@@ -175,6 +183,15 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>
       )}
 
+      {/* Personal elimination confirmation. Only shown for your own kills. */}
+      {hud.alive && eliminationShown && (
+        <div className="absolute top-[32%] left-1/2 -translate-x-1/2 text-center" style={{ animation: "eliminationPop 0.2s ease-out" }}>
+          <div className="rounded-lg border border-amber-400/40 bg-black/75 backdrop-blur px-4 py-2 shadow-lg">
+            <span className="text-amber-300 text-sm font-black tracking-[0.2em]">{eliminationShown.headshot ? "HEADSHOT ELIMINATION" : "ELIMINATED"}</span>
+            <div className="text-white/80 text-xs mt-0.5">{eliminationShown.victim}</div>
+          </div>
+        </div>
+      )}
       {/* killstreak callout — center-top */}
       {killstreakShown && hud.killstreak && (
         <div className="absolute left-1/2 top-[22%] -translate-x-1/2 text-center" style={{ animation: "killstreakPop 0.4s ease-out" }}>
@@ -234,7 +251,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         <div className={`backdrop-blur rounded-lg border flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "bg-rose-950/70 border-rose-500/50" : "bg-black/55 border-white/10"}`}
              style={(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? { animation: "countdownPulse 1s ease-in-out infinite" } : {}}>
           <Clock className={isTouch ? "w-3 h-3 text-white/70" : "w-4 h-4 text-white/70"} />
-          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{mins}:{secs.toString().padStart(2, "0")}</span>
+          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{hud.timeLeft <= 0 ? "∞" : `${mins}:${secs.toString().padStart(2, "0")}`}</span>
           {(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 && (
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
@@ -276,6 +293,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           currentWeaponId={hud.weaponId}
           compact={isTouch}
           weaponList={hud.gungameWeapons}
+          rank={1 + hud.scoreboard.filter(p => !p.isSelf && p.kills > hud.kills).length}
+          players={hud.scoreboard.length}
         />
       )}
 
@@ -296,6 +315,37 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         ))}
       </div>
 
+      {/* Perk information stacks BELOW the radar, never across its markers.
+          Minimap: top 56px, height 176px desktop / 128px touch. */}
+      <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[200px]" : "top-[248px]"}`}>
+        {hud.perkName && (
+          <div className="px-2.5 py-1 rounded-md bg-black/75 border border-amber-500/20 text-amber-200 text-[11px] max-w-44 text-right">
+            Perk: {hud.perkName}
+          </div>
+        )}
+        {hud.perkName === "Scavenger" && (hud.scavengerPacksNearby ?? 0) > 0 && (
+          <div className="rounded-md bg-black/80 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-bold">
+            AMMO CACHE NEARBY ×{hud.scavengerPacksNearby}
+          </div>
+        )}
+        {hud.scavengerFeedbackAt && now - hud.scavengerFeedbackAt < 2100 && (
+          <div className="rounded-md bg-black/80 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-semibold">
+            {hud.scavengerAmmoGained ? `AMMO RECOVERED +${hud.scavengerAmmoGained}` : "AMMO FULL"}
+          </div>
+        )}
+      </div>
+      {hud.matchEnding && <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30">
+        <div className="text-center bg-black/70 border border-amber-400/40 rounded-xl px-10 py-7 shadow-xl">
+          <div className="text-3xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
+          <div className="text-white/60 text-xs mt-2 tracking-widest uppercase">Match complete · final scores loading</div>
+        </div>
+      </div>}
+      {hud.quickMeleeAt && now - hud.quickMeleeAt < 350 && <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+        <svg width="170" height="170" viewBox="0 0 170 170" style={{opacity:Math.max(0,1-(now-hud.quickMeleeAt)/350)}}>
+          <path d="M140 34 Q105 105 28 137" fill="none" stroke="#f4e0c2" strokeWidth="8" strokeLinecap="round"/>
+          <path d="M148 42 Q110 111 40 147" fill="none" stroke="#e6a74c" strokeWidth="3" strokeLinecap="round"/>
+        </svg>
+      </div>}
       {/* top right: exit + ping */}
       <div className="absolute top-4 right-4 flex items-center gap-2 pointer-events-auto">
         {showPing && (
@@ -307,6 +357,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <LogOut className="w-3 h-3" /> Leave
         </button>
       </div>
+
+      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} />}
 
       {/* bottom left: health + regen cooldown + sprint indicator (desktop only —
           mobile uses the centered bottom cluster below). */}
@@ -375,12 +427,25 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <CrosshairIcon className="w-3 h-3 text-amber-400" />
           {hud.weaponName}
         </div>
-        <div className="flex items-end justify-end gap-1">
-          <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
-          <span className="text-white/40 text-lg mb-1">/ {hud.magSize}</span>
-        </div>
-        {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">RELOADING…</div>}
-        {lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
+        {hud.heat !== undefined ? (
+          <div className="mt-1">
+            <div className={`text-lg font-black tracking-widest ${hud.overheated ? "text-rose-400" : "text-cyan-300"}`}>
+              {hud.overheated ? "OVERHEATED" : `HEAT ${Math.round(hud.heat)}%`}
+            </div>
+            <div className="ml-auto h-2 w-44 overflow-hidden rounded-full bg-white/15">
+              <div className={`h-full transition-all duration-100 ${hud.overheated ? "bg-rose-500" : "bg-cyan-400"}`} style={{ width: `${hud.heat}%` }} />
+            </div>
+            <div className="text-[10px] text-white/50 mt-1">Unlimited energy · R to vent</div>
+          </div>
+        ) : (
+          <div className="flex items-end justify-end gap-1">
+            <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
+            <span className="text-white/40 text-lg mb-1">/ {hud.magSize}</span>
+          </div>
+        )}
+        {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">{hud.heat !== undefined ? "VENTING…" : "RELOADING…"}</div>}
+        {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
+        {hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.
             The active slot is highlighted; others are dim. Weapon name shows under each. */}
         <div className="mt-2 flex items-center justify-end gap-1.5">
@@ -410,9 +475,15 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <CrosshairIcon className="w-2.5 h-2.5 text-amber-400" />
             <span className="text-white/70 text-[10px] uppercase tracking-wider font-semibold">{hud.weaponName}</span>
             <span className="text-white/20">·</span>
-            <span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
-            <span className="text-white/40 text-[9px]">/{hud.magSize}</span>
-            {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">RLD</span>}
+            {hud.heat !== undefined ? (
+              <span className={`tabular-nums font-bold text-xs ${hud.overheated ? "text-rose-400" : "text-cyan-300"}`}>
+                {Math.round(hud.heat)}% HEAT
+              </span>
+            ) : (
+              <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
+            )}
+            {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
+            {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">{hud.heat !== undefined ? "VENT" : "RLD"}</span>}
           </div>
           {/* Bottom row: health + stamina bars (small, side by side) */}
           <div className="flex items-center gap-2">
@@ -514,9 +585,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{hud.mapName ?? "Compound"}</span>
           </div>
-          <div className="text-white/30 text-[11px] mt-4 tracking-wider">
-            Bots freeze until the countdown ends — take aim, plan your route.
-          </div>
         </div>
       )}
 
@@ -585,6 +653,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       )}
       <style>{`
         .custom-scroll::-webkit-scrollbar{width:6px}.custom-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
+        @keyframes eliminationPop { from { opacity: 0; transform: translate(-50%,8px) scale(.9); } to { opacity: 1; transform: translate(-50%,0) scale(1); } }
         @keyframes killstreakPop { 0% { transform: translate(-50%, 10px) scale(0.7); opacity: 0; } 60% { transform: translate(-50%, 0) scale(1.15); opacity: 1; } 100% { transform: translate(-50%, 0) scale(1); opacity: 1; } }
         @keyframes killfeedSlide { from { transform: translateX(-8px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes dmgDirFade { 0% { opacity: 1; } 100% { opacity: 0; } }
@@ -689,7 +758,7 @@ function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string
 // Shows a horizontal tier list (one cell per weapon in GUN_GAME_PROGRESSION).
 // The current tier is highlighted in purple (the gungame accent color). A
 // compact label shows the current tier's weapon name (e.g., "Tier 5/18 — VK-12 Assault").
-function GunGameProgress({ index, total, currentWeaponId, compact, weaponList }: { index: number; total: number; currentWeaponId: string; compact?: boolean; weaponList?: string[] }) {
+function GunGameProgress({ index, total, currentWeaponId, compact, weaponList, rank, players }: { index: number; total: number; currentWeaponId: string; compact?: boolean; weaponList?: string[]; rank: number; players: number }) {
   const current = weaponById(currentWeaponId);
   const isFinalTier = index >= total - 1;
   // Use the actual per-match weapon list (sent by the server / resolved locally)
@@ -701,10 +770,13 @@ function GunGameProgress({ index, total, currentWeaponId, compact, weaponList }:
       {/* Compact "Tier N/total — Weapon" badge */}
       <div className={`bg-black/60 backdrop-blur rounded-lg border border-purple-500/40 flex items-center gap-1.5 shadow-lg shadow-purple-900/30 ${compact ? "px-2 py-0.5" : "px-3 py-1"}`}>
         <Swords className={compact ? "w-2.5 h-2.5 text-purple-300" : "w-3.5 h-3.5 text-purple-300"} />
+        <span className={`text-amber-300 uppercase tracking-wider font-bold ${compact ? "text-[8px]" : "text-[10px]"}`}>RANK #{rank}/{players}</span>
+        <span className="text-white/30">·</span>
         <span className={`text-white/60 uppercase tracking-wider ${compact ? "text-[8px]" : "text-[10px]"}`}>Tier</span>
         <span className={`text-purple-200 font-black tabular-nums ${compact ? "text-[11px]" : "text-sm"}`}>{index + 1}<span className="text-white/30 text-[9px]">/{total}</span></span>
         <span className="text-white/30">·</span>
         <span className={`text-white font-bold ${compact ? "text-[10px]" : "text-xs"}`}>{current.name}</span>
+        {total > 30 && <span className="text-purple-300 text-[9px]">Cycle {Math.floor(index / 30) + 1}/{Math.ceil(total / 30)}</span>}
         {isFinalTier && (
           <span className="ml-1 text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-500/40 font-bold animate-pulse">
             Final
@@ -713,7 +785,7 @@ function GunGameProgress({ index, total, currentWeaponId, compact, weaponList }:
       </div>
       {/* Horizontal tier strip — one cell per progression slot (uses the ACTUAL
           per-match weapon list so the strip length matches `total`). */}
-      <div className={`flex items-center gap-[2px] bg-black/40 backdrop-blur rounded-md border border-white/10 ${compact ? "px-1 py-0.5" : "px-1.5 py-1"}`}>
+      <div className={`flex items-center gap-px max-w-[88vw] overflow-hidden bg-black/40 backdrop-blur rounded-md border border-white/10 ${compact ? "px-1 py-0.5" : "px-1.5 py-1"}`}>
         {progression.map((wid, i) => {
           const done = i < index;
           const active = i === index;
@@ -722,6 +794,7 @@ function GunGameProgress({ index, total, currentWeaponId, compact, weaponList }:
             <div
               key={i}
               title={`${i + 1}. ${w.name}`}
+              style={{ flex: "1 1 0", minWidth: total > 45 ? 1 : 3, maxWidth: 10 }}
               className={`rounded-sm transition-colors ${compact ? "w-1.5 h-2" : "w-2 h-3"} ${
                 active ? "bg-purple-400 shadow-[0_0_6px_#a855f7]"
                 : done ? "bg-purple-500/40"

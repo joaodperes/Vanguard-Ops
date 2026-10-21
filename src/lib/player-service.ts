@@ -1,5 +1,6 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
+import { sanitizeOwnedAttachments } from "./loadout-security";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -23,7 +24,6 @@ import {
   type ChallengeDef,
   WEAPON_CHALLENGES,
   weaponById,
-  isStandardSkin,
   SKIN_WILDCARD_WEAPON_ID,
 } from "@/lib/game-data";
 
@@ -177,38 +177,32 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     if (!attachmentsByWeapon[u.weaponId].includes(u.attachmentId)) attachmentsByWeapon[u.weaponId].push(u.attachmentId);
   }
   for (const u of p.skinUnlocks) {
+    if (u.weaponId === SKIN_WILDCARD_WEAPON_ID) continue; // legacy global grants need challenge verification
     if (!skinsByWeapon[u.weaponId]) skinsByWeapon[u.weaponId] = [];
     if (!skinsByWeapon[u.weaponId].includes(u.skinId)) skinsByWeapon[u.weaponId].push(u.skinId);
   }
-  // "default" skin is always available on every weapon. Also include any free-by-level
-  // baseline skins (unlockCost === 0) — they're universal cosmetics everyone has access to.
-  const baselineSkins = WEAPON_SKINS.filter((s) => s.id === "default" || (s.unlockCost === 0 && s.unlockLevel <= level)).map((s) => s.id);
-  // Standard-tier skins unlock globally — a single SkinUnlock row (with
-  // weaponId="*" OR any specific weaponId) grants the skin on ALL weapons.
-  // Non-standard (rare/legendary future) skins remain per-weapon.
-  const globallyUnlockedStandardSkins = new Set<string>();
-  for (const u of p.skinUnlocks) {
-    const skinDef = WEAPON_SKINS.find((s) => s.id === u.skinId);
-    if (skinDef && isStandardSkin(skinDef)) {
-      globallyUnlockedStandardSkins.add(u.skinId);
-    }
-  }
-  for (const w of WEAPONS) {
-    if (!skinsByWeapon[w.id]) skinsByWeapon[w.id] = [];
-    // Baseline free skins (default + any free-by-level).
-    for (const s of baselineSkins) {
-      if (!skinsByWeapon[w.id].includes(s)) skinsByWeapon[w.id].push(s);
-    }
-    // Standard skins unlocked on any weapon (or wildcard) — apply globally.
-    for (const s of globallyUnlockedStandardSkins) {
-      if (!skinsByWeapon[w.id].includes(s)) skinsByWeapon[w.id].push(s);
+  // Default skin is always available; all other skins require per-weapon challenges.
+  // Migrate *effective* legacy wildcard grants safely: only offer the skin
+  // for a specific weapon if that weapon actually meets its challenge goal.
+  // Older versions wrote weaponId="*" even though each challenge is per-weapon.
+  const historicProgress=await db.weaponProgress.findMany({where:{playerId:p.id}});
+  const historicById=new Map(historicProgress.map(row=>[row.weaponId,row]));
+  const legacyGlobal=new Set(p.skinUnlocks.filter(u=>u.weaponId===SKIN_WILDCARD_WEAPON_ID).map(u=>u.skinId));
+  for(const w of WEAPONS){
+    if(!skinsByWeapon[w.id])skinsByWeapon[w.id]=[];
+    if(!skinsByWeapon[w.id].includes("default"))skinsByWeapon[w.id].push("default");
+    for(const ch of WEAPON_CHALLENGES){
+      if(ch.weaponId!==w.id || !legacyGlobal.has(ch.skinId))continue;
+      const row=historicById.get(w.id);
+      const progress=ch.metric==="kills"?(row?.kills??0):(row?.headshots??0);
+      if(progress>=ch.goal && !skinsByWeapon[w.id].includes(ch.skinId))skinsByWeapon[w.id].push(ch.skinId);
     }
   }
 
   // Flat lists (for legacy Profile collection grid): unique attachment/skin IDs
   // unlocked for ANY weapon.
   const flatAttachments = Array.from(new Set(p.attachmentUnlocks.map((u) => u.attachmentId)));
-  const flatSkins = Array.from(new Set(p.skinUnlocks.map((u) => u.skinId)));
+  const flatSkins = Array.from(new Set(Object.values(skinsByWeapon).flat().filter(id=>id!=="default")));
 
   // Resolve loadout, validating the equipped skin is unlocked for the equipped primary.
   const primaryId = p.loadout?.primaryWeapon ?? "rifle_ar";
@@ -225,9 +219,11 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
     meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",
     playerSkin: p.loadout?.playerSkin ?? p.selectedSkin ?? "default",
-    attachments: p.loadout?.attachments ?? "{}",
-    secondaryAttachments: p.loadout?.secondaryAttachments ?? "{}",
-    meleeAttachments: p.loadout?.meleeAttachments ?? "{}",
+    // Attachments, including poison bolts, only resolve if purchased for the
+    // exact equipped weapon. Also discard incompatible legacy selections.
+    attachments: sanitizeOwnedAttachments(primaryId, p.loadout?.attachments ?? "{}", attachmentsByWeapon[primaryId]),
+    secondaryAttachments: sanitizeOwnedAttachments(secondaryId, p.loadout?.secondaryAttachments ?? "{}", attachmentsByWeapon[secondaryId]),
+    meleeAttachments: sanitizeOwnedAttachments(meleeId, p.loadout?.meleeAttachments ?? "{}", attachmentsByWeapon[meleeId]),
     unlockedSkinsForWeapon,
     unlockedSkinsForSecondary,
     unlockedSkinsForMelee,
@@ -235,7 +231,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Lifetime per-weapon kill/headshot progress for the profile view. Used by
   // the Armory to surface challenge progress bars (e.g. "Breacher: 47/50 kills").
   // Source: WeaponProgress table (updated on every match completion).
-  const wpRows = await db.weaponProgress.findMany({ where: { playerId: p.id } });
+  const wpRows = historicProgress;
   const weaponProgress: Record<string, { kills: number; headshots: number }> = {};
   for (const row of wpRows) {
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots };
@@ -670,15 +666,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       // Skip non-catalog weapons or weapons with no challenges defined.
       if (!catalogWeaponIds.has(wid)) continue;
       if (!challengeWeaponIds.has(wid)) continue;
-      // Helper: is this skinId already unlocked for the current weapon?
-      // Standard skins: unlocked if ANY row exists for it (globally).
-      // Non-standard: unlocked only if a row exists with weaponId === wid OR "*".
+      // Every reward belongs to this weapon (legacy wildcard is not sufficient).
       const isSkinAlreadyUnlocked = (skinId: string): boolean => {
         const weaponIds = skinUnlockMap.get(skinId);
         if (!weaponIds || weaponIds.size === 0) return false;
-        const skinDef = WEAPON_SKINS.find((s) => s.id === skinId);
-        if (skinDef && isStandardSkin(skinDef)) return true; // any unlock = global
-        return weaponIds.has(wid) || weaponIds.has(SKIN_WILDCARD_WEAPON_ID);
+        return weaponIds.has(wid);
       };
       // Lifetime kills/headshots for this weapon come from the WeaponProgress
       // table (updated on every match completion). NOTE: MatchRecord.weaponId
@@ -739,25 +731,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       },
     });
     if (newUnlocks.weapons.length) await tx.weaponUnlock.createMany({ data: newUnlocks.weapons.map((id) => ({ playerId: player.id, weaponId: id })) });
-    // Per-weapon skin unlocks from completed weapon challenges.
-    // Standard-tier skins are written with weaponId="*" so the unlock applies
-    // GLOBALLY (the skin becomes available on every weapon). Non-standard
-    // (future rare/legendary) skins keep the specific weaponId.
-    // NOTE: skipDuplicates omitted — SQLite's createMany doesn't support it
-    // (Prisma throws "Unknown argument `skipDuplicates`"). The
-    // isSkinAlreadyUnlocked() filter above already prevents duplicates from
-    // reaching this createMany, so we don't need DB-level dedup here.
+    // Every weapon has its own challenge progression; no wildcard grants.
     if (newWeaponChallenges.length) {
       await tx.skinUnlock.createMany({
-        data: newWeaponChallenges.map((c) => {
-          const skinDef = WEAPON_SKINS.find((s) => s.id === c.skinId);
-          const isStandard = skinDef ? isStandardSkin(skinDef) : true;
-          return {
-            playerId: player.id,
-            weaponId: isStandard ? SKIN_WILDCARD_WEAPON_ID : c.weaponId,
-            skinId: c.skinId,
-          };
-        }),
+        data: Array.from(new Map(newWeaponChallenges.map(c=>[`${c.weaponId}:${c.skinId}`,c])).values())
+          .map(c=>({playerId:player.id,weaponId:c.weaponId,skinId:c.skinId})),
       });
     }
     if (newAchievements.length) await tx.playerAchievement.createMany({ data: newAchievements.map((a) => ({ playerId: player.id, achievementId: a.id })) });
@@ -1136,10 +1114,9 @@ export async function getWeaponChallengesView(playerKey: string, weaponId: strin
     where: { playerId: player.id, weaponId },
   });
   const unlockedSkinIds = new Set(unlockedSkins.map((u) => u.skinId));
-  // "default" is always unlocked; baseline free-by-level skins are also unlocked.
-  const level = levelForXp(player.xp);
+  // All non-default weapon skins require a recorded challenge reward.
   for (const s of WEAPON_SKINS) {
-    if (s.id === "default" || (s.unlockCost === 0 && s.unlockLevel <= level)) unlockedSkinIds.add(s.id);
+    if (s.id === "default") unlockedSkinIds.add(s.id);
   }
   const challenges = WEAPON_CHALLENGES.filter((c) => c.weaponId === weaponId);
   return challenges.map((c) => {
@@ -1151,7 +1128,7 @@ export async function getWeaponChallengesView(playerKey: string, weaponId: strin
       metric: c.metric,
       goal: c.goal,
       progress: Math.min(c.goal, value),
-      completed: unlockedSkinIds.has(c.skinId),
+      completed: unlockedSkinIds.has(c.skinId) || value >= c.goal,
       title: c.title,
       description: c.description,
     };

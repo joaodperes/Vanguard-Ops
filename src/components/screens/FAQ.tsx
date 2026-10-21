@@ -38,15 +38,15 @@ export function FAQ() {
           <Accordion type="single" collapsible className="space-y-2">
             <FaqItem q="How do I play?">
               <p>Click <strong>Play</strong> in the top navigation to open the Room Lobby. From there you can <strong>Create a Room</strong> (configure the mode, map, team size, bot fill, and difficulty) or <strong>browse active rooms</strong> in the Room Browser and join one. When creating a room, you enter a lobby state — click <strong>Start Match</strong> when your friends have joined (or immediately if you want bots to fill empty slots).</p>
-              <p className="mt-2">On desktop: click the screen to lock your mouse, then use <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">WASD</kbd> to move, mouse to aim, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Left-Click</kbd> to fire, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Right-Click</kbd> to ADS, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">R</kbd> to reload, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Shift</kbd> to sprint, and <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Space</kbd> to jump. Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">ESC</kbd> to release the cursor.</p>
-              <p className="mt-2">On mobile: tap <strong>TAP TO PLAY</strong>, then use the left virtual stick to move, drag the right side to look, and tap the Fire/ADS/Reload/Jump buttons.</p>
+              <p className="mt-2">On desktop: click the screen to lock your mouse, then use <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">WASD</kbd> to move, mouse to aim, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Left-Click</kbd> to fire, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Right-Click</kbd> to ADS, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">R</kbd> to reload, <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Shift</kbd> to sprint, and <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">Space</kbd> to jump, and <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">F</kbd> for quick melee. Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-xs font-mono">ESC</kbd> to release the cursor.</p>
+              <p className="mt-2">On mobile: tap <strong>TAP TO PLAY</strong>, then use the left virtual stick to move, drag the right side to look, and tap the Fire/ADS/Reload/Jump/Quick Melee buttons.</p>
             </FaqItem>
             <FaqItem q="What are the game modes?">
               <ul className="space-y-1.5">
                 <li><strong className="text-amber-300">Free-For-All (FFA):</strong> Everyone vs everyone. No teams. First to the kill limit (or highest kills when time runs out) wins.</li>
                 <li><strong className="text-rose-300">Team Deathmatch (TDM):</strong> Red vs Blue. Kills count toward your team&rsquo;s score. First team to the kill limit wins.</li>
                 <li><strong className="text-emerald-300">Survival (PvE):</strong> 1–2 humans vs endless waves of bots. You have a limited pool of reinforcements — when everyone is out, the game ends. Each wave gets harder.</li>
-                <li><strong className="text-purple-300">Gun Game:</strong> Cycle through a fixed list of weapons with each kill. First to get a kill with the final weapon (the knife) wins the match. Free-for-all format — no teams.</li>
+                <li><strong className="text-purple-300">Gun Game:</strong> Advance through a rotating 30-weapon list, finishing with Rocket Launcher and Melee. Weapons use base stats without Armory attachments; your chosen passive perk remains active. Free-for-all format — no teams.</li>
               </ul>
             </FaqItem>
             <FaqItem q="How do accounts and progression work?">
@@ -89,7 +89,7 @@ export function FAQ() {
                 <li><strong className="text-rose-300">Secondary:</strong> Sidearms (pistols) — your backup when your primary runs dry.</li>
                 <li><strong className="text-emerald-300">Melee:</strong> Knives — silent and lethal at touching distance.</li>
               </ul>
-              <p className="mt-1.5">Visit the <strong>Armory</strong> to unlock new weapons (using credits) and the <strong>Loadout</strong> screen to equip your chosen primary, secondary, and melee.</p>
+              <p className="mt-1.5">Visit the <strong>Armory</strong> to unlock new weapons and equip your primary, secondary, melee, and passive perk.</p>
             </FaqItem>
             <FaqItem q="How do attachments work?">
               <p>Each weapon supports a specific set of attachment slots (sight, barrel, grip, magazine) — not all weapons support all slots. For example, snipers don&rsquo;t have a grip slot, and the knife has no attachments at all.</p>

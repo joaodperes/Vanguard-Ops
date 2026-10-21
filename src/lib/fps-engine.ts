@@ -4,7 +4,21 @@
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import * as THREE from "three";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
+import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
+import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
+import { quickSwapTarget } from "./quick-swap";
+import { canCollectScavengerDrop } from "./scavenger-pickups";
+import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
+import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
+import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
+import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
+import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
+import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
+import { botNextWaypoint } from "@/lib/bot-routing";
+import { MOVEMENT, allowsAdsWhileSprinting } from "@/lib/movement-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -17,7 +31,17 @@ import {
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory,
 } from "@/lib/game-data";
-import { SoundManager, shotSfxForWeapon, shotCategoryForWeapon } from "@/lib/sound";
+import { SoundManager } from "@/lib/sound";
+import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
+import { buildFirstPersonWeapon, weaponHoldPoints } from "@/lib/weapon-models";
+import {
+  makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
+  withinEnvironment, spikesActive, closestCoverHit,
+} from "@/lib/dynamic-environment";
+import {
+  botGroundHeight, botMoveBlocked as blocksBotMotion,
+  resolveBotOverlap, botNextFeetY,
+} from "@/lib/bot-physics";
 
 export interface LobbyState {
   active: boolean;        // true while the room is in the "lobby" phase (pre-match)
@@ -28,6 +52,8 @@ export interface LobbyState {
 
 export interface EngineOptions {
   mode: GameMode;
+  gungamePreset?: "all" | "cqc" | "long_range";
+  gungameMultiplier?: number;
   botCount: number;
   online: boolean;
   loadout: LoadoutWire;
@@ -70,6 +96,18 @@ export interface HudState {
   ammo: number;
   magSize: number;
   reloading: boolean;
+  heat?: number;
+  overheated?: boolean;
+  boltCharges?: number;
+  perkName?: string;
+  scavengerFeedbackAt?: number;
+  scavengerAmmoGained?: number;
+  scavengerPacksNearby?: number;
+  matchEnding?: string;
+  quickMeleeAt?: number;
+  equipmentName?: string;
+  equipmentCharges?: number;
+  flashRemainingMs?: number;
   weaponName: string;
   weaponId: string;
   alive: boolean;
@@ -82,6 +120,7 @@ export interface HudState {
   timeLeft: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
+  lastElimination?: { at: number; victim: string; headshot: boolean };
   hitMarker: number;     // timestamp of last hit
   headshotMarker?: number;  // Round 20g: timestamp of last headshot hit (distinct visual)
   damageFlash: number;   // timestamp of last damage taken
@@ -106,6 +145,7 @@ export interface HudState {
   scoped: boolean;
   // Round 20h: Local player spawn protection (for first-person shield overlay).
   selfSpawnProtected?: boolean;
+  radar?: { size: number; playerX: number; playerZ: number; yaw: number; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
   // Dynamic crosshair spread: 0 = tight, 1 = max bloom. Driven by movement,
   // sprinting, jumping, firing — the HUD uses this to size the crosshair gap.
   spreadFactor: number;
@@ -196,6 +236,7 @@ interface BotAI {
   reloadingUntil: number;
   strafeDir: number;
   moveSpeed: number;
+  sprinting?: boolean;
   attachments: Record<AttachmentSlot, string | null>;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
@@ -231,8 +272,13 @@ interface BotAI {
   // stuck. If still stuck after 1.2s, force a recovery (new wander target +
   // sideways nudge) so bots never jam forever against a wall/corner.
   stuckSince: number;
+  nextRouteAt?: number;
+  routeWaypoint?: Vec3 | null;
   lastPosX: number;
   lastPosZ: number;
+  envJumpVelocityY?: number;
+  envLaunchX?: number;
+  envLaunchZ?: number;
 }
 
 interface Combatant {
@@ -296,8 +342,80 @@ interface HumanoidParts {
   lowerLegL: THREE.Object3D;
   lowerLegR: THREE.Object3D;
   weaponStub: THREE.Object3D;
+  /** Weapon-relative hand targets. Both arms are solved against these each frame. */
+  weaponHoldRight: THREE.Vector3;
+  weaponHoldLeft: THREE.Vector3;
+  weaponBase: THREE.Vector3;
   weaponMat: THREE.MeshStandardMaterial;
   bodyMat: THREE.MeshStandardMaterial;
+}
+
+// The character is 1.8m tall. Two slightly articulated 42cm segments reach
+// the handgun grip and the rear handguards of even the longest weapons.
+const BOT_UPPER_ARM_LENGTH = 0.42;
+const BOT_FOREARM_LENGTH = 0.42;
+const BOT_WEAPON_VISUAL_SCALE = 0.72;
+
+/**
+ * Solve a two-segment arm in character-local space. The shoulder pivot has
+ * a child at local (0, -upperLength, 0) for the elbow, and the glove at local
+ * (0, -forearmLength, 0). Both meshes therefore follow the same IK target.
+ *
+ * An outward/backward elbow preference avoids the elbows passing through the
+ * chest, while preserving a plausible elbow bend during weapon recoil.
+ */
+function poseBotArm(
+  shoulder: THREE.Object3D,
+  forearm: THREE.Object3D,
+  target: THREE.Vector3,
+  side: 1 | -1,
+): void {
+  const origin = shoulder.position;
+  const toTarget = target.clone().sub(origin);
+  const distance = Math.max(0.001, toTarget.length());
+  const dir = toTarget.multiplyScalar(1 / distance);
+  const reach = Math.min(distance, BOT_UPPER_ARM_LENGTH + BOT_FOREARM_LENGTH - 0.001);
+
+  // Bend the elbow to the outside of the body and slightly rearward/down.
+  const outward = new THREE.Vector3(side * 0.85, -0.60, -0.45);
+  outward.addScaledVector(dir, -outward.dot(dir));
+  if (outward.lengthSq() < 0.00001) outward.set(side, 0, 0);
+  outward.normalize();
+
+  const toward = (reach * reach + BOT_UPPER_ARM_LENGTH ** 2 - BOT_FOREARM_LENGTH ** 2) / (2 * reach);
+  const sideways = Math.sqrt(Math.max(0, BOT_UPPER_ARM_LENGTH ** 2 - toward * toward));
+  const elbow = origin.clone().addScaledVector(dir, toward).addScaledVector(outward, sideways);
+  const upperDir = elbow.sub(origin).normalize();
+  const boneDown = new THREE.Vector3(0, -1, 0);
+  shoulder.quaternion.setFromUnitVectors(boneDown, upperDir);
+
+  // For an unreachable target, point the wrist at the closest reachable point.
+  const reachableHand = origin.clone().addScaledVector(dir, reach);
+  const elbowPosition = origin.clone().addScaledVector(upperDir, BOT_UPPER_ARM_LENGTH);
+  const lowerDir = reachableHand.sub(elbowPosition).normalize();
+  lowerDir.applyQuaternion(shoulder.quaternion.clone().invert());
+  forearm.quaternion.setFromUnitVectors(boneDown, lowerDir);
+}
+
+// ---- Headshot collision -----------------------------------------------------
+// Keep this in sync with the humanoid built by addCombatantMesh:
+// the visible 0.26 × 0.28 × 0.26 head is centered 1.62 units above the feet.
+// A little padding compensates for animation/network interpolation and makes
+// accurately aimed shots reliable. We still use the existing capsule for the
+// rest of the body, but NEVER its coarse headshot classification.
+const HEAD_CENTER_Y = 1.62;
+const HEAD_HALF_EXTENTS: Vec3 = [0.19, 0.18, 0.19];
+
+function rayCombatantHit(origin: Vec3, dir: Vec3, feet: Vec3): { t: number; head: boolean } | null {
+  const headCenter: Vec3 = [feet[0], feet[1] + HEAD_CENTER_Y, feet[2]];
+  const headT = rayBox(origin, dir, headCenter, HEAD_HALF_EXTENTS);
+  // Prefer the actual head intersection instead of an overlapping torso capsule.
+  // Using headT (not the capsule's earlier entry) also respects cover occlusion.
+  if (headT !== null && headT >= 0) return { t: headT, head: true };
+
+  const bodyCenter: Vec3 = [feet[0], feet[1] + PLAYER_HEIGHT / 2, feet[2]];
+  const bodyHit = rayCapsule(origin, dir, bodyCenter, PLAYER_RADIUS, PLAYER_HEIGHT);
+  return bodyHit && bodyHit.t >= 0 ? { t: bodyHit.t, head: false } : null;
 }
 
 // ---- Vertical collision helpers -------------------------------------------
@@ -324,12 +442,18 @@ export class FPSEngine {
   private renderer!: THREE.WebGLRenderer;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
-  private clock = new THREE.Clock();
+  // Timer replaces deprecated THREE.Clock. Advance it once per animation frame.
+  private timer = new THREE.Timer();
   private raf = 0;
   private disposed = false;
 
   // current map
   private map: MapDef;
+  private environmentTime = 0;
+  private environmentWalls = new Map<string, number>();
+  private environmentMeshes = new Map<string, THREE.Group>();
+  private environmentCooldown = new Map<string, number>();
+
 
   // player
   private pos = new THREE.Vector3(0, 0, 0);
@@ -356,6 +480,18 @@ export class FPSEngine {
   private meleeAmmoInMag = 1;
   private reloading = false;
   private reloadEndsAt = 0;
+  private reloadStartedAt = 0;
+  private reloadDurationMs = 0;
+  // Equipment commits when the hand releases the device, not on key-down.
+  // The server remains authoritative for damage, charges and cooldowns.
+  private equipmentAction: { id: string; startedAt: number; kind: DeployMotion; duration: number; committed: boolean } | null = null;
+  // Resources are per-weapon rather than per-slot so swapping cannot reset them.
+  private heatStates = new Map<string, HeatState>();
+  private boltCharges = 0;
+  private boltPickups = new Map<string, { mesh: THREE.Object3D; ownerId: string; pos: Vec3; expiresAt: number; retryAt: number }>();
+  private localBoltSequence = 0;
+  private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
+  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string }>();
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
   // set to the burst count; the update loop drains it one shot per intra-burst
@@ -383,17 +519,21 @@ export class FPSEngine {
   // Transient viewmodel recoil (decays each frame) — a kick back + up on the weapon.
   private vmRecoilZ = 0;
   private vmRecoilPitch = 0;
-  // Viewmodel parts (direct children of the camera) with their base camera-local
-  // positions AND base rotations. Each frame, positionViewmodel sets
-  // part.position = base + vmOffset and part.rotation = base + reload/recoil deltas.
-  // Round 19g: Added baseQuat (THREE.Quaternion) for correct rigid-body rotation
-  // composition. Euler angle addition (baseRotX + totalRotX) is mathematically
-  // WRONG for composing rotations — it causes parts with non-zero base rotation
-  // (like barrels rotated π/2 around X) to detach from the weapon body during
-  // reload/recoil/sprint animations. Quaternion multiplication (totalQuat ×
-  // baseQuat) is the correct way to compose rigid-body rotations.
-  private vmParts: { obj: THREE.Object3D; base: THREE.Vector3; baseRotX: number; baseRotY: number; baseRotZ: number; baseQuat: THREE.Quaternion }[] = [];
-  private vmScale = 1.0;
+  // Camera-local viewmodel parts. Save each part's immutable rest pose so
+  // animation always starts from the same geometry and never accumulates drift.
+  // Both positions and orientations get the SAME rigid-body quaternion.
+  private vmParts: {
+    obj: THREE.Object3D;
+    base: THREE.Vector3;
+    baseQuat: THREE.Quaternion;
+    baseScale: THREE.Vector3;
+  }[] = [];
+  private vmScale = 1.20;
+  private fpActionHand: THREE.Group | null = null;
+  private fpActionProp: THREE.Group | null = null;
+  private fpActionPropId = "";
+  private fpHandMat = new THREE.MeshBasicMaterial({color:0x384c58});
+  private fpCuffMat = new THREE.MeshBasicMaterial({color:0x1b242b});
   // Round 19g: Reusable temp objects for quaternion-based viewmodel rotation
   // (avoids allocating new Quaternion/Euler objects every frame for every part).
   private _vmTotalQuat = new THREE.Quaternion();
@@ -446,6 +586,13 @@ export class FPSEngine {
   private teamScores = { red: 0, blue: 0 };
   private timeLeft = 360;
   private matchEnded = false;
+  private matchFinishingLabel: string | null = null;
+  private quickMeleeLastAt = -10000;
+  private quickMeleeFeedbackAt = 0;
+  private quickMeleeModel: THREE.Group | null = null;
+  private swapReadyAt = 0;
+  // Only current, audible gunshots appear as enemy pings; teammates are always shown.
+  private radarPings = new Map<string, { expiresAt: number }>();
   private killFeed: KillFeedEntry[] = [];
 
   // killstreak / multikill tracking
@@ -465,8 +612,7 @@ export class FPSEngine {
 
   // health regen: after REGEN_DELAY ms without taking damage, regen REGEN_RATE HP/sec
   private lastDamageAt = 0;
-  private static readonly REGEN_DELAY = 5000;   // 5s out-of-combat before regen starts (was 4s)
-  private static readonly REGEN_RATE = 22;      // HP per second (slightly faster once it kicks in)
+  private static readonly REGEN_RATE = 26;    // faster healing between encounters
   // Tracks the last health value received from the server snapshot. Used by the
   // online health-sync logic to distinguish "server says new damage" (server
   // health DROPPED) from "server health is stale" (server hasn't run regen, so
@@ -489,6 +635,14 @@ export class FPSEngine {
   // The local player's currently equipped slot. weaponId always reflects the
   // active weapon; the slot is tracked separately so the HUD can show 1/2/3.
   private currentSlot: WeaponSlot = "primary";
+  private equipmentCharges = 0;
+  private equipmentLastAt = -10000;
+  private equipmentFlashUntil = 0;
+  private equipmentPreviewLine: THREE.Line | null = null;
+  private touchEquipmentAiming = false;
+  private equipmentStunUntil = 0;
+  private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group }[] = [];
+  private remoteEquipmentMines = new Map<string, THREE.Group>();
   private primaryWeaponId: string;
   private secondaryWeaponId: string;
   private meleeWeaponId: string;
@@ -503,7 +657,7 @@ export class FPSEngine {
   // dips down + back up over ~250ms for a visible swap.
   private swapAnimAt = 0;
   // Last slot before switching (for quick-swap with Q)
-  private lastSlot: WeaponSlot = "primary";
+  private lastSlot: WeaponSlot = "secondary"; // Q works on first press: primary -> secondary
 
   // ---- Sprint + dynamic spread ----
   // Sprinting is triggered by Shift + forward movement. While sprinting, the
@@ -516,6 +670,8 @@ export class FPSEngine {
 
   // ---- Sound ----
   private sound: SoundManager;
+  // Engine-owned weapon audio: one sound per confirmed shot, including opponents.
+  private weaponAudio: WeaponAudio;
   private lastHitSoundAt = 0;    // throttle hit-marker SFX
 
   // ---- Death animation ----
@@ -605,16 +761,28 @@ export class FPSEngine {
   // Round 20g: Headshot hit marker — separate timestamp so the HUD can show
   // a distinct (red/larger) headshot marker vs the normal white hit marker.
   private headshotMarkerAt = 0;
+  private lastElimination: { at: number; victim: string; headshot: boolean } | undefined;
   private damageFlashAt = 0;
   // Round 20h: Local player spawn protection (offline). Set to Date.now()+3000
   // on respawn. While active, bots can't damage the player. The HUD shows a
   // shield vignette overlay.
   private selfSpawnProtectedUntil = 0;
+  // Scavenger packs are rendered in the world and collected server-side online.
+  private scavengerPickups = new Map<string, { pos: Vec3; expiresAt: number; mesh: THREE.Group; nextRequestAt: number }>();
+  private scavengerFeedbackAt = 0;
+  private scavengerAmmoGained = 0;
+  private get activePerkId(): string | null {
+    return this.opts.loadout.perkId ?? null;
+  }
+
 
   constructor(container: HTMLElement, opts: EngineOptions) {
     this.container = container;
     this.opts = opts;
-    this.map = getMap(opts.mapId);
+    this.map = makeEnvironmentMap(getMap(opts.mapId));
+    for (const o of this.map.environment ?? []) {
+      if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
+    }
     // ---- Weapon slot setup ----
     // Primary comes from loadout.weaponId. Secondary/melee fall back to defaults.
     this.primaryWeaponId = opts.loadout.weaponId;
@@ -657,30 +825,34 @@ export class FPSEngine {
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.equipmentCharges = equipmentById(opts.loadout.equipmentId).charges;
     // Active slot = primary by default (gun game overrides weaponId but keeps slot=primary).
     if (opts.mode === "gungame") {
       // For gungame, recompute eff from the progression weapon (treat as primary).
       const ggW = weaponById(this.weaponId);
-      this.eff = computeEffectiveStats(ggW, opts.loadout.attachments);
+      this.eff = computeEffectiveStats(ggW, emptyAtts);
       this.sightDef = sightDefForType(this.eff.sightType);
     } else {
       this.eff = this.primaryEff;
       this.sightDef = this.primarySight;
     }
     this.ammoInMag = this.eff.magSize;
+    // New offline matches are protected after the pre-match countdown completes.
+    // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     // ---- Sound manager ----
     this.sound = new SoundManager();
+    this.weaponAudio = new WeaponAudio(opts.masterVolume ?? 80);
     if (typeof opts.masterVolume === "number") {
       this.sound.setMasterVolume(opts.masterVolume / 100);
     }
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
-    this.timeLeft = opts.timeLimitSec ?? 360;
+    this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
     this.invertY = opts.invertY ?? false;
@@ -695,7 +867,9 @@ export class FPSEngine {
     }
     this.initThree();
     this.buildArena();
+    this.buildEnvironment();
     this.buildViewmodel();
+    this.createQuickMeleeModel();
     this.buildLaserIndicator();
     this.setupInput();
     if (opts.online) this.connectSocket();
@@ -726,6 +900,8 @@ export class FPSEngine {
     // overlay immediately for hosts (before the socket even connects).
     this.emitLobbyState();
     this.opts.onReady();
+    // Respect tab visibility when measuring frame time (avoids an enormous dt on return).
+    this.timer.connect(document);
     this.loop();
   }
 
@@ -735,7 +911,8 @@ export class FPSEngine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCFShadowMap provides soft PCF shadows in modern Three.js.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     const theme = this.map.theme;
@@ -803,6 +980,7 @@ export class FPSEngine {
     const stairMat = new THREE.MeshStandardMaterial({ color: theme.stair, roughness: 0.85, metalness: 0.15 });
     const platformMat = new THREE.MeshStandardMaterial({ color: theme.platform, roughness: 0.8, metalness: 0.2 });
     for (const c of this.map.cover) {
+      if (c.environmentId) continue; // handled by animated environment meshes
       const kind = c.kind ?? "cover";
       const mat = kind === "accent" ? accentMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
@@ -842,6 +1020,205 @@ export class FPSEngine {
     }
   }
 
+  /** Geometry is local to this engine instance and cleaned up on dispose. */
+  private buildEnvironment() {
+    for (const o of this.map.environment ?? []) {
+      const g = new THREE.Group();
+      g.position.set(...o.pos);
+      g.userData.environmentType = o.type;
+      if (o.type === "fire") {
+        const floor = new THREE.Mesh(
+          new THREE.CylinderGeometry(o.size[0], o.size[0], 0.06, 28),
+          new THREE.MeshBasicMaterial({ color: 0xb6300c, transparent: true, opacity: 0.5, depthWrite: false })
+        );
+        floor.position.y = 0.03;
+        g.add(floor);
+        for (let i = 0; i < 7; i++) {
+          const a = i / 7 * Math.PI * 2;
+          const flame = new THREE.Mesh(
+            new THREE.ConeGeometry(0.32 + (i % 3) * 0.08, 1.1 + (i % 2) * 0.5, 5),
+            new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffb326 : 0xff5416, transparent: true, opacity: 0.83, depthWrite: false })
+          );
+          flame.position.set(Math.sin(a) * o.size[0] * 0.58, 0.65, Math.cos(a) * o.size[2] * 0.58);
+          flame.userData.flame = true;
+          flame.userData.seed = i;
+          g.add(flame);
+        }
+        const light = new THREE.PointLight(0xff5d1a, 2.2, 9);
+        light.position.y = 1.3;
+        g.add(light);
+      } else if (o.type === "spikes") {
+        const base = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, 0.12, o.size[2] * 2),
+          new THREE.MeshStandardMaterial({ color: 0x361318, roughness: 0.6, metalness: 0.6 }));
+        g.add(base);
+        for (let x = -1.5; x <= 1.5; x++) for (let z = -1.5; z <= 1.5; z++) {
+          const spike = new THREE.Mesh(new THREE.ConeGeometry(0.20, 0.65, 4),
+            new THREE.MeshStandardMaterial({ color: 0xc9d0d7, metalness: 0.85, roughness: 0.3 }));
+          spike.position.set(x * o.size[0] / 2, 0.34, z * o.size[2] / 2);
+          g.add(spike);
+        }
+      } else if (o.type === "jump_pad") {
+        const disc = new THREE.Mesh(new THREE.CylinderGeometry(o.size[0], o.size[0], 0.18, 32),
+          new THREE.MeshStandardMaterial({ color: 0x126577, emissive: 0x08beea, emissiveIntensity: 0.7, metalness: 0.3 }));
+        disc.position.y = 0.05;
+        g.add(disc);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(o.size[0] * 0.78, 0.10, 8, 32),
+          new THREE.MeshBasicMaterial({ color: 0x5beaff }));
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.17;
+        g.add(ring);
+      } else if (o.type === "moving_platform") {
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, o.size[1] * 2, o.size[2] * 2),
+          new THREE.MeshStandardMaterial({ color: 0x256d83, metalness: 0.6, roughness: 0.35, emissive: 0x0a4b60, emissiveIntensity: 0.25 }));
+        slab.castShadow = true; slab.receiveShadow = true;
+        g.add(slab);
+      } else if (o.type === "destructible_wall") {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, o.size[1] * 2, o.size[2] * 2),
+          new THREE.MeshStandardMaterial({ color: 0x9f7772, roughness: 0.88 }));
+        wall.castShadow = true; wall.receiveShadow = true;
+        g.add(wall);
+        // Steel rim helps distinguish destructible cover from permanent concrete.
+        const rim = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2 + 0.12, 0.12, o.size[2] * 2 + 0.12),
+          new THREE.MeshStandardMaterial({ color: 0xf28d52, emissive: 0x7d3010, emissiveIntensity: 0.25 }));
+        rim.position.y = o.size[1] - 0.07;
+        g.add(rim);
+      }
+      this.scene.add(g);
+      this.environmentMeshes.set(o.id, g);
+    }
+  }
+
+  /** Update platform physics, trap animation and world visuals from shared time. */
+  private updateEnvironment(dt: number): void {
+    const previous = this.environmentTime;
+    this.environmentTime += dt;
+    for (const o of this.map.environment ?? []) {
+      const g = this.environmentMeshes.get(o.id);
+      if (!g) continue;
+      if (o.type === "moving_platform") {
+        const oldPos = environmentPosition(o, previous);
+        const newPos = environmentPosition(o, this.environmentTime);
+        const top = oldPos[1] + o.size[1];
+        const onPlatform = (p: Vec3) =>
+          Math.abs(p[1] - top) < 0.28 && Math.abs(p[0] - oldPos[0]) <= o.size[0] && Math.abs(p[2] - oldPos[2]) <= o.size[2];
+        if (this.alive && this.onGround && onPlatform([this.pos.x, this.pos.y, this.pos.z])) {
+          this.pos.add(new THREE.Vector3(newPos[0] - oldPos[0], newPos[1] - oldPos[1], newPos[2] - oldPos[2]));
+        }
+        if (!this.opts.online) for (const c of this.combatants.values()) {
+          if (c.alive && onPlatform(c.pos)) c.pos = [c.pos[0] + newPos[0] - oldPos[0], c.pos[1] + newPos[1] - oldPos[1], c.pos[2] + newPos[2] - oldPos[2]];
+        }
+        moveEnvironmentCover(this.map, o, this.environmentTime);
+        g.position.set(...newPos);
+      } else if (o.type === "spikes") {
+        const active = spikesActive(o, this.environmentTime);
+        // The dark base remains visible during the inactive/telegraph phase.
+        g.children.forEach((child, i) => { child.visible = i === 0 || active; });
+      } else if (o.type === "fire") {
+        g.children.forEach(c => {
+          if (c.userData.flame) {
+            const seed = c.userData.seed as number;
+            c.scale.y = 0.75 + Math.sin(this.environmentTime * 11 + seed * 2.3) * 0.25;
+            c.position.y = 0.55 + Math.sin(this.environmentTime * 8 + seed) * 0.13;
+          } else if (c instanceof THREE.PointLight) {
+            c.intensity = 1.8 + Math.sin(this.environmentTime * 9) * 0.45;
+          }
+        });
+      } else if (o.type === "jump_pad") {
+        const glow = g.children[1];
+        if (glow) glow.rotation.z = this.environmentTime * 0.65;
+      }
+    }
+  }
+
+  private damageEnvironmentWall(id: string, damage: number): void {
+    const original = (this.map.environment ?? []).find(o => o.id === id);
+    if (!original || original.type !== "destructible_wall") return;
+    const hp = this.environmentWalls.get(id) ?? original.hp;
+    if (hp <= 0) return;
+    this.setEnvironmentWallHP(id, Math.max(0, hp - damage));
+  }
+
+  private setEnvironmentWallHP(id: string, hp: number): void {
+    const o = (this.map.environment ?? []).find(o => o.id === id);
+    if (!o || o.type !== "destructible_wall") return;
+    const old = this.environmentWalls.get(id) ?? o.hp;
+    this.environmentWalls.set(id, hp);
+    const mesh = this.environmentMeshes.get(id);
+    if (mesh) {
+      mesh.visible = hp > 0;
+      const wall = mesh.children[0];
+      if (wall instanceof THREE.Mesh && wall.material instanceof THREE.MeshStandardMaterial) {
+        const t = Math.max(0, Math.min(1, hp / o.hp));
+        wall.material.color.setRGB(0.4 + t * 0.22, 0.25 + t * 0.12, 0.24 + t * 0.12);
+      }
+    }
+    if (old > 0 && hp <= 0) {
+      breakEnvironmentWall(this.map, id);
+      this.spawnExplosion(new THREE.Vector3(...o.pos));
+    }
+  }
+
+  /** Offline player + bot hazard damage, and client-predicted jump pad launch. */
+  private interactEnvironment(): void {
+    if (!this.alive || this.matchEnded) return;
+    const now = performance.now();
+    const feet: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    for (const o of this.map.environment ?? []) {
+      if (o.type === "jump_pad" && withinEnvironment(o, feet) && this.onGround && now >= (this.environmentCooldown.get(o.id) ?? 0)) {
+        this.environmentCooldown.set(o.id, now + 700);
+        this.vel.y = o.launch[1];
+        this.vel.x += o.launch[0];
+        this.vel.z += o.launch[2];
+        this.pos.y += 0.12;
+        this.onGround = false;
+        this.sound.play("footstep", { volume: 0.7 });
+      }
+      if (this.opts.online || (this.selfSpawnProtectedUntil > Date.now())) continue;
+      if (o.type !== "fire" && o.type !== "spikes") continue;
+      if (o.type === "spikes" && !spikesActive(o, this.environmentTime)) continue;
+      if (!withinEnvironment(o, feet)) continue;
+      const interval = o.type === "fire" ? 250 : 900;
+      if (now < (this.environmentCooldown.get(o.id) ?? 0)) continue;
+      this.environmentCooldown.set(o.id, now + interval);
+      this.takeDamage(o.type === "fire" ? o.dps * interval / 1000 : o.damage, "Environment", "ffa", false, o.type);
+    }
+    if (this.opts.online) return;
+    // Bots receive environmental damage independently of player weapon scoring.
+    for (const c of this.combatants.values()) {
+      if (!c.isBot || !c.alive || c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()) continue;
+      for (const o of this.map.environment ?? []) {
+        if (o.type === "jump_pad" && c.ai && c.ai.envJumpVelocityY === undefined && withinEnvironment(o, c.pos)) {
+          const key = `${c.id}|${o.id}|jump`;
+          if (now >= (this.environmentCooldown.get(key) ?? 0)) {
+            this.environmentCooldown.set(key, now + 900);
+            c.ai.envJumpVelocityY = o.launch[1];
+            c.ai.envLaunchX = o.launch[0];
+            c.ai.envLaunchZ = o.launch[2];
+            c.pos[1] += 0.12;
+          }
+        }
+        if (o.type !== "fire" && o.type !== "spikes") continue;
+        if (o.type === "spikes" && !spikesActive(o, this.environmentTime)) continue;
+        if (!withinEnvironment(o, c.pos)) continue;
+        const key = `${c.id}|${o.id}`;
+        const interval = o.type === "fire" ? 250 : 900;
+        if (now < (this.environmentCooldown.get(key) ?? 0)) continue;
+        this.environmentCooldown.set(key, now + interval);
+        c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
+        if (c.health <= 0) {
+          c.alive = false; c.health = 0; c.deaths++;
+          c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
+          const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
+          this.killFeed.unshift(entry);
+          if (this.killFeed.length > 6) this.killFeed.pop();
+          this.opts.onKillFeed(entry);
+          if (this.opts.mode !== "survival") this.scheduleRespawn(c);
+          break;
+        }
+      }
+    }
+  }
+
   private buildViewmodel() {
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
@@ -862,6 +1239,9 @@ export class FPSEngine {
     }
     this.vmParts = [];
     this.sightMesh = null;
+    // The support-hand rig has a separate animation track but shares the
+    // camera's local coordinate system and lifetime with the weapon model.
+    this.clearFirstPersonRig();
 
     const skin = weaponSkinById(this.getCurrentSkinId());
     // Viewmodel uses MeshBasicMaterial (unlit, always full-bright) so the weapon is
@@ -882,6 +1262,9 @@ export class FPSEngine {
     const isDefaultSkin = skin.id === "default";
     if (isDefaultSkin) {
       const weaponTints: Record<string, number> = {
+        rifle_electron: 0x097b99, // exposed cyan reactor
+        crossbow_reclaimer: 0x344b2d, // muted green composite
+        pistol_arc: 0x563582, // violet arc capacitor
         rifle_ar: 0x2b3a5a,       // steel blue
         rifle_dm: 0x4a2a1a,       // warm brown (battle rifle)
         rifle_burst: 0x1a3a4a,    // teal
@@ -933,22 +1316,18 @@ export class FPSEngine {
     this.sightMesh = null;
 
     const addPart = (mesh: THREE.Object3D, baseX: number, baseY: number, baseZ: number) => {
-      mesh.scale.setScalar(this.vmScale);
+      // Capture the exact rest orientation and scale *before* applying the
+      // viewmodel's global scale. Do not reconstruct the rest orientation from
+      // Euler components (parts may use a non-default Euler order).
+      const baseQuat = mesh.quaternion.clone();
+      const baseScale = mesh.scale.clone();
+      mesh.scale.copy(baseScale).multiplyScalar(this.vmScale);
       mesh.frustumCulled = false;
-      // Round 19g: Store the base orientation as a quaternion for correct
-      // rigid-body rotation composition. The mesh's current Euler rotation
-      // (set before addPart is called, e.g. barrel.rotation.x = π/2) is
-      // captured as a quaternion so we can later compose it with the weapon's
-      // total animation rotation via quaternion multiplication.
-      const baseQuat = new THREE.Quaternion();
-      baseQuat.setFromEuler(new THREE.Euler(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z, "XYZ"));
       this.vmParts.push({
         obj: mesh,
         base: new THREE.Vector3(baseX, baseY, baseZ),
-        baseRotX: mesh.rotation.x,
-        baseRotY: mesh.rotation.y,
-        baseRotZ: mesh.rotation.z,
         baseQuat,
+        baseScale,
       });
       this.camera.add(mesh);
     };
@@ -964,20 +1343,30 @@ export class FPSEngine {
 
     if (category === "melee") {
       // ---- Melee weapons: blade or shaft, no barrel/mag/grip/stock ----
-      if (wid === "hammer") {
-        // Sledge hammer: cylindrical handle + heavy box head
-        const handle = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.025, 0.025, 0.5, 12),
-          this.weaponMat,
-        );
+      if (wid === "hammer" || wid === "axe") {
+        // Long haft sits in the fist; enlarged head remains visible above it.
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.029, 0.69, 10), accentMat);
         handle.rotation.x = Math.PI / 2;
-        addPart(handle, 0, -0.05, -0.15);
-        const head = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, 0.10, 0.12),
-          accentMat,
-        );
-        addPart(head, 0, -0.05, -0.42);
-        muzzleZ = -0.48;
+        addPart(handle, 0, -0.045, -0.17);
+        if (wid === "hammer") {
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.14, 0.16), this.weaponMat);
+          addPart(head, 0, -0.045, -0.48);
+          const strikingFace = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.155, 0.18), accentMat);
+          addPart(strikingFace, 0.14, -0.045, -0.48);
+        } else {
+          const blade = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.075, 0.24), this.weaponMat);
+          addPart(blade, 0, -0.045, -0.48);
+          const edge = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.09, 0.25), accentMat);
+          addPart(edge, -0.15, -0.045, -0.48);
+        }
+        muzzleZ = -0.55;
+      } else if (wid === "baton") {
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.026, 0.63, 12), this.weaponMat);
+        shaft.rotation.x = Math.PI / 2;
+        addPart(shaft, 0, -0.05, -0.16);
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.035, 0.045), accentMat);
+        addPart(guard, 0, -0.05, 0.08);
+        muzzleZ = -0.47;
       } else if (wid === "machete") {
         // Machete: long broad blade + small handle
         const handle = new THREE.Mesh(
@@ -1019,312 +1408,10 @@ export class FPSEngine {
         muzzleZ = -0.35;
       }
     } else {
-      // ---- Ranged weapons: body + barrel + mag + grip + stock per category ----
-      switch (category) {
-        case "smg": {
-          if (wid === "smg_vector") {
-            // Vector PDW: ultra-compact, NO stock, big stick mag, wider body
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.11, 0.26), this.weaponMat);
-            addPart(body, 0, -0.02, -0.03);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.22);
-            // Long stick magazine (Vector's signature look)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.18, 0.06), accentMat);
-            addPart(mag, 0, -0.13, -0.01);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.09, 0.06);
-            // No stock (PDW configuration) — distinctive vs Kestrel's folding stock
-            muzzleZ = -0.36;
-          } else {
-            // Kestrel SMG (default): compact body, short barrel, small mag, folding stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.10, 0.32), this.weaponMat);
-            addPart(body, 0, -0.02, -0.05);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.30);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.13, 0.08), accentMat);
-            addPart(mag, 0, -0.11, -0.02);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.09, 0.08);
-            // Folding stock (collapsed)
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.10), accentMat);
-            addPart(stock, 0, -0.02, 0.16);
-            muzzleZ = -0.45;
-          }
-          break;
-        }
-        case "shotgun": {
-          if (wid === "shotgun_auto") {
-            // Wraith Auto: box magazine (not pump), darker finish, double-barrel look
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.50), this.weaponMat);
-            addPart(body, 0, -0.02, -0.08);
-            // Dual barrels (auto shotgun signature)
-            const barrelL = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.55, 12), this.weaponMat);
-            barrelL.rotation.x = Math.PI / 2;
-            addPart(barrelL, -0.025, 0.02, -0.44);
-            const barrelR = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.55, 12), this.weaponMat);
-            barrelR.rotation.x = Math.PI / 2;
-            addPart(barrelR, 0.025, 0.02, -0.44);
-            // Box magazine (distinctive vs pump shotgun's shell holder)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.10), accentMat);
-            addPart(mag, 0, -0.11, -0.04);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.11, 0.12);
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.18), accentMat);
-            addPart(stock, 0, -0.04, 0.13);
-            muzzleZ = -0.73;
-          } else {
-            // Breacher (pump shotgun): wide body, big barrel, pump tube, shell holder, wooden stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.55), this.weaponMat);
-            addPart(body, 0, -0.02, -0.10);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.02, -0.48);
-            // Pump tube under the barrel (accent)
-            const pump = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 12), accentMat);
-            pump.rotation.x = Math.PI / 2;
-            addPart(pump, 0, -0.05, -0.30);
-            // Shell holder (instead of magazine)
-            const shells = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.10, 0.12), accentMat);
-            addPart(shells, 0, -0.10, -0.05);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.11, 0.12);
-            // Wooden accent stock
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.20), accentMat);
-            addPart(stock, 0, -0.04, 0.14);
-            muzzleZ = -0.78;
-          }
-          break;
-        }
-        case "dmr": {
-          if (wid === "dmr_scout") {
-            // Scout Tactical: lighter, thinner barrel, fluted handguard accent
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.11, 0.54), this.weaponMat);
-            addPart(body, 0, -0.02, -0.10);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.56, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.48);
-            // Fluted handguard (accent — lighter than Marksman)
-            const handguard = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.28, 12), accentMat);
-            handguard.rotation.x = Math.PI / 2;
-            addPart(handguard, 0, 0.0, -0.38);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), accentMat);
-            addPart(mag, 0, -0.11, -0.04);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.11, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.10, 0.13);
-            // Lightweight skeleton stock (accent)
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.10, 0.18), accentMat);
-            addPart(stock, 0, -0.03, 0.16);
-            muzzleZ = -0.78;
-          } else {
-            // Marksman DMR (default): LONG, THIN, heavy barrel, straight mag, bigger stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.6), this.weaponMat);
-            addPart(body, 0, -0.02, -0.12);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.6, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.52);
-            // Heavy barrel shroud (accent — thicker than Scout)
-            const shroud = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.030, 0.30, 12), accentMat);
-            shroud.rotation.x = Math.PI / 2;
-            addPart(shroud, 0, 0.0, -0.42);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.09), accentMat);
-            addPart(mag, 0, -0.12, -0.05);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.11, 0.14);
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.22), accentMat);
-            addPart(stock, 0, -0.05, 0.18);
-            muzzleZ = -0.82;
-          }
-          break;
-        }
-        case "sniper": {
-          // VERY LONG: long body, very long barrel, small mag, big stock.
-          // The sniper_scope sight mesh (built below) sits on top — body is long
-          // enough to look like a sniper rifle.
-          const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.7), this.weaponMat);
-          addPart(body, 0, -0.02, -0.18);
-          const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 12), this.weaponMat);
-          barrel.rotation.x = Math.PI / 2;
-          addPart(barrel, 0, 0.0, -0.68);
-          const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.10, 0.09), accentMat);
-          addPart(mag, 0, -0.10, -0.05);
-          const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.13, 0.07), accentMat);
-          grip.rotation.x = 0.3;
-          addPart(grip, 0, -0.12, 0.18);
-          const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.15, 0.28), accentMat);
-          addPart(stock, 0, -0.05, 0.22);
-          muzzleZ = -1.08;
-          break;
-        }
-        case "lmg": {
-          // BIG & HEAVY: boxy body, thick barrel, huge box mag, big stock
-          const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.6), this.weaponMat);
-          addPart(body, 0, -0.02, -0.12);
-          const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 12), this.weaponMat);
-          barrel.rotation.x = Math.PI / 2;
-          addPart(barrel, 0, 0.02, -0.48);
-          // HUGE box magazine hanging down
-          const mag = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.25, 0.12), accentMat);
-          addPart(mag, 0, -0.20, -0.05);
-          const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-          grip.rotation.x = 0.3;
-          addPart(grip, 0, -0.12, 0.14);
-          const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.13, 0.20), accentMat);
-          addPart(stock, 0, -0.04, 0.16);
-          muzzleZ = -0.73;
-          break;
-        }
-        case "sidearm": {
-          if (wid === "launcher_rocket") {
-            // Rocket launcher: WIDE body + LONG barrel tube + rear exhaust + grip + sight rail.
-            // Dramatically larger than a pistol so the silhouette is unmistakable.
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.55), this.weaponMat);
-            addPart(body, 0, -0.04, -0.08);
-            // Main launch tube — long, wide cylinder extending well forward.
-            const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.95, 18), this.weaponMat);
-            tube.rotation.x = Math.PI / 2;
-            addPart(tube, 0, -0.04, -0.42);
-            // Rear exhaust cap (accent) — the back end of the tube.
-            const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.085, 0.10, 18), accentMat);
-            exhaust.rotation.x = Math.PI / 2;
-            addPart(exhaust, 0, -0.04, 0.08);
-            // Forward muzzle ring (accent) — reinforces the "launcher" look.
-            const muzzleRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.022, 8, 18), accentMat);
-            muzzleRing.rotation.x = Math.PI / 2;
-            addPart(muzzleRing, 0, -0.04, -0.88);
-            // Pistol grip (accent) — angled down like a real RL grip.
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.08), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.16, 0.04);
-            // Foregrip (accent) — under the tube, mid-body.
-            const foregrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 0.06), accentMat);
-            addPart(foregrip, 0, -0.15, -0.30);
-            // Top sight rail (thin accent bar above the tube).
-            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.40), accentMat);
-            addPart(rail, 0, 0.06, -0.25);
-            // Warhead tip (accent cone at the muzzle — the loaded rocket's nose).
-            const warhead = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 14), accentMat);
-            warhead.rotation.x = -Math.PI / 2;
-            addPart(warhead, 0, -0.04, -1.00);
-            muzzleZ = -1.05;
-          } else if (wid === "pistol_magnum") {
-            // Magnum .50: LONG barrel (revolver feel), big frame, small cylinder
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.28), this.weaponMat);
-            addPart(body, 0, -0.02, -0.06);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.28, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.01, -0.24);
-            // Revolver cylinder (accent — distinctive vs semi-auto pistols)
-            const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.06, 12), accentMat);
-            cylinder.rotation.z = Math.PI / 2;
-            addPart(cylinder, 0, -0.01, -0.10);
-            // Big grip (magnum has a chunkier handle)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.08), accentMat);
-            mag.rotation.x = 0.25;
-            addPart(mag, 0, -0.12, 0.03);
-            // Hammer spur at the back
-            const hammer = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), accentMat);
-            addPart(hammer, 0, 0.03, 0.08);
-            muzzleZ = -0.40;
-          } else if (wid === "pistol_burst") {
-            // Burst Pistol: extended slide, compensator muzzle, mid-length barrel
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.11, 0.28), this.weaponMat);
-            addPart(body, 0, -0.02, -0.06);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.20, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.20);
-            // Compensator (flared muzzle brake — accent)
-            const comp = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 0.06, 10), accentMat);
-            comp.rotation.x = Math.PI / 2;
-            addPart(comp, 0, 0.0, -0.30);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.13, 0.075), accentMat);
-            mag.rotation.x = 0.2;
-            addPart(mag, 0, -0.10, 0.02);
-            muzzleZ = -0.33;
-          } else if (wid === "pistol_machine") {
-            // Machine Pistol: longer frame, big stick mag, foregrip
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.10, 0.30), this.weaponMat);
-            addPart(body, 0, -0.02, -0.07);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.18, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.19);
-            // Extended stick magazine (taller + thinner than standard)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.20, 0.06), accentMat);
-            mag.rotation.x = 0.15;
-            addPart(mag, 0, -0.14, 0.0);
-            // Foregip in front of the trigger guard (machine pistol feature)
-            const foregrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.05), accentMat);
-            foregrip.rotation.x = 0.4;
-            addPart(foregrip, 0, -0.08, -0.10);
-            muzzleZ = -0.30;
-          } else {
-            // Pistol P-9 (default sidearm): TINY slide + short barrel, no stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.10, 0.22), this.weaponMat);
-            addPart(body, 0, -0.02, -0.04);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.15, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.16);
-            // Grip-integrated magazine
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.07), accentMat);
-            mag.rotation.x = 0.2;
-            addPart(mag, 0, -0.10, 0.02);
-            muzzleZ = -0.24;
-          }
-          break;
-        }
-        case "assault":
-        default: {
-          if (wid === "rifle_dm") {
-            // Marksman DMR-style assault: longer/heavier barrel, Picatinny rail accent, bigger stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, 0.56), this.weaponMat);
-            addPart(body, 0, -0.02, -0.12);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.58, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.50);
-            // Picatinny rail accent on top (distinctive vs VK-12)
-            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.015, 0.30), accentMat);
-            addPart(rail, 0, 0.075, -0.10);
-            // Straight magazine (battle rifle style — not curved)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.09), accentMat);
-            addPart(mag, 0, -0.13, -0.06);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.11, 0.13);
-            // Heavier stock (accent)
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.12, 0.22), accentMat);
-            addPart(stock, 0, -0.05, 0.14);
-            muzzleZ = -0.80;
-          } else {
-            // VK-12 Assault (default): medium body, medium barrel, curved mag, standard grip+stock
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.5), this.weaponMat);
-            addPart(body, 0, -0.02, -0.1);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 12), this.weaponMat);
-            barrel.rotation.x = Math.PI / 2;
-            addPart(barrel, 0, 0.0, -0.45);
-            // Curved magazine (AK-style curve)
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.09), accentMat);
-            mag.rotation.x = -0.15;  // curve forward at the bottom
-            addPart(mag, 0, -0.13, -0.05);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.07), accentMat);
-            grip.rotation.x = 0.3;
-            addPart(grip, 0, -0.11, 0.12);
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.18), accentMat);
-            addPart(stock, 0, -0.04, 0.12);
-            // Carry handle accent on top (distinctive vs Marksman's rail)
-            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.12), accentMat);
-            addPart(handle, 0, 0.075, -0.02);
-            muzzleZ = -0.7;
-          }
-          break;
-        }
-      }
+      // Every ranged weapon is now built from its OWN substantial 3D silhouette,
+      // rather than a common category receiver with tiny extra details.
+      // The helper returns the actual barrel tip for muzzle-flash attachments.
+      muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart);
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -1351,7 +1438,7 @@ export class FPSEngine {
       // front (forward of the magazine). It's small enough to not clutter the
       // model but large enough to be clearly visible at a glance.
       const band = new THREE.Mesh(
-        new THREE.BoxGeometry(0.03, 0.015, 0.08),
+        new THREE.BoxGeometry(0.105, 0.022, 0.115),
         bandMat,
       );
       // Position the band just above the body center, forward of the sight mount.
@@ -1374,44 +1461,42 @@ export class FPSEngine {
     // attachment equipped).
     const wDef = weaponById(this.weaponId);
     const hasBaseScope = wDef.baseSightType && wDef.baseSightType !== "iron";
-    if (sightId || hasBaseScope) {
+    if (category !== "melee" && (sightId || hasBaseScope)) {
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
         // Magnified tube scope
         const tubeLen = (st === "hunter" || st === "sniper_scope") ? 0.16 : 0.12;
         const tubeRad = (st === "hunter" || st === "sniper_scope") ? 0.045 : 0.04;
-        const scope = new THREE.Mesh(new THREE.CylinderGeometry(tubeRad, tubeRad, tubeLen, 16), accentMat);
+        const scope = new THREE.Mesh(new THREE.CylinderGeometry(tubeRad, tubeRad, tubeLen, 16, 1, true), accentMat);
         scope.rotation.x = Math.PI / 2;
         scopeGroup.add(scope);
         // Front + rear lens caps (rings)
         const ringGeo = new THREE.TorusGeometry(tubeRad + 0.006, 0.008, 8, 20);
         const frontRing = new THREE.Mesh(ringGeo, accentMat);
-        frontRing.position.z = -tubeLen / 2; frontRing.rotation.x = Math.PI / 2;
+        frontRing.position.z = -tubeLen / 2;
         scopeGroup.add(frontRing);
         const rearRing = new THREE.Mesh(ringGeo, accentMat);
-        rearRing.position.z = tubeLen / 2; rearRing.rotation.x = Math.PI / 2;
+        rearRing.position.z = tubeLen / 2;
         scopeGroup.add(rearRing);
-        // Tinted lens (thermal = amber, NVG = green, others = dark blue)
-        const lensColor = st === "thermal" ? 0xff8c1a : st === "nvg" ? 0x33ff66 : 0x1a2a4a;
-        const lens = new THREE.Mesh(
-          new THREE.CircleGeometry(tubeRad - 0.004, 20),
-          new THREE.MeshBasicMaterial({ color: lensColor, transparent: true, opacity: 0.55 })
-        );
-        lens.position.z = -tubeLen / 2 - 0.001;
-        scopeGroup.add(lens);
+        // Intentionally NO opaque tinted cap: the tube is open-ended so the scene
+        // is actually visible through the optic. Tint/reticle belongs in the HUD.
         // Mount post connecting scope to weapon body
         const mount = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.04), accentMat);
         mount.position.y = -tubeRad;
         scopeGroup.add(mount);
       } else if (st === "red_dot" || st === "holo") {
         // Red dot / holo: small lens window with a glowing dot
-        const window1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.008), accentMat);
-        scopeGroup.add(window1);
-        const dotMat = new THREE.MeshBasicMaterial({ color: st === "red_dot" ? 0xff2222 : 0x22ff66 });
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 8), dotMat);
-        dot.position.z = -0.005;
-        scopeGroup.add(dot);
+        // Four-sided OPEN viewing frame instead of a solid plate across the glass.
+        for (const side of [-1, 1]) {
+          const upright = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.057, 0.008), accentMat);
+          upright.position.x = side * 0.035;
+          scopeGroup.add(upright);
+          const rim = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.006, 0.008), accentMat);
+          rim.position.y = side * 0.03;
+          scopeGroup.add(rim);
+        }
+        // The aiming dot is drawn by the HUD at the actual screen centre.
         // Base mount
         const base = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.05), accentMat);
         base.position.y = -0.03;
@@ -1433,13 +1518,22 @@ export class FPSEngine {
         post.position.y = 0.02;
         scopeGroup.add(post);
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.004, 6, 14), accentMat);
-        ring.rotation.x = Math.PI / 2;
         scopeGroup.add(ring);
       }
       addPart(scopeGroup, 0, 0.08, -0.1);
       this.sightMesh = scopeGroup;
     }
-    if (currentAtts.barrel) {
+    // Poison tips are part of the BOLT, not a muzzle suppressor.
+    const hasMuzzleAttachment = !!currentAtts.barrel && currentAtts.barrel !== "barrel_poison";
+    if (this.weaponId === "crossbow_reclaimer" && currentAtts.barrel === "barrel_poison") {
+      const tip = new THREE.Mesh(
+        new THREE.ConeGeometry(0.027, 0.11, 8),
+        new THREE.MeshBasicMaterial({ color: 0x75f26d })
+      );
+      tip.rotation.x = -Math.PI / 2;
+      addPart(tip, 0, 0.06, muzzleZ - 0.055);
+    }
+    if (hasMuzzleAttachment) {
       const supp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 12), accentMat);
       supp.rotation.x = Math.PI / 2;
       // Suppressor extends 0.2 forward from the bare muzzle tip (muzzleZ). Its
@@ -1451,20 +1545,176 @@ export class FPSEngine {
       addPart(laser, 0, -0.09, -0.2);
     }
 
+    // Permanent right-hand contact: the new articulated support hand appears
+    // only while operating equipment/reloading, but the weapon no longer looks
+    // like it is floating during idle, sprint and firing animations.
+    const gloveMaterial = new THREE.MeshBasicMaterial({ color: 0x354652 });
+    const cuffMaterial = new THREE.MeshBasicMaterial({ color: 0x1c2832 });
+    const triggerGlove = new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12), gloveMaterial);
+    triggerGlove.rotation.z = -.15;
+    addPart(triggerGlove, .09, -.15, .15);
+    const wristCuff = new THREE.Mesh(new THREE.CylinderGeometry(.054,.066,.13,9), cuffMaterial);
+    wristCuff.rotation.x = -.55;
+    addPart(wristCuff, .11, -.23, .21);
+
     // muzzle flash — sits at the bare muzzle tip (or the suppressor tip if equipped)
-    const flashZ = currentAtts.barrel ? muzzleZ - 0.2 : muzzleZ;
+    const flashZ = hasMuzzleAttachment ? muzzleZ - 0.2 : muzzleZ;
+    const flashColor = this.weaponId === "rifle_electron" ? 0x63eaff
+      : this.weaponId === "pistol_arc" ? 0xc0a0ff : 0xffdd66;
     this.muzzleFlash = new THREE.Mesh(
       new THREE.SphereGeometry(0.07, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffdd66, transparent: true, opacity: 0 })
+      new THREE.MeshBasicMaterial({ color: flashColor, transparent: true, opacity: 0 })
     );
     addPart(this.muzzleFlash, 0, 0.0, flashZ);
-    this.muzzleLight = new THREE.PointLight(0xffaa33, 0, 6);
+    this.muzzleLight = new THREE.PointLight(flashColor, 0, 6);
     addPart(this.muzzleLight, 0, 0.0, flashZ);
 
     // Add the camera to the scene so its children (the viewmodel parts) are in the
     // scene graph and get their world matrices updated each frame.
     this.scene.add(this.camera);
+    this.buildFirstPersonRig();
     this.positionViewmodel();
+  }
+
+  /** Procedural camera-space glove, forearm and held object. Kept separate from
+   *  vmParts so the support hand can reach down for a magazine or forward for
+   *  a grenade without warping the receiver/barrel meshes. */
+  private buildFirstPersonRig() {
+    const hand = new THREE.Group();
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.049,.065,.35,9), this.fpCuffMat);
+    forearm.rotation.set(.42,0,-.27); forearm.position.set(.12,-.14,.15);
+    hand.add(forearm);
+    const glove = new THREE.Mesh(new THREE.BoxGeometry(.135,.105,.145),this.fpHandMat);
+    glove.position.set(0,0,-.03); hand.add(glove);
+    const knuckles = new THREE.Mesh(new THREE.BoxGeometry(.113,.022,.05),this.fpCuffMat);
+    knuckles.position.set(0,.048,-.08); hand.add(knuckles);
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.044,.085,.058),this.fpHandMat);
+    thumb.position.set(-.08,-.027,-.02); thumb.rotation.z=.25; hand.add(thumb);
+    hand.visible = false;
+    this.fpActionHand = hand;
+    this.camera.add(hand);
+    this.fpActionProp = new THREE.Group();
+    this.fpActionProp.visible = false;
+    this.camera.add(this.fpActionProp);
+  }
+
+  private clearFirstPersonRig() {
+    for (const root of [this.fpActionHand, this.fpActionProp]) {
+      if (!root) continue;
+      this.camera.remove(root);
+      root.traverse(obj => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          // The glove materials belong to the engine and are shared; only
+          // per-prop materials may be owned/disposed here.
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) if (m !== this.fpHandMat && m !== this.fpCuffMat) m.dispose();
+        }
+      });
+    }
+    this.fpActionHand = null;
+    this.fpActionProp = null;
+    this.fpActionPropId = "";
+  }
+
+  private ensureFirstPersonProp(id: string) {
+    const root = this.fpActionProp;
+    if (!root || this.fpActionPropId === id) return;
+    while (root.children.length) {
+      const child = root.children[0]; root.remove(child);
+      child.traverse(obj => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(m => m.dispose());
+        }
+      });
+    }
+    this.fpActionPropId = id;
+    const materials = new Map<number,THREE.MeshBasicMaterial>();
+    const mat = (color:number) => {
+      let material = materials.get(color);
+      if (!material) { material = new THREE.MeshBasicMaterial({color}); materials.set(color,material); }
+      return material;
+    };
+    const dark = mat(0x313c46), steel = mat(0x8c9ba8), amber = mat(0xf5ad42), cyan = mat(0x55d9ff);
+    const add = (geometry: THREE.BufferGeometry, material: THREE.Material, at:[number,number,number], rotateX=0) => {
+      const m = new THREE.Mesh(geometry, material);
+      m.position.set(...at); m.rotation.x=rotateX; root.add(m);
+      return m;
+    };
+    if (id === "mine") {
+      add(new THREE.CylinderGeometry(.155,.17,.072,12),dark,[0,0,0]);
+      add(new THREE.TorusGeometry(.124,.014,6,18),amber,[0,.043,0],-Math.PI/2);
+      add(new THREE.SphereGeometry(.038,7,6),amber,[0,.06,0]);
+    } else if (id === "frag") {
+      add(new THREE.SphereGeometry(.108,10,8),dark,[0,0,0]);
+      add(new THREE.BoxGeometry(.07,.035,.062),steel,[0,.115,0]);
+      add(new THREE.TorusGeometry(.035,.009,6,14),amber,[.035,.145,0]);
+    } else if (id === "flashbang") {
+      add(new THREE.CylinderGeometry(.073,.073,.21,12),steel,[0,0,0]);
+      add(new THREE.CylinderGeometry(.081,.081,.02,12),dark,[0,.113,0]);
+    } else if (id === "knives") {
+      add(new THREE.BoxGeometry(.034,.12,.035),dark,[0,-.07,0]);
+      add(new THREE.ConeGeometry(.025,.17,4),steel,[0,.07,0]);
+    } else if (id === "poison_dart") {
+      add(new THREE.CylinderGeometry(.013,.013,.25,8),steel,[0,0,0]);
+      add(new THREE.ConeGeometry(.033,.08,8),new THREE.MeshBasicMaterial({color:0x80ea63}),[0,.15,0]);
+    } else if (id === "taser") {
+      add(new THREE.BoxGeometry(.14,.09,.16),dark,[0,0,0]);
+      for (const x of [-.045,.045]) add(new THREE.CylinderGeometry(.011,.011,.09,8),cyan,[x,.065,-.065]);
+    } else if (id === "vent") {
+      add(new THREE.BoxGeometry(.095,.09,.16),cyan,[0,0,0]);
+    } else if (id === "bolt") {
+      add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0]);
+      add(new THREE.ConeGeometry(.024,.065,7),amber,[0,.18,0]);
+    } else if (id === "shell") {
+      add(new THREE.CylinderGeometry(.029,.029,.11,10),new THREE.MeshBasicMaterial({color:0xc75d32}),[0,0,0]);
+      add(new THREE.CylinderGeometry(.030,.030,.023,10),amber,[0,-.067,0]);
+    } else if (id === "cylinder") {
+      add(new THREE.CylinderGeometry(.056,.056,.13,9),steel,[0,0,0]);
+    } else {
+      // Detachable magazine / energy cell in the offhand.
+      add(new THREE.BoxGeometry(.095,.24,.105),dark,[0,-.09,0]);
+      add(new THREE.BoxGeometry(.105,.027,.115),steel,[0,-.22,0]);
+    }
+    // These materials are cached only for building this prop. Dispose materials
+    // that no mesh used; referenced materials are disposed with the prop meshes.
+    const used = new Set<THREE.Material>();
+    root.traverse(obj => { if (obj instanceof THREE.Mesh) {
+      for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) used.add(m);
+    }});
+    for (const m of materials.values()) if (!used.has(m)) m.dispose();
+  }
+
+  private renderFirstPersonAction(now: number, visibleWeapon: boolean) {
+    const hand=this.fpActionHand, prop=this.fpActionProp;
+    if (!hand || !prop) return;
+    let pose: ActionPose | null = null;
+    let propId = "";
+    if (this.equipmentAction) {
+      const a=this.equipmentAction;
+      pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
+      propId=a.id;
+    } else if (this.reloading) {
+      const def=weaponById(this.weaponId);
+      const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
+      pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
+      propId=style;
+    }
+    hand.visible=!!pose && this.alive && visibleWeapon;
+    prop.visible=!!pose?.propVisible && this.alive && visibleWeapon;
+    if (!pose || !visibleWeapon) return;
+    this.ensureFirstPersonProp(propId);
+    if (this.equipmentAction) {
+      hand.position.set(...pose.hand);
+      prop.position.set(...pose.prop);
+    } else {
+      hand.position.set(pose.hand[0]+this.vmOffset.x,pose.hand[1]+this.vmOffset.y,pose.hand[2]+this.vmOffset.z);
+      prop.position.set(pose.prop[0]+this.vmOffset.x,pose.prop[1]+this.vmOffset.y,pose.prop[2]+this.vmOffset.z);
+    }
+    hand.rotation.set(pose.handRoll*.25,0,pose.handRoll);
+    prop.rotation.set(0,0,pose.handRoll*.6);
   }
 
   // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
@@ -1497,15 +1747,18 @@ export class FPSEngine {
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0.0, y: -0.14, z: -0.22 }   // scoped: gun lower so scope is at eye, barrel hidden below
-      : { x: 0.0, y: -0.10, z: -0.38 };  // iron/red_dot: gun raised but BELOW camera centerline so body/rail don't block view
+      ? { x: 0.0, y: -0.19, z: -0.22 }   // scoped: gun lower so scope is at eye, barrel hidden below
+      : { x: 0.0, y: -0.15, z: -0.38 };  // iron/red_dot: gun raised but BELOW camera centerline so body/rail don't block view
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
-    let target = this.aiming ? adsTarget : hipTarget;
+    // Melee is a one-handed upright hold on the right, not a rifle held below
+    // the camera. This also exposes the hammer/axe head during idle movement.
+    const meleePose = this.touchMode ? { x: 0.25, y: -0.11, z: -0.47 } : { x: 0.35, y: -0.085, z: -0.49 };
+    let target = wDef.category === "melee" ? meleePose : (this.aiming ? adsTarget : hipTarget);
     // Subtle head-bob while moving on the ground (skipped while aiming for stability).
     let bobY = 0;
     if (!this.aiming && this.onGround && this.vel.lengthSq() > 1) {
-      bobY = Math.sin(performance.now() * 0.012) * 0.012;
+      bobY = Math.sin(performance.now() * 0.012) * 0.012 * swayMultiplier(this.activePerkId);
     }
     // ---- Sprint sway: weapon sways left/right + bobs while sprinting ----
     let sprintSwayX = 0, sprintSwayY = 0, sprintPitch = 0, sprintRoll = 0;
@@ -1513,10 +1766,10 @@ export class FPSEngine {
       target = sprintTarget;
       const sway = Math.sin(this.sprintPhase);
       const sway2 = Math.sin(this.sprintPhase + Math.PI);
-      sprintSwayX = sway * 0.05;        // 5cm side-to-side
-      sprintSwayY = Math.abs(sway2) * 0.04;  // vertical bob (always positive — weapon pumps)
+      sprintSwayX = sway * 0.05 * swayMultiplier(this.activePerkId);        // 5cm side-to-side
+      sprintSwayY = Math.abs(sway2) * 0.04 * swayMultiplier(this.activePerkId);  // vertical bob (always positive — weapon pumps)
       sprintPitch = -0.25;              // muzzle tips down (running stance)
-      sprintRoll = sway * 0.10;         // weapon cants with the sway
+      sprintRoll = sway * 0.10 * swayMultiplier(this.activePerkId);         // weapon cants with the sway
     }
     // ---- Weapon-swap dip animation (Issue 3 + 4) ----
     // A dramatic 450ms 3-phase animation that makes the weapon change obvious:
@@ -1580,19 +1833,20 @@ export class FPSEngine {
     this.vmOffset.y += ((target.y + bobY + sprintSwayY + swapDipY) - this.vmOffset.y) * lerpRate;
     this.vmOffset.z += (target.z - this.vmOffset.z) * lerpRate;
 
-    // ---- Reload animation ----
-    // Weapon dips down + pitches forward (mag out), then comes back up (mag in).
-    // progress 0..1 across the reload duration; dip peaks at the midpoint.
-    let reloadDipY = 0, reloadPitch = 0, reloadRoll = 0;
-    if (this.reloading) {
-      const total = this.eff.reloadTime * 1000;
-      const elapsed = performance.now() - (this.reloadEndsAt - total);
-      const p = Math.max(0, Math.min(1, elapsed / total));
-      // Smooth dip using a sine bell: 0 at p=0 and p=1, peak at p=0.5.
-      const dip = Math.sin(p * Math.PI);
-      reloadDipY = -0.16 * dip;        // weapon drops 16cm
-      reloadPitch = 0.55 * dip;        // muzzle pitches down ~31°
-      reloadRoll = -0.18 * dip;        // weapon cants slightly left (right hand motion)
+    // ---- First-person reload and equipment poses (v6) ----
+    let reloadDipY=0,reloadPitch=0,reloadRoll=0;
+    let hideFixedMagazine=false;
+    const now=performance.now();
+    if (this.equipmentAction) {
+      const a=this.equipmentAction;
+      const pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
+      reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
+    } else if (this.reloading) {
+      const def=weaponById(this.weaponId);
+      const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
+      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
+      reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
+      hideFixedMagazine=pose.hideFixedMagazine;
     }
 
     // ---- Melee swing animation ----
@@ -1636,11 +1890,14 @@ export class FPSEngine {
     // pitch rotates the forward-pointing blade to point straight UP, with
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
     const isMeleeWeapon = weaponById(this.weaponId).category === "melee";
-    const meleeHoldPitch = isMeleeWeapon ? -Math.PI / 2 : 0;  // -90°: blade up, handle down
+    const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
     const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch;
     const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll;
-    const cosX = Math.cos(totalRotX), sinX = Math.sin(totalRotX);
-    const cosZ = Math.cos(totalRotZ), sinZ = Math.sin(totalRotZ);
+    // Compute ONE quaternion for the complete weapon. The same quaternion must
+    // rotate both each part's centre (around the grip) AND its orientation.
+    // Euler XYZ composes X*Z; the old hand-written coordinates composed Z*X,
+    // so parts diverged whenever reload pitch and roll were both non-zero.
+    this._vmTotalQuat.setFromEuler(this._vmTotalEuler.set(totalRotX, 0, totalRotZ, "XYZ"));
     // ---- Issue d fix: Sights get in the way ----
     // The sight meshes (scope tube, iron sight ring/post, red dot window) are
     // SOLID 3D objects. If visible during ADS, they block the camera's center
@@ -1657,52 +1914,37 @@ export class FPSEngine {
     //    but was positioned below the camera (appearing as a solid object at
     //    the bottom of the screen instead of something to look through).
     const hideSightDuringADS = this.adsProgress > 0.15;
-    const hideEntireViewmodel = (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
+    const hideEntireViewmodel = !this.reloading && !this.equipmentAction && (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
+    const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
-      if (hideEntireViewmodel) {
+      if (quickMeleeActive || hideEntireViewmodel) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
         continue;
       }
-      p.obj.visible = true;
-      const bx = p.base.x * this.vmScale;
-      const by = p.base.y * this.vmScale;
-      const bz = p.base.z * this.vmScale;
-      // Translate to pivot space, rotate, translate back.
-      const dx = bx - pivotX, dy = by - pivotY, dz = bz - pivotZ;
-      // X-axis rotation: y' = y*cos - z*sin, z' = y*sin + z*cos
-      const y1 = dy * cosX - dz * sinX;
-      const z1 = dy * sinX + dz * cosX;
-      // Z-axis rotation: x' = x*cos - y*sin, y' = x*sin + y*cos
-      const x2 = dx * cosZ - y1 * sinZ;
-      const y2 = dx * sinZ + y1 * cosZ;
-      p.obj.position.set(x2 + pivotX + ox, y2 + pivotY + oy, z1 + pivotZ + oz);
-      // ---- Round 19g: Quaternion-based rigid-body rotation (fixes barrel detach) ----
-      // Previously, the part's rotation was set by ADDING Euler angles:
-      //   p.obj.rotation.x = p.baseRotX + totalRotX;
-      //   p.obj.rotation.z = p.baseRotZ + totalRotZ;
-      // This is mathematically WRONG for composing rotations. Euler angle addition
-      // does not produce the same result as rotation composition. For parts with a
-      // non-zero base rotation (e.g. a barrel cylinder with rotation.x = π/2),
-      // the added Euler angles produce a DIFFERENT orientation than the rigid-body
-      // rotation the position math applies. This causes the part to appear to
-      // "detach" from the weapon body during reload/recoil/sprint animations.
-      //
-      // The correct approach: compose the rotations as quaternions.
-      //   finalQuat = totalQuat × baseQuat
-      // where totalQuat is the weapon's animation rotation and baseQuat is the
-      // part's resting orientation. This matches the position rotation math
-      // (which rotates the position vector by the same totalQuat) and ensures
-      // every part stays perfectly locked to the weapon's rigid-body motion.
-      this._vmTotalQuat.setFromEuler(this._vmTotalEuler.set(totalRotX, 0, totalRotZ, "XYZ"));
+      p.obj.visible = !hideFixedMagazine || !p.obj.userData.fpMagazine;
+      // Start at this part's immutable rest position every frame (never add to
+      // last frame's animated position). Rotate about the common weapon grip,
+      // then add the shared ADS/recoil/reload translation.
+      p.obj.position.copy(p.base).multiplyScalar(this.vmScale);
+      p.obj.position.x -= pivotX;
+      p.obj.position.y -= pivotY;
+      p.obj.position.z -= pivotZ;
+      p.obj.position.applyQuaternion(this._vmTotalQuat);
+      p.obj.position.x += pivotX + ox;
+      p.obj.position.y += pivotY + oy;
+      p.obj.position.z += pivotZ + oz;
+      // Compose the part's resting orientation with EXACTLY the same rotation
+      // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
-      p.obj.scale.setScalar(this.vmScale);
+      p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }
     // Sight mesh visibility: hidden during ADS (for ALL sight types) so it
     // never blocks the camera. The HUD reticle/scope overlay handles aiming.
     if (this.sightMesh) {
-      this.sightMesh.visible = !hideEntireViewmodel && !hideSightDuringADS;
+      this.sightMesh.visible = !quickMeleeActive && !hideEntireViewmodel && !hideSightDuringADS;
     }
+    this.renderFirstPersonAction(now, !hideEntireViewmodel);
   }
 
   // ---- Laser indicator ----
@@ -1755,9 +1997,8 @@ export class FPSEngine {
     for (const c of this.combatants.values()) {
       if (!c.alive || c.id === this.selfId) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
-      const center: Vec3 = [c.pos[0], c.pos[1] + PLAYER_HEIGHT / 2, c.pos[2]];
-      const hit = rayCapsule([origin.x, origin.y, origin.z], dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
-      if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
+      const hit = rayCombatantHit([origin.x, origin.y, origin.z], dir, c.pos);
+      if (hit && hit.t < maxT) maxT = hit.t;
     }
     const endX = origin.x + dir[0] * maxT;
     const endY = origin.y + dir[1] * maxT;
@@ -1774,6 +2015,51 @@ export class FPSEngine {
     (this.laserDot.material as THREE.MeshBasicMaterial).opacity = pulse;
   }
 
+  /** Independent first-person quick-melee prop. Does not change the weapon slot,
+   * active ammunition, attachment state, or multiplayer weapon identity. */
+  private createQuickMeleeModel() {
+    const group = new THREE.Group();
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.040, 0.34, 10),
+      new THREE.MeshStandardMaterial({ color: 0x262c32, metalness: 0.35, roughness: 0.72 }));
+    handle.position.y = -0.12; group.add(handle);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.026, 0.065),
+      new THREE.MeshStandardMaterial({ color: 0x687480, metalness: 0.7 }));
+    guard.position.y = 0.06; group.add(guard);
+    const isBaton = this.meleeWeaponId === "baton";
+    const isHeavy = this.meleeWeaponId === "hammer" || this.meleeWeaponId === "axe";
+    if (isBaton) {
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.031, 0.43, 10),
+        new THREE.MeshStandardMaterial({ color: 0x455963, emissive: 0x074b73, emissiveIntensity: 0.8 }));
+      rod.position.y = 0.29; group.add(rod);
+    } else if (isHeavy) {
+      const head = new THREE.Mesh(new THREE.BoxGeometry(this.meleeWeaponId === "axe" ? 0.32 : 0.27, 0.15, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0x91a5b3, metalness: 0.75 }));
+      head.position.y = 0.32; group.add(head);
+    } else {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.066, this.meleeWeaponId === "machete" ? 0.52 : 0.37, 0.018),
+        new THREE.MeshStandardMaterial({ color: 0xc3d2de, metalness: 0.77, roughness: 0.3 }));
+      blade.position.y = 0.27; group.add(blade);
+    }
+    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.13),
+      new THREE.MeshStandardMaterial({ color: 0x354652 }));
+    fist.position.set(0.025, -0.19, 0.03); group.add(fist);
+    group.visible = false;
+    this.camera.add(group);
+    this.quickMeleeModel = group;
+  }
+  private updateQuickMeleeModel(now: number): boolean {
+    if (!this.quickMeleeModel) return false;
+    const progress = (now - this.quickMeleeFeedbackAt) / this.meleeSwingDur;
+    const active = this.quickMeleeFeedbackAt > 0 && progress >= 0 && progress < 1;
+    this.quickMeleeModel.visible = active && this.alive;
+    if (active) {
+      const slice = Math.sin(Math.PI * progress);
+      this.quickMeleeModel.position.set(0.37 - 0.20 * slice, -0.30 + 0.18 * slice, -0.56 - 0.19 * slice);
+      this.quickMeleeModel.rotation.set(-0.34 - 1.25 * slice, -0.35, -0.55 + 1.3 * slice);
+    }
+    return active;
+  }
+
   // ---- Input ----
   private setupInput() {
     // Detect touch devices — they use on-screen controls instead of pointer lock.
@@ -1787,7 +2073,7 @@ export class FPSEngine {
     canvas.addEventListener("click", () => {
       // Resume the audio context on first user gesture (browsers block audio
       // until a gesture). Safe to call repeatedly — no-op if already running.
-      this.sound.resume();
+      this.unlockAudio();
       if (this.touchMode) return; // touch devices don't use pointer lock
       if (!this.pointerLocked) canvas.requestPointerLock();
     });
@@ -1808,7 +2094,7 @@ export class FPSEngine {
     });
     document.addEventListener("mousedown", (e) => {
       if (this.touchMode) return;
-      this.sound.resume();
+      this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
       if (e.button === 2) this.manualAiming = true;
     });
@@ -1820,15 +2106,34 @@ export class FPSEngine {
     window.addEventListener("keydown", (e) => {
       this.keys[e.code] = true;
       if (e.code === "KeyR") this.startReload();
+      if (e.code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode)) {
+        e.preventDefault();
+        this.unlockAudio();
+        this.quickMelee();
+      }
       if (e.code === "Space") e.preventDefault();
       // Weapon swap keys: 1=primary, 2=secondary, 3=melee, Q=quick-swap to last.
       if (e.code === "Digit1") this.swapWeapon("primary");
       if (e.code === "Digit2") this.swapWeapon("secondary");
       if (e.code === "Digit3") this.swapWeapon("melee");
-      if (e.code === "KeyQ") this.swapWeapon(this.lastSlot);
+      if (e.code === "KeyQ" && !e.repeat) {
+        e.preventDefault();
+        // Q swaps between the last two distinct equipped weapons. With no
+        // history yet, use primary <-> secondary (not the current slot).
+        const target = quickSwapTarget(this.currentSlot, this.lastSlot);
+        this.swapWeapon(target);
+      }
     });
-    window.addEventListener("keyup", (e) => { this.keys[e.code] = false; });
+    window.addEventListener("keyup", (e) => {
+      this.keys[e.code] = false;
+    });
     window.addEventListener("resize", this.onResize);
+  }
+
+  // Unlock both audio systems from the same user gesture (autoplay-safe).
+  unlockAudio() {
+    this.sound.resume();
+    this.weaponAudio.unlock();
   }
 
   // ---- Public touch-input API (mobile) ----
@@ -1848,16 +2153,279 @@ export class FPSEngine {
     this.pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.pitch));
   }
   setTouchFire(b: boolean) {
-    if (b && !this.touchFiring) { this.sound.resume(); this.touchPressedThisFrame = true; }
+    if (b && !this.touchFiring) { this.unlockAudio(); this.touchPressedThisFrame = true; }
     this.touchFiring = b;
   }
   setTouchADS(b: boolean) { this.manualAiming = b; }
   setTouchSprint(b: boolean) { this.touchSprint = b; }
   touchReload() { this.startReload(); }
+  touchQuickMelee() { this.unlockAudio(); this.quickMelee(); }
+  setTouchEquipmentAim(held: boolean) {
+    if (this.touchEquipmentAiming && !held) this.useEquipment();
+    this.touchEquipmentAiming=held;
+  }
   touchJump() { this.touchJumpQueued = true; }
   // Touch weapon swap (called by on-screen slot buttons 1/2/3).
   touchSwap(slot: WeaponSlot) { this.swapWeapon(slot); }
   isTouchMode() { return this.touchMode; }
+
+  // One-button quick melee; never changes the equipped slot or reloads a weapon.
+  private quickMelee() {
+    if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
+    const now = performance.now();
+    if (now - this.quickMeleeLastAt < QUICK_MELEE_COOLDOWN_MS) return;
+    this.quickMeleeLastAt = now;
+    this.selfSpawnProtectedUntil = 0;
+    this.quickMeleeFeedbackAt = now;
+    this.meleeSwingAt = 0; // quick-melee viewmodel has its own animation
+    this.meleeSwingDur = 390;
+    this.manualAiming = false;
+    this.weaponAudio.play("melee", { weaponId: this.meleeWeaponId, volume: 0.9 });
+    if (this.opts.online) {
+      this.socket?.emit("message", { t: "quickMelee" });
+      return;
+    }
+    const from: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    const candidate = chooseQuickMeleeTarget(from, this.yaw,
+      [...this.combatants.values()].map(c => ({ id: c.id, pos: c.pos, alive: c.alive,
+        protected: (c.spawnProtectedUntil ?? 0) > Date.now(),
+        friendly: this.opts.mode !== "ffa" && c.team === this.opts.team })),
+      (c, dist) => {
+        const eye: Vec3 = [from[0], from[1] + 1.1, from[2]];
+        const to: Vec3 = [c.pos[0], c.pos[1] + 1.1, c.pos[2]];
+        const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
+        return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
+      });
+    if (candidate) {
+      const target = this.combatants.get(candidate.id);
+      if (target) {
+        this.applyDamageLocal(target, QUICK_MELEE_DAMAGE, false, this.meleeWeaponId);
+        this.hitMarkerAt = now;
+        this.sound.play("melee_hit", { volume: 0.7 });
+      }
+    }
+  }
+
+  // Fourth equipment slot. Offline damage is simulated locally; online usage
+  // only sends an intent. The server validates the player's selection, charges,
+  // cooldown, victim teams and spawn protection before applying damage.
+  private useEquipment(): void {
+    return; // v9: equipment retired, all such actions replaced with passive perks
+    if (this.matchEnded || !this.alive || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
+    if (performance.now() < this.equipmentStunUntil || this.equipmentAction || this.reloading) return;
+    const def = equipmentById(this.opts.loadout.equipmentId);
+    const now = performance.now();
+    if (this.equipmentCharges <= 0 || now - this.equipmentLastAt < def.cooldownMs) return;
+    const kind = equipmentMotionFor(def.id);
+    this.manualAiming = false;
+    this.equipmentAction = {id:def.id,kind,startedAt:now,duration:deployDurationMs(kind),committed:false};
+    this.sound.play("swap", {volume:.25});
+  }
+
+  private updateEquipmentAction(now: number) {
+    const action=this.equipmentAction;
+    if (!action) return;
+    if (!this.alive || this.matchEnded || this.lobbyActive) {
+      this.equipmentAction=null; return;
+    }
+    const pose=sampleDeployMotion((now-action.startedAt)/action.duration, action.kind);
+    if (pose.released && !action.committed) {
+      action.committed=true;
+      this.commitEquipmentUse(action.id);
+    }
+    if (now >= action.startedAt + action.duration) this.equipmentAction=null;
+  }
+
+  private equipmentTrajectory(id: string): ThrowPath {
+    const cp=Math.cos(this.pitch);
+    const dir: Vec3=[Math.sin(this.yaw)*cp,Math.sin(this.pitch),Math.cos(this.yaw)*cp];
+    const origin: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT*.86,this.pos.z];
+    return calculateThrowPath(origin,dir,id as "frag"|"flashbang"|"knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
+      closestCoverHit(this.map.cover,at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
+  }
+
+  /** Grenades are aimed with the normal crosshair. No occluding dotted arc. */
+  private updateEquipmentPreview(): void {
+    if (this.equipmentPreviewLine) this.equipmentPreviewLine.visible = false;
+  }
+
+  private commitEquipmentUse(id: string): void {
+    const def=equipmentById(id), now=performance.now();
+    this.equipmentCharges=Math.max(0,this.equipmentCharges-1);
+    this.equipmentLastAt=now;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"useEquipment"});
+      return;
+    }
+    const path=this.equipmentTrajectory(id);
+    if(def.type==="mine"){
+      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact)});
+      return;
+    }
+    this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
+      if(this.disposed || this.matchEnded)return;
+      const impact=path.impact;
+      const targets=[...this.combatants.values()].filter(c=>c.alive && c.id!==this.selfId &&
+        (this.opts.mode==="ffa" || c.team!==this.opts.team) &&
+        !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
+      if(def.type==="knife" || def.type==="poison" || def.type==="taser"){
+        let first:{c:Combatant;index:number}|null=null;
+        for(const c of targets){
+          const center=[c.pos[0],c.pos[1]+1,c.pos[2]];
+          for(let i=1;i<path.points.length;i++){
+            const a=path.points[i-1],b=path.points[i],v=b.map((n,j)=>n-a[j]);
+            const sq=v.reduce((sum,n)=>sum+n*n,0)||1;
+            const t=Math.max(0,Math.min(1,v.reduce((sum,n,j)=>sum+n*(center[j]-a[j]),0)/sq));
+            const d=Math.hypot(...center.map((n,j)=>n-a[j]-v[j]*t));
+            if(d<.82 && (!first || i+t<first.index)) first={c,index:i+t};
+          }
+        }
+        if(first){const hit:Combatant=first.c;
+          this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`);
+          if(def.type==="poison" && hit.alive)this.poisonByVictim.set(hit.id,{expiresAt:performance.now()+4500,tickAt:performance.now()+500,weaponId:`equipment_${id}`});
+          if(def.type==="taser" && hit.ai){hit.ai.nextDecisionAt=performance.now()+1700;hit.ai.targetId=null;}
+        }
+      } else {
+        if(def.type==="flash"){
+          const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
+          if(selfDist<def.radius){const eye: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
+            const delta: Vec3=[eye[0]-impact[0],eye[1]-impact[1],eye[2]-impact[2]];
+            const len=Math.hypot(...delta)||1;
+            if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))
+              this.equipmentFlashUntil=performance.now()+Math.round(1100+1800*(1-selfDist/def.radius));
+          }
+        }
+        for(const c of targets){
+          const dist=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
+          if(dist>def.radius)continue;
+          const delta:Vec3=[c.pos[0]-impact[0],c.pos[1]+1-impact[1],c.pos[2]-impact[2]];
+          const len=Math.hypot(...delta)||1;
+          if(closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))continue;
+          if(def.type==="blast")this.applyDamageLocal(c,Math.max(12,def.damage*(1-dist/def.radius)),false,`equipment_${id}`);
+          else if(def.type==="flash" && c.ai){c.ai.nextDecisionAt=performance.now()+2500;c.ai.targetId=null;}
+        }
+        if (def.type === "blast") this.spawnExplosion(new THREE.Vector3(...impact));
+        else if (def.type === "flash") this.spawnEquipmentVisual(impact, 0xffffff);
+      }
+    });
+  }
+
+  /** 3D mine: broad enough to read on the floor, flashing armed LED and raised fins. */
+  private makeMineMarker(pos: Vec3): THREE.Group {
+    const root = new THREE.Group();
+    root.position.set(pos[0], pos[1], pos[2]);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.12, 12),
+      new THREE.MeshStandardMaterial({color:0x282d30,metalness:0.65,roughness:0.35}));
+    root.add(body);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 8, 24),
+      new THREE.MeshBasicMaterial({color:0xf7a937}));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; root.add(ring);
+    for (let i=0;i<4;i++) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.13,0.09,0.27),
+        new THREE.MeshStandardMaterial({color:0x454b52}));
+      const a = i*Math.PI/2;
+      fin.position.set(Math.sin(a)*0.30,0.05,Math.cos(a)*0.30);
+      fin.rotation.y = a; root.add(fin);
+    }
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.095,10,8),
+      new THREE.MeshBasicMaterial({color:0xff492e, transparent:true, opacity:1}));
+    beacon.position.y = 0.18; root.add(beacon);
+    // pulse with engine time; no separate timers or render loops needed
+    beacon.userData.mineBeacon = true;
+    this.scene.add(root);
+    return root;
+  }
+
+  private removeMineMarker(marker: THREE.Group) {
+    this.scene.remove(marker);
+    marker.traverse(obj => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(m => m.dispose());
+      }
+    });
+  }
+
+  /** Render the *actual* flight path with distinct equipment silhouettes. */
+  private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void): void {
+    if(points.length<2){onImpact?.();return;}
+    const root=new THREE.Group();
+    const dark=new THREE.MeshStandardMaterial({color:0x303945,metalness:.55,roughness:.4});
+    const pale=new THREE.MeshStandardMaterial({color:0xe6e7de,metalness:.45});
+    const steel=new THREE.MeshStandardMaterial({color:0xb3c0c8,metalness:.6});
+    const add=(geo:THREE.BufferGeometry,mat:THREE.Material, y=0)=>{const m=new THREE.Mesh(geo,mat);m.position.y=y;root.add(m);};
+    if(id==="knives"){
+      add(new THREE.BoxGeometry(.065,.26,.052),dark,-.12);
+      add(new THREE.ConeGeometry(.05,.31,4),steel,.16);
+    }else if(id==="poison_dart"){
+      add(new THREE.CylinderGeometry(.012,.012,.35,8),steel);
+      add(new THREE.ConeGeometry(.04,.09,8),new THREE.MeshBasicMaterial({color:0x72ed5a}),.22);
+    }else if(id==="flashbang"){
+      add(new THREE.CylinderGeometry(.095,.095,.27,12),pale);
+      add(new THREE.CylinderGeometry(.1,.1,.025,12),dark,.14);
+    }else if(id==="taser"){
+      add(new THREE.BoxGeometry(.15,.10,.18),dark);
+    }else{
+      add(new THREE.SphereGeometry(.13,10,10),dark);
+    }
+    this.scene.add(root);
+    const born=performance.now();
+    const tick=()=>{
+      if(this.disposed){this.scene.remove(root);return;}
+      const t=Math.min(1,(performance.now()-born)/Math.max(1,durationMs));
+      const idx=t*(points.length-1),i=Math.min(points.length-2,Math.floor(idx)),f=idx-i;
+      const a=points[i],b=points[i+1];
+      root.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);
+      root.rotation.z=t*8;
+      if(t<1)requestAnimationFrame(tick);
+      else {
+        this.scene.remove(root);
+        root.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+        [dark,pale,steel].forEach(m=>m.dispose());
+        onImpact?.();
+      }
+    };
+    requestAnimationFrame(tick);
+  }
+
+  private spawnEquipmentVisual(pos: Vec3, color: number, burst = true) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(burst ? .26 : .13, 10, 8),
+      new THREE.MeshBasicMaterial({color,transparent:true,opacity:.85}));
+    mesh.position.set(pos[0],pos[1],pos[2]);
+    this.scene.add(mesh);
+    setTimeout(() => { this.scene.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); }, burst ? 500 : 1300);
+  }
+
+  private pulseMineBeacons(now: number): void {
+    const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now * 0.011));
+    for (const marker of [...this.offlineMines.map(m => m.mesh), ...this.remoteEquipmentMines.values()]) {
+      marker.traverse(obj => {
+        if (obj instanceof THREE.Mesh && obj.userData.mineBeacon && obj.material instanceof THREE.MeshBasicMaterial) {
+          obj.material.opacity = pulse;
+        }
+      });
+    }
+  }
+
+  private tickOfflineMines(now: number): void {
+    if (this.opts.online || !this.offlineMines.length || this.matchEnded) return;
+    this.offlineMines = this.offlineMines.filter(m => {
+      if (now > m.expiresAt) { this.removeMineMarker(m.mesh); return false; }
+      const enemy = [...this.combatants.values()].find(c => c.alive && (this.opts.mode === "ffa" || c.team !== this.opts.team) &&
+        !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()) &&
+        Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]) < 2.4);
+      if (!enemy) return true;
+      this.removeMineMarker(m.mesh);
+      this.spawnEquipmentVisual(m.pos,0xf59e0b);
+      for (const c of this.combatants.values()) {
+        if (!c.alive || this.opts.mode !== "ffa" && c.team === this.opts.team) continue;
+        const d = Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]);
+        if (d <= 3.3) this.applyDamageLocal(c,Math.max(15,100*(1-d/3.3)),false,"equipment_mine");
+      }
+      return false;
+    });
+  }
 
   // ---- Weapon swap (primary / secondary / melee) ----
   // Switches the active weapon slot. Plays a swap SFX + dip animation, refreshes
@@ -1865,6 +2433,7 @@ export class FPSEngine {
   // other players see the weapon change. Gun Game ignores this (weapon is
   // driven by progression).
   swapWeapon(slot: WeaponSlot) {
+    if (this.equipmentAction) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
     if (this.currentSlot === slot) return;
     if (!this.alive) return;
@@ -1899,7 +2468,8 @@ export class FPSEngine {
       this.ammoInMag = this.meleeAmmoInMag;
     }
     this.reloading = false;
-    this.swapAnimAt = performance.now();
+    this.swapAnimAt = performance.now() - (this.activePerkId === "quickdraw" ? 155 : 0);
+    this.swapReadyAt = performance.now() + (this.activePerkId === "quickdraw" ? 110 : 290);
     this.sound.play("swap", { volume: 0.6 });
     // Rebuild the viewmodel for the new weapon (different geometry/material).
     this.buildViewmodel();
@@ -1940,7 +2510,7 @@ export class FPSEngine {
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
-    const durationSec = Math.round((performance.now() - this.matchStartedAt) / 1000);
+    const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     // Treat a mid-match leave as a loss (the player didn't win by leaving).
     const won = false;
     return {
@@ -1959,7 +2529,7 @@ export class FPSEngine {
   // primary). Gun Game always uses the primary's attachments (progression
   // weapons ignore sidearm attachments).
   private getCurrentAttachments(): Record<AttachmentSlot, string | null> {
-    if (this.opts.mode === "gungame") return this.opts.loadout.attachments;
+    if (this.opts.mode === "gungame") return { sight: null, barrel: null, grip: null, magazine: null };
     if (this.currentSlot === "secondary" && this.opts.loadout.secondaryAttachments) {
       return {
         sight: this.opts.loadout.secondaryAttachments.sight ?? null,
@@ -1982,10 +2552,9 @@ export class FPSEngine {
   // Returns the weapon skin ID for the CURRENTLY active slot (primary/secondary/melee).
   // Skins are per-weapon (like attachments) — each slot has its own skin so
   // changing a skin on one weapon doesn't change it for the others. In Gun Game
-  // the weapon cycles through the progression list, so we always use the primary
-  // slot's skin (the player's loadout skin) for consistency.
+  // the weapon cycles through a clean progression and ignores Armory skins.
   private getCurrentSkinId(): string {
-    if (this.opts.mode === "gungame") return this.opts.loadout.weaponSkinId;
+    if (this.opts.mode === "gungame") return "default";
     if (this.currentSlot === "secondary") return this.opts.loadout.secondaryWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     if (this.currentSlot === "melee") return this.opts.loadout.meleeWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     return this.opts.loadout.weaponSkinId;
@@ -2012,7 +2581,7 @@ export class FPSEngine {
       const c: Combatant = {
         id, name: "Bot-" + (n + 1), team, isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-        weaponId: wid, weaponSkinId: "default", playerSkinId: ["default", "red", "blue", "green"][i % 4],
+        weaponId: wid, weaponSkinId: "default", playerSkinId: isGungame ? "default" : ["default", "red", "blue", "green"][i % 4],
         kills: 0, deaths: 0, score: 0,
         ai: this.makeBotAI(sp),
         gungameIndex: isGungame ? 0 : undefined,
@@ -2058,7 +2627,7 @@ export class FPSEngine {
       ammoInMag: 30,
       reloadingUntil: 0,
       strafeDir: Math.random() < 0.5 ? 1 : -1,
-      moveSpeed: 0.55 + Math.random() * 0.3,
+      moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
       wantsHighGround: Math.random() < 0.3,
       acquiredTargetAt: 0,
@@ -2217,38 +2786,35 @@ export class FPSEngine {
     root.add(headGroup);
 
     // ---- Arms ----
-    // Upper arm pivots at shoulder; lower arm pivots at elbow
+    // The glove is attached to the true end of a two-bone arm rather than a
+    // fixed chest-height pose. Each frame IK puts it on a weapon-specific grip.
     const makeArm = (side: 1 | -1) => {
       const upperArmPivot = new THREE.Group();
       upperArmPivot.position.set(side * 0.3, 1.4, 0);
-      const upperArm = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.35, 0.13), bodyMat);
-      upperArm.position.y = -0.18;
+      const upperArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.13, BOT_UPPER_ARM_LENGTH * 0.94, 0.13), bodyMat,
+      );
+      upperArm.position.y = -BOT_UPPER_ARM_LENGTH * 0.48;
       upperArm.castShadow = true;
       upperArmPivot.add(upperArm);
       const lowerArmPivot = new THREE.Group();
-      lowerArmPivot.position.set(0, -0.35, 0);
-      const lowerArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.32, 0.11), darkMat);
-      lowerArm.position.y = -0.16;
+      lowerArmPivot.position.set(0, -BOT_UPPER_ARM_LENGTH, 0);
+      const lowerArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.11, BOT_FOREARM_LENGTH * 0.94, 0.11), darkMat,
+      );
+      lowerArm.position.y = -BOT_FOREARM_LENGTH * 0.48;
       lowerArm.castShadow = true;
       lowerArmPivot.add(lowerArm);
+      const glove = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.115, 0.14), darkMat);
+      glove.position.y = -BOT_FOREARM_LENGTH;
+      glove.castShadow = true;
+      lowerArmPivot.add(glove);
       upperArmPivot.add(lowerArmPivot);
       root.add(upperArmPivot);
       return { upper: upperArmPivot, lower: lowerArmPivot };
     };
     const armL = makeArm(1);
     const armR = makeArm(-1);
-    // Pose arms forward to hold weapon. rotation.x = -PI/2 points the arm
-    // straight forward (+Z); the +0.35 offset tips the muzzle slightly DOWN so
-    // the hands end up at chest height (y ≈ 1.25) rather than above the
-    // shoulder — a natural "ready" stance for holding a rifle.
-    armL.upper.rotation.x = -Math.PI / 2 + 0.35;
-    armR.upper.rotation.x = -Math.PI / 2 + 0.35;
-    // Cant arms inward so the hands converge toward the weapon grip.
-    armL.upper.rotation.z = -0.22;
-    armR.upper.rotation.z = 0.22;
-    // Bend elbows inward + slightly down so the forearms angle toward the gun.
-    armL.lower.rotation.x = -0.55;
-    armR.lower.rotation.x = -0.55;
 
     // ---- Legs ----
     const makeLeg = (side: 1 | -1) => {
@@ -2275,28 +2841,30 @@ export class FPSEngine {
     const legL = makeLeg(1);
     const legR = makeLeg(-1);
 
-    // ---- Weapon stub held in hands (in front of chest, pointing FORWARD = +Z) ----
-    // IMPORTANT: the bot mesh uses `c.group.rotation.y = c.yaw` (NOT yaw + PI like
-    // the camera), so the bot's local +Z is its forward direction. The weapon
-    // barrel must therefore point toward +Z (forward), NOT -Z. The previous code
-    // had the barrel at z=-0.45 which made the gun point BACKWARD — sticking out
-    // of the bot's back. Fixed by flipping all Z values to positive.
-    //
-    // The shape varies per weapon category so bots visually carry the right
-    // weapon type (compact SMG, long sniper, big LMG, tiny pistol, etc.).
+    // ---- Third-person weapon (model faces character-forward +Z) ----
+    // The procedural weapon builder is camera-local (-Z forward). Its geometry,
+    // hand contacts and muzzle direction are all rotated by 180° about Y for
+    // soldiers, so rifles actually point ahead of the character.
     const weaponStub = new THREE.Group();
     const wcat = weaponById(c.weaponId).category;
     const wid = c.weaponId;
     if (wcat === "melee") {
-      // Melee: blade or shaft (no barrel). Short and forward (+Z).
-      if (wid === "hammer") {
+      // Melee blades are held upright in the right hand instead of pointing
+      // horizontally out of the model's stomach.
+      weaponStub.rotation.x = -Math.PI / 2.7;
+      if (wid === "hammer" || wid === "axe") {
         const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.4, 10), weaponMat);
         handle.rotation.x = Math.PI / 2;
         handle.position.set(0, 0, 0.15);
         weaponStub.add(handle);
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.09, 0.10), weaponMat);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(wid === "axe" ? 0.30 : 0.22, 0.10, 0.15), weaponMat);
         head.position.set(0, 0.02, 0.38);
         weaponStub.add(head);
+      } else if (wid === "baton") {
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.027,0.029,.54,10), weaponMat);
+        shaft.rotation.x = Math.PI/2;
+        shaft.position.z = .20;
+        weaponStub.add(shaft);
       } else if (wid === "machete") {
         const blade = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.05, 0.38), weaponMat);
         blade.position.set(0, 0, 0.22);
@@ -2320,83 +2888,40 @@ export class FPSEngine {
         handle.position.set(0, 0, 0.0);
         weaponStub.add(handle);
       }
-    } else if (wcat === "sidearm") {
-      if (wid === "launcher_rocket") {
-        // Rocket launcher: thick tube
-        const wBody = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.4), weaponMat);
-        wBody.position.set(0, 0, 0.1);
-        weaponStub.add(wBody);
-        const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.45, 14), weaponMat);
-        tube.rotation.x = Math.PI / 2;
-        tube.position.set(0, 0, 0.30);
-        weaponStub.add(tube);
-      } else {
-        // Pistol: tiny slide + short barrel
-        const wBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.20), weaponMat);
-        wBody.position.set(0, 0, 0.08);
-        weaponStub.add(wBody);
-        const wBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 10), weaponMat);
-        wBarrel.rotation.x = Math.PI / 2;
-        wBarrel.position.set(0, 0.02, 0.18);
-        weaponStub.add(wBarrel);
-        // Grip (small, angled down)
-        const wGrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.06), weaponMat);
-        wGrip.rotation.x = 0.25;
-        wGrip.position.set(0, -0.08, 0.02);
-        weaponStub.add(wGrip);
-      }
     } else {
-      // Rifles / LMG / shotgun / sniper / DMR: body + barrel (compact/long variants)
-      let bodyW = 0.08, bodyH = 0.1, bodyZ = 0.55, bodyOffsetZ = 0.1;
-      let barrelRad = 0.025, barrelLen = 0.45, barrelZ = 0.45;
-      if (wcat === "smg") {
-        bodyW = 0.07; bodyH = 0.09; bodyZ = 0.32; bodyOffsetZ = 0.05;
-        barrelRad = 0.02; barrelLen = 0.28; barrelZ = 0.30;
-      } else if (wcat === "shotgun") {
-        bodyW = 0.10; bodyH = 0.11; bodyZ = 0.50; bodyOffsetZ = 0.10;
-        barrelRad = 0.038; barrelLen = 0.55; barrelZ = 0.48;
-      } else if (wcat === "dmr") {
-        bodyW = 0.08; bodyH = 0.10; bodyZ = 0.55; bodyOffsetZ = 0.12;
-        barrelRad = 0.022; barrelLen = 0.55; barrelZ = 0.52;
-      } else if (wcat === "sniper") {
-        bodyW = 0.08; bodyH = 0.11; bodyZ = 0.62; bodyOffsetZ = 0.18;
-        barrelRad = 0.024; barrelLen = 0.72; barrelZ = 0.68;
-      } else if (wcat === "lmg") {
-        bodyW = 0.11; bodyH = 0.13; bodyZ = 0.55; bodyOffsetZ = 0.12;
-        barrelRad = 0.028; barrelLen = 0.45; barrelZ = 0.48;
-      }
-      const wBody = new THREE.Mesh(new THREE.BoxGeometry(bodyW, bodyH, bodyZ), weaponMat);
-      wBody.position.set(0, 0, bodyOffsetZ);
-      weaponStub.add(wBody);
-      const wBarrel = new THREE.Mesh(new THREE.CylinderGeometry(barrelRad, barrelRad, barrelLen, 10), weaponMat);
-      wBarrel.rotation.x = Math.PI / 2;
-      wBarrel.position.set(0, 0.02, barrelZ);
-      weaponStub.add(wBarrel);
-      // Magazine (small box under the body) for rifles/SMG/LMG/DMR/sniper.
-      // Shotguns get a shell-holder instead.
-      if (wcat === "lmg") {
-        const wMag = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.10), weaponMat);
-        wMag.position.set(0, -0.16, 0.08);
-        weaponStub.add(wMag);
-      } else if (wcat !== "shotgun") {
-        const wMag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.07), weaponMat);
-        wMag.position.set(0, -0.11, 0.05);
-        weaponStub.add(wMag);
-      } else {
-        // Shotgun: small shell-holder under barrel
-        const shells = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.10), weaponMat);
-        shells.position.set(0, -0.08, 0.18);
-        weaponStub.add(shells);
-      }
+      // Other players/bots carry the SAME distinctive weapon silhouettes as the
+      // local player. The first-person builder points toward camera -Z; rotate
+      // its output 180° so it points forward (+Z) in the humanoid's hands.
+      const visual = new THREE.Group();
+      visual.rotation.y = Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const weaponFurniture = new THREE.MeshStandardMaterial({
+        color: 0x28323b, roughness: 0.82, metalness: 0.18,
+      });
+      buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
+        mesh.position.set(x, y, z);
+        visual.add(mesh);
+      });
+      weaponStub.add(visual);
     }
-    // Round 19f: Position the weapon stub IN THE HANDS, not on the chest.
-    // The arms are pitched forward (-π/2 + 0.2 around X). The shoulder is at
-    // (±0.3, 1.4, 0) and the arm length is ~0.67. With the forward pitch, the
-    // hands converge at approximately y ≈ 1.27, z ≈ 0.60. The previous value
-    // (y=1.25, z=0.45) was too far back — the weapon appeared embedded in the
-    // chest instead of held by the hands. Now the grip origin matches the hand
-    // position so the weapon looks properly held.
-    weaponStub.position.set(0, 1.27, 0.58);
+    // Place the gun ahead of the chest rather than through it. The right-hand
+    // grip is near the trigger; the left hand reaches under the rear handguard.
+    // For pistols both hands form a compact two-handed grip, while melee uses
+    // a single weapon hand and a relaxed off-hand.
+    const weaponBase = new THREE.Vector3(-0.08, wcat === "melee" ? 1.29 : 1.30, 0.36);
+    weaponStub.position.copy(weaponBase);
+    let weaponHoldRight: THREE.Vector3;
+    let weaponHoldLeft: THREE.Vector3;
+    if (wcat === "melee") {
+      weaponHoldRight = new THREE.Vector3(-0.07, -0.01, 0.015);
+      weaponHoldLeft = new THREE.Vector3(0.38, -0.19, -0.28);
+    } else {
+      const contacts = weaponHoldPoints(wid);
+      const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
+        new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
+      weaponHoldRight = toBotHandSpace(contacts.trigger);
+      weaponHoldLeft = toBotHandSpace(contacts.support);
+    }
     root.add(weaponStub);
 
     // ---- Name sprite ----
@@ -2449,10 +2974,16 @@ export class FPSEngine {
     // protection is active. Initially hidden; toggled in updateCombatantMeshes.
     const shield = new THREE.Mesh(
       new THREE.SphereGeometry(1.1, 16, 12),
-      new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.2, side: THREE.BackSide, depthTest: false, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.2, side: THREE.BackSide, depthTest: true, depthWrite: false })
     );
     shield.position.y = 1.0;
     shield.renderOrder = 997;
+    // Bright ground ring makes spawn protection identifiable for both teams.
+    const shieldRing = new THREE.Mesh(new THREE.TorusGeometry(0.83, 0.055, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0x66f7ff, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }));
+    shieldRing.rotation.x = -Math.PI / 2;
+    shieldRing.position.y = -0.85;
+    shield.add(shieldRing);
     shield.visible = false;
     root.add(shield);
     c.shieldMesh = shield;
@@ -2468,7 +2999,7 @@ export class FPSEngine {
       lowerArmL: armL.lower, lowerArmR: armR.lower,
       upperLegL: legL.upper, upperLegR: legR.upper,
       lowerLegL: legL.lower, lowerLegR: legL.lower,
-      weaponStub, weaponMat, bodyMat,
+      weaponStub, weaponHoldRight, weaponHoldLeft, weaponBase, weaponMat, bodyMat,
     };
     c.walkPhase = 0;
   }
@@ -2589,7 +3120,7 @@ export class FPSEngine {
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = getMap(msg.mapId);
+          this.map = makeEnvironmentMap(getMap(msg.mapId));
           // Rebuild arena visuals for the new map. We can't easily rebuild mid-scene
           // without removing old meshes; in practice the server uses the same map as
           // the client requested (findOpenRoom matches by mode only — fix that later).
@@ -2600,35 +3131,11 @@ export class FPSEngine {
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
-            // ---- HP regen fix (Round 18-a: "reaches 100 then snaps back" bug) ----
-            // The server does NOT run health regen — its health value is frozen
-            // at the last damage taken. The client runs local regen (in the
-            // update loop) for smooth display. The OLD sync logic used:
-            //   clientRegenerating = this.health > serverHealth && this.health < MAX_HEALTH
-            // When the client finished regenerating to 100, `this.health < MAX_HEALTH`
-            // became false → clientRegenerating = false → this.health was overwritten
-            // with the stale server value (e.g. 60). The player saw health reach 100
-            // then instantly snap back to the pre-regen value.
-            //
-            // NEW approach: track `lastServerHealth`. Only sync DOWN when the
-            // server health DROPPED since the last snapshot (= new damage the
-            // client missed). If the server health is the same or higher, the
-            // server value is stale (or a respawn) and the client's local
-            // regen should be preserved. Sync UP when server health > client
-            // (respawn or server-side heal).
-            const serverHealth = p.health;
-            const serverHealthDropped = serverHealth < this.lastServerHealth - 1; // >1hp drop = new damage
-            const serverHealthHigher = serverHealth > this.health + 1; // server healed/respawned
-            if (serverHealthDropped) {
-              // New damage from the server — sync down immediately.
-              this.health = serverHealth;
-            } else if (serverHealthHigher) {
-              // Server value is higher than client — respawn or server-side heal.
-              this.health = serverHealth;
-            }
-            // Else: server health is the same (stale) or lower-but-not-dropped
-            // (rounding). Don't overwrite the client's regenerating value.
-            this.lastServerHealth = serverHealth;
+            this.selfSpawnProtectedUntil = p.spawnProtectedUntil ?? 0;
+            // Server now regenerates health authoritatively every combat tick.
+            // Never let local predicted HP exceed the canonical value.
+            this.health = p.health;
+            this.lastServerHealth = p.health;
             // alive flag is always authoritative from the server.
             this.alive = p.alive;
             // Server is authoritative — sync from the snapshot. The instant
@@ -2649,8 +3156,24 @@ export class FPSEngine {
             c.weaponId = p.weaponId; c.weaponSkinId = p.weaponSkinId; c.playerSkinId = p.playerSkinId;
           }
         }
+        if (typeof msg.environmentTime === "number") {
+          // Snapshot clocks are authoritative; small drift is smoothed to avoid jitter.
+          const drift = msg.environmentTime - this.environmentTime;
+          this.environmentTime += Math.abs(drift) > 0.5 ? drift : drift * 0.2;
+        }
+        for (const [id, hp] of Object.entries(msg.environmentWalls ?? {})) {
+          if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
+        }
         this.teamScores = msg.teamScores;
-        this.timeLeft = msg.timeLeft;
+        // Draw authoritative ammo drops regardless of perk; only Scavenger can collect.
+        // This makes absent drops distinguishable from a perk-registration problem.
+        const drops = msg.scavengerDrops ?? [];
+        const received = new Set(drops.map(d => d.id));
+        for (const d of drops) this.spawnScavengerPickup(d.id, d.pos, d.expiresAt);
+        for (const id of [...this.scavengerPickups.keys()]) {
+          if (!received.has(id)) this.removeScavengerPickup(id);
+        }
+        this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.timeLeft;
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
@@ -2684,12 +3207,12 @@ export class FPSEngine {
           const serverGw = (msg as any).gungameWeapons as string[] | undefined;
           if (serverGw && serverGw.length > 0) {
             // Only adopt if our list differs (avoids resetting mid-match).
-            if (this.gungameWeapons.length === 0 || this.gungameWeapons[0] !== serverGw[0]) {
+            if (this.gungameWeapons.length !== serverGw.length || this.gungameWeapons.some((id, i) => id !== serverGw[i])) {
               this.gungameWeapons = serverGw;
               if (this.gungameIndex === 0 && this.weaponId !== serverGw[0]) {
                 this.weaponId = serverGw[0];
                 const w = weaponById(this.weaponId);
-                this.eff = computeEffectiveStats(w, this.opts.loadout.attachments);
+                this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
                 this.sightDef = sightDefForType(this.eff.sightType);
                 this.ammoInMag = this.eff.magSize;
               }
@@ -2735,7 +3258,9 @@ export class FPSEngine {
             this.recordPerWeaponKill(msg.weaponId, !!msg.headshot);
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
-            this.sound.play("kill", { volume: 0.7 });
+            this.sound.play("kill", { volume: 0.6 });
+            this.weaponAudio.playElimination(!!msg.headshot);
+            this.lastElimination = { at: performance.now(), victim: this.combatants.get(msg.victimId)?.name ?? "Enemy", headshot: !!msg.headshot };
             // Register the kill for killstreak callouts.
             this.registerPlayerKill();
           }
@@ -2778,7 +3303,9 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0;
-          this.ammoInMag = this.eff.magSize; this.reloading = false;
+          this.ammoInMag = this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
+          this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           // Round 20: Refill ALL weapon slots on respawn (not just the active one).
           this.primaryAmmoInMag = this.primaryEff.magSize;
           this.secondaryAmmoInMag = this.secondaryEff.magSize;
@@ -2786,8 +3313,90 @@ export class FPSEngine {
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
+      case "scavengerDrop":
+        this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
+        break;
+      case "scavengerRemove":
+        this.removeScavengerPickup(msg.id);
+        break;
+      case "scavengerCollected":
+        if (this.activePerkId === "scavenger") this.collectScavengerAmmo();
+        break;
+      case "boltDrop":
+        this.spawnBoltPickup(msg.id, msg.ownerId, msg.pos, msg.expiresAt);
+        break;
+      case "boltRemoved":
+        this.removeBoltPickup(msg.id);
+        break;
+      case "boltRecovered":
+        this.removeBoltPickup(msg.id);
+        if (msg.ownerId === this.selfId) this.recoverBolt();
+        break;
+      case "equipmentState":
+        this.equipmentCharges = msg.remaining;
+        break;
+      case "equipmentStatus":
+        if (msg.effect === "flash") this.equipmentFlashUntil = performance.now() + msg.durationMs;
+        else this.equipmentStunUntil = performance.now() + msg.durationMs;
+        break;
+      case "equipmentFx": {
+        if(msg.mineState==="placed" && msg.mineId){
+          const existing=this.remoteEquipmentMines.get(msg.mineId);
+          if(existing)this.removeMineMarker(existing);
+          this.remoteEquipmentMines.set(msg.mineId,this.makeMineMarker(msg.position));
+        } else if(msg.mineState==="triggered"){
+          if(msg.mineId){const old=this.remoteEquipmentMines.get(msg.mineId);
+            if(old)this.removeMineMarker(old);this.remoteEquipmentMines.delete(msg.mineId);}
+          this.spawnEquipmentVisual(msg.position,0xffb448);
+        } else if(msg.path?.length){
+          this.animateEquipmentPath(msg.path,msg.equipmentId,msg.flightMs??500,()=>{
+            if (msg.equipmentId === "frag") this.spawnExplosion(new THREE.Vector3(...msg.position));
+            else if (msg.equipmentId === "flashbang") this.spawnEquipmentVisual(msg.position,0xffffff);
+            else this.spawnEquipmentVisual(msg.position,0xffb448, false);
+          });
+        }
+        break;
+      }
+      case "equipmentMineRemoved": {
+        const old = this.remoteEquipmentMines.get(msg.mineId);
+        if (old) this.removeMineMarker(old);
+        this.remoteEquipmentMines.delete(msg.mineId);
+        break;
+      }
+      case "arcFx":
+        this.spawnArcBeam(msg.from, msg.to);
+        break;
+      case "radarPing":
+        // Server sends only pings audible to this client. Never infer from globally
+        // broadcast shotFx (which would allow long-range or suppressed detection).
+        // Server decides who may receive a ping. Use the receiver's local clock
+        // for duration so clock skew cannot make a valid ping vanish immediately.
+        this.radarPings.set(msg.attackerId, {
+          expiresAt: Math.max(this.radarPings.get(msg.attackerId)?.expiresAt ?? 0,
+            Date.now() + (msg.durationMs === 3200 ? 3200 : msg.durationMs === 2200 ? 2200 : radarDurationMs(this.activePerkId))),
+        });
+        break;
+      case "protectionEnded": {
+        const target = this.combatants.get(msg.playerId);
+        if (target) { target.spawnProtectedUntil = 0; if (target.shieldMesh) target.shieldMesh.visible = false; }
+        if (msg.playerId === this.selfId) this.selfSpawnProtectedUntil = 0;
+        break;
+      }
       case "shotFx":
         if (msg.attackerId !== this.selfId) {
+          // Every shotFx originates from a server-accepted shot. Use it as a
+          // redundant radar reveal source because some targeted radarPing
+          // packets may arrive before the combatant's snapshot or not arrive
+          // on particular deployments. Do not reveal outside hearing range.
+          const radarShooter = this.combatants.get(msg.attackerId);
+          if (radarShooter && radarShooter.alive && shouldRevealGunshot(
+            this.opts.mode, this.opts.team, radarShooter.team,
+            { x: this.pos.x, z: this.pos.z },
+            { x: msg.origin[0], z: msg.origin[2] }, !!msg.suppressed)) {
+            this.radarPings.set(msg.attackerId, {
+              expiresAt: radarExpiresAt(Date.now(), this.activePerkId),
+            });
+          }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
           if (msg.weaponId === "launcher_rocket") {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
@@ -2816,7 +3425,7 @@ export class FPSEngine {
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = getMap(msg.mapId);
+          this.map = makeEnvironmentMap(getMap(msg.mapId));
         }
         for (const p of msg.players) this.ensureCombatant(p);
         // Track lobby state from the server's response.
@@ -2852,7 +3461,7 @@ export class FPSEngine {
         if (msg.config) {
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
-          this.timeLeft = msg.config.timeLimit;
+          this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
         }
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
@@ -2881,7 +3490,7 @@ export class FPSEngine {
           this.gungameIndex = 0;
           this.weaponId = this.gungameWeapons[0];
           const w = weaponById(this.weaponId);
-          this.eff = computeEffectiveStats(w, this.opts.loadout.attachments);
+          this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
           this.ammoInMag = this.eff.magSize;
           // Round 20: Rebuild the viewmodel so it shows the correct first-tier
@@ -2907,8 +3516,9 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) {
           this.gungameIndex = msg.weaponIndex;
           this.weaponId = msg.weaponId;
+          if (weaponById(this.weaponId).category === "melee") { this.aiming = false; this.adsProgress = 0; }
           const w = weaponById(this.weaponId);
-          this.eff = computeEffectiveStats(w, this.opts.loadout.attachments);
+          this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
           this.ammoInMag = this.eff.magSize;
           this.reloading = false;
@@ -2981,6 +3591,28 @@ export class FPSEngine {
       this.combatants.set(p.id, c);
       if (!c.isSelf) this.addCombatantMesh(c);
     } else {
+      // Gun Game (and late joins): rebuild an opponent's third-person weapon
+      // if their authoritative weapon ID changes. Previously the stats changed
+      // but the model in their hands stayed visually the old category forever.
+      if (!c.isSelf && c.group && p.weaponId !== c.weaponId) {
+        this.scene.remove(c.group);
+        c.group.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            const mat = child.material;
+            if (Array.isArray(mat)) mat.forEach(m => m.dispose());
+            else mat.dispose();
+          } else if (child instanceof THREE.Sprite) {
+            const sm = child.material as THREE.SpriteMaterial;
+            sm.map?.dispose();
+            sm.dispose();
+          }
+        });
+        c.weaponId = p.weaponId;
+        c.group = undefined;
+        c.parts = undefined;
+        this.addCombatantMesh(c);
+      }
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
@@ -3043,8 +3675,8 @@ export class FPSEngine {
     const farPoints = points.filter((p) => p.score >= MIN_SPAWN_DIST);
     const chosen = (farPoints.length > 0 ? farPoints : points)[0].sp;
     // Snap Y to ground level at that XZ
-    const groundY = groundHeightAt(this.map.cover, chosen[0], chosen[2], 50, PLAYER_RADIUS);
-    return [chosen[0], groundY, chosen[2]];
+    const groundY = botGroundHeight(this.map.cover, chosen[0], chosen[2], chosen[1]);
+    return [chosen[0], Math.max(chosen[1], groundY), chosen[2]];
   }
 
   private respawnSelf() {
@@ -3054,6 +3686,8 @@ export class FPSEngine {
     this.health = MAX_HEALTH; this.alive = true;
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
     this.ammoInMag = this.eff.magSize; this.reloading = false;
+    this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
+    this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     // Round 19o: refill ALL slots on respawn (not just the active one).
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
@@ -3064,13 +3698,231 @@ export class FPSEngine {
     this.respawnAt = 0;
   }
 
+  private spawnScavengerPickup(id: string, pos: Vec3, expiresAt: number) {
+    if (this.scavengerPickups.has(id)) return;
+    const mesh = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.28, 0.43),
+      new THREE.MeshStandardMaterial({ color: 0x234b31, metalness: 0.4, roughness: 0.45, emissive: 0x083b20, emissiveIntensity: 0.35 }));
+    mesh.add(body);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.065, 0.11),
+      new THREE.MeshBasicMaterial({ color: 0x74ef85 }));
+    stripe.position.y = 0.15;
+    mesh.add(stripe);
+    mesh.position.set(...pos);
+    this.scene.add(mesh);
+    // High-contrast vertical beacon allows a small ammo pack to be found
+    // among bodies, floor clutter and cover from a normal FPS viewing height.
+    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.050, 1.45, 8),
+      new THREE.MeshBasicMaterial({ color: 0x63ff9c, transparent: true, opacity: 0.55, depthWrite: false }));
+    beacon.position.y = 0.80;
+    mesh.add(beacon);
+    const beaconCap = new THREE.Mesh(new THREE.OctahedronGeometry(0.20, 0),
+      new THREE.MeshBasicMaterial({ color: 0xb0ffd0 }));
+    beaconCap.position.y = 1.59;
+    mesh.add(beaconCap);
+    this.scavengerPickups.set(id, { pos, expiresAt, mesh, nextRequestAt: 0 });
+  }
+
+  private removeScavengerPickup(id: string) {
+    const item = this.scavengerPickups.get(id);
+    if (!item) return;
+    this.scene.remove(item.mesh);
+    item.mesh.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      obj.geometry.dispose();
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach(mat => mat.dispose());
+    });
+    this.scavengerPickups.delete(id);
+  }
+
+  private collectScavengerAmmo() {
+    this.saveAmmoToSlot(this.currentSlot); // reconcile shots spent since last weapon swap
+    // A cache always replenishes conventional primary and secondary magazines,
+    // including the one currently held. Heat/melee weapons have no ammo, but
+    // their holstered firearms still benefit. Ammo reserve is unlimited in
+    // this game; restore the actual magazine values used by weapon swapping.
+    const beforePrimary = this.primaryAmmoInMag;
+    const beforeSecondary = this.secondaryAmmoInMag;
+    if (this.primaryWeaponId && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
+        weaponById(this.primaryWeaponId).category !== "melee") {
+      this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
+        this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
+    }
+    if (this.secondaryWeaponId && weaponById(this.secondaryWeaponId).special?.kind !== "heat" &&
+        weaponById(this.secondaryWeaponId).category !== "melee") {
+      this.secondaryAmmoInMag = Math.min(this.secondaryEff.magSize,
+        this.secondaryAmmoInMag + scavengerAmmoAmount(this.secondaryEff.magSize));
+    }
+    if (this.currentSlot === "primary") this.ammoInMag = this.primaryAmmoInMag;
+    if (this.currentSlot === "secondary") this.ammoInMag = this.secondaryAmmoInMag;
+    this.scavengerAmmoGained = (this.primaryAmmoInMag - beforePrimary) +
+      (this.secondaryAmmoInMag - beforeSecondary);
+    this.scavengerFeedbackAt = performance.now();
+    this.sound.play("reload", { volume: 0.34 });
+  }
+
+  // ---- Special-weapon resources & ground pickups ----
+  private updateSpecialResources(dt: number, now: number) {
+    for (const [id, state] of this.heatStates) {
+      const special = weaponById(id).special;
+      if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
+    }
+    // Poison ticks only in offline simulation; online the server owns the status.
+    if (!this.opts.online && !this.matchEnded) {
+      for (const [id, poison] of this.poisonByVictim) {
+        const victim = this.combatants.get(id);
+        if (!victim?.alive || now >= poison.expiresAt) { this.poisonByVictim.delete(id); continue; }
+        if (now >= poison.tickAt) {
+          poison.tickAt = now + 500;
+          if (!victim.spawnProtectedUntil || victim.spawnProtectedUntil <= Date.now()) {
+            this.applyDamageLocal(victim, 2, false, poison.weaponId);
+          }
+        }
+      }
+    }
+    for (const [id, pack] of this.scavengerPickups) {
+      if (Date.now() >= pack.expiresAt) { this.removeScavengerPickup(id); continue; }
+      pack.mesh.rotation.y += dt * 1.5;
+      pack.mesh.position.y = pack.pos[1] + Math.sin(now * 0.003) * 0.09;
+      const nearEnough = canCollectScavengerDrop({
+        now: Date.now(), expiresAt: pack.expiresAt,
+        distance: Math.hypot(this.pos.x - pack.pos[0], this.pos.z - pack.pos[2]),
+        alive: this.alive, perkId: this.activePerkId,
+        mode: this.opts.mode, collectorTeam: this.opts.team,
+      });
+      if (nearEnough && this.opts.online) {
+        // Reliable pickup request; server checks its OWN position, alive state,
+        // perk and team before granting ammunition. Never trust client coordinates.
+        const timestamp = Date.now();
+        if (timestamp >= pack.nextRequestAt && this.socket?.connected) {
+          this.socket.emit("message", { t: "collectScavenger", id });
+          pack.nextRequestAt = timestamp + 450;
+        }
+      } else if (nearEnough && !this.opts.online) {
+        this.removeScavengerPickup(id);
+        this.collectScavengerAmmo();
+      }
+    }
+    for (const [id, flight] of this.boltFlights) {
+      const bolt = this.boltPickups.get(id);
+      if (!bolt) { this.boltFlights.delete(id); continue; }
+      const t = Math.min(1, (now - flight.born) / flight.duration);
+      bolt.mesh.position.lerpVectors(flight.start, flight.end, t);
+      if (t >= 1) this.boltFlights.delete(id);
+    }
+    for (const [id, bolt] of this.boltPickups) {
+      if (Date.now() >= bolt.expiresAt) { this.removeBoltPickup(id); continue; }
+      if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !this.touchMode) continue;
+      if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > 2.0) continue;
+      if (this.opts.online) {
+        if (now >= bolt.retryAt) {
+          bolt.retryAt = now + 600;
+          this.socket?.emit("message", { t: "recoverBolt", boltId: id });
+        }
+      } else {
+        this.removeBoltPickup(id);
+        this.recoverBolt();
+      }
+    }
+  }
+
+  private recoverBolt() {
+    const special = weaponById("crossbow_reclaimer").special;
+    if (special?.kind !== "bolt") return;
+    if (this.weaponId === "crossbow_reclaimer" && this.reloading) {
+      this.reloadEndsAt = Math.min(this.reloadEndsAt, performance.now() + special.quickReloadSeconds * 1000);
+    } else {
+      this.boltCharges = Math.min(3, this.boltCharges + 1);
+    }
+    this.sound.play("reload", { volume: 0.28 });
+  }
+
+  private spawnBoltPickup(id: string, ownerId: string, position: Vec3, expiresAt: number) {
+    if (this.boltPickups.has(id)) return;
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 0.75, 6),
+      new THREE.MeshStandardMaterial({ color: 0x86efac, emissive: 0x22c55e, emissiveIntensity: 0.5 }),
+    );
+    const startPos = ownerId === this.selfId
+      ? new THREE.Vector3(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z)
+      : (() => { const c = this.combatants.get(ownerId); return c
+          ? new THREE.Vector3(c.pos[0], c.pos[1] + EYE_HEIGHT, c.pos[2])
+          : new THREE.Vector3(position[0], Math.max(0.4, position[1]), position[2]); })();
+    const endPos = new THREE.Vector3(position[0], Math.max(0.4, position[1]), position[2]);
+    mesh.position.copy(startPos);
+    mesh.rotation.z = Math.PI / 2.8;
+    this.scene.add(mesh);
+    this.boltPickups.set(id, { mesh, ownerId, pos: position, expiresAt, retryAt: 0 });
+    const travelTime = Math.max(100, Math.min(900, startPos.distanceTo(endPos) / 75 * 1000));
+    this.boltFlights.set(id, { start: startPos, end: endPos, born: performance.now(), duration: travelTime });
+  }
+
+  private removeBoltPickup(id: string) {
+    const b = this.boltPickups.get(id);
+    if (!b) return;
+    this.scene.remove(b.mesh);
+    b.mesh.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach(m => m.dispose()); } });
+    this.boltPickups.delete(id);
+    this.boltFlights.delete(id);
+  }
+
+  private boltLanding(origin: Vec3, dir: Vec3): Vec3 {
+    let t = this.eff.range;
+    for (const cover of this.map.cover) {
+      const hit = rayBox(origin, dir, cover.pos, cover.size);
+      if (hit !== null && hit >= 0 && hit < t) t = hit;
+    }
+    for (const c of this.combatants.values()) {
+      if (!c.alive || (this.opts.mode === "tdm" && c.team === this.opts.team)) continue;
+      const hit = rayCombatantHit(origin, dir, c.pos);
+      if (hit && hit.t < t) t = hit.t;
+    }
+    const x = origin[0] + dir[0] * t, z = origin[2] + dir[2] * t;
+    // Embedded bolts fall to ground level so they can actually be reclaimed.
+    return [x, 0.4, z];
+  }
+
+  private spawnArcBeam(from: Vec3, to: Vec3) {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...from), new THREE.Vector3(...to)]),
+      new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.95 }),
+    );
+    this.scene.add(line);
+    this.tracers.push({ line, born: performance.now(), life: 190 });
+  }
+
+  private chainArcOffline(first: Combatant, originWeaponId: string) {
+    const special = weaponById(originWeaponId).special;
+    if (special?.kind !== "arc") return;
+    let from: ArcCandidate = { id: first.id, pos: first.pos, alive: true, team: first.team };
+    const visited = new Set([first.id]);
+    const candidates: ArcCandidate[] = [...this.combatants.values()]
+      .filter(c => this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== this.opts.team)
+      .map(c => ({ id: c.id, pos: c.pos, alive: c.alive, team: c.team, protected: !!c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now() }));
+    for (let jump = 1; jump <= special.jumps; jump++) {
+      const next = nextArcTarget(from, candidates, visited, special.radius, true, (a, b) => {
+        const o: Vec3 = [a.pos[0], a.pos[1] + 1.1, a.pos[2]];
+        const d: Vec3 = [b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2]];
+        const len = Math.hypot(...d) || 1;
+        return !this.map.cover.some(box => { const t = rayBox(o, [d[0] / len, d[1] / len, d[2] / len], box.pos, box.size); return t !== null && t >= 0 && t < len; });
+      });
+      if (!next) break;
+      visited.add(next.id);
+      this.spawnArcBeam([from.pos[0], from.pos[1] + 1.1, from.pos[2]], [next.pos[0], next.pos[1] + 1.1, next.pos[2]]);
+      const victim = this.combatants.get(next.id);
+      if (victim?.alive) this.applyDamageLocal(victim, this.eff.damage * Math.pow(special.decay, jump), false, originWeaponId);
+      from = next;
+    }
+  }
+
   // ---- Shooting ----
   // fireOneShot is called from the main loop's firing block (above). It handles
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
-    if (!this.alive || this.reloading || this.matchEnded) return;
+    if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
@@ -3080,18 +3932,29 @@ export class FPSEngine {
       this.tryMeleeAttack(w, now);
       return;
     }
-    if (this.ammoInMag <= 0) {
+    const special = w.special;
+    if (special?.kind === "heat") {
+      const state = this.heatStates.get(w.id) ?? freshHeat();
+      const next = addHeat(state, special, now);
+      if (!next) return; // locked by overheat; no bullets or energy consumed
+      this.heatStates.set(w.id, next);
+    }
+    if (special?.kind !== "heat" && this.ammoInMag <= 0) {
       this.sound.play("empty_click", { volume: 0.4 });
       this.startReload();
       return;
     }
     this.lastShotAt = now;
-    this.ammoInMag--;
+    this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
+    if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
     this.triggerMuzzleFlash();
-    this.applyRecoil();
-    this.sound.play(shotSfxForWeapon(this.weaponId), { volume: 0.7, throttleMs: 25 });
+    this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
+      weaponId: this.weaponId,
+      suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
+      volume: 0.9,
+    });
     // ---- Auto-reload when the mag hits 0 ----
     // As soon as the magazine is emptied by this shot, kick off a reload
     // automatically. The user shouldn't have to press R (or pull the trigger
@@ -3100,16 +3963,25 @@ export class FPSEngine {
     // for weapons that actually have a reload (melee/launcher have reloadTime 0
     // and are handled separately).
     const justEmptied = this.ammoInMag <= 0;
-    if (justEmptied && !this.reloading && this.eff.reloadTime > 0) {
+    if (special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
       this.startReload();
     }
 
     const origin: Vec3 = [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z];
     // Spread is amplified by the dynamic spread factor (movement/sprint/jump).
     const baseSpread = this.aiming ? this.eff.adsSpread : this.eff.spread;
-    const spread = baseSpread * (1 + this.currentSpread * 1.5);
+    // Reward settled ADS shots without removing intended hipfire/movement spread.
+    const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
+      && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
+    const spread = baseSpread * (1 + this.currentSpread * 1.5) * (steadyAds ? 0.5 : 1);
     const dir = this.aimDir(spread);
+    // Apply kick only after the outgoing direction is locked in. Otherwise a
+    // precision click launches above the crosshair before the view visibly moves.
+    this.applyRecoil();
     const pellets = w.stats.pellets ?? 1;
+    // Capture impact before damage can kill/remove a target. Reclaimed bolts
+    // should land where the shot hit, not travel through a newly-dead enemy.
+    const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
     const isRocket = this.weaponId === "launcher_rocket";
 
     if (isRocket) {
@@ -3123,15 +3995,31 @@ export class FPSEngine {
       }
       // Offline: damage is applied locally when the projectile arrives (below).
       this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, !this.opts.online);
+      if (!this.opts.online) {
+        const first = closestCoverHit(this.map.cover, origin, dir, this.eff.range, rayBox);
+        if (first?.box.environmentId && this.environmentWalls.has(first.box.environmentId)) {
+          // Do not hit a wall that is behind the first combatant impact.
+          const nearerEnemy = [...this.combatants.values()].some(c => {
+            if (!c.alive || (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team)) return false;
+            const hit = rayCombatantHit(origin, dir, c.pos);
+            return hit !== null && hit.t < first.distance;
+          });
+          if (!nearerEnemy) this.damageEnvironmentWall(first.box.environmentId, this.eff.damage);
+        }
+      }
     } else if (this.opts.online) {
       this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
       this.spawnTracer(origin, dir, this.getCurrentSkinId());
     } else {
       for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
-        this.localFireRay(origin, pdir, w.stats.headshotMult, false);
+        const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
+        if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
       }
-      this.spawnTracer(origin, dir, this.getCurrentSkinId());
+      if (special?.kind === "bolt") {
+        const id = `local_bolt_${++this.localBoltSequence}`;
+        this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
+      } else this.spawnTracer(origin, dir, this.getCurrentSkinId());
     }
   }
 
@@ -3146,8 +4034,10 @@ export class FPSEngine {
     const swingGap = 1000 / Math.max(1, this.eff.fireRate) * 0.9;
     if (now - this.lastShotAt < swingGap) return;
     this.lastShotAt = now;
+    this.selfSpawnProtectedUntil = 0;
     this.meleeSwingAt = now;
-    this.sound.play("melee_swing", { volume: 0.6 });
+    // Actual swing event, not button press (respects melee cooldown).
+    this.weaponAudio.play("melee", { weaponId: this.weaponId, volume: 0.85 });
 
     // Melee is a short-range frontal arc: hit the closest enemy within range
     // and within ±60° of the player's view direction.
@@ -3171,10 +4061,16 @@ export class FPSEngine {
       const dot = nx * fwd[0] + ny * fwd[1] + nz * fwd[2];
       if (dot < arcCos) continue;
       if (!nearest || dist < nearest.dist) {
-        // Headshot if the player is aiming roughly at the enemy's head (high pitch).
-        const head = (c.pos[1] + PLAYER_HEIGHT) - origin[1] > 0;  // simple heuristic
+        // Award melee headshots only when the actual forward aim ray crosses
+        // the head, not simply because the target's head is above eye height.
+        const head = rayCombatantHit(origin, fwd, c.pos)?.head ?? false;
         nearest = { c, dist, head };
       }
+    }
+    const wallHit = closestCoverHit(this.map.cover, origin, fwd, meleeRange, rayBox);
+    if (!this.opts.online && wallHit?.box.environmentId && this.environmentWalls.has(wallHit.box.environmentId) &&
+        (!nearest || wallHit.distance < nearest.dist)) {
+      this.damageEnvironmentWall(wallHit.box.environmentId, this.eff.damage);
     }
     // Cover blocking: if a wall is between player and the enemy, no hit.
     if (nearest) {
@@ -3205,7 +4101,7 @@ export class FPSEngine {
     // and the server validates the hit. The server treats melee as a 0-range shot.
     if (this.opts.online && this.socket?.connected) {
       const dir: Vec3 = [Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp];
-      this.socket.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.opts.loadout.weaponSkinId });
+      this.socket.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
     }
   }
 
@@ -3224,11 +4120,17 @@ export class FPSEngine {
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
-      const center: Vec3 = [c.pos[0], c.pos[1] + PLAYER_HEIGHT / 2, c.pos[2]];
-      const hit = rayCapsule(origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
-      if (hit && hit.t >= 0 && hit.t <= this.eff.range * 1.6) {
+      const hit = rayCombatantHit(origin, dir, c.pos);
+      if (hit && hit.t <= this.eff.range * 1.6) {
         if (!nearest || hit.t < nearest.t) nearest = { c, t: hit.t, head: hit.head };
       }
+    }
+    // First hit on destructible cover absorbs the bullet (even the fatal bullet).
+    const firstCover = closestCoverHit(this.map.cover, origin, dir, this.eff.range * 1.6, rayBox);
+    if (firstCover?.box.environmentId && this.environmentWalls.has(firstCover.box.environmentId) &&
+        (!nearest || nearest.t >= firstCover.distance)) {
+      this.damageEnvironmentWall(firstCover.box.environmentId, this.eff.damage);
+      return null;
     }
     // cover blocking
     let blockedT = Infinity;
@@ -3241,12 +4143,15 @@ export class FPSEngine {
       if (nearest.c.spawnProtectedUntil && nearest.c.spawnProtectedUntil > Date.now()) {
         // Show a "shield" hit marker but no damage.
         this.hitMarkerAt = performance.now();
-        return;
+        return null;
       }
       const baseDmg = this.eff.damage * (nearest.head ? headshotMult : 1);
       const dmg = this.damageAtRange(baseDmg, nearest.t, this.eff.range);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
+      if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
+        this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
+      }
       this.hitMarkerAt = performance.now();
       if (nearest.head) this.headshotMarkerAt = performance.now(); // Round 20g: headshot marker
       // Hit-marker / melee-hit SFX (throttled — auto weapons can hit many times per second).
@@ -3257,28 +4162,40 @@ export class FPSEngine {
         if (isMelee) this.sound.play("melee_hit", { volume: 0.7 });
         else this.sound.play("hit_marker", { volume: 0.5 });
       }
+      return nearest.c;
     }
+    return null;
   }
 
-  /** Synthesize a distant gunshot as heard by the local player when a bot or
-   *  another player fires. Volume scales inversely with distance (inaudible
-   *  at 80+ units). Suppressed weapons are muffled (low-pass @ 800Hz + -60% vol).
-   *  Called from the offline bot fire path AND the online `shotFx` S2C handler. */
+  // Launchers have their own signature even if catalogued as a sidearm.
+  private weaponSoundCategory(weaponId: string): WeaponSoundCategory {
+    if (weaponId === "launcher_rocket") return "launcher";
+    return weaponById(weaponId).category;
+  }
+
+  /** Plays weapon-identifiable enemy gunfire for both local bots and the
+   *  multiplayer shotFx event. Distance shapes loudness and high-frequency
+   *  loss; stereo pan indicates which side the shot came from. */
   private playEnemyFireSound(shooterPos: Vec3, weaponId: string, suppressed: boolean) {
-    // 3D distance (verticality matters on multi-level maps — a bot on a roof
-    // 5 units up should sound slightly further than one at the same xz).
     const dx = shooterPos[0] - this.pos.x;
     const dy = shooterPos[1] - this.pos.y;
     const dz = shooterPos[2] - this.pos.z;
-    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    // baseVol: matched to the local player's own-shot baseline (0.7) so an
-    // enemy firing point-blank sounds roughly as loud as the player's own gun.
-    // playDistantShot handles distance attenuation, suppressor muffling, and
-    // per-category throttling.
-    this.sound.playDistantShot(shotCategoryForWeapon(weaponId), distance, suppressed, 0.7);
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance >= 90) return;
+    // Player right vector projected onto XZ (yaw=0 looks toward +Z).
+    const horizontal = Math.hypot(dx, dz) || 1;
+    const pan = (dx * Math.cos(this.yaw) - dz * Math.sin(this.yaw)) / horizontal;
+    this.weaponAudio.play(this.weaponSoundCategory(weaponId), {
+      weaponId,
+      suppressed,
+      distance,
+      pan,
+      volume: 0.92,
+    });
   }
 
-  private applyDamageLocal(victim: Combatant, damage: number, head: boolean) {
+  private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId) {
+    if (!victim.alive || (victim.spawnProtectedUntil ?? 0) > Date.now()) return;
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       victim.alive = false;
@@ -3286,11 +4203,14 @@ export class FPSEngine {
       victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
+      // All enemies drop a visible ammo cache. Only Scavenger owners can collect.
+      this.spawnScavengerPickup(`offline_ammo_${victim.id}_${Date.now()}`,
+        [victim.pos[0], victim.pos[1] + 0.16, victim.pos[2]], Date.now() + SCAVENGER_DROP_LIFETIME_MS);
       // Attribute this kill to the weapon the local player was holding. Critical
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      this.recordPerWeaponKill(this.weaponId, head);
+      this.recordPerWeaponKill(sourceWeaponId, head);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       // Trigger the death animation (fall forward over ~900ms) before the
       // scheduleRespawn hides the mesh.
@@ -3298,14 +4218,16 @@ export class FPSEngine {
       victim.deathAnimDur = 800 + Math.random() * 250;
       // Kill confirmation SFX (slightly different pitch for headshots).
       if (head) this.sound.play("headshot", { volume: 0.8 });
-      this.sound.play("kill", { volume: 0.7 });
+      this.sound.play("kill", { volume: 0.6 });
+      this.weaponAudio.playElimination(head);
+      this.lastElimination = { at: performance.now(), victim: victim.name, headshot: head };
       this.sound.play("death", { volume: 0.5 });
       // Record the victim's difficulty for rewards scaling. Offline, all victims
       // are bots (no human opponents), so we read the bot's resolved difficulty.
       const diff: KillDifficulty = victim.ai?.difficulty ?? "normal";
       this.killDifficulties.push(diff);
       const entry: KillFeedEntry = {
-        killer: this.opts.playerName, victim: victim.name, weapon: this.weaponId, headshot: head,
+        killer: this.opts.playerName, victim: victim.name, weapon: sourceWeaponId, headshot: head,
         killerTeam: this.opts.team as string, victimTeam: victim.team, botDifficulty: diff,
       };
       this.killFeed.unshift(entry);
@@ -3328,32 +4250,7 @@ export class FPSEngine {
   // that category from the catalog. Avoids repeats within the match where
   // possible. Only ONE melee slot exists (the last tier).
   private resolveGungameWeaponsLocal(): string[] {
-    const used = new Set<string>();
-    const result: string[] = [];
-    for (let ti = 0; ti < GUN_GAME_TYPE_PROGRESSION.length; ti++) {
-      const type = GUN_GAME_TYPE_PROGRESSION[ti];
-      // Round 20: Exclude launcher_rocket from early sidearm tiers.
-      const isHeavySidearmTier = ti === 12;
-      const candidates = WEAPONS.filter((w) => {
-        if (w.category !== type) return false;
-        if (w.id === "launcher_rocket" && !isHeavySidearmTier) return false;
-        return true;
-      });
-      if (candidates.length === 0) {
-        result.push(GUN_GAME_PROGRESSION[result.length] ?? "pistol_side");
-        continue;
-      }
-      let pool = candidates.filter((w) => !used.has(w.id));
-      if (pool.length === 0) pool = candidates;
-      if (isHeavySidearmTier) {
-        const heavy = pool.filter((w) => w.id === "launcher_rocket" || w.id === "pistol_magnum");
-        if (heavy.length > 0) pool = heavy;
-      }
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      result.push(pick.id);
-      used.add(pick.id);
-    }
-    return result;
+    return buildGunGameWeapons(this.opts.gungamePreset, this.opts.gungameMultiplier);
   }
 
   // Advance the local player's Gun Game tier after a kill. Updates weaponId,
@@ -3362,11 +4259,12 @@ export class FPSEngine {
   // this kill wins the match.
   private advanceLocalGungameTier(): boolean {
     const last = this.gungameWeapons.length - 1;
-    if (this.gungameIndex >= last) return true;
+    if (canCompleteGunGame(this.gungameIndex, this.gungameWeapons, this.weaponId)) return true;
     this.gungameIndex = Math.min(last, this.gungameIndex + 1);
     this.weaponId = this.gungameWeapons[this.gungameIndex];
+    if (weaponById(this.weaponId).category === "melee") { this.aiming = false; this.adsProgress = 0; }
     const w = weaponById(this.weaponId);
-    this.eff = computeEffectiveStats(w, this.opts.loadout.attachments);
+    this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
     this.sightDef = sightDefForType(this.eff.sightType);
     this.ammoInMag = this.eff.magSize;
     this.reloading = false;
@@ -3382,9 +4280,10 @@ export class FPSEngine {
   private advanceCombatantGungameTier(c: Combatant): boolean {
     const last = this.gungameWeapons.length - 1;
     const idx = c.gungameIndex ?? 0;
-    if (idx >= last) return true;
+    if (canCompleteGunGame(idx, this.gungameWeapons, c.weaponId)) return true;
     c.gungameIndex = Math.min(last, idx + 1);
     c.weaponId = this.gungameWeapons[c.gungameIndex];
+    if (c.ai) { c.ai.ammoInMag = weaponById(c.weaponId).stats.magSize; c.ai.reloadingUntil = 0; }
     return false;
   }
 
@@ -3469,11 +4368,21 @@ export class FPSEngine {
     // here — the total kill count can exceed the progression length (due to
     // deaths/respawns or bot kills) without the player reaching the final tier.
     if (this.opts.mode === "gungame") return;
+    if (this.scoreLimit <= 0) return; // 0 means no score limit
     if (this.opts.mode === "ffa") {
       if (this.kills >= this.scoreLimit) this.finalizeMatchLocal();
     } else {
       if (this.teamScores.red >= this.scoreLimit || this.teamScores.blue >= this.scoreLimit) this.finalizeMatchLocal();
     }
+  }
+
+  // Keep the arena onscreen briefly after the decisive kill, even in FFA.
+  private deliverMatchEnd(result: MatchEndResult) {
+    this.matchFinishingLabel = result.won ? "VICTORY" : "MATCH COMPLETE";
+    this.emitHud(performance.now());
+    setTimeout(() => {
+      if (!this.disposed) this.opts.onMatchEnd(result);
+    }, 2500);
   }
 
   private finalizeMatchLocal() {
@@ -3501,11 +4410,12 @@ export class FPSEngine {
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const won = isSurvival ? false
       : isFfaStyle ? (standings[0]?.id === this.selfId)
-      : (this.teamScores[this.opts.team as "red" | "blue"] >= this.scoreLimit);
+      : (this.teamScores[this.opts.team as "red" | "blue"] >
+         this.teamScores[this.opts.team === "red" ? "blue" : "red"]);
     // End-of-match SFX: victory fanfare or defeat tone.
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
-    const durationSec = Math.round((performance.now() - this.matchStartedAt) / 1000);
-    this.opts.onMatchEnd({
+    const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
+    this.deliverMatchEnd({
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : this.kills, mode: this.opts.mode, standings,
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
@@ -3540,8 +4450,8 @@ export class FPSEngine {
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
-    const durationSec = Math.round((performance.now() - this.matchStartedAt) / 1000);
-    this.opts.onMatchEnd({
+    const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
+    this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
       score: me?.score ?? (isSurvival ? this.survivalWave : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
@@ -3552,15 +4462,17 @@ export class FPSEngine {
   }
 
   private applyRecoil() {
-    const kick = this.eff.recoil * 0.006 * (this.aiming ? 0.5 : 1);
+    const kick = this.eff.recoil * 0.006 * (this.aiming ? 0.5 : 1) * recoilMultiplier(this.activePerkId);
     this.pitch += kick + (Math.random() - 0.5) * kick * 0.5;
     this.yaw += (Math.random() - 0.5) * kick * 0.6;
     // Kick the viewmodel back + up; decays each frame in the update loop.
-    this.vmRecoilZ = Math.min(0.08, this.vmRecoilZ + 0.04);
-    this.vmRecoilPitch = Math.min(0.12, this.vmRecoilPitch + 0.05);
+    this.vmRecoilZ = Math.min(0.08, this.vmRecoilZ + 0.04 * recoilMultiplier(this.activePerkId));
+    this.vmRecoilPitch = Math.min(0.12, this.vmRecoilPitch + 0.05 * recoilMultiplier(this.activePerkId));
   }
 
   private triggerMuzzleFlash() {
+    // A mechanical crossbow does not emit a firearm-style muzzle flash.
+    if (this.weaponId === "crossbow_reclaimer") return;
     (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = 1;
     this.muzzleFlash.scale.setScalar(1 + Math.random() * 0.6);
     this.muzzleFlash.rotation.z = Math.random() * Math.PI;
@@ -3678,15 +4590,37 @@ export class FPSEngine {
     this.scene.add(light);
     this.explosions.push({ mesh: sphere, light, born: performance.now(), life: 500 });
     // Explosion SFX.
-    this.sound.play("reload", { volume: 0.7 }); // reuse a bass-ish sound; dedicated explosion sfx would be better
+    this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
   }
 
   private startReload() {
+    if (this.equipmentAction) return;
+    const special = weaponById(this.weaponId).special;
+    if (special?.kind === "heat") {
+      const heat = this.heatStates.get(this.weaponId)?.heat ?? 0;
+      if (this.reloading || !this.alive || heat <= 0) return;
+      if (this.sprinting && this.activePerkId !== "field_loader") return;
+      this.reloading = true;
+      this.reloadStartedAt = performance.now();
+      this.reloadDurationMs = special.ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
+      this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
+      this.sound.play("reload", { volume: 0.55 });
+      this.socket?.emit("message", { t: "reload" });
+      return;
+    }
     if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive) return;
+    if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
-    this.reloadEndsAt = performance.now() + this.eff.reloadTime * 1000;
+    let duration = this.eff.reloadTime;
+    if (special?.kind === "bolt" && this.boltCharges > 0) {
+      this.boltCharges--;
+      duration = special.quickReloadSeconds;
+    }
+    this.reloadStartedAt = performance.now();
+    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId);
+    this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
     this.sound.play("reload", { volume: 0.55 });
     this.socket?.emit("message", { t: "reload" });
   }
@@ -3695,7 +4629,8 @@ export class FPSEngine {
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, this.clock.getDelta());
+    this.timer.update();
+    const dt = Math.min(0.05, this.timer.getDelta());
     this.update(dt);
     this.renderer.render(this.scene, this.camera);
   };
@@ -3743,6 +4678,10 @@ export class FPSEngine {
       if (this.preMatchCountdown <= 0) {
         this.preMatchCountdown = 0;
         this.matchStartedAt = performance.now();
+        if (!this.opts.online) {
+          this.selfSpawnProtectedUntil = Date.now() + 2500;
+          for (const c of this.combatants.values()) if (c.alive) c.spawnProtectedUntil = Date.now() + 2500;
+        }
         this.sound.play("match_start", { volume: 0.8 });
       }
       return;
@@ -3752,11 +4691,16 @@ export class FPSEngine {
       // timeLeft = 0 means "no limit" — the match runs until the kill target
       // is reached. Previously, a 0 timeLimit caused the match to end instantly
       // because `0 - dt <= 0` was always true.
-      if (this.timeLeft > 0) {
+      if (this.timeLeft > 0 && this.opts.mode !== "gungame") {
         this.timeLeft -= dt;
         if (this.timeLeft <= 0) { this.timeLeft = 0; this.finalizeMatchLocal(); }
       }
     }
+    if (!this.matchEnded) {
+      this.tickOfflineMines(performance.now());
+      this.pulseMineBeacons(performance.now());
+    }
+    if (!this.matchEnded) this.updateEnvironment(dt);
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
     // at the death position and suppress movement, firing, and viewmodel
@@ -3769,6 +4713,9 @@ export class FPSEngine {
       this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
       // Hide the viewmodel — dead players don't hold a gun up.
       for (const p of this.vmParts) p.obj.visible = false;
+      if (this.fpActionHand) this.fpActionHand.visible = false;
+      if (this.fpActionProp) this.fpActionProp.visible = false;
+      this.equipmentAction = null;
       // Clear all active tracers + rocket projectiles so the death screen isn't
       // cluttered with lingering bullet lines (which previously stayed visible
       // for their full life and obscured the death camera).
@@ -3812,14 +4759,21 @@ export class FPSEngine {
     }
     // Health regen: recover HP after a few seconds out of combat. This prevents the
     // "one bad engagement = dead" feel and lets players reset between fights.
-    if (this.alive && this.health < MAX_HEALTH && !this.matchEnded) {
+    if (!this.opts.online && this.alive && this.health < MAX_HEALTH && !this.matchEnded) {
       const since = performance.now() - this.lastDamageAt;
-      if (since > FPSEngine.REGEN_DELAY) {
+      if (since > regenDelayMs(this.activePerkId)) {
         this.health = Math.min(MAX_HEALTH, this.health + FPSEngine.REGEN_RATE * dt);
       }
     }
+    // A fatal hit interrupts any uncommitted deploy without consuming charges.
+    if (!this.alive) this.equipmentAction = null;
+    this.updateEquipmentAction(performance.now());
+    this.updateEquipmentPreview();
+    this.updateSpecialResources(dt, performance.now());
     if (this.reloading && performance.now() >= this.reloadEndsAt) {
-      this.reloading = false; this.ammoInMag = this.eff.magSize;
+      this.reloading = false;
+      if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
+      else this.ammoInMag = this.eff.magSize;
       // Round 19o: Save the refilled ammo to the current slot so swapping
       // away and back preserves the full mag (and doesn't reset it).
       this.saveAmmoToSlot(this.currentSlot);
@@ -3827,11 +4781,14 @@ export class FPSEngine {
     const wantFire = (this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring);
     const inputActive = this.pointerLocked || this.touchMode;
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
-    this.aiming = this.manualAiming || (this.autoAdsOnFire && wantFire && this.alive);
-    if (wantFire) {
+    const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
+    const wantsAds = this.manualAiming || (this.autoAdsOnFire && wantFire && this.alive);
+    // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
+    this.aiming = !this.equipmentAction && !this.reloading && wantsAds && (!this.sprinting || allowSprintAds);
+    if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
-      // ---- Burst-fire in progress: continue the burst regardless of trigger state ----
+      // ---- Burst-fire in progress: continue the burst even after trigger release ----
       if (this.burstShotsLeft > 0 && now >= this.burstNextAt && this.ammoInMag > 0) {
         this.fireOneShot(w);
         this.burstShotsLeft -= 1;
@@ -3878,6 +4835,7 @@ export class FPSEngine {
       this.touchPressedThisFrame = false;
     }
     if (this.alive && inputActive) this.updateMovement(dt);
+    this.interactEnvironment();
 
     // ADS smoothing
     const targetAds = this.aiming ? 1 : 0;
@@ -4015,7 +4973,7 @@ export class FPSEngine {
     if (this.opts.online && this.socket?.connected && this.alive) {
       this.socket.emit("message", {
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
-        aiming: this.aiming, firing: this.mouseDown, reloading: this.reloading, alive: this.alive,
+        aiming: this.aiming, firing: this.mouseDown, reloading: this.reloading, alive: this.alive, sprinting: this.sprinting,
       });
     }
 
@@ -4113,31 +5071,11 @@ export class FPSEngine {
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
           (c.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x33dd66 : pct > 0.25 ? 0xffaa33 : 0xff3333);
         }
-        // Occlusion cull — hide combatants behind cover boxes.
-        if (c.id !== this.selfId && c.group.visible) {
-          const camX = this.camera.position.x;
-          const camY = this.camera.position.y;
-          const camZ = this.camera.position.z;
-          const chestY = c.pos[1] + PLAYER_HEIGHT / 2;
-          const dx = c.pos[0] - camX;
-          const dy = chestY - camY;
-          const dz = c.pos[2] - camZ;
-          const distToC = Math.hypot(dx, dy, dz);
-          if (distToC > 0.001) {
-            const inv = 1 / distToC;
-            const origin: Vec3 = [camX, camY, camZ];
-            const dir: Vec3 = [dx * inv, dy * inv, dz * inv];
-            for (const cov of this.map.cover) {
-              const t = rayBox(origin, dir, cov.pos, cov.size);
-              if (t !== null && t < distToC) {
-                c.group.visible = false;
-                if (c.nameSprite) c.nameSprite.visible = false;
-                if (c.healthBar) c.healthBar.visible = false;
-                break;
-              }
-            }
-          }
-        }
+        // Three.js depth testing already occludes the actual hidden pixels.
+        // Never hide the WHOLE humanoid because a single chest ray touches cover:
+        // a visible head/leg should stay visible while peeking around a wall.
+        // The old ray-to-chest check made bots seem to vanish inside walls.
+
       }
       // ---- Friendly marker (TDM): show a floating green diamond above teammates.
       // Always visible (even through walls) so the player can locate their team.
@@ -4160,7 +5098,7 @@ export class FPSEngine {
         c.shieldMesh.visible = !!isProtected;
         if (isProtected) {
           // Pulse the opacity + scale for a "shield" effect.
-          const pulse = 0.15 + Math.sin(now * 0.008) * 0.08;
+          const pulse = 0.30 + Math.sin(now * 0.008) * 0.07;
           (c.shieldMesh.material as THREE.MeshBasicMaterial).opacity = pulse;
           const s = 1 + Math.sin(now * 0.006) * 0.05;
           c.shieldMesh.scale.setScalar(s);
@@ -4194,19 +5132,22 @@ export class FPSEngine {
     // Knee bends slightly when leg swings forward
     p.lowerLegL.rotation.x = Math.max(0, -swing * 0.6);
     p.lowerLegR.rotation.x = Math.max(0, -swing2 * 0.6);
-    // Arms: counter-swing legs (subtle), plus weapon-hold pose
-    p.upperArmL.rotation.x = -Math.PI / 2 + 0.2 + swing2 * 0.15;
-    p.upperArmR.rotation.x = -Math.PI / 2 + 0.2 + swing * 0.15;
-    // Weapon recoil: kick back briefly after firing. Now that the weapon stub
-    // points FORWARD (+Z = forward in bot-local space — see addCombatantMesh),
-    // recoil pushes the weapon BACK toward the bot's chest (−Z) and kicks the
-    // muzzle UP (negative rotation.x rotates the +Z barrel axis toward +Y).
+    // Gun recoil is applied to the weapon first. Then solve BOTH arms against
+    // the transformed grips so hands stay attached while firing and aiming.
     const recoilAge = c.lastFireRecoil ? now - c.lastFireRecoil : 9999;
     const recoil = recoilAge < 100 ? (1 - recoilAge / 100) * 0.15 : 0;
-    // Keep the base z=0.58 (set in addCombatantMesh) so the gun sits in the
-    // hands, NOT in the chest. The recoil kick pushes the gun back slightly.
-    p.weaponStub.position.z = 0.58 - recoil * 0.5;
-    p.weaponStub.rotation.x = -recoil * 0.3;
+    p.weaponStub.position.copy(p.weaponBase);
+    p.weaponStub.position.z -= recoil * 0.5;
+    p.weaponStub.position.y += Math.sin(c.walkPhase ?? 0) * 0.006;
+    // Third-person aim pitch is the same sign as the existing head pitch.
+    p.weaponStub.rotation.x = c.pitch * 0.35 - recoil * 0.3;
+
+    const rightGrip = p.weaponHoldRight.clone()
+      .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
+    const leftGrip = p.weaponHoldLeft.clone()
+      .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
+    poseBotArm(p.upperArmR, p.lowerArmR, rightGrip, -1);
+    poseBotArm(p.upperArmL, p.lowerArmL, leftGrip, 1);
     // Head tracks pitch (look up/down with aim)
     p.head.rotation.x = c.pitch * 0.7;
     // Torso also slightly pitches
@@ -4214,6 +5155,7 @@ export class FPSEngine {
   }
 
   private updateMovement(dt: number) {
+    if (performance.now() < this.equipmentStunUntil) return;
     // ---- Movement speed model ----
     // Base walk speed: 7.5 u/s (was 6 — feels more responsive / arcade-y).
     // ADS halves speed. Sprint adds +60% (only when moving forward).
@@ -4259,14 +5201,19 @@ export class FPSEngine {
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
-    this.sprinting = isSprintKey && movingForward && !this.aiming && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
+    const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
+    this.sprinting = isSprintKey && movingForward && (!this.aiming || sprintAdsPerk) && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
+    if (this.sprinting && this.reloading && this.activePerkId !== "field_loader") {
+      this.reloading = false; // interrupted; keep partial mag
+    }
+    if (this.sprinting && !sprintAdsPerk) this.aiming = false;
     if (this.sprinting && !wasSprinting) {
       // Just started sprinting — play a subtle ADS-out SFX for feedback.
       this.sound.play("ads_out", { volume: 0.3 });
     }
     // ---- Stamina drain / regen ----
     if (this.sprinting) {
-      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * dt);
+      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) * dt);
       this.lastSprintAt = performance.now();
       if (this.stamina <= 0) {
         // Exhausted — force-stop the sprint (will resume only after regen above threshold).
@@ -4280,12 +5227,14 @@ export class FPSEngine {
     }
     // Speed multipliers.
     let speedMul = 1.0;
-    if (this.aiming) speedMul = 0.5;
-    else if (this.sprinting) speedMul = 1.85;  // was 1.6 — higher sprint speed for better map traversal
+    if (this.sprinting && this.aiming) speedMul = MOVEMENT.sprintAdsMultiplier;
+    else if (this.aiming) speedMul = 0.55;
+    else if (this.sprinting) speedMul = MOVEMENT.sprintMultiplier;  // was 1.6 — higher sprint speed for better map traversal
     // Air control: reduce horizontal acceleration when airborne so jumps feel
     // committed but still steerable (arcade feel — not floaty, not locked).
     const airControl = this.onGround ? 1.0 : 0.55;
-    const baseSpeed = 7.5 * this.eff.moveSpeed * speedMul;
+    if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul;
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
       const stepInterval = this.sprinting ? 260 : 360;
@@ -4302,18 +5251,18 @@ export class FPSEngine {
     // Jump: stronger jump (7.5 up) + small forward boost when sprinting (arcade hop).
     const wantJump = (this.keys["Space"] || (this.touchMode && this.touchJumpQueued)) && this.onGround;
     if (wantJump) {
-      this.vel.y = 7.6;  // was 6 — higher jump for better platforming
+      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);  // was 6 — higher jump for better platforming
       this.onGround = false;
       // Tiny forward sprint-hop boost for that arcade momentum feel.
       if (this.sprinting) {
-        this.vel.x += fwd.x * 1.5;
-        this.vel.z += fwd.z * 1.5;
+        this.vel.x += fwd.x * MOVEMENT.sprintJumpBoost;
+        this.vel.z += fwd.z * MOVEMENT.sprintJumpBoost;
       }
       this.sound.play("footstep", { volume: 0.4 });
     }
     this.touchJumpQueued = false;
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= 22 * dt;
+    this.vel.y -= MOVEMENT.gravity * dt;
 
     const next = this.pos.clone();
     next.x += this.vel.x * dt;
@@ -4380,9 +5329,11 @@ export class FPSEngine {
   private updateBotAI(c: Combatant, dt: number, now: number) {
     const ai = c.ai!;
     const w = weaponById(c.weaponId);
-    const eff = computeEffectiveStats(w, ai.attachments);
+    const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
+    // Fix any pre-existing penetration before movement, including bad legacy spawns.
+    c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     if (now > ai.nextDecisionAt) {
-      ai.nextDecisionAt = now + 400 + Math.random() * 600;
+      ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
       const enemy = this.nearestEnemy(c);
       const prevTarget = ai.targetId;
       ai.targetId = enemy ? enemy.id : null;
@@ -4390,9 +5341,9 @@ export class FPSEngine {
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
-      if (!enemy) {
-        const list = c.team === "red" ? this.map.spawns.red : c.team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
-        ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+      if (!enemy && Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5) {
+        ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
+          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
@@ -4410,13 +5361,13 @@ export class FPSEngine {
       const dist = Math.hypot(dx, dz);
       // ---- Aim tracking: turn toward target, but with skill-scaled lag + drift ----
       // Lower-skill bots turn more slowly and overshoot more. Higher-skill bots snap closer.
-      const turnLerp = 0.08 + ai.skill * 0.18;  // 0.08..0.26
+      const turnLerp = botTurnLerp(ai.difficulty, ai.skill);
       const desiredYaw = Math.atan2(dx, dz);
       // Aim error: a slow-varying random offset (every ~500ms pick a new offset).
       // Magnitude scales inversely with skill — bad bots wobble more.
       if (now > ai.nextAimErrorAt) {
         ai.nextAimErrorAt = now + 350 + Math.random() * 400;
-        const errMag = (1 - ai.skill) * 0.18 + 0.02;  // 0.02 (perfect) .. 0.20 (terrible)
+        const errMag = ((1 - ai.skill) * 0.18 + 0.02) * botAimDriftMultiplier(ai.difficulty);
         ai.aimErrorYaw = (Math.random() - 0.5) * errMag * 2;
         ai.aimErrorPitch = (Math.random() - 0.5) * errMag * 2;
       }
@@ -4432,13 +5383,26 @@ export class FPSEngine {
         ai.sprayDriftPitch *= 0.92;
       }
 
-      const speed = ai.moveSpeed * 6 * eff.moveSpeed;
+      ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
+      const speed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed;
       const ideal = 14;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
       if (dist > ideal + 3) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
       else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
+      // Obstacle-aware chase navigation around the dense Bunker centre.
+      if(dist>ideal+3 && (this.opts.mapId==="bunker" ||
+          this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
+        if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size);
+          ai.nextRouteAt=now+850;
+        }
+        const waypoint=ai.routeWaypoint;
+        if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],len=Math.hypot(wx,wz);
+          if(len>.25){mvx=wx/len*speed*dt;mvz=wz/len*speed*dt;}else ai.nextRouteAt=0;
+        }
+      }
       // Substep the movement so bots can't tunnel through thin walls at high
       // speed. Each substep is at most 0.15 units (Task 16-a — tightened from
       // 0.20 so the upcoming thin cover boxes in Task 16-b with half-extent
@@ -4482,17 +5446,9 @@ export class FPSEngine {
       // cover push-out and BEFORE the ground snap so the snap uses the
       // separated XZ position.
       this.separateBots(c, c.pos[1]);
-      // Vertical: snap bot to ground height at their new XZ (so they walk up stairs naturally).
-      // NOTE: pass feetY directly (NOT +1) — the +1 gave bots ~1.6 units of vertical "reach",
-      // letting them climb 1.5-high walls and appear to phase through solid objects.
-      // With feetY as-is, the step threshold (1.3) is the only reach, which matches the player.
-      const gh = groundHeightAt(this.map.cover, c.pos[0], c.pos[2], c.pos[1], PLAYER_RADIUS);
-      c.pos[1] += (gh - c.pos[1]) * Math.min(1, dt * 8);
-      c.pos = this.clamp(c.pos);
-
       // ---- Reaction delay: skill-scaled ----
       // Easy bots take 500-900ms; veteran bots take 120-250ms. Gives the player a window.
-      const REACTION_MS = (1 - ai.skill) * 650 + 120 + Math.random() * 130;
+      const REACTION_MS = botReactionDelay(ai.difficulty);
       const reacted = now - ai.acquiredTargetAt >= REACTION_MS;
 
       // ---- Burst fire for auto weapons ----
@@ -4517,7 +5473,7 @@ export class FPSEngine {
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
 
-      if (reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
+      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
@@ -4532,6 +5488,9 @@ export class FPSEngine {
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         ai.ammoInMag--;
+        c.spawnProtectedUntil = 0; // attacking cancels bot spawn protection
+        if (c.shieldMesh) c.shieldMesh.visible = false;
+        this.recordRadarShot(c.id, c.pos, c.team, ai.attachments.barrel === "barrel_suppressor");
         // Enemy fire sound: distance-attenuated + muffled if suppressed.
         // Bots in offline mode have null barrel attachments (no suppressors),
         // but the check is wired correctly so a future loadout pass would Just Work.
@@ -4567,12 +5526,13 @@ export class FPSEngine {
       const enemyVisible = dist < 35;
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
       const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
-      if ((ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+      if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         ai.reloadingUntil = now + eff.reloadTime * 1000; ai.ammoInMag = eff.magSize;
         ai.burstShotsLeft = 0;
         ai.burstEndsAt = now + eff.reloadTime * 1000;
       }
     } else {
+      ai.sprinting = false;
       const dx = ai.wanderTarget[0] - c.pos[0], dz = ai.wanderTarget[2] - c.pos[2];
       const d = Math.hypot(dx, dz);
       if (d > 1.5) {
@@ -4582,15 +5542,32 @@ export class FPSEngine {
         // instead of headbutting it. The yaw is set to the rotated direction
         // so the bot faces where it's going.
         let fx = dx / d, fz = dz / d;
+        const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
+        if(patrolBlocked || this.opts.mapId === "bunker") {
+          if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size);
+            ai.nextRouteAt=now+850;
+          }
+          const waypoint=ai.routeWaypoint;
+          if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
+            if(wd>.25){fx=wx/wd;fz=wz/wd;}else ai.nextRouteAt=0;
+          }
+        }
         const probeFrom: Vec3 = [c.pos[0], c.pos[1], c.pos[2]];
         const probeTo: Vec3 = [c.pos[0] + fx * 2, c.pos[1], c.pos[2] + fz * 2];
         if (this.botMoveBlocked(probeFrom, probeTo, c.pos[1])) {
-          const turn = ai.strafeDir * (35 * Math.PI / 180);
-          const cosT = Math.cos(turn), sinT = Math.sin(turn);
-          // Rotate (fx, fz) by ±35°.
-          const rfx = fx * cosT - fz * sinT;
-          const rfz = fx * sinT + fz * cosT;
-          fx = rfx; fz = rfz;
+          const baseX=fx,baseZ=fz;
+          const turns=[35,-35,70,-70,105,-105,145,-145,180];
+          let clear=false;
+          for(const angle of turns){
+            const theta=angle*ai.strafeDir*Math.PI/180;
+            const hx=baseX*Math.cos(theta)-baseZ*Math.sin(theta);
+            const hz=baseX*Math.sin(theta)+baseZ*Math.cos(theta);
+            if(!this.botMoveBlocked(probeFrom,[c.pos[0]+hx*1.5,c.pos[1],c.pos[2]+hz*1.5],c.pos[1])){
+              fx=hx;fz=hz;clear=true;break;
+            }
+          }
+          if(!clear) ai.strafeDir=-ai.strafeDir;
           c.yaw = Math.atan2(fx, fz);
         } else {
           c.yaw = this.lerpAngle(c.yaw, Math.atan2(dx, dz), 0.15);
@@ -4598,7 +5575,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = ai.moveSpeed * 5 * dt;
+        const moveSpeed = ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt;
         const mvx = fx * moveSpeed;
         const mvz = fz * moveSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -4628,12 +5605,27 @@ export class FPSEngine {
         c.pos = this.collideBots(c.pos, c.pos[1]);
         // Task 16-a: soft bot-vs-bot separation (same as engage path).
         this.separateBots(c, c.pos[1]);
-        // Wander path: same ground-height snap as the engage path (no +1 reach — see above).
-        const gh = groundHeightAt(this.map.cover, c.pos[0], c.pos[2], c.pos[1], PLAYER_RADIUS);
-        c.pos[1] += (gh - c.pos[1]) * Math.min(1, dt * 8);
-        c.pos = this.clamp(c.pos);
+
       }
     }
+    // Always perform vertical navigation, including when stationary: a bot that
+    // stops moving at a ledge must still fall, rather than float/phase through it.
+    c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
+    if (c.ai?.envJumpVelocityY !== undefined) {
+      const vy = c.ai.envJumpVelocityY;
+      c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
+        c.pos[1] + vy * dt,
+        c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
+      c.ai.envJumpVelocityY = vy - 22 * dt;
+      const ground = botGroundHeight(this.map.cover, c.pos[0], c.pos[2], c.pos[1]);
+      if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
+        c.pos[1] = ground;
+        c.ai.envJumpVelocityY = undefined;
+      }
+    } else {
+      c.pos[1] = botNextFeetY(this.map.cover, c.pos, dt);
+    }
+    c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     // ---- Task 16-a: stuck detection & recovery ----
     // Measure how far the bot moved THIS tick (vs the position recorded at the
     // end of the previous tick). If the bot has a movement intent (target
@@ -4651,17 +5643,17 @@ export class FPSEngine {
         ai.stuckSince = 0;
       }
       if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
-        // Recovery: pick a new random spawn point as the wander target.
-        const list = c.team === "red" ? this.map.spawns.red : c.team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
-        ai.wanderTarget = list[Math.floor(Math.random() * list.length)];
+        // Reset stuck patrol toward enemy territory, not the same team spawn.
+        ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
+          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
         ai.targetId = null;        // wander instead of engaging
         ai.strafeDir = -ai.strafeDir;
         ai.stuckSince = 0;
         // Nudge sideways so the bot has a chance to unstick from the corner.
-        c.pos[0] += (Math.random() - 0.5) * 0.6;
-        c.pos[2] += (Math.random() - 0.5) * 0.6;
-        // Re-run the cover push-out so the nudge doesn't embed the bot in a wall.
-        c.pos = this.collideBots(c.pos, c.pos[1]);
+        const before: Vec3 = [...c.pos];
+        const tryPos: Vec3 = [before[0] + (Math.random() - 0.5) * 0.6, before[1], before[2] + (Math.random() - 0.5) * 0.6];
+        if (!this.botMoveBlocked(before, tryPos, before[1])) c.pos = tryPos;
+        c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
       }
     }
     // Record this tick's position for next tick's stuck measurement.
@@ -4723,9 +5715,8 @@ export class FPSEngine {
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
-      const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
-      const hit = rayCapsule(origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
-      if (hit && hit.t >= 0 && hit.t <= eff.range * 1.6) {
+      const hit = rayCombatantHit(origin, dir, e.pos);
+      if (hit && hit.t <= eff.range * 1.6) {
         if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
       }
     }
@@ -4789,8 +5780,8 @@ export class FPSEngine {
     }
   }
 
-  private takeDamage(dmg: number, attackerName: string, attackerTeam: string, head: boolean) {
-    if (!this.alive) return;
+  private takeDamage(dmg: number, attackerName: string, attackerTeam: string, head: boolean, weaponId = "rifle_ar") {
+    if (!this.alive || this.selfSpawnProtectedUntil > Date.now()) return;
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
@@ -4800,7 +5791,7 @@ export class FPSEngine {
       this.health = 0; this.alive = false; this.deaths += 1;
       // Local player death SFX.
       this.sound.play("death", { volume: 0.8 });
-      const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: "rifle_ar", headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
+      const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: weaponId, headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
       this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
       this.opts.onKillFeed(entry);
       // Survival: consume a reinforcement. Game over when the pool is empty.
@@ -4817,7 +5808,17 @@ export class FPSEngine {
     }
   }
 
+  // Add a short-lived enemy position ping after a *validated* gunshot.
+  // Offline bots use this locally; online players receive targeted radarPing packets.
+  private recordRadarShot(id: string, pos: Vec3, team: string, suppressed: boolean) {
+    if (id === this.selfId || friendlyOnRadar(this.opts.mode, this.opts.team, team)) return;
+    if (!canHearGunshot({ x: this.pos.x, z: this.pos.z }, { x: pos[0], z: pos[2] }, suppressed)) return;
+    this.radarPings.set(id, { expiresAt: radarExpiresAt(Date.now(), this.activePerkId) });
+  }
+
   private emitHud(now: number) {
+    const radarNow = Date.now();
+    for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
     const scoreboard: ScoreRow[] = [];
     if (this.opts.online) {
       for (const c of this.combatants.values()) {
@@ -4835,6 +5836,19 @@ export class FPSEngine {
       maxHealth: MAX_HEALTH,
       ammo: this.ammoInMag,
       magSize: this.eff.magSize,
+      heat: weaponById(this.weaponId).special?.kind === "heat" ? (this.heatStates.get(this.weaponId)?.heat ?? 0) : undefined,
+      overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
+      boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
+      perkName: perkById(this.opts.loadout.perkId).name,
+      scavengerFeedbackAt: this.scavengerFeedbackAt,
+      scavengerAmmoGained: this.scavengerAmmoGained,
+      scavengerPacksNearby: this.activePerkId === "scavenger"
+        ? [...this.scavengerPickups.values()].filter(p =>
+            Math.hypot(this.pos.x - p.pos[0], this.pos.z - p.pos[2]) <= 45).length : 0,
+      matchEnding: this.matchFinishingLabel,
+      quickMeleeAt: this.quickMeleeFeedbackAt,
+      equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
+      flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
       reloading: this.reloading,
       weaponName: weaponById(this.weaponId).name,
       weaponId: this.weaponId,
@@ -4848,6 +5862,7 @@ export class FPSEngine {
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
       scoreboard,
       killFeed: this.killFeed,
+      lastElimination: this.lastElimination,
       hitMarker: this.hitMarkerAt,
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker
       damageFlash: this.damageFlashAt,
@@ -4857,9 +5872,35 @@ export class FPSEngine {
       damageDir: this.lastDamageDir ?? undefined,
       damageDirAt: this.lastDamageDirAt,
       mapName: this.map.name,
+      radar: {
+        size: this.map.size, playerX: this.pos.x, playerZ: this.pos.z, yaw: this.yaw,
+        cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
+          x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
+          z: radarToPercent(c.pos[2] - c.size[2], this.map.size),
+          w: Math.max(0.5, c.size[0] / this.map.size * 100),
+          h: Math.max(0.5, c.size[2] / this.map.size * 100),
+        })),
+        markers: [
+          ...[...this.combatants.values()].filter(c => c.alive && !c.isSelf &&
+            friendlyOnRadar(this.opts.mode, this.opts.team, c.team)).map(c =>
+              ({ id: c.id, x: radarToPercent(c.pos[0], this.map.size), z: radarToPercent(c.pos[2], this.map.size), kind: "ally" as const })),
+          ...[...this.radarPings.entries()].flatMap(([id, p]) => {
+            const c = this.combatants.get(id);
+            // A gunshot authorizes a temporary reveal, not permanent visibility.
+            // Position comes from the combatant's current server snapshot (online)
+            // or simulation state (offline), and follows movement while revealed.
+            if (!c || id === this.selfId || friendlyOnRadar(this.opts.mode, this.opts.team, c.team)) return [];
+            const current = trackedRadarPosition(radarNow, p.expiresAt, {
+              x: c.pos[0], z: c.pos[2], alive: c.alive,
+            });
+            if (!current) return [];
+            return [{ id, x: radarToPercent(current.x, this.map.size), z: radarToPercent(current.z, this.map.size), kind: "fire" as const }];
+          }),
+        ],
+      },
       aiming: this.aiming,
-      sightType: this.sightDef.type,
-      adsProgress: this.adsProgress,
+      sightType: weaponById(this.weaponId).category === "melee" ? "iron" : this.sightDef.type,
+      adsProgress: weaponById(this.weaponId).category === "melee" ? 0 : this.adsProgress,
       // `scoped` is true only when the player is meaningfully ADS-ing with a
       // sniper-class weapon (adsProgress past ~50% so the scope has actually
       // reached the eye). This drives the dedicated sniper-scope HUD overlay.
@@ -4872,7 +5913,7 @@ export class FPSEngine {
       sprinting: this.sprinting,
       // Health-regen cooldown in ms (0 = regen active; >0 = ms until regen starts).
       regenCooldownMs: this.alive && this.health < MAX_HEALTH
-        ? Math.max(0, FPSEngine.REGEN_DELAY - (now - this.lastDamageAt))
+        ? Math.max(0, regenDelayMs(this.activePerkId) - (now - this.lastDamageAt))
         : 0,
       // Sprint stamina (0..100) + regen cooldown (0 = regen active; >0 = ms until regen starts).
       stamina: Math.round(this.stamina),
@@ -4940,50 +5981,7 @@ export class FPSEngine {
   // insurance for the rare edge case where multiple boxes interact and a wrong
   // sign would compound.
   private collideBots(pos: Vec3, currentY: number): Vec3 {
-    const r = PLAYER_RADIUS;
-    const out: Vec3 = [pos[0], pos[1], pos[2]];
-    // Pre-filter blocking boxes once (the Y checks don't change between passes).
-    const blocking: { cx: number; cz: number; hx: number; hz: number }[] = [];
-    for (const cov of this.map.cover) {
-      // Skip accent (decorative) and stair (walkable ramp) boxes — they don't block.
-      if (cov.kind === "accent" || cov.kind === "stair") continue;
-      const cx = cov.pos[0], cz = cov.pos[2];
-      const hx = cov.size[0], hz = cov.size[2];
-      const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
-      // If bot can step onto this box (top is within step reach), don't block horizontally.
-      if (maxY - currentY < 1.3 && maxY > currentY) continue;
-      // Skip if bot is above the box top (standing on it) or below the box bottom.
-      if (currentY >= maxY - 0.05) continue;
-      if (currentY + PLAYER_HEIGHT < minY) continue;
-      blocking.push({ cx, cz, hx, hz });
-    }
-    // Iterative resolution: 6 passes handle corners + adjacent walls + dense cover clusters.
-    for (let pass = 0; pass < 6; pass++) {
-      let any = false;
-      for (const b of blocking) {
-        if (Math.abs(out[0] - b.cx) < b.hx + r && Math.abs(out[2] - b.cz) < b.hz + r) {
-          const overlapX = b.hx + r - Math.abs(out[0] - b.cx);
-          const overlapZ = b.hz + r - Math.abs(out[2] - b.cz);
-          if (overlapX < overlapZ) {
-            out[0] = b.cx + Math.sign(out[0] - b.cx) * (b.hx + r);
-            // Tunneling defense-in-depth: clamp so the bot never ends up more than
-            // b.hx + r + 0.1 from the box center on the pushed axis. The push-out
-            // above sets it to exactly b.hx + r (so this is a no-op normally), but
-            // if a wrong sign (from tunneling through a thin wall) or a multi-box
-            // interaction pushed it further, this clamp bounds the overshoot.
-            const maxDistX = b.hx + r + 0.1;
-            if (Math.abs(out[0] - b.cx) > maxDistX) out[0] = b.cx + Math.sign(out[0] - b.cx) * maxDistX;
-          } else {
-            out[2] = b.cz + Math.sign(out[2] - b.cz) * (b.hz + r);
-            const maxDistZ = b.hz + r + 0.1;
-            if (Math.abs(out[2] - b.cz) > maxDistZ) out[2] = b.cz + Math.sign(out[2] - b.cz) * maxDistZ;
-          }
-          any = true;
-        }
-      }
-      if (!any) break;
-    }
-    return out;
+    return resolveBotOverlap(this.map.cover, pos, currentY);
   }
 
   // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -5020,8 +6018,11 @@ export class FPSEngine {
       // half — symmetric separation over successive frames). Soft lerp (0.5)
       // so it's a gentle nudge, not a snap.
       const push = overlap * 0.5 * 0.5;
-      bot.pos[0] += (ddx / dist) * push;
-      bot.pos[2] += (ddz / dist) * push;
+      const before: Vec3 = [...bot.pos];
+      const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
+      if (!blocksBotMotion(this.map.cover, before, after, currentY)) {
+        bot.pos = after;
+      }
     }
   }
 
@@ -5031,20 +6032,10 @@ export class FPSEngine {
   // "bot clips into wall then pops out" flicker, and prevents tunneling at
   // high speeds). The check is conservative — it samples the destination only.
   private botMoveBlocked(from: Vec3, to: Vec3, currentY: number): boolean {
-    const r = PLAYER_RADIUS;
-    for (const cov of this.map.cover) {
-      if (cov.kind === "accent" || cov.kind === "stair") continue;
-      const cx = cov.pos[0], cz = cov.pos[2];
-      const hx = cov.size[0], hz = cov.size[2];
-      const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
-      if (maxY - currentY < 1.3 && maxY > currentY) continue;
-      if (currentY >= maxY - 0.05) continue;
-      if (currentY + PLAYER_HEIGHT < minY) continue;
-      // Check both endpoints AND a midpoint so thin walls can't be tunneled.
-      const samples = [from, to, [(from[0] + to[0]) * 0.5, from[1], (from[2] + to[2]) * 0.5] as Vec3];
-      for (const s of samples) {
-        if (Math.abs(s[0] - cx) < hx + r && Math.abs(s[2] - cz) < hz + r) return true;
-      }
+    if (blocksBotMotion(this.map.cover, from, to, currentY)) return true;
+    for (const o of this.map.environment ?? []) {
+      if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, this.environmentTime))) continue;
+      if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
     }
     return false;
   }
@@ -5063,13 +6054,45 @@ export class FPSEngine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
     if (this.socket) this.socket.disconnect();
+    if(this.equipmentPreviewLine){
+      this.scene.remove(this.equipmentPreviewLine);
+      this.equipmentPreviewLine.geometry.dispose();
+      (this.equipmentPreviewLine.material as THREE.Material).dispose();
+      this.equipmentPreviewLine=null;
+    }
     // Clean up the laser indicator meshes (if any)
     if (this.laserBeam) { this.scene.remove(this.laserBeam); (this.laserBeam.geometry as THREE.BufferGeometry).dispose(); (this.laserBeam.material as THREE.Material).dispose(); this.laserBeam = null; }
     if (this.laserDot) { this.scene.remove(this.laserDot); (this.laserDot.geometry as THREE.BufferGeometry).dispose(); (this.laserDot.material as THREE.Material).dispose(); this.laserDot = null; }
+    for (const g of this.environmentMeshes.values()) {
+      this.scene.remove(g);
+      g.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+    }
+    this.environmentMeshes.clear();
+    for (const id of [...this.scavengerPickups.keys()]) this.removeScavengerPickup(id);
+    // Recoverable bolt meshes are owned by this engine instance.
+    for (const id of [...this.boltPickups.keys()]) this.removeBoltPickup(id);
     // Dispose the sound system (closes the AudioContext).
+    this.clearFirstPersonRig();
+    if (this.quickMeleeModel) {
+      this.camera.remove(this.quickMeleeModel);
+      this.quickMeleeModel.traverse(obj => { if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }});
+      this.quickMeleeModel = null;
+    }
+    this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
+    this.weaponAudio.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);

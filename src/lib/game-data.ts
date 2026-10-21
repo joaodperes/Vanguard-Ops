@@ -3,6 +3,8 @@
 // Shared between API routes, the game server, and the client UI.
 // ============================================================================
 
+import type { WeaponSpecial } from "./weapon-mechanics";
+
 export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "sidearm" | "melee";
 
 // Weapon slots are the three loadout positions a player can equip.
@@ -38,6 +40,7 @@ export interface WeaponStats {
 }
 
 export interface WeaponDef {
+  special?: WeaponSpecial;
   id: string;
   name: string;
   category: WeaponCategory;
@@ -57,6 +60,63 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = [
+  // Special weapons — opt into a mechanic; ordinary guns keep their existing behavior.
+  {
+    id: "rifle_electron", name: "Electron Rifle", category: "assault",
+    unlockLevel: 10, unlockCost: 2200,
+    description: "Unlimited energy shots. Manage heat or vent the reactor before it overheats.",
+    special: { kind: "heat", heatPerShot: 5, coolPerSecond: 43, coolDelayMs: 175, overheatAt: 100, resumeAt: 45, ventSeconds: 0.85 },
+    stats: { damage: 24, fireRate: 9, magSize: 100, reloadTime: 1.25, spread: 0.014, adsSpread: 0.004, recoil: 0.55, range: 75, adsTime: 0.24, moveSpeed: 0.93, auto: true, headshotMult: 1.45 },
+    attachments: ["sight", "grip"],
+  },
+  {
+    id: "crossbow_reclaimer", name: "Reclaimer Crossbow", category: "dmr",
+    unlockLevel: 8, unlockCost: 1600,
+    description: "Retrieve fired bolts on the ground to shorten your reload. Optional poison tips.",
+    special: { kind: "bolt", pickupRadius: 2.0, lifetimeMs: 18000, quickReloadSeconds: 0.65 },
+    stats: { damage: 76, fireRate: 0.65, magSize: 1, reloadTime: 2.1, spread: 0.009, adsSpread: 0.001, recoil: 0.35, range: 85, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1.6 },
+    attachments: ["sight", "barrel"],
+  },
+  {
+    id: "pistol_arc", name: "Arc Pistol", category: "sidearm",
+    unlockLevel: 11, unlockCost: 2300,
+    description: "Electrical discharge leaps to nearby foes for decreasing damage.",
+    special: { kind: "arc", jumps: 2, radius: 6, decay: 0.55 },
+    stats: { damage: 35, fireRate: 3.2, magSize: 10, reloadTime: 1.9, spread: 0.013, adsSpread: 0.004, recoil: 0.7, range: 50, adsTime: 0.2, moveSpeed: 1.02, auto: false, headshotMult: 1.35 },
+    attachments: ["sight", "magazine"],
+  },
+  // Semi-auto accuracy specialist: high per-shot reward, no auto-fire.
+  {
+    id: "rifle_falcon", name: "Falcon SR", category: "assault", unlockLevel: 13, unlockCost: 1900,
+    description: "Precise semi-auto rifle with hard-hitting controlled shots and a small magazine.",
+    stats: { damage: 54, fireRate: 4.2, magSize: 16, reloadTime: 2.2, spread: 0.007, adsSpread: 0.0015, recoil: 1.15, range: 105, adsTime: 0.29, moveSpeed: 0.89, auto: false, headshotMult: 1.65 },
+  },
+  // Compact two-round burst weapon for rhythmic tap-fire, unlike the Reaver's 3-round burst.
+  {
+    id: "rifle_hydra", name: "Hydra Twin", category: "assault", unlockLevel: 17, unlockCost: 2600,
+    description: "Fast two-round bursts. Strong opening damage but demanding burst discipline.",
+    stats: { damage: 29, fireRate: 11, burst: 2, magSize: 32, reloadTime: 2.5, spread: 0.012, adsSpread: 0.003, recoil: 1.05, range: 73, adsTime: 0.24, moveSpeed: 0.94, auto: false, headshotMult: 1.45 },
+  },
+  {
+    id: "dmr_cyclone", name: "Cyclone DMR", category: "dmr", unlockLevel: 14, unlockCost: 1900,
+    description: "Two-shot burst marksman rifle for fast follow-up hits at medium-long range.",
+    stats: { damage: 39, fireRate: 9, burst: 2, magSize: 20, reloadTime: 2.6, spread: 0.006, adsSpread: 0.0015, recoil: 1.05, range: 116, adsTime: 0.33, moveSpeed: 0.86, auto: false, headshotMult: 1.75 },
+  },
+  {
+    id: "dmr_whisper", name: "Whisper DMR", category: "dmr", unlockLevel: 18, unlockCost: 2700,
+    description: "Low-recoil semi-auto precision rifle. Extremely accurate but deliberately paced.",
+    stats: { damage: 62, fireRate: 2.7, magSize: 14, reloadTime: 2.0, spread: 0.003, adsSpread: 0.0006, recoil: 0.42, range: 145, adsTime: 0.32, moveSpeed: 0.9, auto: false, headshotMult: 1.9 },
+  },
+  {
+    id: "baton", name: "Shock Baton", category: "melee", unlockLevel: 6, unlockCost: 900,
+    description: "Quick defensive baton with extended reach and rapid successive strikes.",
+    stats: { damage: 60, fireRate: 2.8, magSize: 1, reloadTime: 0, spread: 0, adsSpread: 0, recoil: 0, range: 3.25, adsTime: 0, moveSpeed: 1.13, auto: false, headshotMult: 1.5 }, attachments: [],
+  },
+  {
+    id: "axe", name: "Breacher Axe", category: "melee", unlockLevel: 15, unlockCost: 2300,
+    description: "Heavy chopping weapon with superior reach; slow, powerful committed swings.",
+    stats: { damage: 145, fireRate: 0.98, magSize: 1, reloadTime: 0, spread: 0, adsSpread: 0, recoil: 0, range: 3.2, adsTime: 0, moveSpeed: 0.96, auto: false, headshotMult: 1.5 }, attachments: [],
+  },
   {
     id: "rifle_ar",
     name: "VK-12 Assault",
@@ -395,21 +455,33 @@ export const ALL_ATTACHMENT_SLOTS: AttachmentSlot[] = ["sight", "barrel", "grip"
 // attachments for that slot are allowed. If a weapon IS in the map for a slot,
 // only the listed attachment IDs are compatible with that weapon.
 export const WEAPON_ATTACHMENT_COMPAT: Record<string, Partial<Record<AttachmentSlot, string[]>>> = {
+  crossbow_reclaimer: {
+    sight: ["sight_acog", "sight_hunter", "sight_thermal"],
+    barrel: ["barrel_poison", "barrel_bolt_fletching", "barrel_bolt_piercing"],
+  },
+  rifle_electron: {
+    sight: ["sight_red_dot", "sight_holo", "sight_acog"],
+    grip: ["grip_vertical", "grip_precision", "grip_runner_ads"],
+  },
+  pistol_arc: {
+    sight: ["sight_red_dot", "sight_laser", "sight_holo"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
+  },
   sniper_lr: {
-    sight: ["sight_hunter", "sight_thermal", "sight_acog"],
-    barrel: ["barrel_suppressor", "barrel_heavy"],
-    magazine: ["mag_extended", "mag_quickdraw"],
+    sight: ["sight_hunter", "sight_thermal", "sight_acog", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
   },
   sniper_scout: {
-    sight: ["sight_hunter", "sight_thermal", "sight_acog"],
-    barrel: ["barrel_suppressor", "barrel_heavy"],
-    magazine: ["mag_extended", "mag_quickdraw"],
+    sight: ["sight_hunter", "sight_thermal", "sight_acog", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
   },
   // Task 18-c+d: 3rd sniper — same attachment restrictions as sniper_lr / sniper_scout.
   sniper_heavy: {
-    sight: ["sight_hunter", "sight_thermal", "sight_acog"],
-    barrel: ["barrel_suppressor", "barrel_heavy"],
-    magazine: ["mag_extended", "mag_quickdraw"],
+    sight: ["sight_hunter", "sight_thermal", "sight_acog", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
   },
   // knife_tactical has attachments: [] so no slots are available — no entries needed.
   // lmg_heavy (Task 18-c+d) intentionally NOT listed here: it uses the default
@@ -417,21 +489,60 @@ export const WEAPON_ATTACHMENT_COMPAT: Record<string, Partial<Record<AttachmentS
   // lmg_hv and lmg_light, which also don't have a compat entry).
 };
 
-// Helper: list compatible attachment IDs for a given (weaponId, slot) pair.
-// Returns the per-weapon override list (WEAPON_ATTACHMENT_COMPAT) if defined,
-// otherwise filters all attachments in that slot by the attachment's
-// `weaponCategories` field — attachments whose `weaponCategories` doesn't
-// include the current weapon's category are hidden entirely. If
-// `weaponCategories` is undefined on an attachment, it's compatible with all
-// weapons (backward-compat).
+// Curated, balanced 2–4 attachment choices for each supported category/slot.
+// Weapon-specific overrides above win (special mechanics, sniper restrictions).
+// No generic "all attachments" fallback: the Armory and server must agree on
+// which attachments are valid for a particular weapon.
+export const CATEGORY_ATTACHMENT_CHOICES: Partial<Record<WeaponCategory, Partial<Record<AttachmentSlot, string[]>>>> = {
+  assault: {
+    sight: ["sight_red_dot", "sight_holo", "sight_acog", "sight_thermal"],
+    barrel: ["barrel_suppressor", "barrel_compensator", "barrel_muzzle_brake", "barrel_heavy"],
+    grip: ["grip_vertical", "grip_angled", "grip_runner_ads", "grip_precision"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_drum", "mag_balanced"],
+  },
+  smg: {
+    sight: ["sight_red_dot", "sight_holo", "sight_laser", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_compensator", "barrel_ported", "barrel_lightweight"],
+    grip: ["grip_vertical", "grip_angled", "grip_laser", "grip_runner_ads"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_drum", "mag_balanced"],
+  },
+  shotgun: {
+    sight: ["sight_laser", "sight_red_dot", "sight_holo"],
+    barrel: ["barrel_choke", "barrel_ported", "barrel_lightweight"],
+    grip: ["grip_angled", "grip_laser", "grip_runner_ads"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_shell_carrier"],
+  },
+  dmr: {
+    sight: ["sight_acog", "sight_hunter", "sight_thermal", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    grip: ["grip_precision", "grip_stability", "grip_runner_ads"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
+  },
+  sniper: {
+    sight: ["sight_acog", "sight_hunter", "sight_thermal", "sight_nvg"],
+    barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
+  },
+  lmg: {
+    sight: ["sight_red_dot", "sight_holo", "sight_acog", "sight_thermal"],
+    barrel: ["barrel_compensator", "barrel_muzzle_brake", "barrel_heavy", "barrel_ported"],
+    grip: ["grip_vertical", "grip_stability", "grip_precision"],
+    magazine: ["mag_extended", "mag_drum", "mag_balanced"],
+  },
+  sidearm: {
+    sight: ["sight_red_dot", "sight_laser", "sight_holo"],
+    barrel: ["barrel_suppressor", "barrel_ported", "barrel_lightweight"],
+    grip: ["grip_laser", "grip_precision", "grip_runner_ads"],
+    magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
+  },
+};
+
 export function compatibleAttachments(weaponId: string, slot: AttachmentSlot): string[] {
-  const compat = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot];
-  if (compat) return compat;
   const weapon = weaponById(weaponId);
-  return ATTACHMENTS
-    .filter((a) => a.slot === slot)
-    .filter((a) => !a.weaponCategories || a.weaponCategories.includes(weapon.category))
-    .map((a) => a.id);
+  if (!weaponAttachmentSlots(weapon).includes(slot)) return [];
+  const allowed = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot] ??
+    CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot] ?? [];
+  return allowed.filter(id => ATTACHMENTS.some(a => a.id === id && a.slot === slot));
 }
 
 // Helper: list the attachment slots a weapon supports. Defaults to all 4.
@@ -514,6 +625,7 @@ export interface AttachmentDef {
   // the canonical filter field — `compatibleAttachments()` reads it directly.
   // Examples: suppressors don't fit launchers; scopes don't fit shotguns.
   weaponCategories?: WeaponCategory[];
+  exclusiveWeaponIds?: string[];
   // Legacy alias for `weaponCategories` (kept for backward-compat with any
   // catalog entries that still use the old name). When both are set, they
   // should be the same list — `weaponCategories` is canonical.
@@ -532,6 +644,13 @@ export interface AttachmentDef {
 }
 
 export const ATTACHMENTS: AttachmentDef[] = [
+  {
+    id: "barrel_poison", name: "Venom Bolt Tips", slot: "barrel",
+    unlockLevel: 9, unlockCost: 550,
+    description: "Crossbow bolts apply 4 damage per second for 4 seconds. Repeated hits refresh duration.",
+    exclusiveWeaponIds: ["crossbow_reclaimer"], weaponCategories: ["dmr"],
+    effects: {},
+  },
   // ---- Sights ----
   // Each sight attachment installs a SightType (see SIGHT_DEFS). The optic itself
   // controls zoom/reticle/overlay; attachment.effects are stat bonuses layered on top.
@@ -657,6 +776,13 @@ export const ATTACHMENTS: AttachmentDef[] = [
     weaponCategories: ["smg", "shotgun", "sidearm"],
     effects: { spread: -28 },
   },
+  {
+    id: "grip_runner_ads", name: "Run-and-Gun Grip", slot: "grip",
+    unlockLevel: 16, unlockCost: 400,
+    description: "Allows aiming down sights while sprinting. Sprint speed is reduced during ADS.",
+    weaponCategories: ["assault", "smg", "shotgun", "dmr", "sidearm"],
+    effects: { adsTime: 12, recoil: 6 },
+  },
   // ---- Magazine ----
   {
     id: "mag_extended", name: "Extended Mag", slot: "magazine",
@@ -682,6 +808,37 @@ export const ATTACHMENTS: AttachmentDef[] = [
     weaponCategories: ["assault", "lmg", "smg"],
     effects: { magSize: 100, moveSpeed: -8, reloadTime: 15 },
   },
+  // ---- Additional v14 choices: each supported slot has 2–4 options. ----
+  { id: "barrel_match", name: "Match Barrel", slot: "barrel", unlockLevel: 12, unlockCost: 380,
+    description: "Precision rifling tightens aimed spread and adds range at the cost of slower ADS.",
+    weaponCategories: ["dmr", "sniper"], effects: { adsSpread: -18, range: 12, adsTime: 10 } },
+  { id: "barrel_ported", name: "Ported Barrel", slot: "barrel", unlockLevel: 8, unlockCost: 300,
+    description: "Faster recovery and lower recoil, with a small range penalty.",
+    weaponCategories: ["smg", "shotgun", "lmg", "sidearm"], effects: { recoil: -14, range: -7 } },
+  { id: "barrel_lightweight", name: "Lightweight Barrel", slot: "barrel", unlockLevel: 11, unlockCost: 330,
+    description: "Better handling and mobility, reduced damage at distance.",
+    weaponCategories: ["smg", "shotgun", "sidearm"], effects: { moveSpeed: 6, adsTime: -12, range: -12 } },
+  { id: "barrel_choke", name: "Tight Choke", slot: "barrel", unlockLevel: 9, unlockCost: 300,
+    description: "Concentrates shotgun pellets for tighter hip-fire and aimed spread.",
+    weaponCategories: ["shotgun"], effects: { spread: -18, adsSpread: -16 } },
+  { id: "barrel_bolt_fletching", name: "Stabilized Fletching", slot: "barrel", unlockLevel: 10, unlockCost: 300,
+    description: "Improves crossbow bolt accuracy and effective range.",
+    exclusiveWeaponIds: ["crossbow_reclaimer"], weaponCategories: ["dmr"], effects: { spread: -16, adsSpread: -14, range: 14 } },
+  { id: "barrel_bolt_piercing", name: "Piercing Bolt Head", slot: "barrel", unlockLevel: 15, unlockCost: 420,
+    description: "Heavier bolt head deals more direct damage but is slower to reload.",
+    exclusiveWeaponIds: ["crossbow_reclaimer"], weaponCategories: ["dmr"], effects: { damage: 10, reloadTime: 12 } },
+  { id: "grip_precision", name: "Precision Grip", slot: "grip", unlockLevel: 10, unlockCost: 320,
+    description: "Steadier aim and lower recoil, at the cost of a slightly slower ADS transition.",
+    effects: { recoil: -12, adsSpread: -10, adsTime: 7 } },
+  { id: "grip_stability", name: "Stability Grip", slot: "grip", unlockLevel: 12, unlockCost: 340,
+    description: "Helps keep sustained long-range fire controlled, at a slight mobility cost.",
+    effects: { recoil: -20, moveSpeed: -4 } },
+  { id: "mag_balanced", name: "Balanced Magazine", slot: "magazine", unlockLevel: 10, unlockCost: 310,
+    description: "A few additional rounds and quicker reloads without the bulk of a drum.",
+    effects: { magSize: 20, reloadTime: -12 } },
+  { id: "mag_shell_carrier", name: "Shell Carrier", slot: "magazine", unlockLevel: 12, unlockCost: 325,
+    description: "Carries a few additional shotgun shells and improves reload handling.",
+    weaponCategories: ["shotgun"], effects: { magSize: 25, reloadTime: -14 } },
 ];
 
 export interface WeaponSkinDef {
@@ -1641,13 +1798,13 @@ export const MATCH_MODES: Record<string, MatchModeConfig> = {
     label: "Gun Game",
     description: "Cycle through weapons with each kill. First to the final weapon wins.",
     icon: "Swords",
-    // Must match GUN_GAME_TYPE_PROGRESSION.length (14 in game-protocol.ts).
+    // Must match GUN_GAME_TYPE_PROGRESSION.length (30 in game-protocol.ts).
     // The server sets room.config.scoreLimit = room.gungameWeapons.length on
     // match start, so this value is only used for the Play screen summary preview.
-    defaultScoreLimit: 14,
-    scoreOptions: [14],
-    defaultTimeLimit: 8,
-    timeOptions: [5, 8, 12],
+    defaultScoreLimit: 30,
+    scoreOptions: [30],
+    defaultTimeLimit: 0,
+    timeOptions: [0],
     teamBased: false,
     accentColor: "#a855f7",
   },

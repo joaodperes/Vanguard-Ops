@@ -28,6 +28,9 @@ export interface RoomConfig {
   // Round 19i: Custom match limits (FFA/TDM only).
   scoreLimit: number;  // kills to win
   timeLimit: number;   // seconds (0 = no time limit)
+  gungamePreset: "all" | "cqc" | "long_range";
+  gungameMultiplier: number;
+  survivalPlayers: 1 | 2;
 }
 
 // When joining/creating a room, the engine needs to know how to connect:
@@ -107,7 +110,7 @@ export const useGame = create<GameStore>((set, get) => ({
   screen: "auth",
   playConfig: { mode: "ffa", botCount: 5, online: false, scoreLimit: 30, timeLimit: 8, mapId: "compound", botDifficulty: "normal" },
   matchResult: null,
-  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360 },
+  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2 },
   roomConnect: null,
   authState: "checking",
   session: null,
