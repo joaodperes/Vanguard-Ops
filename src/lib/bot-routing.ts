@@ -58,15 +58,28 @@ export function botTraversableEdge(
   const distance = Math.hypot(x - from[0], z - from[2]);
   if (distance < 0.001) return from[1];
   const count = Math.ceil(distance / STEP);
+  // Broadphase: the full arenas have hundreds of boxes (including generated
+  // stair segments). Only boxes intersecting this short swept edge can matter.
+  // Filter once per edge instead of scanning every box at every substep.
+  const centreX = (from[0] + x) * 0.5, centreZ = (from[2] + z) * 0.5;
+  const extentX = Math.abs(x - from[0]) * 0.5;
+  const extentZ = Math.abs(z - from[2]) * 0.5;
+  const nearby = cover.filter(box =>
+    Math.abs(box.pos[0] - centreX) <= box.size[0] + extentX + 0.85 &&
+    Math.abs(box.pos[2] - centreZ) <= box.size[2] + extentZ + 0.85);
+  const nearbyHazards = hazards.filter(h =>
+    (h.type === "fire" || h.type === "spikes") &&
+    Math.abs(h.pos[0] - centreX) <= h.size[0] + extentX + 0.8 &&
+    Math.abs(h.pos[2] - centreZ) <= h.size[2] + extentZ + 0.8);
   let previousX = from[0], previousZ = from[2], feet = from[1];
   for (let i = 1; i <= count; i++) {
     const t = i / count, nx = from[0] + (x - from[0]) * t;
     const nz = from[2] + (z - from[2]) * t;
-    if (hazardAt(nx, nz, hazards)) return null;
+    if (hazardAt(nx, nz, nearbyHazards)) return null;
     const origin: Vec3 = [previousX, feet, previousZ];
     const to: Vec3 = [nx, feet, nz];
-    if (botMoveBlocked(cover, origin, to, feet)) return null;
-    const support = botGroundHeight(cover, nx, nz, feet);
+    if (botMoveBlocked(nearby, origin, to, feet)) return null;
+    const support = botGroundHeight(nearby, nx, nz, feet);
     // Small steps are handled by botGroundHeight. Large drops are one-way
     // transitions; keep those modest so falling AI can recover quickly.
     if (feet - support > 2.5) return null;
