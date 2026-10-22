@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
 import { weaponById } from "@/lib/game-data";
+import { perkById } from "@/lib/perks";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 export function Results() {
@@ -171,6 +172,26 @@ export function Results() {
                 </div>
               )}
 
+              {(rewards.newUnlocks?.perks?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/25">
+                  <div className="text-emerald-300 font-bold text-sm mb-2 flex items-center gap-2"><Zap className="w-4 h-4" /> New Perk Available</div>
+                  <div className="flex flex-wrap gap-2">
+                    {rewards.newUnlocks.perks.map((id: string) => <span key={id} className="text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 rounded-md px-2 py-1">
+                      {perkById(id).name} · LVL {perkById(id).unlockLevel}
+                    </span>)}
+                  </div>
+                </div>
+              )}
+              {(rewards.newUnlocks?.purchasableWeapons?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/20">
+                  <div className="text-cyan-300 font-bold text-sm mb-2"><Crosshair className="w-4 h-4 inline mr-1" /> Now Available in the Armory</div>
+                  <div className="flex flex-wrap gap-2">
+                    {rewards.newUnlocks.purchasableWeapons.map((id: string) => <span key={id} className="text-xs border border-cyan-500/20 bg-cyan-500/10 text-cyan-100 rounded-md px-2 py-1">
+                      {weaponById(id).name} · {weaponById(id).unlockCost} CR
+                    </span>)}
+                  </div>
+                </div>
+              )}
               {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length) > 0 && (
                 <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
