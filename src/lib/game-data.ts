@@ -36,6 +36,10 @@ export interface WeaponStats {
   adsSpread: number;     // inaccuracy when aiming
   recoil: number;        // vertical kick magnitude
   range: number;         // effective range (damage falloff beyond)
+  falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
+  minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
+  reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
+  reloadPerRound?: number; // seconds per round before attachments/perks
   adsTime: number;       // seconds to aim down sights
   moveSpeed: number;     // movement multiplier
   auto: boolean;         // automatic fire
@@ -97,7 +101,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockLevel: 31, unlockCost: 2200,
     description: "Unlimited energy shots. Manage heat or vent the reactor before it overheats.",
     special: { kind: "heat", heatPerShot: 5, coolPerSecond: 43, coolDelayMs: 175, overheatAt: 100, resumeAt: 45, ventSeconds: 0.85 },
-    stats: { damage: 24, fireRate: 9, magSize: 100, reloadTime: 1.25, spread: 0.014, adsSpread: 0.004, recoil: 0.55, range: 75, adsTime: 0.24, moveSpeed: 0.93, auto: true, headshotMult: 1.45 },
+    stats: { damage: 24, fireRate: 9, magSize: 100, reloadTime: 1.25, spread: 0.014, adsSpread: 0.004, recoil: 0.55, range: 40.5, adsTime: 0.24, moveSpeed: 0.93, auto: true, headshotMult: 1.45 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
@@ -105,7 +109,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockLevel: 19, unlockCost: 1600,
     description: "Retrieve fired bolts on the ground to shorten your reload. Optional poison tips.",
     special: { kind: "bolt", pickupRadius: 2.0, lifetimeMs: 18000, quickReloadSeconds: 0.65 },
-    stats: { damage: 76, fireRate: 0.65, magSize: 1, reloadTime: 2.1, spread: 0.009, adsSpread: 0.001, recoil: 0.35, range: 85, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1.6 },
+    stats: { damage: 76, fireRate: 0.65, magSize: 1, reloadTime: 2.1, spread: 0.009, adsSpread: 0.001, recoil: 0.35, range: 65.5, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1.6 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
@@ -113,30 +117,30 @@ export const WEAPONS: WeaponDef[] = [
     unlockLevel: 32, unlockCost: 2300,
     description: "Electrical discharge leaps to nearby foes for decreasing damage.",
     special: { kind: "arc", jumps: 2, radius: 6, decay: 0.55 },
-    stats: { damage: 35, fireRate: 3.2, magSize: 10, reloadTime: 1.9, spread: 0.013, adsSpread: 0.004, recoil: 0.7, range: 50, adsTime: 0.2, moveSpeed: 1.02, auto: false, headshotMult: 1.35 },
+    stats: { damage: 35, fireRate: 3.2, magSize: 10, reloadTime: 1.9, spread: 0.013, adsSpread: 0.004, recoil: 0.7, range: 33, adsTime: 0.2, moveSpeed: 1.02, auto: false, headshotMult: 1.35 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.32 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Semi-auto accuracy specialist: high per-shot reward, no auto-fire.
   {
     id: "rifle_falcon", name: "Falcon SR", category: "assault", unlockLevel: 20, unlockCost: 1900,
     description: "Precise semi-auto rifle with hard-hitting controlled shots and a small magazine.",
-    stats: { damage: 54, fireRate: 4.2, magSize: 16, reloadTime: 2.2, spread: 0.007, adsSpread: 0.0015, recoil: 1.15, range: 105, adsTime: 0.29, moveSpeed: 0.89, auto: false, headshotMult: 1.65 },
+    stats: { damage: 54, fireRate: 4.2, magSize: 16, reloadTime: 2.2, spread: 0.007, adsSpread: 0.0015, recoil: 1.15, range: 56.7, adsTime: 0.29, moveSpeed: 0.89, auto: false, headshotMult: 1.65 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
   },
   // Compact two-round burst weapon for rhythmic tap-fire, unlike the Reaver's 3-round burst.
   {
     id: "rifle_hydra", name: "Hydra Twin", category: "assault", unlockLevel: 34, unlockCost: 2600,
     description: "Fast two-round bursts. Strong opening damage but demanding burst discipline.",
-    stats: { damage: 29, fireRate: 11, burst: 2, magSize: 32, reloadTime: 2.5, spread: 0.012, adsSpread: 0.003, recoil: 1.05, range: 73, adsTime: 0.24, moveSpeed: 0.94, auto: false, headshotMult: 1.45 },
+    stats: { damage: 29, fireRate: 11, burst: 2, magSize: 32, reloadTime: 2.5, spread: 0.012, adsSpread: 0.003, recoil: 1.05, range: 39.4, adsTime: 0.24, moveSpeed: 0.94, auto: false, headshotMult: 1.45 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
   },
   {
     id: "dmr_cyclone", name: "Cyclone DMR", category: "dmr", unlockLevel: 18, unlockCost: 1900,
     description: "Two-shot burst marksman rifle for fast follow-up hits at medium-long range.",
-    stats: { damage: 39, fireRate: 9, burst: 2, magSize: 20, reloadTime: 2.6, spread: 0.006, adsSpread: 0.0015, recoil: 1.05, range: 116, adsTime: 0.33, moveSpeed: 0.86, auto: false, headshotMult: 1.75 },
+    stats: { damage: 39, fireRate: 9, burst: 2, magSize: 20, reloadTime: 2.6, spread: 0.006, adsSpread: 0.0015, recoil: 1.05, range: 89.3, adsTime: 0.33, moveSpeed: 0.86, auto: false, headshotMult: 1.75 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
   },
   {
     id: "dmr_whisper", name: "Whisper DMR", category: "dmr", unlockLevel: 35, unlockCost: 2700,
     description: "Low-recoil semi-auto precision rifle. Extremely accurate but deliberately paced.",
-    stats: { damage: 62, fireRate: 2.7, magSize: 14, reloadTime: 2.0, spread: 0.003, adsSpread: 0.0006, recoil: 0.42, range: 145, adsTime: 0.32, moveSpeed: 0.9, auto: false, headshotMult: 1.9 },
+    stats: { damage: 62, fireRate: 2.7, magSize: 14, reloadTime: 2.0, spread: 0.003, adsSpread: 0.0006, recoil: 0.42, range: 111.7, adsTime: 0.32, moveSpeed: 0.9, auto: false, headshotMult: 1.9 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
   },
   {
     id: "baton", name: "Shock Baton", category: "melee", unlockLevel: 16, unlockCost: 900,
@@ -156,7 +160,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 0,
     description: "Balanced full-auto rifle. Reliable in any engagement.",
     // 35 dmg @ 9 rps, hsMult 1.5 → 3 chest / 2 head to kill 100HP. TTK ~0.22s chest, ~0.11s head.
-    stats: { damage: 35, fireRate: 9, magSize: 30, reloadTime: 2.2, spread: 0.012, adsSpread: 0.003, recoil: 0.9, range: 80, adsTime: 0.25, moveSpeed: 0.9, auto: true, headshotMult: 1.5 },
+    stats: { damage: 35, fireRate: 9, magSize: 30, reloadTime: 2.2, spread: 0.012, adsSpread: 0.003, recoil: 0.9, range: 43.2, adsTime: 0.25, moveSpeed: 0.9, auto: true, headshotMult: 1.5 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
   },
   // Tier 2 SMG — 800 CR (Task 18-c+d economy tier scheme).
   {
@@ -167,7 +171,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "High fire-rate submachine gun. Excels in close quarters.",
     // 26 dmg @ 13 rps, hsMult 1.4 → 4 chest / 3 head to kill 100HP. TTK ~0.31s chest, ~0.23s head.
-    stats: { damage: 26, fireRate: 13, magSize: 28, reloadTime: 1.9, spread: 0.02, adsSpread: 0.006, recoil: 0.7, range: 45, adsTime: 0.18, moveSpeed: 1.05, auto: true, headshotMult: 1.4 },
+    stats: { damage: 26, fireRate: 13, magSize: 28, reloadTime: 1.9, spread: 0.02, adsSpread: 0.006, recoil: 0.7, range: 27.9, adsTime: 0.18, moveSpeed: 1.05, auto: true, headshotMult: 1.4 , falloffEndMultiplier: 1.4, minDamageMultiplier: 0.22 },
   },
   // Tier 1 shotgun — 500 CR (Task 18-c+d economy tier scheme).
   {
@@ -178,7 +182,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Pump shotgun. Devastating up close, 8 pellets per shell.",
     // 19 dmg * 8 pellets = 152 per shell, hsMult 1.3 → 1 shell to kill at point blank.
-    stats: { damage: 19, fireRate: 1.6, magSize: 7, reloadTime: 3.0, spread: 0.075, adsSpread: 0.05, recoil: 1.6, range: 24, adsTime: 0.3, moveSpeed: 0.92, auto: false, pellets: 8, headshotMult: 1.3 },
+    stats: { damage: 19, fireRate: 1.6, magSize: 7, reloadTime: 3.0, spread: 0.075, adsSpread: 0.05, recoil: 1.6, range: 17.3, adsTime: 0.3, moveSpeed: 0.92, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.72 },
     // Shotguns don't take a grip slot — only sight/barrel/magazine.
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
@@ -191,7 +195,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Semi-auto designated marksman rifle. Punches hard at range.",
     // 74 dmg @ 4 rps, hsMult 1.8 → 2 chest / 1 head to kill 100HP. TTK ~0.25s head, ~0.5s chest.
-    stats: { damage: 74, fireRate: 4, magSize: 20, reloadTime: 2.5, spread: 0.005, adsSpread: 0.0015, recoil: 1.3, range: 110, adsTime: 0.35, moveSpeed: 0.85, auto: false, headshotMult: 1.8 },
+    stats: { damage: 74, fireRate: 4, magSize: 20, reloadTime: 2.5, spread: 0.005, adsSpread: 0.0015, recoil: 1.3, range: 84.7, adsTime: 0.35, moveSpeed: 0.85, auto: false, headshotMult: 1.8 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
   },
   // Tier 2 sniper — 800 CR (Task 18-c+d economy tier scheme).
   {
@@ -202,7 +206,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Bolt-action sniper. One-shot kills to the head, two to the body.",
     // 135 dmg, hsMult 2.0 → headshot = 270 (1-shot kill), body = 135 (1 shot to kill 100HP).
-    stats: { damage: 135, fireRate: 1, magSize: 5, reloadTime: 3.2, spread: 0.001, adsSpread: 0.0, recoil: 2.6, range: 200, adsTime: 0.6, moveSpeed: 0.7, auto: false, headshotMult: 2.0 },
+    stats: { damage: 135, fireRate: 1, magSize: 5, reloadTime: 3.2, spread: 0.001, adsSpread: 0.0, recoil: 2.6, range: 164, adsTime: 0.6, moveSpeed: 0.7, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 0.92 },
     // Snipers don't take a grip slot — only sight/barrel/magazine.
     attachments: ["sight", "barrel", "grip", "magazine"],
     // Snipers ship with a 6x scope as standard (not iron sight). The player
@@ -218,7 +222,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Heavy machine gun. 75-round belt, suppressive monster.",
     // 30 dmg @ 10 rps, hsMult 1.4 → 4 chest / 3 head to kill 100HP. TTK ~0.4s chest.
-    stats: { damage: 30, fireRate: 10, magSize: 75, reloadTime: 4.0, spread: 0.018, adsSpread: 0.005, recoil: 1.0, range: 90, adsTime: 0.4, moveSpeed: 0.75, auto: true, headshotMult: 1.4 },
+    stats: { damage: 30, fireRate: 10, magSize: 75, reloadTime: 4.0, spread: 0.018, adsSpread: 0.005, recoil: 1.0, range: 54, adsTime: 0.4, moveSpeed: 0.75, auto: true, headshotMult: 1.4 , falloffEndMultiplier: 1.5, minDamageMultiplier: 0.28 },
   },
   {
     id: "pistol_side",
@@ -228,7 +232,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 0,
     description: "Standard issue sidearm. Always equipped as backup.",
     // 41 dmg @ 5 rps, hsMult 1.5 → 3 chest / 2 head to kill 100HP.
-    stats: { damage: 41, fireRate: 5, magSize: 12, reloadTime: 1.6, spread: 0.015, adsSpread: 0.005, recoil: 0.8, range: 50, adsTime: 0.2, moveSpeed: 1.0, auto: false, headshotMult: 1.5 },
+    stats: { damage: 41, fireRate: 5, magSize: 12, reloadTime: 1.6, spread: 0.015, adsSpread: 0.005, recoil: 0.8, range: 33, adsTime: 0.2, moveSpeed: 1.0, auto: false, headshotMult: 1.5 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.32 },
     // Sidearms don't take a grip slot.
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
@@ -241,7 +245,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Compact PDW with blistering fire rate. Shreds at point-blank.",
     // 16 dmg @ 16 rps → ~7 chest / 5 head to kill 100HP. TTK ~0.44s chest.
-    stats: { damage: 16, fireRate: 16, magSize: 40, reloadTime: 2.1, spread: 0.022, adsSpread: 0.008, recoil: 0.6, range: 38, adsTime: 0.16, moveSpeed: 1.1, auto: true, headshotMult: 1.35 },
+    stats: { damage: 16, fireRate: 16, magSize: 40, reloadTime: 2.1, spread: 0.022, adsSpread: 0.008, recoil: 0.6, range: 23.6, adsTime: 0.16, moveSpeed: 1.1, auto: true, headshotMult: 1.35 , falloffEndMultiplier: 1.4, minDamageMultiplier: 0.22 },
   },
   // Tier 3 shotgun — 1200 CR (Task 18-c+d economy tier scheme).
   {
@@ -252,7 +256,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Full-auto shotgun. 8 pellets per shell, sustained suppression.",
     // 9 dmg * 8 pellets = 72 per shell, hsMult 1.3. Full-auto at 2.5 rps.
-    stats: { damage: 9, fireRate: 2.5, magSize: 10, reloadTime: 3.4, spread: 0.08, adsSpread: 0.055, recoil: 1.4, range: 22, adsTime: 0.3, moveSpeed: 0.9, auto: true, pellets: 8, headshotMult: 1.3 },
+    stats: { damage: 9, fireRate: 2.5, magSize: 10, reloadTime: 3.4, spread: 0.08, adsSpread: 0.055, recoil: 1.4, range: 15.8, adsTime: 0.3, moveSpeed: 0.9, auto: true, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.75 },
   },
   {
     id: "pistol_magnum",
@@ -262,7 +266,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1500,
     description: "Heavy revolver. Two chest shots drop a full-health target.",
     // 115 dmg @ 1.7 rps, hsMult 2.0 → 1 chest / 1 head to kill 100HP.
-    stats: { damage: 115, fireRate: 1.7, magSize: 6, reloadTime: 2.4, spread: 0.01, adsSpread: 0.003, recoil: 2.0, range: 70, adsTime: 0.25, moveSpeed: 0.98, auto: false, headshotMult: 2.0 },
+    stats: { damage: 115, fireRate: 1.7, magSize: 6, reloadTime: 2.4, spread: 0.01, adsSpread: 0.003, recoil: 2.0, range: 63, adsTime: 0.25, moveSpeed: 0.98, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 2, minDamageMultiplier: 0.62 },
   },
   // Tier 1 DMR — 500 CR (Task 18-c+d economy tier scheme).
   {
@@ -273,7 +277,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Lightweight DMR. Faster handling than the Marksman, softer punch.",
     // 51 dmg @ 6 rps, hsMult 1.7 → 2 chest / 1 head to kill 100HP.
-    stats: { damage: 51, fireRate: 6, magSize: 24, reloadTime: 2.2, spread: 0.006, adsSpread: 0.002, recoil: 1.0, range: 95, adsTime: 0.28, moveSpeed: 0.92, auto: false, headshotMult: 1.7 },
+    stats: { damage: 51, fireRate: 6, magSize: 24, reloadTime: 2.2, spread: 0.006, adsSpread: 0.002, recoil: 1.0, range: 73.2, adsTime: 0.28, moveSpeed: 0.92, auto: false, headshotMult: 1.7 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
   },
   {
     id: "knife_tactical",
@@ -332,7 +336,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Three-round burst sidearm. High burst DPS at mid range.",
     // 24 dmg @ 4 rps burst-fire (3-round burst). hsMult 1.5. Each trigger pull fires
     // 3 rounds in quick succession; longer pause between bursts.
-    stats: { damage: 24, fireRate: 4, magSize: 21, reloadTime: 2.0, spread: 0.012, adsSpread: 0.004, recoil: 0.9, range: 55, adsTime: 0.18, moveSpeed: 1.0, auto: false, burst: 3, headshotMult: 1.5 },
+    stats: { damage: 24, fireRate: 4, magSize: 21, reloadTime: 2.0, spread: 0.012, adsSpread: 0.004, recoil: 0.9, range: 36.3, adsTime: 0.18, moveSpeed: 1.0, auto: false, burst: 3, headshotMult: 1.5 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.32 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
@@ -343,7 +347,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 2000,
     description: "Full-auto machine pistol. Mag-dump to win at point-blank.",
     // 19 dmg @ 11 rps, hsMult 1.35 → ~6 chest / 4 head to kill 100HP. TTK ~0.55s chest, ~0.36s head.
-    stats: { damage: 19, fireRate: 11, magSize: 25, reloadTime: 1.8, spread: 0.025, adsSpread: 0.008, recoil: 0.85, range: 40, adsTime: 0.15, moveSpeed: 1.05, auto: true, headshotMult: 1.35 },
+    stats: { damage: 19, fireRate: 11, magSize: 25, reloadTime: 1.8, spread: 0.025, adsSpread: 0.008, recoil: 0.85, range: 19.6, adsTime: 0.15, moveSpeed: 1.05, auto: true, headshotMult: 1.35 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
@@ -356,7 +360,7 @@ export const WEAPONS: WeaponDef[] = [
     // 176 dmg @ 0.7 rps, hsMult 1.0, magSize 1. Slow heavy-hitter (1 rocket to kill 100HP).
     // NOTE: Engine does not yet support AoE/splash damage — currently fires as a slow single-shot heavy.
     // Future enhancement: add splash radius so missed-but-close shots deal partial damage.
-    stats: { damage: 176, fireRate: 0.7, magSize: 1, reloadTime: 3.5, spread: 0.0, adsSpread: 0.0, recoil: 2.5, range: 90, adsTime: 0.5, moveSpeed: 0.75, auto: false, pellets: 1, headshotMult: 1.0 },
+    stats: { damage: 176, fireRate: 0.7, magSize: 1, reloadTime: 3.5, spread: 0.0, adsSpread: 0.0, recoil: 2.5, range: 59.4, adsTime: 0.5, moveSpeed: 0.75, auto: false, pellets: 1, headshotMult: 1.0 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.32 },
     // Launchers take only sight + barrel (no grip, no magazine — fixed single-shot tube).
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
@@ -371,7 +375,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Lightweight entry-level sniper. Faster handling than the Longshot, but won't one-shot body kill.",
     // 95 dmg, hsMult 2.0 → headshot = 190 (1-shot kill), body = 95 (2 shots to kill). Faster fire rate + ADS.
-    stats: { damage: 95, fireRate: 1.2, magSize: 7, reloadTime: 2.6, spread: 0.002, adsSpread: 0.0, recoil: 1.8, range: 160, adsTime: 0.45, moveSpeed: 0.82, auto: false, headshotMult: 2.0 },
+    stats: { damage: 95, fireRate: 1.2, magSize: 7, reloadTime: 2.6, spread: 0.002, adsSpread: 0.0, recoil: 1.8, range: 131.2, adsTime: 0.45, moveSpeed: 0.82, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 0.76 },
     attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
@@ -385,7 +389,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
     // 28 dmg @ 9 rps burst (3-round burst). hsMult 1.5. Each burst = 84 dmg if all 3 hit.
-    stats: { damage: 28, fireRate: 9, magSize: 30, reloadTime: 2.3, spread: 0.008, adsSpread: 0.002, recoil: 0.8, range: 75, adsTime: 0.28, moveSpeed: 0.92, auto: false, burst: 3, headshotMult: 1.5 },
+    stats: { damage: 28, fireRate: 9, magSize: 30, reloadTime: 2.3, spread: 0.008, adsSpread: 0.002, recoil: 0.8, range: 40.5, adsTime: 0.28, moveSpeed: 0.92, auto: false, burst: 3, headshotMult: 1.5 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
   },
   // Third assault rifle — heavy hitter, higher level
   // Tier 3 assault — 1200 CR (Task 18-c+d economy tier scheme).
@@ -397,7 +401,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Heavy battle rifle. High damage per shot, slower fire rate, punishing recoil.",
     // 48 dmg @ 6 rps, hsMult 1.6 → 2 chest / 2 head to kill. High recoil.
-    stats: { damage: 48, fireRate: 6, magSize: 20, reloadTime: 2.8, spread: 0.01, adsSpread: 0.003, recoil: 1.4, range: 85, adsTime: 0.32, moveSpeed: 0.85, auto: false, headshotMult: 1.6 },
+    stats: { damage: 48, fireRate: 6, magSize: 20, reloadTime: 2.8, spread: 0.01, adsSpread: 0.003, recoil: 1.4, range: 45.9, adsTime: 0.32, moveSpeed: 0.85, auto: false, headshotMult: 1.6 , falloffEndMultiplier: 1.55, minDamageMultiplier: 0.3 },
   },
   // Third SMG — budget option, early unlock
   // Tier 1 SMG — 500 CR (Task 18-c+d economy tier scheme).
@@ -409,7 +413,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
     // 20 dmg @ 12 rps, hsMult 1.3 → 5 chest / 4 head to kill. Cheap + early.
-    stats: { damage: 20, fireRate: 12, magSize: 24, reloadTime: 1.7, spread: 0.018, adsSpread: 0.005, recoil: 0.65, range: 38, adsTime: 0.16, moveSpeed: 1.08, auto: true, headshotMult: 1.3 },
+    stats: { damage: 20, fireRate: 12, magSize: 24, reloadTime: 1.7, spread: 0.018, adsSpread: 0.005, recoil: 0.65, range: 23.6, adsTime: 0.16, moveSpeed: 1.08, auto: true, headshotMult: 1.3 , falloffEndMultiplier: 1.4, minDamageMultiplier: 0.22 },
   },
   // Third shotgun — automatic combat shotgun, mid level
   // Tier 2 shotgun — 800 CR (Task 18-c+d economy tier scheme).
@@ -421,7 +425,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Semi-auto combat shotgun. Faster fire rate than the Breacher, tighter spread.",
     // 14 dmg * 8 pellets = 112 per shell, hsMult 1.3. Semi-auto at 2 rps.
-    stats: { damage: 14, fireRate: 2, magSize: 8, reloadTime: 2.8, spread: 0.06, adsSpread: 0.04, recoil: 1.3, range: 26, adsTime: 0.25, moveSpeed: 0.93, auto: false, pellets: 8, headshotMult: 1.3 },
+    stats: { damage: 14, fireRate: 2, magSize: 8, reloadTime: 2.8, spread: 0.06, adsSpread: 0.04, recoil: 1.3, range: 18.7, adsTime: 0.25, moveSpeed: 0.93, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.68 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Third DMR — heavy hitting, higher level
@@ -434,7 +438,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Heavy DMR. Near-sniper damage with semi-auto fire rate. Devastating at range.",
     // 85 dmg @ 3 rps, hsMult 1.8 → 2 chest / 1 head to kill. High recoil per shot.
-    stats: { damage: 85, fireRate: 3, magSize: 15, reloadTime: 2.8, spread: 0.004, adsSpread: 0.001, recoil: 1.6, range: 130, adsTime: 0.4, moveSpeed: 0.82, auto: false, headshotMult: 1.8 },
+    stats: { damage: 85, fireRate: 3, magSize: 15, reloadTime: 2.8, spread: 0.004, adsSpread: 0.001, recoil: 1.6, range: 100.1, adsTime: 0.4, moveSpeed: 0.82, auto: false, headshotMult: 1.8 , falloffEndMultiplier: 1.72, minDamageMultiplier: 0.46 },
   },
   // Second LMG — lighter, faster, earlier unlock
   // Tier 1 LMG — 500 CR (Task 18-c+d economy tier scheme).
@@ -446,7 +450,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Light support weapon. Faster than the Hailstorm, smaller belt, better mobility.",
     // 28 dmg @ 11 rps, hsMult 1.4 → 4 chest / 3 head to kill. Better moveSpeed than Hailstorm.
-    stats: { damage: 28, fireRate: 11, magSize: 50, reloadTime: 3.2, spread: 0.015, adsSpread: 0.004, recoil: 0.85, range: 80, adsTime: 0.35, moveSpeed: 0.82, auto: true, headshotMult: 1.4 },
+    stats: { damage: 28, fireRate: 11, magSize: 50, reloadTime: 3.2, spread: 0.015, adsSpread: 0.004, recoil: 0.85, range: 48, adsTime: 0.35, moveSpeed: 0.82, auto: true, headshotMult: 1.4 , falloffEndMultiplier: 1.5, minDamageMultiplier: 0.28 },
   },
   // ---- Task 18-c+d: 3rd Sniper + 3rd LMG (Tier 3 in each category, 1200 CR) ----
   // Tier 3 sniper — Annihilator. Heavy anti-material sniper: devastating one-shot body kills
@@ -459,7 +463,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
     // 170 dmg, hsMult 2.0 → body = 170 (1-shot kill 100HP), head = 340 (overkill). Very slow.
-    stats: { damage: 170, fireRate: 0.6, magSize: 4, reloadTime: 3.8, spread: 0.001, adsSpread: 0.0, recoil: 3.2, range: 250, adsTime: 0.75, moveSpeed: 0.65, auto: false, headshotMult: 2.0 },
+    stats: { damage: 170, fireRate: 0.6, magSize: 4, reloadTime: 3.8, spread: 0.001, adsSpread: 0.0, recoil: 3.2, range: 205, adsTime: 0.75, moveSpeed: 0.65, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 1.05 },
     attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
@@ -473,7 +477,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Heavy machine gun. 100-round belt, devastating suppressive fire, but sluggish handling.",
     // 34 dmg @ 8 rps, hsMult 1.4 → 3 chest / 2 head to kill. Slow fire rate for LMG, huge mag.
-    stats: { damage: 34, fireRate: 8, magSize: 100, reloadTime: 5.0, spread: 0.02, adsSpread: 0.006, recoil: 1.2, range: 95, adsTime: 0.5, moveSpeed: 0.68, auto: true, headshotMult: 1.4 },
+    stats: { damage: 34, fireRate: 8, magSize: 100, reloadTime: 5.0, spread: 0.02, adsSpread: 0.006, recoil: 1.2, range: 57, adsTime: 0.5, moveSpeed: 0.68, auto: true, headshotMult: 1.4 , falloffEndMultiplier: 1.5, minDamageMultiplier: 0.28 },
   },
 ];
 
@@ -1422,6 +1426,19 @@ export function resolveLoadout(input: {
     secondaryAttachments: parseAtts(input.secondaryAttachments),
     meleeAttachments: parseAtts(input.meleeAttachments),
   };
+}
+
+// Shared damage model used by offline shots, bots, and the authoritative server.
+// An optional per-weapon falloff tuning overrides the conservative defaults.
+export function maxWeaponHitRange(range: number, stats: WeaponStats): number {
+  return range * Math.max(1.05, stats.falloffEndMultiplier ?? 1.6);
+}
+export function damageAtRange(baseDamage: number, distance: number, range: number, stats: WeaponStats): number {
+  if (distance <= range) return baseDamage;
+  const maxRange = maxWeaponHitRange(range, stats);
+  const minimum = Math.min(1, Math.max(0.05, stats.minDamageMultiplier ?? 0.4));
+  if (distance >= maxRange) return baseDamage * minimum;
+  return baseDamage * (1 - (1 - minimum) * (distance - range) / (maxRange - range));
 }
 
 // Compute effective stats after applying attachment effects.
