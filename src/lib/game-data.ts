@@ -928,6 +928,8 @@ export interface WeaponChallengeDef {
   skinId: string;
   goal: number;
   metric: WeaponChallengeMetric;
+  // Optional AND-based mastery steps. All steps must be completed.
+  requirements?: { metric: WeaponChallengeMetric; goal: number }[];
   title: string;
   description: string;
 }
