@@ -941,7 +941,8 @@ export const PLAYER_SKINS: PlayerSkinDef[] = [
 export type WeaponConditionMetric =
   | "bare_kills" | "fully_equipped_kills" | "ads_kills"
   | "hipfire_kills" | "airborne_kills" | "close_range_kills"
-  | "long_range_kills" | "multikill_kills";
+  | "long_range_kills" | "multikill_kills"
+  | "suppressed_kills" | "critical_health_kills" | "comeback_kills";
 export type WeaponChallengeMetric = "kills" | "headshots" | WeaponConditionMetric;
 
 export interface WeaponChallengeDef {
@@ -1518,6 +1519,8 @@ export type ChallengeMetric =
   | "survival_kills"
   | "survival_waves"
   | "gungame_kills"
+  | "kill_confirmations"
+  | "kill_denials"
   | "level";   // elite quests: lifetime player level
 
 export interface ChallengeDef {
@@ -1545,6 +1548,8 @@ export const DAILY_CHALLENGE_POOL: ChallengeDef[] = [
   { id: "ch_hs_25", metric: "headshots", goal: 25, rewardXp: 900, rewardCredits: 750, title: "Marksman", description: "Land 25 headshots", icon: "Target" },
   { id: "ch_win_3", metric: "wins", goal: 3, rewardXp: 550, rewardCredits: 450, title: "Victor", description: "Win 3 matches", icon: "Trophy" },
   { id: "ch_play_5", metric: "matches", goal: 5, rewardXp: 250, rewardCredits: 200, title: "Active Duty", description: "Play 5 matches", icon: "Swords" },
+  { id: "ch_tags_12", metric: "kill_confirmations", goal: 12, rewardXp: 500, rewardCredits: 450, title: "Dog Tag Collector", description: "Recover 12 enemy tags in Kill Confirmed", icon: "Shield" },
+  { id: "ch_denials_5", metric: "kill_denials", goal: 5, rewardXp: 500, rewardCredits: 450, title: "Last-Second Save", description: "Deny 5 enemy confirmations by retrieving allied tags", icon: "Shield" },
   { id: "ch_tdm_20", metric: "tdm_kills", goal: 20, rewardXp: 400, rewardCredits: 325, title: "Team Player", description: "Get 20 kills in TDM", icon: "Shield" },
   { id: "ch_ffa_20", metric: "ffa_kills", goal: 20, rewardXp: 400, rewardCredits: 325, title: "Lone Wolf", description: "Get 20 kills in FFA", icon: "Users" },
   { id: "ch_multi_5", metric: "multikills", goal: 5, rewardXp: 550, rewardCredits: 450, title: "Killing Spree", description: "Achieve 5 multi-kills", icon: "Zap" },
@@ -1580,6 +1585,7 @@ export function dailyChallengeSet(date = new Date()): ChallengeDef[] {
 // weekly set, so it's a global "this week's challenge" for everyone.
 // ============================================================================
 export const WEEKLY_CHALLENGE_POOL: ChallengeDef[] = [
+  { id: "wk_tags_50", metric: "kill_confirmations", goal: 50, rewardXp: 1800, rewardCredits: 1200, title: "Evidence Locker", description: "Collect 50 enemy dog tags across Kill Confirmed matches", icon: "Shield", category: "weekly" },
   // Task 18-c+d: same boost as daily — rewardCredits ×2.5 (nearest 25),
   // rewardXp ×1.5 (nearest 50). The two new secondary/melee weeklies are
   // authored at the already-boosted values directly.
