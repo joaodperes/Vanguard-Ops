@@ -183,6 +183,8 @@ model WeaponProgress {
   weaponId  String
   kills     Int      @default(0)
   headshots Int      @default(0)
+  // JSON map of contextual elimination counters; old profiles default to zero.
+  conditionStats String @default("{}")
   updatedAt DateTime @updatedAt
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
