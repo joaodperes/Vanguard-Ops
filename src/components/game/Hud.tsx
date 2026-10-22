@@ -511,6 +511,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <span className={`tabular-nums font-bold text-xs ${hud.overheated ? "text-rose-400" : "text-cyan-300"}`}>
                 {Math.round(hud.heat)}% HEAT
               </span>
+            ) : hud.weaponId === "wonder_turret" ? (
+              <span className={`text-[10px] font-bold ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
+                {hud.ammo > 0 ? "PLANT READY" : "RECHARGING"}
+              </span>
             ) : (
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}

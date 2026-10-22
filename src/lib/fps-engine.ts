@@ -952,6 +952,7 @@ export class FPSEngine {
       this.bestStreak = 0;
       this.recentKills = [];
       this.killChain = { count: 0, lastKillAt: -Infinity };
+      this.shotBloom = 0;
       this.lastKillstreak = null;
     }
     // Emit the initial lobby state so the GameCanvas can render the Lobby
@@ -3523,6 +3524,9 @@ export class FPSEngine {
           if (msg.victimId === this.selfId) {
             this.deaths += 1;
             this.alive = false;
+            this.killChain = { count: 0, lastKillAt: -Infinity };
+            this.recentKills = [];
+            this.shotBloom = 0;
             // Set the respawn timer so the HUD countdown ("Respawning in Ns")
             // actually counts down. Previously this was only set in the offline
             // takeDamage() path — online deaths left respawnAt at 0, so the
@@ -3807,7 +3811,8 @@ export class FPSEngine {
         this.multikillsCount = 0;
         this.bestStreak = 0;
         this.recentKills = [];
-      this.killChain = { count: 0, lastKillAt: -Infinity };
+        this.killChain = { count: 0, lastKillAt: -Infinity };
+        this.shotBloom = 0;
         this.lastKillstreak = null;
         // Reset Gun Game progression for the local player at match start.
         if (this.opts.mode === "gungame") {
@@ -6367,6 +6372,9 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      this.killChain = { count: 0, lastKillAt: -Infinity };
+      this.recentKills = [];
+      this.shotBloom = 0;
       if (this.activePerkId === "explonando") {
         const pos: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
         this.placeDeathBomb("offline_death_" + this.deaths, pos, Date.now() + EXPLO_FUSE_MS, true);
