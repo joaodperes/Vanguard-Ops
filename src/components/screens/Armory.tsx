@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
@@ -496,22 +496,38 @@ function WeaponSlotSection(props: WeaponSlotSectionProps) {
           <CollapsibleContent>
             <div className="border-t border-white/10 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {groups.map((group) => (
-                <Fragment key={group.cat}>
-                  <div className="col-span-full flex items-center gap-2 mt-3 mb-1 px-1">
-                    <span className="text-white/50 text-xs font-bold uppercase tracking-wider">{CATEGORY_LABELS[group.cat]}</span>
-                    <span className="text-white/20 text-[10px]">({group.weapons.length})</span>
-                    <div className="flex-1 h-px bg-white/5" />
-                  </div>
-                  {group.weapons.map((w) => (
-                    <WeaponCard key={w.id} weapon={w} {...props} />
-                  ))}
-                </Fragment>
+                <WeaponCategoryGroup key={group.cat} group={group} parent={props} />
               ))}
             </div>
           </CollapsibleContent>
         </div>
       </Collapsible>
     </div>
+  );
+}
+
+/** Expand/collapse each weapon type independently within the Primary slot. */
+function WeaponCategoryGroup({ group, parent }: {
+  group: { cat: WeaponCategory; weapons: WeaponDef[] };
+  parent: WeaponSlotSectionProps;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="col-span-full">
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center gap-2 mt-1 rounded-lg px-3 py-3 text-left bg-white/[0.035] hover:bg-white/[0.075] border border-white/10 transition-colors">
+          {open ? <ChevronDown className="w-4 h-4 text-amber-300" /> : <ChevronRight className="w-4 h-4 text-white/50" />}
+          <span className="text-white/75 text-xs font-bold uppercase tracking-wider">{CATEGORY_LABELS[group.cat]}</span>
+          <span className="text-white/35 text-[11px]">({group.weapons.length})</span>
+          <span className="text-white/40 text-[10px] ml-auto">{group.weapons.filter(w => parent.ownedWeaponIds.has(w.id)).length} owned</span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-3">
+          {group.weapons.map(w => <WeaponCard key={w.id} weapon={w} {...parent} />)}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
