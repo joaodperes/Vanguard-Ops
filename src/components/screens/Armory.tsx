@@ -814,7 +814,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
                             <Lock className="w-2.5 h-2.5" />{challenge?.completed ? "Unlocked for purchase" : "Locked"}
                           </div>
-                          <div className="mt-1 space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2">
+                          {!challenge!.completed && <div className="mt-1 space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2">
                             <div className="text-amber-200 text-xs font-semibold">{challenge!.title}</div>
                             <div className="text-amber-100/80 text-[12px] leading-relaxed">{challenge!.description}</div>
                             {challenge!.requirements?.map(step => (
@@ -823,15 +823,15 @@ function CustomizeModal(props: CustomizeModalProps) {
                                 <span className={step.completed ? "text-emerald-300" : "text-amber-300"}>{step.progress}/{step.goal}</span>
                               </div>
                             ))}
-                          </div>
-                          <div className="mt-1 flex items-center gap-2">
+                          </div>}
+                          {!challenge!.completed && <div className="mt-1 flex items-center gap-2">
                             <div className="flex-1 h-1 bg-black/60 rounded-full overflow-hidden">
                               <div className={`h-full ${challenge!.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                             </div>
                             <span className="text-[9px] font-mono tabular-nums text-white/60">
                               {challenge!.progress}/{challenge!.goal} {challenge!.requirements ? "objectives" : challenge!.metric.replaceAll("_", " ")}
                             </span>
-                          </div>
+                          </div>}
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
@@ -901,7 +901,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-white text-sm font-semibold">{c.title}</span>
-                            {c.completed && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[9px]"><Check className="w-2.5 h-2.5 mr-0.5" />Done</Badge>}
+                            
                           </div>
                           <div className="text-amber-100/80 text-[13px] leading-relaxed mt-1">{c.description}</div>
                            {c.requirements && (
@@ -920,7 +920,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden">
                           <div className={`h-full ${c.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[10px] font-mono tabular-nums text-white/60">
+                        <span className="text-xs font-mono font-semibold tabular-nums text-amber-200">
                           {c.progress}/{c.goal} {c.requirements ? "objectives" : c.metric.replaceAll("_", " ")}
                         </span>
                       </div>
@@ -1016,12 +1016,13 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                 </div>
                 <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
                 <button type="button" onClick={() => onPreview(a.id)} className="text-[11px] text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-2">Preview stat impact</button>
-                {!isOwned && chProgress && (
+                {!isOwned && chProgress?.completed && <div className="text-emerald-300 text-xs font-semibold mb-2">Challenge complete · Available to purchase</div>}
+                {!isOwned && chProgress && !chProgress.completed && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
                     <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300 mb-1">Locked · Challenge</div>
                     {chProgress.description}
                     <span className="block mt-1 font-mono text-amber-200 font-bold">{chProgress.progress}/{chProgress.goal} {chProgress.metric.replaceAll("_", " ")}</span>
-                    {chProgress.completed && <span className="text-emerald-300"> · Ready to purchase</span>}
+                    
                   </div>
                 )}
                 <div className="flex flex-wrap gap-1">
