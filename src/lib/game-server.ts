@@ -125,6 +125,7 @@ interface Room {
   prepLeft: number;
   reinforcements: number;
   reinforcementsMax: number;
+  downed: Set<string>;
   // ---- Room lobby metadata ----
   name: string;            // display name
   hostName: string;        // host's player name
@@ -365,7 +366,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
-    reinforcements: isSurvival ? 5 : 0, reinforcementsMax: isSurvival ? 5 : 0,
+    reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
     name: "Quick Match", hostName: "Server", hostSocketId: "",
     teamSize, fillWithBots: true, password: null, capacity,
     botDifficulty: "normal",
@@ -523,7 +524,7 @@ function createLobbyRoom(
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
-    reinforcements: isSurvival ? 5 : 0, reinforcementsMax: isSurvival ? 5 : 0,
+    reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
     name: cfg.roomName?.trim() || `${name}'s Room`,
     hostName: name, hostSocketId: socketId,
     teamSize, fillWithBots: cfg.fillWithBots, password: cfg.password || null,
@@ -584,6 +585,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
+  room.downed.clear();
   room.deathBombs.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
@@ -1001,6 +1003,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if (!victim.alive) return;
   // Spawn protection: skip damage entirely if the victim is within their grace period.
   // This prevents bots from killing a freshly-spawned player before they can react.
+  if (room.mode === "survival" && room.downed.has(victim.id)) return;
   if (victim.spawnProtectedUntil && victim.spawnProtectedUntil > Date.now()) return;
   let dmg = damage;
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
@@ -1072,16 +1075,16 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     };
     io.to(room.id).emit("message", { t: "kill", entry } as S2C);
     if (room.mode === "survival") {
-      if (victim.isBot) {
-        // dead bots stay dead until the next wave resets them — no respawn
-      } else {
-        // human death: consume a reinforcement; game over when the pool is empty
-        room.reinforcements = Math.max(0, room.reinforcements - 1);
-        if (room.reinforcements <= 0) {
-          endMatch(room);
-        } else {
-          scheduleRespawn(room, victim);
-        }
+      if (!victim.isBot) {
+        room.downed.add(victim.id);
+        // Downed players can only shoot the secondary, cannot move or
+        // take further damage; every-operative-downed ends the match.
+        victim.health = 1;
+        victim.alive = true;
+        victim.weaponId = room.loadouts.get(victim.id)?.secondaryWeaponId ?? "pistol_side";
+        victim.spawnProtectedUntil = 0;
+        io.to(room.id).emit("message", { t: "survivalDowned", playerId: victim.id, weaponId: victim.weaponId } as S2C);
+        if (![...room.players.values()].some(p => p.alive && !room.downed.has(p.id))) endMatch(room);
       }
     } else if (room.mode === "gungame") {
       // Gun Game: the attacker advances their tier on each kill. If they were
@@ -1264,12 +1267,26 @@ function startSurvivalWave(room: Room) {
       pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
       weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
       kills: 0, deaths: 0, lastShotAt: 0,
-      spawnProtectedUntil: Date.now() + 3000,
+      spawnProtectedUntil: 0,
       ai, loadout,
     };
     room.bots.set(id, bot);
     room.loadouts.set(id, loadout);
   }
+}
+
+function recoverSurvivalPlayers(room: Room) {
+  for (const playerId of room.downed) {
+    const p = room.players.get(playerId);
+    if (!p) continue;
+    const pos = pickSpawn(p.team, room);
+    p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
+    p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
+    p.spawnProtectedUntil = 0;
+    room.lastDamagedAt.delete(p.id);
+    io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos, health: MAX_HEALTH } as S2C);
+  }
+  room.downed.clear();
 }
 
 // ---- Bot AI -----------------------------------------------------------------
@@ -1344,7 +1361,7 @@ function tickRoom(room: Room) {
       room.preMatchCountdown = 0;
       // Protection starts after the countdown, not during the lobby/countdown.
       const until = Date.now() + 2500;
-      for (const p of allCombatants(room)) if (p.alive) p.spawnProtectedUntil = until;
+      for (const p of allCombatants(room)) if (p.alive && (room.mode !== "survival" || !p.isBot)) p.spawnProtectedUntil = until;
     }
   }
   if (room.preMatchCountdown <= 0) {
@@ -1382,6 +1399,7 @@ function tickRoom(room: Room) {
             return;
           }
           room.prepLeft = SURVIVAL_PREP_SEC;
+          recoverSurvivalPlayers(room);
         }
       }
     }
@@ -1452,7 +1470,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   // If no visible enemy exists, the bot falls back to wandering. This makes bots
   // feel less psychic — you can break LoS to escape them.
   for (const e of allCombatants(room)) {
-    if (e.id === p.id || !e.alive) continue;
+    if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
     if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
     if (d >= bestD) continue;
@@ -1535,7 +1553,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.aimErrorPitch = (Math.random() - 0.5) * errMag * 2;
     }
     bot.yaw = lerpAngle(bot.yaw, desiredYaw + ai.aimErrorYaw, turnLerp);
-    bot.pitch = lerpAngle(bot.pitch, Math.atan2(dy, Math.hypot(dx, dz)) * 0.6 + ai.aimErrorPitch, turnLerp);
+    bot.pitch = lerpAngle(bot.pitch, Math.atan2(dy, Math.hypot(dx, dz)) + ai.aimErrorPitch, turnLerp);
 
     // Spray drift accumulation/decay
     const sinceFired = now - ai.lastFiredAt;
