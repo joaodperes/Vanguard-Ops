@@ -12,6 +12,7 @@ import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkSelection } from "@/lib/perks";
+import { isPrimaryWeaponCategory } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
@@ -133,7 +134,8 @@ export default function Page() {
     ? {
         weaponId: profile.loadout.weapon.id,
         perkId: perkSelection(profile.level),
-        secondaryWeaponId: profile.loadout.secondary?.id ?? "pistol_side",
+        secondaryWeaponId: perkSelection(profile.level) === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
+          ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
         weaponSkinId: profile.loadout.weaponSkin.id,
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
