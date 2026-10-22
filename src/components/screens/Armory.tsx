@@ -427,6 +427,7 @@ export function Armory() {
           };
         })) : []}
         busy={busy}
+        prestiged={!!customizing && (profile?.prestige?.masteredWeapons.includes(customizing.weapon.id) ?? false)}
         onPurchase={purchase}
         onEquipAttachment={equipAttachment}
         onEquipSkin={equipSkin}
@@ -608,6 +609,7 @@ interface CustomizeModalProps {
   skinsByWeapon: Record<string, string[]>;
   progress: { weaponId: string; kills: number; headshots: number } | null;
   challengeViews: WeaponChallengeView[];
+  prestiged: boolean;
   busy: string | null;
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquipAttachment: (slot: WeaponSlot, attSlot: AttachmentSlot, attId: string | null) => Promise<void>;
@@ -615,7 +617,7 @@ interface CustomizeModalProps {
 }
 
 function CustomizeModal(props: CustomizeModalProps) {
-  const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
+  const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
   // Track which weapon the modal is currently showing. When the parent passes
   // a different weapon (or re-opens the modal), reset the active tab to
@@ -761,7 +763,10 @@ function CustomizeModal(props: CustomizeModalProps) {
                     <div
                       className="w-9 h-9 rounded shrink-0 relative overflow-hidden"
                       style={{
-                        background: `linear-gradient(135deg, ${s.color}, ${s.emissive ?? "#000"})`,
+                        background: s.prestige === "cosmic" ? "linear-gradient(110deg,#05071c,#42318e,#060b24,#8eb9ff,#05071c)"
+                          : s.prestige === "toxic" ? "linear-gradient(110deg,#021b0a,#57a218,#0c2b16,#b4e12f,#021b0a)"
+                          : `linear-gradient(135deg, ${s.color}, ${s.emissive ?? "#000"})`,
+                        ...(s.prestige ? { backgroundSize: "300% 300%", animation: "prestige-camo-drift 6s linear infinite" } : {}),
                         boxShadow: s.emissive && isOwned ? `0 0 8px ${s.emissive}` : "none",
                         opacity: isOwned ? 1 : 0.5,
                       }}
@@ -812,7 +817,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />No unlock path
+                          <Lock className="w-2.5 h-2.5" />{s.prestige ? "Prestige this weapon to earn" : "No unlock path"}
                         </div>
                       ) : null}
                     </div>
@@ -840,6 +845,18 @@ function CustomizeModal(props: CustomizeModalProps) {
 
           {/* CHALLENGES TAB — per-weapon skin challenges with progress */}
           <TabsContent value="challenges" className="mt-4">
+            <div className={`mb-3 rounded-lg border p-3 text-xs ${prestiged ? "border-violet-400/40 bg-violet-500/10" : "border-white/10 bg-black/30"}`}>
+              <div className="flex justify-between gap-2 items-center mb-2">
+                <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
+                  {prestiged ? "✦ PRESTIGED — Eventide + Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
+                </span>
+                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">+1 token on completion</span>}
+              </div>
+              <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
+                <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
+              </div>
+              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes can be equipped from Skins." : "Complete every cosmetic challenge to earn a permanent weapon Prestige and one Wonder Weapon token."}</p>
+            </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).title}</span>
