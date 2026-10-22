@@ -2,6 +2,15 @@
  * but unlimited vertical elevation. Only targets enemies within line of sight.
  */
 export const TURRET_ARC_DEG = 140;
+/** FFA / Gun Game has no friendly combatants, even when everybody shares
+ * the same 'ffa' team label. Survival and team modes use real teams.
+ * Centralized so offline and authoritative server targeting cannot diverge.
+ */
+export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: string, victimIsOwner: boolean): boolean {
+  if (victimIsOwner) return false;
+  return mode === "ffa" || mode === "gungame" || ownerTeam !== victimTeam;
+}
+
 export const TURRET_RANGE = 30;
 export const TURRET_DAMAGE = 17;
 export const TURRET_INTERVAL_MS = 360;

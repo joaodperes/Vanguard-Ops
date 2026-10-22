@@ -17,7 +17,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
-import { turretCanTrack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -972,7 +972,7 @@ function tickBulletSpitters(room: Room, now: number) {
     const target = allCombatants(room).filter(p =>
       p.id !== turret.ownerId && p.alive &&
       !(room.mode === "survival" && room.downed.has(p.id)) &&
-      (room.mode === "ffa" || room.mode === "gungame" || p.team !== turret.ownerTeam) &&
+      turretCanAttack(room.mode, turret.ownerTeam, p.team, p.id === turret.ownerId) &&
       turretCanTrack(turret.pos, turret.yaw, p.pos) &&
       hasLineOfSight(room, [turret.pos[0], turret.pos[1] + 1.0, turret.pos[2]],
         [p.pos[0], p.pos[1] + PLAYER_HEIGHT / 2, p.pos[2]])

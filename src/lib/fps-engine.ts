@@ -21,7 +21,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
-import { turretCanTrack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
@@ -2474,7 +2474,8 @@ export class FPSEngine {
       if (now >= t.expiresAt) {this.removeBulletSpitter(id);continue;}
       if (!t.offline || now < t.nextShotAt || this.matchEnded) continue;
       const target = [...this.combatants.values()].filter(c=>
-        c.alive && c.team !== this.opts.team && turretCanTrack(t.pos,t.yaw,c.pos) &&
+        c.alive && turretCanAttack(this.opts.mode, this.opts.team, c.team, c.id === t.ownerId) &&
+        turretCanTrack(t.pos,t.yaw,c.pos) &&
         this.hasLineOfSight([t.pos[0],t.pos[1]+1,t.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]])
       ).sort((a,b)=>Math.hypot(a.pos[0]-t.pos[0],a.pos[2]-t.pos[2]) -
         Math.hypot(b.pos[0]-t.pos[0],b.pos[2]-t.pos[2]))[0];

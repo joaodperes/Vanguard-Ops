@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { WEAPONS, ALL_ATTACHMENT_SLOTS, ATTACHMENTS, compatibleAttachments, weaponAttachmentSlots } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
-import { turretCanTrack, TURRET_ARC_DEG, TURRET_RANGE, TURRET_LIFETIME_MS } from "../src/lib/turret-rules";
+import { turretCanTrack, turretCanAttack, TURRET_ARC_DEG, TURRET_RANGE, TURRET_LIFETIME_MS } from "../src/lib/turret-rules";
 import { botHighGroundWaypoint } from "../src/lib/bot-routing";
 import { getMap } from "../src/lib/game-protocol";
 
@@ -27,6 +27,14 @@ describe("ordinary firearm attachment catalogue", () => {
 });
 
 describe("Bullet Spitter turret", () => {
+  test("offline FFA and Gun Game can target opponents sharing the ffa label", () => {
+    expect(turretCanAttack("ffa", "ffa", "ffa", false)).toBe(true);
+    expect(turretCanAttack("gungame", "ffa", "ffa", false)).toBe(true);
+    expect(turretCanAttack("ffa", "ffa", "ffa", true)).toBe(false);
+    expect(turretCanAttack("tdm", "red", "red", false)).toBe(false);
+    expect(turretCanAttack("tdm", "red", "blue", false)).toBe(true);
+    expect(turretCanAttack("survival", "blue", "red", false)).toBe(true);
+  });
   test("140-degree forward sweep with unlimited elevation", () => {
     expect(TURRET_ARC_DEG).toBe(140);
     expect(TURRET_RANGE).toBe(30);
