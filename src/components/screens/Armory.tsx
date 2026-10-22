@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
@@ -94,7 +95,6 @@ export function Armory() {
   // Serialize attachment writes. Rapidly clearing several slots must not send
   // concurrent full-map updates built from an obsolete profile snapshot.
   const latestAttachmentMaps = useRef<Record<string, Record<AttachmentSlot, string | null>>>({});
-  const attachmentWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const level = profile?.level ?? 1;
   const credits = profile?.credits ?? 0;
 
@@ -207,24 +207,25 @@ export function Armory() {
     latestAttachmentMaps.current[key] = next;
     const field = slot === "primary" ? "attachments" : slot === "secondary" ? "secondaryAttachments" : "meleeAttachments";
     const save = async () => {
-      try {
-        const res = await fetch("/api/loadout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerKey, [field]: next }),
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || "Equip failed");
-        }
-        await refreshProfile();
-        toast.success(attId ? `Equipped ${ATTACHMENTS.find((a) => a.id === attId)?.name ?? attId}` : "Attachment removed", { duration: 1500 });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Network error");
+      const res = await fetch("/api/loadout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, [field]: next }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Equip failed");
       }
+      await refreshProfile();
+      toast.success(attId ? `Equipped ${ATTACHMENTS.find((a) => a.id === attId)?.name ?? attId}` : "Attachment removed", { duration: 1500 });
     };
-    attachmentWriteQueue.current = attachmentWriteQueue.current.then(save, save);
-    await attachmentWriteQueue.current;
+    try {
+      await enqueueAttachmentSave(save);
+    } catch (error) {
+      // An unsuccessful update must not become the base for later edits.
+      delete latestAttachmentMaps.current[key];
+      toast.error(error instanceof Error ? error.message : "Network error");
+    }
   };
 
   // Equip a weapon skin. Skins are PER-WEAPON (like attachments): the skin is

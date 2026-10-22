@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
+import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import {
@@ -146,11 +147,34 @@ export function Play() {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
+  const launchInProgress = useRef(false);
+  // Read the actual persisted loadout AFTER pending Armory edits complete.
+  // This protects every weapon and both offline/online match launch paths from
+  // using a stale React profile while a sight/attachment removal is saving.
+  const prepareMatchLoadout = async (): Promise<boolean> => {
+    if (launchInProgress.current) return false;
+    launchInProgress.current = true;
+    try {
+      await waitForAttachmentSaves();
+      const res = await fetch(`/api/profile?playerKey=${encodeURIComponent(playerKey)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Could not verify your saved loadout");
+      const freshProfile = await res.json();
+      if (!freshProfile?.loadout) throw new Error("No saved loadout found");
+      useGame.getState().setProfile(freshProfile);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load saved attachments");
+      return false;
+    } finally {
+      launchInProgress.current = false;
+    }
+  };
+
   const equipped = profile?.loadout;
   const equippedWeapon = equipped ? weaponById(equipped.weapon.id) : WEAPONS[0];
 
   // ---- Create Room: launch the match via the engine ----
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const mode = roomConfig.mode;
     if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
       toast.error("This Survival tier is locked. Clear the previous milestone first.");
@@ -177,6 +201,7 @@ export function Play() {
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
       denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
     };
+    if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
       mode,
@@ -195,8 +220,9 @@ export function Play() {
   // ---- Join Room from the browser ----
   // For team-based rooms, the caller passes the chosen team (red/blue/auto). For FFA /
   // survival, team is undefined (the server assigns automatically).
-  const handleJoin = (room: RoomSummary, password: string | null, team?: "red" | "blue" | "auto") => {
+  const handleJoin = async (room: RoomSummary, password: string | null, team?: "red" | "blue" | "auto") => {
     const cfg = MATCH_MODES[room.mode];
+    if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "join", roomId: room.id, password, roomName: room.name, team });
     setPlayConfig({
       mode: room.mode,
