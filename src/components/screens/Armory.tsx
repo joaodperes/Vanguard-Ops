@@ -621,6 +621,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
   const [previewAttachment, setPreviewAttachment] = useState<{ slot: AttachmentSlot; id: string | null } | null>(null);
+  const [activeAttachmentSlot, setActiveAttachmentSlot] = useState<AttachmentSlot | null>(null);
   // Track which weapon the modal is currently showing. When the parent passes
   // a different weapon (or re-opens the modal), reset the active tab to
   // "attachments". Using the "adjust state during render" pattern (see
@@ -633,6 +634,7 @@ function CustomizeModal(props: CustomizeModalProps) {
     setPrevKey(currentKey);
     setTab("attachments");
     setPreviewAttachment(null);
+    setActiveAttachmentSlot(null);
   }
 
   if (!w || !slot || !profile) {
@@ -709,25 +711,61 @@ function CustomizeModal(props: CustomizeModalProps) {
                 This weapon does not accept attachments.
               </div>
             ) : (
-              <div className="space-y-4">
-                {supportedSlots.map((aSlot) => (
-                  <ModalAttachmentSlot
-                    key={aSlot}
-                    attSlot={aSlot}
-                    weaponId={w.id}
-                    equippedId={equippedAttsForSlot[aSlot]}
-                    unlockedForWeapon={unlockedForWeapon}
-                    progress={progress}
-                    level={level}
-                    credits={credits}
-                    busy={busy}
-                    slot={slot}
-                    onPurchase={onPurchase}
-                    onPreview={(id) => setPreviewAttachment({ slot: aSlot, id })}
-                    onClearPreview={() => setPreviewAttachment(null)}
-                    onEquip={(attId) => onEquipAttachment(slot, aSlot, attId)}
-                  />
-                ))}
+              <div className="space-y-3">
+                {activeAttachmentSlot === null ? (
+                  <>
+                    <div className="mb-3 text-xs text-white/50 leading-relaxed">Select a slot to browse its compatible attachments. The equipped item is shown on each row.</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {supportedSlots.filter(aSlot => compatibleAttachments(w.id, aSlot).length > 0).map((aSlot) => {
+                        const equippedId = equippedAttsForSlot[aSlot];
+                        const equipped = ATTACHMENTS.find(a => a.id === equippedId);
+                        const options = compatibleAttachments(w.id, aSlot).length;
+                        return (
+                          <button key={aSlot} type="button"
+                            onClick={() => { setActiveAttachmentSlot(aSlot); setPreviewAttachment(null); }}
+                            className="text-left group rounded-xl border border-white/15 bg-white/[0.035] hover:bg-amber-500/10 hover:border-amber-500/50 focus-visible:outline-2 focus-visible:outline-amber-400 transition-colors p-4 min-h-[110px]"
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="font-bold uppercase tracking-wider text-xs text-amber-300">{aSlot}</span>
+                              <span className="text-[10px] text-white/35 ml-auto">{options} options</span>
+                              <ChevronRight className="w-4 h-4 text-white/45 group-hover:text-amber-300" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {equipped ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <X className="w-4 h-4 text-white/35 shrink-0" />}
+                              <span className={`text-sm font-semibold truncate ${equipped ? "text-white" : "text-white/45"}`}>{equipped?.name ?? "None equipped"}</span>
+                            </div>
+                            <div className="text-[11px] text-white/40 mt-2">Click to change attachment</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => { setActiveAttachmentSlot(null); setPreviewAttachment(null); }}
+                      className="flex items-center gap-2 rounded-md text-amber-300 hover:text-amber-100 text-xs font-semibold px-2 py-2 hover:bg-white/5">
+                      <ArrowLeft className="w-4 h-4" /> All attachment slots
+                    </button>
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:p-4">
+                      <ModalAttachmentSlot
+                        key={activeAttachmentSlot}
+                        attSlot={activeAttachmentSlot}
+                        weaponId={w.id}
+                        equippedId={equippedAttsForSlot[activeAttachmentSlot]}
+                        unlockedForWeapon={unlockedForWeapon}
+                        progress={progress}
+                        level={level}
+                        credits={credits}
+                        busy={busy}
+                        slot={slot}
+                        onPurchase={onPurchase}
+                        onPreview={(id) => setPreviewAttachment({ slot: activeAttachmentSlot, id })}
+                        onClearPreview={() => setPreviewAttachment(null)}
+                        onEquip={(attId) => onEquipAttachment(slot, activeAttachmentSlot, attId)}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
