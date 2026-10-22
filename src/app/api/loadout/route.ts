@@ -109,6 +109,9 @@ export async function POST(req: NextRequest) {
       } });
       if (!owned) return NextResponse.json({ error: "Unlock this Wonder Weapon using a Prestige token first" }, { status: 403 });
     }
+    if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
+    }
     if (w.category === "sidearm" || w.category === "melee") {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
@@ -116,6 +119,9 @@ export async function POST(req: NextRequest) {
   if (secondaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === secondaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown secondaryWeapon" }, { status: 400 });
+    if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
+    }
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
     if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, player.level) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
