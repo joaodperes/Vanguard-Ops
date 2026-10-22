@@ -551,13 +551,18 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
           <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
           {mode === "survival" ? (
-            <>
-              <div className="text-white/70 text-lg">Reinforcements left: <span className="text-emerald-300 font-bold text-2xl">{hud.survivalReinforcements ?? 0}</span></div>
-              {(hud.survivalReinforcements ?? 0) > 0 && <div className="text-white/50 text-sm mt-1">Respawning in {hud.respawnIn}s…</div>}
-            </>
+            <div className="text-white/70 text-lg">Survival run ended</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}
+        </div>
+      )}
+
+      {mode === "survival" && hud.survivalDowned && (
+        <div className="absolute left-1/2 top-1/3 -translate-x-1/2 z-40 rounded-xl border border-amber-400/50 bg-black/80 px-7 py-5 text-center">
+          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED</div>
+          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Hold position</div>
+          <div className="text-white/50 text-xs mt-2">Survive until your teammate clears the wave to rejoin during preparation.</div>
         </div>
       )}
 
@@ -612,7 +617,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.preMatchCountdown}
           </div>
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
-            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}
+            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{hud.mapName ?? "Compound"}</span>
           </div>
@@ -649,7 +654,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               <div className="max-h-[50vh] overflow-y-auto custom-scroll">
