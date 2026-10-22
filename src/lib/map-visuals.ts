@@ -80,7 +80,16 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme):MapPr
         w:kind==="rock"?4:undefined,d:kind==="rock"?3:undefined});
     }
   }
-  return result;
+  // An authored façade must never render at a spawn while its collider is
+  // silently suppressed: both visual and physics representations must agree.
+  const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","container"]);
+  return result.filter(p=>{
+    if(!solidKinds.has(p.kind))return true;
+    const h=p.h??(p.kind==="shop"?7:3);
+    const radiusX=p.kind==="tree" ? 0.5 :(p.w??(p.kind==="rock"?4:8))/2;
+    const radiusZ=p.kind==="tree" ? 0.5 :(p.d??(p.kind==="rock"?3:7))/2;
+    return !spawns.some(s=>Math.abs(s[0]-p.x)<radiusX+3&&Math.abs(s[2]-p.z)<radiusZ+3);
+  });
 }
 /** Collision parity: solid props participate in server/bot/player hit tests.
  * Low foliage is atmospheric; trees have slender trunks only, not an invisible

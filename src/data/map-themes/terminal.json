@@ -44,6 +44,64 @@
       "z": 103,
       "w": 10,
       "text": "GLASSLINE"
+    },
+    {
+      "kind": "shop",
+      "x": 138,
+      "z": 14,
+      "w": 13,
+      "d": 8,
+      "h": 9,
+      "text": "BAGELS"
+    },
+    {
+      "kind": "shop",
+      "x": 25,
+      "z": 150,
+      "w": 12,
+      "d": 8,
+      "h": 8,
+      "text": "BOOK STORE"
+    },
+    {
+      "kind": "shop",
+      "x": -106,
+      "z": -61,
+      "w": 12,
+      "d": 8,
+      "h": 9,
+      "text": "CITY PHARMACY"
+    },
+    {
+      "kind": "shop",
+      "x": -125,
+      "z": -14,
+      "w": 12,
+      "d": 8,
+      "h": 7,
+      "text": "TRANSIT SHOP"
+    },
+    {
+      "kind": "lamp",
+      "x": 131,
+      "z": 37
+    },
+    {
+      "kind": "lamp",
+      "x": -121,
+      "z": -26
+    },
+    {
+      "kind": "bush",
+      "x": 37,
+      "z": 142,
+      "h": 1.8
+    },
+    {
+      "kind": "bush",
+      "x": -122,
+      "z": -40,
+      "h": 1.5
     }
   ]
 }

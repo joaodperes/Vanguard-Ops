@@ -10,12 +10,12 @@ import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
-  bunker: {scale:0.72,pace:"compact",description:"Close-quarters vaults and short bent corridors"},
-  shipyard: {scale:0.88,pace:"compact",description:"Dockside container fights and crane routes"},
-  compound: {scale:0.98,pace:"balanced",description:"Four unequal districts with checkpoint engagements"},
-  terminal: {scale:1.00,pace:"balanced",description:"Dog-leg transit halls and parking decks"},
-  skybridge: {scale:1.07,pace:"tactical",description:"Massive front line, long flanks and elevated strongholds"},
-  arena_neon: {scale:1.02,pace:"tactical",description:"Sprawling city districts and rooftop fighting"},
+  bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
+  shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
+  compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},
+  terminal: {scale:1.00,pace:"balanced",description:"Transit plazas, shops and street-level crossfires"},
+  skybridge: {scale:1.07,pace:"tactical",description:"Mountain ridges, alpine overlooks and rocky cover"},
+  arena_neon: {scale:1.02,pace:"tactical",description:"Downtown markets, vibrant shopfronts and rooftop fighting"},
 };
 const scaled=(p:Vec3,s:number):Vec3=>[Math.round(p[0]*s*1000)/1000,p[1],Math.round(p[2]*s*1000)/1000];
 function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {

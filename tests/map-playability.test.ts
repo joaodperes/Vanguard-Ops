@@ -31,6 +31,21 @@ describe("map scale and route accessibility",()=>{
       }
     }
   });
+  test("every solid decorative prop has collision and stays clear of spawns",()=>{
+    for(const map of MAP_LIST){
+      const solid=new Set(["tree","rock","ruin","temple","shop","container"]);
+      const spawns=Object.values(map.spawns).flat();
+      for(const prop of map.props??[]){
+        if(!solid.has(prop.kind))continue;
+        const blocks=map.cover.filter(c=>c.kind==="cover"&&
+          Math.abs(c.pos[0]-prop.x)<.65&&Math.abs(c.pos[2]-prop.z)<.65);
+        expect(blocks.length).toBeGreaterThan(0);
+        for(const p of spawns)
+          expect(blocks.every(c=>!(Math.abs(p[0]-c.pos[0])<c.size[0]+1.1&&
+            Math.abs(p[2]-c.pos[2])<c.size[2]+1.1))).toBe(true);
+      }
+    }
+  });
   test("every authored and inherited spawn clears hard geometry",()=>{
     for(const map of MAP_LIST){
       const cover=makeEnvironmentMap(map).cover;
