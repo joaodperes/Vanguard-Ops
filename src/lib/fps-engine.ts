@@ -6497,8 +6497,12 @@ export class FPSEngine {
       scoped: this.aiming && this.adsProgress > 0.5 && weaponById(this.weaponId).category === "sniper",
       // Round 20h: Local player spawn protection (for first-person shield overlay).
       selfSpawnProtected: this.selfSpawnProtectedUntil > Date.now(),
-      // Dynamic crosshair spread (drives HUD crosshair gap size).
-      spreadFactor: this.currentSpread,
+      // Crosshair reflects both inherent hipfire inaccuracy and accumulated
+      // firing/movement bloom. High-spread weapons no longer show a misleading
+      // pin-point reticle just because the player is standing still.
+      spreadFactor: Math.min(1, this.currentSpread + Math.min(1,
+        shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true) / 0.16
+      ) * (this.aiming ? 0.35 : 0.7)),
       // Sprinting flag (HUD shows sprint indicator + tighter weapon-sway logic).
       sprinting: this.sprinting,
       // Health-regen cooldown in ms (0 = regen active; >0 = ms until regen starts).
