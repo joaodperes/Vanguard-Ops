@@ -77,8 +77,9 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   // case (renders a loading placeholder).
   const level = profile?.level ?? 1;
   const ownedWeaponIds = useMemo(() => new Set<string>([
-    ...WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
+    ...(profile?.prestige?.wonderWeapons ?? []),
   ]), [level, profile?.unlocks.weapons]);
 
   if (!profile) {
