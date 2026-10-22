@@ -580,6 +580,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
+  room.wonderCharges.clear(); // fresh match only; never clear on respawn
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
