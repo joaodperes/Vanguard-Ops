@@ -1265,6 +1265,51 @@ export class FPSEngine {
     }
   }
 
+  /** Animated camo: scrolling procedural starfield or bioluminescent sludge.
+   * No remote textures or assets; the same material moves across the actual
+   * receiver and barrel meshes instead of just a static menu swatch.
+   */
+  private createPrestigeTexture(kind: "cosmic" | "toxic"): THREE.CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = 192; canvas.height = 192;
+    const ctx = canvas.getContext("2d")!;
+    const gradient = ctx.createLinearGradient(0, 0, 192, 192);
+    if (kind === "cosmic") {
+      gradient.addColorStop(0, "#020716");
+      gradient.addColorStop(.4, "#392768");
+      gradient.addColorStop(.7, "#070b24");
+      gradient.addColorStop(1, "#102b58");
+    } else {
+      gradient.addColorStop(0, "#051609");
+      gradient.addColorStop(.45, "#174f16");
+      gradient.addColorStop(.75, "#9fbf20");
+      gradient.addColorStop(1, "#112409");
+    }
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 192, 192);
+    // Repeatable pseudo-random coordinates so the camo doesn't flicker on swap.
+    let seed = kind === "cosmic" ? 31337 : 871;
+    const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < (kind === "cosmic" ? 175 : 100); i++) {
+      const x = random() * 192, y = random() * 192;
+      const radius = kind === "cosmic" ? .25 + random() * 1.5 : 1 + random() * 7;
+      if (kind === "cosmic") {
+        ctx.fillStyle = random() > .75 ? "#a7f3ff" : "#efe4ff";
+        ctx.globalAlpha = .35 + random() * .65;
+      } else {
+        ctx.fillStyle = random() > .6 ? "#baff25" : "#07190b";
+        ctx.globalAlpha = .12 + random() * .42;
+      }
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1.35, 1.35);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   private buildViewmodel() {
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
@@ -1284,6 +1329,8 @@ export class FPSEngine {
       });
     }
     this.vmParts = [];
+    this.prestigeTexture?.dispose();
+    this.prestigeTexture = null;
     this.sightMesh = null;
     // The support-hand rig has a separate animation track but shares the
     // camera's local coordinate system and lifetime with the weapon model.
@@ -1345,7 +1392,14 @@ export class FPSEngine {
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
-    if (emissiveCol) {
+    if (skin.prestige) {
+      this.prestigeTexture = this.createPrestigeTexture(skin.prestige);
+      const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
+      material.map = this.prestigeTexture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    }
+    if (emissiveCol && !skin.prestige) {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
     }
@@ -1769,6 +1823,10 @@ export class FPSEngine {
   // On touch devices, the Fire/ADS buttons cluster in the bottom-right corner, so we
   // shift the hipfire viewmodel toward the bottom-centre/left to stay visible.
   private positionViewmodel() {
+    if (this.prestigeTexture) {
+      const t = performance.now() * .001;
+      this.prestigeTexture.offset.set(t * .045 % 1, t * .015 % 1);
+    }
     // Weapon sits on the player's RIGHT side (positive X in camera-local space),
     // like every classic FPS viewmodel. Desktop uses a stronger rightward offset;
     // mobile uses a smaller rightward offset so it doesn't sit under the
