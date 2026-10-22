@@ -915,12 +915,19 @@ export const PLAYER_SKINS: PlayerSkinDef[] = [
 // metric, goal) to a skinId reward. The Armory shows live progress and the
 // match-completion flow auto-grants the skin when a challenge is cleared.
 // ============================================================================
+// Persistent per-elimination conditions shared by gameplay and progression.
+export type WeaponConditionMetric =
+  | "bare_kills" | "fully_equipped_kills" | "ads_kills"
+  | "hipfire_kills" | "airborne_kills" | "close_range_kills"
+  | "long_range_kills" | "multikill_kills";
+export type WeaponChallengeMetric = "kills" | "headshots" | WeaponConditionMetric;
+
 export interface WeaponChallengeDef {
   id: string;
   weaponId: string;
   skinId: string;
   goal: number;
-  metric: "kills" | "headshots";
+  metric: WeaponChallengeMetric;
   title: string;
   description: string;
 }
