@@ -11,7 +11,7 @@ import { Results } from "@/components/screens/Results";
 import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import type { LoadoutWire } from "@/lib/game-protocol";
-import { perkSelection } from "@/lib/perks";
+import { perkSelection, perkById } from "@/lib/perks";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
@@ -90,6 +90,7 @@ export default function Page() {
       await refreshProfile();
       setScreen("results");
       if (rewards.leveledUp) toast.success(`Level Up! → Level ${rewards.newLevel}`);
+      for (const perkId of rewards.newUnlocks?.perks ?? []) toast.success(`Perk available: ${perkById(perkId).name}`, { description: `Level ${perkById(perkId).unlockLevel} · Equip in Armory` });
       if (rewards.newAchievements?.length) {
         for (const a of rewards.newAchievements) toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR` });
       }
