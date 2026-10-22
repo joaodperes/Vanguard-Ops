@@ -11,7 +11,7 @@ import { equipmentById } from "@/lib/equipment"; // legacy equipment models rema
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
-import { canCollectScavengerDrop } from "./scavenger-pickups";
+import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
@@ -3336,13 +3336,11 @@ export class FPSEngine {
             this.confirmations = msg.scores[this.selfId] ?? this.confirmations;
           }
         }
-        // Draw authoritative ammo drops regardless of perk; only Scavenger can collect.
-        // This makes absent drops distinguishable from a perk-registration problem.
-        const drops = msg.scavengerDrops ?? [];
-        const received = new Set(drops.map(d => d.id));
-        for (const d of drops) this.spawnScavengerPickup(d.id, d.pos, d.expiresAt);
-        for (const id of [...this.scavengerPickups.keys()]) {
-          if (!received.has(id)) this.removeScavengerPickup(id);
+        // Scavenger drops are owner-private push events, NOT part of the shared
+        // snapshot. Do not clear a live private pickup on each 20Hz snapshot.
+        // Legacy servers may still broadcast a shared list: ignore it entirely.
+        if (this.activePerkId !== "scavenger") {
+          for (const id of [...this.scavengerPickups.keys()]) this.removeScavengerPickup(id);
         }
         this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.timeLeft;
         // Survival: sync wave/reinforcement state from the server.
@@ -3502,7 +3500,7 @@ export class FPSEngine {
         this.spawnExplosion(new THREE.Vector3(...msg.pos));
         break;
       case "scavengerDrop":
-        this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
+        if (this.activePerkId === "scavenger") this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
         break;
       case "scavengerRemove":
         this.removeScavengerPickup(msg.id);
@@ -3908,7 +3906,7 @@ export class FPSEngine {
   }
 
   private spawnScavengerPickup(id: string, pos: Vec3, expiresAt: number) {
-    if (this.scavengerPickups.has(id)) return;
+    if (this.activePerkId !== "scavenger" || this.scavengerPickups.has(id)) return;
     const mesh = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.28, 0.43),
       new THREE.MeshStandardMaterial({ color: 0x234b31, metalness: 0.4, roughness: 0.45, emissive: 0x083b20, emissiveIntensity: 0.35 }));
@@ -4006,6 +4004,7 @@ export class FPSEngine {
         now: Date.now(), expiresAt: pack.expiresAt,
         distance: Math.hypot(this.pos.x - pack.pos[0], this.pos.z - pack.pos[2]),
         alive: this.alive, perkId: this.activePerkId,
+        collectorId: this.selfId, ownerId: this.selfId,
         mode: this.opts.mode, collectorTeam: this.opts.team,
       });
       if (nearEnough && this.opts.online) {
@@ -4427,9 +4426,11 @@ export class FPSEngine {
       if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
-      // All enemies drop a visible ammo cache. Only Scavenger owners can collect.
-      this.spawnScavengerPickup(`offline_ammo_${victim.id}_${Date.now()}`,
-        [victim.pos[0], victim.pos[1] + 0.16, victim.pos[2]], Date.now() + SCAVENGER_DROP_LIFETIME_MS);
+      // Offline: only a Scavenger player's kills create private ammo packs.
+      if (shouldCreateScavengerDrop(this.selfId, victim.id, this.activePerkId)) {
+        this.spawnScavengerPickup(`offline_ammo_${victim.id}_${Date.now()}`,
+          [victim.pos[0], victim.pos[1] + 0.16, victim.pos[2]], Date.now() + SCAVENGER_DROP_LIFETIME_MS);
+      }
       // Attribute this kill to the weapon the local player was holding. Critical
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
