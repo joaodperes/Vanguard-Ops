@@ -100,6 +100,9 @@ export function FAQ() {
               <p>Skins are <strong>unlocked per-weapon via weapon challenges</strong>, not by player level or credits. Each weapon has specific challenges — for example, &ldquo;Get 50 kills with the VK-12 Assault&rdquo; to unlock the Crimson skin, or &ldquo;Land 100 headshots&rdquo; for the Neon skin. Visit a weapon in the Armory to see its challenges and your progress.</p>
               <p className="mt-2">Player skins (your operative&rsquo;s appearance) are still unlocked with credits in the Armory.</p>
             </FaqItem>
+            <FaqItem q="How do shotguns and bolt-action snipers reload?">
+              <p>Pump, automatic and combat shotguns, as well as the bolt-action sniper rifles, reload <strong>one shell or round at a time</strong>. You can interrupt a partial reload by firing once a round has been inserted. Rounds already loaded remain in the weapon if you sprint or swap away. Other weapons still reload their full magazines.</p>
+            </FaqItem>
             <FaqItem q="What do the handling stats mean?">
               <p>Each weapon card shows these stats:</p>
               <div className="mt-2 space-y-1 text-xs">
@@ -109,7 +112,7 @@ export function FAQ() {
                 <StatLine label="ADS-t" desc="Time to aim down sights (seconds) — lower is faster." />
                 <StatLine label="HS×" desc="Headshot damage multiplier — 1.5× means a headshot does 50% more damage." />
                 <StatLine label="MOVE" desc="Movement speed while holding this weapon — higher is faster." />
-                <StatLine label="RANGE" desc="Effective range in meters. Beyond this, damage falls off gradually." />
+                <StatLine label="RANGE" desc="Effective range in meters. Beyond this, weapon-specific damage falloff applies until maximum hit distance." />
               </div>
             </FaqItem>
             <FaqItem q="What sights are available?">

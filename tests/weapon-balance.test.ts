@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  WEAPONS, weaponById, compatibleAttachments, damageAtRange, maxWeaponHitRange,
+  WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
 
@@ -29,6 +29,16 @@ describe("weapon range and damage falloff", () => {
     expect(machine.range).toBeLessThan(magnum.range);
     expect(maxWeaponHitRange(machine.range, machine)).toBeLessThan(maxWeaponHitRange(magnum.range, magnum));
     expect(machine.minDamageMultiplier!).toBeLessThan(magnum.minDamageMultiplier!);
+  });
+});
+
+describe("unmodified sight selection", () => {
+  test("removing VK-12 sight returns the default iron sight configuration", () => {
+    const rifle = weaponById("rifle_ar");
+    const noAttachments = { sight: null, barrel: null, grip: null, magazine: null };
+    expect(rifle.baseSightType ?? "iron").toBe("iron");
+    expect(computeEffectiveStats(rifle, noAttachments).sightType).toBe("iron");
+    expect(computeEffectiveStats(rifle, noAttachments).range).toBe(rifle.stats.range);
   });
 });
 
