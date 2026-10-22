@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
-import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, type ArmoryChallengeView } from "./armory-challenges";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeValue, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -24,6 +24,7 @@ import {
   promoteChallengeToElite,
   type ChallengeMetric,
   type ChallengeDef,
+  type WeaponChallengeMetric,
   WEAPON_CHALLENGES,
   weaponById,
   SKIN_WILDCARD_WEAPON_ID,
@@ -64,6 +65,7 @@ export interface MatchResultInput {
   // map to evaluate per-weapon skin challenges for EVERY weapon that got kills.
   // Optional — non-gungame callers omit it (kills default to `weaponId`).
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
+  perWeaponActions?: Record<string, Partial<WeaponConditionStats>>;
 }
 
 export async function getOrCreatePlayer(playerKey: string, name?: string) {
@@ -157,7 +159,7 @@ export interface PlayerProfileView {
   // match — MatchRecord.weaponId only stores the match-start weapon, so this
   // map (backed by the WeaponProgress table) is needed for accurate per-weapon
   // lifetime counts across all game modes.
-  weaponProgress: Record<string, { kills: number; headshots: number }>;
+  weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
 }
 
@@ -243,14 +245,14 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // the Armory to surface challenge progress bars (e.g. "Breacher: 47/50 kills").
   // Source: WeaponProgress table (updated on every match completion).
   const wpRows = historicProgress;
-  const weaponProgress: Record<string, { kills: number; headshots: number }> = {};
+  const weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }> = {};
   const totalHeadshots = wpRows.reduce((sum, row) => sum + row.headshots, 0);
   const operatorContracts = OPERATOR_CONTRACTS.map(ch => armoryChallengeProgress(ch, {
     kills: 0, headshots: 0, totalKills: p.kills,
     totalHeadshots, matches: p.matchesPlayed, wins: p.matchesWon,
   }));
   for (const row of wpRows) {
-    weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots };
+    weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots, conditionStats: parseWeaponConditionStats(row.conditionStats) };
   }
   return {
     playerKey: p.playerKey,
@@ -752,10 +754,17 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         : (wid === equippedWeaponId ? input.headshots : 0);
       const weaponKills = (wp?.kills ?? 0) + matchKills;
       const weaponHeadshots = (wp?.headshots ?? 0) + matchHeadshots;
+      const oldContext = parseWeaponConditionStats(wp?.conditionStats);
+      const newContext = { ...oldContext };
+      for (const [metric, count] of Object.entries(input.perWeaponActions?.[wid] ?? {})) {
+        if (metric in newContext && typeof count === "number" && Number.isFinite(count) && count > 0) {
+          newContext[metric as keyof WeaponConditionStats] += Math.min(matchKills, Math.floor(count));
+        }
+      }
       for (const ch of allSkinChallengesForWeapon(wid)) {
         if (isSkinAlreadyUnlocked(ch.skinId)) continue;
-        const value = ch.metric === "kills" ? weaponKills : weaponHeadshots;
-        const prior = ch.metric === "kills" ? (wp?.kills ?? 0) : (wp?.headshots ?? 0);
+        const value = weaponChallengeValue(ch.metric, { kills: weaponKills, headshots: weaponHeadshots, conditionStats: newContext });
+        const prior = weaponChallengeValue(ch.metric, { kills: wp?.kills ?? 0, headshots: wp?.headshots ?? 0, conditionStats: oldContext });
         if (value >= ch.goal && prior < ch.goal) {
           newWeaponChallenges.push({
             challengeId: ch.id,
@@ -812,10 +821,16 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     for (const [wid, vals] of Object.entries(weaponContributions)) {
       if (vals.kills === 0 && vals.headshots === 0) continue;
       const existing = await tx.weaponProgress.findUnique({ where: { playerId_weaponId: { playerId: player.id, weaponId: wid } } });
+      const oldContext = parseWeaponConditionStats(existing?.conditionStats);
+      for (const [metric, count] of Object.entries(input.perWeaponActions?.[wid] ?? {})) {
+        if (metric in oldContext && typeof count === "number" && Number.isFinite(count) && count > 0) {
+          oldContext[metric as keyof WeaponConditionStats] += Math.min(vals.kills, Math.floor(count));
+        }
+      }
       await tx.weaponProgress.upsert({
         where: { playerId_weaponId: { playerId: player.id, weaponId: wid } },
-        create: { playerId: player.id, weaponId: wid, kills: vals.kills, headshots: vals.headshots },
-        update: { kills: (existing?.kills ?? 0) + vals.kills, headshots: (existing?.headshots ?? 0) + vals.headshots },
+        create: { playerId: player.id, weaponId: wid, kills: vals.kills, headshots: vals.headshots, conditionStats: JSON.stringify(oldContext) },
+        update: { kills: (existing?.kills ?? 0) + vals.kills, headshots: (existing?.headshots ?? 0) + vals.headshots, conditionStats: JSON.stringify(oldContext) },
       });
     }
     // Append a match record for the history view
@@ -1111,60 +1126,49 @@ export interface WeaponProgressView {
   weaponId: string;
   kills: number;
   headshots: number;
+  conditionStats: WeaponConditionStats;
 }
 
-// Aggregate lifetime kills + headshots for a single weapon, used to display
-// per-weapon challenge progress in the Armory.
+// The authoritative lifetime row includes kills from all weapons used in Gun Game
+// and contextual stats. MatchRecord.weaponId only records the match-start weapon.
 export async function getWeaponProgress(playerKey: string, weaponId: string): Promise<WeaponProgressView> {
   const player = await getOrCreatePlayer(playerKey);
-  if (!player) return { weaponId, kills: 0, headshots: 0 };
-  const agg = await db.matchRecord.aggregate({
-    where: { playerId: player.id, weaponId },
-    _sum: { kills: true, headshots: true },
+  if (!player) return { weaponId, kills: 0, headshots: 0, conditionStats: emptyWeaponConditionStats() };
+  const row = await db.weaponProgress.findUnique({
+    where: { playerId_weaponId: { playerId: player.id, weaponId } },
   });
   return {
     weaponId,
-    kills: agg._sum.kills ?? 0,
-    headshots: agg._sum.headshots ?? 0,
+    kills: row?.kills ?? 0,
+    headshots: row?.headshots ?? 0,
+    conditionStats: parseWeaponConditionStats(row?.conditionStats),
   };
 }
-
-// Aggregate lifetime kills + headshots for EVERY weapon the player has used.
-// Returns a map keyed by weaponId. Used by the Armory to render all weapon
-// challenge progress tiles without N round-trips.
 export async function getAllWeaponProgress(playerKey: string): Promise<Record<string, WeaponProgressView>> {
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return {};
-  const rows = await db.matchRecord.groupBy({
-    by: ["weaponId"],
-    where: { playerId: player.id },
-    _sum: { kills: true, headshots: true },
-  });
-  const out: Record<string, WeaponProgressView> = {};
-  for (const r of rows) {
-    out[r.weaponId] = {
-      weaponId: r.weaponId,
-      kills: r._sum.kills ?? 0,
-      headshots: r._sum.headshots ?? 0,
+  const rows = await db.weaponProgress.findMany({ where: { playerId: player.id } });
+  const result: Record<string, WeaponProgressView> = {};
+  for (const row of rows) {
+    result[row.weaponId] = {
+      weaponId: row.weaponId, kills: row.kills, headshots: row.headshots,
+      conditionStats: parseWeaponConditionStats(row.conditionStats),
     };
   }
-  return out;
+  return result;
 }
 
-// Per-weapon challenge view: for a single weapon, return each challenge with
-// the player's current progress, completion state, and the unlocked skin id.
 export interface WeaponChallengeView {
   challengeId: string;
   weaponId: string;
   skinId: string;
-  metric: "kills" | "headshots";
+  metric: WeaponChallengeMetric;
   goal: number;
   progress: number;
   completed: boolean;
   title: string;
   description: string;
 }
-
 export async function getWeaponChallengesView(playerKey: string, weaponId: string): Promise<WeaponChallengeView[]> {
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return [];
@@ -1172,24 +1176,14 @@ export async function getWeaponChallengesView(playerKey: string, weaponId: strin
   const unlockedSkins = await db.skinUnlock.findMany({
     where: { playerId: player.id, weaponId },
   });
-  const unlockedSkinIds = new Set(unlockedSkins.map((u) => u.skinId));
-  // All non-default weapon skins require a recorded challenge reward.
-  for (const s of WEAPON_SKINS) {
-    if (s.id === "default") unlockedSkinIds.add(s.id);
-  }
-  const challenges = allSkinChallengesForWeapon(weaponId);
-  return challenges.map((c) => {
-    const value = c.metric === "kills" ? progress.kills : progress.headshots;
+  const owned = new Set(unlockedSkins.map(u => u.skinId));
+  return allSkinChallengesForWeapon(weaponId).map(ch => {
+    const value = weaponChallengeValue(ch.metric, progress);
     return {
-      challengeId: c.id,
-      weaponId: c.weaponId,
-      skinId: c.skinId,
-      metric: c.metric,
-      goal: c.goal,
-      progress: Math.min(c.goal, value),
-      completed: unlockedSkinIds.has(c.skinId) || value >= c.goal,
-      title: c.title,
-      description: c.description,
+      challengeId: ch.id, weaponId: ch.weaponId, skinId: ch.skinId, metric: ch.metric,
+      goal: ch.goal, progress: Math.min(ch.goal, value),
+      completed: owned.has(ch.skinId) || value >= ch.goal,
+      title: ch.title, description: ch.description,
     };
   });
 }
