@@ -44,10 +44,6 @@ export const SCAVENGER_PICKUP_RADIUS = 4.2;
 export const SCAVENGER_DROP_LIFETIME_MS = 20000;
 export const SCAVENGER_PICKUP_ARM_MS = 1500;
 
-/** Explosion stays on the death position; never harms allies in team modes. */
-export const EXPLONANDO_FUSE_MS = 2000;
-export const EXPLONANDO_RADIUS = 5;
-export const EXPLONANDO_DAMAGE = 90;
 /** Shared authorization gate for a second primary. */
 export function canEquipSecondaryPrimary(perkId: string | null | undefined, level: number): boolean {
   return perkId === "well_prepared" && perkUnlocked(perkId, level);
