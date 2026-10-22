@@ -132,7 +132,7 @@ export default function Page() {
   const loadoutWire: LoadoutWire | null = profile?.loadout
     ? {
         weaponId: profile.loadout.weapon.id,
-        perkId: perkSelection(),
+        perkId: perkSelection(profile.level),
         secondaryWeaponId: profile.loadout.secondary?.id ?? "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
         weaponSkinId: profile.loadout.weaponSkin.id,
