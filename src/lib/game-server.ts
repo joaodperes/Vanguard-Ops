@@ -36,7 +36,7 @@ import {
   roomCapacity, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
+  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -760,16 +760,6 @@ function losBlocked(room: Room, origin: Vec3, dir: Vec3, maxT: number): boolean 
   return false;
 }
 
-// Damage falloff: at distance <= range, full damage. Beyond range, damage falls linearly
-// to 60% at range*1.6, then stays at 60%.
-function damageAtRange(base: number, dist: number, range: number): number {
-  if (dist <= range) return base;
-  const fallEnd = range * 1.6;
-  if (dist >= fallEnd) return base * 0.6;
-  const t = (dist - range) / (fallEnd - range);
-  return base * (1 - 0.4 * t);
-}
-
 /** Broadcast gunfire reveal only to nearby enemy clients; suppressors shrink its radius. */
 function broadcastRadarPing(room: Room, shooter: PlayerNet, suppressed: boolean) {
   const now = Date.now();
@@ -787,7 +777,7 @@ function clearSpawnProtection(room: Room, combatant: PlayerNet) {
   io.to(room.id).emit("message", { t: "protectionEnded", playerId: combatant.id } as S2C);
 }
 
-function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weaponId: string, range: number): { victim: PlayerNet; t: number; head: boolean } | null {
+function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weaponId: string, range: number, falloffEndMultiplier = 1.6): { victim: PlayerNet; t: number; head: boolean } | null {
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const attackerTeam = attacker?.team;
   let nearest: { victim: PlayerNet; t: number; head: boolean } | null = null;
@@ -796,7 +786,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
     if (!p.alive) continue;
     if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const hit = rayCombatantHit(origin, dir, p.pos);
-    if (hit && hit.t <= range * 1.6) {
+    if (hit && hit.t <= range * falloffEndMultiplier) {
       if (!nearest || hit.t < nearest.t) nearest = { victim: p, t: hit.t, head: hit.head };
     }
   }
@@ -1576,20 +1566,27 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   if (now > ai.nextDecisionAt) {
     ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
     const enemy = nearestEnemy(room, bot);
+    // In Kill Confirmed, bots pursue nearby tags (enemy confirms or friendly
+    // denials), unless an opponent poses an immediate close-range threat.
+    const nearestTag = room.mode === "killconfirmed"
+      ? [...room.tags.values()].filter(tag => tag.expiresAt > Date.now())
+          .sort((a, b) => Math.hypot(a.pos[0] - bot.pos[0], a.pos[2] - bot.pos[2]) -
+            Math.hypot(b.pos[0] - bot.pos[0], b.pos[2] - bot.pos[2]))[0]
+      : undefined;
+    const tagDistance = nearestTag
+      ? Math.hypot(nearestTag.pos[0] - bot.pos[0], nearestTag.pos[2] - bot.pos[2]) : Infinity;
+    const threatDistance = enemy
+      ? Math.hypot(enemy.pos[0] - bot.pos[0], enemy.pos[2] - bot.pos[2]) : Infinity;
+    const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
     const prevTarget = ai.targetId;
-    ai.targetId = enemy ? enemy.id : null;
+    ai.targetId = pursueTag ? null : (enemy ? enemy.id : null);
+    if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
     // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
-    if (!enemy) {
-      // Prioritize collectible tags when there is no visible target.
-      const nearestTag = room.mode === "killconfirmed"
-        ? [...room.tags.values()].sort((a, b) =>
-            Math.hypot(a.pos[0] - bot.pos[0], a.pos[2] - bot.pos[2]) -
-            Math.hypot(b.pos[0] - bot.pos[0], b.pos[2] - bot.pos[2]))[0]
-        : undefined;
-      if (nearestTag) ai.wanderTarget = nearestTag.pos;
+    if (!ai.targetId) {
+      if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
       else if (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5)
         ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
           room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
@@ -1598,6 +1595,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   }
 
   const target = ai.targetId ? (room.players.get(ai.targetId) ?? room.bots.get(ai.targetId)) : null;
+  // Shell-fed shotguns and bolt-action rifles refill one round at a time.
+  if (weapon.stats.reloadStyle === "incremental" &&
+      ai.reloadingUntil > 0 && now >= ai.reloadingUntil && ai.ammoInMag < eff.magSize) {
+    ai.ammoInMag++;
+    const stepMs = Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
+      eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000);
+    ai.reloadingUntil = ai.ammoInMag >= eff.magSize || ai.targetId ? 0 : now + stepMs;
+  }
   if (target && target.alive) {
     const dx = target.pos[0] - bot.pos[0];
     const dz = target.pos[2] - bot.pos[2];
@@ -1717,10 +1722,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       let didHit = false;
       for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(eff.spread))) : dir;
-        const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range);
+        const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range, eff.falloffEndMultiplier);
         if (hit) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
-          const dmg = damageAtRange(baseDmg, hit.t, eff.range);
+          const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
           applyDamage(room, bot.id, hit.victim, dmg, hit.head, bot.weaponId);
           didHit = true;
         }
@@ -1756,10 +1761,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
     const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
     if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
-      ai.reloadingUntil = now + eff.reloadTime * 1000;
-      ai.ammoInMag = eff.magSize;
+      const durationMs = weapon.stats.reloadStyle === "incremental"
+        ? Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
+            eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000)
+        : eff.reloadTime * 1000;
+      ai.reloadingUntil = now + durationMs;
+      if (weapon.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
       ai.burstShotsLeft = 0;
-      ai.burstEndsAt = now + eff.reloadTime * 1000;
+      ai.burstEndsAt = now + durationMs;
       io.to(room.id).emit("message", { t: "reloadFx", playerId: bot.id } as S2C);
     }
   } else {
@@ -2331,8 +2340,8 @@ async function handle(socket: any, msg: C2S) {
           const dir = pellets > 1 ? normalize(add(msg.dir, randSpread(eff.spread))) : msg.dir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
-          const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, eff.range * 1.6, rayBox);
-          const hit = fireRay(room, socket.id, msg.origin, dir, msg.weaponId, eff.range);
+          const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
+          const hit = fireRay(room, socket.id, msg.origin, dir, msg.weaponId, eff.range, eff.falloffEndMultiplier);
           if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
               (!hit || hit.t >= coverHit.distance)) {
             damageEnvironmentWall(room, coverHit.box.environmentId, eff.damage);
@@ -2340,7 +2349,7 @@ async function handle(socket: any, msg: C2S) {
           }
           if (hit) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
-            const dmg = damageAtRange(baseDmg, hit.t, eff.range);
+            const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId);
             if (weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
