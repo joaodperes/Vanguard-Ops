@@ -1,6 +1,6 @@
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "../src/lib/explonando";
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_PERK_ID, PERKS, perkById, perkUnlocked, perkSelection } from "../src/lib/perks";
+import { DEFAULT_PERK_ID, PERKS, perkById, perkUnlocked, perkSelection, canEquipSecondaryPrimary } from "../src/lib/perks";
 import { WEAPONS, computeEffectiveStats, compatibleAttachments, attachmentById, type AttachmentSlot } from "../src/lib/game-data";
 
 describe("level-ordered passive perk unlocks", () => {
@@ -14,8 +14,8 @@ describe("level-ordered passive perk unlocks", () => {
 
   test("perk choices arrive every three levels and end with the new perks", () => {
     expect(PERKS.map(p => p.unlockLevel)).toEqual([1,4,7,10,13,16,19,22,25,28]);
-    expect(PERKS.at(-2)?.id).toBe("explonando");
-    expect(PERKS.at(-1)?.id).toBe("well_prepared");
+    expect(PERKS[PERKS.length - 2].id).toBe("explonando");
+    expect(PERKS[PERKS.length - 1].id).toBe("well_prepared");
     for (let i = 1; i < PERKS.length; i++) {
       expect(PERKS[i].unlockLevel - PERKS[i-1].unlockLevel).toBe(3);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel - 1)).toBe(false);
@@ -49,6 +49,11 @@ describe("attachment-adjusted weapon stat previews", () => {
 });
 
 describe("Explonando and Well Prepared gameplay rules", () => {
+  test("Well Prepared is inactive until level 28 and only when selected", () => {
+    expect(canEquipSecondaryPrimary("battle_hardened", 40)).toBe(false);
+    expect(canEquipSecondaryPrimary("well_prepared", 27)).toBe(false);
+    expect(canEquipSecondaryPrimary("well_prepared", 28)).toBe(true);
+  });
   test("death charge has a two-second fuse and falloff", () => {
     expect(EXPLO_FUSE_MS).toBe(2000);
     expect(explonandoDamage(0)).toBeGreaterThan(explonandoDamage(2));
