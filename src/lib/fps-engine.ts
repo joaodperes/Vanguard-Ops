@@ -24,7 +24,7 @@ import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHor
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS,
+  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
   type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
@@ -76,6 +76,7 @@ export interface EngineOptions {
   fov?: number;                // 70..110, default 75
   scoreLimit?: number;         // kills to win, default 30 (ffa) / 60 (tdm)
   timeLimitSec?: number;       // default 360
+  denialScoreEnabled?: boolean; // award +1 point for denying a friendly tag in offline play
   startedAt?: number;          // performance.now() at match start
   autoAdsOnFire?: boolean;     // automatically ADS when firing (default false)
   invertY?: boolean;           // invert vertical look (default false)
@@ -122,6 +123,7 @@ export interface HudState {
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
   denials?: number;
+  denialScoreEnabled?: boolean;
   tagNotice?: { action: "confirm" | "deny"; at: number };
   timeLeft: number;
   scoreboard: ScoreRow[];
@@ -605,6 +607,7 @@ export class FPSEngine {
   private kcNextTagId = 0;
   private confirmations = 0;
   private denials = 0;
+  private denialScoreEnabled = false;
   private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
   private matchEnded = false;
@@ -877,6 +880,7 @@ export class FPSEngine {
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
+    this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
@@ -2543,7 +2547,7 @@ export class FPSEngine {
     if (this.matchEnded) return null;
     if (!this.matchStartedAt) return null;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
@@ -3150,6 +3154,7 @@ export class FPSEngine {
     switch (msg.t) {
       case "joined":
         this.selfId = msg.selfId;
+        this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         (this.opts as any).team = msg.team;
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -3201,7 +3206,14 @@ export class FPSEngine {
         this.teamScores = msg.teamScores;
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
-          this.confirmations = msg.scores[this.selfId] ?? this.confirmations;
+          const stats = msg.tagStats?.[this.selfId];
+          if (stats) {
+            this.confirmations = stats.confirmations;
+            this.denials = stats.denials;
+          } else if (!this.denialScoreEnabled) {
+            // Compatibility with servers that only send scored confirmations.
+            this.confirmations = msg.scores[this.selfId] ?? this.confirmations;
+          }
         }
         // Draw authoritative ammo drops regardless of perk; only Scavenger can collect.
         // This makes absent drops distinguishable from a perk-registration problem.
@@ -3469,6 +3481,7 @@ export class FPSEngine {
       case "roomJoined":
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
+        this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -3508,6 +3521,7 @@ export class FPSEngine {
         this.matchStartedAt = performance.now() + this.preMatchCountdown * 1000;
         if (msg.config) {
           this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
+          this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
@@ -4486,12 +4500,15 @@ export class FPSEngine {
         const action = player.team === item.tag.victimTeam ? "deny" : "confirm";
         this.removeKillConfirmedTag(id);
         if (action === "confirm") {
-          this.teamScores[player.team as "red" | "blue"]++;
           if (player.id === this.selfId) this.confirmations++;
-          else if (player.c) player.c.score++;
         } else if (player.id === this.selfId) this.denials++;
+        const earnsPoint = killConfirmedPickupPoints(action, this.denialScoreEnabled) === 1;
+        if (earnsPoint) {
+          this.teamScores[player.team as "red" | "blue"]++;
+          if (player.c) player.c.score++;
+        }
         if (player.id === this.selfId) this.tagNotice = { action, at: performance.now() };
-        if (action === "confirm") this.checkWin();
+        if (earnsPoint) this.checkWin();
         break;
       }
       if (this.matchEnded) return;
@@ -4528,7 +4545,7 @@ export class FPSEngine {
     if (this.matchEnded) return;
     this.matchEnded = true;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
     // this.selfId BEFORE adding the self entry — otherwise the player appears
     // twice in the standings (showing up as both 1st and 2nd place in the
@@ -4599,7 +4616,7 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
@@ -5536,7 +5553,7 @@ export class FPSEngine {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: this.yaw, pitch: this.pitch, health: this.health,
       alive: this.alive, weaponId: this.weaponId, weaponSkinId: this.opts.loadout.weaponSkinId,
-      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations : this.kills,
+      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills,
     };
     const tgt = targetIsSelf ? selfCombatant : target;
     if (tgt && tgt.alive) {
@@ -6017,7 +6034,7 @@ export class FPSEngine {
       for (const c of this.combatants.values()) {
         scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations : this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     this.opts.onHud({
@@ -6045,11 +6062,12 @@ export class FPSEngine {
       respawnIn: this.alive ? 0 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
       kills: this.kills,
       deaths: this.deaths,
-      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "killconfirmed" ? this.confirmations : this.kills)) : (this.opts.mode === "killconfirmed" ? this.confirmations : this.kills),
+      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
       scoreLimit: this.scoreLimit,
       confirmations: this.confirmations,
       denials: this.denials,
+      denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
       scoreboard,

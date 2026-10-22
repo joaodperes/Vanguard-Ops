@@ -29,7 +29,7 @@ import type {
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  roomCapacity, KC_PICKUP_RADIUS, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
+  roomCapacity, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, WEAPONS, type AttachmentSlot,
@@ -105,6 +105,8 @@ interface Room {
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
+  tagConfirmations: Map<string, number>; // individual enemy tag pickups
+  tagDenials: Map<string, number>;       // individual friendly tag pickups
   startTime: number;
   timeLeft: number;
   ended: boolean;
@@ -353,7 +355,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(),
+    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -504,13 +506,14 @@ function createLobbyRoom(
     if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
     if (mode === "killconfirmed" && [10000, 15000, 25000, 30000, 45000].includes(cfg.tagLifetimeMs ?? -1)) config.tagLifetimeMs = cfg.tagLifetimeMs!;
+    if (mode === "killconfirmed") config.denialScoreEnabled = cfg.denialScoreEnabled === true;
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
   // Use a placeholder for now; startMatchInRoom overwrites it.
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(),
+    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -573,6 +576,8 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
   room.tags.clear();
+  room.tagConfirmations.clear();
+  room.tagDenials.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -667,7 +672,13 @@ function snapshot(room: Room): S2C {
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
     scavengerDrops: [...room.scavengerDrops.values()].map(d => ({ id: d.id, pos: d.pos, expiresAt: d.expiresAt })),
-    ...(room.mode === "killconfirmed" ? { tags: [...room.tags.values()] } : {}),
+    ...(room.mode === "killconfirmed" ? {
+      tags: [...room.tags.values()],
+      tagStats: Object.fromEntries([...room.scores.keys()].map(id => [id, {
+        confirmations: room.tagConfirmations.get(id) ?? 0,
+        denials: room.tagDenials.get(id) ?? 0,
+      }])),
+    } : {}),
   };
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
@@ -1099,12 +1110,15 @@ function tickKillConfirmedTags(room: Room, now: number) {
       if (d > KC_PICKUP_RADIUS || heightDiff > 2.6) continue;
       room.tags.delete(id);
       const action = player.team === tag.victimTeam ? "deny" : "confirm";
-      if (action === "confirm") {
+      const totals = action === "confirm" ? room.tagConfirmations : room.tagDenials;
+      totals.set(player.id, (totals.get(player.id) ?? 0) + 1);
+      const earnsPoint = killConfirmedPickupPoints(action, room.config.denialScoreEnabled) === 1;
+      if (earnsPoint) {
         room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + 1);
         room.teamScores[player.team as "red" | "blue"] += 1;
       }
       io.to(room.id).emit("message", { t: "tagCollected", tagId: id, collectorId: player.id, action } as S2C);
-      if (action === "confirm") checkWin(room);
+      if (earnsPoint) checkWin(room);
       break;
     }
     if (room.ended) return;

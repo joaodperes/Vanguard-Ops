@@ -175,6 +175,7 @@ export function Play() {
       scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.scoreLimit : undefined,
       timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.timeLimit : undefined,
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
+      denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
     };
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
@@ -480,6 +481,21 @@ export function Play() {
                           <p className="text-white/35 text-xs mt-1">Time before an unclaimed dogtag disappears.</p>
                         </div>
                       )}
+                      {roomConfig.mode === "killconfirmed" && (
+                        <div>
+                          <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Denial Scoring</Label>
+                          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Denial Scoring">
+                            {([{ enabled: false, label: "Off" }, { enabled: true, label: "+1 Point" }] as const).map((option) => (
+                              <button key={option.label} type="button" aria-pressed={roomConfig.denialScoreEnabled === option.enabled}
+                                onClick={() => setRoomConfig({ denialScoreEnabled: option.enabled })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/35 text-xs mt-1">Off: deny opponents a point. +1 Point: also score for your team when retrieving a teammate's tag.</p>
+                        </div>
+                      )}
                       {(roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) && (
                         <div className="text-rose-400 text-xs font-semibold flex items-center gap-1.5">
                           <AlertTriangle className="w-3 h-3" /> At least one limit must be set for the match to end.
@@ -595,6 +611,7 @@ export function Play() {
                     <SummaryRow label="Host" value={profile?.name ?? "Recruit"} />
                     <SummaryRow label="Mode" value={MATCH_MODES[roomConfig.mode].label} accent={MATCH_MODES[roomConfig.mode].accentColor} />
                     {roomConfig.mode === "killconfirmed" && <SummaryRow label="Tag Lifetime" value={`${roomConfig.tagLifetimeMs / 1000}s`} />}
+                    {roomConfig.mode === "killconfirmed" && <SummaryRow label="Denial Scoring" value={roomConfig.denialScoreEnabled ? "+1 Point" : "Off"} />}
                     <SummaryRow
                       label={roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Slots" : roomConfig.mode === "survival" ? "Squad" : "Teams"}
                       value={roomConfig.mode === "survival" ? `${roomConfig.survivalPlayers} player${roomConfig.survivalPlayers === 2 ? "s" : ""}` : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}

@@ -67,6 +67,7 @@ export interface CreateRoomConfig {
   scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
   tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
+  denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
@@ -1249,6 +1250,10 @@ export type C2S =
 // Pickups are authoritative on the server; offline play uses the same rules.
 export const KC_TAG_LIFETIME_MS = 25000;
 export const KC_PICKUP_RADIUS = 2.25;
+/** Match points for a pickup; an unscored denial still prevents the opponent scoring. */
+export function killConfirmedPickupPoints(action: "confirm" | "deny", denialScoreEnabled: boolean): 0 | 1 {
+  return action === "confirm" || denialScoreEnabled ? 1 : 0;
+}
 export interface KillConfirmedTag {
   id: string;
   victimId: string;
@@ -1285,7 +1290,7 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[] }
+  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }> }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
@@ -1319,6 +1324,7 @@ export interface MatchConfig {
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
   tagLifetimeMs: number;   // Kill Confirmed tag lifetime
+  denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
   survivalTier?: SurvivalTier;
 }
 
@@ -1329,6 +1335,7 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
   timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
+  denialScoreEnabled: false,
   survivalTier: mode === "survival" ? "default" : undefined,
 });
 

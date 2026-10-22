@@ -271,7 +271,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         )}
         <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
           {mode === "killconfirmed" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? (hud.confirmations ?? 0) : hud.kills}</span>
+          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? hud.score : hud.kills}</span>
           {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
             <>
               <span className="text-white/30">/</span>
@@ -310,7 +310,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {mode === "killconfirmed" && hud.tagNotice && performance.now() - hud.tagNotice.at < 1300 && (
         <div className="absolute left-1/2 top-[27%] -translate-x-1/2 px-4 py-2 rounded-lg bg-black/70 border border-cyan-500/30 text-center">
           <span className={`font-black uppercase tracking-[0.18em] ${hud.tagNotice.action === "confirm" ? "text-cyan-300" : "text-emerald-300"}`}>
-            {hud.tagNotice.action === "confirm" ? "+1 KILL CONFIRMED" : "KILL DENIED"}
+            {hud.tagNotice.action === "confirm" ? "+1 KILL CONFIRMED" : hud.denialScoreEnabled ? "+1 KILL DENIED" : "KILL DENIED"}
           </span>
         </div>
       )}
