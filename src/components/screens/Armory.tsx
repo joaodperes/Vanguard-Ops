@@ -793,7 +793,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
                         <span className="text-white text-xs font-semibold break-words min-w-0">{s.name}</span>
                         <span className="text-[9px] uppercase font-semibold" style={{ color: rarityColor }}>{s.rarity}</span>
-                        {s.tier === "standard" && <span className="text-[9px] uppercase text-emerald-400/70 font-semibold">STANDARD</span>}
+                        
                         {/* Owned badge — small green pill to make ownership status
                             unmistakable. Only shown when owned, not baseline (baseline
                             has its own "Standard issue" label below), and not equipped
@@ -805,21 +805,30 @@ function CustomizeModal(props: CustomizeModalProps) {
                         )}
                       </div>
                       {isBaseline ? (
-                        <div className="text-white/40 text-[10px]">Standard issue — always available.</div>
+                        <div className="text-white/40 text-[11px]">Standard issue</div>
                       ) : isUnlockable ? (
                         <>
                           {/* "UNLOCK" label above the progress bar — clear callout
                               that this skin is locked-but-earnable via the challenge. */}
                           <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" />{challenge?.completed ? "Challenge complete — purchase available" : "Challenge in progress"}
+                            <Lock className="w-2.5 h-2.5" />{challenge?.completed ? "Unlocked for purchase" : "Locked"}
                           </div>
-                          <div className="text-white/60 text-[10px] break-words">{challenge!.title}</div>
+                          <div className="mt-1 space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2">
+                            <div className="text-amber-200 text-xs font-semibold">{challenge!.title}</div>
+                            <div className="text-amber-100/80 text-[12px] leading-relaxed">{challenge!.description}</div>
+                            {challenge!.requirements?.map(step => (
+                              <div key={step.metric} className="flex justify-between gap-2 text-[11px] font-mono text-white/65">
+                                <span>{step.metric.replaceAll("_", " ")}</span>
+                                <span className={step.completed ? "text-emerald-300" : "text-amber-300"}>{step.progress}/{step.goal}</span>
+                              </div>
+                            ))}
+                          </div>
                           <div className="mt-1 flex items-center gap-2">
                             <div className="flex-1 h-1 bg-black/60 rounded-full overflow-hidden">
                               <div className={`h-full ${challenge!.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                             </div>
                             <span className="text-[9px] font-mono tabular-nums text-white/60">
-                              {challenge!.progress}/{challenge!.goal}
+                              {challenge!.progress}/{challenge!.goal} {challenge!.requirements ? "objectives" : challenge!.metric.replaceAll("_", " ")}
                             </span>
                           </div>
                         </>
@@ -842,7 +851,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                       <Button size="sm" disabled={!canBuySkin || busy === skinBusyKey}
                         onClick={() => onPurchase("weaponSkin", s.id, s.unlockCost, s.name, w.id)}
                         className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0 disabled:opacity-50">
-                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{s.unlockCost}</> : "Complete trial"}
+                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{s.unlockCost}</> : "Locked"}
                       </Button>
                     ) : null}
                   </div>
@@ -876,11 +885,11 @@ function CustomizeModal(props: CustomizeModalProps) {
                   ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.kills} kills / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.headshots} headshots`}
               </div>
             </div>
-            {challengeViews.length === 0 ? (
-              <div className="text-white/40 text-sm italic py-6 text-center">No challenges defined for this weapon.</div>
+            {challengeViews.filter(c => !c.completed).length === 0 ? (
+              <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>
             ) : (
               <div className="space-y-2">
-                {challengeViews.map((c) => {
+                {challengeViews.filter(c => !c.completed).map((c) => {
                   const skin = weaponSkinById(c.skinId);
                   const pct = Math.min(100, (c.progress / c.goal) * 100);
                   const rarityColor = RARITY_COLORS[skin.rarity];
@@ -893,7 +902,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                             <span className="text-white text-sm font-semibold">{c.title}</span>
                             {c.completed && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[9px]"><Check className="w-2.5 h-2.5 mr-0.5" />Done</Badge>}
                           </div>
-                          <div className="text-white/50 text-[11px]">{c.description}</div>
+                          <div className="text-amber-100/80 text-[13px] leading-relaxed mt-1">{c.description}</div>
                            {c.requirements && (
                              <div className="mt-1.5 space-y-0.5 text-[10px] text-white/50">
                                {c.requirements.map(step => (
@@ -903,7 +912,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                                ))}
                              </div>
                            )}
-                          <div className="text-white/40 text-[10px] mt-0.5">Reward: unlock purchase of <span style={{ color: rarityColor }}>{skin.name}</span> skin for {skin.unlockCost} CR</div>
+                          <div className="text-white/45 text-[11px] mt-2">Reward: <span className="font-semibold" style={{ color: rarityColor }}>{skin.name} Skin</span></div>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
@@ -911,7 +920,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           <div className={`h-full ${c.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-[10px] font-mono tabular-nums text-white/60">
-                          {c.progress}/{c.goal} {c.requirements ? "mastery" : c.metric.replaceAll("_", " ")}
+                          {c.progress}/{c.goal} {c.requirements ? "objectives" : c.metric.replaceAll("_", " ")}
                         </span>
                       </div>
                     </div>
