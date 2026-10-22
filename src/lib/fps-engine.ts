@@ -891,7 +891,16 @@ export class FPSEngine {
       this.lobbyIsHost = true;
       this.lobbyRoomName = opts.roomConnect.roomName ?? "";
     }
-    this.initThree();
+    try {
+      this.initThree();
+    } catch (error) {
+      // The constructor never returns if WebGL fails. Release resources
+      // already allocated before renderer initialization.
+      try { this.renderer?.dispose(); this.renderer?.forceContextLoss(); } catch {}
+      try { this.sound.dispose(); } catch {}
+      try { this.weaponAudio.dispose(); } catch {}
+      throw error;
+    }
     this.buildArena();
     this.buildEnvironment();
     this.buildViewmodel();
@@ -933,7 +942,7 @@ export class FPSEngine {
 
   // ---- Three.js setup ----
   private initThree() {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = true;
@@ -6281,6 +6290,8 @@ export class FPSEngine {
     this.sound.dispose();
     this.weaponAudio.dispose();
     this.renderer.dispose();
+    // Promptly free the graphics context between matches and dev remounts.
+    this.renderer.forceContextLoss();
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);
     }
