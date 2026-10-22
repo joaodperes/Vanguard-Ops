@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { applyMatchResult, type MatchResultInput } from "@/lib/player-service";
 import { resolvePlayerKey } from "@/lib/auth";
 import { normalizeSurvivalTier } from "@/lib/survival";
+import { WEAPONS } from "@/lib/game-data";
+import { WEAPON_CONDITION_METRICS, type WeaponConditionStats } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,29 @@ export async function POST(req: NextRequest) {
     }
     perWeaponKills[wid] = { kills: k, headshots: h };
   }
+  // Contextual metrics are per-kill subsets, never independently trusted totals.
+  // Unknown weapons/conditions and inconsistent match counts are discarded.
+  const validWeapons = new Set(WEAPONS.map(w => w.id));
+  const perWeaponActions: Record<string, Partial<WeaponConditionStats>> = {};
+  const rawActions = input.perWeaponActions;
+  if (rawActions && typeof rawActions === "object" && !Array.isArray(rawActions)) {
+    for (const [wid, raw] of Object.entries(rawActions)) {
+      if (!validWeapons.has(wid) || !raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      // Context can't progress a different weapon than the one credited for kills.
+      const weaponKillCap = perWeaponKillsSum >= 0 && Object.keys(perWeaponKills).length > 0
+        ? (perWeaponKills[wid]?.kills ?? 0)
+        : (wid === input.weaponId ? kills : 0);
+      if (weaponKillCap <= 0) continue;
+      const sanitized: Partial<WeaponConditionStats> = {};
+      for (const metric of WEAPON_CONDITION_METRICS) {
+        const value = (raw as Record<string, unknown>)[metric];
+        if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+          sanitized[metric] = Math.min(weaponKillCap, Math.floor(value));
+        }
+      }
+      if (Object.keys(sanitized).length) perWeaponActions[wid] = sanitized;
+    }
+  }
   const result = await applyMatchResult({
     playerKey,
     kills,
@@ -74,6 +99,7 @@ export async function POST(req: NextRequest) {
     // fallback path for per-weapon metrics like kills_with_shotgun, breaking
     // FFA/TDM challenge progression where perWeaponKills isn't sent).
     perWeaponKills: perWeaponKillsSum >= 0 && Object.keys(perWeaponKills).length > 0 ? perWeaponKills : undefined,
+    perWeaponActions,
   });
   return NextResponse.json(result);
 }
