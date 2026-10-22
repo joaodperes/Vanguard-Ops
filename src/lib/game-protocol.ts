@@ -1182,7 +1182,7 @@ export interface LoadoutWire {
   /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
-  // Secondary (sidearm) and melee weapon ids — used by the engine to support
+  // Secondary (sidearm, or an additional primary with Well Prepared) and melee ids — used by the engine to support
   // in-match weapon swapping (keys 1/2/3, or on-screen buttons on mobile).
   secondaryWeaponId?: string;
   meleeWeaponId?: string;
@@ -1282,6 +1282,8 @@ export interface LobbyPlayer {
 }
 
 export type S2C =
+  | { t: "deathBomb"; id: string; ownerId: string; pos: Vec3; explodesAt: number }
+  | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
