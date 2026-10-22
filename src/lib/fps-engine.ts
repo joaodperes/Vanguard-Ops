@@ -10,6 +10,7 @@ import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
+import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
 import { canCollectScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
@@ -602,6 +603,7 @@ export class FPSEngine {
   private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
+  private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
 
   // scoring
   private kills = 0;
@@ -2420,6 +2422,53 @@ export class FPSEngine {
     });
   }
 
+  private placeDeathBomb(id: string, pos: Vec3, explodesAt: number, local: boolean) {
+    if (this.deathBombs.has(id) || this.disposed) return;
+    const mesh = this.makeMineMarker(pos);
+    mesh.scale.setScalar(1.25);
+    this.deathBombs.set(id, { pos, explodesAt, mesh, local });
+  }
+
+  private removeDeathBomb(id: string) {
+    const bomb = this.deathBombs.get(id);
+    if (!bomb) return;
+    this.scene.remove(bomb.mesh);
+    bomb.mesh.traverse(o => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        for (const material of Array.isArray(o.material) ? o.material : [o.material]) material.dispose();
+      }
+    });
+    this.deathBombs.delete(id);
+  }
+
+  /** The online server owns all damage; local mode resolves the same fuse/AoE. */
+  private tickDeathBombs() {
+    const now = Date.now();
+    for (const [id, bomb] of this.deathBombs) {
+      const remaining = Math.max(0, bomb.explodesAt - now);
+      bomb.mesh.rotation.y = (now / 380) % (Math.PI * 2);
+      if (!bomb.local) {
+        if (now > bomb.explodesAt + 4000) this.removeDeathBomb(id);
+        continue;
+      }
+      if (remaining) continue;
+      this.removeDeathBomb(id);
+      this.spawnExplosion(new THREE.Vector3(...bomb.pos), "corrosion");
+      for (const target of this.combatants.values()) {
+        if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, this.opts.team as string, target.id, this.selfId)) continue;
+        const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
+        const damage = explonandoDamage(distance);
+        if (!damage || target.spawnProtectedUntil && target.spawnProtectedUntil > now) continue;
+        const origin: Vec3 = [bomb.pos[0], bomb.pos[1] + .5, bomb.pos[2]];
+        const delta: Vec3 = [target.pos[0] - origin[0], target.pos[1] + 1 - origin[1], target.pos[2] - origin[2]];
+        const len = Math.hypot(...delta) || 1;
+        if (closestCoverHit(this.map.cover, origin, [delta[0]/len,delta[1]/len,delta[2]/len], len, rayBox)) continue;
+        this.applyDamageLocal(target, damage, false, "perk_explonando");
+      }
+    }
+  }
+
   /** 3D mine: broad enough to read on the floor, flashing armed LED and raised fins. */
   private makeMineMarker(pos: Vec3): THREE.Group {
     const root = new THREE.Group();
@@ -3373,7 +3422,7 @@ export class FPSEngine {
             // event itself eliminates any race and guarantees per-weapon skin
             // challenges (Breacher, Longshot, etc.) progress on the weapon
             // actually used for the kill.
-            this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
+            if (msg.weaponId !== "perk_explonando") this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
             this.sound.play("kill", { volume: 0.6 });
@@ -3439,6 +3488,13 @@ export class FPSEngine {
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
         }
+        break;
+      case "deathBomb":
+        this.placeDeathBomb(msg.id, msg.pos, msg.explodesAt, false);
+        break;
+      case "deathBombExplode":
+        this.removeDeathBomb(msg.id);
+        this.spawnExplosion(new THREE.Vector3(...msg.pos), "corrosion");
         break;
       case "scavengerDrop":
         this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
@@ -4373,7 +4429,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -4400,7 +4456,7 @@ export class FPSEngine {
       this.registerPlayerKill();
       // Gun Game: advance the local player's tier on each kill. If they were
       // already on the final weapon (the knife), this kill wins the match.
-      if (this.opts.mode === "gungame") {
+      if (this.opts.mode === "gungame" && sourceWeaponId !== "perk_explonando") {
         const won = this.advanceLocalGungameTier();
         if (won) { this.finalizeMatchLocal(); return; }
       }
@@ -4926,6 +4982,7 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    this.tickDeathBombs();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
@@ -6123,6 +6180,10 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      if (this.activePerkId === "explonando") {
+        const pos: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+        this.placeDeathBomb("offline_death_" + this.deaths, pos, Date.now() + EXPLO_FUSE_MS, true);
+      }
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(this.selfId, this.opts.team as string, [this.pos.x, this.pos.y, this.pos.z]);
       // Local player death SFX.
       this.sound.play("death", { volume: 0.8 });
