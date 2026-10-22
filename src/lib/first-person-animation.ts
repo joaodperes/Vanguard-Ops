@@ -70,14 +70,18 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
       handRoll:-.20*weight,propVisible:p>.29&&p<.75 };
   }
   if (kind === "shell") {
-    // Feed shells one by one. Gun is mostly kept visible while the left hand
-    // oscillates between the pocket and the port under the receiver.
-    const wave = Math.sin(p * Math.PI * 4);
+    // ONE visible shell insertion per gameplay reload cycle. The previous
+    // sin(4πp) path visited the loading port twice per cycle, making it look
+    // as if multiple shells had been inserted without adding ammunition.
+    // The shell visibly seats at p=.70, matching ROUND_INSERT_FRACTION.
     const pocket: [number,number,number] = [-.23,-.47,.18];
     const port: [number,number,number] = [-.015,-.20,-.12];
-    const hand = mix(pocket,port,ease((wave+1)/2));
+    const hand = p < .24 ? pocket
+      : p < .70 ? mix(pocket,port,ease((p-.24)/.46))
+      : mix(port,pocket,ease((p-.70)/.30));
+    const insert = ease((p-.24)/.46);
     return {...empty,dip:-.10*weight,pitch:.33*weight,roll:-.16*weight,hand,prop:hand,
-      handRoll:.24*wave,propVisible:p>.10&&p<.87};
+      handRoll:.24*(1-insert),propVisible:p>.08&&p<.70};
   }
   if (kind === "cylinder") {
     return {...empty,dip:-.11*weight,pitch:.30*weight,roll:-.35*weight,

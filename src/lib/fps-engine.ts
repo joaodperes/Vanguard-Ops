@@ -23,6 +23,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
+import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
@@ -510,6 +511,9 @@ export class FPSEngine {
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
   private reloadDurationMs = 0;
+  // One credit per insert animation. Retained rounds survive sprint, swap and
+  // firing interruptions; cancelling mid-cycle cannot undo prior inserts.
+  private reloadRoundInserted = false;
   // Equipment commits when the hand releases the device, not on key-down.
   // The server remains authoritative for damage, charges and cooldowns.
   private equipmentAction: { id: string; startedAt: number; kind: DeployMotion; duration: number; committed: boolean } | null = null;
@@ -5109,6 +5113,7 @@ export class FPSEngine {
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
+    this.reloadRoundInserted = false;
     const currentWeapon = weaponById(this.weaponId);
     // Shotguns and bolt-action rifles load one round at a time. Attachment
     // reload modifiers are applied to each shell/round, not the whole magazine.
@@ -5277,22 +5282,32 @@ export class FPSEngine {
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
     this.shotBloom = Math.max(0, this.shotBloom - dt * 0.52);
-    if (this.reloading && performance.now() >= this.reloadEndsAt) {
-      if (weaponById(this.weaponId).stats.reloadStyle === "incremental") {
-        this.ammoInMag = Math.min(this.eff.magSize, this.ammoInMag + 1);
+    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental") {
+      // Credit each shell at the actual insertion frame, not at the end of
+      // the recovery animation. This updates both HUD ammo and the saved slot
+      // before the player can interrupt the ongoing reload.
+      const step = advanceIncrementalReload(
+        this.ammoInMag, this.eff.magSize, this.reloadRoundInserted,
+        this.reloadStartedAt, this.reloadDurationMs, performance.now(),
+      );
+      if (step.ammo !== this.ammoInMag) {
+        this.ammoInMag = step.ammo;
         this.saveAmmoToSlot(this.currentSlot);
-        if (this.ammoInMag >= this.eff.magSize) {
-          this.reloading = false;
-        } else {
-          this.reloadStartedAt = performance.now();
-          this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
-        }
-      } else {
-        this.reloading = false;
-        if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
-        else this.ammoInMag = this.eff.magSize;
-        this.saveAmmoToSlot(this.currentSlot);
+        this.sound.play("reload", { volume: 0.23 });
       }
+      this.reloadRoundInserted = step.inserted;
+      if (step.magazineFull) {
+        this.reloading = false;
+      } else if (step.cycleComplete) {
+        this.reloadStartedAt = performance.now();
+        this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
+        this.reloadRoundInserted = false;
+      }
+    } else if (this.reloading && performance.now() >= this.reloadEndsAt) {
+      this.reloading = false;
+      if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
+      else this.ammoInMag = this.eff.magSize;
+      this.saveAmmoToSlot(this.currentSlot);
     }
     // A new trigger press interrupts an incremental reload as soon as there is
     // ammo to fire. Already-inserted shells remain available after a swap.

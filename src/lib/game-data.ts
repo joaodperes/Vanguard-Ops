@@ -182,7 +182,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Pump shotgun. Devastating up close, 8 pellets per shell.",
     // 19 dmg * 8 pellets = 152 per shell, hsMult 1.3 → 1 shell to kill at point blank.
-    stats: { damage: 19, fireRate: 1.6, magSize: 7, reloadTime: 3.0, spread: 0.075, adsSpread: 0.05, recoil: 1.6, range: 17.3, adsTime: 0.3, moveSpeed: 0.92, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.72 },
+    stats: { damage: 19, fireRate: 1.6, magSize: 7, reloadTime: 3.0, spread: 0.075, adsSpread: 0.05, recoil: 1.6, range: 17.3, adsTime: 0.3, moveSpeed: 0.92, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.96 },
     // Shotguns don't take a grip slot — only sight/barrel/magazine.
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
@@ -206,7 +206,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Bolt-action sniper. One-shot kills to the head, two to the body.",
     // 135 dmg, hsMult 2.0 → headshot = 270 (1-shot kill), body = 135 (1 shot to kill 100HP).
-    stats: { damage: 135, fireRate: 1, magSize: 5, reloadTime: 3.2, spread: 0.001, adsSpread: 0.0, recoil: 2.6, range: 164, adsTime: 0.6, moveSpeed: 0.7, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 0.92 },
+    stats: { damage: 135, fireRate: 1, magSize: 5, reloadTime: 3.2, spread: 0.001, adsSpread: 0.0, recoil: 2.6, range: 164, adsTime: 0.6, moveSpeed: 0.7, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 1.15 },
     // Snipers don't take a grip slot — only sight/barrel/magazine.
     attachments: ["sight", "barrel", "grip", "magazine"],
     // Snipers ship with a 6x scope as standard (not iron sight). The player
@@ -256,7 +256,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Full-auto shotgun. 8 pellets per shell, sustained suppression.",
     // 9 dmg * 8 pellets = 72 per shell, hsMult 1.3. Full-auto at 2.5 rps.
-    stats: { damage: 9, fireRate: 2.5, magSize: 10, reloadTime: 3.4, spread: 0.08, adsSpread: 0.055, recoil: 1.4, range: 15.8, adsTime: 0.3, moveSpeed: 0.9, auto: true, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.75 },
+    stats: { damage: 9, fireRate: 2.5, magSize: 10, reloadTime: 3.4, spread: 0.08, adsSpread: 0.055, recoil: 1.4, range: 15.8, adsTime: 0.3, moveSpeed: 0.9, auto: true, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 1.02 },
   },
   {
     id: "pistol_magnum",
@@ -375,7 +375,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 500,
     description: "Lightweight entry-level sniper. Faster handling than the Longshot, but won't one-shot body kill.",
     // 95 dmg, hsMult 2.0 → headshot = 190 (1-shot kill), body = 95 (2 shots to kill). Faster fire rate + ADS.
-    stats: { damage: 95, fireRate: 1.2, magSize: 7, reloadTime: 2.6, spread: 0.002, adsSpread: 0.0, recoil: 1.8, range: 131.2, adsTime: 0.45, moveSpeed: 0.82, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 0.76 },
+    stats: { damage: 95, fireRate: 1.2, magSize: 7, reloadTime: 2.6, spread: 0.002, adsSpread: 0.0, recoil: 1.8, range: 131.2, adsTime: 0.45, moveSpeed: 0.82, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 1.00 },
     attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
@@ -425,7 +425,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 800,
     description: "Semi-auto combat shotgun. Faster fire rate than the Breacher, tighter spread.",
     // 14 dmg * 8 pellets = 112 per shell, hsMult 1.3. Semi-auto at 2 rps.
-    stats: { damage: 14, fireRate: 2, magSize: 8, reloadTime: 2.8, spread: 0.06, adsSpread: 0.04, recoil: 1.3, range: 18.7, adsTime: 0.25, moveSpeed: 0.93, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.68 },
+    stats: { damage: 14, fireRate: 2, magSize: 8, reloadTime: 2.8, spread: 0.06, adsSpread: 0.04, recoil: 1.3, range: 18.7, adsTime: 0.25, moveSpeed: 0.93, auto: false, pellets: 8, headshotMult: 1.3 , falloffEndMultiplier: 1.3, minDamageMultiplier: 0.12, reloadStyle: "incremental", reloadPerRound: 0.94 },
     attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Third DMR — heavy hitting, higher level
@@ -463,7 +463,7 @@ export const WEAPONS: WeaponDef[] = [
     unlockCost: 1200,
     description: "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
     // 170 dmg, hsMult 2.0 → body = 170 (1-shot kill 100HP), head = 340 (overkill). Very slow.
-    stats: { damage: 170, fireRate: 0.6, magSize: 4, reloadTime: 3.8, spread: 0.001, adsSpread: 0.0, recoil: 3.2, range: 205, adsTime: 0.75, moveSpeed: 0.65, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 1.05 },
+    stats: { damage: 170, fireRate: 0.6, magSize: 4, reloadTime: 3.8, spread: 0.001, adsSpread: 0.0, recoil: 3.2, range: 205, adsTime: 0.75, moveSpeed: 0.65, auto: false, headshotMult: 2.0 , falloffEndMultiplier: 1.85, minDamageMultiplier: 0.6, reloadStyle: "incremental", reloadPerRound: 1.24 },
     attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
