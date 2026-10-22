@@ -2061,8 +2061,8 @@ async function handle(socket: any, msg: C2S) {
       if (room.state !== "playing") return;
       const p = room.players.get(socket.id);
       if (!p || !p.alive) return;
-      if ((room.equipmentStun.get(socket.id) ?? 0) <= Date.now()) p.pos = clampToArena(room, msg.pos);
-      room.sprintState.set(socket.id, !!msg.sprinting);
+      if (!room.downed.has(socket.id) && (room.equipmentStun.get(socket.id) ?? 0) <= Date.now()) p.pos = clampToArena(room, msg.pos);
+      room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
       break;
@@ -2123,7 +2123,7 @@ async function handle(socket: any, msg: C2S) {
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
-      if (weapon.id !== p.weaponId) return;
+      if (weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       const now = Date.now();
       const interval = 1000 / Math.max(1, weapon.stats.fireRate);
       const burstSize = weapon.stats.burst ?? 1;
@@ -2332,7 +2332,7 @@ async function handle(socket: any, msg: C2S) {
       // Gun Game ignores manual swaps — weapon is driven by progression.
       if (room.mode === "gungame") return;
       const p = room.players.get(socket.id);
-      if (!p || !p.alive) return;
+      if (!p || !p.alive || room.downed.has(socket.id)) return;
       const loadout = room.loadouts.get(socket.id);
       if (!loadout) return;
       let newWeaponId = p.weaponId;
