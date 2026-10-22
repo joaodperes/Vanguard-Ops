@@ -1282,6 +1282,8 @@ export interface LobbyPlayer {
 }
 
 export type S2C =
+  | { t: "survivalDowned"; playerId: string; weaponId: string }
+  | { t: "survivalRecovered"; playerId: string; pos: Vec3; health: number }
   | { t: "deathBomb"; id: string; ownerId: string; pos: Vec3; explodesAt: number }
   | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
