@@ -33,11 +33,12 @@ interface LoadoutSelectorProps {
   // Optional callback invoked after a successful save. Defaults to refreshing
   // the profile via the game store.
   onSaved?: () => void;
+  onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
 }
 
-export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
@@ -182,6 +183,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           compact={compact}
 
           attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(primary), "primary") : undefined}
+          canCustomize={primary === current.weapon.id}
         />
         <SlotCard
           slot="secondary"
@@ -196,6 +199,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           compact={compact}
 
           attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
+          canCustomize={secondary === current.secondary.id}
         />
         <SlotCard
           slot="melee"
@@ -210,6 +215,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           compact={compact}
 
           attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
+          canCustomize={melee === current.melee.id}
         />
         <div className="relative" data-slot-dropdown>
           <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
@@ -264,9 +271,11 @@ interface SlotCardProps {
   onSelect: (id: string) => void;
   compact?: boolean;
   attachments: AttachmentMap;
+  onCustomize?: () => void;
+  canCustomize?: boolean;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments }: SlotCardProps) {
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
   const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
   const candidates = ownedForSlot(slot);
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
@@ -296,6 +305,12 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3">
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
+        {canCustomize && onCustomize && (
+          <button type="button" onClick={onCustomize}
+            className="w-full mb-2 px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
+            Customize this slot
+          </button>
+        )}
         <button
           onClick={onToggle}
           className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"
