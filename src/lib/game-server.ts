@@ -1,3 +1,4 @@
+import { fullWonderCharges, spendWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
 // Authoritative match host: player sync, server-side hit detection, bot AI,
@@ -153,6 +154,7 @@ interface Room {
   environmentWalls: Map<string, number>;
   environmentCooldown: Map<string, number>;
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
+  wonderCharges: Map<string, WonderChargeState>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -371,7 +373,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -533,7 +535,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -1003,6 +1005,15 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     ...(killDiff ? { botDifficulty: killDiff } : {}),
   } as S2C);
   if (killed) {
+    if (attacker && !weaponById(weaponId).wonder) {
+      // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
+      for (const [key, state] of room.wonderCharges) {
+        if (!key.startsWith(attackerId + ":")) continue;
+        const wid = key.slice(attackerId.length + 1);
+        const rules = weaponById(wid).wonder;
+        if (rules) room.wonderCharges.set(key, accelerateWonderCharge(state, rules, Date.now()));
+      }
+    }
     victim.alive = false;
     victim.deaths += 1;
     if (shouldCreateScavengerDrop(attacker?.id, victim.id)) {
@@ -2068,10 +2079,17 @@ async function handle(socket: any, msg: C2S) {
         }
       } else if (now - p.lastShotAt < interval * 0.8) return;
       // Validate the muzzle origin for new special weapons before doing any effects.
-      if (weapon.special) {
+      if (weapon.special || weapon.wonder) {
         if (![...msg.origin, ...msg.dir].every(Number.isFinite)) return;
         if (Math.hypot(msg.origin[0] - p.pos[0], msg.origin[1] - p.pos[1], msg.origin[2] - p.pos[2]) > 3) return;
         if (Math.abs(Math.hypot(...msg.dir) - 1) > 0.2) return;
+      }
+      if (weapon.wonder) {
+        const key = socket.id + ":" + weapon.id;
+        const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder);
+        const next = spendWonderCharge(state, weapon.wonder, now);
+        if (!next) return; // Never accept extra shots, even after respawn/reload.
+        room.wonderCharges.set(key, next);
       }
       if (weapon.special?.kind === "heat" && !allowHeatShot(room, socket.id, weapon.special, now)) return;
       if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
@@ -2102,7 +2120,7 @@ async function handle(socket: any, msg: C2S) {
       // and apply area-of-effect damage to all enemies within the splash radius.
       // Damage uses a quadratic falloff (full at center, ~10% at edge) + a direct-hit
       // bonus (within 1.5 units = full damage + 20% bonus).
-      if (msg.weaponId === "launcher_rocket") {
+      if (msg.weaponId === "launcher_rocket" || weapon.wonder) {
         // Normalize the direction vector so the raycast math is stable.
         const dlen = Math.hypot(msg.dir[0], msg.dir[1], msg.dir[2]) || 1;
         const dir: Vec3 = [msg.dir[0] / dlen, msg.dir[1] / dlen, msg.dir[2] / dlen];
@@ -2122,7 +2140,7 @@ async function handle(socket: any, msg: C2S) {
           damageEnvironmentWall(room, coverImpact.box.environmentId, eff.damage);
         }
         const impact: Vec3 = [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
-        const splashRadius = 8;
+        const splashRadius = weapon.wonder?.radius ?? 8;
         // CRITICAL FIX: splash damage is computed against the rocket's FULL
         // TRAJECTORY LINE SEGMENT (origin → impact), NOT just the impact point.
         // A near-miss (rocket flies past an enemy and hits a far wall) still
@@ -2154,6 +2172,10 @@ async function handle(socket: any, msg: C2S) {
             const falloff = d <= 1.5 ? 1.2 : (1 - norm * norm) * 0.9 + 0.1;
             const splashDmg = eff.damage * falloff;
             applyDamage(room, socket.id, e, splashDmg, false, msg.weaponId);
+            if (weapon.wonder?.kind === "corrosion" && e.alive) {
+              room.poison.set(e.id, { attackerId: socket.id, weaponId: weapon.id,
+                expiresAt: now + 6500, tickAt: now + 500 });
+            }
           }
         }
       } else {
@@ -2201,6 +2223,7 @@ async function handle(socket: any, msg: C2S) {
       const magazine = loadout?.secondaryWeaponId === player.weaponId
         ? loadout.secondaryAttachments?.magazine : loadout?.attachments?.magazine;
       if (room.sprintState.get(socket.id) && loadout?.perkId !== "field_loader") return;
+      if (weaponById(player.weaponId).wonder) return; // Wonder ammo recharges only with time/kills.
       const special = weaponById(player.weaponId).special;
       if (special?.kind === "heat") {
         const now = Date.now();
