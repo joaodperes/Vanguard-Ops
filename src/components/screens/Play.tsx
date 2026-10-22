@@ -32,7 +32,8 @@ import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnl
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
 // difficulty per bot at spawn time. Colors avoid indigo/blue per project rules.
-const BOT_DIFFICULTY_OPTIONS: { id: BotDifficulty; label: string; desc: string; color: string }[] = [
+const BOT_DIFFICULTY_OPTIONS: { id: BotDifficulty | "none"; label: string; desc: string; color: string }[] = [
+  { id: "none", label: "No bots", desc: "Leave unoccupied player slots open for humans", color: "#94a3b8" },
   { id: "easy", label: "Easy", desc: "Slow reactions, frequent misses", color: "#22c55e" },
   { id: "normal", label: "Normal", desc: "Balanced — recommended", color: "#facc15" },
   { id: "hard", label: "Hard", desc: "Quick reflexes, tight bursts", color: "#f97316" },
@@ -353,45 +354,16 @@ export function Play() {
                   </Section>
                 )}
 
-                {/* Fill with bots */}
-                <Section icon={<Bot className="w-4 h-4 text-emerald-400" />} title="Bot Fill" hint="Bots occupy empty slots; humans replace them on join">
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                    roomConfig.mode === "survival" ? "border-white/5 bg-black/20 opacity-60" : "border-white/10 bg-zinc-900/50"
-                  }`}>
-                    <Switch
-                      id="fill-bots"
-                      checked={roomConfig.mode === "survival" ? false : roomConfig.fillWithBots}
-                      onCheckedChange={(v) => setRoomConfig({ fillWithBots: v })}
-                      disabled={roomConfig.mode === "survival"}
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="fill-bots" className="text-white font-medium text-sm cursor-pointer">
-                        Fill empty slots with bots
-                      </Label>
-                      <div className="text-white/50 text-xs mt-0.5">
-                        {roomConfig.mode === "survival"
-                          ? "Survival uses wave-based bots — this option is disabled."
-                          : "When a human joins your team, a bot is removed to make room (team size respected)."}
-                      </div>
-                    </div>
-                    {roomConfig.fillWithBots && roomConfig.mode !== "survival" && (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-300/80 text-[10px] uppercase">
-                        <Bot className="w-3 h-3 mr-1" /> {Math.max(0, cap - 1)} bots ready
-                      </Badge>
-                    )}
-                  </div>
-                </Section>
-
                 {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
                 {roomConfig.mode !== "survival" && (
-                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Difficulty" hint="How skilled enemy bots are. Affects rewards.">
+                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {BOT_DIFFICULTY_OPTIONS.map((d) => {
-                        const selected = roomConfig.botDifficulty === d.id;
+                        const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
                         return (
                           <button
                             key={d.id}
-                            onClick={() => setRoomConfig({ botDifficulty: d.id })}
+                            onClick={() => setRoomConfig(d.id === "none" ? { fillWithBots: false } : { fillWithBots: true, botDifficulty: d.id })}
                             className={`text-left p-3 rounded-xl border transition-all ${
                               selected ? "border-white/40 bg-white/10" : "border-white/10 bg-black/30 hover:border-white/25"
                             }`}
@@ -408,7 +380,7 @@ export function Play() {
                       })}
                     </div>
                     <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-white/50 leading-relaxed">
-                      <span className="font-semibold text-white/70">Rewards scale with difficulty:</span> harder bots award more XP/credits per kill (Easy 10/5 → Veteran 30/18). Mixed rolls a random tier per bot.
+                      <span className="font-semibold text-white/70">With bots enabled:</span> harder difficulties award more XP/credits per bot kill (Easy 10/5 → Veteran 30/18). Mixed rolls a random tier per bot. No bots keeps all player slots open.
                     </div>
                   </Section>
                 )}
@@ -988,7 +960,6 @@ function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: 
           <span className="text-white font-bold text-sm">{cfg.label}</span>
           {selected && (
             <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold border" style={{ color: cfg.accentColor, borderColor: `${cfg.accentColor}50`, background: `${cfg.accentColor}20` }}>
-              On
             </span>
           )}
         </div>
