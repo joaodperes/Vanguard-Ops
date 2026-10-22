@@ -13,6 +13,24 @@ describe("map scale and route accessibility",()=>{
     expect(byId.skybridge.size*2).toBeGreaterThan(380);
     expect(byId.arena_neon.size*2).toBeGreaterThan(380);
   });
+
+  test("all staircase crests have a walkable landing; emit useful map diagnostics",()=>{
+    for(const map of MAP_LIST){
+      const steps=map.cover.filter(c=>c.kind==="stair");
+      for(const box of steps){
+        const top=box.pos[1]+box.size[1];
+        const higher=steps.some(other=>other!==box&&other.pos[1]+other.size[1]>top+.15&&
+          other.pos[1]+other.size[1]<top+.7&&
+          Math.hypot(other.pos[0]-box.pos[0],other.pos[2]-box.pos[2])<2.1);
+        if(higher)continue;
+        const supported=map.cover.some(o=>o.kind!=="stair"&&o.kind!=="accent"&&
+          Math.abs(o.pos[1]+o.size[1]-top)<.65&&
+          Math.hypot(Math.max(0,Math.abs(o.pos[0]-box.pos[0])-o.size[0]),
+            Math.max(0,Math.abs(o.pos[2]-box.pos[2])-o.size[2]))<1.1);
+        if(!supported)throw new Error(map.id+" unsupported stair crest at "+JSON.stringify(box));
+      }
+    }
+  });
   test("every authored and inherited spawn clears hard geometry",()=>{
     for(const map of MAP_LIST){
       const cover=makeEnvironmentMap(map).cover;

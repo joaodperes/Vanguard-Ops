@@ -53,6 +53,15 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const regions=plan.regions.map(r=>({...r}));
   const visuals=visualThemeForMap(base.id,plan.templateMapId);
   const props=mapProps(base.id,plan,visuals);
+  const allSpawns=[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,
+    ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
+  const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
+    Math.abs(p[0]-c.pos[0]) < c.size[0]+1.25 &&
+    Math.abs(p[2]-c.pos[2]) < c.size[2]+1.25 &&
+    p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+.3);
+  // Preserve all spawn choices. A cover island or its approach stairs must
+  // not strand the surrounding playable district or spawn-kill a player.
+  const flankFeatures=plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));
   const halfExtent=Math.max(...regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+3;
   // Older inner-circle spawn sets remain as fallbacks; larger districts receive
   // many additional spawns so players do not endlessly recycle the center.
@@ -65,8 +74,8 @@ export function applyMapFootprint(base:MapDef):MapDef {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
     regions,
-    cover:[...scaledBase.cover,...plan.features.flatMap(featureBoxes),
-      ...propColliders(props,[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue]),
+    cover:[...scaledBase.cover,...flankFeatures.flatMap(featureBoxes),
+      ...propColliders(props,allSpawns),
       ...regionBoundary(regions)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
     props,biome:visuals.biome,accentColor:visuals.palette.accent,
