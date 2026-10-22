@@ -47,7 +47,7 @@ export interface WeaponStats {
 export interface WeaponDef {
   special?: WeaponSpecial;
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
-  wonder?: { kind: "singularity" | "corrosion"; maxCharges: 1 | 2; rechargeMs: number; killBonusMs: number; radius: number };
+  wonder?: { kind: "singularity" | "corrosion" | "turret"; maxCharges: 1 | 2; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -70,7 +70,7 @@ export const WEAPONS: WeaponDef[] = [
   {
     id: "wonder_singularity", name: "Event Horizon", category: "dmr",
     unlockLevel: 1, unlockCost: 0,
-    description: "Wonder Weapon: a collapsing star launches a devastating gravity pulse. One charge, slowly regenerating; non-Wonder kills accelerate recharge.",
+    description: "Wonder Weapon: a collapsing star launches a devastating gravity pulse. One charge.",
     wonder: { kind: "singularity", maxCharges: 1, rechargeMs: 48000, killBonusMs: 2400, radius: 11 },
     attachments: [],
     stats: { damage: 165, fireRate: 0.7, magSize: 1, reloadTime: 0, spread: 0.003, adsSpread: 0.0004, recoil: 2.4, range: 95, adsTime: 0.36, moveSpeed: 0.88, auto: false, headshotMult: 1 },
@@ -78,10 +78,18 @@ export const WEAPONS: WeaponDef[] = [
   {
     id: "wonder_corrosion", name: "Plagueheart", category: "shotgun",
     unlockLevel: 1, unlockCost: 0,
-    description: "Wonder Weapon: unstable bio-reactor seeds a corrosive blast and lingering poison. Two charges, slowly regenerating; non-Wonder kills accelerate recharge.",
+    description: "Wonder Weapon: unstable bio-reactor seeds a corrosive blast and lingering poison. Two charges.",
     wonder: { kind: "corrosion", maxCharges: 2, rechargeMs: 38000, killBonusMs: 1800, radius: 9 },
     attachments: [],
     stats: { damage: 85, fireRate: 1.1, magSize: 2, reloadTime: 0, spread: 0.005, adsSpread: 0.002, recoil: 1.8, range: 60, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1 },
+  },
+  {
+    id: "wonder_turret", name: "Bullet Spitter", category: "lmg",
+    unlockLevel: 1, unlockCost: 0,
+    description: "Wonder Weapon: deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 25 seconds; any explosive or melee strike destroys it immediately.",
+    wonder: { kind: "turret", maxCharges: 1, rechargeMs: 55000, killBonusMs: 2000, radius: 0 },
+    attachments: [],
+    stats: { damage: 17, fireRate: 2.8, magSize: 1, reloadTime: 0, spread: 0, adsSpread: 0, recoil: 0, range: 30, adsTime: 0.1, moveSpeed: 0.9, auto: false, headshotMult: 1 },
   },
   // Special weapons — opt into a mechanic; ordinary guns keep their existing behavior.
   {
