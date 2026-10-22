@@ -12,6 +12,7 @@ import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-
 import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
+import { EXPLO_FUSE_MS, EXPLO_RADIUS, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
@@ -155,6 +156,7 @@ interface Room {
   environmentCooldown: Map<string, number>;
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
+  deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -373,7 +375,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -535,7 +537,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -581,6 +583,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
+  room.deathBombs.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -936,6 +939,20 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
 }
 
 function tickSpecialEffects(room: Room, now: number) {
+  for (const [id, bomb] of room.deathBombs) {
+    if (now < bomb.explodesAt) continue;
+    room.deathBombs.delete(id); // disarm first: no repeat detonations
+    io.to(room.id).emit("message", { t: "deathBombExplode", id, pos: bomb.pos } as S2C);
+    for (const target of allCombatants(room)) {
+      if (!target.alive || !explonandoCanHit(room.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
+      const distance = Math.hypot(target.pos[0]-bomb.pos[0], target.pos[2]-bomb.pos[2]);
+      const damage = explonandoDamage(distance);
+      if (!damage) continue;
+      if (!hasLineOfSight(room, [bomb.pos[0], bomb.pos[1]+.5, bomb.pos[2]], [target.pos[0], target.pos[1]+1, target.pos[2]])) continue;
+      applyDamage(room, bomb.ownerId, target, damage, false, "perk_explonando");
+    }
+    if (room.ended) return;
+  }
   for (const [id,mine] of room.equipmentMines) {
     if (now > mine.expiresAt) {
       room.equipmentMines.delete(id);
@@ -1006,7 +1023,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     ...(killDiff ? { botDifficulty: killDiff } : {}),
   } as S2C);
   if (killed) {
-    if (attacker && !weaponById(weaponId).wonder) {
+    if (attacker && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
       for (const [key, state] of room.wonderCharges) {
         if (!key.startsWith(attackerId + ":")) continue;
@@ -1017,6 +1034,15 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     victim.alive = false;
     victim.deaths += 1;
+    // Server places exactly one death charge on a legitimate elimination.
+    // The victim never chooses the position/timing; fuse survives respawn.
+    if (!victim.isBot && room.loadouts.get(victim.id)?.perkId === "explonando" && !room.ended) {
+      const id = genId("explonando");
+      const pos: Vec3 = [...victim.pos] as Vec3;
+      const explodesAt = Date.now() + EXPLO_FUSE_MS;
+      room.deathBombs.set(id, { ownerId: victim.id, ownerTeam: victim.team, pos, explodesAt });
+      io.to(room.id).emit("message", { t: "deathBomb", id, ownerId: victim.id, pos, explodesAt } as S2C);
+    }
     if (shouldCreateScavengerDrop(attacker?.id, victim.id)) {
       // Create a shared ammo cache on every enemy elimination, even if a Scavenger
       // player joins later or the perk wasn't yet registered when this shot landed.
@@ -1060,7 +1086,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     } else if (room.mode === "gungame") {
       // Gun Game: the attacker advances their tier on each kill. If they were
       // already on the FINAL weapon (the last melee tier), this kill wins the match.
-      if (attacker) {
+      if (attacker && weaponId !== "perk_explonando") {
         const idx = room.gungameProgress.get(attackerId) ?? 0;
         const last = room.gungameWeapons.length - 1;
         if (canCompleteGunGame(idx, room.gungameWeapons, attacker.weaponId)) {
