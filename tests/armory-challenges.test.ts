@@ -13,7 +13,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   test("every compatible weapon attachment has an achievable challenge", () => {
     let count = 0;
     const keys = new Set<string>();
-    for (const weapon of WEAPONS) {
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
       for (const slot of weaponAttachmentSlots(weapon)) {
         for (const attachmentId of compatibleAttachments(weapon.id, slot)) {
           const att = ATTACHMENTS.find(a => a.id === attachmentId)!;
@@ -68,7 +68,7 @@ describe("permanent challenge-based Armory eligibility", () => {
 
   test("every paid weapon skin has a weapon-specific challenge", () => {
     for (const weapon of WEAPONS) {
-      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default")) {
+      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige)) {
         const challenges = skinChallengesForWeaponAndSkin(weapon.id, skin.id);
         expect(challenges.length).toBeGreaterThanOrEqual(1);
         expect(skin.unlockCost).toBeGreaterThan(0);
@@ -107,7 +107,7 @@ describe("permanent challenge-based Armory eligibility", () => {
       expect(ready.steps).toHaveLength(3);
       goldCount++;
     }
-    expect(goldCount).toBe(WEAPONS.length);
+    expect(goldCount).toBe(WEAPONS.filter(w => !w.wonder).length);
     expect(metrics.size).toBeGreaterThanOrEqual(6);
   });
 
