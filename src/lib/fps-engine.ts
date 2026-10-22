@@ -186,6 +186,8 @@ export interface HudState {
   secondaryWeaponId: string;
   meleeWeaponId: string;
   wonderRechargeMs?: number;
+  turretDeployPending?: boolean;
+  turretDeployFailed?: boolean;
   // survival mode info (undefined for FFA/TDM)
   survivalWave?: number;
   survivalTier?: SurvivalTier;
@@ -506,6 +508,12 @@ export class FPSEngine {
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
   private wonderStates = new Map<string, WonderChargeState>();
+  // Online deployment is NOT charged locally until server confirms placement.
+  // This prevents rejected network/weapon-state packets from starting a
+  // recharge timer while no turret exists in the match.
+  private turretDeployPending = false;
+  private turretDeployRequestedAt = 0;
+  private turretDeployFailedAt = 0;
   private lastPlayerRespawnAt = -Infinity;
   private reloading = false;
   private reloadEndsAt = 0;
@@ -3334,7 +3342,13 @@ export class FPSEngine {
       console.warn("[FPS] socket reconnect failed — multiplayer unavailable. Use offline play instead.");
       this.opts.onSocketError?.();
     });
-    this.socket.on("disconnect", (r: string) => console.log("[FPS] socket disconnected:", r));
+    this.socket.on("disconnect", (r: string) => {
+      console.log("[FPS] socket disconnected:", r);
+      if (this.turretDeployPending) {
+        this.turretDeployPending = false;
+        this.turretDeployFailedAt = performance.now();
+      }
+    });
     this.socket.on("message", (msg: S2C) => this.onServerMessage(msg));
     setInterval(() => {
       if (this.socket?.connected) {
@@ -3582,6 +3596,24 @@ export class FPSEngine {
         break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
+        if (msg.ownerId === this.selfId && this.turretDeployPending) {
+          this.turretDeployPending = false;
+          const id = "wonder_turret";
+          const rules = weaponById(id).wonder!;
+          const prior = this.wonderStates.get(id) ?? fullWonderCharges(rules);
+          const charged = spendWonderCharge(prior, rules, performance.now());
+          if (charged) {
+            this.wonderStates.set(id, charged);
+            if (this.primaryWeaponId === id) this.primaryAmmoInMag = charged.charges;
+            if (this.weaponId === id) this.ammoInMag = charged.charges;
+          }
+        }
+        break;
+      case "turretRejected":
+        this.turretDeployPending = false;
+        this.turretDeployFailedAt = performance.now();
+        console.warn("[FPS] Bullet Spitter deployment declined:", msg.reason);
+        this.sound.play("empty_click", { volume: .4 });
         break;
       case "turretFired": {
         const turret = this.bulletSpitters.get(msg.id);
@@ -4289,6 +4321,23 @@ export class FPSEngine {
       const next = addHeat(state, special, now);
       if (!next) return; // locked by overheat; no bullets or energy consumed
       this.heatStates.set(w.id, next);
+    }
+    if (w.wonder?.kind === "turret" && this.opts.online) {
+      if (this.turretDeployPending) return;
+      const current = tickWonderCharges(
+        this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder), w.wonder, now,
+      );
+      if (current.charges <= 0) { this.sound.play("empty_click", { volume: .4 }); return; }
+      if (!this.socket?.connected) {
+        this.turretDeployFailedAt = now;
+        this.sound.play("empty_click", { volume: .4 });
+        return;
+      }
+      this.turretDeployPending = true;
+      this.turretDeployRequestedAt = now;
+      this.lastShotAt = now;
+      this.socket.emit("message", { t: "deployTurret" } as const);
+      return;
     }
     if (w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
@@ -5274,6 +5323,12 @@ export class FPSEngine {
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
+    if (this.turretDeployPending && performance.now() - this.turretDeployRequestedAt > 3000) {
+      // No authoritative placement arrived (e.g. dropped packet / disconnect).
+      // The charge stays available; a subsequent press may retry.
+      this.turretDeployPending = false;
+      this.turretDeployFailedAt = performance.now();
+    }
     this.shotBloom = Math.max(0, this.shotBloom - dt * 0.52);
     if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental") {
       // Credit each shell at the actual insertion frame, not at the end of
@@ -6531,6 +6586,10 @@ export class FPSEngine {
       primaryWeaponId: this.primaryWeaponId,
       secondaryWeaponId: this.secondaryWeaponId,
       meleeWeaponId: this.meleeWeaponId,
+      ...(this.weaponId === "wonder_turret" ? {
+        turretDeployPending: this.turretDeployPending,
+        turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
+      } : {}),
       ...(weaponById(this.weaponId).wonder ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,

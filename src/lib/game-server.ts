@@ -958,6 +958,27 @@ function destroyTurretsHitByMelee(room: Room, player: PlayerNet, range: number) 
   }
 }
 
+/** Plant a genuine world entity. Also used by the legacy "shot" path. */
+function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: number) {
+  for (const [id, existing] of room.turrets) if (existing.ownerId === ownerId) {
+    room.turrets.delete(id);
+    io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
+  }
+  const id = genId("spitter");
+  const candidate = turretDeployPosition(player.pos, player.yaw, room.map.cover);
+  const pos: Vec3 = [candidate[0],
+    botGroundHeight(room.map.cover, candidate[0], candidate[2], candidate[1]),
+    candidate[2]];
+  const expiresAt = now + TURRET_LIFETIME_MS;
+  room.turrets.set(id, {
+    ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
+    expiresAt, nextShotAt: now + 300,
+  });
+  io.to(room.id).emit("message", {
+    t: "turretPlaced", id, ownerId, pos, yaw: player.yaw, expiresAt,
+  } as S2C);
+}
+
 /** Server-authoritative tracking, damage, and 140° forward arc.
  * The arc applies horizontally; a target can be high above/below the turret.
  */
@@ -2182,6 +2203,35 @@ async function handle(socket: any, msg: C2S) {
       }
       break;
     }
+    case "deployTurret": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      const player = room?.players.get(socket.id);
+      const denied = (reason: string) =>
+        io.to(socket.id).emit("message", { t: "turretRejected", reason } as S2C);
+      if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 ||
+          !player?.alive || room.downed.has(socket.id)) {
+        denied("Deployment is unavailable right now");
+        break;
+      }
+      if (player.weaponId !== "wonder_turret") {
+        denied("Bullet Spitter is not currently equipped");
+        break;
+      }
+      const now = Date.now();
+      const weapon = weaponById(player.weaponId);
+      const key = socket.id + ":" + weapon.id;
+      const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder!);
+      const charged = spendWonderCharge(state, weapon.wonder!, now);
+      if (!charged) {
+        denied("Bullet Spitter has not recharged");
+        break;
+      }
+      room.wonderCharges.set(key, charged);
+      player.lastShotAt = now;
+      clearSpawnProtection(room, player);
+      placePlayerTurret(room, player, socket.id, now);
+      break;
+    }
     case "shot": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
@@ -2256,21 +2306,10 @@ async function handle(socket: any, msg: C2S) {
       if (room.mode === "gungame") attsForShot = { sight: null, barrel: null, grip: null, magazine: null };
       const eff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
       const boltImpact = weapon.special?.kind === "bolt" ? serverBoltLanding(room, socket.id, msg.origin, msg.dir, eff.range) : null;
-      // A Bullet Spitter deploys at the owner's feet facing their yaw.
-      // One living turret per player; deploying a replacement removes the old.
+      // Backwards compatible with older clients that still use the generic
+      // shot packet to deploy their Wonder Weapon.
       if (weapon.wonder?.kind === "turret") {
-        for (const [id, t] of room.turrets) if (t.ownerId === socket.id) {
-          room.turrets.delete(id);
-          io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
-        }
-        const id = genId("spitter");
-        const candidate = turretDeployPosition(p.pos, p.yaw, room.map.cover);
-        const pos: Vec3 = [candidate[0],
-          botGroundHeight(room.map.cover, candidate[0], candidate[2], candidate[1]),
-          candidate[2]];
-        const expiresAt = now + TURRET_LIFETIME_MS;
-        room.turrets.set(id, { ownerId: socket.id, ownerTeam: p.team, pos, yaw: p.yaw, expiresAt, nextShotAt: now + 300 });
-        io.to(room.id).emit("message", { t: "turretPlaced", id, ownerId: socket.id, pos, yaw: p.yaw, expiresAt } as S2C);
+        placePlayerTurret(room, p, socket.id, now);
         break;
       }
       // Rocket launcher: SPLASH damage (AoE). Instead of a single hitscan ray,

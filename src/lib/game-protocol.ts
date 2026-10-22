@@ -1232,6 +1232,7 @@ export type C2S =
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string }   // server-side raycast
   | { t: "reload" }
+  | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
@@ -1283,6 +1284,7 @@ export interface LobbyPlayer {
 
 export type S2C =
   | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
+  | { t: "turretRejected"; reason: string }
   | { t: "turretFired"; id: string; target: Vec3 }
   | { t: "turretRemoved"; id: string }
   | { t: "survivalDowned"; playerId: string; weaponId: string }
