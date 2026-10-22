@@ -9,7 +9,7 @@ import {
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
-import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress, allSkinChallengesForWeapon, type WeaponConditionStats } from "@/lib/armory-challenges";
+import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress, weaponChallengeProgress, allSkinChallengesForWeapon, type WeaponConditionStats } from "@/lib/armory-challenges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -33,6 +33,7 @@ interface WeaponChallengeView {
   goal: number;
   progress: number;
   completed: boolean;
+  requirements?: { metric: WeaponChallengeMetric; goal: number; progress: number; completed: boolean }[];
   title: string;
   description: string;
 }
@@ -378,9 +379,15 @@ export function Armory() {
         attachmentsByWeapon={attachmentsByWeapon}
         skinsByWeapon={skinsByWeapon}
         progress={customizing ? (progress[customizing.weapon.id] ?? { weaponId: customizing.weapon.id, kills: 0, headshots: 0 }) : null}
-        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? allSkinChallengesForWeapon(customizing.weapon.id).map((c) => ({
-          challengeId: c.id, weaponId: c.weaponId, skinId: c.skinId, metric: c.metric, goal: c.goal, progress: 0, completed: false, title: c.title, description: c.description,
-        }))) : []}
+        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? allSkinChallengesForWeapon(customizing.weapon.id).map((c) => {
+          const state = weaponChallengeProgress(c, { kills: 0, headshots: 0 });
+          return {
+            challengeId: c.id, weaponId: c.weaponId, skinId: c.skinId, metric: c.metric,
+            goal: state.goal, progress: 0, completed: false,
+            requirements: c.requirements ? state.steps : undefined,
+            title: c.title, description: c.description,
+          };
+        })) : []}
         busy={busy}
         onPurchase={purchase}
         onEquipAttachment={equipAttachment}
@@ -824,6 +831,15 @@ function CustomizeModal(props: CustomizeModalProps) {
                             {c.completed && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[9px]"><Check className="w-2.5 h-2.5 mr-0.5" />Done</Badge>}
                           </div>
                           <div className="text-white/50 text-[11px]">{c.description}</div>
+                           {c.requirements && (
+                             <div className="mt-1.5 space-y-0.5 text-[10px] text-white/50">
+                               {c.requirements.map(step => (
+                                 <div key={step.metric} className={step.completed ? "text-emerald-300" : ""}>
+                                   {step.completed ? "✓" : "○"} {step.metric.replaceAll("_", " ")}: {step.progress}/{step.goal}
+                                 </div>
+                               ))}
+                             </div>
+                           )}
                           <div className="text-white/40 text-[10px] mt-0.5">Reward: unlock purchase of <span style={{ color: rarityColor }}>{skin.name}</span> skin for {skin.unlockCost} CR</div>
                         </div>
                       </div>
@@ -832,7 +848,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           <div className={`h-full ${c.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-[10px] font-mono tabular-nums text-white/60">
-                          {c.progress}/{c.goal} {c.metric.replaceAll("_", " ")}
+                          {c.progress}/{c.goal} {c.requirements ? "mastery" : c.metric.replaceAll("_", " ")}
                         </span>
                       </div>
                     </div>
