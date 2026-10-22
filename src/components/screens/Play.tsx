@@ -598,7 +598,7 @@ export function Play() {
                       }
                       accent={roomConfig.fillWithBots && roomConfig.mode !== "survival" ? "#22c55e" : undefined}
                     />
-                    {roomConfig.mode !== "survival" && (
+                    {roomConfig.mode !== "survival" && roomConfig.fillWithBots && (
                       <SummaryRow
                         label="Difficulty"
                         value={BOT_DIFFICULTY_OPTIONS.find((d) => d.id === roomConfig.botDifficulty)?.label ?? "Normal"}
