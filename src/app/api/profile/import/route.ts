@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { WEAPONS } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
 import { parseWeaponConditionStats } from "@/lib/armory-challenges";
 
@@ -54,6 +55,8 @@ interface ExportData {
   } | null;
   achievements?: { achievementId: string; earnedAt: string }[];
   weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
+  weaponPrestiges?: { weaponId: string }[];
+  wonderUnlocks?: { weaponId: string }[];
   matchRecords?: {
     mode: string;
     online: boolean;
@@ -257,6 +260,34 @@ export async function POST(req: NextRequest) {
             conditionStats: JSON.stringify(imported),
           },
         });
+      }
+    }
+  }
+
+  // --- Restore one-time Prestige awards and Wonder purchases (dedup by key).
+  // Balance is derived from these two tables, not from a mutable imported counter.
+  if (data.weaponPrestiges?.length) {
+    for (const { weaponId } of data.weaponPrestiges) {
+      if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
+      await db.weaponPrestige.upsert({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+        create: { playerId: player.id, weaponId }, update: {},
+      });
+    }
+  }
+  if (data.wonderUnlocks?.length) {
+    for (const { weaponId } of data.wonderUnlocks) {
+      if (!WEAPONS.some(w => w.id === weaponId && w.wonder)) continue;
+      const owned = await db.wonderUnlock.findUnique({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+      });
+      if (owned) continue;
+      const [earned, spent] = await Promise.all([
+        db.weaponPrestige.count({ where: { playerId: player.id } }),
+        db.wonderUnlock.count({ where: { playerId: player.id } }),
+      ]);
+      if (spent < earned) {
+        await db.wonderUnlock.create({ data: { playerId: player.id, weaponId } });
       }
     }
   }
