@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId } from "@/lib/player-service";
+import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId, grantWeaponPrestiges } from "@/lib/player-service";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -17,7 +17,7 @@ import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinCha
 
 export const dynamic = "force-dynamic";
 
-type UnlockKind = "weapon" | "weaponSkin" | "playerSkin" | "attachment";
+type UnlockKind = "weapon" | "weaponSkin" | "playerSkin" | "attachment" | "wonderWeapon";
 
 // POST /api/unlock
 // Body: { playerKey, kind, itemId, weaponId? }
@@ -45,9 +45,37 @@ export async function POST(req: NextRequest) {
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
   const level = levelForXp(player.xp);
 
+  if (kind === "wonderWeapon") {
+    const def = WEAPONS.find(w => w.id === itemId && !!w.wonder);
+    if (!def) return NextResponse.json({ error: "Unknown Wonder Weapon" }, { status: 404 });
+    // Legitimately earned legacy progress can be claimed on the first purchase.
+    await grantWeaponPrestiges(player.id);
+    try {
+      await db.$transaction(async tx => {
+        const [awards, purchases, owned] = await Promise.all([
+          tx.weaponPrestige.count({ where: { playerId: player.id } }),
+          tx.wonderUnlock.count({ where: { playerId: player.id } }),
+          tx.wonderUnlock.findUnique({ where: {
+            playerId_weaponId: { playerId: player.id, weaponId: def.id },
+          } }),
+        ]);
+        if (owned) throw new Error("ALREADY_OWNED");
+        if (awards <= purchases) throw new Error("NO_PRESTIGE_TOKENS");
+        await tx.wonderUnlock.create({ data: { playerId: player.id, weaponId: def.id } });
+      });
+    } catch (e: any) {
+      if (e?.message === "ALREADY_OWNED" || e?.code === "P2002")
+        return NextResponse.json({ error: "Wonder Weapon already owned" }, { status: 400 });
+      if (e?.message === "NO_PRESTIGE_TOKENS")
+        return NextResponse.json({ error: "Earn a weapon Prestige token first" }, { status: 403 });
+      throw e;
+    }
+    return NextResponse.json({ ok: true, profile: await buildProfileView(playerKey) });
+  }
+
   if (kind === "weapon") {
     const def = WEAPONS.find((w) => w.id === itemId);
-    if (!def) return NextResponse.json({ error: "item not found" }, { status: 404 });
+    if (!def || def.wonder) return NextResponse.json({ error: "item not found" }, { status: 404 });
     if (level < def.unlockLevel) return NextResponse.json({ error: `Requires level ${def.unlockLevel}` }, { status: 403 });
     if (player.credits < def.unlockCost) return NextResponse.json({ error: `Not enough credits (need ${def.unlockCost})` }, { status: 403 });
     const owned = effectiveUnlocks(level, {
