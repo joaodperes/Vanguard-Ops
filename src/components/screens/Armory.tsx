@@ -300,7 +300,11 @@ export function Armory() {
                     <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
                   </div>
                   {owned
-                    ? <div className="text-emerald-300 text-sm flex items-center gap-1"><Check className="w-4 h-4" /> Unlocked — equip as Primary above</div>
+                    ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
+                      onClick={() => equipWeapon(w, "primary")}
+                      className="w-full border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                      {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
+                    </Button>
                     : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
                         <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Unlock · 1 Prestige Token" : "Requires 1 Prestige Token"}
                       </Button>}
