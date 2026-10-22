@@ -158,9 +158,38 @@ export function Results() {
                 </div>
               )}
 
+              {(rewards.challengeProgress?.length ?? 0) > 0 && (
+                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+                  <h4 className="font-bold text-cyan-200 text-sm mb-3 flex items-center gap-2">
+                    <Target className="w-4 h-4" /> Challenge progress this match
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    {rewards.challengeProgress.map((c: { id: string; kind: string; title: string; before: number; progress: number; goal: number; completed: boolean }) => {
+                      const isWeapon = c.kind === "weapon";
+                      const isElite = c.kind === "elite";
+                      const color = isWeapon ? "text-violet-200 border-violet-500/30 bg-violet-500/10" :
+                        isElite ? "text-amber-200 border-amber-500/30 bg-amber-500/10" :
+                        c.kind === "weekly" ? "text-blue-200 border-blue-500/30 bg-blue-500/10" :
+                        "text-cyan-200 border-cyan-500/30 bg-cyan-500/10";
+                      return <div key={c.id} className={`rounded-lg border p-3 ${color}`}>
+                        <div className="flex justify-between gap-2 text-[10px] uppercase tracking-wider font-semibold">
+                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : c.kind + " challenge"}</span>
+                          {c.completed ? <span className="text-emerald-300">Completed ✓</span> : <span>+{c.progress-c.before}</span>}
+                        </div>
+                        <div className="text-white font-semibold text-xs mt-1 mb-2">{c.title}</div>
+                        <div className="h-1.5 rounded-full bg-black/40 overflow-hidden">
+                          <div className="h-full bg-current" style={{width: `${Math.min(100,100*c.progress/Math.max(1,c.goal))}%`}} />
+                        </div>
+                        <div className="text-[11px] font-mono mt-1.5 text-right">{c.before} → {c.progress}/{c.goal}</div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              )}
+
               {rewards.challengeAwards?.length > 0 && (
                 <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-purple-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Trophy className="w-4 h-4" /> Daily Challenge Complete</div>
+                  <div className="text-purple-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Trophy className="w-4 h-4" /> Challenge Complete</div>
                   <div className="space-y-1.5">
                     {rewards.challengeAwards.map((c: any) => (
                       <div key={c.challengeId} className="flex items-center justify-between text-xs">
