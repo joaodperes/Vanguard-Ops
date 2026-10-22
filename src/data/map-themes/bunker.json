@@ -1,0 +1,39 @@
+{
+  "biome": "bunker",
+  "label": "Emergency-lit underground facility",
+  "palette": {
+    "floor": "#594a43",
+    "wall": "#433633",
+    "cover": "#8a7061",
+    "accent": "#ff6457",
+    "platform": "#746560",
+    "stair": "#9a8378",
+    "sky": "#2e2424",
+    "fog": "#34292c",
+    "grid": "#5e4840"
+  },
+  "ambient": 1.45,
+  "vegetation": 0,
+  "props": [
+    {
+      "kind": "lamp",
+      "x": -29,
+      "z": -21
+    },
+    {
+      "kind": "lamp",
+      "x": 26,
+      "z": 20
+    },
+    {
+      "kind": "terminal",
+      "x": -34,
+      "z": 15
+    },
+    {
+      "kind": "terminal",
+      "x": 35,
+      "z": -11
+    }
+  ]
+}

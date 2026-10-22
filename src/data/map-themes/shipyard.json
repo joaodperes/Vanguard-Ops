@@ -1,0 +1,44 @@
+{
+  "biome": "harbor",
+  "label": "Golden-hour container wharf",
+  "palette": {
+    "floor": "#71675b",
+    "wall": "#575967",
+    "cover": "#c07a4a",
+    "accent": "#ffd18d",
+    "platform": "#777e89",
+    "stair": "#a58b75",
+    "sky": "#99afc5",
+    "fog": "#9aa9b5",
+    "grid": "#7d776d"
+  },
+  "ambient": 1.65,
+  "vegetation": 0.06,
+  "props": [
+    {
+      "kind": "container",
+      "x": -63,
+      "z": 18,
+      "w": 9,
+      "d": 5,
+      "h": 3
+    },
+    {
+      "kind": "lamp",
+      "x": -37,
+      "z": 48
+    },
+    {
+      "kind": "crane",
+      "x": 17,
+      "z": 68
+    },
+    {
+      "kind": "sign",
+      "x": 5,
+      "z": -54,
+      "w": 7,
+      "text": "DOCK 07"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "biome": "highlands",
+  "label": "Wind-swept alpine ridge",
+  "palette": {
+    "floor": "#88959a",
+    "wall": "#6e7f88",
+    "cover": "#88949a",
+    "accent": "#f0d68c",
+    "platform": "#aebabe",
+    "stair": "#b7c2c4",
+    "sky": "#bad9e9",
+    "fog": "#aecbd8",
+    "grid": "#91a4af"
+  },
+  "ambient": 1.7,
+  "vegetation": 0.24,
+  "props": [
+    {
+      "kind": "rock",
+      "x": -163,
+      "z": 12,
+      "w": 12,
+      "d": 9,
+      "h": 6
+    },
+    {
+      "kind": "rock",
+      "x": 152,
+      "z": 46,
+      "w": 13,
+      "d": 8,
+      "h": 5
+    },
+    {
+      "kind": "tree",
+      "x": -111,
+      "z": -49,
+      "h": 14
+    },
+    {
+      "kind": "tree",
+      "x": 118,
+      "z": 34,
+      "h": 12
+    },
+    {
+      "kind": "antenna",
+      "x": 158,
+      "z": -87,
+      "h": 12
+    }
+  ]
+}

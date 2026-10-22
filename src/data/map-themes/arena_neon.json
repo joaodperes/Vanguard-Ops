@@ -1,0 +1,63 @@
+{
+  "biome": "city",
+  "label": "Colourful night market city",
+  "palette": {
+    "floor": "#49516b",
+    "wall": "#464664",
+    "cover": "#777294",
+    "accent": "#ff7dc4",
+    "platform": "#646688",
+    "stair": "#8c89a7",
+    "sky": "#46466b",
+    "fog": "#686c91",
+    "grid": "#707796"
+  },
+  "ambient": 1.65,
+  "vegetation": 0.13,
+  "props": [
+    {
+      "kind": "shop",
+      "x": -139,
+      "z": 17,
+      "w": 12,
+      "d": 9,
+      "h": 8,
+      "text": "NOODLE BAR"
+    },
+    {
+      "kind": "shop",
+      "x": 151,
+      "z": 25,
+      "w": 14,
+      "d": 10,
+      "h": 9,
+      "text": "ARCADE"
+    },
+    {
+      "kind": "shop",
+      "x": 43,
+      "z": 137,
+      "w": 15,
+      "d": 11,
+      "h": 8,
+      "text": "BAZAAR"
+    },
+    {
+      "kind": "sign",
+      "x": -118,
+      "z": -119,
+      "w": 10,
+      "text": "OPEN LATE"
+    },
+    {
+      "kind": "lamp",
+      "x": 110,
+      "z": 65
+    },
+    {
+      "kind": "lamp",
+      "x": -155,
+      "z": -23
+    }
+  ]
+}

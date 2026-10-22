@@ -1,0 +1,49 @@
+{
+  "biome": "metro",
+  "label": "Modern city transport plaza",
+  "palette": {
+    "floor": "#a4adaf",
+    "wall": "#758996",
+    "cover": "#a0b3be",
+    "accent": "#49bdd7",
+    "platform": "#8c9fa8",
+    "stair": "#b4babe",
+    "sky": "#b6d5e6",
+    "fog": "#bed4dc",
+    "grid": "#8fa7b0"
+  },
+  "ambient": 1.8,
+  "vegetation": 0.18,
+  "props": [
+    {
+      "kind": "shop",
+      "x": 121,
+      "z": 18,
+      "w": 12,
+      "d": 8,
+      "h": 7,
+      "text": "COFFEE & CO."
+    },
+    {
+      "kind": "shop",
+      "x": 38,
+      "z": 128,
+      "w": 11,
+      "d": 8,
+      "h": 7,
+      "text": "MARKET"
+    },
+    {
+      "kind": "lamp",
+      "x": -91,
+      "z": -47
+    },
+    {
+      "kind": "sign",
+      "x": 14,
+      "z": 103,
+      "w": 10,
+      "text": "GLASSLINE"
+    }
+  ]
+}

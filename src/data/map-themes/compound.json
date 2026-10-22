@@ -1,0 +1,55 @@
+{
+  "biome": "jungle",
+  "label": "Lush jungle ruins",
+  "palette": {
+    "floor": "#566647",
+    "wall": "#475340",
+    "cover": "#849077",
+    "accent": "#b9cf77",
+    "platform": "#7b8b71",
+    "stair": "#9c9c7c",
+    "sky": "#9cc3b6",
+    "fog": "#9fb9a5",
+    "grid": "#53674a"
+  },
+  "ambient": 1.65,
+  "vegetation": 0.8,
+  "props": [
+    {
+      "kind": "temple",
+      "x": 101,
+      "z": 33,
+      "w": 12,
+      "d": 12,
+      "h": 5
+    },
+    {
+      "kind": "rock",
+      "x": 111,
+      "z": -10,
+      "w": 6,
+      "d": 5,
+      "h": 3
+    },
+    {
+      "kind": "tree",
+      "x": -110,
+      "z": 37,
+      "h": 13
+    },
+    {
+      "kind": "ruin",
+      "x": -12,
+      "z": -109,
+      "w": 14,
+      "d": 9,
+      "h": 4
+    },
+    {
+      "kind": "tree",
+      "x": 128,
+      "z": 41,
+      "h": 14
+    }
+  ]
+}
