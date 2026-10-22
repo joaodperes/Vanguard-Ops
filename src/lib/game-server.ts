@@ -956,6 +956,18 @@ function destroyTurretsNear(room: Room, pos: Vec3, radius: number, onlyOwner?: s
   }
 }
 
+/** Melee must actually reach and face the turret, unlike a radial blast. */
+function destroyTurretsHitByMelee(room: Room, player: PlayerNet, range: number) {
+  for (const [id,turret] of room.turrets) {
+    const distance = Math.hypot(turret.pos[0]-player.pos[0],turret.pos[2]-player.pos[2]);
+    if (distance > range || !turretCanTrack(player.pos,player.yaw,turret.pos,range)) continue;
+    if (!hasLineOfSight(room,[player.pos[0],player.pos[1]+1,player.pos[2]],
+      [turret.pos[0],turret.pos[1]+.7,turret.pos[2]])) continue;
+    room.turrets.delete(id);
+    io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);
+  }
+}
+
 /** Server-authoritative tracking, damage, and 140° forward arc.
  * The arc applies horizontally; a target can be high above/below the turret.
  */
@@ -2154,7 +2166,7 @@ async function handle(socket: any, msg: C2S) {
           return !losBlocked(room, eye, dir, dist - 0.15);
         });
       // Quick melee disarms a turret on contact regardless of remaining lifetime.
-      destroyTurretsNear(room, p.pos, 2.5);
+      destroyTurretsHitByMelee(room, p, 2.5);
       if (target) {
         const victim = room.players.get(target.id) ?? room.bots.get(target.id);
         if (victim) applyDamage(room, socket.id, victim, QUICK_MELEE_DAMAGE, false, "knife_tactical");
@@ -2175,7 +2187,7 @@ async function handle(socket: any, msg: C2S) {
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
       if (weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
-      if (weapon.category === "melee") destroyTurretsNear(room, p.pos, Math.max(2.5, weapon.stats.range));
+      if (weapon.category === "melee") destroyTurretsHitByMelee(room, p, Math.max(2.5, weapon.stats.range));
       const now = Date.now();
       const interval = 1000 / Math.max(1, weapon.stats.fireRate);
       const burstSize = weapon.stats.burst ?? 1;
