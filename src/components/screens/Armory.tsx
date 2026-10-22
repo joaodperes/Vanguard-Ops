@@ -97,8 +97,9 @@ export function Armory() {
   const attachmentsByWeapon = profile?.unlocks.attachmentsByWeapon ?? {};
   const skinsByWeapon = profile?.unlocks.skinsByWeapon ?? {};
   const ownedWeaponIds = new Set<string>([
-    ...WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
+    ...(profile?.prestige?.wonderWeapons ?? []),
   ]);
 
   // Fetch per-weapon progress (kills / headshots) and challenge completion.
@@ -120,7 +121,7 @@ export function Armory() {
   }, [playerKey, profile?.matchesPlayed]);
 
   const purchase = async (
-    kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin",
+    kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon",
     itemId: string,
     cost: number,
     name: string,
@@ -137,7 +138,7 @@ export function Armory() {
       if (!res.ok) {
         toast.error(data.error || "Purchase failed");
       } else {
-        toast.success(`Unlocked ${name}!`, { description: `-${cost} CR` });
+        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "-1 Prestige Token" : `-${cost} CR` });
         await refreshProfile();
         // Re-fetch weapon progress to refresh challenge completion tiles.
         try {
@@ -236,6 +237,11 @@ export function Armory() {
             <span className="text-amber-300 font-bold tabular-nums">{credits}</span>
             <span className="text-amber-500/60 text-xs">CR</span>
           </div>
+          <div className="flex items-center gap-2 border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 rounded-lg">
+            <Sparkles className="w-4 h-4 text-violet-300" />
+            <span className="text-violet-200 font-bold">{profile?.prestige?.tokens ?? 0}</span>
+            <span className="text-violet-300/70 text-xs">Tokens</span>
+          </div>
         </div>
       </header>
 
@@ -248,8 +254,40 @@ export function Armory() {
         <Tabs defaultValue="weapons">
           <TabsList className="bg-zinc-900/60 border border-white/10">
             <TabsTrigger value="weapons" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Zap className="w-4 h-4 mr-1.5" /> Weapons</TabsTrigger>
+            <TabsTrigger value="wonders" className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-200 text-white/60"><Sparkles className="w-4 h-4 mr-1.5" /> Wonders</TabsTrigger>
             <TabsTrigger value="pskins" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Shirt className="w-4 h-4 mr-1.5" /> Operatives</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="wonders" className="mt-5">
+            <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
+              <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
+              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos for that weapon and one token. Spend a token to permanently unlock a Wonder Weapon. Recharge cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {WEAPONS.filter(w => !!w.wonder).map(w => {
+                const owned = profile?.prestige?.wonderWeapons.includes(w.id) ?? false;
+                const ready = (profile?.prestige?.tokens ?? 0) > 0;
+                return <div key={w.id} className="rounded-xl border border-violet-500/25 bg-black/40 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-violet-100">{w.name}</h3>
+                    <Badge variant="outline" className="border-violet-400/40 text-violet-300">Wonder Weapon</Badge>
+                  </div>
+                  <p className="text-white/60 text-sm">{w.description}</p>
+                  <div className="flex gap-3 text-xs font-mono text-violet-300">
+                    <span>{w.wonder!.maxCharges} max shots</span>
+                    <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
+                    <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
+                  </div>
+                  {owned
+                    ? <div className="text-emerald-300 text-sm flex items-center gap-1"><Check className="w-4 h-4" /> Unlocked — equip as Primary above</div>
+                    : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
+                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Unlock · 1 Prestige Token" : "Requires 1 Prestige Token"}
+                      </Button>}
+                </div>;
+              })}
+            </div>
+          </TabsContent>
 
           {/* WEAPONS — organized into 3 collapsible slot sections.
               Within each section, weapons are sorted by unlock level (ascending)
@@ -258,7 +296,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="primary"
               label="Primary"
-              weapons={WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.wonder && PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
@@ -412,7 +450,7 @@ interface WeaponSlotSectionProps {
   progress: WeaponProgressMap;
   challenges: WeaponChallengesMap;
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
   defaultOpen?: boolean;
 }
@@ -571,7 +609,7 @@ interface CustomizeModalProps {
   progress: { weaponId: string; kills: number; headshots: number } | null;
   challengeViews: WeaponChallengeView[];
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquipAttachment: (slot: WeaponSlot, attSlot: AttachmentSlot, attId: string | null) => Promise<void>;
   onEquipSkin: (skinId: string) => Promise<void>;
 }
@@ -878,7 +916,7 @@ interface ModalAttachmentSlotProps {
   credits: number;
   busy: string | null;
   slot: WeaponSlot;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquip: (attId: string | null) => void;
 }
 
