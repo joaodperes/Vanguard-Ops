@@ -4,7 +4,7 @@ import { useGame } from "@/lib/game-store";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
-  weaponAttachmentSlots, compatibleAttachments,
+  weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats,
   weaponSkinById,
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
@@ -392,7 +392,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {busy === s.id ? "…" : !challengeReady ? "Complete contract" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
@@ -650,6 +650,7 @@ function CustomizeModal(props: CustomizeModalProps) {
       : profile.meleeAttachments;
   const unlockedForWeapon = attachmentsByWeapon[w.id] ?? [];
   const statPreview: AttachmentMap | undefined = previewAttachment ? { ...equippedAttsForSlot, [previewAttachment.slot]: previewAttachment.id } : undefined;
+  const currentEffectiveStats = computeEffectiveStats(w, equippedAttsForSlot);
   // Per-weapon equipped skin: read the skin for the slot whose modal is open.
   // Skins are per-weapon (like attachments) — each slot has its own skin.
   const equippedSkinId = slot === "secondary"
@@ -679,10 +680,10 @@ function CustomizeModal(props: CustomizeModalProps) {
           </div>
           {/* Stat bars */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-            <ModalStatBar label="DMG" value={w.stats.damage} max={120} color="bg-rose-500" />
-            <ModalStatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
-            <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
-            <ModalStatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
+            <ModalStatBar label="DMG" value={currentEffectiveStats.damage} max={120} color="bg-rose-500" />
+            <ModalStatBar label="RoF" value={currentEffectiveStats.fireRate} max={16} color="bg-amber-500" />
+            <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
+            <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
           </div>
         </DialogHeader>
 
@@ -699,7 +700,7 @@ function CustomizeModal(props: CustomizeModalProps) {
             </TabsTrigger>
           </TabsList>
 
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
+          <div className="grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,180px)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
           <div className="min-h-0 overflow-y-auto pr-1 lg:pr-2">
           {/* ATTACHMENTS TAB */}
           <TabsContent value="attachments" className="mt-4">
