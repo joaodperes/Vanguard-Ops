@@ -1,65 +1,63 @@
 /**
- * Map footprint profiles.
- *
- * The base layouts share approximately 120-128-unit dimensions. Scaling X/Z
- * uniformly preserves authored stair/cover connections while giving players
- * real close-quarters, balanced and tactical map sizes to choose from.
- * Vertical measurements, jump height and player size remain world-constant.
+ * Scale the legacy central geometry while composing distinct JSON-authored
+ * connected districts around it. The region union (not map.size) defines the
+ * playable outline; map.size remains a bounding-square broadphase for legacy
+ * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary } from "./map-blueprints";
 
 export type MapPace = "compact" | "balanced" | "tactical";
-
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
-  bunker: { scale: 0.82, pace: "compact", description: "Short flanks · frequent close-range fights" },
-  shipyard: { scale: 0.90, pace: "compact", description: "Container-lane skirmishes · fast engagements" },
-  compound: { scale: 0.98, pace: "balanced", description: "Mixed lanes · varied engagement distances" },
-  terminal: { scale: 1.04, pace: "balanced", description: "Medium-range security and concourse routes" },
-  skybridge: { scale: 1.13, pace: "tactical", description: "Long approaches · elevated sightlines" },
-  arena_neon: { scale: 1.19, pace: "tactical", description: "Wide flanks · multi-level engagements" },
+  bunker: {scale:0.72,pace:"compact",description:"Close-quarters vaults and short bent corridors"},
+  shipyard: {scale:0.88,pace:"compact",description:"Dockside container fights and crane routes"},
+  compound: {scale:0.98,pace:"balanced",description:"Four unequal districts with checkpoint engagements"},
+  terminal: {scale:1.00,pace:"balanced",description:"Dog-leg transit halls and parking decks"},
+  skybridge: {scale:1.07,pace:"tactical",description:"Massive front line, long flanks and elevated strongholds"},
+  arena_neon: {scale:1.02,pace:"tactical",description:"Sprawling city districts and rooftop fighting"},
 };
-
-function scaled(p: Vec3, scale: number): Vec3 {
-  return [Math.round(p[0] * scale * 1000) / 1000, p[1], Math.round(p[2] * scale * 1000) / 1000];
+const scaled=(p:Vec3,s:number):Vec3=>[Math.round(p[0]*s*1000)/1000,p[1],Math.round(p[2]*s*1000)/1000];
+function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
+  const pos=scaled(o.pos,s),size=scaled(o.size,s);
+  if(o.type==="moving_platform")return {...o,pos,size,to:scaled(o.to,s)};
+  if(o.type==="jump_pad")return {...o,pos,size,launch:scaled(o.launch,s)};
+  return {...o,pos,size};
 }
-
-function scaleEnvironment(obj: EnvironmentObject, scale: number): EnvironmentObject {
-  const pos = scaled(obj.pos, scale), size = scaled(obj.size, scale);
-  if (obj.type === "moving_platform") {
-    return { ...obj, pos, size, to: scaled(obj.to, scale) };
-  }
-  if (obj.type === "jump_pad") {
-    return { ...obj, pos, size, launch: scaled(obj.launch, scale) };
-  }
-  return { ...obj, pos, size };
-}
-
-/**
- * Scale each complete map together, including walls, cover, stair segments,
- * spawns, interactables, projectiles' environmental launch vectors and lights.
- * Never mutate the base map: the server creates independent room instances.
- */
-export function applyMapFootprint(base: MapDef): MapDef {
-  const scale = MAP_FOOTPRINT[base.id].scale;
+export function applyMapFootprint(base:MapDef):MapDef {
+  const factor=MAP_FOOTPRINT[base.id].scale;
+  // Re-entrant use (including old test fixtures) should not stamp districts twice.
+  const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
+  const environment=base.environment?.map(o=>scaleEnvironment(o,factor));
+  const scaledBase:MapDef={
+    ...base,size:Math.round(base.size*factor*1000)/1000,
+    cover:base.cover.map(c=>({...c,pos:scaled(c.pos,factor),size:scaled(c.size,factor)})),
+    spawns:{
+      ffa:base.spawns.ffa.map(p=>scaled(p,factor)),
+      red:base.spawns.red.map(p=>scaled(p,factor)),
+      blue:base.spawns.blue.map(p=>scaled(p,factor)),
+    },
+    environment,
+    lights:base.lights?.map(l=>({...l,pos:scaled(l.pos,factor),distance:l.distance*factor})),
+    theme:{...base.theme,fogNear:base.theme.fogNear*factor,fogFar:base.theme.fogFar*factor},
+    ...(base.regions?{regions:base.regions.map(r=>({...r,x:r.x*factor,z:r.z*factor,w:r.w*factor,d:r.d*factor}))}:{}),
+  };
+  if(!plan)return scaledBase;
+  const regions=plan.regions.map(r=>({...r}));
+  const halfExtent=Math.max(...regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+3;
+  // Older inner-circle spawn sets remain as fallbacks; larger districts receive
+  // many additional spawns so players do not endlessly recycle the center.
+  // Preserve the source outer-ring entries as the final entries for diagnostics.
+  const addSpawns=(team:"ffa"|"red"|"blue")=>{
+    const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
+    return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
+  };
   return {
-    ...base,
-    size: Math.round(base.size * scale * 1000) / 1000,
-    cover: base.cover.map(box => ({
-      ...box, pos: scaled(box.pos, scale), size: scaled(box.size, scale),
-    })),
-    spawns: {
-      ffa: base.spawns.ffa.map(p => scaled(p, scale)),
-      red: base.spawns.red.map(p => scaled(p, scale)),
-      blue: base.spawns.blue.map(p => scaled(p, scale)),
-    },
-    environment: base.environment?.map(obj => scaleEnvironment(obj, scale)),
-    lights: base.lights?.map(light => ({
-      ...light, pos: scaled(light.pos, scale), distance: light.distance * scale,
-    })),
-    theme: {
-      ...base.theme,
-      fogNear: base.theme.fogNear * scale,
-      fogFar: base.theme.fogFar * scale,
-    },
+    ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
+    size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
+    regions,
+    cover:[...scaledBase.cover,...plan.features.flatMap(featureBoxes),...regionBoundary(regions)],
+    spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
+    theme:{...scaledBase.theme,fogNear:Math.max(35,scaledBase.theme.fogNear),
+      fogFar:Math.max(scaledBase.theme.fogFar,halfExtent*2.5+60)},
   };
 }

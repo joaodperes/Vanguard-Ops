@@ -992,7 +992,7 @@ export class FPSEngine {
     this.scene.background = new THREE.Color(theme.sky);
     this.scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
 
-    this.camera = new THREE.PerspectiveCamera(this.baseFov, this.container.clientWidth / this.container.clientHeight, 0.05, 500);
+    this.camera = new THREE.PerspectiveCamera(this.baseFov, this.container.clientWidth / this.container.clientHeight, 0.05, Math.max(500, this.map.size * 3));
 
     const hemi = new THREE.HemisphereLight(0x9db4c0, 0x202830, 0.9 * theme.ambient);
     this.hemiLight = hemi;
@@ -1002,8 +1002,9 @@ export class FPSEngine {
     dir.position.set(30, 50, 20);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
-    dir.shadow.camera.left = -50; dir.shadow.camera.right = 50;
-    dir.shadow.camera.top = 50; dir.shadow.camera.bottom = -50;
+    const shadowExtent = Math.min(230, Math.max(65, this.map.size));
+    dir.shadow.camera.left = -shadowExtent; dir.shadow.camera.right = shadowExtent;
+    dir.shadow.camera.top = shadowExtent; dir.shadow.camera.bottom = -shadowExtent;
     dir.shadow.camera.far = 120;
     this.scene.add(dir);
     const fill = new THREE.DirectionalLight(0x4a6080, 0.4);
@@ -1014,25 +1015,35 @@ export class FPSEngine {
   private buildArena() {
     const theme = this.map.theme;
     // floor
-    const floorGeo = new THREE.PlaneGeometry(this.map.size * 2, this.map.size * 2);
     const floorMat = new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.95, metalness: 0.0 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-    // grid
-    const grid = new THREE.GridHelper(this.map.size * 2, 64, theme.gridColor, theme.gridColor);
-    (grid.material as THREE.Material).opacity = 0.4;
-    (grid.material as THREE.Material).transparent = true;
-    grid.position.y = 0.02;
-    this.scene.add(grid);
+    // The visible ground follows the union of authored regions, not a square.
+    // Shared area overlaps are coplanar; polygon-union cells avoid Z fighting.
+    const regions = this.map.regions;
+    if (regions?.length) {
+      const xs = [...new Set(regions.flatMap(r => [r.x-r.w/2,r.x+r.w/2]))].sort((a,b)=>a-b);
+      const zs = [...new Set(regions.flatMap(r => [r.z-r.d/2,r.z+r.d/2]))].sort((a,b)=>a-b);
+      for (let i=0;i<xs.length-1;i++) for(let j=0;j<zs.length-1;j++) {
+        const x=(xs[i]+xs[i+1])/2, z=(zs[j]+zs[j+1])/2;
+        if (!regions.some(r=>Math.abs(x-r.x)<r.w/2 && Math.abs(z-r.z)<r.d/2)) continue;
+        const tile = new THREE.Mesh(new THREE.PlaneGeometry(xs[i+1]-xs[i],zs[j+1]-zs[j]),floorMat);
+        tile.rotation.x=-Math.PI/2; tile.position.set(x,0,z); tile.receiveShadow=true;
+        this.scene.add(tile);
+      }
+    } else {
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(this.map.size*2,this.map.size*2),floorMat);
+      floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; this.scene.add(floor);
+      const grid=new THREE.GridHelper(this.map.size*2,64,theme.gridColor,theme.gridColor);
+      (grid.material as THREE.Material).opacity=0.4;
+      (grid.material as THREE.Material).transparent=true;
+      grid.position.y=0.02; this.scene.add(grid);
+    }
 
     // walls
     const wallMat = new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.8, metalness: 0.1 });
     const wallH = this.map.wallHeight;
     const t = 1;
     const s = this.map.size;
-    const walls = [
+    const walls = this.map.regions?.length ? [] : [
       { pos: [0, wallH / 2, -s], size: [s * 2, wallH, t] },
       { pos: [0, wallH / 2, s], size: [s * 2, wallH, t] },
       { pos: [-s, wallH / 2, 0], size: [t, wallH, s * 2] },

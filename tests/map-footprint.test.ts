@@ -18,7 +18,7 @@ describe("map footprint variety", () => {
   test("a compact map has smaller walls, cover, spawn distances and hazards together", () => {
     for (const map of MAP_LIST) {
       expect(map.size * 2).toBeGreaterThan(90);
-      expect(map.size * 2).toBeLessThan(160);
+      expect(map.size * 2).toBeLessThan(500);
       for (const cover of map.cover) {
         expect(Math.abs(cover.pos[0])).toBeLessThanOrEqual(map.size + 0.01);
         expect(Math.abs(cover.pos[2])).toBeLessThanOrEqual(map.size + 0.01);
@@ -58,4 +58,20 @@ describe("map footprint variety", () => {
     expect(base.cover[0].pos[0]).toBe(3);
     expect(base.spawns.ffa[0][2]).toBe(4);
   });
+  test("connected districts give large maps genuinely massive irregular footprints", () => {
+    for (const map of MAP_LIST) {
+      expect(map.regions?.length ?? 0).toBeGreaterThanOrEqual(3);
+      const r=map.regions!;
+      const boundary=map.cover.filter(c=>c.kind==="solid");
+      expect(boundary.length).toBeGreaterThan(4);
+      const coveredArea=r.reduce((area,v)=>area+v.w*v.d,0);
+      expect(coveredArea).toBeLessThan((2*map.size)**2 * 0.87);
+    }
+    for (const id of ["skybridge","arena_neon"] as const) {
+      expect(MAPS[id].size * 2).toBeGreaterThan(380);
+      expect(MAPS[id].spawns.ffa.some(p=>Math.abs(p[0])>140||Math.abs(p[2])>140)).toBe(true);
+      expect(MAPS[id].cover.some(c=>c.kind==="platform" && (Math.abs(c.pos[0])>90||Math.abs(c.pos[2])>90))).toBe(true);
+    }
+  });
+
 });

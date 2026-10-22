@@ -159,7 +159,8 @@ export interface MapDef {
   name: string;
   shortName: string;
   description: string;
-  size: number;          // half-extents (arena is 2*size x 2*size)
+  size: number;          // broadphase half-extents; regions determine the playable footprint
+  regions?: import("./map-blueprints").MapRegion[]; // union of connected walkable rectangles
   wallHeight: number;
   cover: CoverBox[];
   environment?: EnvironmentObject[];
