@@ -607,7 +607,7 @@ interface CustomizeModalProps {
   credits: number;
   attachmentsByWeapon: Record<string, string[]>;
   skinsByWeapon: Record<string, string[]>;
-  progress: { weaponId: string; kills: number; headshots: number } | null;
+  progress: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> } | null;
   challengeViews: WeaponChallengeView[];
   prestiged: boolean;
   busy: string | null;
@@ -928,7 +928,7 @@ interface ModalAttachmentSlotProps {
   weaponId: string;
   equippedId: string | null;
   unlockedForWeapon: string[];
-  progress: { weaponId: string; kills: number; headshots: number } | null;
+  progress: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> } | null;
   level: number;
   credits: number;
   busy: string | null;
