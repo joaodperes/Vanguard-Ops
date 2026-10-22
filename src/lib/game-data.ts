@@ -41,6 +41,8 @@ export interface WeaponStats {
 
 export interface WeaponDef {
   special?: WeaponSpecial;
+  /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
+  wonder?: { kind: "singularity" | "corrosion"; maxCharges: 1 | 2; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -60,6 +62,22 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = [
+  {
+    id: "wonder_singularity", name: "Event Horizon", category: "dmr",
+    unlockLevel: 1, unlockCost: 0,
+    description: "Wonder Weapon: a collapsing star launches a devastating gravity pulse. One charge, slowly regenerating; non-Wonder kills accelerate recharge.",
+    wonder: { kind: "singularity", maxCharges: 1, rechargeMs: 48000, killBonusMs: 2400, radius: 11 },
+    attachments: [],
+    stats: { damage: 165, fireRate: 0.7, magSize: 1, reloadTime: 0, spread: 0.003, adsSpread: 0.0004, recoil: 2.4, range: 95, adsTime: 0.36, moveSpeed: 0.88, auto: false, headshotMult: 1 },
+  },
+  {
+    id: "wonder_corrosion", name: "Plagueheart", category: "shotgun",
+    unlockLevel: 1, unlockCost: 0,
+    description: "Wonder Weapon: unstable bio-reactor seeds a corrosive blast and lingering poison. Two charges, slowly regenerating; non-Wonder kills accelerate recharge.",
+    wonder: { kind: "corrosion", maxCharges: 2, rechargeMs: 38000, killBonusMs: 1800, radius: 9 },
+    attachments: [],
+    stats: { damage: 85, fireRate: 1.1, magSize: 2, reloadTime: 0, spread: 0.005, adsSpread: 0.002, recoil: 1.8, range: 60, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1 },
+  },
   // Special weapons — opt into a mechanic; ordinary guns keep their existing behavior.
   {
     id: "rifle_electron", name: "Electron Rifle", category: "assault",
@@ -860,6 +878,8 @@ export interface WeaponSkinDef {
   roughness: number;    // 0..1
   emissive?: string;    // glow color
   emissiveIntensity?: number;
+  /** Awarded free to a weapon after completing every standard skin challenge. */
+  prestige?: "cosmic" | "toxic";
 }
 
 // Wildcard weaponId used in SkinUnlock rows for standard-tier skins. A skin
@@ -883,6 +903,8 @@ export const WEAPON_SKINS: WeaponSkinDef[] = [
   { id: "neon", name: "Neon Pulse", unlockLevel: 12, unlockCost: 3000, rarity: "epic", tier: "standard", color: "#0a0a0a", metalness: 0.5, roughness: 0.2, emissive: "#22d3ee", emissiveIntensity: 0.7 },
   { id: "inferno", name: "Inferno", unlockLevel: 14, unlockCost: 4000, rarity: "legendary", tier: "standard", color: "#1c0a02", metalness: 0.6, roughness: 0.25, emissive: "#f97316", emissiveIntensity: 0.6 },
   { id: "gold", name: "Gold Standard", unlockLevel: 16, unlockCost: 6000, rarity: "legendary", tier: "standard", color: "#d4af37", metalness: 0.95, roughness: 0.18 },
+  { id: "prestige_cosmic", name: "Eventide", unlockLevel: 1, unlockCost: 0, rarity: "legendary", tier: "legendary", color: "#080d2b", metalness: 0.65, roughness: 0.13, emissive: "#a78bfa", emissiveIntensity: 1.1, prestige: "cosmic" },
+  { id: "prestige_toxic", name: "Viridian Blight", unlockLevel: 1, unlockCost: 0, rarity: "legendary", tier: "legendary", color: "#143c1c", metalness: 0.25, roughness: 0.16, emissive: "#a3e635", emissiveIntensity: 1.2, prestige: "toxic" },
 ];
 
 export interface PlayerSkinDef {
