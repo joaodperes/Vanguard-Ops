@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
+import { parseWeaponConditionStats } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ interface ExportData {
     meleeAttachments: string;
   } | null;
   achievements?: { achievementId: string; earnedAt: string }[];
-  weaponProgress?: { weaponId: string; kills: number; headshots: number }[];
+  weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
   matchRecords?: {
     mode: string;
     online: boolean;
@@ -235,17 +236,26 @@ export async function POST(req: NextRequest) {
   if (data.weaponProgress?.length) {
     for (const wp of data.weaponProgress) {
       const existing = await db.weaponProgress.findUnique({ where: { playerId_weaponId: { playerId: player.id, weaponId: wp.weaponId } } });
+      const imported = parseWeaponConditionStats(wp.conditionStats);
       if (existing) {
+        const retained = parseWeaponConditionStats(existing.conditionStats);
+        for (const key of Object.keys(retained) as Array<keyof typeof retained>) {
+          retained[key] = Math.max(retained[key], imported[key]);
+        }
         await db.weaponProgress.update({
           where: { id: existing.id },
           data: {
             kills: Math.max(existing.kills, wp.kills),
             headshots: Math.max(existing.headshots, wp.headshots),
+            conditionStats: JSON.stringify(retained),
           },
         });
       } else {
         await db.weaponProgress.create({
-          data: { playerId: player.id, weaponId: wp.weaponId, kills: wp.kills, headshots: wp.headshots },
+          data: {
+            playerId: player.id, weaponId: wp.weaponId, kills: wp.kills, headshots: wp.headshots,
+            conditionStats: JSON.stringify(imported),
+          },
         });
       }
     }
