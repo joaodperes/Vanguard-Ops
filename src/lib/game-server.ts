@@ -168,7 +168,7 @@ interface Room {
   equipmentStun: Map<string, number>;
   quickMeleeAt: Map<string, number>;
   lastDamagedAt: Map<string, number>;
-  scavengerDrops: Map<string, { id: string; pos: Vec3; expiresAt: number; ownerTeam: string }>;
+  scavengerDrops: Map<string, { id: string; pos: Vec3; expiresAt: number; ownerTeam: string; ownerId: string }>;
 
   // Per-player allowance for fast intra-burst shots; never accept unlimited
   // packets at burst cadence or a remote player could bypass fire-rate limits.
@@ -678,7 +678,7 @@ function snapshot(room: Room): S2C {
     timeLeft: Math.max(0, Math.ceil(room.timeLeft)),
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
-    scavengerDrops: [...room.scavengerDrops.values()].map(d => ({ id: d.id, pos: d.pos, expiresAt: d.expiresAt })),
+    // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
       tagStats: Object.fromEntries([...room.scores.keys()].map(id => [id, {
@@ -1044,15 +1044,14 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       room.deathBombs.set(id, { ownerId: victim.id, ownerTeam: victim.team, pos, explodesAt });
       io.to(room.id).emit("message", { t: "deathBomb", id, ownerId: victim.id, pos, explodesAt } as S2C);
     }
-    if (shouldCreateScavengerDrop(attacker?.id, victim.id)) {
-      // Create a shared ammo cache on every enemy elimination, even if a Scavenger
-      // player joins later or the perk wasn't yet registered when this shot landed.
-      // Only players with Scavenger may collect it. Visibility is client-filtered.
+    const killerPerk = attacker ? room.loadouts.get(attacker.id)?.perkId : null;
+    if (attacker && !attacker.isBot && shouldCreateScavengerDrop(attacker.id, victim.id, killerPerk)) {
+      // Owner-only pack: never share the payload with other players' sockets.
       const id = genId("ammo");
       const pos: Vec3 = [victim.pos[0], victim.pos[1] + 0.16, victim.pos[2]];
       const expiresAt = Date.now() + SCAVENGER_DROP_LIFETIME_MS;
-      room.scavengerDrops.set(id, { id, pos, expiresAt, ownerTeam: victim.team });
-      io.to(room.id).emit("message", { t: "scavengerDrop", id, pos, expiresAt } as S2C);
+      room.scavengerDrops.set(id, { id, pos, expiresAt, ownerTeam: victim.team, ownerId: attacker.id });
+      io.to(attacker.id).emit("message", { t: "scavengerDrop", id, pos, expiresAt } as S2C);
     }
     if (attacker) {
       attacker.kills += 1;
@@ -1427,7 +1426,7 @@ function tickScavengerDrops(room: Room, now: number): void {
   for (const [id, drop] of room.scavengerDrops) {
     if (now >= drop.expiresAt) {
       room.scavengerDrops.delete(id);
-      io.to(room.id).emit("message", { t: "scavengerRemove", id } as S2C);
+      io.to(drop.ownerId).emit("message", { t: "scavengerRemove", id } as S2C);
       continue;
     }
     for (const player of room.players.values()) {
@@ -1435,10 +1434,11 @@ function tickScavengerDrops(room: Room, now: number): void {
         now, expiresAt: drop.expiresAt,
         distance: Math.hypot(player.pos[0] - drop.pos[0], player.pos[2] - drop.pos[2]),
         alive: player.alive, perkId: room.loadouts.get(player.id)?.perkId,
+        collectorId: player.id, ownerId: drop.ownerId,
         mode: room.mode, collectorTeam: player.team, defeatedTeam: drop.ownerTeam,
       })) continue;
       room.scavengerDrops.delete(id);
-      io.to(room.id).emit("message", { t: "scavengerRemove", id } as S2C);
+      io.to(drop.ownerId).emit("message", { t: "scavengerRemove", id } as S2C);
       io.to(player.id).emit("message", { t: "scavengerCollected", id } as S2C);
       break;
     }
@@ -2058,10 +2058,11 @@ async function handle(socket: any, msg: C2S) {
         now: Date.now(), expiresAt: drop.expiresAt,
         distance: Math.hypot(p.pos[0] - drop.pos[0], p.pos[2] - drop.pos[2]),
         alive: p.alive, perkId: room.loadouts.get(p.id)?.perkId,
+        collectorId: p.id, ownerId: drop.ownerId,
         mode: room.mode, collectorTeam: p.team, defeatedTeam: drop.ownerTeam,
       })) return;
       room.scavengerDrops.delete(msg.id);
-      io.to(room.id).emit("message", { t: "scavengerRemove", id: msg.id } as S2C);
+      io.to(drop.ownerId).emit("message", { t: "scavengerRemove", id: msg.id } as S2C);
       io.to(socket.id).emit("message", { t: "scavengerCollected", id: msg.id } as S2C);
       break;
     }
