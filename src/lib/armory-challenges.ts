@@ -242,7 +242,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
     id: `att:${weaponId}:${attachmentId}`,
     kind: "attachment", rewardId: attachmentId, weaponId,
     metric, goal,
-    title: `${attachment.name} Trial`,
+    title: `${attachment.name} Challenge`,
     description: `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}${circumstances[metric] ? " " + circumstances[metric] : ""}.`,
   };
 }
