@@ -160,7 +160,7 @@ export interface HudState {
   scoped: boolean;
   // Round 20h: Local player spawn protection (for first-person shield overlay).
   selfSpawnProtected?: boolean;
-  radar?: { size: number; playerX: number; playerZ: number; yaw: number; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
+  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
   // Dynamic crosshair spread: 0 = tight, 1 = max bloom. Driven by movement,
   // sprinting, jumping, firing — the HUD uses this to size the crosshair gap.
   spreadFactor: number;
@@ -6057,7 +6057,7 @@ export class FPSEngine {
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment) ?? botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,this.map.regions) ?? botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
         }
         const waypoint=ai.routeWaypoint;
@@ -6212,7 +6212,7 @@ export class FPSEngine {
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
         if(patrolBlocked || Math.abs(ai.wanderTarget[1] - c.pos[1]) > 1.3 || this.opts.mapId === "bunker") {
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size,3,this.map.environment);
+            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size,3,this.map.environment,this.map.regions);
             ai.nextRouteAt=now+850;
           }
           const waypoint=ai.routeWaypoint;
@@ -6552,6 +6552,10 @@ export class FPSEngine {
       mapName: this.map.name,
       radar: {
         size: this.map.size, playerX: this.pos.x, playerZ: this.pos.z, yaw: this.yaw,
+        regions:this.map.regions?.map(r=>({
+          x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
+          w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,
+        })),
         cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
           x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
           z: radarToPercent(c.pos[2] - c.size[2], this.map.size),

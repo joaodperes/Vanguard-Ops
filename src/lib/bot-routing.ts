@@ -8,6 +8,7 @@
  */
 import type { CoverBox, Vec3 } from "./game-protocol";
 import { botGroundHeight, botMoveBlocked } from "./bot-physics";
+import { nextRegionPortal, type MapRegion } from "./map-blueprints";
 
 type Hazard = { type: string; pos: readonly number[]; size: readonly number[] };
 type Node = { x: number; z: number; y: number; g: number; f: number; key: string };
@@ -96,14 +97,15 @@ export function botTraversableEdge(
  */
 export function botNextWaypoint(
   start: readonly number[], goal: readonly number[], cover: CoverBox[],
-  bounds: number, _legacyStep = 3, hazards: readonly Hazard[] = [],
+  bounds: number, _legacyStep = 3, hazards: readonly Hazard[] = [], regions: readonly MapRegion[] = [],
 ): Vec3 | null {
+  const target=nextRegionPortal(start,goal,regions,cover) ?? goal;
   const sx = Math.round(start[0] / GRID), sz = Math.round(start[2] / GRID);
-  const goalX = Math.round(goal[0] / GRID), goalZ = Math.round(goal[2] / GRID);
+  const goalX = Math.round(target[0] / GRID), goalZ = Math.round(target[2] / GRID);
   const sy = Math.max(0, start[1]);
   const key = (x: number, z: number, y: number) => `${x},${z},${Math.round(y * 2)}`;
   const heuristic = (x: number, z: number, y: number) =>
-    Math.hypot(goalX - x, goalZ - z) + Math.abs(y - goal[1]) * 2.5;
+    Math.hypot(goalX - x, goalZ - z) + Math.abs(y - target[1]) * 2.5;
   const startKey = key(sx, sz, sy);
   const heap = new MinHeap();
   heap.push({ x: sx, z: sz, y: sy, g: 0, f: heuristic(sx,sz,sy), key: startKey });
@@ -120,7 +122,7 @@ export function botNextWaypoint(
     if (cur.g > (bestCost.get(cur.key) ?? Infinity) + 1e-6) continue;
     if (cur.f - cur.g < closest.f - closest.g) closest = cur;
     if (Math.hypot(cur.x - goalX, cur.z - goalZ) <= 1.1 &&
-        Math.abs(cur.y - goal[1]) < 1.25) {
+        Math.abs(cur.y - target[1]) < 1.25) {
       destination = cur;
       break;
     }

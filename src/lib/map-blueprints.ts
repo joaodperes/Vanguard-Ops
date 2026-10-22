@@ -4,7 +4,7 @@
  * are FULL extents in JSON (unlike CoverBox's half-extents).
  */
 import source from "../data/map-blueprints.json";
-import type { CoverBox, MapId, Vec3 } from "./game-protocol";
+import type { CoverBox, Vec3 } from "./game-protocol";
 
 export interface MapRegion { x: number; z: number; w: number; d: number }
 export interface MapFeature extends MapRegion {
@@ -16,7 +16,7 @@ export interface MapBlueprint {
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
-export const MAP_BLUEPRINTS = source as MapBlueprintFile;
+export const MAP_BLUEPRINTS = source as unknown as MapBlueprintFile;
 
 export function insideRegions(x: number, z: number, regions: readonly MapRegion[], padding = 0): boolean {
   return regions.some(r => Math.abs(x-r.x) <= r.w/2-padding && Math.abs(z-r.z) <= r.d/2-padding);
@@ -99,4 +99,44 @@ export function validateBlueprint(b: MapBlueprint): string[] {
         issues.push(`${team} spawn at ${p[0]},${p[2]} outside walkable space`);
   }
   return issues;
+}
+
+/** Coarse route via the first overlapping district in the shortest region chain.
+ * The fine-grained A* motor still validates every step/obstacle on the way. */
+export function nextRegionPortal(start:readonly number[],goal:readonly number[],
+  regions:readonly MapRegion[],cover:readonly CoverBox[]=[]):Vec3|null{
+  if(regions.length<2||Math.hypot(start[0]-goal[0],start[2]-goal[2])<65)return null;
+  const starts=regions.flatMap((r,i)=>insideRegions(start[0],start[2],[r])?[i]:[]);
+  const ends=new Set(regions.flatMap((r,i)=>insideRegions(goal[0],goal[2],[r])?[i]:[]));
+  if(!starts.length||!ends.size||starts.some(i=>ends.has(i)))return null;
+  const queue=[...starts],parent=new Map<number,number>(),visited=new Set(starts);
+  let reached=-1;
+  while(queue.length){
+    const i=queue.shift()!;
+    if(ends.has(i)){reached=i;break;}
+    for(let k=0;k<regions.length;k++){
+      if(visited.has(k))continue;
+      const a=regions[i],b=regions[k];
+      const width=Math.min(a.x+a.w/2,b.x+b.w/2)-Math.max(a.x-a.w/2,b.x-b.w/2);
+      const depth=Math.min(a.z+a.d/2,b.z+b.d/2)-Math.max(a.z-a.d/2,b.z-b.d/2);
+      if(width<6||depth<6)continue;
+      visited.add(k);parent.set(k,i);queue.push(k);
+    }
+  }
+  if(reached<0)return null;
+  let next=reached;
+  while(parent.has(next)&&!starts.includes(parent.get(next)!))next=parent.get(next)!;
+  const from=parent.get(next);if(from===undefined)return null;
+  const a=regions[from],b=regions[next];
+  const x0=Math.max(a.x-a.w/2,b.x-b.w/2),x1=Math.min(a.x+a.w/2,b.x+b.w/2);
+  const z0=Math.max(a.z-a.d/2,b.z-b.d/2),z1=Math.min(a.z+a.d/2,b.z+b.d/2);
+  const x=(x0+x1)/2,z=(z0+z1)/2;
+  for(const [dx,dz] of [[0,0],[-6,0],[6,0],[0,-6],[0,6],[-6,-6],[6,6]]){
+    const nx=x+dx,nz=z+dz;
+    if(nx<x0+2||nx>x1-2||nz<z0+2||nz>z1-2)continue;
+    if(cover.some(c=>c.kind!=="accent"&&c.pos[1]-c.size[1]<1.8&&c.pos[1]+c.size[1]>0&&
+      Math.abs(nx-c.pos[0])<c.size[0]+1&&Math.abs(nz-c.pos[2])<c.size[2]+1))continue;
+    return [nx,0,nz];
+  }
+  return [x,0,z];
 }

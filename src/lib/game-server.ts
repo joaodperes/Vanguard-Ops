@@ -1669,7 +1669,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
       botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]))) {
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,room.map.environment) ?? botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
+        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,room.map.environment,room.map.regions) ?? botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850;
       }
       const waypoint=ai.routeWaypoint;
@@ -1808,7 +1808,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const patrolBlocked = botMoveBlocked(room, bot.pos, [bot.pos[0]+fx*4, bot.pos[1], bot.pos[2]+fz*4], bot.pos[1]);
       if (patrolBlocked || Math.abs(ai.wanderTarget[1] - bot.pos[1]) > 1.3 || room.map.id === "bunker") {
         if(now > (ai.nextRouteAt??0) || !ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(bot.pos,ai.wanderTarget,room.map.cover,room.map.size,3,room.map.environment);
+          ai.routeWaypoint=botNextWaypoint(bot.pos,ai.wanderTarget,room.map.cover,room.map.size,3,room.map.environment,room.map.regions);
           ai.nextRouteAt=now+850;
         }
         const waypoint=ai.routeWaypoint;

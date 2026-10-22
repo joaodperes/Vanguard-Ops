@@ -5,6 +5,7 @@ import { useGame } from "@/lib/game-store";
 import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
+import { MAP_BLUEPRINTS } from "@/lib/map-blueprints";
 import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
@@ -522,7 +523,7 @@ export function Play() {
                     ))}
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {MAP_LIST.filter((m) => mapPaceFilter === "all" || (MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter).map((m) => {
+                    {MAP_LIST.filter((m) => mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter).map((m) => {
                       const selected = roomConfig.mapId === m.id;
                       const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
                       return (
@@ -552,8 +553,8 @@ export function Play() {
                               <div className="text-white/50 text-[11px] leading-snug mb-1.5 line-clamp-2">{m.description}</div>
                               <div className="text-cyan-200/70 text-[11px] mb-1.5">{(MAP_FOOTPRINT[m.id]?.description ?? m.description)}</div>
                               <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
-                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
-                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.size * 2)}×{Math.round(m.size * 2)}</span>
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
+                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
                               </div>
                             </div>
