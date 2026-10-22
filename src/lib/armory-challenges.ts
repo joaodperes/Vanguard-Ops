@@ -8,20 +8,95 @@
  */
 import {
   ATTACHMENTS, WEAPONS, PLAYER_SKINS, WEAPON_SKINS, WEAPON_CHALLENGES,
-  type WeaponChallengeDef,
+  type WeaponChallengeDef, type WeaponChallengeMetric, type WeaponConditionMetric,
   compatibleAttachments, weaponAttachmentSlots,
   type AttachmentDef, type WeaponDef,
 } from "./game-data";
+
+/** Stable combat condition identifiers used in network payloads and saved profiles. */
+export const WEAPON_CONDITION_METRICS = [
+  "bare_kills", "fully_equipped_kills", "ads_kills", "hipfire_kills",
+  "airborne_kills", "close_range_kills", "long_range_kills", "multikill_kills",
+] as const satisfies readonly WeaponConditionMetric[];
+export type WeaponConditionStats = Record<WeaponConditionMetric, number>;
+export function emptyWeaponConditionStats(): WeaponConditionStats {
+  return Object.fromEntries(WEAPON_CONDITION_METRICS.map(key => [key, 0])) as WeaponConditionStats;
+}
+export function parseWeaponConditionStats(value: unknown): WeaponConditionStats {
+  let raw: Record<string, unknown> = {};
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) raw = parsed as Record<string, unknown>;
+  } catch { /* invalid or legacy state: start at zero */ }
+  const result = emptyWeaponConditionStats();
+  for (const key of WEAPON_CONDITION_METRICS) {
+    const n = raw[key];
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) result[key] = Math.min(10000000, Math.floor(n));
+  }
+  return result;
+}
+export function weaponChallengeValue(
+  metric: WeaponChallengeMetric,
+  data: { kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> },
+): number {
+  return metric === "kills" || metric === "headshots" ? data[metric] : data.conditionStats?.[metric] ?? 0;
+}
+
+/** Skin themes now carry a gameplay condition, specialized for each weapon category.
+ * All existing purchased skins remain owned, regardless of challenge updates.
+ */
+function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): WeaponChallengeDef {
+  // Preserve hand-authored headshot challenges, including unusual melee mastery.
+  if (ch.metric === "headshots") return ch;
+  const category = weapon.category;
+  const equipped = weaponAttachmentSlots(weapon).length > 0;
+  const ranged = category === "sniper" || category === "dmr";
+  const cqc = category === "shotgun" || category === "melee";
+  const mobile = category === "smg" || category === "sidearm";
+  const choice: Record<string, WeaponConditionMetric> = {
+    arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "hipfire_kills",
+    crimson: equipped ? "bare_kills" : "multikill_kills",
+    emerald: cqc ? "close_range_kills" : "ads_kills",
+    carbon: ranged ? "long_range_kills" : "hipfire_kills",
+    neon: mobile ? "airborne_kills" : ranged ? "long_range_kills" : "hipfire_kills",
+    inferno: equipped ? "fully_equipped_kills" : "multikill_kills",
+    gold: ranged ? "long_range_kills" : cqc ? "multikill_kills" : equipped ? "fully_equipped_kills" : "bare_kills",
+  };
+  const metric = choice[ch.skinId];
+  if (!metric) return ch;
+  const factors: Record<WeaponConditionMetric, number> = {
+    bare_kills: .40, fully_equipped_kills: .24, ads_kills: .65,
+    hipfire_kills: .45, airborne_kills: .25, close_range_kills: .55,
+    long_range_kills: .28, multikill_kills: .25,
+  };
+  const circumstances: Record<WeaponConditionMetric, string> = {
+    bare_kills: "without any attachments",
+    fully_equipped_kills: "with every supported attachment slot equipped",
+    ads_kills: "while aiming down sights",
+    hipfire_kills: "without aiming down sights",
+    airborne_kills: "while airborne",
+    close_range_kills: "at 10m or closer",
+    long_range_kills: "from at least 35m away",
+    multikill_kills: "as part of a multi-kill (within 5 seconds)",
+  };
+  const goal = Math.max(5, Math.ceil(ch.goal * factors[metric]));
+  return { ...ch, metric, goal,
+    description: `Get ${goal} kills with the ${weapon.name} ${circumstances[metric]}.`,
+  };
+}
 
 /** A skin challenge exists for every purchasable (weapon, skin) pair.
  * Keep hand-authored catalog challenges intact, generate missing newer-weapon
  * entries deterministically so no gun has inaccessible cosmetic choices.
  */
+function weaponByIdStrict(id: string): WeaponDef {
+  return WEAPONS.find(w => w.id === id)!;
+}
 export function skinChallengesForWeaponAndSkin(weaponId: string, skinId: string): WeaponChallengeDef[] {
   if (!WEAPONS.some(w => w.id === weaponId) ||
       !WEAPON_SKINS.some(s => s.id === skinId && s.id !== "default")) return [];
   const authored = WEAPON_CHALLENGES.filter(c => c.weaponId === weaponId && c.skinId === skinId);
-  if (authored.length) return authored;
+  if (authored.length) return authored.map(ch => contextualSkinChallenge(ch, weaponByIdStrict(weaponId)));
   const weapon = WEAPONS.find(w => w.id === weaponId)!;
   const goals: Record<string, { metric: "kills" | "headshots"; goal: number }> = {
     arctic: { metric: "kills", goal: 15 },
@@ -34,19 +109,19 @@ export function skinChallengesForWeaponAndSkin(weaponId: string, skinId: string)
   };
   const goal = goals[skinId];
   if (!goal) return [];
-  return [{
+  return [contextualSkinChallenge({
     id: `mastery:${weaponId}:${skinId}`,
     weaponId, skinId, goal: goal.goal, metric: goal.metric,
     title: `${weapon.name} ${skinId.replace(/_/g, " ")} mastery`,
     description: `Get ${goal.goal} ${goal.metric === "kills" ? "kills" : "headshots"} with the ${weapon.name}.`,
-  }];
+  }, weapon)];
 }
 export function allSkinChallengesForWeapon(weaponId: string): WeaponChallengeDef[] {
   return WEAPON_SKINS.filter(s => s.id !== "default")
     .flatMap(s => skinChallengesForWeaponAndSkin(weaponId, s.id));
 }
 
-export type ArmoryMetric = "kills" | "headshots" | "matches" | "wins" | "totalKills" | "totalHeadshots";
+export type ArmoryMetric = WeaponChallengeMetric | "matches" | "wins" | "totalKills" | "totalHeadshots";
 export interface ArmoryChallengeDef {
   id: string;
   metric: ArmoryMetric;
@@ -64,13 +139,15 @@ export interface ArmoryCounters {
   wins: number;
   totalKills: number;
   totalHeadshots: number;
+  conditionStats?: Partial<WeaponConditionStats>;
 }
 export interface ArmoryChallengeView extends ArmoryChallengeDef {
   progress: number;
   completed: boolean;
 }
 export function armoryChallengeProgress(ch: ArmoryChallengeDef, stats: ArmoryCounters): ArmoryChallengeView {
-  const value = Math.max(0, Math.floor(stats[ch.metric] || 0));
+  const raw = ch.metric in stats ? stats[ch.metric as keyof ArmoryCounters] : stats.conditionStats?.[ch.metric as WeaponConditionMetric];
+  const value = Math.max(0, Math.floor((typeof raw === "number" ? raw : 0) || 0));
   return { ...ch, progress: Math.min(ch.goal, value), completed: value >= ch.goal };
 }
 
