@@ -158,3 +158,27 @@ export function botNextWaypoint(
   const next = nodes.get(cursor);
   return next ? [next.x * GRID, next.y, next.z * GRID] : null;
 }
+
+/** Staircase fallback for a target on a bridge/balcony: the 2m A* grid
+ * cannot land on every 0.5m tread. Seek the first physically reachable
+ * lower tread, then recompute as the bot climbs, with no teleportation.
+ * Returns a *real stair surface* rather than an arbitrary point above ground.
+ */
+export function botHighGroundWaypoint(
+  start: readonly number[], goal: readonly number[], cover: CoverBox[],
+): Vec3 | null {
+  if (goal[1] <= start[1] + 1.25) return null;
+  const lowSteps = cover.filter(c => c.kind === "stair" &&
+    c.pos[1] + c.size[1] > start[1] + 0.12 &&
+    c.pos[1] + c.size[1] <= start[1] + 0.66);
+  let best: Vec3 | null = null;
+  let score = Infinity;
+  for (const step of lowSteps) {
+    const p: Vec3 = [step.pos[0], step.pos[1] + step.size[1], step.pos[2]];
+    const toStart = Math.hypot(p[0]-start[0], p[2]-start[2]);
+    if (toStart > 45) continue;
+    const value = toStart + Math.hypot(p[0]-goal[0], p[2]-goal[2]) * .30;
+    if (value < score) { best = p; score = value; }
+  }
+  return best;
+}
