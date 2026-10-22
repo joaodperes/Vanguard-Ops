@@ -5,11 +5,11 @@ import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
   weaponAttachmentSlots, compatibleAttachments,
-  challengesForWeapon, weaponSkinById,
-  type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef,
+  weaponSkinById,
+  type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
-import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress } from "@/lib/armory-challenges";
+import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress, allSkinChallengesForWeapon, type WeaponConditionStats } from "@/lib/armory-challenges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -23,13 +23,13 @@ import { LoadoutSelector } from "@/components/screens/Loadout";
 // Per-weapon progress + challenges view (fetched from /api/weapon-progress).
 // ----------------------------------------------------------------------------
 interface WeaponProgressMap {
-  [weaponId: string]: { weaponId: string; kills: number; headshots: number };
+  [weaponId: string]: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> };
 }
 interface WeaponChallengeView {
   challengeId: string;
   weaponId: string;
   skinId: string;
-  metric: "kills" | "headshots";
+  metric: WeaponChallengeMetric;
   goal: number;
   progress: number;
   completed: boolean;
@@ -378,7 +378,7 @@ export function Armory() {
         attachmentsByWeapon={attachmentsByWeapon}
         skinsByWeapon={skinsByWeapon}
         progress={customizing ? (progress[customizing.weapon.id] ?? { weaponId: customizing.weapon.id, kills: 0, headshots: 0 }) : null}
-        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? challengesForWeapon(customizing.weapon.id).map((c) => ({
+        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? allSkinChallengesForWeapon(customizing.weapon.id).map((c) => ({
           challengeId: c.id, weaponId: c.weaponId, skinId: c.skinId, metric: c.metric, goal: c.goal, progress: 0, completed: false, title: c.title, description: c.description,
         }))) : []}
         busy={busy}
@@ -832,7 +832,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           <div className={`h-full ${c.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-[10px] font-mono tabular-nums text-white/60">
-                          {c.progress}/{c.goal} {c.metric === "kills" ? "kills" : "HS"}
+                          {c.progress}/{c.goal} {c.metric.replaceAll("_", " ")}
                         </span>
                       </div>
                     </div>
@@ -900,6 +900,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
           const ch = attachmentChallenge(weaponId, a.id);
           const chProgress = ch ? armoryChallengeProgress(ch, {
             kills: progress?.kills ?? 0, headshots: progress?.headshots ?? 0,
+            conditionStats: progress?.conditionStats,
             matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
           }) : null;
           const canBuy = !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
