@@ -225,8 +225,8 @@ export interface MatchEndResult {
   durationSec?: number;
   placement?: number;
   multikills?: number;
-  // 19a+19b: Highest kill streak achieved in the match (kills within the
-  // 5s streak window). Drives the player's lifetime bestKillstreak stat
+  // Highest chain with at most five seconds between consecutive kills.
+  // Drives the player's lifetime bestKillstreak stat
   // (Triple Threat / Killstreak King / Untouchable Force achievements).
   bestStreak?: number;
   weaponId?: string;

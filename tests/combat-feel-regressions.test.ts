@@ -84,6 +84,10 @@ describe("Bullet Spitter deployment", () => {
     expect(point[2]).toBeLessThan(2.2);
     expect(turretCanTrack(point, 0, [0,0,point[2]+5])).toBe(true);
     expect(turretCanTrack(point, 0, [0,0,point[2]-5])).toBe(false);
+    // A clear destination behind a thin wall must NOT permit teleporting the
+    // deployable through the wall.
+    const thinWall = [{pos:[0,.5,1],size:[1,.5,.05]}];
+    expect(turretDeployPosition(player, 0, thinWall)[2]).toBeLessThan(1);
   });
 
   test("projector visuals remain independent of weapon skin rarity", () => {

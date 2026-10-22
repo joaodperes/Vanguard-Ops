@@ -30,14 +30,22 @@ export function turretDeployPosition(
   for (const distance of [2.2, 1.65, 1.1, 0]) {
     const x = feet[0] + Math.sin(yaw) * distance;
     const z = feet[2] + Math.cos(yaw) * distance;
-    const blocked = cover.some(box =>
-      box.kind !== "accent" &&
-      feet[1] < box.pos[1] + box.size[1] - 0.12 &&
-      feet[1] + 0.9 > box.pos[1] - box.size[1] &&
-      Math.abs(x - box.pos[0]) < box.size[0] + radius &&
-      Math.abs(z - box.pos[2]) < box.size[2] + radius
-    );
-    if (!blocked) return [x, feet[1], z];
+    // Check the entire placement path, not only the endpoint: a turret must
+    // never jump THROUGH a wall to an open patch on its far side.
+    const obstructed = cover.some(box => {
+      if (box.kind === "accent" ||
+          feet[1] >= box.pos[1] + box.size[1] - 0.12 ||
+          feet[1] + 0.9 <= box.pos[1] - box.size[1]) return false;
+      for (let d = Math.min(.2, distance); d <= distance + 0.001; d += .2) {
+        const sx = feet[0] + Math.sin(yaw) * Math.min(d, distance);
+        const sz = feet[2] + Math.cos(yaw) * Math.min(d, distance);
+        if (Math.abs(sx - box.pos[0]) < box.size[0] + radius &&
+            Math.abs(sz - box.pos[2]) < box.size[2] + radius) return true;
+      }
+      return Math.abs(x - box.pos[0]) < box.size[0] + radius &&
+        Math.abs(z - box.pos[2]) < box.size[2] + radius;
+    });
+    if (!obstructed) return [x, feet[1], z];
   }
   return [feet[0], feet[1], feet[2]];
 }
