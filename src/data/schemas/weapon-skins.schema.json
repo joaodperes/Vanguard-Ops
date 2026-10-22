@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Weapon skins",
+  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "unlockLevel",
+      "unlockCost",
+      "rarity",
+      "tier",
+      "color",
+      "metalness",
+      "roughness"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "name": {
+        "type": "string"
+      },
+      "unlockLevel": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "unlockCost": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "rarity": {
+        "enum": [
+          "common",
+          "rare",
+          "epic",
+          "legendary"
+        ]
+      },
+      "tier": {
+        "enum": [
+          "standard",
+          "rare",
+          "legendary"
+        ]
+      },
+      "color": {
+        "type": "string",
+        "pattern": "^#[0-9a-fA-F]{6}$"
+      },
+      "metalness": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "roughness": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "emissive": {
+        "type": "string",
+        "pattern": "^#[0-9a-fA-F]{6}$"
+      },
+      "emissiveIntensity": {
+        "type": "number",
+        "minimum": 0
+      },
+      "prestige": {
+        "enum": [
+          "cosmic",
+          "toxic"
+        ]
+      }
+    },
+    "additionalProperties": false
+  }
+}

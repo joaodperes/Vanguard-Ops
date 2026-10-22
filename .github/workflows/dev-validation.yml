@@ -1,26 +1,23 @@
-name: Vanguard Ops dev validation
-# Comprehensive validation rerun after resolving TypeScript diagnostics.
+name: Vanguard Ops JSON content branch validation
 
-# Manual by default; a push to this workflow file on dev triggers validation.
-# Ordinary source commits do not automatically charge Actions minutes.
+# The feature branch is isolated from dev. Pushes to it validate all catalog,
+# gameplay and build contracts; dev keeps its existing manual-first workflow.
 on:
   workflow_dispatch:
   push:
     branches:
-      - dev
-    paths:
-      - '.github/workflows/dev-validation.yml'
+      - feature/json-content-catalogs
 
 permissions:
   contents: read
 
 jobs:
   validate:
-    name: Map regression, full tests, types and build
+    name: JSON catalogs, map tests, regressions, types and build
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     steps:
-      - name: Checkout dev
+      - name: Checkout branch
         uses: actions/checkout@v4
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -28,34 +25,41 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Generate Prisma client
         run: bun run db:generate
-      - name: Map geometry and navigation regressions
+      - name: Validate catalogs and map definitions
+        id: catalog
+        continue-on-error: true
+        run: bun run content:validate
+      - name: Map geometry and bot regression tests
         id: maps
         continue-on-error: true
         run: bun test tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
-      - name: Full automated suite
+      - name: All automated regression tests
         id: tests
         continue-on-error: true
         run: bun run test:smoke
-      - name: TypeScript check
+      - name: TypeScript validation
         id: types
         continue-on-error: true
         run: bun run typecheck
-      - name: Production Next.js build
+      - name: Production application build
         id: build
         continue-on-error: true
         run: bun run build
-      - name: Report all checks and fail on regression
+      - name: Fail if any validation failed
         if: always()
         env:
+          CATALOG: ${{ steps.catalog.outcome }}
           MAPS: ${{ steps.maps.outcome }}
           TESTS: ${{ steps.tests.outcome }}
           TYPES: ${{ steps.types.outcome }}
           BUILD: ${{ steps.build.outcome }}
         run: |
-          echo "Map tests: $MAPS"
-          echo "Full suite: $TESTS"
-          echo "TypeScript: $TYPES"
+          echo "Content: $CATALOG"
+          echo "Maps: $MAPS"
+          echo "Tests: $TESTS"
+          echo "Types: $TYPES"
           echo "Build: $BUILD"
+          test "$CATALOG" = success
           test "$MAPS" = success
           test "$TESTS" = success
           test "$TYPES" = success
