@@ -29,9 +29,9 @@ import {
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats,
-  SIGHT_DEFS, sightDefForType, weaponSlot, WEAPONS,
+  SIGHT_DEFS, sightDefForType, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
-  type WeaponSlot, type WeaponDef, type WeaponCategory,
+  type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
@@ -237,6 +237,7 @@ export interface MatchEndResult {
   // Undefined for non-gungame modes (legacy callers); the API falls back to
   // attributing all kills to `weaponId`.
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
+  perWeaponActions?: Record<string, Partial<Record<WeaponConditionMetric, number>>>;
   confirmations?: number;
   denials?: number;
 }
@@ -767,6 +768,7 @@ export class FPSEngine {
   // progress per-weapon skin challenges (Breacher, Longshot, etc.) — instead of
   // attributing all kills to the match-start weapon. Sent in MatchEndResult.
   private perWeaponKills: Map<string, { kills: number; headshots: number }> = new Map();
+  private perWeaponActions: Map<string, Partial<Record<WeaponConditionMetric, number>>> = new Map();
 
   // ---- Gun Game progression (gungame mode only) ----
   // The local player's current tier index. Set to 0 at match start; advanced by
@@ -2564,6 +2566,7 @@ export class FPSEngine {
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      perWeaponActions: Object.fromEntries(this.perWeaponActions),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
@@ -3306,7 +3309,7 @@ export class FPSEngine {
             // event itself eliminates any race and guarantees per-weapon skin
             // challenges (Breacher, Longshot, etc.) progress on the weapon
             // actually used for the kill.
-            this.recordPerWeaponKill(msg.weaponId, !!msg.headshot);
+            this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
             this.sound.play("kill", { volume: 0.6 });
@@ -3534,6 +3537,7 @@ export class FPSEngine {
         // Reset per-weapon kill tracking too (so a previous match's gungame
         // per-weapon tallies don't bleed into the new match).
         this.perWeaponKills = new Map();
+        this.perWeaponActions = new Map();
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
         // so without these resets multikillsCount + bestStreak would carry over
@@ -4282,7 +4286,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      this.recordPerWeaponKill(sourceWeaponId, head);
+      this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -4396,7 +4400,7 @@ export class FPSEngine {
   // progression (Breacher, Longshot, etc.) — especially in Gun Game, where the
   // player cycles through every weapon in GUN_GAME_PROGRESSION. Called from the
   // offline kill path (applyDamageLocal) and the online "hit" S2C handler.
-  private recordPerWeaponKill(weaponId: string, headshot: boolean) {
+  private recordPerWeaponKill(weaponId: string, headshot: boolean, victim?: Combatant) {
     const entry = this.perWeaponKills.get(weaponId);
     if (entry) {
       entry.kills += 1;
@@ -4404,6 +4408,28 @@ export class FPSEngine {
     } else {
       this.perWeaponKills.set(weaponId, { kills: 1, headshots: headshot ? 1 : 0 });
     }
+    // Applied at elimination, including online kills acknowledged by the server.
+    const actions = this.perWeaponActions.get(weaponId) ?? {};
+    const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
+    if (weaponId === this.weaponId) {
+      const slots = weaponAttachmentSlots(weaponById(weaponId));
+      const atts = this.getCurrentAttachments();
+      // Gun Game deliberately does not auto-award no-attachment challenges.
+      if (slots.length > 0 && this.opts.mode !== "gungame") {
+        if (slots.every(slot => !atts[slot])) bump("bare_kills");
+        if (slots.every(slot => !!atts[slot])) bump("fully_equipped_kills");
+      }
+      if (this.aiming) bump("ads_kills");
+      else bump("hipfire_kills");
+      if (!this.onGround) bump("airborne_kills");
+    }
+    if (victim) {
+      const distance = Math.hypot(victim.pos[0] - this.pos.x, victim.pos[2] - this.pos.z);
+      if (distance <= 10) bump("close_range_kills");
+      if (distance >= 35) bump("long_range_kills");
+    }
+    if (this.recentKills.some(t => performance.now() - t < 5000)) bump("multikill_kills");
+    this.perWeaponActions.set(weaponId, actions);
   }
 
   private scheduleRespawn(c: Combatant) {
@@ -4580,6 +4606,7 @@ export class FPSEngine {
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      perWeaponActions: Object.fromEntries(this.perWeaponActions),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
@@ -4620,6 +4647,7 @@ export class FPSEngine {
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      perWeaponActions: Object.fromEntries(this.perWeaponActions),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
