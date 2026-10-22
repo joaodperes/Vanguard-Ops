@@ -200,7 +200,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
 
           attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
-          canCustomize={secondary === current.secondary.id}
+          canCustomize={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
         />
         <SlotCard
           slot="melee"
@@ -277,7 +277,7 @@ interface SlotCardProps {
 
 function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
   const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
-  const candidates = ownedForSlot(slot);
+  const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
   return (
     <div className="relative" data-slot-dropdown>
