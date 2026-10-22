@@ -500,6 +500,7 @@ export class FPSEngine {
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
   private wonderStates = new Map<string, WonderChargeState>();
+  private lastPlayerRespawnAt = -Infinity;
   private reloading = false;
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
@@ -3428,6 +3429,7 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0;
+          this.lastPlayerRespawnAt = performance.now();
           this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
@@ -3823,6 +3825,7 @@ export class FPSEngine {
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
     this.health = MAX_HEALTH; this.alive = true;
+    this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
     this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
     this.reloading = false;
@@ -4501,6 +4504,9 @@ export class FPSEngine {
       if (this.aiming) bump("ads_kills");
       else bump("hipfire_kills");
       if (!this.onGround) bump("airborne_kills");
+      if (this.getCurrentAttachments().barrel === "barrel_suppressor") bump("suppressed_kills");
+      if (this.health <= 35) bump("critical_health_kills");
+      if (performance.now() - this.lastPlayerRespawnAt <= 10000) bump("comeback_kills");
     }
     if (victim) {
       const distance = Math.hypot(victim.pos[0] - this.pos.x, victim.pos[2] - this.pos.z);
