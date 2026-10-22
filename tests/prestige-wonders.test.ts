@@ -25,9 +25,9 @@ describe("Wonder charge economy", () => {
     expect(shorter.charges).toBe(1);
     expect(accelerateWonderCharge(fullWonderCharges(rules), rules, 9000).charges).toBe(2);
   });
-  test("each Wonder Weapon has one or two shots and no manual reload", () => {
+  test("all Wonder Weapons have finite charges and no manual reload", () => {
     const wonders = WEAPONS.filter(w => w.wonder);
-    expect(wonders).toHaveLength(2);
+    expect(wonders).toHaveLength(3);
     for (const w of wonders) {
       expect(w.wonder!.maxCharges).toBeGreaterThanOrEqual(1);
       expect(w.wonder!.maxCharges).toBeLessThanOrEqual(2);
