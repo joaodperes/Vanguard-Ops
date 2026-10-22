@@ -11,11 +11,11 @@ export interface MapFeature extends MapRegion {
   id: string; h: number; kind: "cover" | "platform" | "accent"; label?: string;
 }
 export interface MapBlueprint {
-  name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical";
+  name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
   regions: MapRegion[]; features: MapFeature[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
 }
-export interface MapBlueprintFile { version: number; units: string; maps: Record<MapId, MapBlueprint> }
+export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
 export const MAP_BLUEPRINTS = source as MapBlueprintFile;
 
 export function insideRegions(x: number, z: number, regions: readonly MapRegion[], padding = 0): boolean {

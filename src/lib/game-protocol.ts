@@ -6,6 +6,7 @@
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
+import { MAP_BLUEPRINTS } from "./map-blueprints";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
@@ -1155,7 +1156,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 };
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
-export const MAPS: Record<MapId, MapDef> = {
+export const MAPS: Record<string, MapDef> = {
   compound: applyMapFootprint(BASE_MAPS.compound),
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
@@ -1163,8 +1164,17 @@ export const MAPS: Record<MapId, MapDef> = {
   terminal: applyMapFootprint(BASE_MAPS.terminal),
   arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
 };
+// Any additional JSON blueprint becomes a selectable map automatically. The
+// template chooses a tested 3D theme/core; the new blueprint owns its regions,
+// battle spaces, geometry and spawns. Rebuild/restart to publish editor exports.
+for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
+  if (id in MAPS) continue;
+  const template = blueprint.templateMapId && blueprint.templateMapId in BASE_MAPS
+    ? blueprint.templateMapId as MapId : "compound";
+  MAPS[id] = applyMapFootprint({...BASE_MAPS[template], id:id as MapId});
+}
 
-export const MAP_LIST: MapDef[] = [MAPS.compound, MAPS.skybridge, MAPS.bunker, MAPS.shipyard, MAPS.terminal, MAPS.arena_neon];
+export const MAP_LIST: MapDef[] = Object.values(MAPS);
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];

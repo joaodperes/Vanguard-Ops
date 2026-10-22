@@ -24,7 +24,7 @@ function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
   return {...o,pos,size};
 }
 export function applyMapFootprint(base:MapDef):MapDef {
-  const factor=MAP_FOOTPRINT[base.id].scale;
+  const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
   const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
   const environment=base.environment?.map(o=>scaleEnvironment(o,factor));
