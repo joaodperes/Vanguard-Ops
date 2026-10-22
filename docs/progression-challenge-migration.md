@@ -1,6 +1,6 @@
 # Vanguard Ops — challenge-based Armory rollout
 
-Target branch: `dev`. This contextual progression pass lives on `feature/condition-based-weapon-mastery`. **Do not merge until schema and UI/build tests pass.**
+Implementation branch: `dev` (direct updates). **Run schema generation and smoke/build validation before deploying this version.**
 Scope intentionally excludes Survival combat, Survival achievements, and the
 existing daily/weekly quest engine to minimize conflicts with concurrent work.
 
