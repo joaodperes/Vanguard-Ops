@@ -9,8 +9,8 @@ existing daily/weekly quest engine to minimize conflicts with concurrent work.
 | Item | How it becomes eligible | What spends credits | Ownership |
 | --- | --- | --- | --- |
 | Weapons | Player level | Existing weapon `unlockCost` | `WeaponUnlock` |
-| Attachments | Permanent kills/headshots with that exact weapon | Existing attachment `unlockCost` | `AttachmentUnlock(player,weapon,attachment)` |
-| Weapon skins | Permanent per-weapon challenge, including missing newer weapons | Existing skin `unlockCost` | `SkinUnlock(player,weapon,skin)` |
+| Attachments | Permanent weapon-specific combat-condition trials (hipfire, ADS, bare weapon, airborne, range, multikill, etc.) | Existing attachment `unlockCost` | `AttachmentUnlock(player,weapon,attachment)` |
+| Weapon skins | Permanent contextual trials, with three-part Gold mastery and fallback coverage for newer weapons | Existing skin `unlockCost` | `SkinUnlock(player,weapon,skin)` |
 | Operator skins | Lifetime kills, wins, matches or headshots contract | Existing operator `unlockCost` | **New** `PlayerSkinUnlock(player,skin)` |
 
 Default skins remain free. The Armory displays challenge eligibility and
@@ -21,6 +21,36 @@ Weapon mastery ranks (Recruit / Skilled / Specialist / Veteran / Elite) are
 permanent and computed from the same lifetime kill/headshot counters, without
 resets or seasonal expiry. The first mastery iteration provides status/title
 and a next-rank target, not exclusive statistical buffs.
+
+## Contextual challenge pass (feature branch from `dev`)
+
+The original `kills` and `headshots` counters remain, alongside eight
+persisted per-weapon elimination conditions: `bare_kills`,
+`fully_equipped_kills`, `ads_kills`, `hipfire_kills`,
+`airborne_kills`, `close_range_kills` (10m or less),
+`long_range_kills` (35m or more), and `multikill_kills`
+(second-or-later elimination within a five-second streak).
+
+Weapon skins use a category-specific mix of conditions. Gold is now a
+three-part *AND* challenge; the server checks every step independently, while
+the Armory displays each progress counter. Early attachment unlocks never
+require `fully_equipped_kills` (avoids prerequisite deadlocks). Weapons
+without attachment slots never require a fully equipped kill. Gun Game ignores
+bare/full attachment context because its progression chooses unmodified guns.
+
+Persistence: `WeaponProgress.conditionStats` (JSON string) is additive and
+defaults to `{}` for existing players. Profile export/import includes the new
+counters, merging per-key maxima on import. Existing paid gear stays owned;
+unbought cosmetics/attachments may need fresh contextual progression because
+historical kills do not contain aiming/configuration/distance information.
+Purchases still require both completed challenges and the original credit cost.
+
+Online contextual state currently comes from the client's perspective at the
+server-confirmed kill message (victim position from the latest snapshot), so
+ADS/airborne and distance attribution may differ slightly from the shot event.
+The API constrains each condition to that weapon's reported eliminations, but
+the game still uses client-reported match results. Strong anti-cheat would move
+condition attribution to the authoritative game server.
 
 ## Database migration (required before starting the new server build)
 
