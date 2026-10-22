@@ -98,7 +98,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Unlimited energy shots. Manage heat or vent the reactor before it overheats.",
     special: { kind: "heat", heatPerShot: 5, coolPerSecond: 43, coolDelayMs: 175, overheatAt: 100, resumeAt: 45, ventSeconds: 0.85 },
     stats: { damage: 24, fireRate: 9, magSize: 100, reloadTime: 1.25, spread: 0.014, adsSpread: 0.004, recoil: 0.55, range: 75, adsTime: 0.24, moveSpeed: 0.93, auto: true, headshotMult: 1.45 },
-    attachments: ["sight", "grip"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
     id: "crossbow_reclaimer", name: "Reclaimer Crossbow", category: "dmr",
@@ -106,7 +106,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Retrieve fired bolts on the ground to shorten your reload. Optional poison tips.",
     special: { kind: "bolt", pickupRadius: 2.0, lifetimeMs: 18000, quickReloadSeconds: 0.65 },
     stats: { damage: 76, fireRate: 0.65, magSize: 1, reloadTime: 2.1, spread: 0.009, adsSpread: 0.001, recoil: 0.35, range: 85, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1.6 },
-    attachments: ["sight", "barrel"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
     id: "pistol_arc", name: "Arc Pistol", category: "sidearm",
@@ -114,7 +114,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Electrical discharge leaps to nearby foes for decreasing damage.",
     special: { kind: "arc", jumps: 2, radius: 6, decay: 0.55 },
     stats: { damage: 35, fireRate: 3.2, magSize: 10, reloadTime: 1.9, spread: 0.013, adsSpread: 0.004, recoil: 0.7, range: 50, adsTime: 0.2, moveSpeed: 1.02, auto: false, headshotMult: 1.35 },
-    attachments: ["sight", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Semi-auto accuracy specialist: high per-shot reward, no auto-fire.
   {
@@ -180,7 +180,7 @@ export const WEAPONS: WeaponDef[] = [
     // 19 dmg * 8 pellets = 152 per shell, hsMult 1.3 → 1 shell to kill at point blank.
     stats: { damage: 19, fireRate: 1.6, magSize: 7, reloadTime: 3.0, spread: 0.075, adsSpread: 0.05, recoil: 1.6, range: 24, adsTime: 0.3, moveSpeed: 0.92, auto: false, pellets: 8, headshotMult: 1.3 },
     // Shotguns don't take a grip slot — only sight/barrel/magazine.
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Tier 2 DMR — 800 CR (Task 18-c+d economy tier scheme).
   {
@@ -204,7 +204,7 @@ export const WEAPONS: WeaponDef[] = [
     // 135 dmg, hsMult 2.0 → headshot = 270 (1-shot kill), body = 135 (1 shot to kill 100HP).
     stats: { damage: 135, fireRate: 1, magSize: 5, reloadTime: 3.2, spread: 0.001, adsSpread: 0.0, recoil: 2.6, range: 200, adsTime: 0.6, moveSpeed: 0.7, auto: false, headshotMult: 2.0 },
     // Snipers don't take a grip slot — only sight/barrel/magazine.
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
     // Snipers ship with a 6x scope as standard (not iron sight). The player
     // can still equip a different sight attachment to override this.
     baseSightType: "sniper_scope",
@@ -230,7 +230,7 @@ export const WEAPONS: WeaponDef[] = [
     // 41 dmg @ 5 rps, hsMult 1.5 → 3 chest / 2 head to kill 100HP.
     stats: { damage: 41, fireRate: 5, magSize: 12, reloadTime: 1.6, spread: 0.015, adsSpread: 0.005, recoil: 0.8, range: 50, adsTime: 0.2, moveSpeed: 1.0, auto: false, headshotMult: 1.5 },
     // Sidearms don't take a grip slot.
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Tier 3 SMG — 1200 CR (Task 18-c+d economy tier scheme).
   {
@@ -333,7 +333,7 @@ export const WEAPONS: WeaponDef[] = [
     // 24 dmg @ 4 rps burst-fire (3-round burst). hsMult 1.5. Each trigger pull fires
     // 3 rounds in quick succession; longer pause between bursts.
     stats: { damage: 24, fireRate: 4, magSize: 21, reloadTime: 2.0, spread: 0.012, adsSpread: 0.004, recoil: 0.9, range: 55, adsTime: 0.18, moveSpeed: 1.0, auto: false, burst: 3, headshotMult: 1.5 },
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
     id: "pistol_machine",
@@ -344,7 +344,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Full-auto machine pistol. Mag-dump to win at point-blank.",
     // 19 dmg @ 11 rps, hsMult 1.35 → ~6 chest / 4 head to kill 100HP. TTK ~0.55s chest, ~0.36s head.
     stats: { damage: 19, fireRate: 11, magSize: 25, reloadTime: 1.8, spread: 0.025, adsSpread: 0.008, recoil: 0.85, range: 40, adsTime: 0.15, moveSpeed: 1.05, auto: true, headshotMult: 1.35 },
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   {
     id: "launcher_rocket",
@@ -358,7 +358,7 @@ export const WEAPONS: WeaponDef[] = [
     // Future enhancement: add splash radius so missed-but-close shots deal partial damage.
     stats: { damage: 176, fireRate: 0.7, magSize: 1, reloadTime: 3.5, spread: 0.0, adsSpread: 0.0, recoil: 2.5, range: 90, adsTime: 0.5, moveSpeed: 0.75, auto: false, pellets: 1, headshotMult: 1.0 },
     // Launchers take only sight + barrel (no grip, no magazine — fixed single-shot tube).
-    attachments: ["sight", "barrel"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // ---- New weapons (variety expansion) ----
   // Low-level sniper so players who enjoy sniping don't have to wait until LVL 12.
@@ -372,7 +372,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Lightweight entry-level sniper. Faster handling than the Longshot, but won't one-shot body kill.",
     // 95 dmg, hsMult 2.0 → headshot = 190 (1-shot kill), body = 95 (2 shots to kill). Faster fire rate + ADS.
     stats: { damage: 95, fireRate: 1.2, magSize: 7, reloadTime: 2.6, spread: 0.002, adsSpread: 0.0, recoil: 1.8, range: 160, adsTime: 0.45, moveSpeed: 0.82, auto: false, headshotMult: 2.0 },
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
   // Second assault rifle — burst-fire, earlier unlock level
@@ -422,7 +422,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Semi-auto combat shotgun. Faster fire rate than the Breacher, tighter spread.",
     // 14 dmg * 8 pellets = 112 per shell, hsMult 1.3. Semi-auto at 2 rps.
     stats: { damage: 14, fireRate: 2, magSize: 8, reloadTime: 2.8, spread: 0.06, adsSpread: 0.04, recoil: 1.3, range: 26, adsTime: 0.25, moveSpeed: 0.93, auto: false, pellets: 8, headshotMult: 1.3 },
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
   },
   // Third DMR — heavy hitting, higher level
   // Tier 3 DMR — 1200 CR (Task 18-c+d economy tier scheme).
@@ -460,7 +460,7 @@ export const WEAPONS: WeaponDef[] = [
     description: "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
     // 170 dmg, hsMult 2.0 → body = 170 (1-shot kill 100HP), head = 340 (overkill). Very slow.
     stats: { damage: 170, fireRate: 0.6, magSize: 4, reloadTime: 3.8, spread: 0.001, adsSpread: 0.0, recoil: 3.2, range: 250, adsTime: 0.75, moveSpeed: 0.65, auto: false, headshotMult: 2.0 },
-    attachments: ["sight", "barrel", "magazine"],
+    attachments: ["sight", "barrel", "grip", "magazine"],
     baseSightType: "sniper_scope",
   },
   // Tier 3 LMG — Leviathan. 100-round belt, devastating suppressive fire, sluggish handling.
@@ -552,6 +552,7 @@ export const CATEGORY_ATTACHMENT_CHOICES: Partial<Record<WeaponCategory, Partial
   sniper: {
     sight: ["sight_acog", "sight_hunter", "sight_thermal", "sight_nvg"],
     barrel: ["barrel_suppressor", "barrel_heavy", "barrel_match"],
+    grip: ["grip_precision", "grip_stability", "grip_runner_ads"],
     magazine: ["mag_extended", "mag_quickdraw", "mag_balanced"],
   },
   lmg: {
