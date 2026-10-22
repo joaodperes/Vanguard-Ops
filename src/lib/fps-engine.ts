@@ -3567,11 +3567,13 @@ export class FPSEngine {
         break;
       case "survivalDowned":
         if (msg.playerId === this.selfId) {
+          // Save the outgoing primary's remaining ammo before locking swaps.
+          this.saveAmmoToSlot(this.currentSlot);
           this.survivalDowned = true;
           this.alive = true; this.health = 1; this.respawnAt = 0;
-          this.sprinting = false;
-          this.swapWeapon("secondary");
-          // swapWeapon is unavailable while downed: enforce the slot directly.
+          this.sprinting = false; this.reloading = false;
+          // Downed status disallows the normal swap action, so activate the
+          // sidearm slot directly without sending a rejected swap packet.
           this.currentSlot = "secondary"; this.weaponId = this.secondaryWeaponId;
           this.eff = this.secondaryEff; this.sightDef = this.secondarySight;
           this.ammoInMag = this.secondaryAmmoInMag; this.buildViewmodel();
@@ -3580,6 +3582,7 @@ export class FPSEngine {
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
           this.survivalDowned = false;
+          this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
           this.alive = true; this.health = msg.health; this.respawnAt = 0;
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
