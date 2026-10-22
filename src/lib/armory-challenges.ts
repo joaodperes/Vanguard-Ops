@@ -17,6 +17,7 @@ import {
 export const WEAPON_CONDITION_METRICS = [
   "bare_kills", "fully_equipped_kills", "ads_kills", "hipfire_kills",
   "airborne_kills", "close_range_kills", "long_range_kills", "multikill_kills",
+  "suppressed_kills", "critical_health_kills", "comeback_kills",
 ] as const satisfies readonly WeaponConditionMetric[];
 export type WeaponConditionStats = Record<WeaponConditionMetric, number>;
 export function emptyWeaponConditionStats(): WeaponConditionStats {
@@ -75,11 +76,11 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const cqc = category === "shotgun" || category === "melee";
   const mobile = category === "smg" || category === "sidearm";
   const choice: Record<string, WeaponConditionMetric> = {
-    arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "hipfire_kills",
+    arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "comeback_kills",
     crimson: equipped ? "bare_kills" : "multikill_kills",
-    emerald: cqc ? "close_range_kills" : "ads_kills",
+    emerald: cqc ? "close_range_kills" : category === "assault" ? "suppressed_kills" : "ads_kills",
     carbon: ranged ? "long_range_kills" : "hipfire_kills",
-    neon: mobile ? "airborne_kills" : ranged ? "long_range_kills" : "hipfire_kills",
+    neon: mobile ? "airborne_kills" : ranged ? "long_range_kills" : cqc ? "critical_health_kills" : "hipfire_kills",
     inferno: equipped ? "fully_equipped_kills" : "multikill_kills",
     gold: ranged ? "long_range_kills" : cqc ? "multikill_kills" : equipped ? "fully_equipped_kills" : "bare_kills",
   };
@@ -89,6 +90,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     bare_kills: .40, fully_equipped_kills: .24, ads_kills: .65,
     hipfire_kills: .45, airborne_kills: .25, close_range_kills: .55,
     long_range_kills: .28, multikill_kills: .25,
+    suppressed_kills: .28, critical_health_kills: .18, comeback_kills: .25,
   };
   const circumstances: Record<WeaponConditionMetric, string> = {
     bare_kills: "without any attachments",
@@ -99,6 +101,9 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     close_range_kills: "at 10m or closer",
     long_range_kills: "from at least 35m away",
     multikill_kills: "as part of a multi-kill (within 5 seconds)",
+    suppressed_kills: "while using a suppressor",
+    critical_health_kills: "while at 35 HP or lower",
+    comeback_kills: "within 10 seconds of respawning",
   };
   const goal = Math.max(5, Math.ceil(ch.goal * factors[metric]));
   if (ch.skinId === "gold") {
@@ -229,6 +234,9 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
     close_range_kills: "at 10m or closer",
     long_range_kills: "from at least 35m away",
     multikill_kills: "as part of a multi-kill (within 5 seconds)",
+    suppressed_kills: "while using a suppressor",
+    critical_health_kills: "while at 35 HP or lower",
+    comeback_kills: "within 10 seconds of respawning",
   };
   return {
     id: `att:${weaponId}:${attachmentId}`,
