@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
         }
       : null,
     achievements: player.achievements.map((a) => ({ achievementId: a.achievementId, earnedAt: a.earnedAt })),
-    weaponProgress: player.weaponProgress.map((w) => ({ weaponId: w.weaponId, kills: w.kills, headshots: w.headshots })),
+    weaponProgress: player.weaponProgress.map((w) => ({ weaponId: w.weaponId, kills: w.kills, headshots: w.headshots, conditionStats: w.conditionStats })),
     // Match records can be large; include them for completeness but they're
     // optional on import (the import can skip them to save space).
     matchRecords: player.matchRecords.map((m) => ({
