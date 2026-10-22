@@ -62,6 +62,9 @@ export interface MatchResultView {
     xpGained: number; creditsGained: number; leveledUp: boolean; newLevel: number;
     newUnlocks: any; newAchievements: any[]; challengeAwards: any[]; challengeProgress?: { id: string; kind: string; title: string; before: number; progress: number; goal: number; completed: boolean }[]; bonusXp: number; bonusCredits: number;
   };
+  /** Optional objective counters reported by Kill Confirmed matches. */
+  confirmations?: number;
+  denials?: number;
   durationSec?: number;
   placement?: number;
   multikills?: number;

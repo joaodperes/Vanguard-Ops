@@ -4431,7 +4431,9 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
-    const isRocket = this.weaponId === "launcher_rocket" || (!!w.wonder && w.wonder.kind !== "turret");
+    // Turrets already return through the placement path, so any remaining
+    // wonder weapon here is an explosive projectile.
+    const isRocket = this.weaponId === "launcher_rocket" || !!w.wonder;
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -5486,7 +5488,8 @@ export class FPSEngine {
       const age = now - p.born;
       if (age >= p.travelMs) {
         // Projectile reached the impact point — spawn explosion + remove.
-        this.spawnExplosion(p.end, weaponById(p.weaponId).wonder?.kind);
+        const explosionKind = weaponById(p.weaponId).wonder?.kind;
+        this.spawnExplosion(p.end, explosionKind === "turret" ? undefined : explosionKind);
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).
         //

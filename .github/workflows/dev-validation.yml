@@ -1,5 +1,5 @@
 name: Vanguard Ops dev validation
-# Comprehensive validation rerun after fixing findings from first workflow run.
+# Comprehensive validation rerun after resolving TypeScript diagnostics.
 
 # Manual by default; a push to this workflow file on dev triggers validation.
 # Ordinary source commits do not automatically charge Actions minutes.

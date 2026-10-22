@@ -164,7 +164,7 @@ export function Results() {
                     <Target className="w-4 h-4" /> Challenge progress this match
                   </h4>
                   <div className="grid sm:grid-cols-2 gap-2.5">
-                    {rewards.challengeProgress.map((c: { id: string; kind: string; title: string; before: number; progress: number; goal: number; completed: boolean }) => {
+                    {rewards.challengeProgress?.map((c: { id: string; kind: string; title: string; before: number; progress: number; goal: number; completed: boolean }) => {
                       const isWeapon = c.kind === "weapon";
                       const isElite = c.kind === "elite";
                       const color = isWeapon ? "text-violet-200 border-violet-500/30 bg-violet-500/10" :
