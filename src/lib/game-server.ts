@@ -1020,6 +1020,7 @@ function tickSpecialEffects(room: Room, now: number) {
     if (!enemies.some(c => Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]) < 2.5)) continue;
     room.equipmentMines.delete(id); // exactly one activation
     io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:"mine",position:mine.pos,ownerId:mine.ownerId,mineId:id,mineState:"triggered"} as S2C);
+    destroyTurretsNear(room, mine.pos, 3.3);
     for (const c of enemies) {
       const dist = Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]);
       if (dist > 3.3) continue;
@@ -1417,7 +1418,7 @@ function tickRoom(room: Room) {
       tickSpecialEffects(room, gameNow);
       // Server-authoritative regen; never heal during an active damage window.
       for (const c of allCombatants(room)) {
-        if (c.alive && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId))
+        if (c.alive && !room.downed.has(c.id) && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId))
           c.health = Math.min(MAX_HEALTH, c.health + 26 / 20);
       }
     }
@@ -1998,6 +1999,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (room) {
       room.players.delete(socket.id);
+      room.downed.delete(socket.id);
       room.sockets.delete(socket.id);
       room.scores.delete(socket.id);
       room.loadouts.delete(socket.id);
