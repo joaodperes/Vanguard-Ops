@@ -11,6 +11,8 @@ export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: str
   return mode === "ffa" || mode === "gungame" || ownerTeam !== victimTeam;
 }
 
+// Center of the visible twin-barrel assembly above the planted feet.
+export const TURRET_MUZZLE_HEIGHT = 1.29;
 export const TURRET_RANGE = 30;
 export const TURRET_DAMAGE = 17;
 export const TURRET_INTERVAL_MS = 360;
@@ -34,11 +36,15 @@ export function turretCanTrack(
 export function turretDeployPosition(
   feet: readonly number[], yaw: number,
   cover: ReadonlyArray<{ pos: readonly number[]; size: readonly number[]; kind?: string }>,
+  arenaSize?: number,
 ): [number, number, number] {
-  const radius = 0.58;
-  for (const distance of [2.2, 1.65, 1.1, 0]) {
+  const radius = 0.80;
+  // Far enough in front of the player's weapon to show a genuine world prop,
+  // then progressively closer when a wall/arena edge obstructs deployment.
+  for (const distance of [3.2, 2.7, 2.2, 1.6, 1.05, 0]) {
     const x = feet[0] + Math.sin(yaw) * distance;
     const z = feet[2] + Math.cos(yaw) * distance;
+    if (arenaSize !== undefined && (Math.abs(x) > arenaSize - 1 || Math.abs(z) > arenaSize - 1)) continue;
     // Check the entire placement path, not only the endpoint: a turret must
     // never jump THROUGH a wall to an open patch on its far side.
     const obstructed = cover.some(box => {

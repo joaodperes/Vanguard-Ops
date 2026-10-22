@@ -17,7 +17,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
-import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -965,7 +965,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
     io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
   }
   const id = genId("spitter");
-  const candidate = turretDeployPosition(player.pos, player.yaw, room.map.cover);
+  const candidate = turretDeployPosition(player.pos, player.yaw, room.map.cover, room.map.size);
   const pos: Vec3 = [candidate[0],
     botGroundHeight(room.map.cover, candidate[0], candidate[2], candidate[1]),
     candidate[2]];
@@ -995,7 +995,7 @@ function tickBulletSpitters(room: Room, now: number) {
       !(room.mode === "survival" && room.downed.has(p.id)) &&
       turretCanAttack(room.mode, turret.ownerTeam, p.team, p.id === turret.ownerId) &&
       turretCanTrack(turret.pos, turret.yaw, p.pos) &&
-      hasLineOfSight(room, [turret.pos[0], turret.pos[1] + 1.0, turret.pos[2]],
+      hasLineOfSight(room, [turret.pos[0], turret.pos[1] + TURRET_MUZZLE_HEIGHT, turret.pos[2]],
         [p.pos[0], p.pos[1] + PLAYER_HEIGHT / 2, p.pos[2]])
     ).sort((a,b) =>
       Math.hypot(a.pos[0]-turret.pos[0],a.pos[2]-turret.pos[2]) -
