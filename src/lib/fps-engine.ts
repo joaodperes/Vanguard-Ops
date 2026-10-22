@@ -3603,6 +3603,11 @@ export class FPSEngine {
         // per-weapon tallies don't bleed into the new match).
         this.perWeaponKills = new Map();
         this.perWeaponActions = new Map();
+        this.wonderStates.clear();
+        const matchPrimary = weaponById(this.primaryWeaponId);
+        if (matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
+        this.primaryAmmoInMag = matchPrimary.wonder ? matchPrimary.wonder.maxCharges : this.primaryEff.magSize;
+        if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
         // so without these resets multikillsCount + bestStreak would carry over
