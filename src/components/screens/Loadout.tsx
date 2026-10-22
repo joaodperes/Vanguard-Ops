@@ -6,6 +6,7 @@ import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./Wea
 import {
   WEAPONS,
   weaponById,
+  isPrimaryWeaponCategory,
   type WeaponCategory, type WeaponSlot, type WeaponDef,
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,9 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
     if (slot === "primary") return WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category));
-    if (slot === "secondary") return WEAPONS.filter((w) => w.category === "sidearm");
+    if (slot === "secondary") return WEAPONS.filter((w) =>
+      w.category === "sidearm" || (perkId === "well_prepared" &&
+        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
     return WEAPONS.filter((w) => w.category === "melee");
   };
 
@@ -109,7 +112,9 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
       try { localStorage.setItem(PERK_STORAGE_KEY, perkId); } catch {}
       setSavedPerk(perkId);
     };
-    if (primary === current?.weapon.id && secondary === current?.secondary.id && melee === current?.melee.id) {
+    const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
+    const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
+    if (primary === current?.weapon.id && savedSecondary === current?.secondary.id && melee === current?.melee.id) {
       saveLocalPerk();
       toast.success("Perk equipped");
       setSaving(false);
@@ -123,7 +128,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
         body: JSON.stringify({
           playerKey,
           primaryWeapon: primary,
-          secondaryWeapon: secondary,
+          secondaryWeapon: savedSecondary,
+          perkId,
           meleeWeapon: melee,
         }),
       });
@@ -172,16 +178,16 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           ownedForSlot={ownedForSlot}
           open={openSlot === "primary"}
           onToggle={() => setOpenSlot(openSlot === "primary" ? null : "primary")}
-          onSelect={(id) => { setPrimary(id); setOpenSlot(null); }}
+          onSelect={(id) => { setPrimary(id); if (id === secondary) setSecondary("pistol_side"); setOpenSlot(null); }}
           compact={compact}
 
           attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
         />
         <SlotCard
           slot="secondary"
-          label="Secondary"
+          label={perkId === "well_prepared" ? "Secondary / Primary" : "Secondary"}
           icon={<Crosshair className="w-4 h-4 text-amber-400" />}
-          weapon={weaponById(secondary)}
+          weapon={weaponById(perkId !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category) ? "pistol_side" : secondary)}
           ownedWeaponIds={ownedWeaponIds}
           ownedForSlot={ownedForSlot}
           open={openSlot === "secondary"}
@@ -226,7 +232,11 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           </div>
           {openSlot === "perk" && (
             <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {setPerkId(perk.id);setOpenSlot(null)}}
+              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
+                  setPerkId(perk.id);
+                  if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
+                  setOpenSlot(null);
+                }}
                 className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
                 <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.unlockLevel === 1 ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
                 <span className="text-white/40 leading-relaxed">{perk.description}</span>
