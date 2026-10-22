@@ -22,6 +22,7 @@ import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
@@ -634,9 +635,9 @@ export class FPSEngine {
   // killstreak / multikill tracking
   private recentKills: number[] = [];
   private multikillsCount = 0;
-  // 19a+19b: Highest kill streak achieved in the current match (kills within
-  // the streak window, currently 5s — see registerPlayerKill). Reset on match
-  // start. Forwarded in MatchEndResult so the rewards API can update the
+  private killChain: KillChainState = { count: 0, lastKillAt: -Infinity };
+  // Highest chain with up to five seconds between each consecutive kill.
+  // Reset on match start. Forwarded in MatchEndResult so the rewards API can update the
   // player's lifetime bestKillstreak (used by the Triple Threat / Killstreak
   // King / Untouchable Force achievements).
   private bestStreak = 0;
@@ -947,6 +948,7 @@ export class FPSEngine {
       this.multikillsCount = 0;
       this.bestStreak = 0;
       this.recentKills = [];
+      this.killChain = { count: 0, lastKillAt: -Infinity };
       this.lastKillstreak = null;
     }
     // Emit the initial lobby state so the GameCanvas can render the Lobby
@@ -3781,6 +3783,7 @@ export class FPSEngine {
         this.multikillsCount = 0;
         this.bestStreak = 0;
         this.recentKills = [];
+      this.killChain = { count: 0, lastKillAt: -Infinity };
         this.lastKillstreak = null;
         // Reset Gun Game progression for the local player at match start.
         if (this.opts.mode === "gungame") {
@@ -4620,14 +4623,12 @@ export class FPSEngine {
 
   private registerPlayerKill() {
     const now = performance.now();
-    // 19a+19b: Streak window widened from 3s → 5s so chained kills across
-    // reloads / target switches count toward multi-kills more reliably.
-    // 5s gives the player enough breathing room to land the next kill before
-    // the streak resets — 3s was too punishing on slower-firing weapons
-    // (snipers, pump shotguns) where the time between kills naturally exceeds 3s.
-    this.recentKills = this.recentKills.filter((t) => now - t < 5000);
+    // Refresh the full five-second grace period with each elimination.
+    // Ten kills can span nine successive five-second intervals.
+    this.killChain = advanceKillChain(this.killChain, now);
+    this.recentKills = this.recentKills.filter(t => now - t <= 5000);
     this.recentKills.push(now);
-    const streak = this.recentKills.length;
+    const streak = this.killChain.count;
     // Track the match-high streak for the new tiered achievements
     // (Triple Threat / Killstreak King / Untouchable Force). Updated every
     // kill so it captures streaks of any length, not just the multikill

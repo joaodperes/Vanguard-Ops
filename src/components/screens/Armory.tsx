@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { formatWeaponNumber } from "@/lib/weapon-numbers";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import {
@@ -1189,7 +1190,7 @@ function StatBar({ label, value, max, color }: { label: string; value: number; m
       <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-white/60 text-[10px] font-mono tabular-nums w-6 text-right">{value}</span>
+      <span className="text-white/60 text-[10px] font-mono tabular-nums w-9 text-right">{formatWeaponNumber(value)}</span>
     </div>
   );
 }
@@ -1200,7 +1201,7 @@ function ModalStatBar({ label, value, max, color }: { label: string; value: numb
     <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1.5">
       <div className="flex items-center justify-between mb-1">
         <span className="text-white/40 text-[10px] font-mono uppercase">{label}</span>
-        <span className="text-white/80 text-xs font-mono tabular-nums">{value}</span>
+        <span className="text-white/80 text-xs font-mono tabular-nums">{formatWeaponNumber(value)}</span>
       </div>
       <div className="h-1 bg-black/60 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
