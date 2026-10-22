@@ -159,33 +159,44 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       !compatibleAttachments(weaponId, attachment.slot).includes(attachmentId)) return null;
 
   const difficulty = Math.max(0, Math.min(3, Math.floor(attachment.unlockCost / 180)));
-  let metric: ArmoryMetric = "kills";
+  // Do not gate attachment purchases on a full loadout: this would deadlock progression.
+  let metric: WeaponChallengeMetric = "kills";
   let goal = 12;
   switch (attachment.slot) {
     case "sight":
-      goal = 12 + difficulty * 8; // early functional optics are approachable
+      metric = weapon.category === "sniper" || weapon.category === "dmr" ? "long_range_kills"
+        : weapon.category === "shotgun" ? "close_range_kills" : "hipfire_kills";
+      goal = 10 + difficulty * 7;
       break;
     case "barrel":
-      metric = weapon.category === "shotgun" || weapon.category === "melee" ? "kills" : "headshots";
-      goal = metric === "kills" ? 22 + difficulty * 12 : 10 + difficulty * 9;
+      metric = difficulty >= 2 ? "ads_kills" : "bare_kills";
+      goal = 12 + difficulty * 9;
       break;
     case "grip":
-      goal = 28 + difficulty * 15;
+      metric = weapon.category === "smg" || weapon.category === "sidearm" ? "airborne_kills" : "hipfire_kills";
+      goal = 10 + difficulty * 8;
       break;
     case "magazine":
-      goal = 24 + difficulty * 15;
+      metric = difficulty >= 2 ? "multikill_kills" : "kills";
+      goal = difficulty >= 2 ? 8 + difficulty * 5 : 24 + difficulty * 12;
       break;
   }
-  if (attachmentId === "barrel_poison") {
-    metric = "kills";
-    goal = 80; // advanced crossbow specialization
-  }
+  if (attachmentId === "barrel_poison") { metric = "bare_kills"; goal = 45; }
+  const circumstances: Partial<Record<WeaponChallengeMetric, string>> = {
+    bare_kills: "without any attachments",
+    ads_kills: "while aiming down sights",
+    hipfire_kills: "without aiming down sights",
+    airborne_kills: "while airborne",
+    close_range_kills: "at 10m or closer",
+    long_range_kills: "from at least 35m away",
+    multikill_kills: "as part of a multi-kill (within 5 seconds)",
+  };
   return {
     id: `att:${weaponId}:${attachmentId}`,
     kind: "attachment", rewardId: attachmentId, weaponId,
     metric, goal,
     title: `${attachment.name} Trial`,
-    description: `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}.`,
+    description: `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}${circumstances[metric] ? " " + circumstances[metric] : ""}.`,
   };
 }
 
