@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -958,10 +957,7 @@ function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: 
         <div className="flex items-center gap-2 mb-1">
           <span style={{ color: cfg.accentColor }}><Icon className="w-5 h-5" /></span>
           <span className="text-white font-bold text-sm">{cfg.label}</span>
-          {selected && (
-            <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold border" style={{ color: cfg.accentColor, borderColor: `${cfg.accentColor}50`, background: `${cfg.accentColor}20` }}>
-            </span>
-          )}
+
         </div>
         <div className="text-white/50 text-[11px] leading-snug">{cfg.description}</div>
       </div>
