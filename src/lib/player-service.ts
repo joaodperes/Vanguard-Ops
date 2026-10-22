@@ -366,6 +366,7 @@ export interface AwardResult {
   newUnlocks: { weapons: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
   // Per-weapon skin challenges completed during this match.
   newWeaponChallenges: { challengeId: string; weaponId: string; skinId: string; title: string; description: string }[];
+  newPrestiges: string[];
   newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[];
   challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[];
   bonusXp: number;
@@ -381,6 +382,8 @@ function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
     case "matches": return 1;
     case "tdm_kills": return m.mode === "tdm" ? m.kills : 0;
     case "ffa_kills": return m.mode === "ffa" ? m.kills : 0;
+    case "kill_confirmations": return m.mode === "killconfirmed" ? (m.confirmations ?? 0) : 0;
+    case "kill_denials": return m.mode === "killconfirmed" ? (m.denials ?? 0) : 0;
     // Per-weapon metrics: in Gun Game the player cycles through ALL weapon
     // types, so we must attribute kills via `perWeaponKills` (the map of
     // weaponId → {kills, headshots} for this match) rather than `weaponId`
