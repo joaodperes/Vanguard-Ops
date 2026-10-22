@@ -42,12 +42,33 @@ export function weaponChallengeValue(
   return metric === "kills" || metric === "headshots" ? data[metric] : data.conditionStats?.[metric] ?? 0;
 }
 
+/** AND-based milestones let a high-tier unlock require several distinct playstyles. */
+export function weaponChallengeProgress(
+  challenge: WeaponChallengeDef,
+  totals: { kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> },
+) {
+  const steps = (challenge.requirements?.length
+    ? challenge.requirements
+    : [{ metric: challenge.metric, goal: challenge.goal }])
+    .map(step => {
+      const value = weaponChallengeValue(step.metric, totals);
+      return { metric: step.metric, goal: step.goal,
+        progress: Math.min(step.goal, value), completed: value >= step.goal };
+    });
+  return {
+    goal: steps.reduce((sum, step) => sum + step.goal, 0),
+    progress: steps.reduce((sum, step) => sum + step.progress, 0),
+    completed: steps.every(step => step.completed),
+    steps,
+  };
+}
+
 /** Skin themes now carry a gameplay condition, specialized for each weapon category.
  * All existing purchased skins remain owned, regardless of challenge updates.
  */
 function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): WeaponChallengeDef {
   // Preserve hand-authored headshot challenges, including unusual melee mastery.
-  if (ch.metric === "headshots") return ch;
+  if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
   const category = weapon.category;
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";
@@ -80,6 +101,23 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     multikill_kills: "as part of a multi-kill (within 5 seconds)",
   };
   const goal = Math.max(5, Math.ceil(ch.goal * factors[metric]));
+  if (ch.skinId === "gold") {
+    // Unlike a single 400-kill grind, final mastery asks the player to switch
+    // tactics: dedicated weapon configuration, opposite configuration, precision/mobility.
+    const second: WeaponConditionMetric = equipped ? "bare_kills" : "close_range_kills";
+    const third: WeaponConditionMetric = ranged ? "ads_kills"
+      : cqc ? "airborne_kills" : "hipfire_kills";
+    const requirements = [
+      { metric, goal },
+      { metric: second, goal: Math.max(10, Math.ceil(ch.goal * .16)) },
+      { metric: third, goal: Math.max(10, Math.ceil(ch.goal * .20)) },
+    ];
+    return {
+      ...ch, metric, goal, requirements,
+      title: `${weapon.name} Complete Mastery`,
+      description: requirements.map(r => `${r.goal} kills ${circumstances[r.metric]}`).join("; ") + ".",
+    };
+  }
   return { ...ch, metric, goal,
     description: `Get ${goal} kills with the ${weapon.name} ${circumstances[metric]}.`,
   };
