@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
 import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
@@ -92,6 +93,12 @@ export async function POST(req: NextRequest) {
   if (primaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === primaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown primaryWeapon" }, { status: 400 });
+    if (w.wonder) {
+      const owned = await db.wonderUnlock.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId: w.id },
+      } });
+      if (!owned) return NextResponse.json({ error: "Unlock this Wonder Weapon using a Prestige token first" }, { status: 403 });
+    }
     if (w.category === "sidearm" || w.category === "melee") {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
@@ -141,7 +148,14 @@ export async function POST(req: NextRequest) {
   // primary weapon, the secondary skin against the secondary weapon, etc.
   const sanitizeSkinForWeapon = async (skinId: string | undefined, weaponId: string): Promise<string | undefined> => {
     if (skinId === undefined || skinId === "default") return skinId;
-    if (!WEAPON_SKINS.some(s => s.id === skinId)) return undefined;
+    const skinDef = WEAPON_SKINS.find(s => s.id === skinId);
+    if (!skinDef) return undefined;
+    if (skinDef.prestige) {
+      const earned = await db.weaponPrestige.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId },
+      } });
+      return earned ? skinId : undefined;
+    }
     const owned = await db.skinUnlock.findUnique({
       where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
     });
@@ -157,7 +171,8 @@ export async function POST(req: NextRequest) {
       where: { playerId_weaponId: { playerId: player.id, weaponId } },
     });
     return skinChallengesForWeaponAndSkin(weaponId, skinId).some(ch =>
-      (ch.metric === "kills" ? stats?.kills ?? 0 : stats?.headshots ?? 0) >= ch.goal,
+      weaponChallengeProgress(ch, { kills: stats?.kills ?? 0, headshots: stats?.headshots ?? 0,
+        conditionStats: parseWeaponConditionStats(stats?.conditionStats) }).completed,
     ) ? skinId : undefined;
   };
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
