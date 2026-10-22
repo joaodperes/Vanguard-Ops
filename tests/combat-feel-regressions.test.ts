@@ -78,7 +78,8 @@ describe("Bullet Spitter deployment", () => {
 
   test("plants ahead of the player and falls back before blocking cover", () => {
     const player: [number,number,number] = [0,0,0];
-    expect(turretDeployPosition(player, 0, [])).toEqual([0,0,2.2]);
+    expect(turretDeployPosition(player, 0, [])).toEqual([0,0,3.2]);
+    expect(turretDeployPosition([9, 0, 0], Math.PI / 2, [], 10)).toEqual([9, 0, 0]);
     const box = [{pos:[0,0.6,2.2],size:[1,0.6,.2]}];
     const point = turretDeployPosition(player, 0, box);
     expect(point[2]).toBeLessThan(2.2);
