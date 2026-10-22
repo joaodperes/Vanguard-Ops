@@ -8,7 +8,7 @@ export const PERKS = [
   { id: "lightweight", name: "Lightweight", description: "Move 12% faster and jump slightly higher.", icon: "footprints", unlockLevel: 13 },
   { id: "steady", name: "Steady", description: "25% less recoil and 35% less weapon sway.", icon: "crosshair", unlockLevel: 16 },
   { id: "athlete", name: "Athlete", description: "Sprint for twice as long before stamina runs out.", icon: "activity", unlockLevel: 19 },
-  { id: "scavenger", name: "Scavenger", description: "Enemies drop glowing ammunition packs. Collect one to restore 35% of your firearm magazines.", icon: "package", unlockLevel: 22 },
+  { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Each restores 35% of your firearm magazines.", icon: "package", unlockLevel: 22 },
   { id: "explonando", name: "Explonando", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
 ] as const;
