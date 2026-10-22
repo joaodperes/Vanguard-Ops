@@ -1,3 +1,5 @@
+import { ROUND_INSERT_FRACTION } from "./incremental-reload";
+
 /** Deterministic cosmetic animation timing. No Three.js or gameplay side effects.
  * Timelines use elapsed time from an action's own start (never the weapon's
  * catalog reload time: recoverable bolts and active venting override it).
@@ -73,15 +75,16 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
     // ONE visible shell insertion per gameplay reload cycle. The previous
     // sin(4πp) path visited the loading port twice per cycle, making it look
     // as if multiple shells had been inserted without adding ammunition.
-    // The shell visibly seats at p=.70, matching ROUND_INSERT_FRACTION.
+    // The shell visibly seats at ROUND_INSERT_FRACTION, from the shared
+    // gameplay timing rule, so cosmetic and ammo state cannot drift.
     const pocket: [number,number,number] = [-.23,-.47,.18];
     const port: [number,number,number] = [-.015,-.20,-.12];
     const hand = p < .24 ? pocket
-      : p < .70 ? mix(pocket,port,ease((p-.24)/.46))
-      : mix(port,pocket,ease((p-.70)/.30));
-    const insert = ease((p-.24)/.46);
+      : p < ROUND_INSERT_FRACTION ? mix(pocket,port,ease((p-.24)/(ROUND_INSERT_FRACTION-.24)))
+      : mix(port,pocket,ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION)));
+    const insert = ease((p-.24)/(ROUND_INSERT_FRACTION-.24));
     return {...empty,dip:-.10*weight,pitch:.33*weight,roll:-.16*weight,hand,prop:hand,
-      handRoll:.24*(1-insert),propVisible:p>.08&&p<.70};
+      handRoll:.24*(1-insert),propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
   }
   if (kind === "cylinder") {
     return {...empty,dip:-.11*weight,pitch:.30*weight,roll:-.35*weight,
