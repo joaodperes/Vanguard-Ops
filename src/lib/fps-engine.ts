@@ -190,6 +190,7 @@ export interface HudState {
   survivalEnemiesLeft?: number;
   survivalReinforcements?: number;
   survivalMaxReinforcements?: number;
+  survivalDowned?: boolean;
   survivalPrepLeft?: number;
   survivalWaveActive?: boolean;
   // Round 18-b: wave banner — timestamp (ms) when the current wave started.
@@ -721,7 +722,8 @@ export class FPSEngine {
   private getSurvivalClearedWaves() { return survivalWavesCleared(this.survivalWave,this.survivalWaveActive); }
   private survivalEnemiesLeft = 0;
   private survivalReinforcements = 0;
-  private survivalMaxReinforcements = 5;
+  private survivalMaxReinforcements = 0;
+  private survivalDowned = false;
   private survivalPrepLeft = 0;
   private survivalWaveActive = false;
   // Round 18-b: wave banner — set to performance.now() when a wave starts.
@@ -2597,7 +2599,7 @@ export class FPSEngine {
   // other players see the weapon change. Gun Game ignores this (weapon is
   // driven by progression).
   swapWeapon(slot: WeaponSlot) {
-    if (this.equipmentAction) return;
+    if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
     if (this.currentSlot === slot) return;
     if (!this.alive) return;
@@ -2820,8 +2822,8 @@ export class FPSEngine {
   // each death consumes one. When the pool is empty and the player dies, game over.
   private setupSurvival() {
     (this.opts as any).team = "blue";
-    this.survivalMaxReinforcements = 5;
-    this.survivalReinforcements = this.survivalMaxReinforcements;
+    this.survivalMaxReinforcements = 0;
+    this.survivalReinforcements = 0;
     this.survivalWave = 0;
     this.survivalPrepLeft = 5;       // short initial prep before wave 1
     this.survivalWaveActive = false;
@@ -3445,7 +3447,7 @@ export class FPSEngine {
             // and alive=true), so this is a client-side estimate that makes
             // the countdown visible during the wait.
             const respawnDelay = this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
-            this.respawnAt = performance.now() + respawnDelay;
+            this.respawnAt = this.opts.mode === "survival" ? 0 : performance.now() + respawnDelay;
             this.sound.play("death", { volume: 0.8 });
           }
           // Trigger the death-fall animation on the victim's combatant (if it's
@@ -3490,6 +3492,30 @@ export class FPSEngine {
           this.secondaryAmmoInMag = this.secondaryEff.magSize;
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
+        }
+        break;
+      case "survivalDowned":
+        if (msg.playerId === this.selfId) {
+          this.survivalDowned = true;
+          this.alive = true; this.health = 1; this.respawnAt = 0;
+          this.sprinting = false;
+          this.swapWeapon("secondary");
+          // swapWeapon is unavailable while downed: enforce the slot directly.
+          this.currentSlot = "secondary"; this.weaponId = this.secondaryWeaponId;
+          this.eff = this.secondaryEff; this.sightDef = this.secondarySight;
+          this.ammoInMag = this.secondaryAmmoInMag; this.buildViewmodel();
+        }
+        break;
+      case "survivalRecovered":
+        if (msg.playerId === this.selfId) {
+          this.survivalDowned = false;
+          this.pos.set(...msg.pos); this.vel.set(0,0,0);
+          this.alive = true; this.health = msg.health; this.respawnAt = 0;
+          this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
+          this.eff = this.primaryEff; this.sightDef = this.primarySight;
+          this.primaryAmmoInMag = this.primaryEff.magSize;
+          this.secondaryAmmoInMag = this.secondaryEff.magSize;
+          this.ammoInMag = this.primaryAmmoInMag; this.buildViewmodel();
         }
         break;
       case "deathBomb":
@@ -5034,7 +5060,7 @@ export class FPSEngine {
         this.matchStartedAt = performance.now();
         if (!this.opts.online) {
           this.selfSpawnProtectedUntil = Date.now() + 2500;
-          for (const c of this.combatants.values()) if (c.alive) c.spawnProtectedUntil = Date.now() + 2500;
+          for (const c of this.combatants.values()) if (c.alive && this.opts.mode !== "survival") c.spawnProtectedUntil = Date.now() + 2500;
         }
         this.sound.play("match_start", { volume: 0.8 });
       }
@@ -5189,7 +5215,7 @@ export class FPSEngine {
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
     }
-    if (this.alive && inputActive) this.updateMovement(dt);
+    if (this.alive && inputActive && !this.survivalDowned) this.updateMovement(dt);
     this.interactEnvironment();
 
     // ADS smoothing
@@ -5764,7 +5790,7 @@ export class FPSEngine {
         ai.aimErrorPitch = (Math.random() - 0.5) * errMag * 2;
       }
       c.yaw = this.lerpAngle(c.yaw, desiredYaw + ai.aimErrorYaw, turnLerp);
-      c.pitch = this.lerpAngle(c.pitch, Math.atan2(dy, Math.hypot(dx, dz)) * 0.6 + ai.aimErrorPitch, turnLerp);
+      c.pitch = this.lerpAngle(c.pitch, Math.atan2(dy, Math.hypot(dx, dz)) + ai.aimErrorPitch, turnLerp);
 
       // Spray drift accumulates while firing (simulating uncompensated recoil) and
       // decays when the bot isn't firing. Applied as an offset to the shot direction.
@@ -6066,7 +6092,7 @@ export class FPSEngine {
     // If no visible enemy exists, the bot wanders. This makes bots feel less
     // psychic — you can break LoS to escape them.
     for (const e of candidates) {
-      if (e.id === c.id || !e.alive) continue;
+      if (e.id === c.id || !e.alive || (this.opts.mode === "survival" && e.isBot)) continue;
       if (e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
@@ -6196,14 +6222,9 @@ export class FPSEngine {
       const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: weaponId, headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
       this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
       this.opts.onKillFeed(entry);
-      // Survival: consume a reinforcement. Game over when the pool is empty.
+      // Offline Survival is solo: one death ends the run; no reinforcements.
       if (this.opts.mode === "survival") {
-        this.survivalReinforcements = Math.max(0, this.survivalReinforcements - 1);
-        if (this.survivalReinforcements <= 0) {
-          this.finalizeMatchLocal(); // out of reinforcements — game over
-        } else {
-          this.respawnAt = performance.now() + SURVIVAL_RESPAWN_MS;
-        }
+        this.finalizeMatchLocal();
       } else {
         this.respawnAt = performance.now() + RESPAWN_DELAY_MS;
       }
@@ -6343,6 +6364,7 @@ export class FPSEngine {
         survivalEnemiesLeft: this.survivalEnemiesLeft,
         survivalReinforcements: this.survivalReinforcements,
         survivalMaxReinforcements: this.survivalMaxReinforcements,
+        survivalDowned: this.survivalDowned,
         survivalPrepLeft: Math.max(0, Math.ceil(this.survivalPrepLeft)),
         survivalWaveActive: this.survivalWaveActive,
         // Round 18-b: wave banner timestamp (ms since page load). The HUD shows
