@@ -34,6 +34,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
   const [hud, setHud] = useState<HudState | null>(null);
   const [ready, setReady] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [touchStarted, setTouchStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
@@ -45,7 +46,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const engine = new FPSEngine(containerRef.current, {
+    let engine: FPSEngine;
+    try {
+      engine = new FPSEngine(containerRef.current, {
       mode, botCount, online, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
@@ -89,7 +92,12 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       },
       onLobbyState: (s) => setLobby(s),
       onReady: () => setReady(true),
-    });
+      });
+    } catch (error) {
+      setStartupError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setStartupError(null);
     engineRef.current = engine;
     setEngineInstance(engine);
     setIsTouch(engine.isTouchMode());
@@ -135,6 +143,19 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   return (
     <div className="fixed inset-0 z-50 bg-black">
       <div ref={containerRef} className="absolute inset-0" />
+      {startupError && (
+        <div role="alert" className="absolute inset-0 z-[80] flex items-center justify-center bg-black p-6 text-white">
+          <div className="max-w-lg rounded-xl border border-amber-500/30 bg-zinc-900 p-6 text-center">
+            <h2 className="mb-3 text-xl font-bold text-amber-300">Unable to start 3D graphics</h2>
+            <p className="mb-3 text-sm text-white/70">
+              Your browser could not create a WebGL context. Check graphics acceleration,
+              update your GPU driver, and restart the browser.
+            </p>
+            <p className="mb-5 break-words font-mono text-xs text-white/40">{startupError}</p>
+            <Button onClick={onExit}>Return to lobby</Button>
+          </div>
+        </div>
+      )
       {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
