@@ -33,7 +33,7 @@ describe("Bullet Spitter turret", () => {
     expect(TURRET_LIFETIME_MS).toBe(25000);
     const origin = [0,0,0] as const;
     expect(turretCanTrack(origin,0,[0,25,15])).toBe(true);
-    expect(turretCanTrack(origin,0,[9,12,4])).toBe(false);
+    expect(turretCanTrack(origin,0,[9,12,2])).toBe(false);
     expect(turretCanTrack(origin,0,[0,0,-5])).toBe(false);
     expect(turretCanTrack(origin,0,[0,0,31])).toBe(false);
   });
