@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
-import { PERKS, PERK_STORAGE_KEY, perkSelection, perkById, type PerkId } from "@/lib/perks";
+import { PERKS, PERK_STORAGE_KEY, DEFAULT_PERK_ID, perkSelection, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
+import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
 import {
   WEAPONS,
   weaponById,
@@ -39,14 +40,15 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
+  const level = profile?.level ?? 1;
   const [primary, setPrimary] = useState(current?.weapon.id ?? "rifle_ar");
   const [secondary, setSecondary] = useState(current?.secondary.id ?? "pistol_side");
   const [melee, setMelee] = useState(current?.melee.id ?? "knife_tactical");
   // Which slot's dropdown is currently open. Only one can be open at a time.
   const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
-  const [perkId, setPerkId] = useState<PerkId>("field_loader");
-  const [savedPerk, setSavedPerk] = useState<PerkId>("field_loader");
-  useEffect(() => { const selected = perkSelection(); setPerkId(selected); setSavedPerk(selected); }, []);
+  const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
+  const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
+  useEffect(() => { const selected = perkSelection(level); setPerkId(selected); setSavedPerk(selected); }, [level]);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -75,12 +77,11 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   // Owned weapons: free-by-level + purchased. Computed unconditionally so the
   // hook order is stable; the early return below handles the missing-profile
   // case (renders a loading placeholder).
-  const level = profile?.level ?? 1;
   const ownedWeaponIds = useMemo(() => new Set<string>([
     ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
     ...(profile?.prestige?.wonderWeapons ?? []),
-  ]), [level, profile?.unlocks.weapons]);
+  ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
 
   if (!profile) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
@@ -101,6 +102,7 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   );
 
   const save = async () => {
+    if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
     setSaving(true);
     // Perks are account-agnostic, free passive choices persisted locally.
     const saveLocalPerk = () => {
@@ -172,6 +174,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           onToggle={() => setOpenSlot(openSlot === "primary" ? null : "primary")}
           onSelect={(id) => { setPrimary(id); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
         />
         <SlotCard
           slot="secondary"
@@ -184,6 +188,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           onToggle={() => setOpenSlot(openSlot === "secondary" ? null : "secondary")}
           onSelect={(id) => { setSecondary(id); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
         />
         <SlotCard
           slot="melee"
@@ -196,6 +202,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           onToggle={() => setOpenSlot(openSlot === "melee" ? null : "melee")}
           onSelect={(id) => { setMelee(id); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
         />
         <div className="relative" data-slot-dropdown>
           <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
@@ -218,9 +226,9 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           </div>
           {openSlot === "perk" && (
             <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-              {PERKS.map(perk => <button key={perk.id} type="button" onClick={() => {setPerkId(perk.id);setOpenSlot(null)}}
-                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 hover:bg-white/5 ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                <span className="font-semibold">{perk.name}</span>
+              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {setPerkId(perk.id);setOpenSlot(null)}}
+                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.unlockLevel === 1 ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
                 <span className="text-white/40 leading-relaxed">{perk.description}</span>
               </button>)}
             </div>
@@ -245,9 +253,10 @@ interface SlotCardProps {
   onToggle: () => void;
   onSelect: (id: string) => void;
   compact?: boolean;
+  attachments: AttachmentMap;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact }: SlotCardProps) {
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments }: SlotCardProps) {
   const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
   const candidates = ownedForSlot(slot);
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
@@ -274,6 +283,9 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
         <div className="text-white/40 text-[10px] uppercase mb-2">{weapon.category} · LVL {weapon.unlockLevel}</div>
+         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3">
+           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
+         </div>
         <button
           onClick={onToggle}
           className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"
