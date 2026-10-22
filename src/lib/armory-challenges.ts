@@ -225,6 +225,25 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       goal = difficulty >= 2 ? 8 + difficulty * 5 : 24 + difficulty * 12;
       break;
   }
+  // Every attachment in a slot gets a distinct requirement, not one generic
+  // magazine/sight/grip challenge repeated for the entire weapon. Keep the
+  // criteria achievable without first owning the attachment being unlocked.
+  const attachmentIndex = compatibleAttachments(weaponId, attachment.slot).indexOf(attachmentId);
+  const objectives: Record<string, WeaponChallengeMetric> = {
+    mag_extended: "kills", mag_quickdraw: "ads_kills",
+    mag_drum: "multikill_kills", mag_balanced: "hipfire_kills",
+    mag_shell_carrier: "close_range_kills",
+  };
+  const styles: Record<string, WeaponChallengeMetric[]> = {
+    sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills", "airborne_kills"],
+    barrel: ["bare_kills", "ads_kills", "hipfire_kills", "multikill_kills", "comeback_kills"],
+    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills", "bare_kills"],
+    magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "close_range_kills"],
+  };
+  metric = objectives[attachmentId] ??
+    (weapon.category === "sniper" && attachment.slot === "sight" ? "long_range_kills"
+      : styles[attachment.slot][attachmentIndex % styles[attachment.slot].length]);
+  goal += Math.max(0, attachmentIndex) * 6;
   if (attachmentId === "barrel_poison") { metric = "bare_kills"; goal = 45; }
   const circumstances: Partial<Record<WeaponChallengeMetric, string>> = {
     bare_kills: "without any attachments",

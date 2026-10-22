@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
@@ -91,6 +91,10 @@ export function Armory() {
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
   // Currently open customize modal: { weapon, slot }. Null when closed.
   const [customizing, setCustomizing] = useState<{ weapon: WeaponDef; slot: WeaponSlot } | null>(null);
+  // Serialize attachment writes. Rapidly clearing several slots must not send
+  // concurrent full-map updates built from an obsolete profile snapshot.
+  const latestAttachmentMaps = useRef<Record<string, Record<AttachmentSlot, string | null>>>({});
+  const attachmentWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const level = profile?.level ?? 1;
   const credits = profile?.credits ?? 0;
 
@@ -188,30 +192,39 @@ export function Armory() {
     attId: string | null,
   ) => {
     if (!profile?.loadout) return;
-    // Build the full attachment map for the slot, with the changed field.
-    const current = slot === "primary"
-      ? profile.loadout.attachments
-      : slot === "secondary"
-        ? profile.loadout.secondaryAttachments
-        : profile.loadout.meleeAttachments;
-    const next = { ...current, [attSlot]: attId };
+    const equippedWeaponId = slot === "primary" ? profile.loadout.weapon.id
+      : slot === "secondary" ? profile.loadout.secondary.id : profile.loadout.melee.id;
+    // Do not apply a different weapon's customizations to the currently held gun.
+    if (customizing?.weapon.id !== equippedWeaponId) {
+      toast.error("Equip this weapon in your loadout before changing its attachments.");
+      return;
+    }
+    const current = slot === "primary" ? profile.loadout.attachments
+      : slot === "secondary" ? profile.loadout.secondaryAttachments
+      : profile.loadout.meleeAttachments;
+    const key = slot + ":" + equippedWeaponId;
+    const next = { ...(latestAttachmentMaps.current[key] ?? current), [attSlot]: attId };
+    latestAttachmentMaps.current[key] = next;
     const field = slot === "primary" ? "attachments" : slot === "secondary" ? "secondaryAttachments" : "meleeAttachments";
-    try {
-      const res = await fetch("/api/loadout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerKey, [field]: next }),
-      });
-      if (res.ok) {
+    const save = async () => {
+      try {
+        const res = await fetch("/api/loadout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerKey, [field]: next }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Equip failed");
+        }
         await refreshProfile();
         toast.success(attId ? `Equipped ${ATTACHMENTS.find((a) => a.id === attId)?.name ?? attId}` : "Attachment removed", { duration: 1500 });
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Equip failed");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Network error");
       }
-    } catch {
-      toast.error("Network error");
-    }
+    };
+    attachmentWriteQueue.current = attachmentWriteQueue.current.then(save, save);
+    await attachmentWriteQueue.current;
   };
 
   // Equip a weapon skin. Skins are PER-WEAPON (like attachments): the skin is
@@ -903,9 +916,9 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <>
                           {/* "UNLOCK" label above the progress bar — clear callout
                               that this skin is locked-but-earnable via the challenge. */}
-                          <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" />{challenge?.completed ? "Unlocked for purchase" : "Locked"}
-                          </div>
+                          {!challenge?.completed && <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />Locked
+                          </div>}
                           {!challenge!.completed && <div className="mt-1 space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2">
                             <div className="text-amber-200 text-xs font-semibold">{challenge!.title}</div>
                             <div className="text-amber-100/80 text-[12px] leading-relaxed">{challenge!.description}</div>
@@ -1107,8 +1120,6 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
                 <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
-                <button type="button" onClick={() => onPreview(a.id)} className="text-[11px] text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-2">Preview stat impact</button>
-                {!isOwned && chProgress?.completed && <div className="text-emerald-300 text-xs font-semibold mb-2">Challenge complete · Available to purchase</div>}
                 {!isOwned && chProgress && !chProgress.completed && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
                     <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300 mb-1">Locked · Challenge</div>
