@@ -92,6 +92,14 @@ export default function Page() {
       if (rewards.newAchievements?.length) {
         for (const a of rewards.newAchievements) toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR` });
       }
+      if (rewards.newPrestiges?.length) {
+        for (const id of rewards.newPrestiges) {
+          toast.success("WEAPON PRESTIGE EARNED", {
+            description: `Mastered ${id.replaceAll("_", " ")} · +1 Prestige Token · Eventide & Viridian Blight camos`,
+            duration: 6500,
+          });
+        }
+      }
       if (rewards.challengeAwards?.length) {
         for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${c.rewardCredits} CR` });
       }
