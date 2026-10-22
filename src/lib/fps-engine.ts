@@ -2426,6 +2426,11 @@ export class FPSEngine {
     if (this.deathBombs.has(id) || this.disposed) return;
     const mesh = this.makeMineMarker(pos);
     mesh.scale.setScalar(1.25);
+    // Explonando is a bright amber death charge rather than a regular mine.
+    const indicator = mesh.children.find(c => c instanceof THREE.Mesh && c.geometry instanceof THREE.SphereGeometry);
+    if (indicator instanceof THREE.Mesh && indicator.material instanceof THREE.MeshBasicMaterial) {
+      indicator.material.color.set(0xff8b20);
+    }
     this.deathBombs.set(id, { pos, explodesAt, mesh, local });
   }
 
@@ -2454,7 +2459,7 @@ export class FPSEngine {
       }
       if (remaining) continue;
       this.removeDeathBomb(id);
-      this.spawnExplosion(new THREE.Vector3(...bomb.pos), "corrosion");
+      this.spawnExplosion(new THREE.Vector3(...bomb.pos));
       for (const target of this.combatants.values()) {
         if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, this.opts.team as string, target.id, this.selfId)) continue;
         const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
@@ -3494,7 +3499,7 @@ export class FPSEngine {
         break;
       case "deathBombExplode":
         this.removeDeathBomb(msg.id);
-        this.spawnExplosion(new THREE.Vector3(...msg.pos), "corrosion");
+        this.spawnExplosion(new THREE.Vector3(...msg.pos));
         break;
       case "scavengerDrop":
         this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
@@ -6458,6 +6463,7 @@ export class FPSEngine {
   dispose() {
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
+    for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
