@@ -1858,25 +1858,18 @@ export class FPSEngine {
     const hipTarget = this.touchMode
       ? { x: 0.22, y: -0.20, z: -0.50 }   // mobile: right side, lower, away from buttons
       : { x: 0.30, y: -0.18, z: -0.48 };  // desktop: clearly right-offset (CoD-style)
-    // ---- ADS target depends on sight type ----
-    // Issue d fix: Previously the iron-sight ADS target was y=-0.06, which put
-    // the weapon body's TOP (carry handle, rail, sight base) at y≈+0.015 —
-    // ABOVE the camera center, partially blocking the view. Now the iron-sight
-    // ADS target is y=-0.10, so the body top is at y≈-0.025 — below the camera.
-    // The gun is still "raised" (vs hip-fire y=-0.18) but low enough that no
-    // solid object crosses the camera centerline. The HUD crosshair/dot handles
-    // the actual aiming reference (always at exact screen center).
-    // Magnified scopes: gun kept even lower (y=-0.14) so the scope tube and
-    // barrel are well below the camera. The HUD scope overlay (vignette +
-    // reticle) handles the scope visual — the 3D scope mesh is hidden during
-    // ADS (see hideSightDuringADS below) so it never blocks the view.
+    // The HUD reticle and ballistic aim stay at the exact camera center.
+    // Only the viewmodel moves down: receivers, upper rails, carry handles
+    // and exposed optic mounts should not obscure targets during ADS.
+    // Scoped weapons dip farther because the HUD provides their actual scope
+    // image and the 3D scope mesh is suppressed while aiming.
     const wDef = weaponById(this.weaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0.0, y: -0.19, z: -0.22 }   // scoped: gun lower so scope is at eye, barrel hidden below
-      : { x: 0.0, y: -0.15, z: -0.38 };  // iron/red_dot: gun raised but BELOW camera centerline so body/rail don't block view
+      ? { x: 0.0, y: -0.27, z: -0.22 }  // scopes and heavy receivers kept clearly below reticle
+      : { x: 0.0, y: -0.23, z: -0.38 }; // iron/red-dot/holo: 8cm lower than before
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
