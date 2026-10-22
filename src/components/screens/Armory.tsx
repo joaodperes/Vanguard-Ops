@@ -171,10 +171,14 @@ export function Armory() {
     if (slot === "primary" && profile.loadout.secondary.id === weapon.id) body.secondaryWeapon = "pistol_side";
     setBusy("equip:" + weapon.id);
     try {
-      const response = await fetch("/api/loadout", { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!response.ok) throw new Error((await response.json()).error || "Could not equip weapon");
-      await refreshProfile();
+      // Weapon switches and attachment edits must share one write order:
+      // otherwise a late attachment POST can land on the newly selected gun.
+      await enqueueAttachmentSave(async () => {
+        const response = await fetch("/api/loadout", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!response.ok) throw new Error((await response.json()).error || "Could not equip weapon");
+        await refreshProfile();
+      });
       toast.success(`Equipped ${weapon.name}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Equip failed");
