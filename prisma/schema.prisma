@@ -49,6 +49,8 @@ model Player {
   achievements    PlayerAchievement[]
   dailyChallenges DailyChallenge[]
   weaponProgress  WeaponProgress[]
+  weaponPrestiges WeaponPrestige[]
+  wonderUnlocks WonderUnlock[]
 
   @@index([playerKey])
 }
@@ -188,6 +190,29 @@ model WeaponProgress {
   updatedAt DateTime @updatedAt
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// One permanent Prestige award per mastered ordinary weapon.
+model WeaponPrestige {
+  id String @id @default(cuid())
+  playerId String
+  weaponId String
+  awardedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// A token spent on a unique Wonder Weapon; token balance is awarded Prestiges
+/// minus Wonder unlocks, making replays and profile exports idempotent.
+model WonderUnlock {
+  id String @id @default(cuid())
+  playerId String
+  weaponId String
+  unlockedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   @@unique([playerId, weaponId])
   @@index([playerId])
 }
