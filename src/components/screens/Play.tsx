@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
+import { resolveGameServerConnection } from "@/lib/game-network";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
@@ -57,8 +58,9 @@ function useLobby(active: boolean) {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       return;
     }
-    const sock = ioClient("/?XTransformPort=3003", {
-      path: "/",
+    const { socketUrl, socketPath } = resolveGameServerConnection(window.location);
+    const sock = ioClient(socketUrl, {
+      path: socketPath,
       transports: ["polling", "websocket"],
       reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1200, timeout: 8000,
     });
@@ -110,58 +112,34 @@ export function Play() {
       .catch(()=>{});
     return ()=>{cancelled=true;};
   },[playerKey]);
-  // Round 20a: Server status indicator. The game server runs on port 3003
-  // (started by instrumentation.ts). Connection strategy depends on environment:
-  // - Sandbox (Caddy on :81): check via "?XTransformPort=3003" (Caddy routes it)
-  // - Local dev (no Caddy): check directly on port 3003
-  // - Deploy (no Caddy): check /socket.io/ on same origin (may fail gracefully)
+  // LAN / Tailscale players should probe the same endpoint that the game
+  // engine and room browser use, rather than assuming a sandbox proxy.
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     const checkServer = async () => {
-      const isLocalhost = typeof window !== "undefined"
-        && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-      const isSandboxWithCaddy = typeof window !== "undefined"
-        && (window.location.port === "81" || window.location.search.includes("XTransformPort"));
-
-      // Helper: check if a fetch response looks like a socket.io engine.io response
+      const { probeUrls } = resolveGameServerConnection(window.location);
       const isSocketIoResponse = (ct: string, text: string) => {
         const isHtml = ct.includes("text/html") || text.startsWith("<!DOCTYPE") || text.startsWith("<html");
-        const isSocketIo = ct.includes("text/plain") || text.startsWith("0{") || text.startsWith("0[");
-        return isSocketIo && !isHtml;
+        return !isHtml && (ct.includes("text/plain") || text.startsWith("0{") || text.startsWith("0["));
       };
 
-      try {
-        if (isLocalhost && !isSandboxWithCaddy) {
-          // Local dev without Caddy: check the game server directly on port 3003.
-          const res = await fetch(`http://${window.location.hostname}:3003/?EIO=4&transport=polling`, { method: "GET" });
+      for (const url of probeUrls) {
+        try {
+          const res = await fetch(url, { method: "GET" });
           if (cancelled) return;
           const ct = res.headers.get("content-type") || "";
           const text = await res.text();
-          if (!cancelled) setServerOnline(isSocketIoResponse(ct, text));
-        } else {
-          // Sandbox (Caddy) or deploy: try the XTransformPort path first.
-          const res = await fetch("/?XTransformPort=3003&EIO=4&transport=polling", { method: "GET" });
           if (cancelled) return;
-          const ct = res.headers.get("content-type") || "";
-          const text = await res.text();
-          if (isSocketIoResponse(ct, text)) {
-            if (!cancelled) setServerOnline(true);
+          if (res.ok && isSocketIoResponse(ct, text)) {
+            setServerOnline(true);
             return;
           }
-          // If XTransformPort returned HTML, try the standard /socket.io/ path.
-          try {
-            const res2 = await fetch("/socket.io/?EIO=4&transport=polling", { method: "GET" });
-            if (cancelled) return;
-            const ct2 = res2.headers.get("content-type") || "";
-            if (!cancelled) setServerOnline(ct2.includes("text/plain") || (res2.ok && !ct2.includes("text/html")));
-          } catch {
-            if (!cancelled) setServerOnline(false);
-          }
+        } catch {
+          // Try the next endpoint. Sandbox proxies may not all be available.
         }
-      } catch {
-        if (!cancelled) setServerOnline(false);
       }
+      if (!cancelled) setServerOnline(false);
     };
     checkServer();
     const interval = setInterval(checkServer, 15000);

@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
+import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
@@ -3055,31 +3056,11 @@ export class FPSEngine {
   // ---- Socket (online) ----
   private connectSocket() {
     console.log("[FPS] connectSocket starting, port", this.opts.socketPort, "map", this.opts.mapId);
-    // The game server runs on port 3003 (started by instrumentation.ts).
-    // Three connection strategies depending on the environment:
-    // 1. Sandbox (Caddy on :81): connect via "/?XTransformPort=3003" — Caddy routes to 3003.
-    // 2. Local dev (no Caddy): connect directly to "http://localhost:3003" — the game server
-    //    is reachable on its own port.
-    // 3. Deploy (no Caddy, only one port exposed): try "/?XTransformPort=3003" then fall back
-    //    to "/socket.io/" — both will fail gracefully if the game server isn't exposed.
-    const isLocalhost = typeof window !== "undefined"
-      && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-    const isSandboxWithCaddy = typeof window !== "undefined"
-      && (window.location.port === "81" || window.location.search.includes("XTransformPort"));
-
-    let socketUrl: string;
-    let socketPath: string;
-    if (isLocalhost && !isSandboxWithCaddy) {
-      // Local dev without Caddy: connect directly to the game server port.
-      socketUrl = `http://${window.location.hostname}:3003`;
-      socketPath = "/";
-      console.log("[FPS] Local dev mode — connecting directly to", socketUrl);
-    } else {
-      // Sandbox (Caddy) or deploy: use the XTransformPort query param.
-      // Caddy routes it to port 3003. On deploy without Caddy, it fails gracefully.
-      socketUrl = "/?XTransformPort=" + this.opts.socketPort;
-      socketPath = "/";
-    }
+    // Use the same endpoint as the room browser and server-health check.
+    const { socketUrl, socketPath } = resolveGameServerConnection(
+      window.location,
+      this.opts.socketPort,
+    );
     this.socket = ioClient(socketUrl, {
       path: socketPath,
       transports: ["polling", "websocket"],
