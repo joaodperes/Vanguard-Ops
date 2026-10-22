@@ -132,7 +132,8 @@ function weaponByIdStrict(id: string): WeaponDef {
 }
 export function skinChallengesForWeaponAndSkin(weaponId: string, skinId: string): WeaponChallengeDef[] {
   if (!WEAPONS.some(w => w.id === weaponId) ||
-      !WEAPON_SKINS.some(s => s.id === skinId && s.id !== "default")) return [];
+      !WEAPON_SKINS.some(s => s.id === skinId && s.id !== "default" && !s.prestige) ||
+      WEAPONS.some(w => w.id === weaponId && w.wonder)) return [];
   const authored = WEAPON_CHALLENGES.filter(c => c.weaponId === weaponId && c.skinId === skinId);
   if (authored.length) return authored.map(ch => contextualSkinChallenge(ch, weaponByIdStrict(weaponId)));
   const weapon = WEAPONS.find(w => w.id === weaponId)!;
@@ -155,7 +156,7 @@ export function skinChallengesForWeaponAndSkin(weaponId: string, skinId: string)
   }, weapon)];
 }
 export function allSkinChallengesForWeapon(weaponId: string): WeaponChallengeDef[] {
-  return WEAPON_SKINS.filter(s => s.id !== "default")
+  return WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige)
     .flatMap(s => skinChallengesForWeaponAndSkin(weaponId, s.id));
 }
 
