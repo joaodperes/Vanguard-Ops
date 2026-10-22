@@ -104,7 +104,22 @@ export function buildFirstPersonWeapon(
   bodyMat: THREE.Material,
   darkMat: THREE.Material,
   add: WeaponPartAdder,
+  fullSkinMaterial?: THREE.Material,
 ): number {
+  // Bullet Spitter is a deployable tool rather than a conventional LMG.
+  // Show a compact placement controller in both first-person and world models;
+  // the actual machine is a separate turret mesh anchored on the map.
+  if (id === "wonder_turret") {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.19,.11,.32), bodyMat);
+    add(body,0,-.07,-.12);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(.10,.16,.11),darkMat);
+    add(grip,0,-.19,-.03);
+    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),fullSkinMaterial ?? new THREE.MeshBasicMaterial({color:0xffad33}));
+    add(indicator,0,.0,-.13);
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.21,8),darkMat);
+    add(antenna,.08,.045,-.23);
+    return -.3;
+  }
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
   const [w,h,l] = p.receiver;
   const c = -0.12;

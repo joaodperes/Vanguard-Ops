@@ -21,7 +21,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
-import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { turretCanTrack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
@@ -884,10 +884,11 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
+    if (primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
+    this.primaryAmmoInMag = primW.wonder ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
-    if (primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
+    if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
     // ---- Sound manager ----
     this.sound = new SoundManager();
     this.weaponAudio = new WeaponAudio(opts.masterVolume ?? 80);
@@ -4282,6 +4283,24 @@ export class FPSEngine {
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
+    if (w.wonder?.kind === "turret") {
+      // Deploy equipment into the world; it is NOT a bullet, cannot hit a
+      // target directly and never shows the normal muzzle flash / gunshot.
+      const feet: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+      const candidate = turretDeployPosition(feet, this.yaw, this.map.cover);
+      const position: Vec3 = [candidate[0],
+        groundHeightAt(this.map.cover, candidate[0], candidate[2], candidate[1], PLAYER_RADIUS),
+        candidate[2]];
+      if (this.opts.online) {
+        this.socket?.emit("message", { t: "shot", origin: [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z], dir: this.aimDir(0), weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
+      } else {
+        for (const [id, item] of this.bulletSpitters) if (item.ownerId === this.selfId) this.removeBulletSpitter(id);
+        this.placeBulletSpitter(`offline_turret_${Date.now()}`, this.selfId,
+          position, this.yaw, Date.now() + TURRET_LIFETIME_MS, true);
+      }
+      this.sound.play("swap", { volume: 0.65 });
+      return;
+    }
     this.triggerMuzzleFlash();
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
@@ -4315,16 +4334,6 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
-    if (w.wonder?.kind === "turret") {
-      if (this.opts.online) {
-        this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
-      } else {
-        for (const [id, item] of this.bulletSpitters) if (item.ownerId === this.selfId) this.removeBulletSpitter(id);
-        this.placeBulletSpitter(`offline_turret_${Date.now()}`, this.selfId,
-          [this.pos.x,this.pos.y,this.pos.z], this.yaw, Date.now() + TURRET_LIFETIME_MS, true);
-      }
-      return;
-    }
     const isRocket = this.weaponId === "launcher_rocket" || (!!w.wonder && w.wonder.kind !== "turret");
 
     if (isRocket) {

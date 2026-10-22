@@ -461,6 +461,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </div>
             <div className="text-[10px] text-white/50 mt-1">Unlimited energy · R to vent</div>
           </div>
+        ) : hud.weaponId === "wonder_turret" ? (
+          <div className="flex flex-col items-end">
+            <span className={`text-lg font-black tracking-widest ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
+              {hud.ammo > 0 ? "TURRET READY" : "TURRET CHARGING"}
+            </span>
+            <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
+          </div>
         ) : (
           <div className="flex items-end justify-end gap-1">
             <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
@@ -468,7 +475,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">{hud.heat !== undefined ? "VENTING…" : "RELOADING…"}</div>}
-        {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : "WONDER CHARGE READY"} · No reserve ammo</div>}
+        {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
         {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.

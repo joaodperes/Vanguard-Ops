@@ -17,7 +17,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
-import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
+import { turretCanTrack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -2264,7 +2264,10 @@ async function handle(socket: any, msg: C2S) {
           io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
         }
         const id = genId("spitter");
-        const pos: Vec3 = [p.pos[0], p.pos[1], p.pos[2]];
+        const candidate = turretDeployPosition(p.pos, p.yaw, room.map.cover);
+        const pos: Vec3 = [candidate[0],
+          botGroundHeight(room.map.cover, candidate[0], candidate[2], candidate[1]),
+          candidate[2]];
         const expiresAt = now + TURRET_LIFETIME_MS;
         room.turrets.set(id, { ownerId: socket.id, ownerTeam: p.team, pos, yaw: p.yaw, expiresAt, nextShotAt: now + 300 });
         io.to(room.id).emit("message", { t: "turretPlaced", id, ownerId: socket.id, pos, yaw: p.yaw, expiresAt } as S2C);
