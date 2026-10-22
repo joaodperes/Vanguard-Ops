@@ -1,23 +1,32 @@
 /** Passive character perks. No charges or cooldowns; deliberately separate from attachments. */
+// Levels 2–18 already unlock weapons; fill the 19–25 gap with new
+// specializations so later level-ups still offer tangible rewards.
 export const PERKS = [
-  { id: "field_loader", name: "Field Loader", description: "Reload and vent heat while sprinting.", icon: "refresh-cw" },
-  { id: "recon_visor", name: "Recon Visor", description: "Enemy gunfire tracks moving targets on your minimap for 3.2 seconds instead of 2.2 seconds.", icon: "radar" },
-  { id: "quickdraw", name: "Quickdraw", description: "Swap weapons 60% faster and reload 20% faster.", icon: "zap" },
-  { id: "lightweight", name: "Lightweight", description: "Move 12% faster and jump slightly higher.", icon: "footprints" },
-  { id: "steady", name: "Steady", description: "25% less recoil and 35% less weapon sway.", icon: "crosshair" },
-  { id: "battle_hardened", name: "Battle-Hardened", description: "Begin health regeneration 1 second sooner after damage.", icon: "shield" },
-  { id: "athlete", name: "Athlete", description: "Sprint for twice as long before stamina runs out.", icon: "activity" },
-  { id: "scavenger", name: "Scavenger", description: "Enemies drop glowing ammunition packs. Collect one to restore 35% of your firearm magazines.", icon: "package" },
+  { id: "battle_hardened", name: "Battle-Hardened", description: "Begin health regeneration 1 second sooner after damage.", icon: "shield", unlockLevel: 1 },
+  { id: "field_loader", name: "Field Loader", description: "Reload and vent heat while sprinting.", icon: "refresh-cw", unlockLevel: 19 },
+  { id: "recon_visor", name: "Recon Visor", description: "Enemy gunfire tracks moving targets on your minimap for 3.2 seconds instead of 2.2 seconds.", icon: "radar", unlockLevel: 20 },
+  { id: "quickdraw", name: "Quickdraw", description: "Swap weapons 60% faster and reload 20% faster.", icon: "zap", unlockLevel: 21 },
+  { id: "lightweight", name: "Lightweight", description: "Move 12% faster and jump slightly higher.", icon: "footprints", unlockLevel: 22 },
+  { id: "steady", name: "Steady", description: "25% less recoil and 35% less weapon sway.", icon: "crosshair", unlockLevel: 23 },
+  { id: "athlete", name: "Athlete", description: "Sprint for twice as long before stamina runs out.", icon: "activity", unlockLevel: 24 },
+  { id: "scavenger", name: "Scavenger", description: "Enemies drop glowing ammunition packs. Collect one to restore 35% of your firearm magazines.", icon: "package", unlockLevel: 25 },
 ] as const;
 export type PerkId = (typeof PERKS)[number]["id"];
 export const PERK_STORAGE_KEY = "vanguard_perk";
+export const DEFAULT_PERK_ID: PerkId = "battle_hardened";
 export function perkById(id?: string | null) {
   return PERKS.find(p => p.id === id) ?? PERKS[0];
 }
-export function perkSelection(): PerkId {
-  if (typeof localStorage === "undefined") return "field_loader";
-  try { return perkById(localStorage.getItem(PERK_STORAGE_KEY)).id; }
-  catch { return "field_loader"; }
+export function perkUnlocked(id: string | null | undefined, level: number): boolean {
+  return perkById(id).unlockLevel <= level;
+}
+/** Validates legacy localStorage selections against current player level. */
+export function perkSelection(level = 1): PerkId {
+  if (typeof localStorage === "undefined") return DEFAULT_PERK_ID;
+  try {
+    const selected = perkById(localStorage.getItem(PERK_STORAGE_KEY));
+    return selected.unlockLevel <= level ? selected.id : DEFAULT_PERK_ID;
+  } catch { return DEFAULT_PERK_ID; }
 }
 export function survivalEnemyCount(wave: number, humans: number, baseCount: (wave: number) => number): number {
   return Math.round(baseCount(wave) * (humans >= 2 ? 1.75 : 1));
