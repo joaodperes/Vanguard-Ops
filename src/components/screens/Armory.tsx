@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
 // ----------------------------------------------------------------------------
 // Per-weapon progress + challenges view (fetched from /api/weapon-progress).
@@ -619,6 +620,7 @@ interface CustomizeModalProps {
 function CustomizeModal(props: CustomizeModalProps) {
   const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
+  const [previewAttachment, setPreviewAttachment] = useState<{ slot: AttachmentSlot; id: string | null } | null>(null);
   // Track which weapon the modal is currently showing. When the parent passes
   // a different weapon (or re-opens the modal), reset the active tab to
   // "attachments". Using the "adjust state during render" pattern (see
@@ -630,6 +632,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
     setTab("attachments");
+    setPreviewAttachment(null);
   }
 
   if (!w || !slot || !profile) {
@@ -646,6 +649,7 @@ function CustomizeModal(props: CustomizeModalProps) {
       ? profile.secondaryAttachments
       : profile.meleeAttachments;
   const unlockedForWeapon = attachmentsByWeapon[w.id] ?? [];
+  const statPreview: AttachmentMap | undefined = previewAttachment ? { ...equippedAttsForSlot, [previewAttachment.slot]: previewAttachment.id } : undefined;
   // Per-weapon equipped skin: read the skin for the slot whose modal is open.
   // Skins are per-weapon (like attachments) — each slot has its own skin.
   const equippedSkinId = slot === "secondary"
@@ -662,7 +666,7 @@ function CustomizeModal(props: CustomizeModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-white/10 max-w-3xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="bg-zinc-950 border-white/10 !max-w-[1120px] sm:!max-w-[1120px] w-[min(96vw,1120px)] h-[min(91vh,900px)] max-h-[91vh] flex flex-col gap-3 overflow-hidden">
         <DialogHeader>
           <div className="flex items-center gap-3 pr-8">
             <div className="w-1 h-12 rounded-full" style={{ background: rarityColor }} />
@@ -682,7 +686,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           </div>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={(v) => { setTab(v); setPreviewAttachment(null); }} className="flex flex-col flex-1 min-h-0">
           <TabsList className="bg-zinc-900/60 border border-white/10 w-full">
             <TabsTrigger value="attachments" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Wrench className="w-3.5 h-3.5 mr-1.5" /> Attachments
@@ -695,6 +699,8 @@ function CustomizeModal(props: CustomizeModalProps) {
             </TabsTrigger>
           </TabsList>
 
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
+          <div className="min-h-0 overflow-y-auto pr-1 lg:pr-2">
           {/* ATTACHMENTS TAB */}
           <TabsContent value="attachments" className="mt-4">
             {supportedSlots.length === 0 ? (
@@ -716,6 +722,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                     busy={busy}
                     slot={slot}
                     onPurchase={onPurchase}
+                    onPreview={(id) => setPreviewAttachment({ slot: aSlot, id })}
+                    onClearPreview={() => setPreviewAttachment(null)}
                     onEquip={(attId) => onEquipAttachment(slot, aSlot, attId)}
                   />
                 ))}
@@ -912,6 +920,12 @@ function CustomizeModal(props: CustomizeModalProps) {
               </div>
             )}
           </TabsContent>
+          </div>
+          <aside className="min-h-0 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-4">
+            <WeaponStatsPreview weapon={w} equipped={equippedAttsForSlot} preview={statPreview} />
+            <p className="mt-5 border-t border-white/10 pt-3 text-[11px] text-white/45 leading-relaxed">Hover, focus or tap Preview on an attachment to compare the weapon's final stats against the currently equipped configuration.</p>
+          </aside>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>
@@ -935,9 +949,11 @@ interface ModalAttachmentSlotProps {
   slot: WeaponSlot;
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquip: (attId: string | null) => void;
+  onPreview: (id: string | null) => void;
+  onClearPreview: () => void;
 }
 
-function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip }: ModalAttachmentSlotProps) {
+function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip, onPreview, onClearPreview }: ModalAttachmentSlotProps) {
   // compatibleAttachments already filters by weaponCategories — so this list
   // contains ONLY attachments that fit this weapon. If empty, the slot is
   // hidden entirely by the parent (AttachmentSlotSection).
@@ -955,7 +971,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
       <div className="space-y-1.5">
         {/* "None" option — unequip the slot */}
         <button
-          onClick={() => onEquip(null)}
+          onClick={() => onEquip(null)} onMouseEnter={() => onPreview(null)} onMouseLeave={onClearPreview} onFocus={() => onPreview(null)}
           className={`w-full text-left rounded-lg border px-2.5 py-2 flex items-center gap-2 transition-colors ${
             equippedId === null ? "border-amber-500 bg-amber-500/15 text-amber-300" : "border-white/10 bg-black/30 text-white/60 hover:bg-white/5"
           }`}
@@ -980,7 +996,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
           const busyKey = `${a.id}:${weaponId}`;
           const isEquipped = equippedId === a.id;
           return (
-            <div key={a.id} className={`relative rounded-lg border px-2.5 py-2 flex items-start gap-2.5 transition-colors ${isEquipped ? "border-amber-500/60 bg-amber-500/10" : isOwned ? "border-white/10 bg-black/30 hover:border-white/20" : "border-white/10 bg-black/30 opacity-80"}`}>
+            <div key={a.id} onMouseEnter={() => onPreview(a.id)} onMouseLeave={onClearPreview} onFocus={() => onPreview(a.id)} className={`relative rounded-lg border px-2.5 py-2 flex items-start gap-2.5 transition-colors ${isEquipped ? "border-amber-500/60 bg-amber-500/10" : isOwned ? "border-white/10 bg-black/30 hover:border-white/20" : "border-white/10 bg-black/30 opacity-80"}`}>
               <div className="absolute top-0 left-0 bottom-0 w-0.5 rounded-l" style={{ background: rarityColor, opacity: 0.7 }} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
@@ -988,10 +1004,13 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                   <span className="text-white text-xs font-semibold truncate">{a.name}</span>
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
-                <div className="text-white/40 text-[10px] mb-1">{a.description}</div>
+                <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
+                <button type="button" onClick={() => onPreview(a.id)} className="text-[11px] text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-2">Preview stat impact</button>
                 {!isOwned && chProgress && (
-                  <div className="text-[10px] text-white/55 mb-1">
-                    {chProgress.description} <span className="text-amber-300">{chProgress.progress}/{chProgress.goal}</span>
+                  <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300 mb-1">Locked · Challenge</div>
+                    {chProgress.description}
+                    <span className="block mt-1 font-mono text-amber-200 font-bold">{chProgress.progress}/{chProgress.goal} {chProgress.metric.replaceAll("_", " ")}</span>
                     {chProgress.completed && <span className="text-emerald-300"> · Ready to purchase</span>}
                   </div>
                 )}
@@ -1022,7 +1041,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                     onClick={() => onPurchase("attachment", a.id, a.unlockCost, a.name, weaponId)}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 disabled:opacity-50"
                   >
-                    {busy === busyKey ? "…" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Trial</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
+                    {busy === busyKey ? "…" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
                   </Button>
                 )}
               </div>
