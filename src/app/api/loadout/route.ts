@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
 import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
@@ -35,10 +36,10 @@ function sanitizeAttachments(
   weaponId: string,
   raw: Record<string, string | null> | undefined,
 ): string {
-  if (!raw) return "{}";
   const wdef = weaponById(weaponId);
   const supportedSlots = weaponAttachmentSlots(wdef);
-  const cleaned: Record<string, string | null> = {};
+  const cleaned: Record<AttachmentSlot, string | null> = emptyAttachmentMap();
+  if (!raw) return JSON.stringify(cleaned);
   for (const slot of supportedSlots) {
     const id = raw[slot];
     if (!id) {
@@ -47,7 +48,8 @@ function sanitizeAttachments(
     }
     const allowed = compatibleAttachments(weaponId, slot as AttachmentSlot);
     if (allowed.includes(id)) cleaned[slot] = id;
-    // silently drop incompatible ids (client should have filtered already)
+    // Keep null for incompatible ids; an old attachment can never survive as
+    // a ghost optic when changing the weapon in the same loadout slot.
   }
   return JSON.stringify(cleaned);
 }
@@ -143,20 +145,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // If attachments are provided, validate each is compatible with the equipped
-  // primary weapon (after this update is applied). Drop any incompatible ones.
-  let attsJson: string | undefined;
-  if (attachments !== undefined) {
-    const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
-    attsJson = sanitizeAttachments(effectivePrimary, attachments);
-  }
-  // Secondary attachments apply to the equipped secondary (sidearm). Sidearms
-  // support attachments just like primaries — validate + clean the same way.
-  let secAttsJson: string | undefined;
-  if (secondaryAttachments !== undefined) {
-    const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
-    secAttsJson = sanitizeAttachments(effectiveSecondary, secondaryAttachments);
-  }
+  // Attachment maps are tied to the weapon, not transferable across different
+  // weapons occupying the same primary/secondary loadout slot. A switch with
+  // no supplied map clears every attachment, including any old optic. Explicit
+  // None selections are also persisted as real null values.
+  const previousPrimary = safeWeaponId(player.loadout?.primaryWeapon ?? "rifle_ar");
+  const selectedPrimary = safeWeaponId(primaryWeapon ?? previousPrimary);
+  const primaryAtts = attachmentsForWeaponSelection(previousPrimary, selectedPrimary, attachments);
+  const attsJson = primaryAtts === undefined ? undefined : sanitizeAttachments(selectedPrimary, primaryAtts);
+
+  const previousSecondary = safeWeaponId(player.loadout?.secondaryWeapon ?? "pistol_side");
+  const selectedSecondary = safeWeaponId(secondaryWeapon ?? previousSecondary);
+  const secondaryAtts = attachmentsForWeaponSelection(previousSecondary, selectedSecondary, secondaryAttachments);
+  const secAttsJson = secondaryAtts === undefined ? undefined : sanitizeAttachments(selectedSecondary, secondaryAtts);
   // Melee attachments: melee weapons don't take attachments — always "{}".
   // We still accept the field for API symmetry but persist an empty object.
   let melAttsJson: string | undefined;
