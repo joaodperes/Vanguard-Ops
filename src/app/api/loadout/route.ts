@@ -5,6 +5,7 @@ import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
+  isPrimaryWeaponCategory,
   weaponById,
   weaponAttachmentSlots,
   compatibleAttachments,
@@ -14,6 +15,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
+import { canEquipSecondaryPrimary, DEFAULT_PERK_ID, perkById } from "@/lib/perks";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,7 @@ export async function POST(req: NextRequest) {
     playerKey: bodyKey,
     primaryWeapon,
     secondaryWeapon,
+    perkId,
     meleeWeapon,
     weaponSkin,
     secondaryWeaponSkin,
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
     playerKey?: string;
     primaryWeapon?: string;
     secondaryWeapon?: string;
+    perkId?: string;
     meleeWeapon?: string;
     weaponSkin?: string;
     secondaryWeaponSkin?: string;
@@ -89,6 +93,12 @@ export async function POST(req: NextRequest) {
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
 
+  // Level-gated passive unlocks: clients must explicitly identify the
+  // selected perk when equipping a second primary. The server checks level.
+  const selectedPerk = perkId ? perkById(perkId) : perkById(DEFAULT_PERK_ID);
+  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > player.level)) {
+    return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
+  }
   // Validate weapon selections against the catalog and their slot constraints.
   if (primaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === primaryWeapon);
@@ -106,8 +116,17 @@ export async function POST(req: NextRequest) {
   if (secondaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === secondaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown secondaryWeapon" }, { status: 400 });
-    if (w.category !== "sidearm") {
-      return NextResponse.json({ error: "secondaryWeapon must be a sidearm" }, { status: 400 });
+    const anotherPrimary = isPrimaryWeaponCategory(w.category);
+    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, player.level) || w.wonder ||
+      w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
+      return NextResponse.json({ error: "Second primary requires Well Prepared (LVL 28), must be different from your first, and cannot be a Wonder Weapon" }, { status: 403 });
+    }
+    if (w.category !== "sidearm" && !anotherPrimary) {
+      return NextResponse.json({ error: "secondaryWeapon must be a sidearm or a permitted second primary" }, { status: 400 });
+    }
+    if (anotherPrimary && w.unlockCost > 0 &&
+      !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Second primary weapon is not owned" }, { status: 403 });
     }
   }
   if (meleeWeapon !== undefined) {
