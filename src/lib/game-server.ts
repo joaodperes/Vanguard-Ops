@@ -872,7 +872,7 @@ function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Ve
 function serverUseEquipment(room: Room, playerId: string): number | null {
   if (room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return null;
   const player=room.players.get(playerId);
-  if (!player?.alive || (room.equipmentStun.get(playerId) ?? 0)>Date.now()) return null;
+  if (!player?.alive || room.downed.has(playerId) || (room.equipmentStun.get(playerId) ?? 0)>Date.now()) return null;
   const def=equipmentById(room.loadouts.get(playerId)?.equipmentId);
   const left=room.equipmentCharges.get(playerId) ?? def.charges;
   const now=Date.now();
@@ -924,6 +924,7 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
           }
         }
       } else {
+        if (def.type === "blast") destroyTurretsNear(room, impact, def.radius);
         // Blast occurs at landing, not at release. Flash affects the thrower
         // too when caught in line of sight, with stronger exposure nearby.
         for(const victim of allCombatants(room)) {
@@ -990,6 +991,7 @@ function tickSpecialEffects(room: Room, now: number) {
     if (now < bomb.explodesAt) continue;
     room.deathBombs.delete(id); // disarm first: no repeat detonations
     io.to(room.id).emit("message", { t: "deathBombExplode", id, pos: bomb.pos } as S2C);
+    destroyTurretsNear(room, bomb.pos, 5);
     for (const target of allCombatants(room)) {
       if (!target.alive || !explonandoCanHit(room.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
       const distance = Math.hypot(target.pos[0]-bomb.pos[0], target.pos[2]-bomb.pos[2]);
@@ -2132,7 +2134,7 @@ async function handle(socket: any, msg: C2S) {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return;
       const p = room.players.get(socket.id);
-      if (!p?.alive) return;
+      if (!p?.alive || room.downed.has(socket.id)) return;
       const now = Date.now();
       if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < QUICK_MELEE_COOLDOWN_MS) return;
       room.quickMeleeAt.set(socket.id, now);
@@ -2169,6 +2171,7 @@ async function handle(socket: any, msg: C2S) {
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
+      if (weapon.category === "melee") destroyTurretsNear(room, p.pos, Math.max(2.5, weapon.stats.range));
       if (weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       const now = Date.now();
       const interval = 1000 / Math.max(1, weapon.stats.fireRate);
