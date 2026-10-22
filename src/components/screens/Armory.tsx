@@ -158,6 +158,25 @@ export function Armory() {
     }
   };
 
+  /** Equip the card weapon immediately; slot matches the section being viewed. */
+  const equipWeapon = async (weapon: WeaponDef, slot: WeaponSlot) => {
+    if (!profile) return;
+    const field = slot === "primary" ? "primaryWeapon" : slot === "secondary" ? "secondaryWeapon" : "meleeWeapon";
+    const body: Record<string, string> = { playerKey, [field]: weapon.id };
+    // Well Prepared cannot equip the same primary in both slots.
+    if (slot === "primary" && profile.loadout.secondary.id === weapon.id) body.secondaryWeapon = "pistol_side";
+    setBusy("equip:" + weapon.id);
+    try {
+      const response = await fetch("/api/loadout", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!response.ok) throw new Error((await response.json()).error || "Could not equip weapon");
+      await refreshProfile();
+      toast.success(`Equipped ${weapon.name}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Equip failed");
+    } finally { setBusy(null); }
+  };
+
   // Equip an attachment (or unequip by passing null) for the given slot. Saves
   // immediately via /api/loadout. The slot determines which field is updated:
   //   primary  -> attachments
@@ -262,7 +281,7 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos for that weapon and one token. Spend a token to permanently unlock a Wonder Weapon. Recharge cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos and one token. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
               <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -308,6 +327,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "primary" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.weapon.id ?? ""}
               defaultOpen
             />
             <WeaponSlotSection
@@ -324,6 +345,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "secondary" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.secondary.id ?? ""}
             />
             <WeaponSlotSection
               slot="melee"
@@ -339,6 +362,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "melee" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.melee.id ?? ""}
             />
           </TabsContent>
 
@@ -454,6 +479,8 @@ interface WeaponSlotSectionProps {
   busy: string | null;
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
+  onEquip: (w: WeaponDef, slot: WeaponSlot) => void;
+  equippedId: string;
   defaultOpen?: boolean;
 }
 
@@ -540,7 +567,7 @@ interface WeaponCardProps extends WeaponSlotSectionProps {
 }
 
 function WeaponCard(props: WeaponCardProps) {
-  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot } = props;
+  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot, onEquip, equippedId } = props;
   const isOwned = ownedWeaponIds.has(w.id);
   const lockedByLevel = level < w.unlockLevel;
   const canBuy = !isOwned && !lockedByLevel && credits >= w.unlockCost;
@@ -591,6 +618,13 @@ function WeaponCard(props: WeaponCardProps) {
       {!isOwned && (
         <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
           {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
+        </Button>
+      )}
+      {isOwned && (
+        <Button variant="outline" disabled={equippedId === w.id || busy === "equip:" + w.id}
+          onClick={() => onEquip(w, slot)}
+          className={`w-full mb-2 font-semibold ${equippedId === w.id ? "border-emerald-500/40 text-emerald-300" : "border-amber-400/40 text-amber-300 hover:bg-amber-500/10"}`}>
+          {equippedId === w.id ? <><Check className="w-4 h-4 mr-1.5" />Equipped</> : "Equip weapon"}
         </Button>
       )}
       {isOwned && (
