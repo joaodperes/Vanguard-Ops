@@ -123,9 +123,12 @@ export function buildFirstPersonWeapon(
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
   const [w,h,l] = p.receiver;
   const c = -0.12;
-  const sig = new THREE.MeshBasicMaterial({ color: p.signature });
-  const metal = new THREE.MeshBasicMaterial({ color: 0x29313b });
-  const edge = new THREE.MeshBasicMaterial({ color: 0x69737e });
+  // Legendary finishes also cover the signature inserts, colored rails,
+  // magazine trim and bespoke energy parts. Ordinary skins retain each gun's
+  // recognizable colored furniture.
+  const sig = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
+  const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
+  const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
   const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(ww,hh,ll),material);
     add(m,x,y,z);
@@ -201,7 +204,7 @@ export function buildFirstPersonWeapon(
   // Three experimental weapon platforms. All meshes use the normal `add`
   // callback so the FPS engine can animate them and dispose them on swap.
   if (id === "rifle_electron") {
-    const cyan = new THREE.MeshBasicMaterial({ color: 0x65eaff });
+    const cyan = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x65eaff });
     for (const side of [-1, 1]) {
       box(side * (w/2 + .025), .030, guardZ, .024, .069, p.guardLength * .84, cyan);
       for (let k = 0; k < 4; k++)
@@ -216,7 +219,7 @@ export function buildFirstPersonWeapon(
   } else if (id === "crossbow_reclaimer") {
     // Wide compound-crossbow limbs and actual string, rather than a rifle barrel
     // with a new tint. All coordinates are local to the camera (-Z forward).
-    const green = new THREE.MeshBasicMaterial({ color: 0xa8f26c });
+    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xa8f26c });
     const addRod = (a: [number,number,number], b: [number,number,number], radius: number, material: THREE.Material) => {
       const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
       const d = vb.clone().sub(va);
@@ -239,7 +242,7 @@ export function buildFirstPersonWeapon(
     add(head, 0,.060,muzzle-.12);
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
   } else if (id === "pistol_arc") {
-    const violet = new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
+    const violet = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
     // Concentric emitter coils around an unmistakably wide front capacitor.
     for (const z of [muzzle+.015, muzzle+.080, muzzle+.145]) {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(.063,.012,7,20), violet);

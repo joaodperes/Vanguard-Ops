@@ -1365,6 +1365,7 @@ export class FPSEngine {
     // clearly visible. Default skins use the weapon's signature tint; unlocked
     // skins override this with the skin's color.
     const isDefaultSkin = skin.id === "default";
+    const fullLegendaryFinish = skin.rarity === "legendary";
     if (isDefaultSkin) {
       const weaponTints: Record<string, number> = {
         rifle_electron: 0x097b99, // exposed cyan reactor
@@ -1415,10 +1416,16 @@ export class FPSEngine {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
     }
-    const accentMat = new THREE.MeshBasicMaterial({ color: darkCol });
-    const glowMat = emissiveCol
-      ? new THREE.MeshBasicMaterial({ color: emissiveCol })
+    // Standard skins keep their mechanical accent colors. Legendaries (Gold,
+    // Inferno, Eventide, Viridian) cover every gun component with their finish,
+    // including attachments and unique barrel/receiver inserts.
+    const accentMat = fullLegendaryFinish
+      ? this.weaponMat
       : new THREE.MeshBasicMaterial({ color: darkCol });
+    const glowMat = fullLegendaryFinish
+      ? this.weaponMat
+      : emissiveCol ? new THREE.MeshBasicMaterial({ color: emissiveCol })
+        : new THREE.MeshBasicMaterial({ color: darkCol });
 
     // We add each viewmodel part DIRECTLY to the camera (not via a Group). Direct
     // camera children render reliably; parenting a Group to the camera caused the
@@ -1523,7 +1530,8 @@ export class FPSEngine {
       // Every ranged weapon is now built from its OWN substantial 3D silhouette,
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
-      muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart);
+      muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart,
+        fullLegendaryFinish ? this.weaponMat : undefined);
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -1545,7 +1553,9 @@ export class FPSEngine {
         sidearm: 0xe0e0e0,    // white
       };
       const accentColor = categoryAccentColors[category] ?? 0xffffff;
-      const bandMat = new THREE.MeshBasicMaterial({ color: accentColor });
+      const bandMat = fullLegendaryFinish
+        ? this.weaponMat
+        : new THREE.MeshBasicMaterial({ color: accentColor });
       // The band is a thin box positioned on top of the weapon body, near the
       // front (forward of the magazine). It's small enough to not clutter the
       // model but large enough to be clearly visible at a glance.
@@ -1616,7 +1626,7 @@ export class FPSEngine {
         scopeGroup.add(box);
         const emitter = new THREE.Mesh(
           new THREE.CircleGeometry(0.005, 10),
-          new THREE.MeshBasicMaterial({ color: 0xff2222 })
+          fullLegendaryFinish ? this.weaponMat : new THREE.MeshBasicMaterial({ color: 0xff2222 })
         );
         emitter.position.set(0, 0, -0.031);
         emitter.rotation.y = Math.PI;
@@ -1637,7 +1647,7 @@ export class FPSEngine {
     if (this.weaponId === "crossbow_reclaimer" && currentAtts.barrel === "barrel_poison") {
       const tip = new THREE.Mesh(
         new THREE.ConeGeometry(0.027, 0.11, 8),
-        new THREE.MeshBasicMaterial({ color: 0x75f26d })
+        fullLegendaryFinish ? this.weaponMat : new THREE.MeshBasicMaterial({ color: 0x75f26d })
       );
       tip.rotation.x = -Math.PI / 2;
       addPart(tip, 0, 0.06, muzzleZ - 0.055);
@@ -2987,7 +2997,18 @@ export class FPSEngine {
       emissiveIntensity: 0.3,
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
-    const weaponMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.6 });
+    const weaponFinish = weaponSkinById(c.weaponSkinId);
+    const fullWorldLegendary = weaponFinish.rarity === "legendary";
+    const weaponMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(weaponFinish.color),
+      roughness: weaponFinish.roughness, metalness: weaponFinish.metalness,
+      emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
+      emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
+    });
+    if (weaponFinish.prestige) {
+      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige);
+      weaponMat.color.set(0xffffff);
+    }
 
     c.skinMaterial = bodyMat;
     const root = new THREE.Group();
@@ -3131,13 +3152,13 @@ export class FPSEngine {
       const visual = new THREE.Group();
       visual.rotation.y = Math.PI;
       visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
-      const weaponFurniture = new THREE.MeshStandardMaterial({
-        color: 0x28323b, roughness: 0.82, metalness: 0.18,
-      });
+      const weaponFurniture = fullWorldLegendary
+        ? weaponMat
+        : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
       buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
         mesh.position.set(x, y, z);
         visual.add(mesh);
-      });
+      }, fullWorldLegendary ? weaponMat : undefined);
       weaponStub.add(visual);
     }
     // Place the gun ahead of the chest rather than through it. The right-hand
