@@ -554,6 +554,7 @@ export function Play() {
                               <div className="text-cyan-200/70 text-[11px] mb-1.5">{(MAP_FOOTPRINT[m.id]?.description ?? m.description)}</div>
                               <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
                                 <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
+                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{m.biome}</span>}
                                 <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
                               </div>

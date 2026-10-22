@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vanguard Ops biome theme",
+  "type": "object",
+  "required": [
+    "biome",
+    "label",
+    "palette",
+    "ambient",
+    "vegetation",
+    "props"
+  ],
+  "properties": {
+    "biome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "palette": {
+      "type": "object",
+      "required": [
+        "floor",
+        "wall",
+        "cover",
+        "accent",
+        "platform",
+        "stair",
+        "sky",
+        "fog",
+        "grid"
+      ],
+      "properties": {
+        "floor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "wall": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "cover": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "stair": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "sky": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "fog": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "grid": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ambient": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "vegetation": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "props": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "x",
+          "z"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "tree",
+              "bush",
+              "rock",
+              "ruin",
+              "temple",
+              "shop",
+              "lamp",
+              "container",
+              "crane",
+              "terminal",
+              "sign",
+              "antenna"
+            ]
+          },
+          "x": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "d": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "h": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -25,7 +25,7 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Keep generated reports and test commits on the feature branch; request review before merging into `dev`.
 
 ## JSON object recipes
-- Map: author in `/map-editor`, export to `src/data/map-blueprints.json`; check regions, corridors, spawn clearance and stairs.
+- Map: author in `/map-editor`, export to `src/data/map-blueprints.json`; check open plazas, multiple flanks, spawn clearance and stairs. Theme palette and scenery are in individual `src/data/map-themes/<mapId>.json` files. Add a static theme import to `src/lib/map-visuals.ts` for new map IDs. Do not reintroduce inherited sealed perimeter walls.
 - Weapon: append to `weapons.json`, check category/stats/allowlists/challenges, Gun Game and visual behavior.
 - Attachment: append to `attachments.json`, update compatibility JSON, check stats and challenge eligibility.
 - Weapon skin: append to `weapon-skins.json` and implement any missing skin-challenge fallback or visuals.

@@ -150,6 +150,10 @@ Use `/map-editor` and export the JSON; replace `src/data/map-blueprints.json` in
 
 Put this object under `maps.frost_yard` (not a top-level array) in the existing version-1 blueprint file. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
 
+## Map color palettes, biomes and prop authoring
+
+Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
+
 ## Add or alter challenges
 
 `weapon-challenges.json` entries require unique `id`, existing `weaponId` and `skinId`, positive `goal`, supported `metric`, `title` and `description`. For example:
