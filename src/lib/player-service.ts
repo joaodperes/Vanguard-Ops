@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
-import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeValue, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -763,9 +763,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       }
       for (const ch of allSkinChallengesForWeapon(wid)) {
         if (isSkinAlreadyUnlocked(ch.skinId)) continue;
-        const value = weaponChallengeValue(ch.metric, { kills: weaponKills, headshots: weaponHeadshots, conditionStats: newContext });
-        const prior = weaponChallengeValue(ch.metric, { kills: wp?.kills ?? 0, headshots: wp?.headshots ?? 0, conditionStats: oldContext });
-        if (value >= ch.goal && prior < ch.goal) {
+        const nextState = weaponChallengeProgress(ch, { kills: weaponKills, headshots: weaponHeadshots, conditionStats: newContext });
+        const previousState = weaponChallengeProgress(ch, { kills: wp?.kills ?? 0, headshots: wp?.headshots ?? 0, conditionStats: oldContext });
+        if (nextState.completed && !previousState.completed) {
           newWeaponChallenges.push({
             challengeId: ch.id,
             weaponId: ch.weaponId,
@@ -1166,6 +1166,7 @@ export interface WeaponChallengeView {
   goal: number;
   progress: number;
   completed: boolean;
+  requirements?: { metric: WeaponChallengeMetric; goal: number; progress: number; completed: boolean }[];
   title: string;
   description: string;
 }
@@ -1178,11 +1179,12 @@ export async function getWeaponChallengesView(playerKey: string, weaponId: strin
   });
   const owned = new Set(unlockedSkins.map(u => u.skinId));
   return allSkinChallengesForWeapon(weaponId).map(ch => {
-    const value = weaponChallengeValue(ch.metric, progress);
+    const state = weaponChallengeProgress(ch, progress);
     return {
       challengeId: ch.id, weaponId: ch.weaponId, skinId: ch.skinId, metric: ch.metric,
-      goal: ch.goal, progress: Math.min(ch.goal, value),
-      completed: owned.has(ch.skinId) || value >= ch.goal,
+      goal: state.goal, progress: state.progress,
+      completed: owned.has(ch.skinId) || state.completed,
+      requirements: ch.requirements ? state.steps : undefined,
       title: ch.title, description: ch.description,
     };
   });
