@@ -155,9 +155,11 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
   await db.$transaction(async tx => {
     for (const weapon of eligible) {
       const key = { playerId, weaponId: weapon.id };
-      const existing = await tx.weaponPrestige.findUnique({ where: { playerId_weaponId: key } });
-      if (existing) continue;
-      await tx.weaponPrestige.create({ data: key });
+      // Atomic upsert respects the per-player/weapon unique constraint even if
+      // profile and match-end requests reach this function concurrently.
+      await tx.weaponPrestige.upsert({
+        where: { playerId_weaponId: key }, create: key, update: {},
+      });
       earned.push(weapon.id);
     }
   });
