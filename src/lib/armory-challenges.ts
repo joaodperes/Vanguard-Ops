@@ -78,7 +78,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const choice: Record<string, WeaponConditionMetric> = {
     arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "comeback_kills",
     crimson: equipped ? "bare_kills" : "multikill_kills",
-    emerald: cqc ? "close_range_kills" : category === "assault" ? "suppressed_kills" : "ads_kills",
+    emerald: cqc ? "close_range_kills" : category === "assault" && compatibleAttachments(weapon.id, "barrel").includes("barrel_suppressor") ? "suppressed_kills" : "ads_kills",
     carbon: ranged ? "long_range_kills" : "hipfire_kills",
     neon: mobile ? "airborne_kills" : ranged ? "long_range_kills" : cqc ? "critical_health_kills" : "hipfire_kills",
     inferno: equipped ? "fully_equipped_kills" : "multikill_kills",
