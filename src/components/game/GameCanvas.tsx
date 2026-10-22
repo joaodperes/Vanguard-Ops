@@ -155,7 +155,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
             <Button onClick={onExit}>Return to lobby</Button>
           </div>
         </div>
-      )
+      )}
       {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
