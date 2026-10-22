@@ -49,6 +49,35 @@ and post-respawn comeback kills**. Gold is three separate concurrent
 requirements (all required). New rotating objectives also reward enemy tag
 confirmations and friendly denials in Kill Confirmed.
 
+## Windows development startup (Prisma 6)
+
+The `dev` script now runs `prisma generate` and a non-destructive
+`prisma db push` **before** Next.js accepts requests. The previous
+`DATABASE_URL="..." prisma ...` inline shell syntax only worked on
+Unix shells; `db.ts` now passes DATABASE_URL via the subprocess environment,
+which is compatible with Windows Command Prompt and PowerShell.
+
+From the repository root, stop an existing Next.js process and run:
+
+```powershell
+git pull origin dev
+bun run dev
+```
+
+Or use `npm run dev`. For a one-time manual schema/client refresh without
+launching Next.js, use `bun run db:setup`. If you started Next.js before
+generating the updated Prisma Client, you **must restart** it, not merely
+refresh the browser.
+
+**Path clarification:** Prisma 6 resolves a relative SQLite URL against
+the directory containing `prisma/schema.prisma`. For example,
+`DATABASE_URL="file:./db/custom.db"` refers to
+`prisma/db/custom.db`, not `db/custom.db` in the repository root.
+Check and back up the intended database before running schema changes; set
+`DATABASE_URL="file:../db/custom.db"` only if the database you
+actually want is stored in the repository-root `db/` directory.
+The startup sync intentionally omits `--accept-data-loss`.
+
 ## Persistence and safe setup
 
 1. Back up the persistent SQLite database and player exports.
