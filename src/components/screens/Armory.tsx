@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
+import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
@@ -717,11 +718,15 @@ function CustomizeModal(props: CustomizeModalProps) {
   // The weapon's currently-equipped attachments for THIS slot (primary uses
   // loadout.attachments; secondary uses loadout.secondaryAttachments; melee
   // uses loadout.meleeAttachments which is always empty).
-  const equippedAttsForSlot: Record<AttachmentSlot, string | null> = slot === "primary"
-    ? profile.attachments
-    : slot === "secondary"
-      ? profile.secondaryAttachments
-      : profile.meleeAttachments;
+  const currentlyEquippedWeapon = slot === "primary" ? profile.weapon.id
+    : slot === "secondary" ? profile.secondary.id : profile.melee.id;
+  const canEditAttachments = w.id === currentlyEquippedWeapon;
+  // Never show the attachment configuration of a different weapon just because
+  // it occupies the same primary/secondary slot in the saved loadout.
+  const equippedAttsForSlot: Record<AttachmentSlot, string | null> = !canEditAttachments
+    ? emptyAttachmentMap()
+    : slot === "primary" ? profile.attachments
+      : slot === "secondary" ? profile.secondaryAttachments : profile.meleeAttachments;
   const unlockedForWeapon = attachmentsByWeapon[w.id] ?? [];
   const statPreview: AttachmentMap | undefined = previewAttachment ? { ...equippedAttsForSlot, [previewAttachment.slot]: previewAttachment.id } : undefined;
   const currentEffectiveStats = computeEffectiveStats(w, equippedAttsForSlot);
@@ -778,7 +783,11 @@ function CustomizeModal(props: CustomizeModalProps) {
           <div className="min-h-0 overflow-y-auto pr-1 lg:pr-2">
           {/* ATTACHMENTS TAB */}
           <TabsContent value="attachments" className="mt-4">
-            {supportedSlots.length === 0 ? (
+            {!canEditAttachments ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-4 text-sm text-amber-100/80">
+                Equip {w.name} in your loadout before changing its attachments. Attachments shown on your currently equipped weapon are not shared with this one.
+              </div>
+            ) : supportedSlots.length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">
                 This weapon does not accept attachments.
               </div>
