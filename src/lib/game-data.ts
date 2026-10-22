@@ -645,6 +645,18 @@ export function sightDefForAttachments(atts: Partial<Record<AttachmentSlot, stri
   return SIGHT_DEFS[baseSightType ?? "iron"];
 }
 
+/** Whether this exact weapon has a physical optic/sight piece to render.
+ * An explicit compatible sight or an authored factory scope counts; an empty
+ * slot never inherits optics from another weapon or from stale/invalid ids.
+ */
+export function hasMountedSight(weapon: WeaponDef, atts: Partial<Record<AttachmentSlot, string | null>>): boolean {
+  const id = atts.sight;
+  const mountedAttachment = !!id && compatibleAttachments(weapon.id, "sight").includes(id) &&
+    ATTACHMENTS.some(a => a.id === id && a.slot === "sight" && !!a.sightType);
+  const factoryScope = !!weapon.baseSightType && weapon.baseSightType !== "iron";
+  return mountedAttachment || factoryScope;
+}
+
 export interface AttachmentDef {
   id: string;
   name: string;

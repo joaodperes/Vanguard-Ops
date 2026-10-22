@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ALL_ATTACHMENT_SLOTS, WEAPONS, computeEffectiveStats, resolveLoadout, weaponById, weaponSlot } from "../src/lib/game-data";
+import { ALL_ATTACHMENT_SLOTS, WEAPONS, computeEffectiveStats, hasMountedSight, resolveLoadout, weaponById, weaponSlot } from "../src/lib/game-data";
 import { emptyAttachmentMap, attachmentsForWeaponSelection } from "../src/lib/loadout-attachments";
 import { sanitizeOwnedAttachments } from "../src/lib/loadout-security";
 import { enqueueAttachmentSave, waitForAttachmentSaves } from "../src/lib/attachment-save-queue";
@@ -20,6 +20,7 @@ describe("attachment removal is generic across the weapon catalog", () => {
       // No attachment means the weapon's own default sight, NOT the previously
       // equipped red dot or thermal sight (snipers intentionally have base scopes).
       expect(computeEffectiveStats(weapon, read).sightType).toBe(weapon.baseSightType ?? "iron");
+      expect(hasMountedSight(weapon, read)).toBe(!!weapon.baseSightType && weapon.baseSightType !== "iron");
     }
   });
 
@@ -31,6 +32,7 @@ describe("attachment removal is generic across the weapon catalog", () => {
         expect(changed).toEqual(emptyAttachmentMap());
         const read = sanitizeOwnedAttachments(next.id, changed, ["sight_red_dot", "mag_extended"]);
         expect(computeEffectiveStats(next, read).sightType).toBe(next.baseSightType ?? "iron");
+        expect(hasMountedSight(next, read)).toBe(!!next.baseSightType && next.baseSightType !== "iron");
       }
     }
   });
@@ -55,6 +57,8 @@ describe("attachment removal is generic across the weapon catalog", () => {
     });
     expect(loadout.attachments.sight).toBeNull();
     expect(loadout.secondaryAttachments.sight).toBeNull();
+    expect(hasMountedSight(loadout.weapon, loadout.attachments)).toBe(true);
+    expect(hasMountedSight(loadout.secondary, loadout.secondaryAttachments)).toBe(false);
     expect(computeEffectiveStats(loadout.weapon, loadout.attachments).sightType).toBe("sniper_scope");
     expect(computeEffectiveStats(loadout.secondary, loadout.secondaryAttachments).sightType).toBe("iron");
     expect(weaponById("rifle_ar").baseSightType ?? "iron").toBe("iron");

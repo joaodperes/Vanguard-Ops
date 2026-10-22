@@ -32,7 +32,7 @@ import {
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
-  SIGHT_DEFS, sightDefForType, weaponSlot, WEAPONS, weaponAttachmentSlots,
+  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
@@ -1561,14 +1561,11 @@ export class FPSEngine {
     // Reads the CURRENT slot's attachments (primary, secondary, or melee) so the
     // viewmodel reflects what the player is actually holding.
     const currentAtts = this.getCurrentAttachments();
-    const sightId = currentAtts.sight;
-    // Render the sight mesh when a sight attachment is equipped OR when the
-    // weapon has a non-iron base sight (e.g. snipers ship with a sniper_scope
-    // by default — the scope should be visible on the model even with no
-    // attachment equipped).
+    // The physical optic must follow THIS weapon's explicit, compatible sight
+    // attachment or its own built-in scope — never another weapon's old slot
+    // value or an incompatible/stale attachment identifier.
     const wDef = weaponById(this.weaponId);
-    const hasBaseScope = wDef.baseSightType && wDef.baseSightType !== "iron";
-    if (category !== "melee" && (sightId || hasBaseScope)) {
+    if (category !== "melee" && hasMountedSight(wDef, currentAtts)) {
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
