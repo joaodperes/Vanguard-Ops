@@ -620,7 +620,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
-  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; mesh: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
+  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; mesh: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
   private kills = 0;
@@ -2456,13 +2456,21 @@ export class FPSEngine {
     root.add(base);
     const body = new THREE.Mesh(new THREE.BoxGeometry(.55,.36,.65),mat.clone());
     body.position.y = .67; root.add(body);
+    // Readable in shadow: the turret must look active even without a target.
+    const sensor = new THREE.Mesh(new THREE.BoxGeometry(.34,.09,.35),
+      new THREE.MeshBasicMaterial({color:0xffc247}));
+    sensor.name = "turretSensor";
+    sensor.position.y = .91; root.add(sensor);
+    const baseRing = new THREE.Mesh(new THREE.TorusGeometry(.54,.028,8,30),
+      new THREE.MeshBasicMaterial({color:0xffae31}));
+    baseRing.rotation.x = Math.PI/2; baseRing.position.y = .095; root.add(baseRing);
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.095,.11,.85,8),
       new THREE.MeshStandardMaterial({color:0xffad33,metalness:.65,roughness:.36}));
     barrel.rotation.x = Math.PI / 2; barrel.position.set(0,0,.49);
     const barrelPivot = new THREE.Group(); barrelPivot.position.y = .71;
     barrelPivot.add(barrel); root.add(barrelPivot);
     root.position.set(...pos);root.rotation.y = yaw;this.scene.add(root);
-    this.bulletSpitters.set(id,{ownerId,pos,yaw,expiresAt,nextShotAt:Date.now()+300,mesh:root,barrelPivot,offline});
+    this.bulletSpitters.set(id,{ownerId,pos,yaw,expiresAt,nextShotAt:Date.now()+300,lastFiredAt:0,mesh:root,barrelPivot,offline});
   }
   private removeBulletSpitter(id: string) {
     const t = this.bulletSpitters.get(id);
@@ -2477,6 +2485,13 @@ export class FPSEngine {
     const now = Date.now();
     for (const [id,t] of this.bulletSpitters) {
       if (now >= t.expiresAt) {this.removeBulletSpitter(id);continue;}
+      const sensor = t.mesh.getObjectByName("turretSensor");
+      if (sensor) sensor.scale.setScalar(1 + Math.sin(now * .008) * .08);
+      if (now - t.lastFiredAt > 550) {
+        // Rotate across the permitted firing arc while searching for targets.
+        t.mesh.rotation.y = t.yaw + Math.sin(now * .0015) * .98;
+        t.barrelPivot.rotation.x *= .9;
+      }
       if (!t.offline || now < t.nextShotAt || this.matchEnded) continue;
       const target = [...this.combatants.values()].filter(c=>
         c.alive && turretCanAttack(this.opts.mode, this.opts.team, c.team, c.id === t.ownerId) &&
@@ -2486,6 +2501,7 @@ export class FPSEngine {
         Math.hypot(b.pos[0]-t.pos[0],b.pos[2]-t.pos[2]))[0];
       if (!target) continue;
       t.nextShotAt = now + TURRET_INTERVAL_MS;
+      t.lastFiredAt = now;
       const src: Vec3 = [t.pos[0],t.pos[1]+1,t.pos[2]];
       const delta: Vec3 = [target.pos[0]-src[0],target.pos[1]+1-src[1],target.pos[2]-src[2]];
       const len=Math.hypot(...delta)||1;
@@ -3618,6 +3634,7 @@ export class FPSEngine {
       case "turretFired": {
         const turret = this.bulletSpitters.get(msg.id);
         if (turret) {
+          turret.lastFiredAt = Date.now();
           const origin: Vec3 = [turret.pos[0], turret.pos[1] + 1.1, turret.pos[2]];
           const delta: Vec3 = [msg.target[0]-origin[0],msg.target[1]-origin[1],msg.target[2]-origin[2]];
           const len = Math.hypot(...delta) || 1;
