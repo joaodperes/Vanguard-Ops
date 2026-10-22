@@ -606,7 +606,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
-  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; mesh: THREE.Group; offline: boolean }>();
+  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; mesh: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
   private kills = 0;
@@ -2440,9 +2440,11 @@ export class FPSEngine {
     body.position.y = .67; root.add(body);
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.095,.11,.85,8),
       new THREE.MeshStandardMaterial({color:0xffad33,metalness:.65,roughness:.36}));
-    barrel.rotation.x = Math.PI / 2; barrel.position.set(0,.71,.49);root.add(barrel);
+    barrel.rotation.x = Math.PI / 2; barrel.position.set(0,0,.49);
+    const barrelPivot = new THREE.Group(); barrelPivot.position.y = .71;
+    barrelPivot.add(barrel); root.add(barrelPivot);
     root.position.set(...pos);root.rotation.y = yaw;this.scene.add(root);
-    this.bulletSpitters.set(id,{ownerId,pos,yaw,expiresAt,nextShotAt:Date.now()+300,mesh:root,offline});
+    this.bulletSpitters.set(id,{ownerId,pos,yaw,expiresAt,nextShotAt:Date.now()+300,mesh:root,barrelPivot,offline});
   }
   private removeBulletSpitter(id: string) {
     const t = this.bulletSpitters.get(id);
@@ -2469,6 +2471,7 @@ export class FPSEngine {
       const delta: Vec3 = [target.pos[0]-src[0],target.pos[1]+1-src[1],target.pos[2]-src[2]];
       const len=Math.hypot(...delta)||1;
       t.mesh.rotation.y=Math.atan2(delta[0],delta[2]);
+      t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
       this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
     }
@@ -3554,6 +3557,7 @@ export class FPSEngine {
           const delta: Vec3 = [msg.target[0]-origin[0],msg.target[1]-origin[1],msg.target[2]-origin[2]];
           const len = Math.hypot(...delta) || 1;
           turret.mesh.rotation.y = Math.atan2(delta[0], delta[2]);
+          turret.barrelPivot.rotation.x = -Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
           this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default");
         }
         break;
