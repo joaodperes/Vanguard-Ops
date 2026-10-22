@@ -3379,6 +3379,14 @@ export class FPSEngine {
         for (const [id, hp] of Object.entries(msg.environmentWalls ?? {})) {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
+        // Hydrate live turrets for late-joining clients; synchronize removals.
+        if (msg.turrets) {
+          const activeIds = new Set(msg.turrets.map(t => t.id));
+          for (const t of msg.turrets) {
+            if (!this.bulletSpitters.has(t.id)) this.placeBulletSpitter(t.id,t.ownerId,t.pos,t.yaw,t.expiresAt,false);
+          }
+          for (const [id,t] of this.bulletSpitters) if (!t.offline && !activeIds.has(id)) this.removeBulletSpitter(id);
+        }
         this.teamScores = msg.teamScores;
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
