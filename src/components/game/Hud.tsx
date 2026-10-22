@@ -240,11 +240,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <span className={`text-rose-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalEnemiesLeft ?? 0}</span>
             </div>
           )}
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-emerald-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Shield className={isTouch ? "w-3 h-3 text-emerald-400" : "w-4 h-4 text-emerald-400"} />
-            <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Reinforcements</span>
-            <span className={`text-emerald-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalReinforcements ?? 0}<span className="text-white/30 text-[10px]">/{hud.survivalMaxReinforcements ?? 0}</span></span>
-          </div>
         </div>
       ) : (
       <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-3"}`}>
