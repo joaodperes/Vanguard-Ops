@@ -124,7 +124,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
 }
 
 /** A skin challenge exists for every purchasable (weapon, skin) pair.
- * Keep hand-authored catalog challenges intact, generate missing newer-weapon
+ * Retain hand-authored catalog IDs/titles while specializing their conditions; generate missing newer-weapon
  * entries deterministically so no gun has inaccessible cosmetic choices.
  */
 function weaponByIdStrict(id: string): WeaponDef {
