@@ -17,6 +17,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
+import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -159,6 +160,7 @@ interface Room {
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
+  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -377,7 +379,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -539,7 +541,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -587,6 +589,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
   room.downed.clear();
   room.deathBombs.clear();
+  room.turrets.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -941,7 +944,48 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   return left-1;
 }
 
+/** Explosive and melee hits destroy Bullet Spitter immediately. */
+function destroyTurretsNear(room: Room, pos: Vec3, radius: number, onlyOwner?: string) {
+  for (const [id, turret] of room.turrets) {
+    if (onlyOwner && turret.ownerId !== onlyOwner) continue;
+    if (Math.hypot(turret.pos[0] - pos[0], turret.pos[2] - pos[2]) > radius) continue;
+    room.turrets.delete(id);
+    io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
+  }
+}
+
+/** Server-authoritative tracking, damage, and 140° forward arc.
+ * The arc applies horizontally; a target can be high above/below the turret.
+ */
+function tickBulletSpitters(room: Room, now: number) {
+  for (const [id, turret] of room.turrets) {
+    if (now >= turret.expiresAt || !room.players.has(turret.ownerId)) {
+      room.turrets.delete(id);
+      io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
+      continue;
+    }
+    if (now < turret.nextShotAt || room.preMatchCountdown > 0) continue;
+    const target = allCombatants(room).filter(p =>
+      p.id !== turret.ownerId && p.alive &&
+      !(room.mode === "survival" && room.downed.has(p.id)) &&
+      (room.mode === "ffa" || room.mode === "gungame" || p.team !== turret.ownerTeam) &&
+      turretCanTrack(turret.pos, turret.yaw, p.pos) &&
+      hasLineOfSight(room, [turret.pos[0], turret.pos[1] + 1.0, turret.pos[2]],
+        [p.pos[0], p.pos[1] + PLAYER_HEIGHT / 2, p.pos[2]])
+    ).sort((a,b) =>
+      Math.hypot(a.pos[0]-turret.pos[0],a.pos[2]-turret.pos[2]) -
+      Math.hypot(b.pos[0]-turret.pos[0],b.pos[2]-turret.pos[2]))[0];
+    if (!target) continue;
+    turret.nextShotAt = now + TURRET_INTERVAL_MS;
+    io.to(room.id).emit("message", { t: "turretFired", id,
+      target: [target.pos[0],target.pos[1]+PLAYER_HEIGHT/2,target.pos[2]] } as S2C);
+    applyDamage(room, turret.ownerId, target, TURRET_DAMAGE, false, "wonder_turret");
+    if (room.ended) return;
+  }
+}
+
 function tickSpecialEffects(room: Room, now: number) {
+  tickBulletSpitters(room, now);
   for (const [id, bomb] of room.deathBombs) {
     if (now < bomb.explodesAt) continue;
     room.deathBombs.delete(id); // disarm first: no repeat detonations
@@ -2104,6 +2148,8 @@ async function handle(socket: any, msg: C2S) {
           const dir: Vec3 = [(c.pos[0]-p.pos[0])/dist, 0, (c.pos[2]-p.pos[2])/dist];
           return !losBlocked(room, eye, dir, dist - 0.15);
         });
+      // Quick melee disarms a turret on contact regardless of remaining lifetime.
+      destroyTurretsNear(room, p.pos, 2.5);
       if (target) {
         const victim = room.players.get(target.id) ?? room.bots.get(target.id);
         if (victim) applyDamage(room, socket.id, victim, QUICK_MELEE_DAMAGE, false, "knife_tactical");
@@ -2183,6 +2229,20 @@ async function handle(socket: any, msg: C2S) {
       if (room.mode === "gungame") attsForShot = { sight: null, barrel: null, grip: null, magazine: null };
       const eff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
       const boltImpact = weapon.special?.kind === "bolt" ? serverBoltLanding(room, socket.id, msg.origin, msg.dir, eff.range) : null;
+      // A Bullet Spitter deploys at the owner's feet facing their yaw.
+      // One living turret per player; deploying a replacement removes the old.
+      if (weapon.wonder?.kind === "turret") {
+        for (const [id, t] of room.turrets) if (t.ownerId === socket.id) {
+          room.turrets.delete(id);
+          io.to(room.id).emit("message", { t: "turretRemoved", id } as S2C);
+        }
+        const id = genId("spitter");
+        const pos: Vec3 = [p.pos[0], p.pos[1], p.pos[2]];
+        const expiresAt = now + TURRET_LIFETIME_MS;
+        room.turrets.set(id, { ownerId: socket.id, ownerTeam: p.team, pos, yaw: p.yaw, expiresAt, nextShotAt: now + 300 });
+        io.to(room.id).emit("message", { t: "turretPlaced", id, ownerId: socket.id, pos, yaw: p.yaw, expiresAt } as S2C);
+        break;
+      }
       // Rocket launcher: SPLASH damage (AoE). Instead of a single hitscan ray,
       // compute the impact point (first cover or combatant hit along the ray)
       // and apply area-of-effect damage to all enemies within the splash radius.
@@ -2208,6 +2268,7 @@ async function handle(socket: any, msg: C2S) {
           damageEnvironmentWall(room, coverImpact.box.environmentId, eff.damage);
         }
         const impact: Vec3 = [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
+        destroyTurretsNear(room, impact, weapon.wonder?.radius || 8);
         const splashRadius = weapon.wonder?.radius ?? 8;
         // CRITICAL FIX: splash damage is computed against the rocket's FULL
         // TRAJECTORY LINE SEGMENT (origin → impact), NOT just the impact point.
