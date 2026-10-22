@@ -531,6 +531,7 @@ export class FPSEngine {
   // viewmodel
   private viewmodel!: THREE.Group;
   private weaponMat!: THREE.MeshStandardMaterial;
+  private prestigeTexture: THREE.CanvasTexture | null = null;
   private muzzleFlash!: THREE.Mesh;
   private muzzleLight!: THREE.PointLight;
   private muzzleFlashUntil = 0;
@@ -3464,9 +3465,9 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (msg.weaponId === "launcher_rocket") {
+          if (msg.weaponId === "launcher_rocket" || weaponById(msg.weaponId).wonder) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
-            this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false);
+            this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else {
             this.spawnTracer(msg.origin, msg.dir, msg.skinId);
           }
@@ -4734,7 +4735,7 @@ export class FPSEngine {
   // (expanding sphere + light flash). If `applyLocalSplash` is true (offline mode),
   // the explosion also applies SPLASH DAMAGE to all combatants within
   // `splashRadius` — damage falls off linearly from full (at center) to 30% (at edge).
-  private spawnRocketProjectile(origin: Vec3, dir: Vec3, _skinId: string, damage: number, applyLocalSplash: boolean) {
+  private spawnRocketProjectile(origin: Vec3, dir: Vec3, _skinId: string, damage: number, applyLocalSplash: boolean, weaponId = this.weaponId) {
     // Normalize the direction vector so the raycast + impact point math is stable.
     // (The caller's dir comes from aimDir(spread) which IS normalized, but defensive
     // normalization prevents any future edge case where a non-unit vector would
@@ -4743,7 +4744,7 @@ export class FPSEngine {
     const ndir: Vec3 = [dir[0] / dlen, dir[1] / dlen, dir[2] / dlen];
     // Compute the impact point (same raycast as spawnTracer, but also stop at
     // the first combatant so the rocket detonates ON the target, not behind it).
-    let maxT = this.eff.range;
+    let maxT = weaponById(weaponId).stats.range;
     for (const cov of this.map.cover) {
       const t = rayBox(origin, ndir, cov.pos, cov.size);
       if (t !== null && t < maxT) maxT = t;
@@ -4759,15 +4760,16 @@ export class FPSEngine {
     const endX = origin[0] + ndir[0] * maxT, endY = origin[1] + ndir[1] * maxT, endZ = origin[2] + ndir[2] * maxT;
     // Build the rocket mesh: a small elongated body + cone warhead + glowing trail.
     const rocketGroup = new THREE.Group();
+    const wonder = weaponById(weaponId).wonder;
     const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 0.22, 10),
-      new THREE.MeshBasicMaterial({ color: 0x888888 }),
+      new THREE.CylinderGeometry(wonder ? 0.095 : 0.06, wonder ? 0.095 : 0.06, wonder ? 0.34 : 0.22, 10),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x8056ff : wonder?.kind === "corrosion" ? 0x80f23c : 0x888888 }),
     );
     body.rotation.x = Math.PI / 2; // align with -Z (forward)
     rocketGroup.add(body);
     const warhead = new THREE.Mesh(
       new THREE.ConeGeometry(0.06, 0.10, 10),
-      new THREE.MeshBasicMaterial({ color: 0x444444 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x21104f : wonder?.kind === "corrosion" ? 0x214e14 : 0x444444 }),
     );
     warhead.rotation.x = -Math.PI / 2; // point forward
     warhead.position.z = -0.16;
@@ -4775,7 +4777,7 @@ export class FPSEngine {
     // Glowing trail (small sphere at the back)
     const trail = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.7 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x973aff : wonder?.kind === "corrosion" ? 0x88ff33 : 0xff6600, transparent: true, opacity: 0.7 }),
     );
     trail.position.z = 0.14;
     rocketGroup.add(trail);
@@ -4790,8 +4792,8 @@ export class FPSEngine {
     const travelMs = Math.min(400, Math.max(120, dist * 3));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
-    const splashRadius = weaponById(this.weaponId).wonder?.radius ?? 8;
-    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId: this.weaponId, applyLocalSplash });
+    const splashRadius = weaponById(weaponId).wonder?.radius ?? 8;
+    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash });
   }
 
   // Spawn an explosion effect at a world position: an expanding emissive sphere
