@@ -12,6 +12,7 @@ import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, r
 import { quickSwapTarget } from "./quick-swap";
 import { canCollectScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
+import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -179,6 +180,7 @@ export interface HudState {
   primaryWeaponId: string;
   secondaryWeaponId: string;
   meleeWeaponId: string;
+  wonderRechargeMs?: number;
   // survival mode info (undefined for FFA/TDM)
   survivalWave?: number;
   survivalTier?: SurvivalTier;
@@ -497,6 +499,7 @@ export class FPSEngine {
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
+  private wonderStates = new Map<string, WonderChargeState>();
   private reloading = false;
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
@@ -870,9 +873,10 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    this.primaryAmmoInMag = this.primaryEff.magSize;
+    this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
+    if (primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
     // ---- Sound manager ----
     this.sound = new SoundManager();
     this.weaponAudio = new WeaponAudio(opts.masterVolume ?? 80);
@@ -3365,11 +3369,11 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0;
-          this.ammoInMag = this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           // Round 20: Refill ALL weapon slots on respawn (not just the active one).
-          this.primaryAmmoInMag = this.primaryEff.magSize;
+          this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
           this.secondaryAmmoInMag = this.secondaryEff.magSize;
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
@@ -3761,11 +3765,12 @@ export class FPSEngine {
     this.touchAutoSprintActive = false;
     this.health = MAX_HEALTH; this.alive = true;
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.ammoInMag = this.eff.magSize; this.reloading = false;
+    this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
+    this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     // Round 19o: refill ALL slots on respawn (not just the active one).
-    this.primaryAmmoInMag = this.primaryEff.magSize;
+    this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     // Round 20h: Local player spawn protection (offline only — online is
@@ -3820,7 +3825,7 @@ export class FPSEngine {
     // this game; restore the actual magazine values used by weapon swapping.
     const beforePrimary = this.primaryAmmoInMag;
     const beforeSecondary = this.secondaryAmmoInMag;
-    if (this.primaryWeaponId && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
+    if (this.primaryWeaponId && !weaponById(this.primaryWeaponId).wonder && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
         weaponById(this.primaryWeaponId).category !== "melee") {
       this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
         this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
@@ -3840,6 +3845,14 @@ export class FPSEngine {
 
   // ---- Special-weapon resources & ground pickups ----
   private updateSpecialResources(dt: number, now: number) {
+    for (const [id, state] of this.wonderStates) {
+      const rules = weaponById(id).wonder;
+      if (!rules) continue;
+      const next = tickWonderCharges(state, rules, now);
+      this.wonderStates.set(id, next);
+      if (this.primaryWeaponId === id) this.primaryAmmoInMag = next.charges;
+      if (this.weaponId === id) this.ammoInMag = next.charges;
+    }
     for (const [id, state] of this.heatStates) {
       const special = weaponById(id).special;
       if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
@@ -4015,14 +4028,21 @@ export class FPSEngine {
       if (!next) return; // locked by overheat; no bullets or energy consumed
       this.heatStates.set(w.id, next);
     }
-    if (special?.kind !== "heat" && this.ammoInMag <= 0) {
+    if (w.wonder) {
+      const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
+      const next = spendWonderCharge(state, w.wonder, now);
+      if (!next) { this.sound.play("empty_click", { volume: 0.4 }); return; }
+      this.wonderStates.set(w.id, next);
+    }
+    if (special?.kind !== "heat" && !w.wonder && this.ammoInMag <= 0) {
       this.sound.play("empty_click", { volume: 0.4 });
       this.startReload();
       return;
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (special?.kind !== "heat") this.ammoInMag--;
+    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
+    else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
     this.triggerMuzzleFlash();
@@ -4039,7 +4059,7 @@ export class FPSEngine {
     // for weapons that actually have a reload (melee/launcher have reloadTime 0
     // and are handled separately).
     const justEmptied = this.ammoInMag <= 0;
-    if (special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
+    if (!w.wonder && special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
       this.startReload();
     }
 
@@ -4058,7 +4078,7 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
-    const isRocket = this.weaponId === "launcher_rocket";
+    const isRocket = this.weaponId === "launcher_rocket" || !!w.wonder;
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -4430,6 +4450,12 @@ export class FPSEngine {
     }
     if (this.recentKills.some(t => performance.now() - t < 5000)) bump("multikill_kills");
     this.perWeaponActions.set(weaponId, actions);
+    if (!weaponById(weaponId).wonder) {
+      for (const [id, state] of this.wonderStates) {
+        const rules = weaponById(id).wonder;
+        if (rules) this.wonderStates.set(id, accelerateWonderCharge(state, rules, performance.now()));
+      }
+    }
   }
 
   private scheduleRespawn(c: Combatant) {
@@ -4764,20 +4790,20 @@ export class FPSEngine {
     const travelMs = Math.min(400, Math.max(120, dist * 3));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
-    const splashRadius = 8;
+    const splashRadius = weaponById(this.weaponId).wonder?.radius ?? 8;
     this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId: this.weaponId, applyLocalSplash });
   }
 
   // Spawn an explosion effect at a world position: an expanding emissive sphere
   // + a brief point light flash. The effect auto-fades and is removed after ~500ms.
-  private spawnExplosion(pos: THREE.Vector3) {
+  private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion") {
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xff6622, transparent: true, opacity: 0.85 }),
+      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x7aea39 : 0xff6622, transparent: true, opacity: 0.85 }),
     );
     sphere.position.copy(pos);
     this.scene.add(sphere);
-    const light = new THREE.PointLight(0xff6622, 4, 12);
+    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : 0xff6622, wonderKind ? 7 : 4, wonderKind ? 20 : 12);
     light.position.copy(pos);
     this.scene.add(light);
     this.explosions.push({ mesh: sphere, light, born: performance.now(), life: 500 });
@@ -4787,6 +4813,7 @@ export class FPSEngine {
 
   private startReload() {
     if (this.equipmentAction) return;
+    if (weaponById(this.weaponId).wonder) return;
     const special = weaponById(this.weaponId).special;
     if (special?.kind === "heat") {
       const heat = this.heatStates.get(this.weaponId)?.heat ?? 0;
@@ -5071,7 +5098,7 @@ export class FPSEngine {
       const age = now - p.born;
       if (age >= p.travelMs) {
         // Projectile reached the impact point — spawn explosion + remove.
-        this.spawnExplosion(p.end);
+        this.spawnExplosion(p.end, weaponById(p.weaponId).wonder?.kind);
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).
         //
@@ -5113,7 +5140,10 @@ export class FPSEngine {
               const norm = d / p.splashRadius;
               const falloff = d <= 1.5 ? 1.2 : (1 - norm * norm) * 0.9 + 0.1;
               const splashDmg = p.damage * falloff;
-              this.applyDamageLocal(c, splashDmg, false);
+              this.applyDamageLocal(c, splashDmg, false, p.weaponId);
+              if (weaponById(p.weaponId).wonder?.kind === "corrosion" && c.alive) {
+                this.poisonByVictim.set(c.id, { expiresAt: now + 6500, tickAt: now + 500, weaponId: p.weaponId });
+              }
             }
           }
           this.hitMarkerAt = performance.now();
@@ -6166,6 +6196,7 @@ export class FPSEngine {
       primaryWeaponId: this.primaryWeaponId,
       secondaryWeaponId: this.secondaryWeaponId,
       meleeWeaponId: this.meleeWeaponId,
+      ...(weaponById(this.weaponId).wonder ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
