@@ -83,7 +83,7 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
     ...(profile?.prestige?.wonderWeapons ?? []),
   ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
 
-  if (!profile) {
+  if (!profile || !current) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
   }
 
@@ -283,9 +283,9 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
         <div className="text-white/40 text-[10px] uppercase mb-2">{weapon.category} · LVL {weapon.unlockLevel}</div>
-         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3">
-           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
-         </div>
+        <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3">
+          <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
+        </div>
         <button
           onClick={onToggle}
           className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"
