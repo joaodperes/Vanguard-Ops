@@ -6,6 +6,7 @@
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
 import { MAP_BLUEPRINTS, featureBoxes, regionBoundary } from "./map-blueprints";
+import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
@@ -30,7 +31,14 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const environment=base.environment?.map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,size:Math.round(base.size*factor*1000)/1000,
-    cover:base.cover.map(c=>({...c,pos:scaled(c.pos,factor),size:scaled(c.size,factor)})),
+    // Old maps included a full rectangular perimeter. Leaving these walls
+    // behind turns the new outdoor districts into inaccessible rings.
+    // Region-union walls replace these, without blocking core-to-flank travel.
+    cover:base.cover.filter(c=>{
+      const longX=c.size[0] > base.size*.7 && c.size[2]<2.5 && Math.abs(c.pos[2])>base.size*.8;
+      const longZ=c.size[2] > base.size*.7 && c.size[0]<2.5 && Math.abs(c.pos[0])>base.size*.8;
+      return !(longX||longZ);
+    }).map(c=>({...c,pos:scaled(c.pos,factor),size:scaled(c.size,factor)})),
     spawns:{
       ffa:base.spawns.ffa.map(p=>scaled(p,factor)),
       red:base.spawns.red.map(p=>scaled(p,factor)),
@@ -43,6 +51,8 @@ export function applyMapFootprint(base:MapDef):MapDef {
   };
   if(!plan)return scaledBase;
   const regions=plan.regions.map(r=>({...r}));
+  const visuals=visualThemeForMap(base.id,plan.templateMapId);
+  const props=mapProps(base.id,plan,visuals);
   const halfExtent=Math.max(...regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+3;
   // Older inner-circle spawn sets remain as fallbacks; larger districts receive
   // many additional spawns so players do not endlessly recycle the center.
@@ -55,9 +65,12 @@ export function applyMapFootprint(base:MapDef):MapDef {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
     regions,
-    cover:[...scaledBase.cover,...plan.features.flatMap(featureBoxes),...regionBoundary(regions)],
+    cover:[...scaledBase.cover,...plan.features.flatMap(featureBoxes),
+      ...propColliders(props,[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue].flat() as Vec3[]),
+      ...regionBoundary(regions)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
-    theme:{...scaledBase.theme,fogNear:Math.max(35,scaledBase.theme.fogNear),
+    props,biome:visuals.biome,accentColor:visuals.palette.accent,
+    theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),
       fogFar:Math.max(scaledBase.theme.fogFar,halfExtent*2.5+60)},
   };
 }

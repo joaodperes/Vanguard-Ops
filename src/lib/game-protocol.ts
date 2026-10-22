@@ -167,6 +167,9 @@ export interface MapDef {
   environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
   theme: MapTheme;
+  /** Authored map palette, props and rendered landmarks (see JSON map theme). */
+  props?: import("./map-visuals").MapProp[];
+  biome?: string;
   accentColor: string;   // for UI badge
   lights?: MapAccentLight[]; // optional per-map accent point lights
 }
