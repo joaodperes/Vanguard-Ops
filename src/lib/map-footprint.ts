@@ -37,7 +37,9 @@ export function applyMapFootprint(base:MapDef):MapDef {
     cover:base.cover.filter(c=>{
       const longX=c.size[0] > base.size*.7 && c.size[2]<2.5 && Math.abs(c.pos[2])>base.size*.8;
       const longZ=c.size[2] > base.size*.7 && c.size[0]<2.5 && Math.abs(c.pos[0])>base.size*.8;
-      return !(longX||longZ);
+      // Elevated walkways must remain: only ground-level perimeter barriers
+      // are redundant. Removing a walkway strands its approach staircase.
+      return !(c.kind === "cover" && (longX||longZ));
     }).map(c=>({...c,pos:scaled(c.pos,factor),size:scaled(c.size,factor)})),
     spawns:{
       ffa:base.spawns.ffa.map(p=>scaled(p,factor)),
