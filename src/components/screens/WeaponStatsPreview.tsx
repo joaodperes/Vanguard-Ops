@@ -1,5 +1,5 @@
 "use client";
-import { computeEffectiveStats, type AttachmentSlot, type WeaponDef, type WeaponStats } from "@/lib/game-data";
+import { computeEffectiveStats, sightDefForAttachments, type AttachmentSlot, type WeaponDef, type WeaponStats } from "@/lib/game-data";
 
 export type AttachmentMap = Record<AttachmentSlot, string | null>;
 export const EMPTY_ATTACHMENTS: AttachmentMap = { sight: null, barrel: null, grip: null, magazine: null };
@@ -25,14 +25,20 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
 }) {
   const current = computeEffectiveStats(weapon, equipped ?? EMPTY_ATTACHMENTS);
   const displayed = preview ? computeEffectiveStats(weapon, preview) : current;
-  const hasPreview = !!preview && STAT_DEFS.some(s => current[s.key] !== displayed[s.key]);
+  const currentSight = sightDefForAttachments(equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
+  const shownSight = sightDefForAttachments(preview ?? equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
+  const hasPreview = !!preview && (currentSight.type !== shownSight.type || STAT_DEFS.some(s => current[s.key] !== displayed[s.key]));
   const baseline = computeEffectiveStats(weapon, EMPTY_ATTACHMENTS);
-  const rows = compact ? STAT_DEFS.slice(0, 8) : STAT_DEFS;
+  const rows = STAT_DEFS;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs uppercase tracking-widest font-bold text-amber-300">{hasPreview ? "Attachment preview" : "Final weapon stats"}</span>
         <span className="text-[10px] text-white/40">{hasPreview ? "Compared to equipped" : "Including attachments"}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px]">
+        <span className="text-white/55">Optic</span>
+        <span className="text-white font-mono">{shownSight.name} · {shownSight.zoom}×</span>
       </div>
       <div className={compact ? "grid grid-cols-2 gap-x-4 gap-y-2" : "grid grid-cols-1 gap-y-2.5"}>
         {rows.map(s => {
