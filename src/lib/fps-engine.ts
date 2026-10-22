@@ -23,6 +23,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
+import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
@@ -703,6 +704,7 @@ export class FPSEngine {
   private sprinting = false;
   private sprintPhase = 0;       // accumulator for the sway sine
   private currentSpread = 0;     // 0..1 dynamic spread factor (drives HUD crosshair)
+  private shotBloom = 0; // additional inaccuracy from repeated fire; decays on pause
   private lastFootstepAt = 0;    // throttle footstep SFX
 
   // ---- Sound ----
@@ -4299,16 +4301,16 @@ export class FPSEngine {
     }
 
     const origin: Vec3 = [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z];
-    // Spread is amplified by the dynamic spread factor (movement/sprint/jump).
-    const baseSpread = this.aiming ? this.eff.adsSpread : this.eff.spread;
-    // Reward settled ADS shots without removing intended hipfire/movement spread.
+    // Hipfire is deliberately imprecise. Repeated shots build additional bloom,
+    // which recovers between engagements even for high rate-of-fire guns.
     const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
       && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
-    const spread = baseSpread * (1 + this.currentSpread * 1.5) * (steadyAds ? 0.5 : 1);
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds);
     const dir = this.aimDir(spread);
-    // Apply kick only after the outgoing direction is locked in. Otherwise a
-    // precision click launches above the crosshair before the view visibly moves.
+    // Apply recoil after locking the current shot's trajectory. Subsequent shots
+    // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
+    this.shotBloom = Math.min(1.4, this.shotBloom + shotBloomIncrease(this.eff.fireRate));
     const pellets = w.stats.pellets ?? 1;
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
@@ -4918,7 +4920,7 @@ export class FPSEngine {
   }
 
   private applyRecoil() {
-    const kick = this.eff.recoil * 0.006 * (this.aiming ? 0.5 : 1) * recoilMultiplier(this.activePerkId);
+    const kick = recoilKickRadians(this.eff.recoil, this.aiming, recoilMultiplier(this.activePerkId));
     this.pitch += kick + (Math.random() - 0.5) * kick * 0.5;
     this.yaw += (Math.random() - 0.5) * kick * 0.6;
     // Kick the viewmodel back + up; decays each frame in the update loop.
@@ -5238,6 +5240,7 @@ export class FPSEngine {
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
+    this.shotBloom = Math.max(0, this.shotBloom - dt * 0.52);
     if (this.reloading && performance.now() >= this.reloadEndsAt) {
       if (weaponById(this.weaponId).stats.reloadStyle === "incremental") {
         this.ammoInMag = Math.min(this.eff.magSize, this.ammoInMag + 1);
@@ -5811,7 +5814,7 @@ export class FPSEngine {
     else if (this.vel.lengthSq() > 4) spread += 0.3;  // moving fast
     if (this.mouseDown || this.touchFiring) spread += 0.15;
     if (this.aiming) spread *= 0.3;  // ADS tightens everything
-    this.currentSpread = Math.min(1, spread);
+    this.currentSpread = Math.min(1, spread + this.shotBloom * (this.aiming ? 0.22 : 0.45));
     // Advance the sprint-sway phase so the viewmodel bobs left/right while sprinting.
     if (this.sprinting) {
       this.sprintPhase += dt * 11;
@@ -6032,7 +6035,7 @@ export class FPSEngine {
         // but the check is wired correctly so a future loadout pass would Just Work.
         this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
         // Accumulate spray drift from this shot (recovers when not firing).
-        const driftKick = eff.recoil * 0.0024 * (1 - ai.skill * 0.5);
+        const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
         ai.sprayDriftPitch += driftKick;  // climb up
         ai.sprayDriftYaw += (Math.random() - 0.5) * driftKick * 0.8;  // horizontal wander
         // Clamp drift so it doesn't spiral to infinity

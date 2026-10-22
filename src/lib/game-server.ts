@@ -1736,7 +1736,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       clearSpawnProtection(room, bot); // bot firing also cancels its protective shield
       ai.lastFiredAt = now;
       // Accumulate spray drift from this shot.
-      const driftKick = eff.recoil * 0.0024 * (1 - ai.skill * 0.5);
+      const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
       ai.sprayDriftPitch += driftKick;
       ai.sprayDriftYaw += (Math.random() - 0.5) * driftKick * 0.8;
       ai.sprayDriftYaw = Math.max(-0.18, Math.min(0.18, ai.sprayDriftYaw));
