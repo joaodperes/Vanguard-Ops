@@ -1,0 +1,96 @@
+{
+  "ffa": {
+    "id": "ffa",
+    "label": "Free-For-All",
+    "description": "Everyone vs everyone. First to the kill limit wins.",
+    "icon": "Users",
+    "defaultScoreLimit": 30,
+    "scoreOptions": [
+      15,
+      30,
+      50
+    ],
+    "defaultTimeLimit": 8,
+    "timeOptions": [
+      5,
+      8,
+      12
+    ],
+    "teamBased": false,
+    "accentColor": "#f43f5e"
+  },
+  "tdm": {
+    "id": "tdm",
+    "label": "Team Deathmatch",
+    "description": "Red vs Blue. First team to the kill limit wins.",
+    "icon": "Shield",
+    "defaultScoreLimit": 60,
+    "scoreOptions": [
+      40,
+      60,
+      100
+    ],
+    "defaultTimeLimit": 10,
+    "timeOptions": [
+      8,
+      10,
+      15
+    ],
+    "teamBased": true,
+    "accentColor": "#3b82f6"
+  },
+  "killconfirmed": {
+    "id": "killconfirmed",
+    "label": "Kill Confirmed",
+    "description": "Recover enemy dogtags to score. Collect allied tags to deny points.",
+    "icon": "Tags",
+    "defaultScoreLimit": 40,
+    "scoreOptions": [
+      25,
+      40,
+      60,
+      75
+    ],
+    "defaultTimeLimit": 10,
+    "timeOptions": [
+      5,
+      8,
+      10,
+      15
+    ],
+    "teamBased": true,
+    "accentColor": "#22d3ee"
+  },
+  "survival": {
+    "id": "survival",
+    "label": "Survival",
+    "description": "Clear 30 waves on Standard, then unlock Hard, Elite and Nightmare endless tiers.",
+    "icon": "Skull",
+    "defaultScoreLimit": 0,
+    "scoreOptions": [
+      0
+    ],
+    "defaultTimeLimit": 0,
+    "timeOptions": [
+      0
+    ],
+    "teamBased": true,
+    "accentColor": "#f59e0b"
+  },
+  "gungame": {
+    "id": "gungame",
+    "label": "Gun Game",
+    "description": "Cycle through weapons with each kill. First to the final weapon wins.",
+    "icon": "Swords",
+    "defaultScoreLimit": 30,
+    "scoreOptions": [
+      30
+    ],
+    "defaultTimeLimit": 0,
+    "timeOptions": [
+      0
+    ],
+    "teamBased": false,
+    "accentColor": "#a855f7"
+  }
+}

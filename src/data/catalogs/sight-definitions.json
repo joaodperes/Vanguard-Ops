@@ -1,0 +1,86 @@
+{
+  "iron": {
+    "type": "iron",
+    "name": "Iron Sight",
+    "zoom": 1,
+    "reticle": "iron",
+    "adsFovReduction": 22,
+    "adsSensMul": 0.8,
+    "description": "Standard iron sight. No magnification. Quick to aim."
+  },
+  "red_dot": {
+    "type": "red_dot",
+    "name": "Red Dot",
+    "zoom": 1,
+    "reticle": "dot",
+    "adsFovReduction": 24,
+    "adsSensMul": 0.78,
+    "description": "1x red dot. Clean reticle, fast target acquisition."
+  },
+  "holo": {
+    "type": "holo",
+    "name": "Holographic",
+    "zoom": 1,
+    "reticle": "holo",
+    "adsFovReduction": 24,
+    "adsSensMul": 0.8,
+    "description": "1x holographic. Wide FOV reticle for tracking."
+  },
+  "acog": {
+    "type": "acog",
+    "name": "ACOG 4x",
+    "zoom": 4,
+    "reticle": "chevron",
+    "adsFovReduction": 50,
+    "adsSensMul": 0.45,
+    "description": "4x magnification. Mid-range precision, slower ADS."
+  },
+  "hunter": {
+    "type": "hunter",
+    "name": "Hunter 6x",
+    "zoom": 6,
+    "reticle": "mildot",
+    "adsFovReduction": 60,
+    "adsSensMul": 0.32,
+    "description": "6x magnification. Sniper-grade optic, very slow ADS."
+  },
+  "thermal": {
+    "type": "thermal",
+    "name": "Thermal 2x",
+    "zoom": 2,
+    "reticle": "thermal",
+    "adsFovReduction": 38,
+    "adsSensMul": 0.55,
+    "description": "2x thermal. Highlights heat signatures through cover fog.",
+    "overlay": "thermal"
+  },
+  "nvg": {
+    "type": "nvg",
+    "name": "NVG Scope",
+    "zoom": 1.5,
+    "reticle": "nvg",
+    "adsFovReduction": 32,
+    "adsSensMul": 0.65,
+    "description": "Night vision scope. Brightens dark scenes with green tint.",
+    "overlay": "nvg"
+  },
+  "laser": {
+    "type": "laser",
+    "name": "Laser Sight",
+    "zoom": 1,
+    "reticle": "laser",
+    "adsFovReduction": 22,
+    "adsSensMul": 0.85,
+    "description": "Iron sight + visible laser indicator. Tightens hipfire.",
+    "overlay": "laser"
+  },
+  "sniper_scope": {
+    "type": "sniper_scope",
+    "name": "Sniper Scope",
+    "zoom": 6,
+    "reticle": "mildot",
+    "adsFovReduction": 58,
+    "adsSensMul": 0.3,
+    "description": "Base 6x sniper scope. Standard on all bolt-action rifles. Long-range precision."
+  }
+}

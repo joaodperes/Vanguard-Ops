@@ -1,0 +1,122 @@
+[
+  {
+    "id": "default",
+    "name": "Standard",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "common",
+    "tier": "standard",
+    "color": "#2b2f36",
+    "metalness": 0.6,
+    "roughness": 0.45
+  },
+  {
+    "id": "arctic",
+    "name": "Arctic",
+    "unlockLevel": 2,
+    "unlockCost": 500,
+    "rarity": "common",
+    "tier": "standard",
+    "color": "#dfe7ee",
+    "metalness": 0.4,
+    "roughness": 0.5
+  },
+  {
+    "id": "crimson",
+    "name": "Crimson Edge",
+    "unlockLevel": 4,
+    "unlockCost": 1000,
+    "rarity": "rare",
+    "tier": "standard",
+    "color": "#7f1d1d",
+    "metalness": 0.7,
+    "roughness": 0.35
+  },
+  {
+    "id": "emerald",
+    "name": "Emerald",
+    "unlockLevel": 7,
+    "unlockCost": 1500,
+    "rarity": "rare",
+    "tier": "standard",
+    "color": "#065f46",
+    "metalness": 0.7,
+    "roughness": 0.3
+  },
+  {
+    "id": "carbon",
+    "name": "Carbon Fiber",
+    "unlockLevel": 10,
+    "unlockCost": 2000,
+    "rarity": "epic",
+    "tier": "standard",
+    "color": "#111418",
+    "metalness": 0.3,
+    "roughness": 0.6
+  },
+  {
+    "id": "neon",
+    "name": "Neon Pulse",
+    "unlockLevel": 12,
+    "unlockCost": 3000,
+    "rarity": "epic",
+    "tier": "standard",
+    "color": "#0a0a0a",
+    "metalness": 0.5,
+    "roughness": 0.2,
+    "emissive": "#22d3ee",
+    "emissiveIntensity": 0.7
+  },
+  {
+    "id": "inferno",
+    "name": "Inferno",
+    "unlockLevel": 14,
+    "unlockCost": 4000,
+    "rarity": "legendary",
+    "tier": "standard",
+    "color": "#1c0a02",
+    "metalness": 0.6,
+    "roughness": 0.25,
+    "emissive": "#f97316",
+    "emissiveIntensity": 0.6
+  },
+  {
+    "id": "gold",
+    "name": "Gold Standard",
+    "unlockLevel": 16,
+    "unlockCost": 6000,
+    "rarity": "legendary",
+    "tier": "standard",
+    "color": "#d4af37",
+    "metalness": 0.95,
+    "roughness": 0.18
+  },
+  {
+    "id": "prestige_cosmic",
+    "name": "Eventide",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "legendary",
+    "tier": "legendary",
+    "color": "#080d2b",
+    "metalness": 0.65,
+    "roughness": 0.13,
+    "emissive": "#a78bfa",
+    "emissiveIntensity": 1.1,
+    "prestige": "cosmic"
+  },
+  {
+    "id": "prestige_toxic",
+    "name": "Viridian Blight",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "legendary",
+    "tier": "legendary",
+    "color": "#143c1c",
+    "metalness": 0.25,
+    "roughness": 0.16,
+    "emissive": "#a3e635",
+    "emissiveIntensity": 1.2,
+    "prestige": "toxic"
+  }
+]

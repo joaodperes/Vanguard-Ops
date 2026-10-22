@@ -1,0 +1,168 @@
+{
+  "assault": {
+    "sight": [
+      "sight_red_dot",
+      "sight_holo",
+      "sight_acog",
+      "sight_thermal"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_compensator",
+      "barrel_muzzle_brake",
+      "barrel_heavy"
+    ],
+    "grip": [
+      "grip_vertical",
+      "grip_angled",
+      "grip_runner_ads",
+      "grip_precision"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_drum",
+      "mag_balanced"
+    ]
+  },
+  "smg": {
+    "sight": [
+      "sight_red_dot",
+      "sight_holo",
+      "sight_laser",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_compensator",
+      "barrel_ported",
+      "barrel_lightweight"
+    ],
+    "grip": [
+      "grip_vertical",
+      "grip_angled",
+      "grip_laser",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_drum",
+      "mag_balanced"
+    ]
+  },
+  "shotgun": {
+    "sight": [
+      "sight_laser",
+      "sight_red_dot",
+      "sight_holo"
+    ],
+    "barrel": [
+      "barrel_choke",
+      "barrel_ported",
+      "barrel_lightweight"
+    ],
+    "grip": [
+      "grip_angled",
+      "grip_laser",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_shell_carrier"
+    ]
+  },
+  "dmr": {
+    "sight": [
+      "sight_acog",
+      "sight_hunter",
+      "sight_thermal",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_heavy",
+      "barrel_match"
+    ],
+    "grip": [
+      "grip_precision",
+      "grip_stability",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "sniper": {
+    "sight": [
+      "sight_acog",
+      "sight_hunter",
+      "sight_thermal",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_heavy",
+      "barrel_match"
+    ],
+    "grip": [
+      "grip_precision",
+      "grip_stability",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "lmg": {
+    "sight": [
+      "sight_red_dot",
+      "sight_holo",
+      "sight_acog",
+      "sight_thermal"
+    ],
+    "barrel": [
+      "barrel_compensator",
+      "barrel_muzzle_brake",
+      "barrel_heavy",
+      "barrel_ported"
+    ],
+    "grip": [
+      "grip_vertical",
+      "grip_stability",
+      "grip_precision"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_drum",
+      "mag_balanced"
+    ]
+  },
+  "sidearm": {
+    "sight": [
+      "sight_red_dot",
+      "sight_laser",
+      "sight_holo"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_ported",
+      "barrel_lightweight"
+    ],
+    "grip": [
+      "grip_laser",
+      "grip_precision",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  }
+}

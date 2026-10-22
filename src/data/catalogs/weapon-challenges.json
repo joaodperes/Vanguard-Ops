@@ -1,0 +1,1703 @@
+[
+  {
+    "id": "wc_ar_kills_50",
+    "weaponId": "rifle_ar",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Bloodied Rifle",
+    "description": "Get 50 kills with the VK-12 Assault"
+  },
+  {
+    "id": "wc_ar_hs_75",
+    "weaponId": "rifle_ar",
+    "skinId": "neon",
+    "goal": 75,
+    "metric": "headshots",
+    "title": "Precision Operator",
+    "description": "Land 75 headshots with the VK-12 Assault"
+  },
+  {
+    "id": "wc_ar_kills_250",
+    "weaponId": "rifle_ar",
+    "skinId": "inferno",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Assault Master",
+    "description": "Get 250 kills with the VK-12 Assault"
+  },
+  {
+    "id": "wc_smg_kills_50",
+    "weaponId": "smg_kp",
+    "skinId": "arctic",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Kestrel Striker",
+    "description": "Get 50 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_smg_hs_60",
+    "weaponId": "smg_kp",
+    "skinId": "carbon",
+    "goal": 60,
+    "metric": "headshots",
+    "title": "Snap Shot",
+    "description": "Land 60 headshots with the Kestrel SMG"
+  },
+  {
+    "id": "wc_smg_kills_200",
+    "weaponId": "smg_kp",
+    "skinId": "neon",
+    "goal": 200,
+    "metric": "kills",
+    "title": "SMG Master",
+    "description": "Get 200 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_shotgun_kills_30",
+    "weaponId": "shotgun_br",
+    "skinId": "crimson",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Close Quarters",
+    "description": "Get 30 kills with the Breacher"
+  },
+  {
+    "id": "wc_shotgun_kills_120",
+    "weaponId": "shotgun_br",
+    "skinId": "inferno",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Breacher Master",
+    "description": "Get 120 kills with the Breacher"
+  },
+  {
+    "id": "wc_dmr_kills_40",
+    "weaponId": "rifle_dm",
+    "skinId": "emerald",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Marksman",
+    "description": "Get 40 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_dmr_hs_50",
+    "weaponId": "rifle_dm",
+    "skinId": "carbon",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Headhunter",
+    "description": "Land 50 headshots with the Marksman DMR"
+  },
+  {
+    "id": "wc_dmr_kills_150",
+    "weaponId": "rifle_dm",
+    "skinId": "gold",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Marksman Master",
+    "description": "Get 150 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_sniper_hs_25",
+    "weaponId": "sniper_lr",
+    "skinId": "carbon",
+    "goal": 25,
+    "metric": "headshots",
+    "title": "Silent Death",
+    "description": "Land 25 headshots with the Longshot"
+  },
+  {
+    "id": "wc_sniper_kills_100",
+    "weaponId": "sniper_lr",
+    "skinId": "gold",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Longshot Legend",
+    "description": "Get 100 kills with the Longshot"
+  },
+  {
+    "id": "wc_lmg_kills_75",
+    "weaponId": "lmg_hv",
+    "skinId": "arctic",
+    "goal": 75,
+    "metric": "kills",
+    "title": "Suppressor",
+    "description": "Get 75 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_lmg_kills_200",
+    "weaponId": "lmg_hv",
+    "skinId": "inferno",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Hailstorm Master",
+    "description": "Get 200 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_pistol_kills_25",
+    "weaponId": "pistol_side",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Sidearm Specialist",
+    "description": "Get 25 kills with the Sidearm P-9"
+  },
+  {
+    "id": "wc_pistol_hs_40",
+    "weaponId": "pistol_side",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "headshots",
+    "title": "Pistol Precision",
+    "description": "Land 40 headshots with the Sidearm P-9"
+  },
+  {
+    "id": "wc_vector_kills_60",
+    "weaponId": "smg_vector",
+    "skinId": "neon",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Vector Storm",
+    "description": "Get 60 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_autoshotgun_kills_60",
+    "weaponId": "shotgun_auto",
+    "skinId": "emerald",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Wraith",
+    "description": "Get 60 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_magnum_kills_30",
+    "weaponId": "pistol_magnum",
+    "skinId": "gold",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Hand Cannon",
+    "description": "Get 30 kills with the Magnum .50"
+  },
+  {
+    "id": "wc_magnum_hs_20",
+    "weaponId": "pistol_magnum",
+    "skinId": "inferno",
+    "goal": 20,
+    "metric": "headshots",
+    "title": "Deadeye",
+    "description": "Land 20 headshots with the Magnum .50"
+  },
+  {
+    "id": "wc_scout_kills_50",
+    "weaponId": "dmr_scout",
+    "skinId": "emerald",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Scout",
+    "description": "Get 50 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_scout_hs_60",
+    "weaponId": "dmr_scout",
+    "skinId": "carbon",
+    "goal": 60,
+    "metric": "headshots",
+    "title": "Scout Sharpshooter",
+    "description": "Land 60 headshots with the Scout Tactical"
+  },
+  {
+    "id": "wc_shiv_kills_30",
+    "weaponId": "shiv",
+    "skinId": "arctic",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Quick Hands",
+    "description": "Get 30 kills with the Shiv"
+  },
+  {
+    "id": "wc_machete_kills_40",
+    "weaponId": "machete",
+    "skinId": "emerald",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Jungle Striker",
+    "description": "Get 40 kills with the Machete"
+  },
+  {
+    "id": "wc_hammer_kills_30",
+    "weaponId": "hammer",
+    "skinId": "inferno",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Smasher",
+    "description": "Get 30 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_burst_kills_50",
+    "weaponId": "pistol_burst",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Burst Specialist",
+    "description": "Get 50 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_machine_kills_60",
+    "weaponId": "pistol_machine",
+    "skinId": "neon",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Mag Dump",
+    "description": "Get 60 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_launcher_kills_25",
+    "weaponId": "launcher_rocket",
+    "skinId": "gold",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Demolitionist",
+    "description": "Get 25 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_scout_sniper_kills_30",
+    "weaponId": "sniper_scout",
+    "skinId": "emerald",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Eagle Eye",
+    "description": "Get 30 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_scout_sniper_hs_40",
+    "weaponId": "sniper_scout",
+    "skinId": "carbon",
+    "goal": 40,
+    "metric": "headshots",
+    "title": "Scout Sniper Sharpshooter",
+    "description": "Land 40 headshots with the Scout Sniper"
+  },
+  {
+    "id": "wc_rifle_burst_kills_50",
+    "weaponId": "rifle_burst",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Burst Fire",
+    "description": "Get 50 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_burst_kills_150",
+    "weaponId": "rifle_burst",
+    "skinId": "neon",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Reaver Master",
+    "description": "Get 150 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_heavy_kills_60",
+    "weaponId": "rifle_heavy",
+    "skinId": "inferno",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Behemoth",
+    "description": "Get 60 kills with the Behemoth AR"
+  },
+  {
+    "id": "wc_rifle_heavy_hs_50",
+    "weaponId": "rifle_heavy",
+    "skinId": "gold",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Heavy Trigger",
+    "description": "Land 50 headshots with the Behemoth AR"
+  },
+  {
+    "id": "wc_smg_compact_kills_40",
+    "weaponId": "smg_compact",
+    "skinId": "arctic",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Wasp",
+    "description": "Get 40 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_smg_compact_kills_120",
+    "weaponId": "smg_compact",
+    "skinId": "neon",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Wasp Master",
+    "description": "Get 120 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_40",
+    "weaponId": "shotgun_combat",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Mauler",
+    "description": "Get 40 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_100",
+    "weaponId": "shotgun_combat",
+    "skinId": "inferno",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Mauler Master",
+    "description": "Get 100 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_50",
+    "weaponId": "dmr_heavy",
+    "skinId": "gold",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Executioner",
+    "description": "Get 50 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_dmr_heavy_hs_40",
+    "weaponId": "dmr_heavy",
+    "skinId": "carbon",
+    "goal": 40,
+    "metric": "headshots",
+    "title": "Executioner Sharpshooter",
+    "description": "Land 40 headshots with the Executioner DMR"
+  },
+  {
+    "id": "wc_lmg_light_kills_60",
+    "weaponId": "lmg_light",
+    "skinId": "arctic",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Vanguard",
+    "description": "Get 60 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_lmg_light_kills_150",
+    "weaponId": "lmg_light",
+    "skinId": "neon",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Vanguard Master",
+    "description": "Get 150 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_knife_tactical_kills_20",
+    "weaponId": "knife_tactical",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "First Cut",
+    "description": "Get 20 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_kills_60",
+    "weaponId": "knife_tactical",
+    "skinId": "crimson",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Bloodied Blade",
+    "description": "Get 60 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_kills_100",
+    "weaponId": "knife_tactical",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Emerald Blade",
+    "description": "Get 100 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_hs_50",
+    "weaponId": "knife_tactical",
+    "skinId": "carbon",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Carbon Blade",
+    "description": "Land 50 headshots with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_kills_160",
+    "weaponId": "knife_tactical",
+    "skinId": "neon",
+    "goal": 160,
+    "metric": "kills",
+    "title": "Neon Blade",
+    "description": "Get 160 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_kills_220",
+    "weaponId": "knife_tactical",
+    "skinId": "inferno",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Knife Master",
+    "description": "Get 220 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_knife_tactical_kills_300",
+    "weaponId": "knife_tactical",
+    "skinId": "gold",
+    "goal": 300,
+    "metric": "kills",
+    "title": "Knife Legend",
+    "description": "Get 300 kills with the Tactical Knife"
+  },
+  {
+    "id": "wc_ar_kills_100",
+    "weaponId": "rifle_ar",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Assault Specialist",
+    "description": "Get 100 kills with the VK-12 Assault"
+  },
+  {
+    "id": "wc_ar_kills_400",
+    "weaponId": "rifle_ar",
+    "skinId": "gold",
+    "goal": 400,
+    "metric": "kills",
+    "title": "Assault Legend",
+    "description": "Get 400 kills with the VK-12 Assault"
+  },
+  {
+    "id": "wc_ar_kills_25",
+    "weaponId": "rifle_ar",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Operator",
+    "description": "Get 25 kills with the VK-12 Assault"
+  },
+  {
+    "id": "wc_ar_hs_120",
+    "weaponId": "rifle_ar",
+    "skinId": "carbon",
+    "goal": 120,
+    "metric": "headshots",
+    "title": "Carbon Precision",
+    "description": "Land 120 headshots with the VK-12 Assault"
+  },
+  {
+    "id": "wc_smg_kills_30",
+    "weaponId": "smg_kp",
+    "skinId": "crimson",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Crimson Kestrel",
+    "description": "Get 30 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_smg_kills_90",
+    "weaponId": "smg_kp",
+    "skinId": "emerald",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Emerald Kestrel",
+    "description": "Get 90 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_smg_kills_280",
+    "weaponId": "smg_kp",
+    "skinId": "inferno",
+    "goal": 280,
+    "metric": "kills",
+    "title": "SMG Inferno",
+    "description": "Get 280 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_smg_kills_350",
+    "weaponId": "smg_kp",
+    "skinId": "gold",
+    "goal": 350,
+    "metric": "kills",
+    "title": "SMG Legend",
+    "description": "Get 350 kills with the Kestrel SMG"
+  },
+  {
+    "id": "wc_shotgun_kills_15",
+    "weaponId": "shotgun_br",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Breacher",
+    "description": "Get 15 kills with the Breacher"
+  },
+  {
+    "id": "wc_shotgun_kills_60",
+    "weaponId": "shotgun_br",
+    "skinId": "emerald",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Emerald Breacher",
+    "description": "Get 60 kills with the Breacher"
+  },
+  {
+    "id": "wc_shotgun_hs_40",
+    "weaponId": "shotgun_br",
+    "skinId": "carbon",
+    "goal": 40,
+    "metric": "headshots",
+    "title": "Carbon Pellet",
+    "description": "Land 40 headshots with the Breacher"
+  },
+  {
+    "id": "wc_shotgun_kills_180",
+    "weaponId": "shotgun_br",
+    "skinId": "neon",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Neon Breacher",
+    "description": "Get 180 kills with the Breacher"
+  },
+  {
+    "id": "wc_shotgun_kills_250",
+    "weaponId": "shotgun_br",
+    "skinId": "gold",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Breacher Legend",
+    "description": "Get 250 kills with the Breacher"
+  },
+  {
+    "id": "wc_dmr_kills_20",
+    "weaponId": "rifle_dm",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Frost Marksman",
+    "description": "Get 20 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_dmr_kills_70",
+    "weaponId": "rifle_dm",
+    "skinId": "crimson",
+    "goal": 70,
+    "metric": "kills",
+    "title": "Crimson Marksman",
+    "description": "Get 70 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_dmr_kills_200",
+    "weaponId": "rifle_dm",
+    "skinId": "neon",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Neon Marksman",
+    "description": "Get 200 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_dmr_kills_300",
+    "weaponId": "rifle_dm",
+    "skinId": "inferno",
+    "goal": 300,
+    "metric": "kills",
+    "title": "DMR Inferno",
+    "description": "Get 300 kills with the Marksman DMR"
+  },
+  {
+    "id": "wc_sniper_kills_15",
+    "weaponId": "sniper_lr",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Sniper",
+    "description": "Get 15 kills with the Longshot"
+  },
+  {
+    "id": "wc_sniper_kills_40",
+    "weaponId": "sniper_lr",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Crimson Death",
+    "description": "Get 40 kills with the Longshot"
+  },
+  {
+    "id": "wc_sniper_kills_70",
+    "weaponId": "sniper_lr",
+    "skinId": "emerald",
+    "goal": 70,
+    "metric": "kills",
+    "title": "Emerald Death",
+    "description": "Get 70 kills with the Longshot"
+  },
+  {
+    "id": "wc_sniper_kills_150",
+    "weaponId": "sniper_lr",
+    "skinId": "neon",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Neon Death",
+    "description": "Get 150 kills with the Longshot"
+  },
+  {
+    "id": "wc_sniper_kills_200",
+    "weaponId": "sniper_lr",
+    "skinId": "inferno",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Longshot Inferno",
+    "description": "Get 200 kills with the Longshot"
+  },
+  {
+    "id": "wc_lmg_kills_40",
+    "weaponId": "lmg_hv",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Crimson Hailstorm",
+    "description": "Get 40 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_lmg_kills_100",
+    "weaponId": "lmg_hv",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Emerald Hailstorm",
+    "description": "Get 100 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_lmg_hs_80",
+    "weaponId": "lmg_hv",
+    "skinId": "carbon",
+    "goal": 80,
+    "metric": "headshots",
+    "title": "Carbon Suppressor",
+    "description": "Land 80 headshots with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_lmg_kills_280",
+    "weaponId": "lmg_hv",
+    "skinId": "neon",
+    "goal": 280,
+    "metric": "kills",
+    "title": "Neon Hailstorm",
+    "description": "Get 280 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_lmg_kills_400",
+    "weaponId": "lmg_hv",
+    "skinId": "gold",
+    "goal": 400,
+    "metric": "kills",
+    "title": "LMG Legend",
+    "description": "Get 400 kills with the Hailstorm LMG"
+  },
+  {
+    "id": "wc_pistol_kills_50",
+    "weaponId": "pistol_side",
+    "skinId": "emerald",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Emerald Sidearm",
+    "description": "Get 50 kills with the Sidearm P-9"
+  },
+  {
+    "id": "wc_pistol_hs_80",
+    "weaponId": "pistol_side",
+    "skinId": "carbon",
+    "goal": 80,
+    "metric": "headshots",
+    "title": "Carbon Sidearm",
+    "description": "Land 80 headshots with the Sidearm P-9"
+  },
+  {
+    "id": "wc_pistol_kills_120",
+    "weaponId": "pistol_side",
+    "skinId": "neon",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Neon Sidearm",
+    "description": "Get 120 kills with the Sidearm P-9"
+  },
+  {
+    "id": "wc_pistol_kills_180",
+    "weaponId": "pistol_side",
+    "skinId": "inferno",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Sidearm Inferno",
+    "description": "Get 180 kills with the Sidearm P-9"
+  },
+  {
+    "id": "wc_pistol_kills_250",
+    "weaponId": "pistol_side",
+    "skinId": "gold",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Sidearm Legend",
+    "description": "Get 250 kills with the Sidearm P-9"
+  },
+  {
+    "id": "wc_vector_kills_25",
+    "weaponId": "smg_vector",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Vector",
+    "description": "Get 25 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_vector_kills_40",
+    "weaponId": "smg_vector",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Crimson Vector",
+    "description": "Get 40 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_vector_kills_90",
+    "weaponId": "smg_vector",
+    "skinId": "emerald",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Emerald Vector",
+    "description": "Get 90 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_vector_hs_70",
+    "weaponId": "smg_vector",
+    "skinId": "carbon",
+    "goal": 70,
+    "metric": "headshots",
+    "title": "Carbon Vector",
+    "description": "Land 70 headshots with the Vector PDW"
+  },
+  {
+    "id": "wc_vector_kills_200",
+    "weaponId": "smg_vector",
+    "skinId": "inferno",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Vector Inferno",
+    "description": "Get 200 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_vector_kills_300",
+    "weaponId": "smg_vector",
+    "skinId": "gold",
+    "goal": 300,
+    "metric": "kills",
+    "title": "Vector Legend",
+    "description": "Get 300 kills with the Vector PDW"
+  },
+  {
+    "id": "wc_autoshotgun_kills_30",
+    "weaponId": "shotgun_auto",
+    "skinId": "arctic",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Frost Wraith",
+    "description": "Get 30 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_autoshotgun_kills_50",
+    "weaponId": "shotgun_auto",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Crimson Wraith",
+    "description": "Get 50 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_autoshotgun_hs_45",
+    "weaponId": "shotgun_auto",
+    "skinId": "carbon",
+    "goal": 45,
+    "metric": "headshots",
+    "title": "Carbon Wraith",
+    "description": "Land 45 headshots with the Wraith Auto"
+  },
+  {
+    "id": "wc_autoshotgun_kills_120",
+    "weaponId": "shotgun_auto",
+    "skinId": "neon",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Neon Wraith",
+    "description": "Get 120 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_autoshotgun_kills_180",
+    "weaponId": "shotgun_auto",
+    "skinId": "inferno",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Wraith Inferno",
+    "description": "Get 180 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_autoshotgun_kills_250",
+    "weaponId": "shotgun_auto",
+    "skinId": "gold",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Wraith Legend",
+    "description": "Get 250 kills with the Wraith Auto"
+  },
+  {
+    "id": "wc_magnum_kills_15",
+    "weaponId": "pistol_magnum",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Hand Cannon",
+    "description": "Get 15 kills with the Magnum .50"
+  },
+  {
+    "id": "wc_magnum_kills_50",
+    "weaponId": "pistol_magnum",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Crimson Deadeye",
+    "description": "Get 50 kills with the Magnum .50"
+  },
+  {
+    "id": "wc_magnum_kills_80",
+    "weaponId": "pistol_magnum",
+    "skinId": "emerald",
+    "goal": 80,
+    "metric": "kills",
+    "title": "Emerald Deadeye",
+    "description": "Get 80 kills with the Magnum .50"
+  },
+  {
+    "id": "wc_magnum_hs_50",
+    "weaponId": "pistol_magnum",
+    "skinId": "carbon",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Carbon Deadeye",
+    "description": "Land 50 headshots with the Magnum .50"
+  },
+  {
+    "id": "wc_magnum_kills_150",
+    "weaponId": "pistol_magnum",
+    "skinId": "neon",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Neon Deadeye",
+    "description": "Get 150 kills with the Magnum .50"
+  },
+  {
+    "id": "wc_scout_kills_20",
+    "weaponId": "dmr_scout",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Frost Scout",
+    "description": "Get 20 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_scout_kills_40",
+    "weaponId": "dmr_scout",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Crimson Scout",
+    "description": "Get 40 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_scout_kills_100",
+    "weaponId": "dmr_scout",
+    "skinId": "neon",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Neon Scout",
+    "description": "Get 100 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_scout_kills_180",
+    "weaponId": "dmr_scout",
+    "skinId": "inferno",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Scout Inferno",
+    "description": "Get 180 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_scout_kills_250",
+    "weaponId": "dmr_scout",
+    "skinId": "gold",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Scout Legend",
+    "description": "Get 250 kills with the Scout Tactical"
+  },
+  {
+    "id": "wc_shiv_kills_15",
+    "weaponId": "shiv",
+    "skinId": "crimson",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Crimson Shiv",
+    "description": "Get 15 kills with the Shiv"
+  },
+  {
+    "id": "wc_shiv_kills_40",
+    "weaponId": "shiv",
+    "skinId": "emerald",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Emerald Shiv",
+    "description": "Get 40 kills with the Shiv"
+  },
+  {
+    "id": "wc_shiv_hs_30",
+    "weaponId": "shiv",
+    "skinId": "carbon",
+    "goal": 30,
+    "metric": "headshots",
+    "title": "Carbon Shiv",
+    "description": "Land 30 headshots with the Shiv"
+  },
+  {
+    "id": "wc_shiv_kills_80",
+    "weaponId": "shiv",
+    "skinId": "neon",
+    "goal": 80,
+    "metric": "kills",
+    "title": "Neon Shiv",
+    "description": "Get 80 kills with the Shiv"
+  },
+  {
+    "id": "wc_shiv_kills_120",
+    "weaponId": "shiv",
+    "skinId": "inferno",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Shiv Inferno",
+    "description": "Get 120 kills with the Shiv"
+  },
+  {
+    "id": "wc_shiv_kills_180",
+    "weaponId": "shiv",
+    "skinId": "gold",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Shiv Legend",
+    "description": "Get 180 kills with the Shiv"
+  },
+  {
+    "id": "wc_machete_kills_20",
+    "weaponId": "machete",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Frost Striker",
+    "description": "Get 20 kills with the Machete"
+  },
+  {
+    "id": "wc_machete_kills_60",
+    "weaponId": "machete",
+    "skinId": "crimson",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Crimson Striker",
+    "description": "Get 60 kills with the Machete"
+  },
+  {
+    "id": "wc_machete_hs_35",
+    "weaponId": "machete",
+    "skinId": "carbon",
+    "goal": 35,
+    "metric": "headshots",
+    "title": "Carbon Striker",
+    "description": "Land 35 headshots with the Machete"
+  },
+  {
+    "id": "wc_machete_kills_100",
+    "weaponId": "machete",
+    "skinId": "neon",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Neon Striker",
+    "description": "Get 100 kills with the Machete"
+  },
+  {
+    "id": "wc_machete_kills_150",
+    "weaponId": "machete",
+    "skinId": "inferno",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Striker Inferno",
+    "description": "Get 150 kills with the Machete"
+  },
+  {
+    "id": "wc_machete_kills_220",
+    "weaponId": "machete",
+    "skinId": "gold",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Machete Legend",
+    "description": "Get 220 kills with the Machete"
+  },
+  {
+    "id": "wc_hammer_kills_15",
+    "weaponId": "hammer",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Smasher",
+    "description": "Get 15 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_hammer_kills_45",
+    "weaponId": "hammer",
+    "skinId": "crimson",
+    "goal": 45,
+    "metric": "kills",
+    "title": "Crimson Smasher",
+    "description": "Get 45 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_hammer_kills_80",
+    "weaponId": "hammer",
+    "skinId": "emerald",
+    "goal": 80,
+    "metric": "kills",
+    "title": "Emerald Smasher",
+    "description": "Get 80 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_hammer_hs_30",
+    "weaponId": "hammer",
+    "skinId": "carbon",
+    "goal": 30,
+    "metric": "headshots",
+    "title": "Carbon Smasher",
+    "description": "Land 30 headshots with the Sledge Hammer"
+  },
+  {
+    "id": "wc_hammer_kills_120",
+    "weaponId": "hammer",
+    "skinId": "neon",
+    "goal": 120,
+    "metric": "kills",
+    "title": "Neon Smasher",
+    "description": "Get 120 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_hammer_kills_200",
+    "weaponId": "hammer",
+    "skinId": "gold",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Hammer Legend",
+    "description": "Get 200 kills with the Sledge Hammer"
+  },
+  {
+    "id": "wc_burst_kills_25",
+    "weaponId": "pistol_burst",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Burst",
+    "description": "Get 25 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_burst_kills_80",
+    "weaponId": "pistol_burst",
+    "skinId": "emerald",
+    "goal": 80,
+    "metric": "kills",
+    "title": "Emerald Burst",
+    "description": "Get 80 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_burst_hs_60",
+    "weaponId": "pistol_burst",
+    "skinId": "carbon",
+    "goal": 60,
+    "metric": "headshots",
+    "title": "Carbon Burst",
+    "description": "Land 60 headshots with the Burst Pistol"
+  },
+  {
+    "id": "wc_burst_kills_140",
+    "weaponId": "pistol_burst",
+    "skinId": "neon",
+    "goal": 140,
+    "metric": "kills",
+    "title": "Neon Burst",
+    "description": "Get 140 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_burst_kills_220",
+    "weaponId": "pistol_burst",
+    "skinId": "inferno",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Burst Inferno",
+    "description": "Get 220 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_burst_kills_300",
+    "weaponId": "pistol_burst",
+    "skinId": "gold",
+    "goal": 300,
+    "metric": "kills",
+    "title": "Burst Legend",
+    "description": "Get 300 kills with the Burst Pistol"
+  },
+  {
+    "id": "wc_machine_kills_25",
+    "weaponId": "pistol_machine",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Mag Dump",
+    "description": "Get 25 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_machine_kills_45",
+    "weaponId": "pistol_machine",
+    "skinId": "crimson",
+    "goal": 45,
+    "metric": "kills",
+    "title": "Crimson Mag Dump",
+    "description": "Get 45 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_machine_kills_90",
+    "weaponId": "pistol_machine",
+    "skinId": "emerald",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Emerald Mag Dump",
+    "description": "Get 90 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_machine_hs_70",
+    "weaponId": "pistol_machine",
+    "skinId": "carbon",
+    "goal": 70,
+    "metric": "headshots",
+    "title": "Carbon Mag Dump",
+    "description": "Land 70 headshots with the Machine Pistol"
+  },
+  {
+    "id": "wc_machine_kills_180",
+    "weaponId": "pistol_machine",
+    "skinId": "inferno",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Mag Dump Inferno",
+    "description": "Get 180 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_machine_kills_260",
+    "weaponId": "pistol_machine",
+    "skinId": "gold",
+    "goal": 260,
+    "metric": "kills",
+    "title": "Machine Pistol Legend",
+    "description": "Get 260 kills with the Machine Pistol"
+  },
+  {
+    "id": "wc_launcher_kills_10",
+    "weaponId": "launcher_rocket",
+    "skinId": "arctic",
+    "goal": 10,
+    "metric": "kills",
+    "title": "Frost Demolitionist",
+    "description": "Get 10 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_launcher_kills_20",
+    "weaponId": "launcher_rocket",
+    "skinId": "crimson",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Crimson Demolitionist",
+    "description": "Get 20 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_launcher_kills_40",
+    "weaponId": "launcher_rocket",
+    "skinId": "emerald",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Emerald Demolitionist",
+    "description": "Get 40 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_launcher_hs_15",
+    "weaponId": "launcher_rocket",
+    "skinId": "carbon",
+    "goal": 15,
+    "metric": "headshots",
+    "title": "Carbon Demolitionist",
+    "description": "Land 15 headshots with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_launcher_kills_60",
+    "weaponId": "launcher_rocket",
+    "skinId": "neon",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Neon Demolitionist",
+    "description": "Get 60 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_launcher_kills_90",
+    "weaponId": "launcher_rocket",
+    "skinId": "inferno",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Demolitionist Inferno",
+    "description": "Get 90 kills with the RL-7 Rocket Launcher"
+  },
+  {
+    "id": "wc_scout_sniper_kills_15",
+    "weaponId": "sniper_scout",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Eagle Eye",
+    "description": "Get 15 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_scout_sniper_kills_25",
+    "weaponId": "sniper_scout",
+    "skinId": "crimson",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Crimson Eagle Eye",
+    "description": "Get 25 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_scout_sniper_kills_90",
+    "weaponId": "sniper_scout",
+    "skinId": "neon",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Neon Eagle Eye",
+    "description": "Get 90 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_scout_sniper_kills_140",
+    "weaponId": "sniper_scout",
+    "skinId": "inferno",
+    "goal": 140,
+    "metric": "kills",
+    "title": "Eagle Eye Inferno",
+    "description": "Get 140 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_scout_sniper_kills_200",
+    "weaponId": "sniper_scout",
+    "skinId": "gold",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Scout Sniper Legend",
+    "description": "Get 200 kills with the Scout Sniper"
+  },
+  {
+    "id": "wc_rifle_burst_kills_25",
+    "weaponId": "rifle_burst",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Reaver",
+    "description": "Get 25 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_burst_kills_90",
+    "weaponId": "rifle_burst",
+    "skinId": "emerald",
+    "goal": 90,
+    "metric": "kills",
+    "title": "Emerald Reaver",
+    "description": "Get 90 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_burst_hs_75",
+    "weaponId": "rifle_burst",
+    "skinId": "carbon",
+    "goal": 75,
+    "metric": "headshots",
+    "title": "Carbon Reaver",
+    "description": "Land 75 headshots with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_burst_kills_220",
+    "weaponId": "rifle_burst",
+    "skinId": "inferno",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Reaver Inferno",
+    "description": "Get 220 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_burst_kills_320",
+    "weaponId": "rifle_burst",
+    "skinId": "gold",
+    "goal": 320,
+    "metric": "kills",
+    "title": "Reaver Legend",
+    "description": "Get 320 kills with the Reaver BR"
+  },
+  {
+    "id": "wc_rifle_heavy_kills_25",
+    "weaponId": "rifle_heavy",
+    "skinId": "arctic",
+    "goal": 25,
+    "metric": "kills",
+    "title": "Frost Behemoth",
+    "description": "Get 25 kills with the Behemoth AR"
+  },
+  {
+    "id": "wc_rifle_heavy_kills_50",
+    "weaponId": "rifle_heavy",
+    "skinId": "crimson",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Crimson Behemoth",
+    "description": "Get 50 kills with the Behemoth AR"
+  },
+  {
+    "id": "wc_rifle_heavy_kills_100",
+    "weaponId": "rifle_heavy",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Emerald Behemoth",
+    "description": "Get 100 kills with the Behemoth AR"
+  },
+  {
+    "id": "wc_rifle_heavy_hs_90",
+    "weaponId": "rifle_heavy",
+    "skinId": "carbon",
+    "goal": 90,
+    "metric": "headshots",
+    "title": "Carbon Behemoth",
+    "description": "Land 90 headshots with the Behemoth AR"
+  },
+  {
+    "id": "wc_rifle_heavy_kills_200",
+    "weaponId": "rifle_heavy",
+    "skinId": "neon",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Neon Behemoth",
+    "description": "Get 200 kills with the Behemoth AR"
+  },
+  {
+    "id": "wc_smg_compact_kills_20",
+    "weaponId": "smg_compact",
+    "skinId": "crimson",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Crimson Wasp",
+    "description": "Get 20 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_smg_compact_kills_60",
+    "weaponId": "smg_compact",
+    "skinId": "emerald",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Emerald Wasp",
+    "description": "Get 60 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_smg_compact_hs_50",
+    "weaponId": "smg_compact",
+    "skinId": "carbon",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Carbon Wasp",
+    "description": "Land 50 headshots with the Wasp PDW"
+  },
+  {
+    "id": "wc_smg_compact_kills_180",
+    "weaponId": "smg_compact",
+    "skinId": "inferno",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Wasp Inferno",
+    "description": "Get 180 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_smg_compact_kills_250",
+    "weaponId": "smg_compact",
+    "skinId": "gold",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Wasp Legend",
+    "description": "Get 250 kills with the Wasp PDW"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_20",
+    "weaponId": "shotgun_combat",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Frost Mauler",
+    "description": "Get 20 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_70",
+    "weaponId": "shotgun_combat",
+    "skinId": "emerald",
+    "goal": 70,
+    "metric": "kills",
+    "title": "Emerald Mauler",
+    "description": "Get 70 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_shotgun_combat_hs_50",
+    "weaponId": "shotgun_combat",
+    "skinId": "carbon",
+    "goal": 50,
+    "metric": "headshots",
+    "title": "Carbon Mauler",
+    "description": "Land 50 headshots with the Mauler CS"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_160",
+    "weaponId": "shotgun_combat",
+    "skinId": "neon",
+    "goal": 160,
+    "metric": "kills",
+    "title": "Neon Mauler",
+    "description": "Get 160 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_shotgun_combat_kills_240",
+    "weaponId": "shotgun_combat",
+    "skinId": "gold",
+    "goal": 240,
+    "metric": "kills",
+    "title": "Mauler Legend",
+    "description": "Get 240 kills with the Mauler CS"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_20",
+    "weaponId": "dmr_heavy",
+    "skinId": "arctic",
+    "goal": 20,
+    "metric": "kills",
+    "title": "Frost Executioner",
+    "description": "Get 20 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_40",
+    "weaponId": "dmr_heavy",
+    "skinId": "crimson",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Crimson Executioner",
+    "description": "Get 40 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_80",
+    "weaponId": "dmr_heavy",
+    "skinId": "emerald",
+    "goal": 80,
+    "metric": "kills",
+    "title": "Emerald Executioner",
+    "description": "Get 80 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_140",
+    "weaponId": "dmr_heavy",
+    "skinId": "neon",
+    "goal": 140,
+    "metric": "kills",
+    "title": "Neon Executioner",
+    "description": "Get 140 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_dmr_heavy_kills_220",
+    "weaponId": "dmr_heavy",
+    "skinId": "inferno",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Executioner Inferno",
+    "description": "Get 220 kills with the Executioner DMR"
+  },
+  {
+    "id": "wc_lmg_light_kills_30",
+    "weaponId": "lmg_light",
+    "skinId": "crimson",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Crimson Vanguard",
+    "description": "Get 30 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_lmg_light_kills_100",
+    "weaponId": "lmg_light",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Emerald Vanguard",
+    "description": "Get 100 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_lmg_light_hs_80",
+    "weaponId": "lmg_light",
+    "skinId": "carbon",
+    "goal": 80,
+    "metric": "headshots",
+    "title": "Carbon Vanguard",
+    "description": "Land 80 headshots with the Vanguard LSW"
+  },
+  {
+    "id": "wc_lmg_light_kills_220",
+    "weaponId": "lmg_light",
+    "skinId": "inferno",
+    "goal": 220,
+    "metric": "kills",
+    "title": "Vanguard Inferno",
+    "description": "Get 220 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_lmg_light_kills_320",
+    "weaponId": "lmg_light",
+    "skinId": "gold",
+    "goal": 320,
+    "metric": "kills",
+    "title": "Vanguard Legend",
+    "description": "Get 320 kills with the Vanguard LSW"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_15",
+    "weaponId": "sniper_heavy",
+    "skinId": "arctic",
+    "goal": 15,
+    "metric": "kills",
+    "title": "Frost Annihilator",
+    "description": "Get 15 kills with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_30",
+    "weaponId": "sniper_heavy",
+    "skinId": "crimson",
+    "goal": 30,
+    "metric": "kills",
+    "title": "Crimson Annihilator",
+    "description": "Get 30 kills with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_50",
+    "weaponId": "sniper_heavy",
+    "skinId": "emerald",
+    "goal": 50,
+    "metric": "kills",
+    "title": "Emerald Annihilator",
+    "description": "Get 50 kills with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_hs_35",
+    "weaponId": "sniper_heavy",
+    "skinId": "carbon",
+    "goal": 35,
+    "metric": "headshots",
+    "title": "Carbon Annihilator",
+    "description": "Land 35 headshots with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_100",
+    "weaponId": "sniper_heavy",
+    "skinId": "neon",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Neon Annihilator",
+    "description": "Get 100 kills with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_150",
+    "weaponId": "sniper_heavy",
+    "skinId": "inferno",
+    "goal": 150,
+    "metric": "kills",
+    "title": "Annihilator Inferno",
+    "description": "Get 150 kills with the Annihilator"
+  },
+  {
+    "id": "wc_sniper_heavy_kills_200",
+    "weaponId": "sniper_heavy",
+    "skinId": "gold",
+    "goal": 200,
+    "metric": "kills",
+    "title": "Annihilator Legend",
+    "description": "Get 200 kills with the Annihilator"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_40",
+    "weaponId": "lmg_heavy",
+    "skinId": "arctic",
+    "goal": 40,
+    "metric": "kills",
+    "title": "Frost Leviathan",
+    "description": "Get 40 kills with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_60",
+    "weaponId": "lmg_heavy",
+    "skinId": "crimson",
+    "goal": 60,
+    "metric": "kills",
+    "title": "Crimson Leviathan",
+    "description": "Get 60 kills with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_100",
+    "weaponId": "lmg_heavy",
+    "skinId": "emerald",
+    "goal": 100,
+    "metric": "kills",
+    "title": "Emerald Leviathan",
+    "description": "Get 100 kills with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_hs_70",
+    "weaponId": "lmg_heavy",
+    "skinId": "carbon",
+    "goal": 70,
+    "metric": "headshots",
+    "title": "Carbon Leviathan",
+    "description": "Land 70 headshots with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_180",
+    "weaponId": "lmg_heavy",
+    "skinId": "neon",
+    "goal": 180,
+    "metric": "kills",
+    "title": "Neon Leviathan",
+    "description": "Get 180 kills with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_250",
+    "weaponId": "lmg_heavy",
+    "skinId": "inferno",
+    "goal": 250,
+    "metric": "kills",
+    "title": "Leviathan Inferno",
+    "description": "Get 250 kills with the Leviathan"
+  },
+  {
+    "id": "wc_lmg_heavy_kills_350",
+    "weaponId": "lmg_heavy",
+    "skinId": "gold",
+    "goal": 350,
+    "metric": "kills",
+    "title": "Leviathan Legend",
+    "description": "Get 350 kills with the Leviathan"
+  }
+]
