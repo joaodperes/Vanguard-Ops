@@ -2171,8 +2171,8 @@ async function handle(socket: any, msg: C2S) {
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
-      if (weapon.category === "melee") destroyTurretsNear(room, p.pos, Math.max(2.5, weapon.stats.range));
       if (weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
+      if (weapon.category === "melee") destroyTurretsNear(room, p.pos, Math.max(2.5, weapon.stats.range));
       const now = Date.now();
       const interval = 1000 / Math.max(1, weapon.stats.fireRate);
       const burstSize = weapon.stats.burst ?? 1;
