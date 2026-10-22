@@ -29,17 +29,18 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
   const shownSight = sightDefForAttachments(preview ?? equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
   const hasPreview = !!preview && (currentSight.type !== shownSight.type || STAT_DEFS.some(s => current[s.key] !== displayed[s.key]));
   const baseline = computeEffectiveStats(weapon, EMPTY_ATTACHMENTS);
-  const rows = STAT_DEFS;
+  // Melee has no magazine, reload, recoil or aiming optics. Keep only relevant stats.
+  const rows = weapon.category === "melee" ? STAT_DEFS.filter(s => ["damage", "fireRate", "range", "moveSpeed"].includes(s.key)) : STAT_DEFS;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs uppercase tracking-widest font-bold text-amber-300">{hasPreview ? "Attachment preview" : "Final weapon stats"}</span>
-        <span className="text-[10px] text-white/40">{hasPreview ? "Compared to equipped" : "Including attachments"}</span>
+        <span className="text-xs uppercase tracking-widest font-bold text-amber-300">{compact ? "Stats" : hasPreview ? "Attachment preview" : "Final weapon stats"}</span>
+        {!compact && <span className="text-[10px] text-white/40">{hasPreview ? "Compared to equipped" : "Including attachments"}</span>}
       </div>
-      <div className="flex items-center justify-between gap-2 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px]">
+      {!compact && weapon.category !== "melee" && <div className="flex items-center justify-between gap-2 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px]">
         <span className="text-white/55">Optic</span>
         <span className="text-white font-mono">{shownSight.name} · {shownSight.zoom}×</span>
-      </div>
+      </div>}
       <div className={compact ? "grid grid-cols-2 gap-x-4 gap-y-2" : "grid grid-cols-1 gap-y-2.5"}>
         {rows.map(s => {
           const val = displayed[s.key] as number;
@@ -52,7 +53,7 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
           const delta = previous !== 0 ? Math.round(Math.abs(change / previous * 100)) : 0;
           return <div key={s.key} className="min-w-0">
             <div className="flex justify-between gap-2 items-baseline text-[11px]">
-              <span className="text-white/55">{s.label}</span>
+              <span className="text-white/55">{weapon.category === "melee" && s.key === "fireRate" ? "Swings / sec" : weapon.category === "melee" && s.key === "range" ? "Reach" : s.label}</span>
               <span className="tabular-nums font-mono whitespace-nowrap">
                 <span className="text-white font-semibold">{fmt(val)}{s.unit}</span>
                 {difference && <span className={`ml-1 ${isGood ? "text-emerald-300" : "text-rose-300"}`}>
