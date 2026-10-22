@@ -31,7 +31,7 @@ import {
   type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
-  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats,
+  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
   SIGHT_DEFS, sightDefForType, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
@@ -3165,11 +3165,11 @@ export class FPSEngine {
     c.nameSprite = sprite;
 
     // ---- Health bar (floating above head) ----
-    const barBg = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.12), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false }));
+    const barBg = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.12), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: true }));
     barBg.position.y = PLAYER_HEIGHT + 0.4;
     barBg.renderOrder = 999;
     root.add(barBg);
-    const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.08), new THREE.MeshBasicMaterial({ color: 0x33dd66, depthTest: false }));
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.08), new THREE.MeshBasicMaterial({ color: 0x33dd66, depthTest: true }));
     bar.position.set(0, PLAYER_HEIGHT + 0.4, 0.01);
     bar.renderOrder = 1000;
     root.add(bar);
@@ -3179,7 +3179,7 @@ export class FPSEngine {
     const ringColor = c.team === "red" ? 0xef4444 : c.team === "blue" ? 0x3b82f6 : 0x9ca3af;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.55, 0.7, 24),
-      new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthTest: false })
+      new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthTest: true })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.05;
@@ -3249,7 +3249,7 @@ export class FPSEngine {
     ctx.strokeText(text, 128, 32);
     ctx.fillText(text, 128, 32);
     const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
     const s = new THREE.Sprite(mat);
     s.scale.set(1.6, 0.4, 1);
     return s;
@@ -4446,23 +4446,13 @@ export class FPSEngine {
     }
   }
 
-  // Damage falloff: at distance <= range, full damage. Beyond range, damage falls linearly
-  // to 60% at range*1.6, then stays at 60%.
-  private damageAtRange(base: number, dist: number, range: number): number {
-    if (dist <= range) return base;
-    const fallEnd = range * 1.6;
-    if (dist >= fallEnd) return base * 0.6;
-    const t = (dist - range) / (fallEnd - range);
-    return base * (1 - 0.4 * t);
-  }
-
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
     let nearest: { c: Combatant; t: number; head: boolean } | null = null;
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
       const hit = rayCombatantHit(origin, dir, c.pos);
-      if (hit && hit.t <= this.eff.range * 1.6) {
+      if (hit && hit.t <= maxWeaponHitRange(this.eff.range, this.eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { c, t: hit.t, head: hit.head };
       }
     }
@@ -4487,7 +4477,7 @@ export class FPSEngine {
         return null;
       }
       const baseDmg = this.eff.damage * (nearest.head ? headshotMult : 1);
-      const dmg = this.damageAtRange(baseDmg, nearest.t, this.eff.range);
+      const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
@@ -5083,7 +5073,13 @@ export class FPSEngine {
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
-    let duration = this.eff.reloadTime;
+    const currentWeapon = weaponById(this.weaponId);
+    // Shotguns and bolt-action rifles load one round at a time. Attachment
+    // reload modifiers are applied to each shell/round, not the whole magazine.
+    let duration = currentWeapon.stats.reloadStyle === "incremental"
+      ? (currentWeapon.stats.reloadPerRound ?? this.eff.reloadTime / this.eff.magSize) *
+        this.eff.reloadTime / Math.max(0.01, currentWeapon.stats.reloadTime)
+      : this.eff.reloadTime;
     if (special?.kind === "bolt" && this.boltCharges > 0) {
       this.boltCharges--;
       duration = special.quickReloadSeconds;
@@ -5245,12 +5241,27 @@ export class FPSEngine {
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
     if (this.reloading && performance.now() >= this.reloadEndsAt) {
+      if (weaponById(this.weaponId).stats.reloadStyle === "incremental") {
+        this.ammoInMag = Math.min(this.eff.magSize, this.ammoInMag + 1);
+        this.saveAmmoToSlot(this.currentSlot);
+        if (this.ammoInMag >= this.eff.magSize) {
+          this.reloading = false;
+        } else {
+          this.reloadStartedAt = performance.now();
+          this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
+        }
+      } else {
+        this.reloading = false;
+        if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
+        else this.ammoInMag = this.eff.magSize;
+        this.saveAmmoToSlot(this.currentSlot);
+      }
+    }
+    // A new trigger press interrupts an incremental reload as soon as there is
+    // ammo to fire. Already-inserted shells remain available after a swap.
+    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" &&
+        this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
       this.reloading = false;
-      if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
-      else this.ammoInMag = this.eff.magSize;
-      // Round 19o: Save the refilled ammo to the current slot so swapping
-      // away and back preserves the full mag (and doesn't reset it).
-      this.saveAmmoToSlot(this.currentSlot);
     }
     const wantFire = (this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring);
     const inputActive = this.pointerLocked || this.touchMode;
@@ -5838,20 +5849,26 @@ export class FPSEngine {
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
       const enemy = this.nearestEnemy(c);
+      // Collect/deny nearby Kill Confirmed tags when immediate combat doesn't
+      // demand attention. Bots actively pursue tags even if enemies are visible.
+      const nearestTag = this.opts.mode === "killconfirmed"
+        ? [...this.kcTags.values()].map(item => item.tag)
+            .filter(tag => tag.expiresAt > Date.now())
+            .sort((a, b) => Math.hypot(a.pos[0] - c.pos[0], a.pos[2] - c.pos[2]) -
+              Math.hypot(b.pos[0] - c.pos[0], b.pos[2] - c.pos[2]))[0]
+        : undefined;
+      const tagDistance = nearestTag ? Math.hypot(nearestTag.pos[0] - c.pos[0], nearestTag.pos[2] - c.pos[2]) : Infinity;
+      const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
+      const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
       const prevTarget = ai.targetId;
-      ai.targetId = enemy ? enemy.id : null;
+      ai.targetId = pursueTag ? null : (enemy ? enemy.id : null);
+      if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
-      if (!enemy) {
-        // Seek enemy and friendly dogtags when not engaged with an enemy.
-        const closestTag = this.opts.mode === "killconfirmed"
-          ? [...this.kcTags.values()].map(item => item.tag).sort((a, b) =>
-              Math.hypot(a.pos[0] - c.pos[0], a.pos[2] - c.pos[2]) -
-              Math.hypot(b.pos[0] - c.pos[0], b.pos[2] - c.pos[2]))[0]
-          : undefined;
-        if (closestTag) ai.wanderTarget = closestTag.pos;
+      if (!ai.targetId) {
+        if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
         else if (Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5)
           ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
             this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
@@ -5867,6 +5884,15 @@ export class FPSEngine {
       playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills,
     };
     const tgt = targetIsSelf ? selfCombatant : target;
+    // Bots receive each shell only after its insert time. They can return fire
+    // after the first completed shell if threatened.
+    if (w.stats.reloadStyle === "incremental" &&
+        ai.reloadingUntil > 0 && now >= ai.reloadingUntil && ai.ammoInMag < eff.magSize) {
+      ai.ammoInMag++;
+      const stepMs = Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
+        eff.reloadTime / Math.max(0.01, w.stats.reloadTime) * 1000);
+      ai.reloadingUntil = ai.ammoInMag >= eff.magSize || ai.targetId ? 0 : now + stepMs;
+    }
     if (tgt && tgt.alive) {
       const dx = tgt.pos[0] - c.pos[0], dz = tgt.pos[2] - c.pos[2], dy = (tgt.pos[1] + 1.5) - (c.pos[1] + 1.5);
       const dist = Math.hypot(dx, dz);
@@ -6039,9 +6065,14 @@ export class FPSEngine {
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
       const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
       if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
-        ai.reloadingUntil = now + eff.reloadTime * 1000; ai.ammoInMag = eff.magSize;
+        const durationMs = w.stats.reloadStyle === "incremental"
+          ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
+              eff.reloadTime / Math.max(0.01, w.stats.reloadTime) * 1000)
+          : eff.reloadTime * 1000;
+        ai.reloadingUntil = now + durationMs;
+        if (w.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
         ai.burstShotsLeft = 0;
-        ai.burstEndsAt = now + eff.reloadTime * 1000;
+        ai.burstEndsAt = now + durationMs;
       }
     } else {
       ai.sprinting = false;
@@ -6228,7 +6259,7 @@ export class FPSEngine {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const hit = rayCombatantHit(origin, dir, e.pos);
-      if (hit && hit.t <= eff.range * 1.6) {
+      if (hit && hit.t <= maxWeaponHitRange(eff.range, eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
       }
     }
@@ -6239,7 +6270,7 @@ export class FPSEngine {
     }
     if (nearest && nearest.t < blockedT) {
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
-      let dmg = this.damageAtRange(baseDmg, nearest.t, eff.range);
+      let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff);
       // Survival: bots hit harder as waves progress, BUT base damage is reduced
       // by 35% to give players more survivability (Round 18-b balance fix).
       // Net: wave 1 = 65% damage, wave 8 = 65%*1.42 = 92%, wave 14 = 65%*1.78 = 116%.
