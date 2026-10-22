@@ -21,6 +21,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
+import { turretCanTrack, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS } from "./turret-rules";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
@@ -605,6 +606,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
+  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; mesh: THREE.Group; offline: boolean }>();
 
   // scoring
   private kills = 0;
@@ -2424,6 +2426,54 @@ export class FPSEngine {
     });
   }
 
+  /** Bullet Spitter is a placed machine, not a projectile. Uses world-space
+   * yaw for the 140° arc and pivots its barrel toward elevated enemies.
+   */
+  private placeBulletSpitter(id: string, ownerId: string, pos: Vec3, yaw: number, expiresAt: number, offline: boolean) {
+    if (this.bulletSpitters.has(id)) return;
+    const root = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({color: 0x65717b, metalness: .8, roughness: .28});
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.44,.56,.38,10),mat.clone());
+    base.position.y = .27;
+    root.add(base);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.55,.36,.65),mat.clone());
+    body.position.y = .67; root.add(body);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.095,.11,.85,8),
+      new THREE.MeshStandardMaterial({color:0xffad33,metalness:.65,roughness:.36}));
+    barrel.rotation.x = Math.PI / 2; barrel.position.set(0,.71,.49);root.add(barrel);
+    root.position.set(...pos);root.rotation.y = yaw;this.scene.add(root);
+    this.bulletSpitters.set(id,{ownerId,pos,yaw,expiresAt,nextShotAt:Date.now()+300,mesh:root,offline});
+  }
+  private removeBulletSpitter(id: string) {
+    const t = this.bulletSpitters.get(id);
+    if (!t) return;
+    this.scene.remove(t.mesh);
+    t.mesh.traverse(o=>{if(o instanceof THREE.Mesh) {
+      o.geometry.dispose();for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
+    }});
+    this.bulletSpitters.delete(id);
+  }
+  private tickBulletSpitters() {
+    const now = Date.now();
+    for (const [id,t] of this.bulletSpitters) {
+      if (now >= t.expiresAt) {this.removeBulletSpitter(id);continue;}
+      if (!t.offline || now < t.nextShotAt || this.matchEnded) continue;
+      const target = [...this.combatants.values()].filter(c=>
+        c.alive && c.team !== this.opts.team && turretCanTrack(t.pos,t.yaw,c.pos) &&
+        this.hasLineOfSight([t.pos[0],t.pos[1]+1,t.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]])
+      ).sort((a,b)=>Math.hypot(a.pos[0]-t.pos[0],a.pos[2]-t.pos[2]) -
+        Math.hypot(b.pos[0]-t.pos[0],b.pos[2]-t.pos[2]))[0];
+      if (!target) continue;
+      t.nextShotAt = now + TURRET_INTERVAL_MS;
+      const src: Vec3 = [t.pos[0],t.pos[1]+1,t.pos[2]];
+      const delta: Vec3 = [target.pos[0]-src[0],target.pos[1]+1-src[1],target.pos[2]-src[2]];
+      const len=Math.hypot(...delta)||1;
+      t.mesh.rotation.y=Math.atan2(delta[0],delta[2]);
+      this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
+      this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
+    }
+  }
+
   private placeDeathBomb(id: string, pos: Vec3, explodesAt: number, local: boolean) {
     if (this.deathBombs.has(id) || this.disposed) return;
     const mesh = this.makeMineMarker(pos);
@@ -3494,6 +3544,23 @@ export class FPSEngine {
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
+      case "turretPlaced":
+        this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
+        break;
+      case "turretFired": {
+        const turret = this.bulletSpitters.get(msg.id);
+        if (turret) {
+          const origin: Vec3 = [turret.pos[0], turret.pos[1] + 1.1, turret.pos[2]];
+          const delta: Vec3 = [msg.target[0]-origin[0],msg.target[1]-origin[1],msg.target[2]-origin[2]];
+          const len = Math.hypot(...delta) || 1;
+          turret.mesh.rotation.y = Math.atan2(delta[0], delta[2]);
+          this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default");
+        }
+        break;
+      }
+      case "turretRemoved":
+        this.removeBulletSpitter(msg.id);
+        break;
       case "survivalDowned":
         if (msg.playerId === this.selfId) {
           this.survivalDowned = true;
@@ -3610,7 +3677,7 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (msg.weaponId === "launcher_rocket" || weaponById(msg.weaponId).wonder) {
+          if (msg.weaponId === "launcher_rocket" || (weaponById(msg.weaponId).wonder && weaponById(msg.weaponId).wonder?.kind !== "turret")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else {
@@ -4231,7 +4298,17 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
-    const isRocket = this.weaponId === "launcher_rocket" || !!w.wonder;
+    if (w.wonder?.kind === "turret") {
+      if (this.opts.online) {
+        this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
+      } else {
+        for (const [id, item] of this.bulletSpitters) if (item.ownerId === this.selfId) this.removeBulletSpitter(id);
+        this.placeBulletSpitter(`offline_turret_${Date.now()}`, this.selfId,
+          [this.pos.x,this.pos.y,this.pos.z], this.yaw, Date.now() + TURRET_LIFETIME_MS, true);
+      }
+      return;
+    }
+    const isRocket = this.weaponId === "launcher_rocket" || (!!w.wonder && w.wonder.kind !== "turret");
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -5015,6 +5092,7 @@ export class FPSEngine {
 
   private update(dt: number) {
     this.tickDeathBombs();
+    this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
@@ -6487,6 +6565,7 @@ export class FPSEngine {
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
+    for (const id of [...this.bulletSpitters.keys()]) this.removeBulletSpitter(id);
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
