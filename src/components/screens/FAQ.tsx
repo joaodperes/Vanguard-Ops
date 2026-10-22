@@ -45,6 +45,7 @@ export function FAQ() {
               <ul className="space-y-1.5">
                 <li><strong className="text-amber-300">Free-For-All (FFA):</strong> Everyone vs everyone. No teams. First to the kill limit (or highest kills when time runs out) wins.</li>
                 <li><strong className="text-rose-300">Team Deathmatch (TDM):</strong> Red vs Blue. Kills count toward your team&rsquo;s score. First team to the kill limit wins.</li>
+                <li><strong className="text-cyan-300">Kill Confirmed:</strong> Red vs Blue. Defeated players drop a dogtag. Recover an enemy tag to score for your team; pick up friendly tags to deny enemy points. Tags expire after the room-selected tag lifetime (default 25 seconds). First team to the confirmed-tag limit (or most confirmations at the time limit) wins.</li>
                 <li><strong className="text-emerald-300">Survival (PvE):</strong> Solo or duo with limited reinforcements. Clear 30 waves on Standard for a large XP/credits reward and unlock Hard (endless, mutators change every 5 waves). Clear Hard wave 20 for Elite (mutators every wave and a boss every 10 waves), then Elite wave 20 for Nightmare (mutators stack instead of rotate).</li>
                 <li><strong className="text-purple-300">Gun Game:</strong> Advance through a rotating 30-weapon list, finishing with Rocket Launcher and Melee. Weapons use base stats without Armory attachments; your chosen passive perk remains active. Free-for-all format — no teams.</li>
               </ul>
@@ -130,15 +131,15 @@ export function FAQ() {
         <FaqSection icon={<Users className="w-5 h-5 text-amber-400" />} title="Rooms & Multiplayer">
           <Accordion type="single" collapsible className="space-y-2">
             <FaqItem q="How do I create a room?">
-              <p>Go to <strong>Play → Create a Room</strong>. Choose your game mode (FFA/TDM/Survival), team size (3v3/5v5/7v7), map, bot difficulty, whether to fill empty slots with bots, and an optional room name and password. Click <strong>Create Room</strong> — you&rsquo;ll enter a lobby state where you can wait for friends to join before starting.</p>
+              <p>Go to <strong>Play → Create a Room</strong>. Choose your game mode (FFA/TDM/Kill Confirmed/Survival/Gun Game), team size (3v3/5v5/7v7), map, bot difficulty, whether to fill empty slots with bots, and an optional room name and password. Click <strong>Create Room</strong> — you&rsquo;ll enter a lobby state where you can wait for friends to join before starting.</p>
             </FaqItem>
             <FaqItem q="How do teams work?">
-              <p>In <strong>TDM</strong>, players pick Red or Blue team when joining (or auto-assign). Teams are balanced — each team has a size limit based on the room&rsquo;s team size setting (3v3, 5v5, or 7v7). If &ldquo;fill with bots&rdquo; is on, bots fill empty slots on both teams. When a human joins a full team, a bot is removed to make room (team size is respected).</p>
+              <p>In <strong>TDM and Kill Confirmed</strong>, players pick Red or Blue team when joining (or auto-assign). Teams are balanced — each team has a size limit based on the room&rsquo;s team size setting (3v3, 5v5, or 7v7). If &ldquo;fill with bots&rdquo; is on, bots fill empty slots on both teams. When a human joins a full team, a bot is removed to make room (team size is respected).</p>
               <p className="mt-2">In <strong>FFA</strong>, there are no teams — everyone is an enemy. The team size selector becomes &ldquo;player slots&rdquo; (e.g., 5v5 = 10 total players).</p>
               <p className="mt-2">In <strong>Survival</strong>, all humans are on the same side against the bot waves.</p>
             </FaqItem>
             <FaqItem q="What does 'Fill with Bots' do?">
-              <p>When enabled, bots automatically fill empty slots in the match. As human players join, bots are replaced one-for-one (respecting team size limits in TDM). If a human leaves, a bot refills their slot so the match stays populated. This ensures the match is always full of combatants.</p>
+              <p>When enabled, bots automatically fill empty slots in the match. As human players join, bots are replaced one-for-one (respecting team size limits in TDM or Kill Confirmed). If a human leaves, a bot refills their slot so the match stays populated. This ensures the match is always full of combatants.</p>
             </FaqItem>
             <FaqItem q="What is bot difficulty and 'Mixed'?">
               <p>Bot difficulty is set per-room (not per-player) when creating a room:</p>
@@ -163,7 +164,7 @@ export function FAQ() {
             <FaqItem q="How do achievements work?">
               <p>Achievements are long-term milestones (e.g., &ldquo;Reach Level 10&rdquo;, &ldquo;Get 500 kills&rdquo;, &ldquo;Survive 10 waves&rdquo;). They award bonus XP and credits when completed. Achievements are separated into two categories:</p>
               <ul className="space-y-0.5 mt-1.5">
-                <li><strong className="text-rose-300">PvP Achievements:</strong> Earned in FFA, TDM, and Gun Game matches (kills, wins, headshots, multikills).</li>
+                <li><strong className="text-rose-300">PvP Achievements:</strong> Earned in FFA, TDM, Kill Confirmed, and Gun Game matches (kills, wins, headshots, multikills).</li>
                 <li><strong className="text-emerald-300">PvE Achievements:</strong> Earned in Survival mode (waves survived, survival kills, reinforcements used).</li>
               </ul>
               <p className="mt-2">View your achievements on the <strong>Profile</strong> screen.</p>

@@ -35,8 +35,11 @@ export interface MatchResultInput {
   deaths: number;
   headshots: number;
   won: boolean;
-  mode: "ffa" | "tdm" | "survival" | "gungame";
+  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
   score: number;
+  // Personal Kill Confirmed objective stats (separate from kills).
+  confirmations?: number;
+  denials?: number;
   online?: boolean;
   durationSec?: number;
   placement?: number;
@@ -461,6 +464,14 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const winCredits = input.won ? REWARDS.winCreditsBonus : 0;
   let xpGained = killXp + winXp + REWARDS.participationXp;
   let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
+  // Reward playing the objective, not just farming kills.
+  // Request values are sanitized at the API boundary; cap again for direct callers.
+  if (input.mode === "killconfirmed") {
+    const confirms = Math.max(0, Math.min(200, Math.floor(input.confirmations ?? 0)));
+    const denies = Math.max(0, Math.min(200, Math.floor(input.denials ?? 0)));
+    xpGained += confirms * 10 + denies * 5;
+    creditsGained += confirms * 5 + denies * 2;
+  }
 
   // --- 19a+19b: Kill-streak bonus (stacks with headshot bonus above) ---
   // Each "multi-kill" (double-kill or better streak, tracked by the engine as

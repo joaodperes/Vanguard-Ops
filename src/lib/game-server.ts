@@ -24,12 +24,12 @@ import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
   LoadoutWire, Vec3, MapId, MapDef, RoomSummary, CreateRoomConfig, TeamSize,
-  BotDifficulty, KillDifficulty,
+  BotDifficulty, KillDifficulty, KillConfirmedTag,
 } from "./game-protocol";
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  roomCapacity, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
+  roomCapacity, KC_PICKUP_RADIUS, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, WEAPONS, type AttachmentSlot,
@@ -104,6 +104,7 @@ interface Room {
   loadouts: Map<string, LoadoutWire>;  // playerId -> loadout
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
+  tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   startTime: number;
   timeLeft: number;
   ended: boolean;
@@ -352,7 +353,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 },
+    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -502,13 +503,14 @@ function createLobbyRoom(
   if (!isSurvival && !isGungame) {
     if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
+    if (mode === "killconfirmed" && [10000, 15000, 25000, 30000, 45000].includes(cfg.tagLifetimeMs ?? -1)) config.tagLifetimeMs = cfg.tagLifetimeMs!;
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
   // Use a placeholder for now; startMatchInRoom overwrites it.
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 },
+    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -533,7 +535,7 @@ function createLobbyRoom(
   };
   rooms.set(id, room);
   // Add the host as the first player. Host picks red team in TDM by default.
-  const team = assignTeam(mode, room, mode === "tdm" ? "red" : undefined);
+  const team = assignTeam(mode, room, (mode === "tdm" || mode === "killconfirmed") ? "red" : undefined);
   const sp = pickSpawn(team, room);
   // In gungame, the host's initial weaponId is a placeholder — startMatchInRoom
   // resolves the per-match weapon list and resets everyone's weaponId. For the
@@ -570,6 +572,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.timeLeft = room.config.timeLimit;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
+  room.tags.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -664,6 +667,7 @@ function snapshot(room: Room): S2C {
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
     scavengerDrops: [...room.scavengerDrops.values()].map(d => ({ id: d.id, pos: d.pos, expiresAt: d.expiresAt })),
+    ...(room.mode === "killconfirmed" ? { tags: [...room.tags.values()] } : {}),
   };
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
@@ -1002,10 +1006,15 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     if (attacker) {
       attacker.kills += 1;
-      room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
+      // Kill Confirmed awards score only when the dropped tag is collected.
+      if (room.mode !== "killconfirmed") room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
       if (room.mode === "tdm") {
         room.teamScores[attacker.team as "red" | "blue"] += 1;
       }
+    }
+    if (room.mode === "killconfirmed" && attacker && attacker.team !== victim.team && (victim.team === "red" || victim.team === "blue")) {
+      const tag: KillConfirmedTag = { id: genId("tag"), victimId: victim.id, victimTeam: victim.team, pos: [...victim.pos] as Vec3, expiresAt: Date.now() + room.config.tagLifetimeMs };
+      room.tags.set(tag.id, tag);
     }
     const entry: KillFeedEntry = {
       killer: attacker?.name ?? "World", victim: victim.name, weapon: weaponId, headshot: head,
@@ -1078,6 +1087,30 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
   room.respawnTimers.set(p.id, timer);
 }
 
+// Collect Kill Confirmed dogtags within 2.25m of a living player or bot.
+// Server alone decides captures, so two players can never score the same tag.
+function tickKillConfirmedTags(room: Room, now: number) {
+  for (const [id, tag] of room.tags) {
+    if (tag.expiresAt <= now) { room.tags.delete(id); continue; }
+    for (const player of allCombatants(room)) {
+      if (!player.alive) continue;
+      const d = Math.hypot(player.pos[0] - tag.pos[0], player.pos[2] - tag.pos[2]);
+      const heightDiff = Math.abs(player.pos[1] - tag.pos[1]);
+      if (d > KC_PICKUP_RADIUS || heightDiff > 2.6) continue;
+      room.tags.delete(id);
+      const action = player.team === tag.victimTeam ? "deny" : "confirm";
+      if (action === "confirm") {
+        room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + 1);
+        room.teamScores[player.team as "red" | "blue"] += 1;
+      }
+      io.to(room.id).emit("message", { t: "tagCollected", tagId: id, collectorId: player.id, action } as S2C);
+      if (action === "confirm") checkWin(room);
+      break;
+    }
+    if (room.ended) return;
+  }
+}
+
 function checkWin(room: Room) {
   if (room.ended) return;
   if (room.mode === "survival") return; // endless — game over handled on reinforcement depletion
@@ -1109,7 +1142,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;
-  if (room.mode === "tdm") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
+  if (room.mode === "tdm" || room.mode === "killconfirmed") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
   else if (room.mode === "survival") winnerTeam =
     room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
   else winnerTeam = standings[0] ? standings[0].team : null;
@@ -1329,6 +1362,10 @@ function tickRoom(room: Room) {
     }
   }
   tickScavengerDrops(room, now);
+  if (room.mode === "killconfirmed" && room.preMatchCountdown <= 0) {
+    tickKillConfirmedTags(room, now);
+    if (room.ended) return;
+  }
   // broadcast ~ every tick (20Hz). Could throttle to 15Hz to save bandwidth but fine.
   io.to(room.id).emit("message", snapshot(room));
 }
@@ -1414,10 +1451,17 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
-    if (!enemy && (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5 ||
-        Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 0.01)) {
-      ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
-        room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
+    if (!enemy) {
+      // Prioritize collectible tags when there is no visible target.
+      const nearestTag = room.mode === "killconfirmed"
+        ? [...room.tags.values()].sort((a, b) =>
+            Math.hypot(a.pos[0] - bot.pos[0], a.pos[2] - bot.pos[2]) -
+            Math.hypot(b.pos[0] - bot.pos[0], b.pos[2] - bot.pos[2]))[0]
+        : undefined;
+      if (nearestTag) ai.wanderTarget = nearestTag.pos;
+      else if (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5)
+        ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
+          room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }

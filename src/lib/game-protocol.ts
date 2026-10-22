@@ -8,7 +8,7 @@ import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
 
 export type Vec3 = [number, number, number];
-export type GameMode = "ffa" | "tdm" | "survival" | "gungame";
+export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
 export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon";
 
 // ---- Room lobby system -------------------------------------------------------
@@ -61,11 +61,12 @@ export interface CreateRoomConfig {
   password: string | null;  // null/empty = no password
   roomName?: string;        // optional display name; defaults to "<host>'s Room"
   botDifficulty: BotDifficulty;
-  // Round 19i: Custom match limits for FFA/TDM. If omitted, defaults are used.
+  // Custom match limits for FFA/TDM/Kill Confirmed. If omitted, defaults are used.
   // Survival and Gun Game ignore these (survival is endless; gungame uses the
   // progression length as the score limit).
-  scoreLimit?: number;      // kills to win (per player FFA, per team TDM)
+  scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
+  tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
@@ -1244,6 +1245,18 @@ export type C2S =
   | { t: "leaveRoom" };
 
 // ---- Server -> Client events ----
+// Kill Confirmed dogtags are created on every death and expire after 25s.
+// Pickups are authoritative on the server; offline play uses the same rules.
+export const KC_TAG_LIFETIME_MS = 25000;
+export const KC_PICKUP_RADIUS = 2.25;
+export interface KillConfirmedTag {
+  id: string;
+  victimId: string;
+  victimTeam: "red" | "blue";
+  pos: Vec3;
+  expiresAt: number;
+}
+
 export interface KillFeedEntry {
   killer: string; victim: string; weapon: string; headshot: boolean; killerTeam: string; victimTeam: string;
   botDifficulty?: KillDifficulty;
@@ -1272,9 +1285,10 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[] }
+  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[] }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
+  | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
@@ -1304,15 +1318,17 @@ export interface MatchConfig {
   scoreLimit: number;     // kills to win (per player in FFA, per team in TDM). 0 = endless (survival)
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
+  tagLifetimeMs: number;   // Kill Confirmed tag lifetime
   survivalTier?: SurvivalTier;
 }
 
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" ? 0 : 360,
+  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
+  tagLifetimeMs: KC_TAG_LIFETIME_MS,
   survivalTier: mode === "survival" ? "default" : undefined,
 });
 

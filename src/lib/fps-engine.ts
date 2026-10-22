@@ -24,8 +24,8 @@ import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHor
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION,
-  type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty,
+  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS,
+  type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats,
@@ -119,7 +119,10 @@ export interface HudState {
   deaths: number;
   score: number;
   teamScores: { red: number; blue: number };
-  scoreLimit?: number;  // Round 20b: kill target (0 = no limit)
+  scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
+  confirmations?: number;
+  denials?: number;
+  tagNotice?: { action: "confirm" | "deny"; at: number };
   timeLeft: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
@@ -232,6 +235,8 @@ export interface MatchEndResult {
   // Undefined for non-gungame modes (legacy callers); the API falls back to
   // attributing all kills to `weaponId`.
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
+  confirmations?: number;
+  denials?: number;
 }
 
 interface BotAI {
@@ -595,6 +600,12 @@ export class FPSEngine {
   private deaths = 0;
   private headshots = 0;
   private teamScores = { red: 0, blue: 0 };
+  // Kill Confirmed collectibles and per-player objectives (separate from kills).
+  private kcTags = new Map<string, { tag: KillConfirmedTag; mesh: THREE.Group }>();
+  private kcNextTagId = 0;
+  private confirmations = 0;
+  private denials = 0;
+  private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
   private matchEnded = false;
   private matchFinishingLabel: string | null = null;
@@ -865,7 +876,7 @@ export class FPSEngine {
     }
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
-    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
+    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
@@ -2523,10 +2534,11 @@ export class FPSEngine {
     if (this.matchEnded) return null;
     if (!this.matchStartedAt) return null;
     const isSurvival = this.opts.mode === "survival";
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
-      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : this.kills, isBot: false,
+      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
@@ -2535,10 +2547,11 @@ export class FPSEngine {
     const won = false;
     return {
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, won,
-      score: isSurvival ? this.survivalWave : this.kills, mode: this.opts.mode, standings,
+      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
   }
@@ -2594,7 +2607,7 @@ export class FPSEngine {
     const botWeapons = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
     const isGungame = this.opts.mode === "gungame";
     for (let n = 0; n < this.opts.botCount; n++) {
-      const team = this.opts.mode === "tdm" ? (i % 2 === 0 ? "red" : "blue") : "ffa";
+      const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
       const id = "bot_" + n;
       const sp = this.pickSpawn(team);
       const wid = isGungame ? this.gungameWeapons[0] : botWeapons[i % botWeapons.length];
@@ -2610,7 +2623,7 @@ export class FPSEngine {
       this.addCombatantMesh(c);
       i++;
     }
-    if (this.opts.mode === "tdm") {
+    if (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") {
       const redCount = [...this.combatants.values()].filter((c) => c.team === "red").length;
       const blueCount = [...this.combatants.values()].filter((c) => c.team === "blue").length;
       (this.opts as any).team = redCount <= blueCount ? "red" : "blue";
@@ -3177,6 +3190,10 @@ export class FPSEngine {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
         this.teamScores = msg.teamScores;
+        if (this.opts.mode === "killconfirmed") {
+          this.syncKillConfirmedTags(msg.tags ?? []);
+          this.confirmations = msg.scores[this.selfId] ?? this.confirmations;
+        }
         // Draw authoritative ammo drops regardless of perk; only Scavenger can collect.
         // This makes absent drops distinguishable from a perk-registration problem.
         const drops = msg.scavengerDrops ?? [];
@@ -3312,6 +3329,14 @@ export class FPSEngine {
         this.opts.onKillFeed(msg.entry);
         break;
       }
+      case "tagCollected":
+        this.removeKillConfirmedTag(msg.tagId);
+        if (msg.collectorId === this.selfId) {
+          if (msg.action === "confirm") this.confirmations++;
+          else this.denials++;
+          this.tagNotice = { action: msg.action, at: performance.now() };
+        }
+        break;
       case "respawn":
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
@@ -3478,6 +3503,9 @@ export class FPSEngine {
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
         }
+        // Reset tags and objective score for the new online match.
+        for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
+        this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -4221,7 +4249,7 @@ export class FPSEngine {
     if (victim.health <= 0 && victim.alive) {
       victim.alive = false;
       victim.deaths += 1;
-      victim.score = victim.kills;
+      if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
       // All enemies drop a visible ammo cache. Only Scavenger owners can collect.
@@ -4233,6 +4261,7 @@ export class FPSEngine {
       // progress on the weapon actually used, not the match-start weapon.
       this.recordPerWeaponKill(sourceWeaponId, head);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
+      if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
       // scheduleRespawn hides the mesh.
       victim.deathAnimAt = performance.now();
@@ -4381,9 +4410,89 @@ export class FPSEngine {
     }, RESPAWN_DELAY_MS);
   }
 
+  // --- Kill Confirmed dogtags (server-synced online, simulated offline) ---
+  private addKillConfirmedTag(tag: KillConfirmedTag) {
+    if (this.kcTags.has(tag.id)) return;
+    const group = new THREE.Group();
+    const tint = tag.victimTeam === "red" ? 0xff4757 : 0x22d3ee;
+    const pendant = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.34),
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.92 })
+    );
+    pendant.rotation.z = Math.PI / 4;
+    group.add(pendant);
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.53, 0.035, 5, 20),
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.7 })
+    );
+    halo.rotation.x = Math.PI / 2;
+    group.add(halo);
+    group.position.set(tag.pos[0], tag.pos[1] + 1, tag.pos[2]);
+    this.scene.add(group);
+    this.kcTags.set(tag.id, { tag, mesh: group });
+  }
+  private removeKillConfirmedTag(id: string) {
+    const item = this.kcTags.get(id);
+    if (!item) return;
+    this.scene.remove(item.mesh);
+    item.mesh.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      obj.geometry.dispose();
+      const material = obj.material;
+      if (Array.isArray(material)) material.forEach(m => m.dispose());
+      else material.dispose();
+    });
+    this.kcTags.delete(id);
+  }
+  private syncKillConfirmedTags(tags: KillConfirmedTag[]) {
+    const ids = new Set(tags.map(t => t.id));
+    for (const id of [...this.kcTags.keys()]) if (!ids.has(id)) this.removeKillConfirmedTag(id);
+    for (const tag of tags) this.addKillConfirmedTag(tag);
+  }
+  private dropLocalKillConfirmedTag(victimId: string, victimTeam: string, pos: Vec3) {
+    if (this.opts.mode !== "killconfirmed" || (victimTeam !== "red" && victimTeam !== "blue")) return;
+    this.addKillConfirmedTag({
+      id: "offline-tag-" + (++this.kcNextTagId),
+      victimId, victimTeam, pos: [...pos] as Vec3,
+      expiresAt: Date.now() + KC_TAG_LIFETIME_MS,
+    });
+  }
+  private animateKillConfirmedTags(now: number) {
+    for (const item of this.kcTags.values()) {
+      item.mesh.position.y = item.tag.pos[1] + 1 + Math.sin(now * 0.004 + item.tag.pos[0]) * 0.14;
+      item.mesh.rotation.y += 0.012;
+    }
+  }
+  private collectOfflineKillConfirmedTags() {
+    const now = Date.now();
+    for (const [id, item] of this.kcTags) {
+      if (now >= item.tag.expiresAt) { this.removeKillConfirmedTag(id); continue; }
+      const candidates: { id: string; team: string; pos: Vec3; c?: Combatant }[] = [];
+      if (this.alive) candidates.push({ id: this.selfId, team: this.opts.team as string, pos: [this.pos.x, this.pos.y, this.pos.z] });
+      for (const c of this.combatants.values()) if (c.alive && c.isBot) candidates.push({ id: c.id, team: c.team, pos: c.pos, c });
+      for (const player of candidates) {
+        if (player.team !== "red" && player.team !== "blue") continue;
+        if (Math.hypot(player.pos[0] - item.tag.pos[0], player.pos[2] - item.tag.pos[2]) > KC_PICKUP_RADIUS) continue;
+        if (Math.abs(player.pos[1] - item.tag.pos[1]) > 2.6) continue;
+        const action = player.team === item.tag.victimTeam ? "deny" : "confirm";
+        this.removeKillConfirmedTag(id);
+        if (action === "confirm") {
+          this.teamScores[player.team as "red" | "blue"]++;
+          if (player.id === this.selfId) this.confirmations++;
+          else if (player.c) player.c.score++;
+        } else if (player.id === this.selfId) this.denials++;
+        if (player.id === this.selfId) this.tagNotice = { action, at: performance.now() };
+        if (action === "confirm") this.checkWin();
+        break;
+      }
+      if (this.matchEnded) return;
+    }
+  }
+
   private checkWin() {
     if (this.matchEnded) return;
     if (this.opts.mode === "survival") return; // endless — game over handled on reinforcement depletion
+    if (this.scoreLimit <= 0) return; // time-only match
     // Round 20: Gun Game win condition is handled by advanceLocalGungameTier()
     // (reach the final melee tier + get a kill = win). Do NOT check scoreLimit
     // here — the total kill count can exceed the progression length (due to
@@ -4410,6 +4519,7 @@ export class FPSEngine {
     if (this.matchEnded) return;
     this.matchEnded = true;
     const isSurvival = this.opts.mode === "survival";
+    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
     // this.selfId BEFORE adding the self entry — otherwise the player appears
     // twice in the standings (showing up as both 1st and 2nd place in the
@@ -4419,7 +4529,7 @@ export class FPSEngine {
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
-      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : this.kills, isBot: false,
+      kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
@@ -4429,7 +4539,10 @@ export class FPSEngine {
     // which is always false for FFA-style modes, so the player could never
     // "win" a Gun Game match (Win Rate stayed 0%).
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
+    const ownTeam = this.opts.team as "red" | "blue";
+    const otherTeam = ownTeam === "red" ? "blue" : "red";
     const won = isSurvival ? (this.survivalTier==="default" && this.getSurvivalClearedWaves()>=30)
+      : this.opts.mode === "killconfirmed" ? this.teamScores[ownTeam] > this.teamScores[otherTeam]
       : isFfaStyle ? (standings[0]?.id === this.selfId)
       : (this.teamScores[this.opts.team as "red" | "blue"] >
          this.teamScores[this.opts.team === "red" ? "blue" : "red"]);
@@ -4437,10 +4550,11 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : this.kills, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
@@ -4468,7 +4582,7 @@ export class FPSEngine {
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const won = isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
-      : this.opts.mode === "tdm" ? winnerTeam === this.opts.team
+      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
@@ -4476,10 +4590,11 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
+      confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
@@ -4659,6 +4774,7 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
     // 3D scene underneath but don't process input, run AI, or count down the timer.
@@ -4772,6 +4888,7 @@ export class FPSEngine {
         this.lastHudAt = now;
         this.emitHud(now);
       }
+      if (!this.opts.online && this.opts.mode === "killconfirmed") this.collectOfflineKillConfirmedTags();
       // Still update combatant meshes so death animations play for OTHER players.
       this.updateCombatantMeshes(dt, now);
       return;
@@ -4993,6 +5110,9 @@ export class FPSEngine {
       }
     }
 
+    if (!this.opts.online && this.opts.mode === "killconfirmed" && !this.matchEnded) {
+      this.collectOfflineKillConfirmedTags();
+    }
     if (this.opts.online && this.socket?.connected && this.alive) {
       this.socket.emit("message", {
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
@@ -5104,7 +5224,7 @@ export class FPSEngine {
       // Always visible (even through walls) so the player can locate their team.
       // Hidden for: self, enemies, dead players, and non-TDM modes.
       if (c.friendlyMarker) {
-        const isFriendly = this.opts.mode === "tdm"
+        const isFriendly = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed")
           && c.team === this.opts.team
           && c.id !== this.selfId
           && c.alive;
@@ -5387,9 +5507,17 @@ export class FPSEngine {
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
-      if (!enemy && Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5) {
-        ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
-          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+      if (!enemy) {
+        // Seek enemy and friendly dogtags when not engaged with an enemy.
+        const closestTag = this.opts.mode === "killconfirmed"
+          ? [...this.kcTags.values()].map(item => item.tag).sort((a, b) =>
+              Math.hypot(a.pos[0] - c.pos[0], a.pos[2] - c.pos[2]) -
+              Math.hypot(b.pos[0] - c.pos[0], b.pos[2] - c.pos[2]))[0]
+          : undefined;
+        if (closestTag) ai.wanderTarget = closestTag.pos;
+        else if (Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5)
+          ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
+            this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
@@ -5399,7 +5527,7 @@ export class FPSEngine {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: this.yaw, pitch: this.pitch, health: this.health,
       alive: this.alive, weaponId: this.weaponId, weaponSkinId: this.opts.loadout.weaponSkinId,
-      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.kills,
+      playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations : this.kills,
     };
     const tgt = targetIsSelf ? selfCombatant : target;
     if (tgt && tgt.alive) {
@@ -5809,8 +5937,11 @@ export class FPSEngine {
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
-          nearest.victim.alive = false; nearest.victim.deaths += 1; nearest.victim.score = nearest.victim.kills;
-          attacker.kills += 1; attacker.score = attacker.kills;
+          nearest.victim.alive = false; nearest.victim.deaths += 1;
+          if (this.opts.mode !== "killconfirmed") nearest.victim.score = nearest.victim.kills;
+          attacker.kills += 1;
+          if (this.opts.mode !== "killconfirmed") attacker.score = attacker.kills;
+          if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(nearest.victim.id, nearest.victim.team, nearest.victim.pos);
           if (this.opts.mode === "tdm") this.teamScores[attacker.team as "red" | "blue"] += 1;
           const entry: KillFeedEntry = { killer: attacker.name, victim: nearest.victim.name, weapon: attacker.weaponId, headshot: nearest.head, killerTeam: attacker.team, victimTeam: nearest.victim.team };
           this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
@@ -5837,6 +5968,7 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(this.selfId, this.opts.team as string, [this.pos.x, this.pos.y, this.pos.z]);
       // Local player death SFX.
       this.sound.play("death", { volume: 0.8 });
       const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: weaponId, headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
@@ -5874,9 +6006,9 @@ export class FPSEngine {
       }
     } else {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.kills, isBot: c.isBot, isSelf: false });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     this.opts.onHud({
@@ -5904,9 +6036,12 @@ export class FPSEngine {
       respawnIn: this.alive ? 0 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
       kills: this.kills,
       deaths: this.deaths,
-      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? this.kills) : this.kills,
+      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "killconfirmed" ? this.confirmations : this.kills)) : (this.opts.mode === "killconfirmed" ? this.confirmations : this.kills),
       teamScores: this.teamScores,
-      scoreLimit: this.scoreLimit,  // Round 20b: show kill limit in HUD
+      scoreLimit: this.scoreLimit,
+      confirmations: this.confirmations,
+      denials: this.denials,
+      tagNotice: this.tagNotice,
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
       scoreboard,
       killFeed: this.killFeed,
@@ -6103,6 +6238,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.timer.dispose();

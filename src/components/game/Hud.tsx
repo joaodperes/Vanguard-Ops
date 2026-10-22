@@ -6,7 +6,7 @@ import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById } from "@/lib/game-data";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
@@ -256,7 +256,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
         </div>
-        {mode === "tdm" ? (
+        {(mode === "tdm" || mode === "killconfirmed") ? (
           <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1.5 px-2 py-0.5" : "gap-3 px-4 py-1.5"}`}>
             <span className={`text-red-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.red}</span>
             {hud.scoreLimit && hud.scoreLimit > 0 && <span className={`text-white/30 ${isTouch ? "text-[9px]" : "text-xs"}`}>/{hud.scoreLimit}</span>}
@@ -270,8 +270,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
-          <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{hud.kills}</span>
+          {mode === "killconfirmed" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
+          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? (hud.confirmations ?? 0) : hud.kills}</span>
           {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
             <>
               <span className="text-white/30">/</span>
@@ -279,8 +279,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </>
           )}
           <span className="text-white/20 mx-0.5">·</span>
-          <span className="text-white/30">/</span>
-          <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
+          {mode === "killconfirmed" ? (
+            <span className={`text-cyan-300/75 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.denials ?? 0} denied</span>
+          ) : (
+            <>
+              <span className="text-white/30">/</span>
+              <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
+            </>
+          )}
         </div>
       </div>
       )}
@@ -300,6 +306,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>
       )}
 
+      {/* Kill Confirmed pickup callout — only shown briefly on a local pickup. */}
+      {mode === "killconfirmed" && hud.tagNotice && performance.now() - hud.tagNotice.at < 1300 && (
+        <div className="absolute left-1/2 top-[27%] -translate-x-1/2 px-4 py-2 rounded-lg bg-black/70 border border-cyan-500/30 text-center">
+          <span className={`font-black uppercase tracking-[0.18em] ${hud.tagNotice.action === "confirm" ? "text-cyan-300" : "text-emerald-300"}`}>
+            {hud.tagNotice.action === "confirm" ? "+1 KILL CONFIRMED" : "KILL DENIED"}
+          </span>
+        </div>
+      )}
       {/* Gun Game progression indicator (gungame mode only) — sits below the top scoreboard */}
       {mode === "gungame" && hud.gungameTotal !== undefined && (
         <GunGameProgress
@@ -596,7 +610,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.preMatchCountdown}
           </div>
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
-            {mode === "tdm" ? "Team Deathmatch" : mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}
+            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{hud.mapName ?? "Compound"}</span>
           </div>
@@ -612,13 +626,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
       {showScoreboard && hud.alive !== undefined && hud.pointerLocked && (
-        mode === "tdm" ? (
+        (mode === "tdm" || mode === "killconfirmed") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               {/* header bar */}
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">Team Deathmatch</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "killconfirmed" ? "Kill Confirmed — tags recovered" : "Team Deathmatch"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               {/* team panels */}

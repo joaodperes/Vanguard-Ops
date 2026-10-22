@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
   const kills = Math.max(0, Math.min(200, Math.floor(input.kills ?? 0)));
   const deaths = Math.max(0, Math.min(200, Math.floor(input.deaths ?? 0)));
   const headshots = Math.max(0, Math.min(kills, Math.floor(input.headshots ?? 0)));
-  const mode: "ffa" | "tdm" | "survival" | "gungame" =
-    input.mode === "tdm" ? "tdm" : input.mode === "survival" ? "survival" : input.mode === "gungame" ? "gungame" : "ffa";
+  const mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" =
+    input.mode === "tdm" ? "tdm" : input.mode === "killconfirmed" ? "killconfirmed" : input.mode === "survival" ? "survival" : input.mode === "gungame" ? "gungame" : "ffa";
   // Per-weapon kill/headshot tallies (gungame). Sanitize: keep only entries with
   // numeric kills/headshots, cap each at the sanity-capped total kill count, and
   // verify the summed per-weapon kills don't exceed the reported total (defensive
@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
     won: !!input.won,
     mode,
     score: Math.max(0, Math.floor(input.score ?? 0)),
+    confirmations: mode === "killconfirmed" ? Math.max(0, Math.min(200, Math.floor(input.confirmations ?? 0))) : 0,
+    denials: mode === "killconfirmed" ? Math.max(0, Math.min(200, Math.floor(input.denials ?? 0))) : 0,
     online: !!input.online,
     durationSec: Math.max(0, Math.min(7200, Math.floor(input.durationSec ?? 0))),
     placement: Math.max(1, Math.min(16, Math.floor(input.placement ?? 1))),
