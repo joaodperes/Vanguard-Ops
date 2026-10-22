@@ -40,7 +40,8 @@ describe("incremental shell and bolt reloads", () => {
     const port = sampleReloadMotion(0.70,"shell").hand;
     const recovery = sampleReloadMotion(1,"shell").hand;
     expect(Math.abs(port[0])).toBeLessThan(Math.abs(pocket[0]));
-    expect(recovery).toEqual(pocket);
+    // Floating-point interpolation can differ by a final machine epsilon.
+    for (let i = 0; i < 3; i++) expect(recovery[i]).toBeCloseTo(pocket[i], 10);
   });
 
   test("all shotguns and bolt-action snipers have readable per-round timings", () => {

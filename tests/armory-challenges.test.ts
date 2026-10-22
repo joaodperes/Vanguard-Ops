@@ -67,7 +67,8 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("every paid weapon skin has a weapon-specific challenge", () => {
-    for (const weapon of WEAPONS) {
+    // Wonder weapons use their own prestige progression and have no paid skins.
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
       for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige)) {
         const challenges = skinChallengesForWeaponAndSkin(weapon.id, skin.id);
         expect(challenges.length).toBeGreaterThanOrEqual(1);
@@ -88,7 +89,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   test("high-tier Gold mastery demands multiple different tactics", () => {
     const metrics = new Set<string>();
     let goldCount = 0;
-    for (const weapon of WEAPONS) {
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
       for (const skin of WEAPON_SKINS.filter(s => s.id !== "default")) {
         for (const ch of skinChallengesForWeaponAndSkin(weapon.id, skin.id)) {
           metrics.add(ch.metric);

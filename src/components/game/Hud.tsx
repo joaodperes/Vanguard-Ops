@@ -464,7 +464,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         ) : hud.weaponId === "wonder_turret" ? (
           <div className="flex flex-col items-end">
             <span className={`text-lg font-black tracking-widest ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
-              {hud.turretDeployPending ? "PLANTING TURRET…" : hud.turretDeployFailed ? "PLANT FAILED — RETRY" : hud.ammo > 0 ? "TURRET READY" : "TURRET CHARGING"
+              {hud.turretDeployPending ? "PLANTING TURRET…" : hud.turretDeployFailed ? "PLANT FAILED — RETRY" : hud.ammo > 0 ? "TURRET READY" : "TURRET CHARGING"}
             </span>
             <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
           </div>
@@ -513,7 +513,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               </span>
             ) : hud.weaponId === "wonder_turret" ? (
               <span className={`text-[10px] font-bold ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
-                {hud.turretDeployPending ? "PLANTING…" : hud.turretDeployFailed ? "RETRY PLANT" : hud.ammo > 0 ? "PLANT READY" : "RECHARGING"
+                {hud.turretDeployPending ? "PLANTING…" : hud.turretDeployFailed ? "RETRY PLANT" : hud.ammo > 0 ? "PLANT READY" : "RECHARGING"}
               </span>
             ) : (
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
