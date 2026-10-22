@@ -1,5 +1,6 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
+import { prestigeEligible, prestigeTokens, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
 import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
@@ -125,6 +126,44 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
   return player!;
 }
 
+/** Finalize earned permanent Prestige awards without relying on client claims.
+ * Each (player, weapon) row is unique; token balance derives from award rows.
+ */
+export async function grantWeaponPrestiges(playerId: string): Promise<string[]> {
+  const [progress, skins, claimed] = await Promise.all([
+    db.weaponProgress.findMany({ where: { playerId } }),
+    db.skinUnlock.findMany({ where: { playerId } }),
+    db.weaponPrestige.findMany({ where: { playerId } }),
+  ]);
+  const byWeapon = new Map(progress.map(p => [p.weaponId, p]));
+  const owned = new Map<string, Set<string>>();
+  for (const s of skins) {
+    if (s.weaponId === "*") continue; // wildcard is not proof of per-weapon mastery
+    if (!owned.has(s.weaponId)) owned.set(s.weaponId, new Set());
+    owned.get(s.weaponId)!.add(s.skinId);
+  }
+  const already = new Set(claimed.map(p => p.weaponId));
+  const eligible = WEAPONS.filter(w => !w.wonder && !already.has(w.id)).filter(w => {
+    const p = byWeapon.get(w.id);
+    return prestigeEligible(w.id, {
+      kills: p?.kills ?? 0, headshots: p?.headshots ?? 0,
+      conditionStats: parseWeaponConditionStats(p?.conditionStats),
+    }, owned.get(w.id));
+  });
+  if (!eligible.length) return [];
+  const earned: string[] = [];
+  await db.$transaction(async tx => {
+    for (const weapon of eligible) {
+      const key = { playerId, weaponId: weapon.id };
+      const existing = await tx.weaponPrestige.findUnique({ where: { playerId_weaponId: key } });
+      if (existing) continue;
+      await tx.weaponPrestige.create({ data: key });
+      earned.push(weapon.id);
+    }
+  });
+  return earned;
+}
+
 export interface PlayerProfileView {
   playerKey: string;
   name: string;
@@ -161,11 +200,19 @@ export interface PlayerProfileView {
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
+  prestige: { tokens: number; masteredWeapons: string[]; wonderWeapons: string[] };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return null;
+  await grantWeaponPrestiges(player.id);
+  const [prestigeRows, wonderRows] = await Promise.all([
+    db.weaponPrestige.findMany({ where: { playerId: player.id } }),
+    db.wonderUnlock.findMany({ where: { playerId: player.id } }),
+  ]);
+  const masteredWeapons = prestigeRows.map(p => p.weaponId);
+  const wonderWeapons = wonderRows.map(w => w.weaponId);
   if (!player.loadout) {
     await db.loadout.create({ data: { playerId: player.id } });
   }
@@ -204,6 +251,9 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for(const w of WEAPONS){
     if(!skinsByWeapon[w.id])skinsByWeapon[w.id]=[];
     if(!skinsByWeapon[w.id].includes("default"))skinsByWeapon[w.id].push("default");
+    if (masteredWeapons.includes(w.id)) {
+      for (const camoId of PRESTIGE_CAMO_IDS) if (!skinsByWeapon[w.id].includes(camoId)) skinsByWeapon[w.id].push(camoId);
+    }
     for(const ch of WEAPON_CHALLENGES){
       if(ch.weaponId!==w.id || !legacyGlobal.has(ch.skinId))continue;
       const row=historicById.get(w.id);
@@ -269,7 +319,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     selectedSkin: p.selectedSkin,
     xpProgress: { current: p.xp - base, needed: next - base, level },
     unlocks: {
-      weapons: p.weaponUnlocks.map((u) => u.weaponId),
+      weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
       weaponSkins: flatSkins,
       playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId)])),
       attachments: flatAttachments,
@@ -279,6 +329,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     loadout,
     weaponProgress,
     operatorContracts,
+    prestige: { tokens: prestigeTokens(masteredWeapons.length, wonderWeapons.length), masteredWeapons, wonderWeapons },
   };
 }
 
@@ -289,7 +340,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
 // in the return shape for backward-compat with consumers that read these fields.
 export function autoUnlockedItems(level: number) {
   return {
-    weapons: WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    weapons: WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     attachments: [] as string[],
     weaponSkins: [] as string[],
     playerSkins: PLAYER_SKINS.filter((s) => s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
@@ -516,7 +567,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const newUnlocks = { weapons: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
   if (leveledUp) {
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) if (w.unlockLevel === lvl && w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+      for (const w of WEAPONS) if (!w.wonder && w.unlockLevel === lvl && w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
       for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
     }
   }
@@ -852,7 +903,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     });
   });
 
-  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newAchievements, challengeAwards, bonusXp, bonusCredits };
+  const newPrestiges = await grantWeaponPrestiges(player.id);
+  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, bonusXp, bonusCredits };
 }
 
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---
