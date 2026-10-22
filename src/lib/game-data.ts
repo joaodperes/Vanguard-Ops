@@ -13,6 +13,11 @@ export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | 
 // melee    -> melee
 export type WeaponSlot = "primary" | "secondary" | "melee";
 
+// The secondary accepts a second primary only with Well Prepared.
+export function isPrimaryWeaponCategory(category: WeaponCategory): boolean {
+  return category !== "sidearm" && category !== "melee";
+}
+
 // Map a weapon category to its loadout slot.
 export function weaponSlot(category: WeaponCategory): WeaponSlot {
   switch (category) {
@@ -81,7 +86,7 @@ export const WEAPONS: WeaponDef[] = [
   // Special weapons — opt into a mechanic; ordinary guns keep their existing behavior.
   {
     id: "rifle_electron", name: "Electron Rifle", category: "assault",
-    unlockLevel: 10, unlockCost: 2200,
+    unlockLevel: 31, unlockCost: 2200,
     description: "Unlimited energy shots. Manage heat or vent the reactor before it overheats.",
     special: { kind: "heat", heatPerShot: 5, coolPerSecond: 43, coolDelayMs: 175, overheatAt: 100, resumeAt: 45, ventSeconds: 0.85 },
     stats: { damage: 24, fireRate: 9, magSize: 100, reloadTime: 1.25, spread: 0.014, adsSpread: 0.004, recoil: 0.55, range: 75, adsTime: 0.24, moveSpeed: 0.93, auto: true, headshotMult: 1.45 },
@@ -89,7 +94,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     id: "crossbow_reclaimer", name: "Reclaimer Crossbow", category: "dmr",
-    unlockLevel: 8, unlockCost: 1600,
+    unlockLevel: 19, unlockCost: 1600,
     description: "Retrieve fired bolts on the ground to shorten your reload. Optional poison tips.",
     special: { kind: "bolt", pickupRadius: 2.0, lifetimeMs: 18000, quickReloadSeconds: 0.65 },
     stats: { damage: 76, fireRate: 0.65, magSize: 1, reloadTime: 2.1, spread: 0.009, adsSpread: 0.001, recoil: 0.35, range: 85, adsTime: 0.28, moveSpeed: 0.94, auto: false, headshotMult: 1.6 },
@@ -97,7 +102,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     id: "pistol_arc", name: "Arc Pistol", category: "sidearm",
-    unlockLevel: 11, unlockCost: 2300,
+    unlockLevel: 32, unlockCost: 2300,
     description: "Electrical discharge leaps to nearby foes for decreasing damage.",
     special: { kind: "arc", jumps: 2, radius: 6, decay: 0.55 },
     stats: { damage: 35, fireRate: 3.2, magSize: 10, reloadTime: 1.9, spread: 0.013, adsSpread: 0.004, recoil: 0.7, range: 50, adsTime: 0.2, moveSpeed: 1.02, auto: false, headshotMult: 1.35 },
@@ -105,33 +110,33 @@ export const WEAPONS: WeaponDef[] = [
   },
   // Semi-auto accuracy specialist: high per-shot reward, no auto-fire.
   {
-    id: "rifle_falcon", name: "Falcon SR", category: "assault", unlockLevel: 13, unlockCost: 1900,
+    id: "rifle_falcon", name: "Falcon SR", category: "assault", unlockLevel: 20, unlockCost: 1900,
     description: "Precise semi-auto rifle with hard-hitting controlled shots and a small magazine.",
     stats: { damage: 54, fireRate: 4.2, magSize: 16, reloadTime: 2.2, spread: 0.007, adsSpread: 0.0015, recoil: 1.15, range: 105, adsTime: 0.29, moveSpeed: 0.89, auto: false, headshotMult: 1.65 },
   },
   // Compact two-round burst weapon for rhythmic tap-fire, unlike the Reaver's 3-round burst.
   {
-    id: "rifle_hydra", name: "Hydra Twin", category: "assault", unlockLevel: 17, unlockCost: 2600,
+    id: "rifle_hydra", name: "Hydra Twin", category: "assault", unlockLevel: 34, unlockCost: 2600,
     description: "Fast two-round bursts. Strong opening damage but demanding burst discipline.",
     stats: { damage: 29, fireRate: 11, burst: 2, magSize: 32, reloadTime: 2.5, spread: 0.012, adsSpread: 0.003, recoil: 1.05, range: 73, adsTime: 0.24, moveSpeed: 0.94, auto: false, headshotMult: 1.45 },
   },
   {
-    id: "dmr_cyclone", name: "Cyclone DMR", category: "dmr", unlockLevel: 14, unlockCost: 1900,
+    id: "dmr_cyclone", name: "Cyclone DMR", category: "dmr", unlockLevel: 18, unlockCost: 1900,
     description: "Two-shot burst marksman rifle for fast follow-up hits at medium-long range.",
     stats: { damage: 39, fireRate: 9, burst: 2, magSize: 20, reloadTime: 2.6, spread: 0.006, adsSpread: 0.0015, recoil: 1.05, range: 116, adsTime: 0.33, moveSpeed: 0.86, auto: false, headshotMult: 1.75 },
   },
   {
-    id: "dmr_whisper", name: "Whisper DMR", category: "dmr", unlockLevel: 18, unlockCost: 2700,
+    id: "dmr_whisper", name: "Whisper DMR", category: "dmr", unlockLevel: 35, unlockCost: 2700,
     description: "Low-recoil semi-auto precision rifle. Extremely accurate but deliberately paced.",
     stats: { damage: 62, fireRate: 2.7, magSize: 14, reloadTime: 2.0, spread: 0.003, adsSpread: 0.0006, recoil: 0.42, range: 145, adsTime: 0.32, moveSpeed: 0.9, auto: false, headshotMult: 1.9 },
   },
   {
-    id: "baton", name: "Shock Baton", category: "melee", unlockLevel: 6, unlockCost: 900,
+    id: "baton", name: "Shock Baton", category: "melee", unlockLevel: 16, unlockCost: 900,
     description: "Quick defensive baton with extended reach and rapid successive strikes.",
     stats: { damage: 60, fireRate: 2.8, magSize: 1, reloadTime: 0, spread: 0, adsSpread: 0, recoil: 0, range: 3.25, adsTime: 0, moveSpeed: 1.13, auto: false, headshotMult: 1.5 }, attachments: [],
   },
   {
-    id: "axe", name: "Breacher Axe", category: "melee", unlockLevel: 15, unlockCost: 2300,
+    id: "axe", name: "Breacher Axe", category: "melee", unlockLevel: 33, unlockCost: 2300,
     description: "Heavy chopping weapon with superior reach; slow, powerful committed swings.",
     stats: { damage: 145, fireRate: 0.98, magSize: 1, reloadTime: 0, spread: 0, adsSpread: 0, recoil: 0, range: 3.2, adsTime: 0, moveSpeed: 0.96, auto: false, headshotMult: 1.5 }, attachments: [],
   },
@@ -150,7 +155,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "smg_kp",
     name: "Kestrel SMG",
     category: "smg",
-    unlockLevel: 3,
+    unlockLevel: 12,
     unlockCost: 800,
     description: "High fire-rate submachine gun. Excels in close quarters.",
     // 26 dmg @ 13 rps, hsMult 1.4 → 4 chest / 3 head to kill 100HP. TTK ~0.31s chest, ~0.23s head.
@@ -161,7 +166,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "shotgun_br",
     name: "Breacher",
     category: "shotgun",
-    unlockLevel: 5,
+    unlockLevel: 4,
     unlockCost: 500,
     description: "Pump shotgun. Devastating up close, 8 pellets per shell.",
     // 19 dmg * 8 pellets = 152 per shell, hsMult 1.3 → 1 shell to kill at point blank.
@@ -174,7 +179,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "rifle_dm",
     name: "Marksman DMR",
     category: "dmr",
-    unlockLevel: 8,
+    unlockLevel: 15,
     unlockCost: 800,
     description: "Semi-auto designated marksman rifle. Punches hard at range.",
     // 74 dmg @ 4 rps, hsMult 1.8 → 2 chest / 1 head to kill 100HP. TTK ~0.25s head, ~0.5s chest.
@@ -185,7 +190,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "sniper_lr",
     name: "Longshot",
     category: "sniper",
-    unlockLevel: 12,
+    unlockLevel: 26,
     unlockCost: 800,
     description: "Bolt-action sniper. One-shot kills to the head, two to the body.",
     // 135 dmg, hsMult 2.0 → headshot = 270 (1-shot kill), body = 135 (1 shot to kill 100HP).
@@ -201,7 +206,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "lmg_hv",
     name: "Hailstorm LMG",
     category: "lmg",
-    unlockLevel: 15,
+    unlockLevel: 24,
     unlockCost: 800,
     description: "Heavy machine gun. 75-round belt, suppressive monster.",
     // 30 dmg @ 10 rps, hsMult 1.4 → 4 chest / 3 head to kill 100HP. TTK ~0.4s chest.
@@ -224,7 +229,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "smg_vector",
     name: "Vector PDW",
     category: "smg",
-    unlockLevel: 6,
+    unlockLevel: 17,
     unlockCost: 1200,
     description: "Compact PDW with blistering fire rate. Shreds at point-blank.",
     // 16 dmg @ 16 rps → ~7 chest / 5 head to kill 100HP. TTK ~0.44s chest.
@@ -235,7 +240,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "shotgun_auto",
     name: "Wraith Auto",
     category: "shotgun",
-    unlockLevel: 10,
+    unlockLevel: 21,
     unlockCost: 1200,
     description: "Full-auto shotgun. 8 pellets per shell, sustained suppression.",
     // 9 dmg * 8 pellets = 72 per shell, hsMult 1.3. Full-auto at 2.5 rps.
@@ -245,7 +250,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "pistol_magnum",
     name: "Magnum .50",
     category: "sidearm",
-    unlockLevel: 7,
+    unlockLevel: 23,
     unlockCost: 1500,
     description: "Heavy revolver. Two chest shots drop a full-health target.",
     // 115 dmg @ 1.7 rps, hsMult 2.0 → 1 chest / 1 head to kill 100HP.
@@ -256,7 +261,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "dmr_scout",
     name: "Scout Tactical",
     category: "dmr",
-    unlockLevel: 6,
+    unlockLevel: 7,
     unlockCost: 500,
     description: "Lightweight DMR. Faster handling than the Marksman, softer punch.",
     // 51 dmg @ 6 rps, hsMult 1.7 → 2 chest / 1 head to kill 100HP.
@@ -290,7 +295,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "machete",
     name: "Machete",
     category: "melee",
-    unlockLevel: 5,
+    unlockLevel: 8,
     unlockCost: 600,
     description: "Versatile blade. Balanced swing speed and damage.",
     // 81 dmg @ 1.6 rps, hsMult 1.8 → 2 chest / 1 head to kill 100HP. Balanced mid-tier melee.
@@ -302,7 +307,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "hammer",
     name: "Sledge Hammer",
     category: "melee",
-    unlockLevel: 10,
+    unlockLevel: 29,
     unlockCost: 1500,
     description: "Brutal slow swing. One hit drops anything short of armor.",
     // 189 dmg @ 0.7 rps, hsMult 1.5 → 1 chest / 1 head to kill 100HP. One body shot drops near anything.
@@ -314,7 +319,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "pistol_burst",
     name: "Burst Pistol",
     category: "sidearm",
-    unlockLevel: 4,
+    unlockLevel: 13,
     unlockCost: 800,
     description: "Three-round burst sidearm. High burst DPS at mid range.",
     // 24 dmg @ 4 rps burst-fire (3-round burst). hsMult 1.5. Each trigger pull fires
@@ -326,7 +331,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "pistol_machine",
     name: "Machine Pistol",
     category: "sidearm",
-    unlockLevel: 9,
+    unlockLevel: 30,
     unlockCost: 2000,
     description: "Full-auto machine pistol. Mag-dump to win at point-blank.",
     // 19 dmg @ 11 rps, hsMult 1.35 → ~6 chest / 4 head to kill 100HP. TTK ~0.55s chest, ~0.36s head.
@@ -337,7 +342,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "launcher_rocket",
     name: "RL-7 Rocket Launcher",
     category: "sidearm",
-    unlockLevel: 14,
+    unlockLevel: 36,
     unlockCost: 4000,
     description: "Shoulder-fired rocket. Splash damage on impact — clear rooms and campers.",
     // 176 dmg @ 0.7 rps, hsMult 1.0, magSize 1. Slow heavy-hitter (1 rocket to kill 100HP).
@@ -354,7 +359,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "sniper_scout",
     name: "Scout Sniper",
     category: "sniper",
-    unlockLevel: 4,
+    unlockLevel: 5,
     unlockCost: 500,
     description: "Lightweight entry-level sniper. Faster handling than the Longshot, but won't one-shot body kill.",
     // 95 dmg, hsMult 2.0 → headshot = 190 (1-shot kill), body = 95 (2 shots to kill). Faster fire rate + ADS.
@@ -368,7 +373,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "rifle_burst",
     name: "Reaver BR",
     category: "assault",
-    unlockLevel: 2,
+    unlockLevel: 11,
     unlockCost: 800,
     description: "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
     // 28 dmg @ 9 rps burst (3-round burst). hsMult 1.5. Each burst = 84 dmg if all 3 hit.
@@ -380,7 +385,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "rifle_heavy",
     name: "Behemoth AR",
     category: "assault",
-    unlockLevel: 11,
+    unlockLevel: 22,
     unlockCost: 1200,
     description: "Heavy battle rifle. High damage per shot, slower fire rate, punishing recoil.",
     // 48 dmg @ 6 rps, hsMult 1.6 → 2 chest / 2 head to kill. High recoil.
@@ -392,7 +397,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "smg_compact",
     name: "Wasp PDW",
     category: "smg",
-    unlockLevel: 2,
+    unlockLevel: 3,
     unlockCost: 500,
     description: "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
     // 20 dmg @ 12 rps, hsMult 1.3 → 5 chest / 4 head to kill. Cheap + early.
@@ -404,7 +409,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "shotgun_combat",
     name: "Mauler CS",
     category: "shotgun",
-    unlockLevel: 7,
+    unlockLevel: 14,
     unlockCost: 800,
     description: "Semi-auto combat shotgun. Faster fire rate than the Breacher, tighter spread.",
     // 14 dmg * 8 pellets = 112 per shell, hsMult 1.3. Semi-auto at 2 rps.
@@ -417,7 +422,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "dmr_heavy",
     name: "Executioner DMR",
     category: "dmr",
-    unlockLevel: 10,
+    unlockLevel: 25,
     unlockCost: 1200,
     description: "Heavy DMR. Near-sniper damage with semi-auto fire rate. Devastating at range.",
     // 85 dmg @ 3 rps, hsMult 1.8 → 2 chest / 1 head to kill. High recoil per shot.
@@ -429,7 +434,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "lmg_light",
     name: "Vanguard LSW",
     category: "lmg",
-    unlockLevel: 9,
+    unlockLevel: 10,
     unlockCost: 500,
     description: "Light support weapon. Faster than the Hailstorm, smaller belt, better mobility.",
     // 28 dmg @ 11 rps, hsMult 1.4 → 4 chest / 3 head to kill. Better moveSpeed than Hailstorm.
@@ -442,7 +447,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "sniper_heavy",
     name: "Annihilator",
     category: "sniper",
-    unlockLevel: 16,
+    unlockLevel: 28,
     unlockCost: 1200,
     description: "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
     // 170 dmg, hsMult 2.0 → body = 170 (1-shot kill 100HP), head = 340 (overkill). Very slow.
@@ -456,7 +461,7 @@ export const WEAPONS: WeaponDef[] = [
     id: "lmg_heavy",
     name: "Leviathan",
     category: "lmg",
-    unlockLevel: 17,
+    unlockLevel: 27,
     unlockCost: 1200,
     description: "Heavy machine gun. 100-round belt, devastating suppressive fire, but sluggish handling.",
     // 34 dmg @ 8 rps, hsMult 1.4 → 3 chest / 2 head to kill. Slow fire rate for LMG, huge mag.
