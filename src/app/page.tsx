@@ -81,6 +81,7 @@ export default function Page() {
           survivalTier: r.survivalTier ?? "default",
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
+          perWeaponActions: r.perWeaponActions,
         }),
       });
       const rewards = await res.json();
