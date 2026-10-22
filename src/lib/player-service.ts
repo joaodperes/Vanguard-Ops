@@ -1,6 +1,7 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
 import { prestigeEligible, prestigeTokens, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
 import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
@@ -365,7 +366,7 @@ export interface AwardResult {
   creditsGained: number;
   leveledUp: boolean;
   newLevel: number;
-  newUnlocks: { weapons: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
+  newUnlocks: { weapons: string[]; purchasableWeapons: string[]; perks: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
   // Per-weapon skin challenges completed during this match.
   newWeaponChallenges: { challengeId: string; weaponId: string; skinId: string; title: string; description: string }[];
   newPrestiges: string[];
@@ -569,10 +570,15 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // Auto-grant items unlocked by the new level (free ones).
   // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
   // auto-granted by level — they're per-weapon (purchased or challenge-earned).
-  const newUnlocks = { weapons: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
+  const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
   if (leveledUp) {
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) if (!w.wonder && w.unlockLevel === lvl && w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+      for (const w of WEAPONS) {
+        if (w.wonder || w.unlockLevel !== lvl) continue;
+        if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+        else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
+      }
+      for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
       for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
     }
   }
