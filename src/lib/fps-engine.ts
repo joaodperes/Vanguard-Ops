@@ -937,6 +937,7 @@ export class FPSEngine {
       throw error;
     }
     this.buildArena();
+    this.buildMapProps();
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
@@ -1100,6 +1101,154 @@ export class FPSEngine {
         pl.position.set(L.pos[0], L.pos[1], L.pos[2]);
         this.scene.add(pl);
       }
+    }
+  }
+
+  /**
+   * Landmarks, vegetation and city architecture are lightweight primitive
+   * meshes driven by one authored JSON theme per map. These decorations are
+   * visually distinct but never create a corridor wall; the world colliders
+   * for solid props are generated separately on client AND server.
+   */
+  private buildMapProps() {
+    const biome = this.map.biome ?? "industrial";
+    const palette = this.map.theme;
+    const stone = new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
+    const masonry = new THREE.MeshStandardMaterial({color:palette.wall,roughness:.8});
+    const trim = new THREE.MeshStandardMaterial({color:palette.coverAccent,roughness:.48,metalness:.2});
+    const trunk = new THREE.MeshStandardMaterial({color:biome==="jungle"?0x66523d:0x615448,roughness:1});
+    const leaf = new THREE.MeshStandardMaterial({color:biome==="highlands"?0x326158:0x4a874e,roughness:1,side:THREE.DoubleSide});
+    const leafDark = new THREE.MeshStandardMaterial({color:biome==="jungle"?0x315e37:0x3d6f5b,roughness:1});
+    const moss = new THREE.MeshStandardMaterial({color:0x63834b,roughness:1});
+    const glass = new THREE.MeshStandardMaterial({color:biome==="city"?0xffd7ac:0x8cdae7,
+      metalness:.16,roughness:.3,emissive:biome==="city"?0xaa5d4b:0x317487,emissiveIntensity:.32});
+    const asphalt = new THREE.MeshStandardMaterial({color:0x404858,roughness:.9});
+    const scene = this.scene;
+    const cube=(parent:THREE.Object3D,mat:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      m.position.set(x,y,z);m.castShadow=h>=1;m.receiveShadow=true;parent.add(m);return m;
+    };
+    // Show moss/lichen on the upper faces of existing solid ruins, not as a
+    // separate wall or a volumetric obstruction players can get trapped in.
+    if(biome==="jungle") {
+      let planted=0;
+      for(const c of this.map.cover){
+        if(planted>=90)break;
+        if(c.kind==="stair"||c.kind==="solid"||c.kind==="accent"||c.environmentId)continue;
+        if(c.size[0]<1.5||c.size[2]<1.3||c.size[1]<.6)continue;
+        if(Math.abs(c.pos[0])+Math.abs(c.pos[2])>320)continue;
+        const patch=new THREE.Mesh(new THREE.PlaneGeometry(c.size[0]*2*.8,c.size[2]*2*.74),moss);
+        patch.rotation.x=-Math.PI/2;patch.position.set(c.pos[0],c.pos[1]+c.size[1]+.03,c.pos[2]);
+        scene.add(patch);planted++;
+      }
+    }
+
+    for(const p of this.map.props ?? []){
+      const group=new THREE.Group();
+      group.position.set(p.x,p.y??0,p.z);
+      const h=p.h??(p.kind==="shop"?8:4),w=p.w??8,d=p.d??7;
+      if(p.kind==="tree"){
+        const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
+        bole.position.y=h*.21;bole.castShadow=true;group.add(bole);
+        for(let i=0;i<3;i++){
+          const canopy=new THREE.Mesh(new THREE.ConeGeometry(h*(.22-i*.025),h*.37,7),i===1?leafDark:leaf);
+          canopy.position.y=h*(.43+i*.19);canopy.castShadow=i===0;group.add(canopy);
+        }
+      }else if(p.kind==="bush"){
+        const bush=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.max(.7,h*.6),0),leaf);
+        bush.scale.set(1.25,.65,1);bush.position.y=h*.4;group.add(bush);
+        const other=new THREE.Mesh(new THREE.IcosahedronGeometry(h*.4,0),leafDark);
+        other.position.set(.8,h*.35,.3);group.add(other);
+      }else if(p.kind==="rock"){
+        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),stone);
+        rock.scale.set(w*.48,h*.56,d*.5);rock.position.y=h*.48;rock.rotation.y=p.x*.07;rock.castShadow=true;group.add(rock);
+        if(biome==="jungle"){
+          const carpet=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),moss);
+          carpet.scale.set(w*.35,h*.14,d*.31);carpet.position.y=h*.87;group.add(carpet);
+        }else if(biome==="highlands"){
+          const snow=new THREE.Mesh(new THREE.ConeGeometry(w*.33,h*.25,6),
+            new THREE.MeshStandardMaterial({color:0xe2edf0,roughness:1}));
+          snow.position.y=h*.82;group.add(snow);
+        }
+      }else if(p.kind==="shop"){
+        // Solid shop exteriors deliberately sit beside open streets/plazas.
+        // Windows, illuminated signage and an entry graphic give recognisable
+        // facades; no false doorway claims to be an enterable interior.
+        cube(group,masonry,0,h/2,0,w,h,d);
+        const windowCount=Math.max(2,Math.min(6,Math.round(w/3)));
+        for(let i=0;i<windowCount;i++){
+          const wx=-w/2+(i+.5)*w/windowCount;
+          cube(group,glass,wx,h*.58,d/2+.07,w/windowCount*.64,h*.23,.14);
+          cube(group,trim,wx,h*.73,d/2+.09,w/windowCount*.75,.14,.2);
+        }
+        cube(group,asphalt,-w*.22,h*.25,d/2+.09,w*.19,h*.47,.16);
+        cube(group,trim,0,h*.84,d/2+.20,w*.86,h*.17,.24);
+        if(p.text){
+          const canvas=document.createElement("canvas");
+          canvas.width=512;canvas.height=96;
+          const ctx=canvas.getContext("2d");
+          if(ctx){
+            ctx.fillStyle="#202439";ctx.fillRect(0,0,512,96);
+            ctx.fillStyle="#fff0c1";ctx.font="bold 44px sans-serif";
+            ctx.textAlign="center";ctx.textBaseline="middle";
+            ctx.fillText(p.text.slice(0,20),256,48,490);
+            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+            const sign=new THREE.Mesh(new THREE.PlaneGeometry(w*.83,h*.17),
+              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+            sign.position.set(0,h*.84,d/2+.35);group.add(sign);
+          }
+        }
+      }else if(p.kind==="ruin"||p.kind==="temple"){
+        // Roofless broken masonry frame: open approach and sight through the
+        // centre, with collision approximated by the JSON prop footprint.
+        const col=Math.max(1.2,w*.14);
+        for(const x of [-w*.35,w*.35])for(const z of [-d*.35,d*.35])
+          cube(group,stone,x,h*.37,z,col,h*.74,col);
+        cube(group,masonry,0,h*.8,0,w,.65,d*.16);
+        if(biome==="jungle"){
+          cube(group,moss,0,h*.83,0,w*.86,.08,d*.12);
+        }
+      }else if(p.kind==="container"){
+        cube(group,stone,0,h/2,0,w,h,d);
+        for(let x=-w/2+1;x<w/2;x+=1.5)
+          cube(group,trim,x,h/2,d/2+.045,.10,h*.75,.08);
+      }else if(p.kind==="crane"){
+        cube(group,masonry,0,h*1.3,0,1.4,h*2.6,1.4);
+        cube(group,trim,w*.15,h*2.55,0,w*.95,.65,.8);
+        cube(group,masonry,w*.55,h*1.9,0,.08,h*.85,.08);
+      }else if(p.kind==="antenna"){
+        cube(group,stone,0,h/2,0,.35,h,.35);
+        cube(group,trim,0,h*.75,0,5,.22,.22);
+      }else if(p.kind==="terminal"){
+        cube(group,masonry,0,1.1,0,2,2.2,1.3);
+        cube(group,glass,0,1.48,.7,1.5,.75,.08);
+      }else if(p.kind==="lamp"){
+        cube(group,masonry,0,2.7,0,.25,5.4,.25);
+        cube(group,trim,0,5.4,0,1.1,.35,.7);
+        const glow=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6),
+          new THREE.MeshBasicMaterial({color:palette.coverAccent}));
+        glow.position.y=5.15;group.add(glow);
+        const pl=new THREE.PointLight(palette.coverAccent,.65,15);
+        pl.position.y=5;group.add(pl);
+      }else if(p.kind==="sign"){
+        cube(group,masonry,0,2.15,0,.3,4.3,.3);
+        cube(group,trim,0,4.35,0,w,1.4,.35);
+        if(p.text){
+          const canvas=document.createElement("canvas");
+          canvas.width=512;canvas.height=96;
+          const ctx=canvas.getContext("2d");
+          if(ctx){
+            ctx.clearRect(0,0,512,96);
+            ctx.fillStyle="#ffffff";ctx.font="bold 38px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+            ctx.fillText(p.text.slice(0,22),256,48,480);
+            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+            const board=new THREE.Mesh(new THREE.PlaneGeometry(w*.92,1.15),
+              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+            board.position.set(0,4.35,.22);group.add(board);
+          }
+        }
+      }
+      if(group.children.length)scene.add(group);
     }
   }
 

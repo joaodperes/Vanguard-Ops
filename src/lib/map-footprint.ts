@@ -66,7 +66,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
     regions,
     cover:[...scaledBase.cover,...plan.features.flatMap(featureBoxes),
-      ...propColliders(props,[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue].flat() as Vec3[]),
+      ...propColliders(props,[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue]),
       ...regionBoundary(regions)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
     props,biome:visuals.biome,accentColor:visuals.palette.accent,
