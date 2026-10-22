@@ -12,7 +12,7 @@ import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-
 import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
-import { EXPLO_FUSE_MS, EXPLO_RADIUS, explonandoDamage, explonandoCanHit } from "./explonando";
+import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
@@ -34,7 +34,7 @@ import {
   roomCapacity, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, WEAPONS, type AttachmentSlot,
+  weaponById, computeEffectiveStats, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -2296,7 +2296,13 @@ async function handle(socket: any, msg: C2S) {
       if (!loadout) return;
       let newWeaponId = p.weaponId;
       if (msg.slot === "primary") newWeaponId = loadout.weaponId;
-      else if (msg.slot === "secondary") newWeaponId = loadout.secondaryWeaponId ?? "pistol_side";
+      else if (msg.slot === "secondary") {
+        newWeaponId = loadout.secondaryWeaponId ?? "pistol_side";
+        const selected = WEAPONS.find(w => w.id === newWeaponId);
+        if (!selected) return;
+        if (isPrimaryWeaponCategory(selected.category) &&
+            (loadout.perkId !== "well_prepared" || selected.wonder || newWeaponId === loadout.weaponId)) return;
+      }
       else if (msg.slot === "melee") newWeaponId = loadout.meleeWeaponId ?? "knife_tactical";
       // Validate the weapon exists.
       const w = weaponById(newWeaponId);
