@@ -45,7 +45,8 @@ describe("permanent challenge-based Armory eligibility", () => {
       totalKills: 0, totalHeadshots: 0, conditionStats: parseWeaponConditionStats({}) };
     expect(armoryChallengeProgress(ch, stats).completed).toBe(false);
     if (ch.metric === "kills" || ch.metric === "headshots") stats[ch.metric] = ch.goal;
-    else stats.conditionStats[ch.metric] = ch.goal;
+    else if (ch.metric in stats) (stats as Record<string, unknown>)[ch.metric] = ch.goal;
+    else (stats.conditionStats as Record<string, number>)[ch.metric] = ch.goal;
     expect(armoryChallengeProgress(ch, stats).completed).toBe(true);
     expect("unlockLevel" in ch).toBe(false);
     expect(attachmentChallenge("not-a-weapon", id)).toBeNull();
