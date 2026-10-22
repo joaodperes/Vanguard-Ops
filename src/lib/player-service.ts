@@ -372,6 +372,7 @@ export interface AwardResult {
   newPrestiges: string[];
   newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[];
   challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[];
+  challengeProgress: { id: string; kind: "daily" | "weekly" | "elite" | "weapon"; title: string; before: number; progress: number; goal: number; completed: boolean }[];
   bonusXp: number;
   bonusCredits: number;
 }
@@ -599,6 +600,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const dayKey = new Date().toISOString().slice(0, 10);
   const todaysChallenges = effectiveDailyChallenges(player.playerKey, dayKey);
   const challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
+  const challengeProgress: AwardResult["challengeProgress"] = [];
   for (const ch of todaysChallenges) {
     const delta = metricDelta(ch.metric, input);
     if (delta <= 0) continue;
@@ -608,6 +610,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     });
     const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
+    if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
+      id: ch.id, kind: isElite ? "elite" : "daily", title: ch.title,
+      before: existing?.progress ?? 0, progress: newProgress, goal: ch.goal, completed: newProgress >= ch.goal,
+    });
     if (existing) {
       await db.dailyChallenge.update({
         where: { id: existing.id },
@@ -646,6 +652,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     });
     const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
+    if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
+      id: ch.id, kind: isElite ? "elite" : "weekly", title: ch.title,
+      before: existing?.progress ?? 0, progress: newProgress, goal: ch.goal, completed: newProgress >= ch.goal,
+    });
     if (existing) {
       await db.dailyChallenge.update({
         where: { id: existing.id },
@@ -827,6 +837,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         if (isSkinAlreadyUnlocked(ch.skinId)) continue;
         const nextState = weaponChallengeProgress(ch, { kills: weaponKills, headshots: weaponHeadshots, conditionStats: newContext });
         const previousState = weaponChallengeProgress(ch, { kills: wp?.kills ?? 0, headshots: wp?.headshots ?? 0, conditionStats: oldContext });
+        if (nextState.progress > previousState.progress) challengeProgress.push({
+          id: ch.id, kind: "weapon", title: `${weaponById(wid).name} · ${ch.title}`,
+          before: previousState.progress, progress: nextState.progress, goal: nextState.goal,
+          completed: nextState.completed,
+        });
         if (nextState.completed && !previousState.completed) {
           newWeaponChallenges.push({
             challengeId: ch.id,
@@ -915,7 +930,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   });
 
   const newPrestiges = await grantWeaponPrestiges(player.id);
-  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, bonusXp, bonusCredits };
+  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
 }
 
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---
