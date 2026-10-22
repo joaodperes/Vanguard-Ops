@@ -13,7 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
-import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeValue } from "@/lib/armory-challenges";
+import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeProgress } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
     const stat = await db.weaponProgress.findUnique({
       where: { playerId_weaponId: { playerId: player.id, weaponId: weapon.id } },
     });
-    const done = goalDefs.some(ch => weaponChallengeValue(ch.metric, { kills: stat?.kills ?? 0, headshots: stat?.headshots ?? 0, conditionStats: parseWeaponConditionStats(stat?.conditionStats) }) >= ch.goal);
+    const done = goalDefs.some(ch => weaponChallengeProgress(ch, { kills: stat?.kills ?? 0, headshots: stat?.headshots ?? 0, conditionStats: parseWeaponConditionStats(stat?.conditionStats) }).completed);
     if (!done) return NextResponse.json({ error: "Complete the weapon skin challenge first" }, { status: 403 });
     try {
       await db.$transaction(async tx => {
