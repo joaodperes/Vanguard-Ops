@@ -19,7 +19,8 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint } from "./bot-routing";
 import { MOVEMENT } from "./movement-rules";
 import { createServer, type Server as HttpServer } from "http";
-import { getSurvivalProgress } from "./player-service";
+import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
+import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared } from "./survival";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
@@ -1966,9 +1967,30 @@ io.on("connection", (socket) => {
   });
 });
 
+/** Multiplayer progression guard. Socket packets are not proof that a level
+ * was earned or that Well Prepared is selected in a saved loadout.
+ */
+async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire): Promise<LoadoutWire> {
+  const player = await getOrCreatePlayer(playerKey);
+  const level = player?.level ?? 1;
+  const perk = perkById(requested.perkId);
+  const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
+  let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
+  const w = WEAPONS.find(x => x.id === secondaryWeaponId);
+  if (!w || (isPrimaryWeaponCategory(w.category) &&
+      (!canEquipSecondaryPrimary(perkId, level) || !!w.wonder ||
+       secondaryWeaponId === requested.weaponId ||
+       player?.loadout?.secondaryWeapon !== secondaryWeaponId ||
+       (w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id))))) {
+    secondaryWeaponId = "pistol_side";
+  }
+  return { ...requested, perkId, secondaryWeaponId };
+}
+
 async function handle(socket: any, msg: C2S) {
   switch (msg.t) {
     case "joinMatch": {
+      const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       console.log(`[VANGUARD] joinMatch from ${socket.id}: mode=${msg.mode} bots=${msg.botCount} name=${msg.name} map=${msg.mapId ?? "compound"}`);
       const mapId: MapId = (msg.mapId ?? "compound") as MapId;
       let room = findOpenRoom(msg.mode, mapId);
@@ -1978,18 +2000,18 @@ async function handle(socket: any, msg: C2S) {
       const team = assignTeam(room.mode, room) as any;
       const sp = pickSpawn(team, room);
       // In gungame, joining players start on the first progression weapon.
-      const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : msg.loadout.weaponId;
+      const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : loadout.weaponId;
       const p: PlayerNet = {
         id: socket.id, name: msg.name?.slice(0, 20) || "Recruit", team, isBot: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-        weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : msg.loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : msg.loadout.playerSkinId,
+        weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
         kills: 0, deaths: 0, lastShotAt: 0,
         spawnProtectedUntil: Date.now() + 3000,
       };
       room.players.set(socket.id, p);
       room.sockets.set(socket.id, socket.id);
       room.scores.set(socket.id, 0);
-      room.loadouts.set(socket.id, msg.loadout);
+      room.loadouts.set(socket.id, loadout);
       if (room.mode === "gungame") room.gungameProgress.set(socket.id, 0);
       // ensure bots count matches (in case room was reused)
       spawnBots(room);
@@ -2336,6 +2358,7 @@ async function handle(socket: any, msg: C2S) {
       break;
     }
     case "createRoom": {
+      const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const cfg = msg.config;
       if (cfg.mode === "survival") {
         const tier=normalizeSurvivalTier(cfg.survivalTier);
@@ -2353,7 +2376,7 @@ async function handle(socket: any, msg: C2S) {
         }
       }
       console.log(`[VANGUARD] createRoom from ${socket.id}: mode=${cfg.mode} map=${cfg.mapId} teamSize=${cfg.teamSize} fillBots=${cfg.fillWithBots} diff=${cfg.botDifficulty} pw=${cfg.password ? "yes" : "no"}`);
-      const room = createLobbyRoom(socket.id, msg.name, msg.loadout, cfg);
+      const room = createLobbyRoom(socket.id, msg.name, loadout, cfg);
       socketToRoom.set(socket.id, room.id);
       socket.join(room.id);
       const host = room.players.get(socket.id)!;
@@ -2369,6 +2392,7 @@ async function handle(socket: any, msg: C2S) {
       break;
     }
     case "joinRoom": {
+      const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const targetRoom=rooms.get(msg.roomId);
       if (targetRoom?.mode==="survival") {
         const tier=normalizeSurvivalTier(targetRoom.config.survivalTier);
@@ -2385,7 +2409,7 @@ async function handle(socket: any, msg: C2S) {
         }
       }
       console.log(`[VANGUARD] joinRoom from ${socket.id}: roomId=${msg.roomId} name=${msg.name} team=${msg.team ?? "auto"}`);
-      const { room, error } = joinLobbyRoom(socket.id, msg.name, msg.loadout, msg.roomId, msg.password ?? null, msg.team);
+      const { room, error } = joinLobbyRoom(socket.id, msg.name, loadout, msg.roomId, msg.password ?? null, msg.team);
       if (!room || error) {
         socket.emit("message", { t: "roomError", message: error ?? "Could not join room." } as S2C);
         return;
