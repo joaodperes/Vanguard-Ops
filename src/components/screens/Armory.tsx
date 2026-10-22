@@ -249,7 +249,7 @@ export function Armory() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
         {/* Current Loadout — top section (replaces the old Loadout tab) */}
         <div className="mb-6">
-          <LoadoutSelector />
+          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
         </div>
 
         <Tabs defaultValue="weapons">
