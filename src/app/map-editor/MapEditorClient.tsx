@@ -185,7 +185,7 @@ export default function MapEditor() {
     drag.current=null;setPreview(null);
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
   };
-  const changeSelected=(key:string,value:string|number)=>{
+  const changeSelected=(key:string,value:string|number|boolean)=>{
     if(!selected)return;
     pushUndo();
     const sel=selected;
@@ -201,7 +201,7 @@ export default function MapEditor() {
       }
       if(sel.type==="feature"){
         return {...m,features:m.features.map((r,i)=>i===sel.index?
-          {...r,[key]:["id","kind","label","axis"].includes(key)?value:Number(value)}:r)};
+          {...r,[key]:["id","kind","label","axis","autoStairs"].includes(key)?value:Number(value)}:r)};
       }
       if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
         {...h,[key]:["id","type"].includes(key)?value:Number(value)}:h)};
@@ -529,31 +529,100 @@ export default function MapEditor() {
             <div className="space-y-3">
               <div className="text-sm font-semibold capitalize text-amber-300">{selected.type} #{selected.index+1}
                 {selected.team?" / "+selected.team.toUpperCase():""}</div>
-              {selected.type==="spawn"?(
-                <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((a,i)=>
-                  <label key={a} className="text-xs text-zinc-500">{["X","Y","Z"][i]}
-                    <input className={fieldClass} type="number" value={(selectedObject as number[])[i]}
-                      onChange={e=>changeSelected(a,e.target.value)}/></label>)}</div>
-              ):<>
-                {selected.type==="feature"&&<><label className="block text-xs text-zinc-400">ID
-                  <input className={fieldClass} value={(selectedObject as MapFeature).id} onChange={e=>changeSelected("id",e.target.value)}/></label>
-                  <label className="block text-xs text-zinc-400">Label
-                    <input className={fieldClass} value={(selectedObject as MapFeature).label||""} onChange={e=>changeSelected("label",e.target.value)}/></label></>}
-                <div className="grid grid-cols-2 gap-2">{(["x","z","w","d",...(selected.type==="feature"?["h"]:[])] as string[]).map(k=>
-                  <label key={k} className="text-xs text-zinc-500 uppercase">{k==="w"?"Width":k==="d"?"Depth":k==="h"?"Height":k}
-                    <input type="number" step="0.5" className={fieldClass} value={(selectedObject as unknown as Record<string,number>)[k]}
-                      onChange={e=>changeSelected(k,e.target.value)}/></label>)}</div>
-                {selected.type==="feature"&&<label className="block text-xs text-zinc-400">Type
-                  <select className={fieldClass} value={(selectedObject as MapFeature).kind} onChange={e=>changeSelected("kind",e.target.value)}>
-                    <option value="cover">Hard cover</option><option value="platform">Elevated platform + stairs</option><option value="accent">Decorative / nonblocking</option>
-                  </select></label>}
-                {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
-                  <p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs text-zinc-300">
-                    Automatic north/south stairs: {Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)} steps
-                    per side, about {(Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)*.76).toFixed(1)}u
-                    of run. The Height field controls the landing elevation; stairs match it automatically.
-                  </p>}
-              </>}
+              {selected.type==="spawn"?
+                <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((key,i)=><label key={key} className="text-xs text-zinc-400">{["X","Y","Z"][i]}
+                  <input type="number" className={fieldClass} value={(selectedObject as number[])[i]}
+                    onChange={e=>changeSelected(key,e.target.value)}/></label>)}</div>:
+                <>
+                  {(selected.type==="feature"||selected.type==="hazard")&&<label className="block text-xs">Object ID
+                    <input className={fieldClass} value={(selectedObject as MapFeature|MapHazard).id}
+                      onChange={e=>changeSelected("id",e.target.value)}/></label>}
+                  {selected.type==="feature"&&<label className="block text-xs">Label
+                    <input className={fieldClass} value={(selectedObject as MapFeature).label??""}
+                      onChange={e=>changeSelected("label",e.target.value)}/></label>}
+                  {selected.type==="region"&&<label className="block text-xs">Region shape
+                    <select className={fieldClass} value={(selectedObject as MapRegion).shape??"rect"}
+                      onChange={e=>changeSelected("shape",e.target.value)}>
+                      <option value="rect">Rectangle</option><option value="circle">Circle / ellipse</option>
+                      <option value="triangle">Triangle</option>
+                    </select></label>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["x","z","w","d",...(["feature","hazard","prop"].includes(selected.type)?["h"]:[]),
+                      ...(selected.type==="hazard"?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
+                      <input type="number" step=".5" className={fieldClass}
+                        value={(selectedObject as unknown as Record<string,number>)[key]??""}
+                        onChange={e=>changeSelected(key,e.target.value)}/></label>)}
+                  </div>
+                  {selected.type==="feature"&&<label className="block text-xs">Feature type
+                    <select className={fieldClass} value={(selectedObject as MapFeature).kind}
+                      onChange={e=>changeSelected("kind",e.target.value)}>
+                      {(["cover","platform","accent","stairs"] as const).map(kind=>
+                        <option key={kind} value={kind}>{kind}</option>)}
+                    </select></label>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
+                    <label className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={(selectedObject as MapFeature).autoStairs!==false}
+                        onChange={e=>changeSelected("autoStairs",e.target.checked)}/> Auto-generate north/south stairs
+                    </label>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="stairs"&&<>
+                    <label className="block text-xs">Orientation
+                      <select className={fieldClass} value={(selectedObject as MapFeature).axis??"z"}
+                        onChange={e=>changeSelected("axis",e.target.value)}>
+                        <option value="x">East/west (X)</option><option value="z">North/south (Z)</option>
+                      </select></label>
+                    <label className="block text-xs">Extends outward
+                      <select className={fieldClass} value={(selectedObject as MapFeature).sign??1}
+                        onChange={e=>changeSelected("sign",Number(e.target.value))}>
+                        <option value={1}>Positive axis</option><option value={-1}>Negative axis</option>
+                      </select></label>
+                    <button className={btn+" w-full"} onClick={()=>{
+                      const snapped=nearestPlatformSnap(selectedObject as MapFeature,map.features);
+                      if(!snapped){setStatus("Add a platform before snapping.");return;}
+                      update(m=>({...m,features:m.features.map((obj,i)=>i===selected.index?snapped:obj)}));
+                      setStatus("Stairs snapped to landing height and edge.");
+                    }}>Snap to nearest platform (height + steps)</button>
+                    <p className="text-xs text-zinc-400">Rise {(selectedObject as MapFeature).h}u;
+                      {Math.ceil((selectedObject as MapFeature).h/.42)} steps;
+                      run {(selectedObject as MapFeature).d}u.</p>
+                  </>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
+                    <p className="text-xs text-zinc-400">
+                      {(selectedObject as MapFeature).autoStairs===false?"Manual stair placement enabled.":"Automatic north/south stairs enabled."}
+                    </p>}
+                  {selected.type==="hazard"&&<>
+                    <label className="block text-xs">Hazard kind
+                      <select className={fieldClass} value={(selectedObject as MapHazard).type}
+                        onChange={e=>changeSelected("type",e.target.value)}>
+                        {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
+                          <option key={kind} value={kind}>{kind}</option>)}
+                      </select></label>
+                    {(["dps","damage","period","activeFor","offset","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
+                      .filter(key=>({
+                        fire:["dps"],spikes:["damage","period","activeFor","offset"],
+                        jump_pad:["launchX","launchY","launchZ"],
+                        moving_platform:["period","toX","toY","toZ"],destructible_wall:["hp"],
+                      }[(selectedObject as MapHazard).type] as readonly string[]).includes(key))
+                      .map(key=><label key={key} className="block text-xs">{key}
+                        <input type="number" step=".1" className={fieldClass}
+                          value={(selectedObject as MapHazard)[key]??0}
+                          onChange={e=>changeSelected(key,e.target.value)}/></label>)}
+                  </>}
+                  {selected.type==="prop"&&<>
+                    <label className="block text-xs">Prop type
+                      <select className={fieldClass} value={(selectedObject as MapProp).kind}
+                        onChange={e=>changeSelected("kind",e.target.value)}>
+                        {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const).map(kind=>
+                          <option key={kind} value={kind}>{kind}</option>)}
+                      </select></label>
+                    <label className="block text-xs">Text (optional)
+                      <input className={fieldClass} value={(selectedObject as MapProp).text??""}
+                        onChange={e=>changeSelected("text",e.target.value)}/></label>
+                    <label className="block text-xs">Color (optional)
+                      <input className={fieldClass} value={(selectedObject as MapProp).color??""}
+                        onChange={e=>changeSelected("color",e.target.value)}/></label>
+                  </>}
+                </>
+              }
               <div className="flex gap-2">
                 {selected.type!=="spawn"&&<button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
                 <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/> Delete</button>
