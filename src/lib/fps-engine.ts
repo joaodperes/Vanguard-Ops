@@ -627,6 +627,8 @@ export class FPSEngine {
   private kills = 0;
   private deaths = 0;
   private headshots = 0;
+  private assists = 0;
+  private offlineAssistDamage = new Map<string, {damage:number; at:number}>();
   private teamScores = { red: 0, blue: 0 };
   // Kill Confirmed collectibles and per-player objectives (separate from kills).
   private kcTags = new Map<string, { tag: KillConfirmedTag; mesh: THREE.Group }>();
@@ -3001,14 +3003,16 @@ export class FPSEngine {
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
-    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
+    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
+      assists:c.id===this.selfId?this.assists:0,
+      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     // Treat a mid-match leave as a loss (the player didn't win by leaving).
     const won = false;
     return {
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won,
       score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
@@ -4873,8 +4877,19 @@ export class FPSEngine {
 
   private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId) {
     if (!victim.alive || (victim.spawnProtectedUntil ?? 0) > Date.now()) return;
+    // Remember the player's meaningful non-lethal contributions so a
+    // friendly offline bot finishing the same enemy can award an assist.
+    if (!this.opts.online && victim.team !== this.opts.team &&
+        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="survival")) {
+      const old=this.offlineAssistDamage.get(victim.id);
+      this.offlineAssistDamage.set(victim.id,{
+        damage:(old && performance.now()-old.at<=10000?old.damage:0)+Math.max(0,Math.min(damage,victim.health)),
+        at:performance.now(),
+      });
+    }
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
+      this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
       if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
@@ -5048,6 +5063,7 @@ export class FPSEngine {
     setTimeout(() => {
       if (this.disposed || this.matchEnded) return;
       const sp = this.pickSpawn(c.team);
+      this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
@@ -5192,7 +5208,9 @@ export class FPSEngine {
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
-    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
+    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
+      assists:c.id===this.selfId?this.assists:0,
+      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     // Win detection: FFA and Gun Game are both free-for-all — the player wins
@@ -5212,7 +5230,7 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
@@ -6686,6 +6704,12 @@ export class FPSEngine {
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
+          const recent=this.offlineAssistDamage.get(nearest.victim.id);
+          if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
+              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed") &&
+              recent && recent.damage>=15 && performance.now()-recent.at<=10000)
+            this.assists++;
+          this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
           if (this.opts.mode !== "killconfirmed") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
