@@ -22,6 +22,20 @@ Static data used by both the browser and multiplayer server is now read through 
 
 **Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Six underlying template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
+## Choose the correct edit shape
+
+Not every JSON catalog is an array of objects. Check the existing top-level shape before editing; **a one-object draft is not a replacement for the entire file**.
+
+| Shape | Source files | Safe authoring operation |
+| --- | --- | --- |
+| Arrays of entries | `weapons.json`, `attachments.json`, `weapon-skins.json`, `operator-skins.json`, `weapon-challenges.json`, `daily-challenges.json`, `weekly-challenges.json`, `elite-quests.json`, `achievements.json`, `ranks.json`, `killstreak-callouts.json` | Append an entry without deleting or reordering shipped entries; keep thresholds/levels in ascending order where applicable. Ranks and callouts have no `id` field. |
+| Objects keyed by identity | `sight-definitions.json`, `attachment-compatibility.json`, `category-attachments.json`, `match-modes.json`, `achievement-colors.json` | Add or deliberately replace one *key* while preserving siblings; only add keys supported by the runtime. |
+| Numeric settings object | `rewards.json` | Change an existing named scalar only after balance review; this changes rewards globally, not an individual object. |
+| Versioned map dictionary | `src/data/map-blueprints.json` | Add an entry under `maps.<map_id>` without replacing `version`, `units` or other maps. |
+| Independent theme file | `src/data/map-themes/<map_id>.json` | Author a whole theme file, then register its static import in `src/lib/map-visuals.ts`. |
+
+Before merging a fragment, compare the existing entry and check every outgoing reference, ownership/unlock path, client/server consumer and relevant test. A schema accepting a field does **not** imply the engine interprets it.
+
 ## Universal object rules
 
 1. Use a **unique, permanent `id`** in lower-case snake_case (e.g. `rifle_lynx`). IDs are persisted in player progress, purchases, unlocked equipment, saved loadouts and serialized sessions; **never rename or recycle an existing ID**.
@@ -78,7 +92,7 @@ Append to `attachments.json`:
 
 `slot` is one of `sight`, `barrel`, `grip` or `magazine`. Supported `effects`: `damage`, `recoil`, `spread`, `adsSpread`, `adsTime`, `magSize`, `reloadTime`, `moveSpeed` and `range`. They are **percentage modifiers** used by `computeEffectiveStats` (including `magSize`; a value of 20 means +20% rounds, not +20 rounds). A negative `recoil` reduces recoil.
 
-Add its ID to `category-attachments.json` under the appropriate category and slot, and to `attachment-compatibility.json` for weapons with explicit overrides. A new attachment not listed in the relevant allowlist will not appear just because its definition exists. `weaponCategories` is advisory; the allowlists are applied by the runtime. For new scopes, add a `sight-definitions.json` entry and use `sightType` on a compatible sight attachment.
+Add its ID to `category-attachments.json` under the appropriate category and slot, and to `attachment-compatibility.json` for weapons with explicit overrides. A new attachment not listed in the relevant allowlist will not appear just because its definition exists. **Per-weapon overrides win per slot**: `attachment-compatibility.json` takes precedence over the category/slot list in `category-attachments.json`, and lists are not merged. When modifying a category list, retain the intended existing options; when an override exists, update that override too. `weaponCategories` is advisory; the allowlists are applied by the runtime. For new scopes, add a `sight-definitions.json` entry and use `sightType` on a compatible sight attachment.
 
 **Progression:** each eligible weapon/attachment pair receives a contextual permanent attachment challenge through `src/lib/armory-challenges.ts`. Challenges make purchases *eligible*, not owned; the original credit purchase is still required. Check compatibility and eligibility on both client and server.
 
@@ -104,7 +118,7 @@ Append to `weapon-skins.json`:
 
 `rarity` is `common` / `rare` / `epic` / `legendary`; `tier` is `standard` / `rare` / `legendary`; colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Existing prestige-only skins use special `prestige` values (`cosmic` or `toxic`) with coded rendering rules; **do not assign novel prestige values without implementing them**.
 
-A cosmetic entry does not automatically create an authored unlock challenge: existing skin IDs have explicit/fallback support in `src/lib/armory-challenges.ts`, and new skin IDs require corresponding eligibility logic. Edit that logic and add appropriate tests before publishing a new paid skin. Verify appearance in the weapon viewmodel/world model, in loadouts and under purchased ownership checks.
+A cosmetic entry does not automatically create an authored unlock challenge: existing skin IDs have explicit/fallback support in `src/lib/armory-challenges.ts`, and new skin IDs require corresponding eligibility logic **for every weapon intended to use them**. An authored challenge for one gun does not establish an unlock path for all other guns. Edit that logic and add appropriate tests before publishing a new paid skin. Verify appearance in the weapon viewmodel/world model, in loadouts and under purchased ownership checks.
 
 Operator example for `operator-skins.json`:
 
@@ -120,7 +134,7 @@ Operator example for `operator-skins.json`:
 }
 ```
 
-Existing operator contracts are authored/evaluated in `src/lib/armory-challenges.ts`, and persisted purchases use their own ownership model. Confirm every non-default operator receives a contract and can be bought/equipped permanently. New rendering beyond palette fields requires client rendering code.
+Existing operator contracts are authored/evaluated in `src/lib/armory-challenges.ts` via `OPERATOR_CONTRACTS` and `operatorContract()`, and persisted purchases use their own ownership model. Every new non-default operator requires a matching contract with a supported metric; the JSON entry alone cannot be purchased. Confirm every non-default operator receives a contract and can be bought/equipped permanently. New rendering beyond palette fields requires client rendering code.
 
 ## Add a map
 
@@ -154,6 +168,28 @@ Put this object under `maps.frost_yard` (not a top-level array) in the existing 
 
 Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
 
+## Fixed runtime registries and other catalog types
+
+Some valid JSON entries are **not** deployable without TypeScript and gameplay work:
+
+| Requested content | What to check beyond JSON |
+| --- | --- |
+| New optic type in `sight-definitions.json` | `SightType` and reticle/overlay unions in `src/lib/game-data.ts`, existing rendering support, a compatible sight attachment with `sightType`, attachment allowlists and offline/online ADS behavior. Reusing a known `reticle` is safer than inventing one. |
+| New mode key in `match-modes.json` | `GameMode` in `src/lib/game-protocol.ts`, lobby and game rules, client/server protocol and match rewards. Adjusting descriptions or existing mode settings is a separate balance/UI review. |
+| New map ID | The blueprint is dynamically included in `MAPS`/`MAP_LIST`, but `MapId` in `src/lib/game-protocol.ts` remains a fixed TypeScript union. Review typed consumers and protocol use for the new ID; add a static theme import if giving it a custom appearance. |
+| New achievement or rotating-goal metric | Check the exact metric's tracking and evaluator for **that** pool. A string passing `content:validate` may never advance if the progress pipeline does not support it. |
+| New weapon skin ID | `skinChallengesForWeaponAndSkin()`, fallback rules and per-weapon ownership in `src/lib/armory-challenges.ts`. |
+| New operator skin ID | `OPERATOR_CONTRACTS` and `operatorContract()` in `src/lib/armory-challenges.ts`. |
+
+Other declarative catalog recipes:
+
+- `ranks.json`: an ordered array of `{ level, name, shortName, color, insignia }`. Do not repeat an existing minimum level; check the profile UI and level progression.
+- `killstreak-callouts.json`: an ordered array of `{ threshold, label, color, icon }`; add a new threshold between its neighbors and verify the HUD presentation.
+- `achievement-colors.json`: keyed CSS-hex colors for existing tiers (bronze/silver/gold/platinum). A new tier would require engine/UI type support.
+- `rewards.json`: named XP/credit economy constants; changing them affects everyone and needs an explicit balance decision.
+- `elite-quests.json`: a legacy pool. Confirm that the intended quest is actually surfaced, tracked and awarded before publishing new entries.
+- `sight-definitions.json`, `match-modes.json` and the attachment allowlists are keyed objects, **not** arrays. Keep existing definitions intact when replacing individual keys.
+
 ## Add or alter challenges
 
 `weapon-challenges.json` entries require unique `id`, existing `weaponId` and `skinId`, positive `goal`, supported `metric`, `title` and `description`. For example:
@@ -170,7 +206,7 @@ Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its 
 }
 ```
 
-Only recognized metrics can make progress. New metrics require updates to combat event reporting, persistent counters, server evaluation, UI and tests. Daily/weekly pools and achievements are JSON-backed but likewise require supported metrics.
+Only recognized metrics can make progress. New metrics require updates to combat event reporting, persistent counters, server evaluation, UI and tests. Daily/weekly pools and achievements are JSON-backed but likewise require supported metrics. Per-weapon challenge metrics are defined by `WeaponChallengeMetric` and evaluated in `src/lib/armory-challenges.ts`; other challenge pools and achievements can have different supported metrics. Verify eligibility and server-side awarding in an actual match, not only the JSON schema.
 
 ## Validate a content change
 
@@ -184,7 +220,7 @@ bun run typecheck
 bun run build
 ```
 
-CI on `feature/json-content-catalogs` checks all four commands. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
+CI on `feature/json-content-catalogs` checks all four commands. `tests/content-catalogs.test.ts` also includes **exact array-length assertions**: when adding an entry, review and intentionally update its expected count alongside the other contract tests. A failure in such an assertion may reflect test drift rather than malformed JSON; confirm the actual catalog before changing either. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. The structural validator does not prove that a new metric has a counter, a new cosmetic can be unlocked, a map has fair traversable paths, or an optic renders and behaves correctly. Standalone draft validators or JSON Schema checks are useful preflight only; they do not substitute for the commands above. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
 
 **Compatibility:** preserve all existing IDs/prices unless an explicit balance/migration plan says otherwise. A JSON file is deployment-bundled configuration, not a live database migration. If adding saved profile fields, back up player data and plan a Prisma change independently. Review console/server logs, UI, real matches and FPS before merging.
 

@@ -14,7 +14,7 @@ Choose one of six maps or type a new unique ID and select **New** to clone the c
 
 The authoritative JSON file is `src/data/map-blueprints.json`. Export from Map Studio and **replace that file in the repository** to publish; restart/rebuild the game. No production API accepts arbitrary player-authored map mutations, avoiding user-content injection into shared matches.
 
-A new map's `templateMapId` chooses one of the six core environments for its lighting, inherited buildings and environmental objects; the blueprint supplies its additional districts. After committing its JSON, the new map automatically appears in the Play map list and is resolved by both browser and Socket.IO server through the same `MAPS` registry.
+A new map's `templateMapId` chooses one of the six core environments for its lighting, inherited buildings and environmental objects; the blueprint supplies its additional districts. After committing its JSON, the new map is added to the runtime `MAPS` registry/Play map list through the blueprints. **Integration still needs review:** `MapId` in `src/lib/game-protocol.ts` is a fixed TypeScript union, and a new key should be checked against typed protocol/config consumers, room creation and server selection before declaring the map ready.
 
 ## Geometry specification
 
@@ -81,11 +81,13 @@ Example theme file (use hex CSS colors, not integer colors):
 }
 ```
 
-Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp`, `container`, `crane`, `terminal`, `sign`, `antenna`. Many types accept optional `w`, `d`, `h`, `text`. `vegetation` ranges from 0 to 1 and scatters deterministic flora inside the walkable region while avoiding cover and spawn locations. JSON theme files are imported through `src/lib/map-visuals.ts`; **for a new map-specific theme file**, add its static import to that module. A map without its own theme can inherit the theme matching its `templateMapId`.
+Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp`, `container`, `crane`, `terminal`, `sign`, `antenna`, `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`. Many types accept optional `w`, `d`, `h`, `text`. `vegetation` ranges from 0 to 1 and scatters deterministic flora inside the walkable region while avoiding cover and spawn locations. JSON theme files are imported through `src/lib/map-visuals.ts`; **for a new map-specific theme file**, add its static import to that module. A map without its own theme can inherit the theme matching its `templateMapId`.
 
 **Important gameplay detail:** rock/tree/building silhouettes are shared with collision where appropriate; storefronts are **exterior buildings**, not modeled enterable interiors. To create an enterable interior, author real physical geometry and door paths; do not draw fake walkable doorways. The theme is not a replacement for the gameplay blueprint.
 
 **Route-design rules:** keep two or more viable flanks around perches, short and interrupted sightlines around open courts, obstacles sized for cover rather than 100-unit hallway walls, and accessible elevated positions with real stairs. Sniper perches should overlook contested space but should not lock every route. Retain truly compact maps for shotgun/SMG combat as well as vast outdoor maps. Before publishing, playtest spawn safety and A-to-B travel times in 1v1, 3v3 and 7v7. The map builder suppresses new features intersecting known spawns, but this is a fail-safe, not an excuse to author invalid positions.
+
+For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
 
 The Map Studio editor currently edits **blueprint geometry only**. Theme JSON is edited in the repository; restart/rebuild for changes to appear in the game. The editor's preview does not fully render Three.js scenery. Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and a manual visual match before requesting a merge.
 
