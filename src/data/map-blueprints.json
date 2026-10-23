@@ -767,534 +767,655 @@
     },
     "skybridge": {
       "name": "RIDGEFALL",
-      "shortName": "HWF",
-      "description": "Snowbound highland combat: contrasting radio installations, split alpine outlooks and exposed glacial flanks.",
-      "pace": "tactical",
+      "shortName": "RFL",
+      "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
+      "pace": "balanced",
       "regions": [
         {
           "x": 0,
           "z": 0,
-          "w": 154,
-          "d": 144
-        },
-        {
-          "x": -126,
-          "z": -2,
-          "w": 134,
-          "d": 125
-        },
-        {
-          "x": 135,
-          "z": 1,
           "w": 140,
-          "d": 126
+          "d": 118
         },
         {
-          "x": 161,
-          "z": -81,
-          "w": 90,
-          "d": 76
+          "x": -90,
+          "z": -2,
+          "w": 85,
+          "d": 98
         },
         {
-          "x": -149,
-          "z": 83,
-          "w": 91,
-          "d": 80
+          "x": 90,
+          "z": -2,
+          "w": 85,
+          "d": 98
         },
         {
-          "x": 6,
-          "z": 108,
-          "w": 80,
-          "d": 90
+          "x": 0,
+          "z": -89,
+          "w": 116,
+          "d": 73
+        },
+        {
+          "x": 0,
+          "z": 91,
+          "w": 115,
+          "d": 78
         }
       ],
       "features": [
         {
-          "id": "west-bunker",
-          "x": -155,
-          "z": -30,
-          "w": 25,
-          "d": 3,
-          "h": 4,
+          "id": "press-line-west",
+          "x": -43,
+          "z": -12,
+          "w": 5,
+          "d": 40,
+          "h": 5.8,
           "kind": "cover",
-          "label": "Western stronghold"
+          "label": "West hydraulic press line"
         },
         {
-          "id": "west-ladder",
-          "x": -117,
-          "z": 3,
-          "w": 14,
-          "d": 12,
-          "h": 5.6,
-          "kind": "platform",
-          "label": "West bridgehead"
-        },
-        {
-          "id": "east-bunker",
-          "x": 155,
-          "z": 32,
-          "w": 25,
-          "d": 3,
-          "h": 4,
+          "id": "press-line-east",
+          "x": 43,
+          "z": -12,
+          "w": 5,
+          "d": 40,
+          "h": 5.8,
           "kind": "cover",
-          "label": "Eastern stronghold"
+          "label": "East hydraulic press line"
         },
         {
-          "id": "east-ladder",
-          "x": 111,
-          "z": -4,
-          "w": 14,
-          "d": 13,
-          "h": 5.6,
-          "kind": "platform",
-          "label": "East bridgehead"
+          "id": "assembly-divider-north",
+          "x": -16,
+          "z": -51,
+          "w": 3,
+          "d": 14,
+          "h": 9,
+          "kind": "cover",
+          "label": "North assembly divider"
         },
         {
-          "id": "north-tower",
-          "x": 168,
-          "z": -85,
+          "id": "assembly-divider-north-r",
+          "x": 16,
+          "z": -51,
+          "w": 3,
+          "d": 14,
+          "h": 9,
+          "kind": "cover",
+          "label": "North assembly divider"
+        },
+        {
+          "id": "conveyor-west",
+          "x": -21,
+          "z": 5,
           "w": 13,
-          "d": 13,
-          "h": 7,
-          "kind": "platform",
-          "label": "Radio watchtower"
+          "d": 4,
+          "h": 1.7,
+          "kind": "cover",
+          "label": "West conveyor"
         },
         {
-          "id": "south-tower",
-          "x": -146,
-          "z": 84,
+          "id": "conveyor-east",
+          "x": 21,
+          "z": 5,
           "w": 13,
-          "d": 13,
-          "h": 6,
-          "kind": "platform",
-          "label": "South watchtower"
-        },
-        {
-          "id": "switch-yard",
-          "x": 10,
-          "z": 114,
-          "w": 18,
-          "d": 3,
-          "h": 3.5,
+          "d": 4,
+          "h": 1.7,
           "kind": "cover",
-          "label": "Power switch yard"
+          "label": "East conveyor"
         },
         {
-          "id": "lane-0-9",
-          "x": -155,
-          "z": -6,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
+          "id": "furnace-housing",
+          "x": -83,
+          "z": -8,
+          "w": 12,
+          "d": 16,
+          "h": 7.8,
           "kind": "cover",
-          "label": "skybridge district 1 hard cover"
+          "label": "Blast furnace casing"
         },
         {
-          "id": "lane-0-14",
-          "x": -150,
-          "z": 16,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-1-28",
-          "x": 180,
-          "z": -26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-31",
-          "x": 151,
-          "z": -4,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-37",
-          "x": 180,
-          "z": 18,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-40",
-          "x": 175,
-          "z": 40,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-2-41",
-          "x": 154,
-          "z": -105,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 3 hard cover"
-        },
-        {
-          "id": "rock-shelf-1",
-          "x": -158,
-          "z": -17,
-          "w": 7,
-          "d": 6,
-          "h": 1.8,
-          "kind": "cover",
-          "label": "rock shelf"
-        },
-        {
-          "id": "avalanche-stones-1",
-          "x": -105,
-          "z": 34,
-          "w": 4.5,
-          "d": 8,
-          "h": 1.1,
-          "kind": "cover",
-          "label": "avalanche stones"
-        },
-        {
-          "id": "supply-cache-1",
-          "x": -79,
-          "z": -43,
-          "w": 6,
-          "d": 5,
-          "h": 2.2,
-          "kind": "cover",
-          "label": "supply cache"
-        },
-        {
-          "id": "rock-shelf-2",
-          "x": 101,
-          "z": -14,
-          "w": 7,
-          "d": 6,
-          "h": 1.8,
-          "kind": "cover",
-          "label": "rock shelf"
-        },
-        {
-          "id": "avalanche-stones-2",
-          "x": 157,
-          "z": 38,
-          "w": 4.5,
-          "d": 8,
-          "h": 1.1,
-          "kind": "cover",
-          "label": "avalanche stones"
-        },
-        {
-          "id": "overlook-2",
-          "x": 146,
-          "z": 6,
-          "w": 14,
-          "d": 12,
-          "h": 4.2,
-          "kind": "platform",
-          "label": "Climbable flank overlook"
-        },
-        {
-          "id": "rock-shelf-3",
-          "x": 139,
-          "z": -90,
-          "w": 7,
-          "d": 6,
-          "h": 1.8,
-          "kind": "cover",
-          "label": "rock shelf"
-        },
-        {
-          "id": "avalanche-stones-3",
-          "x": 175,
-          "z": -59,
-          "w": 4.5,
-          "d": 8,
-          "h": 1.1,
-          "kind": "cover",
-          "label": "avalanche stones"
-        },
-        {
-          "id": "supply-cache-3",
-          "x": 193,
-          "z": -106,
-          "w": 6,
-          "d": 5,
-          "h": 2.2,
-          "kind": "cover",
-          "label": "supply cache"
-        },
-        {
-          "id": "rock-shelf-4",
-          "x": -171,
-          "z": 73,
-          "w": 7,
-          "d": 6,
-          "h": 1.8,
-          "kind": "cover",
-          "label": "rock shelf"
-        },
-        {
-          "id": "avalanche-stones-4",
-          "x": -134,
-          "z": 106,
-          "w": 4.5,
-          "d": 8,
-          "h": 1.1,
-          "kind": "cover",
-          "label": "avalanche stones"
-        },
-        {
-          "id": "supply-cache-4",
-          "x": -117,
-          "z": 57,
-          "w": 6,
-          "d": 5,
-          "h": 2.2,
-          "kind": "cover",
-          "label": "supply cache"
-        },
-        {
-          "id": "rock-shelf-5",
-          "x": -13,
-          "z": 97,
-          "w": 7,
-          "d": 6,
-          "h": 1.8,
-          "kind": "cover",
-          "label": "rock shelf"
-        },
-        {
-          "id": "avalanche-stones-5",
-          "x": 19,
-          "z": 134,
-          "w": 4.5,
-          "d": 8,
-          "h": 1.1,
-          "kind": "cover",
-          "label": "avalanche stones"
-        },
-        {
-          "id": "supply-cache-5",
-          "x": 34,
-          "z": 78,
-          "w": 6,
-          "d": 5,
-          "h": 2.2,
-          "kind": "cover",
-          "label": "supply cache"
-        },
-        {
-          "id": "radio-outpost-west",
-          "x": -145,
-          "z": -3,
-          "w": 13,
-          "d": 11,
+          "id": "furnace-exhaust",
+          "x": -110,
+          "z": 27,
+          "w": 8,
+          "d": 10,
           "h": 5,
-          "kind": "platform",
-          "label": "West radio station"
+          "kind": "cover",
+          "label": "Exhaust duct"
         },
         {
-          "id": "radio-outpost-east",
-          "x": 149,
-          "z": -7,
-          "w": 13,
-          "d": 11,
-          "h": 5,
-          "kind": "platform",
-          "label": "East radio station"
-        },
-        {
-          "id": "ridge-moraine-west",
-          "x": -82,
-          "z": -13,
-          "w": 11,
-          "d": 5,
+          "id": "forge-crates",
+          "x": -104,
+          "z": -34,
+          "w": 10,
+          "d": 8,
           "h": 2.8,
           "kind": "cover",
-          "label": "Glacial moraine"
+          "label": "Forge inventory stacks"
         },
         {
-          "id": "ridge-moraine-east",
-          "x": 82,
-          "z": 13,
+          "id": "forge-baffle",
+          "x": -69,
+          "z": -35,
+          "w": 3,
+          "d": 32,
+          "h": 6.5,
+          "kind": "cover",
+          "label": "Foundry heat baffle"
+        },
+        {
+          "id": "east-racks",
+          "x": 83,
+          "z": -33,
+          "w": 14,
+          "d": 8,
+          "h": 5.5,
+          "kind": "cover",
+          "label": "Parts storage rack"
+        },
+        {
+          "id": "east-racks-south",
+          "x": 101,
+          "z": 12,
+          "w": 14,
+          "d": 8,
+          "h": 5.5,
+          "kind": "cover",
+          "label": "Parts storage rack"
+        },
+        {
+          "id": "east-loading-wall",
+          "x": 63,
+          "z": 36,
+          "w": 4,
+          "d": 25,
+          "h": 8,
+          "kind": "cover",
+          "label": "Loading dock partition"
+        },
+        {
+          "id": "east-tool-cabin",
+          "x": 119,
+          "z": -5,
+          "w": 9,
+          "d": 15,
+          "h": 4.2,
+          "kind": "cover",
+          "label": "Tool cage"
+        },
+        {
+          "id": "north-sorter",
+          "x": -37,
+          "z": -88,
+          "w": 18,
+          "d": 8,
+          "h": 3.3,
+          "kind": "cover",
+          "label": "Freight sorting machine"
+        },
+        {
+          "id": "north-sorter-r",
+          "x": 37,
+          "z": -88,
+          "w": 18,
+          "d": 8,
+          "h": 3.3,
+          "kind": "cover",
+          "label": "Freight sorting machine"
+        },
+        {
+          "id": "north-gantry-brace",
+          "x": 0,
+          "z": -105,
+          "w": 3,
+          "d": 24,
+          "h": 9,
+          "kind": "cover",
+          "label": "Overhead hoist support"
+        },
+        {
+          "id": "south-generator",
+          "x": -32,
+          "z": 84,
           "w": 12,
-          "d": 5,
-          "h": 2.7,
+          "d": 16,
+          "h": 4.6,
           "kind": "cover",
-          "label": "Glacial moraine"
+          "label": "Backup generator"
         },
         {
-          "id": "alpine-supply-bunker",
-          "x": 12,
-          "z": 132,
-          "w": 13,
-          "d": 10,
-          "h": 4.5,
+          "id": "south-generator-r",
+          "x": 32,
+          "z": 84,
+          "w": 12,
+          "d": 16,
+          "h": 4.6,
+          "kind": "cover",
+          "label": "Cooling skid"
+        },
+        {
+          "id": "south-service-divider",
+          "x": 0,
+          "z": 103,
+          "w": 3,
+          "d": 18,
+          "h": 7,
+          "kind": "cover",
+          "label": "Maintenance partition"
+        },
+        {
+          "id": "paint-booth-north",
+          "x": -12,
+          "z": 34,
+          "w": 22,
+          "d": 3,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber wall"
+        },
+        {
+          "id": "paint-booth-east",
+          "x": -1,
+          "z": 40,
+          "w": 3,
+          "d": 15,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber return"
+        },
+        {
+          "id": "paint-booth-south",
+          "x": -12,
+          "z": 47,
+          "w": 22,
+          "d": 3,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber wall"
+        },
+        {
+          "id": "central-gantry",
+          "x": 0,
+          "z": -19,
+          "w": 34,
+          "d": 13,
+          "h": 5.2,
           "kind": "platform",
-          "label": "High communications bunker"
+          "label": "Central overhead inspection gantry",
+          "autoStairs": false
         },
         {
-          "id": "snowfall-rock-01",
-          "x": 172,
-          "z": -13,
-          "w": 8,
-          "d": 7,
-          "h": 3,
-          "kind": "cover",
-          "label": "Snow rock"
+          "id": "west-mezzanine",
+          "x": -65,
+          "z": 27,
+          "w": 22,
+          "d": 23,
+          "h": 5.2,
+          "kind": "platform",
+          "label": "West furnace control deck",
+          "autoStairs": false
         },
         {
-          "id": "snowfall-rock-02",
-          "x": -173,
-          "z": 15,
-          "w": 8,
-          "d": 7,
-          "h": 3,
+          "id": "east-mezzanine",
+          "x": 65,
+          "z": -24,
+          "w": 22,
+          "d": 23,
+          "h": 5.2,
+          "kind": "platform",
+          "label": "East logistics mezzanine",
+          "autoStairs": false
+        },
+        {
+          "id": "shipping-overlook",
+          "x": 0,
+          "z": -77,
+          "w": 23,
+          "d": 17,
+          "h": 4.2,
+          "kind": "platform",
+          "label": "Shipping control tower",
+          "autoStairs": false
+        },
+        {
+          "id": "gantry-south-steps",
+          "x": 0,
+          "z": -12.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Central gantry south access"
+        },
+        {
+          "id": "gantry-north-steps",
+          "x": 0,
+          "z": -25.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1,
+          "label": "Central gantry north access"
+        },
+        {
+          "id": "west-mezzanine-steps",
+          "x": -65,
+          "z": 38.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Foundry control stairs"
+        },
+        {
+          "id": "east-mezzanine-steps",
+          "x": 65,
+          "z": -35.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1,
+          "label": "Warehouse stairs"
+        },
+        {
+          "id": "shipping-steps",
+          "x": 0,
+          "z": -68.5,
+          "w": 4,
+          "d": 8,
+          "h": 4.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Shipping tower stair"
+        },
+        {
+          "id": "gantry-north-railing",
+          "x": 0,
+          "z": -24.8,
+          "w": 28,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
           "kind": "cover",
-          "label": "Snow rock"
+          "label": "Upper gantry safety rail"
+        },
+        {
+          "id": "gantry-south-railing",
+          "x": -12,
+          "z": -12.8,
+          "w": 6,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "Upper gantry guard"
+        },
+        {
+          "id": "gantry-south-railing-r",
+          "x": 12,
+          "z": -12.8,
+          "w": 6,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "Upper gantry guard"
+        },
+        {
+          "id": "west-deck-barrier",
+          "x": -74.5,
+          "z": 27,
+          "w": 1,
+          "d": 17,
+          "h": 1.3,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "West upper-level safety fence"
+        },
+        {
+          "id": "east-deck-barrier",
+          "x": 74.5,
+          "z": -24,
+          "w": 1,
+          "d": 17,
+          "h": 1.3,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "East upper-level safety fence"
+        },
+        {
+          "id": "steel-crate-1",
+          "x": -20,
+          "z": -39,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-2",
+          "x": 20,
+          "z": -39,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-3",
+          "x": -19,
+          "z": 18,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-4",
+          "x": 19,
+          "z": 18,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-5",
+          "x": -100,
+          "z": 43,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-6",
+          "x": 103,
+          "z": 45,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        }
+      ],
+      "hazards": [
+        {
+          "id": "foundry-heat-west",
+          "type": "fire",
+          "x": -99,
+          "y": 0.45,
+          "z": -10,
+          "w": 8,
+          "d": 10,
+          "h": 0.9,
+          "dps": 6
+        },
+        {
+          "id": "foundry-heat-east",
+          "type": "fire",
+          "x": 104,
+          "y": 0.45,
+          "z": -10,
+          "w": 7,
+          "d": 9,
+          "h": 0.9,
+          "dps": 6
+        },
+        {
+          "id": "press-cycle",
+          "type": "spikes",
+          "x": -23,
+          "y": 0.45,
+          "z": 8,
+          "w": 7,
+          "d": 6,
+          "h": 0.9,
+          "damage": 22,
+          "period": 5,
+          "activeFor": 1.1,
+          "offset": 0
         }
       ],
       "spawns": {
         "ffa": [
           [
-            -175,
-            0,
-            -44
-          ],
-          [
-            -168,
-            0,
-            46
-          ],
-          [
-            -97,
+            -51,
             0,
             -43
           ],
           [
-            -120,
+            51,
             0,
-            43
+            -43
           ],
           [
-            187,
+            -55,
             0,
-            -42
+            44
           ],
           [
-            186,
+            55,
             0,
-            52
+            44
           ],
           [
-            96,
+            -110,
             0,
-            46
+            -16
           ],
           [
-            98,
+            110,
             0,
-            -40
-          ],
-          [
-            170,
-            0,
-            -108
-          ],
-          [
-            -174,
-            0,
-            106
-          ],
-          [
-            -11,
-            0,
-            131
-          ],
-          [
-            35,
-            0,
-            136
-          ]
-        ],
-        "red": [
-          [
-            -171,
-            0,
-            -44
-          ],
-          [
-            -175,
-            0,
-            46
+            24
           ],
           [
             -99,
             0,
-            -42
+            50
           ],
           [
-            -131,
+            99,
             0,
-            43
+            -56
           ],
           [
-            -178,
+            -34,
             0,
             99
           ],
           [
-            -120,
+            36,
             0,
-            97
+            99
+          ],
+          [
+            -35,
+            0,
+            -105
+          ],
+          [
+            35,
+            0,
+            -105
+          ]
+        ],
+        "red": [
+          [
+            -51,
+            0,
+            -45
+          ],
+          [
+            -100,
+            0,
+            -48
+          ],
+          [
+            -109,
+            0,
+            18
+          ],
+          [
+            -52,
+            0,
+            42
+          ],
+          [
+            -33,
+            0,
+            96
+          ],
+          [
+            -38,
+            0,
+            -107
           ]
         ],
         "blue": [
           [
-            190,
+            51,
             0,
-            -43
-          ],
-          [
-            187,
-            0,
-            51
+            43
           ],
           [
             100,
             0,
-            -40
+            50
           ],
           [
-            98,
+            111,
             0,
-            45
+            -22
           ],
           [
-            179,
+            52,
             0,
-            -108
+            -42
           ],
           [
-            133,
+            33,
             0,
-            -99
+            98
+          ],
+          [
+            38,
+            0,
+            -107
           ]
         ]
       }
