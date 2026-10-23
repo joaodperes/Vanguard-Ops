@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { MAP_LIST, MAPS } from "../src/lib/game-protocol";
 import { MAP_FOOTPRINT, applyMapFootprint } from "../src/lib/map-footprint";
+import { insideRegions, regionRectangles } from "../src/lib/map-blueprints";
 import type { MapDef } from "../src/lib/game-protocol";
 
 describe("map footprint variety", () => {
@@ -64,8 +65,19 @@ describe("map footprint variety", () => {
       const r=map.regions!;
       const boundary=map.cover.filter(c=>c.kind==="solid");
       expect(boundary.length).toBeGreaterThan(4);
-      const coveredArea=r.reduce((area,v)=>area+v.w*v.d,0);
-      expect(coveredArea).toBeLessThan((2*map.size)**2 * 0.87);
+      // Regions intentionally overlap to form connected corridors; adding
+      // their individual areas double-counts those overlaps (especially in
+      // the compact Shipyard). Measure their actual union instead.
+      const cells=regionRectangles(r);
+      const xs=[...new Set(cells.flatMap(v=>[v.x-v.w/2,v.x+v.w/2]))].sort((a,b)=>a-b);
+      const zs=[...new Set(cells.flatMap(v=>[v.z-v.d/2,v.z+v.d/2]))].sort((a,b)=>a-b);
+      let occupiedArea=0;
+      for(let i=0;i<xs.length-1;i++)for(let j=0;j<zs.length-1;j++){
+        const cx=(xs[i]+xs[i+1])/2,cz=(zs[j]+zs[j+1])/2;
+        if(insideRegions(cx,cz,cells))
+          occupiedArea+=(xs[i+1]-xs[i])*(zs[j+1]-zs[j]);
+      }
+      expect(occupiedArea).toBeLessThan((2*map.size)**2 * 0.87);
     }
     expect(MAPS.arena_neon.size * 2).toBeGreaterThan(380);
     expect(MAPS.arena_neon.spawns.ffa.some(p=>Math.abs(p[0])>140||Math.abs(p[2])>140)).toBe(true);
