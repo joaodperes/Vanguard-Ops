@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import MapStudio3D, {type StudioSelection,type StudioMode,type StudioTransform} from "./MapStudio3D";
 import {
   MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, stairFeatureBoxes, regionRectangles,
   type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
@@ -12,7 +13,7 @@ import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointe
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
 type Team="ffa"|"red"|"blue";
-type Selection={type:"region"|"feature"|"spawn"|"hazard"|"prop";index:number;team?:Team};
+type Selection=StudioSelection;
 type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
 type Drag =
@@ -37,6 +38,8 @@ export default function MapEditor() {
   const [preview,setPreview]=useState<{start:Point;end:Point}|null>(null);
   const [newId,setNewId]=useState("");
   const [zoom,setZoom]=useState(100);
+  const [viewport,setViewport]=useState<"3d"|"2d">("3d");
+  const [editMode,setEditMode]=useState<StudioMode>("select");
   const [gridSnapEnabled,setGridSnapEnabled]=useState(true);
   const [gridSnapStep,setGridSnapStep]=useState(2);
   const [status,setStatus]=useState("Export the JSON into src/data/map-blueprints.json to publish changes.");
@@ -124,6 +127,17 @@ export default function MapEditor() {
     const p=getPoint(e),d=drag.current;
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
+    if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
+      const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
+      const base=getMap(mapId);
+      const source=sel.type==="legacyCover"?base.cover[sel.index]:base.environment?.[sel.index];
+      if(!source)return;
+      const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
+        w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
+      update(m=>({...m,[overridesKey]:{...(m[overridesKey]??{}),
+        [sel.index]:{...initial,...m[overridesKey]?.[String(sel.index)],[key]:Number(value)}}}));
+      return;
+    }
     if(sel.type==="prop"){
       updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
         {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
@@ -213,6 +227,15 @@ export default function MapEditor() {
   const remove=()=>{
     if(!selected)return;pushUndo();
     const s=selected;
+    if(s.type==="legacyCover"||s.type==="legacyEnvironment"){
+      const overridesKey=s.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
+      update(m=>{
+        const existing={...(m[overridesKey]??{})};
+        delete existing[String(s.index)];
+        return {...m,[overridesKey]:existing};
+      });
+      setSelected(null);return;
+    }
     if(s.type==="prop"){
       updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)}));
       setSelected(null);return;
@@ -224,7 +247,7 @@ export default function MapEditor() {
     setSelected(null);
   };
   const duplicate=()=>{
-    if(!selected||selected.type==="spawn")return;pushUndo();
+    if(!selected||selected.type==="spawn"||selected.type==="legacyCover"||selected.type==="legacyEnvironment")return;pushUndo();
     const s=selected;
     if(s.type==="region"){const index=map.regions.length;
       update(m=>({...m,regions:[...m.regions,{...m.regions[s.index],x:m.regions[s.index].x+12}]}));
@@ -275,7 +298,58 @@ export default function MapEditor() {
     }catch(err){setStatus("Import failed: "+(err instanceof Error?err.message:String(err)));}
     e.target.value="";
   };
-  const selectedObject=selected?(selected.type==="region"?map.regions[selected.index]:
+  const baseMap=getMap(mapId);
+  const legacyObject=(sel:Selection)=>{
+    const source=sel.type==="legacyCover"?baseMap.cover[sel.index]:baseMap.environment?.[sel.index];
+    if(!source)return null;
+    const original={x:source.pos[0],y:source.pos[1],z:source.pos[2],
+      w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
+    const existing=sel.type==="legacyCover"?map.legacyCoverOverrides?.[String(sel.index)]:
+      map.legacyEnvironmentOverrides?.[String(sel.index)];
+    return {...original,...existing};
+  };
+  const apply3DTransform=(sel:StudioSelection,t:StudioTransform)=>{
+    pushUndo();
+    if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
+      const key=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
+      update(m=>({...m,[key]:{...(m[key]??{}),
+        [sel.index]:{x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}}}));
+      return;
+    }
+    if(sel.type==="prop"){
+      updateTheme(current=>({...current,props:current.props.map((p,i)=>i===sel.index?
+        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p)}));
+      return;
+    }
+    update(current=>{
+      if(sel.type==="region")return {...current,regions:current.regions.map((r,i)=>i===sel.index?
+        {...r,x:t.x,z:t.z,w:t.w,d:t.d}:r)};
+      if(sel.type==="feature")return {...current,features:current.features.map((f,i)=>{
+        if(i!==sel.index)return f;
+        const quarter=((t.turns%4)+4)%4;
+        const rotate=quarter*Math.PI/2;
+        const axis=f.axis??"z",sign=f.sign??1;
+        const dx=axis==="x"?sign:0,dz=axis==="z"?sign:0;
+        const rotatedX=Math.round(Math.cos(rotate)*dx+Math.sin(rotate)*dz);
+        const rotatedZ=Math.round(-Math.sin(rotate)*dx+Math.cos(rotate)*dz);
+        return {...f,x:t.x,z:t.z,h:Math.max(.3,t.h+2*t.y),
+          w:f.kind==="stairs"&&quarter%2?t.d:t.w,
+          d:f.kind==="stairs"&&quarter%2?t.w:t.d,
+          ...(f.kind==="stairs"?{axis:rotatedX!==0?"x" as const:"z" as const,
+            sign:(rotatedX!==0?rotatedX:rotatedZ) as 1|-1}:{})};
+      })};
+      if(sel.type==="hazard")return {...current,hazards:(current.hazards??[]).map((h,i)=>i===sel.index?
+        {...h,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:h)};
+      if(sel.type==="spawn"){
+        const team=sel.team!;
+        return {...current,spawns:{...current.spawns,[team]:current.spawns[team].map((p,i)=>i===sel.index?
+          [t.x,t.y,t.z] as [number,number,number]:p)}};
+      }
+      return current;
+    });
+  };
+  const selectedObject=selected?(selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
+    legacyObject(selected):selected.type==="region"?map.regions[selected.index]:
     selected.type==="feature"?map.features[selected.index]:
     selected.type==="hazard"?(map.hazards??[])[selected.index]:
     selected.type==="prop"?theme.props[selected.index]:map.spawns[selected.team!][selected.index]):null;
