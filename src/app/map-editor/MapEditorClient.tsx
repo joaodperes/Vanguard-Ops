@@ -628,7 +628,24 @@ export default function MapEditor() {
             <div className="space-y-3">
               <div className="text-sm font-semibold capitalize text-amber-300">{selected.type} #{selected.index+1}
                 {selected.team?" / "+selected.team.toUpperCase():""}</div>
-              {selected.type==="spawn"?
+              {(selected.type==="legacyCover"||selected.type==="legacyEnvironment")?
+                <div className="space-y-3">
+                  <p className="text-xs text-amber-200/80">
+                    Existing game geometry: this edit is saved as an override in the map blueprint.
+                    The original TypeScript template remains unchanged.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["x","y","z","w","h","d"] as const).map(key=>
+                      <label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
+                        <input className={fieldClass} type="number" step=".25" min={["w","h","d"].includes(key)?0.1:undefined}
+                          value={(selectedObject as Record<string,number>)[key]}
+                          onChange={e=>changeSelected(key,e.target.value)}/>
+                      </label>)}
+                  </div>
+                  <p className="text-xs text-zinc-500">W/H/D are full dimensions; Y is the center elevation.
+                    Use Move or Resize in 3D to modify the selected object.</p>
+                </div>:
+              selected.type==="spawn"?
                 <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((key,i)=><label key={key} className="text-xs text-zinc-400">{["X","Y","Z"][i]}
                   <input type="number" className={fieldClass} value={(selectedObject as number[])[i]}
                     onChange={e=>changeSelected(key,e.target.value)}/></label>)}</div>:
@@ -723,11 +740,13 @@ export default function MapEditor() {
                 </>
               }
               <div className="flex gap-2">
-                {selected.type!=="spawn"&&<button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
-                <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/> Delete</button>
+                {selected.type!=="spawn"&&selected.type!=="legacyCover"&&selected.type!=="legacyEnvironment"&&
+                  <button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
+                <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/>
+                  {selected.type==="legacyCover"||selected.type==="legacyEnvironment"?"Reset override":"Delete"}</button>
               </div>
             </div>:
-            <p className="text-xs text-zinc-500">Select a region, solid, platform, or spawn to edit its properties.</p>}
+            <p className="text-xs text-zinc-500">Select a region, existing staircase/cover, hazard, prop, or spawn in 3D to edit its properties.</p>}
         </section>
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Design checks</h2>
