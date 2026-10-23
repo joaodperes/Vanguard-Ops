@@ -1,7 +1,8 @@
 import { describe,expect,test } from "bun:test";
+import { getMap } from "../src/lib/game-protocol";
 import {
   insideRegion, insideRegions, regionRectangles, regionBoundary, featureBoxes,
-  nearestPlatformSnap, authoredHazardEnvironment, validateBlueprint,
+  nearestPlatformSnap, authoredHazardEnvironment, validateBlueprint, overrideBox,
   type MapFeature, type MapBlueprint,
 } from "../src/lib/map-blueprints";
 
@@ -54,6 +55,27 @@ describe("Map Studio authored objects",()=>{
     expect(spike.type).toBe("spikes");
     const pad=authoredHazardEnvironment({id:"pad",type:"jump_pad",x:10,z:5,y:1,w:6,d:4,h:2,launchY:20});
     if(pad.type==="jump_pad")expect(pad.launch).toEqual([0,20,0]);
+  });
+  test("maps expose editable legacy covers, including stair steps",()=>{
+    const compiled=getMap("compound");
+    expect(compiled.editorLegacyCoverCount).toBeGreaterThan(0);
+    const legacy=compiled.cover.slice(0,compiled.editorLegacyCoverCount);
+    expect(legacy.some(b=>b.kind==="stair")).toBe(true);
+  });
+  test("legacy box overrides use full width/height/depth and preserve metadata",()=>{
+    const base={pos:[5,3,7] as [number,number,number],size:[2,1,3] as [number,number,number],kind:"stair" as const};
+    const moved=overrideBox(base,{x:10,y:6,z:-4,w:6,h:8,d:12});
+    expect(moved.pos).toEqual([10,6,-4]);
+    expect(moved.size).toEqual([3,4,6]);
+    expect(moved.kind).toBe("stair");
+    expect(base.pos).toEqual([5,3,7]);
+  });
+  test("invalid legacy edits are caught before publishing",()=>{
+    const plan:MapBlueprint={name:"Test",shortName:"TST",description:"Test",pace:"balanced",
+      regions:[{x:0,z:0,w:50,d:50}],features:[],
+      spawns:{ffa:[[0,0,0]],red:[[-15,0,0]],blue:[[15,0,0]]},
+      legacyCoverOverrides:{"1":{x:0,y:0,z:0,w:-2,h:1,d:3}}};
+    expect(validateBlueprint(plan).some(issue=>issue.includes("legacyCoverOverrides[1]"))).toBe(true);
   });
   test("rejects unknown shapes, impossible hazards, and duplicate feature/hazard IDs",()=>{
     const plan:MapBlueprint={name:"Test",shortName:"TST",description:"Test",pace:"balanced",
