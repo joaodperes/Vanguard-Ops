@@ -199,7 +199,9 @@ export default function MapEditor() {
     overrideBox(box,map.legacyCoverOverrides?.[String(i)]));
   const legacyFlightBounds=(index:number)=>{
     const flight=legacyFlight(index);
-    return flight?stairFlightBounds(flight.indices.map(i=>effectiveLegacyCover()[i]).filter(Boolean)):null;
+    if(!flight)return null;
+    const effective=effectiveLegacyCover();
+    return stairFlightBounds(flight.indices.map(i=>effective[i]));
   };
   /** One editor action updates every collision tread in this flight.
    * Preserve stable source indices for publishing in legacyCoverOverrides. */
@@ -220,7 +222,6 @@ export default function MapEditor() {
   };
   const changeSelected=(key:string,value:string|number|boolean)=>{
     if(!selected)return;
-    pushUndo();
     const sel=selected;
     if(sel.type==="legacyStairs"){
       const bounds=legacyFlightBounds(sel.index);
@@ -228,6 +229,7 @@ export default function MapEditor() {
         editLegacyFlight(sel.index,{...bounds,[key]:Number(value),turns:0});
       return;
     }
+    pushUndo();
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       const base=baseMap;
@@ -712,14 +714,18 @@ export default function MapEditor() {
         <section><h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3">Inspector</h2>
           {selected&&selectedObject?
             <div className="space-y-3">
-              <div className="text-sm font-semibold capitalize text-amber-300">{selected.type} #{selected.index+1}
+              <div className="text-sm font-semibold capitalize text-amber-300">{selected.type==="legacyStairs"?"Staircase flight":selected.type} #{selected.index+1}
                 {selected.team?" / "+selected.team.toUpperCase():""}</div>
-              {(selected.type==="legacyCover"||selected.type==="legacyEnvironment")?
+              {(selected.type==="legacyCover"||selected.type==="legacyStairs"||selected.type==="legacyEnvironment")?
                 <div className="space-y-3">
                   <p className="text-xs text-amber-200/80">
-                    Existing game geometry: this edit is saved as an override in the map blueprint.
-                    The original TypeScript template remains unchanged.
+                    {selected.type==="legacyStairs"?
+                      `Complete staircase selected — ${legacyFlight(selected.index)?.indices.length??0} collision steps. Move, rotate or resize the whole flight together. Exported JSON stores the coordinated step overrides.`:
+                      "Existing game geometry: this edit is saved as an override in the map blueprint. The original TypeScript template remains unchanged."}
                   </p>
+                  {selected.type==="legacyStairs"&&<p className="text-xs text-zinc-500">
+                    X/Y/Z = flight center · W/D = total footprint · H = total rise. Step count stays fixed for legacy stairs; new authored stairs regenerate steps automatically.
+                  </p>}
                   <div className="grid grid-cols-2 gap-2">
                     {(["x","y","z","w","h","d"] as const).map(key=>
                       <label key={key} className="text-xs text-zinc-400">{key==="y"&&selected.type==="feature"?"BASE ELEVATION (Y)":key.toUpperCase()}
@@ -728,8 +734,10 @@ export default function MapEditor() {
                           onChange={e=>changeSelected(key,e.target.value)}/>
                       </label>)}
                   </div>
-                  <p className="text-xs text-zinc-500">W/H/D are full dimensions; Y is the center elevation.
-                    Use Move or Resize in 3D to modify the selected object.</p>
+                  <p className="text-xs text-zinc-500">
+                    {selected.type==="legacyStairs"?"Every tread is updated together. Use Rotate for 90° quarter-turns and Reset flight to undo all saved edits to this staircase.":
+                    "W/H/D are full dimensions; Y is the center elevation. Use Move or Resize in 3D to modify the selected object."}
+                  </p>
                 </div>:
               selected.type==="spawn"?
                 <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((key,i)=><label key={key} className="text-xs text-zinc-400">{["X","Y","Z"][i]}
@@ -834,10 +842,10 @@ export default function MapEditor() {
                 </>
               }
               <div className="flex gap-2">
-                {selected.type!=="spawn"&&selected.type!=="legacyCover"&&selected.type!=="legacyEnvironment"&&
+                {selected.type!=="spawn"&&selected.type!=="legacyCover"&&selected.type!=="legacyStairs"&&selected.type!=="legacyEnvironment"&&
                   <button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
                 <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/>
-                  {selected.type==="legacyCover"||selected.type==="legacyEnvironment"?"Reset override":"Delete"}</button>
+                  {selected.type==="legacyStairs"?"Reset flight":selected.type==="legacyCover"||selected.type==="legacyEnvironment"?"Reset override":"Delete"}</button>
               </div>
             </div>:
             <p className="text-xs text-zinc-500">Select a region, existing staircase/cover, hazard, prop, or spawn in 3D to edit its properties.</p>}
