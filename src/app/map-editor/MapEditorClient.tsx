@@ -348,6 +348,44 @@ export default function MapEditor() {
       return current;
     });
   };
+  const add3DAt=(kind:string,point:{x:number;z:number})=>{
+    const x=gridSnapEnabled?snap(point.x,gridSnapStep):Math.round(point.x*100)/100;
+    const z=gridSnapEnabled?snap(point.z,gridSnapStep):Math.round(point.z*100)/100;
+    pushUndo();
+    if(["region","circle","triangle"].includes(kind)){
+      const index=map.regions.length;
+      update(m=>({...m,regions:[...m.regions,{x,z,w:32,d:32,
+        shape:kind==="region"?"rect":kind as "circle"|"triangle"}]}));
+      setSelected({type:"region",index});
+    }else if(["cover","platform","stairs"].includes(kind)){
+      const index=map.features.length;
+      const featureKind=kind as "cover"|"platform"|"stairs";
+      const feature:MapFeature={id:"editor_"+Date.now().toString(36)+"_"+index,
+        kind:featureKind,x,z,w:featureKind==="stairs"?4:12,
+        d:featureKind==="stairs"?8:12,h:featureKind==="cover"?2.8:4.2,
+        ...(featureKind==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
+      update(m=>({...m,features:[...m.features,feature]}));
+      setSelected({type:"feature",index});
+    }else if(kind==="hazard"){
+      const index=(map.hazards??[]).length;
+      const item:MapHazard={id:"hazard_"+Date.now().toString(36)+"_"+index,
+        type:hazardKind,x,y:1,z,w:6,h:2,d:6,dps:7,damage:25,
+        period:5,activeFor:2,hp:120,launchY:18,toX:x+10,toY:1,toZ:z};
+      update(m=>({...m,hazards:[...(m.hazards??[]),item]}));
+      setSelected({type:"hazard",index});
+    }else if(kind==="prop"){
+      const index=theme.props.length;
+      updateTheme(t=>({...t,props:[...t.props,{kind:propKind,x,z,w:5,d:5,h:5}]}));
+      setSelected({type:"prop",index});
+    }else if(["ffa","red","blue"].includes(kind)){
+      const team=kind as Team,index=map.spawns[team].length;
+      update(m=>({...m,spawns:{...m.spawns,[team]:[...m.spawns[team],[x,0,z]]}}));
+      setSelected({type:"spawn",team,index});
+    }
+    setTool("select");
+    setEditMode("move");
+    setStatus("Created object at the 3D camera focus. Move or resize it, then export JSON.");
+  };
   const selectedObject=selected?(selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
     legacyObject(selected):selected.type==="region"?map.regions[selected.index]:
     selected.type==="feature"?map.features[selected.index]:
@@ -543,8 +581,8 @@ export default function MapEditor() {
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
           {viewport==="3d"?
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
-              mode={editMode} snap={gridSnapEnabled?gridSnapStep:0}
-              onSelect={setSelected} onTransform={apply3DTransform}/>:
+              mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
+              onSelect={setSelected} onTransform={apply3DTransform} onAddAt={add3DAt}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
             style={{touchAction:"none"}} onPointerDown={onPointerDown}
