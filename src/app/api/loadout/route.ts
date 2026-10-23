@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
@@ -149,14 +150,22 @@ export async function POST(req: NextRequest) {
   // weapons occupying the same primary/secondary loadout slot. A switch with
   // no supplied map clears every attachment, including any old optic. Explicit
   // None selections are also persisted as real null values.
+  // Snapshot previous selections before changing any slot. A weapon's saved
+  // setup follows its weapon ID rather than the transient loadout slot.
+  const setups=parseWeaponSetups(player.loadout?.weaponSetups);
+  if(player.loadout){
+    rememberSetup(setups,player.loadout.primaryWeapon,player.loadout.weaponSkin,player.loadout.attachments);
+    rememberSetup(setups,player.loadout.secondaryWeapon,player.loadout.secondaryWeaponSkin,player.loadout.secondaryAttachments);
+    rememberSetup(setups,player.loadout.meleeWeapon,player.loadout.meleeWeaponSkin,player.loadout.meleeAttachments);
+  }
   const previousPrimary = safeWeaponId(player.loadout?.primaryWeapon ?? "rifle_ar");
   const selectedPrimary = safeWeaponId(primaryWeapon ?? previousPrimary);
-  const primaryAtts = attachmentsForWeaponSelection(previousPrimary, selectedPrimary, attachments);
+  const primaryAtts = attachmentsForWeaponSelection(previousPrimary, selectedPrimary, attachments ?? (previousPrimary !== selectedPrimary ? setups[selectedPrimary]?.attachments : undefined));
   const attsJson = primaryAtts === undefined ? undefined : sanitizeAttachments(selectedPrimary, primaryAtts);
 
   const previousSecondary = safeWeaponId(player.loadout?.secondaryWeapon ?? "pistol_side");
   const selectedSecondary = safeWeaponId(secondaryWeapon ?? previousSecondary);
-  const secondaryAtts = attachmentsForWeaponSelection(previousSecondary, selectedSecondary, secondaryAttachments);
+  const secondaryAtts = attachmentsForWeaponSelection(previousSecondary, selectedSecondary, secondaryAttachments ?? (previousSecondary !== selectedSecondary ? setups[selectedSecondary]?.attachments : undefined));
   const secAttsJson = secondaryAtts === undefined ? undefined : sanitizeAttachments(selectedSecondary, secondaryAtts);
   // Melee attachments: melee weapons don't take attachments — always "{}".
   // We still accept the field for API symmetry but persist an empty object.
@@ -204,15 +213,24 @@ export async function POST(req: NextRequest) {
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
   const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
   const effectiveMelee = safeWeaponId(meleeWeapon ?? player.loadout?.meleeWeapon ?? "knife_tactical");
-  const sanitizedWeaponSkin = await sanitizeSkinForWeapon(weaponSkin, effectivePrimary);
-  const sanitizedSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin, effectiveSecondary);
-  const sanitizedMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin, effectiveMelee);
+  const sanitizedWeaponSkin = await sanitizeSkinForWeapon(weaponSkin ?? (effectivePrimary!==previousPrimary ? setups[effectivePrimary]?.skin ?? "default" : undefined), effectivePrimary);
+  const sanitizedSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin ?? (effectiveSecondary!==previousSecondary ? setups[effectiveSecondary]?.skin ?? "default" : undefined), effectiveSecondary);
+  const sanitizedMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin ?? (effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical") ? setups[effectiveMelee]?.skin ?? "default" : undefined), effectiveMelee);
   if (playerSkin !== undefined &&
       playerSkin !== "default" && playerSkin !== player.selectedSkin &&
       !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
     return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
   }
 
+  // Persist each newly chosen setup after ownership/compatibility checks,
+  // preserving explicit None attachments and falling back to default when a
+  // formerly owned skin is no longer available.
+  rememberSetup(setups,effectivePrimary,sanitizedWeaponSkin??player.loadout?.weaponSkin??"default",
+    attsJson??player.loadout?.attachments??"{}");
+  rememberSetup(setups,effectiveSecondary,sanitizedSecondarySkin??player.loadout?.secondaryWeaponSkin??"default",
+    secAttsJson??player.loadout?.secondaryAttachments??"{}");
+  rememberSetup(setups,effectiveMelee,sanitizedMeleeSkin??player.loadout?.meleeWeaponSkin??"default",
+    melAttsJson??player.loadout?.meleeAttachments??"{}");
   await db.loadout.upsert({
     where: { playerId: player.id },
     create: {
@@ -227,8 +245,10 @@ export async function POST(req: NextRequest) {
       attachments: attsJson ?? "{}",
       secondaryAttachments: secAttsJson ?? "{}",
       meleeAttachments: melAttsJson ?? "{}",
+      weaponSetups:JSON.stringify(setups),
     },
     update: {
+      weaponSetups:JSON.stringify(setups),
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
