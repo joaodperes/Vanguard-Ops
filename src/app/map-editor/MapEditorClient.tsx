@@ -3,19 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  MAP_BLUEPRINTS, insideRegions, validateBlueprint,
-  type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion,
+  MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, stairFeatureBoxes, regionRectangles,
+  type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
 } from "@/lib/map-blueprints";
+import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
+import { getMap } from "@/lib/game-protocol";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
 type Team="ffa"|"red"|"blue";
-type Selection={type:"region"|"feature"|"spawn";index:number;team?:Team};
-type Tool="select"|"region"|"cover"|"platform"|"ffa"|"red"|"blue";
+type Selection={type:"region"|"feature"|"spawn"|"hazard"|"prop";index:number;team?:Team};
+type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
 type Drag =
   | {mode:"create";start:Point;tool:Tool}
-  | {mode:"move";start:Point;item:Selection;source:MapRegion|MapFeature|[number,number,number]};
+  | {mode:"move";start:Point;item:Selection;source:MapRegion|MapFeature|MapHazard|MapProp|[number,number,number]};
 const STARTER:BlueprintDoc=MAP_BLUEPRINTS as BlueprintDoc;
 const snap=(n:number,step=2)=>Math.round(n/step)*step;
 const clone=<T,>(v:T):T=>JSON.parse(JSON.stringify(v));
@@ -26,6 +28,10 @@ const btn="inline-flex items-center justify-center gap-1.5 rounded-md border bor
 export default function MapEditor() {
   const [doc,setDoc]=useState<BlueprintDoc>(()=>clone(STARTER));
   const [mapId,setMapId]=useState("compound");
+  const [editorTab,setEditorTab]=useState<"blueprint"|"theme">("blueprint");
+  const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
+  const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
+  const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
   const [selected,setSelected]=useState<Selection|null>(null);
   const [preview,setPreview]=useState<{start:Point;end:Point}|null>(null);
@@ -36,9 +42,32 @@ export default function MapEditor() {
   const [status,setStatus]=useState("Export the JSON into src/data/map-blueprints.json to publish changes.");
   const svg=useRef<SVGSVGElement>(null);
   const fileRef=useRef<HTMLInputElement>(null);
+  const themeFileRef=useRef<HTMLInputElement>(null);
   const drag=useRef<Drag|null>(null);
   const history=useRef<BlueprintDoc[]>([]);
   const map=doc.maps[mapId];
+  const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
+  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
+    ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
+  }));
+  const downloadJSON=(name:string,value:unknown)=>{
+    const blob=new Blob([JSON.stringify(value,null,2)+"\n"],{type:"application/json"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  const exportTheme=()=>{downloadJSON(mapId+".json",theme);setStatus("Exported "+mapId+".json. Register new themes in src/lib/map-visuals.ts.");};
+  const importTheme=async(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const t=JSON.parse(await file.text()) as MapVisualTheme;
+      if(!t.biome||!t.label||!t.palette||!Array.isArray(t.props)||!Number.isFinite(t.ambient)||!Number.isFinite(t.vegetation))
+        throw Error("Expected a map theme with biome, palette, ambient, vegetation and props.");
+      for(const key of ["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const)
+        if(!/^#[a-fA-F0-9]{6}$/.test(t.palette[key]))throw Error("Invalid palette color "+key);
+      setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
+    }catch(err){setStatus("Theme import failed: "+String(err));}
+    e.target.value="";
+  };
 
   useEffect(()=>{
     try {
@@ -51,6 +80,13 @@ export default function MapEditor() {
     }catch{}
   },[]);
   useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-v1",JSON.stringify(doc));}catch{}},[doc]);
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem("vanguard-map-studio-themes-v1");
+      if(saved){const parsed=JSON.parse(saved) as Record<string,MapVisualTheme>;if(parsed&&typeof parsed==="object")setThemes(old=>({...old,...parsed}));}
+    }catch{}
+  },[]);
+  useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));}catch{}},[themes]);
   const pushUndo=()=>{history.current=[...history.current.slice(-24),clone(doc)];};
   const update=(fn:(m:MapBlueprint)=>MapBlueprint)=>{
     setDoc(prev=>({...prev,maps:{...prev.maps,[mapId]:fn(prev.maps[mapId])}}));
@@ -69,7 +105,9 @@ export default function MapEditor() {
     e.stopPropagation();pushUndo();
     const pos=getPoint(e as unknown as React.PointerEvent<SVGSVGElement>);
     const source=sel.type==="region"?map.regions[sel.index]:
-      sel.type==="feature"?map.features[sel.index]:map.spawns[sel.team!][sel.index];
+      sel.type==="feature"?map.features[sel.index]:
+      sel.type==="hazard"?(map.hazards??[])[sel.index]:
+      sel.type==="prop"?theme.props[sel.index]:map.spawns[sel.team!][sel.index];
     drag.current={mode:"move",item:sel,start:pos,source:clone(source)};
     setSelected(sel);svg.current?.setPointerCapture(e.pointerId);
   };
@@ -91,6 +129,10 @@ export default function MapEditor() {
         {...r,x:(source as MapRegion).x+dx,z:(source as MapRegion).z+dz}:r)};
       if(sel.type==="feature")return {...m,features:m.features.map((f,i)=>i===sel.index?
         {...f,x:(source as MapFeature).x+dx,z:(source as MapFeature).z+dz}:f)};
+      if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
+        {...h,x:(source as MapHazard).x+dx,z:(source as MapHazard).z+dz}:h)};
+      if(sel.type==="prop"){updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
+        {...p,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:p)}));return m;}
       const team=sel.team!;
       return {...m,spawns:{...m.spawns,[team]:m.spawns[team].map((v,i)=>i===sel.index?
         [((source as number[])[0])+dx,(source as number[])[1],((source as number[])[2])+dz] as [number,number,number]:v)}};
@@ -109,16 +151,28 @@ export default function MapEditor() {
         const w=Math.max(d.tool==="region"?12:4,Math.abs(p.x-start.x));
         const depth=Math.max(d.tool==="region"?12:4,Math.abs(p.z-start.z));
         const x=(start.x+p.x)/2,z=(start.z+p.z)/2;
-        if(d.tool==="region"){
+        if(["region","circle","triangle"].includes(d.tool)){
           const index=map.regions.length;
-          update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth}]}));
+          update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth,shape:d.tool==="region"?"rect":d.tool as "circle"|"triangle"}]}));
           setSelected({type:"region",index});
+        }else if(d.tool==="hazard"){
+          const index=(map.hazards??[]).length;
+          const base:MapHazard={id:"hazard_"+Date.now().toString(36),type:hazardKind,x,z,y:1,w,d:depth,h:2,
+            dps:7,damage:25,period:5,activeFor:2,hp:120,launchY:18,toX:x+12,toY:1,toZ:z};
+          update(m=>({...m,hazards:[...(m.hazards??[]),base]}));
+          setSelected({type:"hazard",index});
+        }else if(d.tool==="prop"){
+          const index=theme.props.length;
+          const p:MapProp={kind:propKind,x,z,w,d:depth,h:Math.max(2,w)};
+          updateTheme(t=>({...t,props:[...t.props,p]}));
+          setSelected({type:"prop",index});setEditorTab("theme");
         }else{
           const index=map.features.length;
-          const kind=d.tool as "cover"|"platform";
+          const kind=d.tool as "cover"|"platform"|"stairs";
           const feature:MapFeature={id:`custom-${Date.now().toString(36)}-${index}`,
             x,z,w:Math.max(w,kind==="platform"?10:4),d:Math.max(depth,kind==="platform"?10:4),
-            h:kind==="platform"?4.2:2.8,kind,label:"New "+kind};
+            h:kind==="platform"||kind==="stairs"?4.2:2.8,kind,label:"New "+kind,
+            ...(kind==="stairs"?{axis:"z" as const,sign:1 as const}: {})};
           update(m=>({...m,features:[...m.features,feature]}));
           setSelected({type:"feature",index});
         }
