@@ -1,5 +1,18 @@
 # Map art direction, retro surface materials and vetted references
 
+## Viridian Blight low-glare concepts
+
+The existing `prestige_toxic` skin keeps its **stable ID and ownership state**, but uses a quieter green palette and a lower emissive multiplier to prevent the neon sheen from distracting during ADS. Future selectable palettes (concept proposals; not automatically new purchasable skins):
+
+| Concept | Base material | Subtle accent | Use |
+| --- | --- | --- | --- |
+| **Toxic Steel** | `#1c4334` | `#65a583`, emission 0.34 | Current calmer baseline |
+| **Oxide Patina** | `#315c4a` | `#77967b`, emission 0.18 | Industrial oxidised metal |
+| **Ghost Moss** | `#344939` | `#93a47d`, emission 0.14 | Mottled jungle camouflage |
+| **Nocturnal Blight** | `#1d312e` | `#497e72`, emission 0.12 | Near-black silhouette, minimal glow |
+
+Do not mint new prestige entitlements merely to display a concept; choose a palette through live gameplay review and then add explicitly validated variants if desired.
+
 ## Visual target
 
 Vanguard Ops should feel like a readable, distinctive, slightly gritty **classic FPS**, not a uniform charcoal-colored greybox and not a photorealistic simulation. Influences include LibreQuake's readable silhouettes, clearly differentiated masonry/metal and limited-resolution surfaces; Kenney's retro color blocking; and modern PBR references for material logic. **No third-party texture pixels or meshes were copied in this implementation.** References are design inspiration and a documented shortlist for optional, future authored imports.

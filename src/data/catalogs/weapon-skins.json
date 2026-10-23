@@ -112,11 +112,11 @@
     "unlockCost": 0,
     "rarity": "legendary",
     "tier": "legendary",
-    "color": "#143c1c",
-    "metalness": 0.25,
-    "roughness": 0.16,
-    "emissive": "#a3e635",
-    "emissiveIntensity": 1.2,
+    "color": "#1c4334",
+    "metalness": 0.2,
+    "roughness": 0.44,
+    "emissive": "#65a583",
+    "emissiveIntensity": 0.34,
     "prestige": "toxic"
   }
 ]

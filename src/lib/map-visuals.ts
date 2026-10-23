@@ -102,7 +102,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       if(hashed("light"+x+":"+z)>.35)result.push({kind:"lamp",x:x+17,z:z+17});
     }
   } else {
-    const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?24:18));
+    const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?36:theme.biome==="jungle"?32:18));
   for(let r=0;r<plan.regions.length;r++){
     const region=plan.regions[r];
     for(let n=0;n<frequency;n++){

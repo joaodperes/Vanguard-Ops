@@ -4,7 +4,7 @@ import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
-import { weaponById } from "@/lib/game-data";
+import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
@@ -560,11 +560,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
               <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
               <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
-              <div className="text-amber-200 text-sm">{hud.lastDeath.weaponId.startsWith("hazard_")
-                ? hud.lastDeath.weaponId.replace("hazard_","Environment: ").replaceAll("_"," ")
+              <div className="text-amber-200 text-sm">{!WEAPONS.some(w=>w.id===hud.lastDeath!.weaponId)
+                ? "Environment: "+hud.lastDeath.weaponId.replace(/^(hazard_|env_)/,"").replaceAll("_"," ")
                 : weaponById(hud.lastDeath.weaponId).name}</div>
               {hud.lastDeath.attachments.length>0 && <div className="text-white/60 text-xs mt-1">
-                {hud.lastDeath.attachments.join(" · ")}
+                {hud.lastDeath.attachments.map(id=>ATTACHMENTS.find(a=>a.id===id)?.name??id).join(" · ")}
               </div>}
             </div>
           )}

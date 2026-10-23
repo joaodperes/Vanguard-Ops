@@ -213,10 +213,15 @@ export async function POST(req: NextRequest) {
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
   const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
   const effectiveMelee = safeWeaponId(meleeWeapon ?? player.loadout?.meleeWeapon ?? "knife_tactical");
-  const sanitizedWeaponSkin = await sanitizeSkinForWeapon(weaponSkin ?? (effectivePrimary!==previousPrimary ? setups[effectivePrimary]?.skin ?? "default" : undefined), effectivePrimary);
-  const sanitizedSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin ?? (effectiveSecondary!==previousSecondary ? setups[effectiveSecondary]?.skin ?? "default" : undefined), effectiveSecondary);
-  const sanitizedMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin ?? (effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical") ? setups[effectiveMelee]?.skin ?? "default" : undefined), effectiveMelee);
-  if (playerSkin !== undefined &&
+  const candidatePrimarySkin = await sanitizeSkinForWeapon(weaponSkin ?? (effectivePrimary!==previousPrimary ? setups[effectivePrimary]?.skin ?? "default" : undefined), effectivePrimary);
+  const candidateSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin ?? (effectiveSecondary!==previousSecondary ? setups[effectiveSecondary]?.skin ?? "default" : undefined), effectiveSecondary);
+  const candidateMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin ?? (effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical") ? setups[effectiveMelee]?.skin ?? "default" : undefined), effectiveMelee);
+  // On a weapon swap, never retain the outgoing weapon's old skin if a
+  // previously saved skin is now unowned or invalid.
+  const sanitizedWeaponSkin=candidatePrimarySkin??(effectivePrimary!==previousPrimary?"default":undefined);
+  const sanitizedSecondarySkin=candidateSecondarySkin??(effectiveSecondary!==previousSecondary?"default":undefined);
+  const sanitizedMeleeSkin=candidateMeleeSkin??(effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical")?"default":undefined);
+    if (playerSkin !== undefined &&
       playerSkin !== "default" && playerSkin !== player.selectedSkin &&
       !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
     return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
