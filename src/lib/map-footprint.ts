@@ -28,13 +28,13 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
   const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
-  const environment=(base.id==="arena_neon"||base.id==="terminal"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
+  const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,size:Math.round(base.size*factor*1000)/1000,
     // Old maps included a full rectangular perimeter. Leaving these walls
     // behind turns the new outdoor districts into inaccessible rings.
     // Region-union walls replace these, without blocking core-to-flank travel.
-    cover:(base.id==="arena_neon"||base.id==="terminal"?[]:base.cover).filter(c=>{
+    cover:(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.cover).filter(c=>{
       const longX=c.size[0] > base.size*.7 && c.size[2]<2.5 && Math.abs(c.pos[2])>base.size*.8;
       const longZ=c.size[2] > base.size*.7 && c.size[0]<2.5 && Math.abs(c.pos[0])>base.size*.8;
       // Elevated walkways must remain: only ground-level perimeter barriers
@@ -42,9 +42,11 @@ export function applyMapFootprint(base:MapDef):MapDef {
       return !(c.kind === "cover" && (longX||longZ));
     }).map(c=>({...c,pos:scaled(c.pos,factor),size:scaled(c.size,factor)})),
     spawns:{
-      ffa:base.spawns.ffa.map(p=>scaled(p,factor)),
-      red:base.spawns.red.map(p=>scaled(p,factor)),
-      blue:base.spawns.blue.map(p=>scaled(p,factor)),
+      // Ridgefall is now a factory inside a completely new walkable footprint.
+      // Old outdoor spawn coordinates must not leak into the new hall.
+      ffa:base.id==="skybridge"?[]:base.spawns.ffa.map(p=>scaled(p,factor)),
+      red:base.id==="skybridge"?[]:base.spawns.red.map(p=>scaled(p,factor)),
+      blue:base.id==="skybridge"?[]:base.spawns.blue.map(p=>scaled(p,factor)),
     },
     environment,
     lights:base.lights?.map(l=>({...l,pos:scaled(l.pos,factor),distance:l.distance*factor})),
@@ -70,6 +72,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
   // Preserve the source outer-ring entries as the final entries for diagnostics.
   const addSpawns=(team:"ffa"|"red"|"blue")=>{
     const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
+    if(base.id==="skybridge")return plan.spawns[team].map(p=>[...p] as Vec3);
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
   const legacyCover=scaledBase.cover.filter(c=>{
@@ -89,12 +92,12 @@ export function applyMapFootprint(base:MapDef):MapDef {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
     editorLegacyEnvironmentCount:legacyEnvironment.length,
-    size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
+    size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
     regions,
     environment:[...legacyEnvironment,...(plan.hazards??[]).map(authoredHazardEnvironment)],
     cover:[...legacyCover,...flankFeatures.flatMap(featureBoxes),
       ...propColliders(props,allSpawns),
-      ...regionBoundary(regions,base.id==="shipyard"?1.2:11)],
+      ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
     props,biome:visuals.biome,surfaces:visuals.surfaces,accentColor:visuals.palette.accent,
     theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),
