@@ -7,8 +7,12 @@ Open **/map-editor** while running the Next.js development server. A link is als
 Choose one of six maps or type a new unique ID and select **New** to clone the current template. The editor supports:
 
 - Draw **walkable region** rectangles; they overlap to form an irregular, connected footprint, including L/T/S-shaped layouts and side districts.
+- Regions may be **non-square rectangles**. Triangle, circular and arbitrary polygon regions are not currently supported by the game collision/footprint grammar.
+- Use **Select / Move** and drag inside a region or on its outline to reposition it. Regions are combined at runtime into one footprint: interior shared edges are not physical walls. The minimap also draws their **union outline**, while the editing view still shows individual rectangles for selection.
 - Draw **hard cover**, **elevated platforms** with automatically generated physical stair flights, and place team/FFA **spawns**.
 - Select, drag, edit precise dimensions, duplicate, delete, zoom and undo.
+- Enable/disable **Snap drawing and movement to grid** in Placement precision. Select 1, 2, 5 or 10 world-unit X/Z increments. This controls horizontal placement, **not** platform height.
+- Selecting a platform shows its height in the inspector and the estimated automatically generated north/south stair count and horizontal run. Standalone staircases, stairs with arbitrary directions and snap-to-platform-height connections are **not** implemented yet.
 - Edit name, short name, description and pace; import/export all maps together as JSON.
 - Draft persistence to local browser storage, geometry and spawn validation.
 
@@ -88,6 +92,10 @@ Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp
 **Route-design rules:** keep two or more viable flanks around perches, short and interrupted sightlines around open courts, obstacles sized for cover rather than 100-unit hallway walls, and accessible elevated positions with real stairs. Sniper perches should overlook contested space but should not lock every route. Retain truly compact maps for shotgun/SMG combat as well as vast outdoor maps. Before publishing, playtest spawn safety and A-to-B travel times in 1v1, 3v3 and 7v7. The map builder suppresses new features intersecting known spawns, but this is a fail-safe, not an excuse to author invalid positions.
 
 For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
+
+**Editor scope and requested features:** The current blueprint grammar has no independent stair or hazard feature. Built-in hazard objects live in engine-authored template/environment definitions; the editor does not display or modify them, so do not assume an exported blueprint contains every obstacle or hazard visible during a match. Editing biome/lighting/palette/prop theme JSON in the browser would need a second form/editor and per-map theme export/registration workflow; for now edit `src/data/map-themes/<mapId>.json` in code.
+
+The editor loads as a browser-only Next.js component, preventing stale server-rendered map option labels from disagreeing with the client during hydration. Drafts are stored under `vanguard-map-studio-v1` in local browser storage. If an older saved draft has different map names than source JSON, export it first, then use **Restore shipped maps** if you want to return to the current committed content. During development, a full reload or restarting `bun run dev` can resolve stale Turbopack modules.
 
 The Map Studio editor currently edits **blueprint geometry only**. Theme JSON is edited in the repository; restart/rebuild for changes to appear in the game. The editor's preview does not fully render Three.js scenery. Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and a manual visual match before requesting a merge.
 
