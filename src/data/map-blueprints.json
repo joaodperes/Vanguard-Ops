@@ -769,7 +769,7 @@
       "name": "RIDGEFALL",
       "shortName": "RFL",
       "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
-      "pace": "balanced",
+      "pace": "tactical",
       "regions": [
         {
           "x": 0,
