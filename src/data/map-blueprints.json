@@ -5,105 +5,95 @@
     "bunker": {
       "name": "BLACKSITE",
       "shortName": "BLK",
-      "description": "A claustrophobic underground facility with a bent service annex and two defensible maintenance wings.",
+      "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
       "pace": "compact",
       "regions": [
         {
           "x": 0,
           "z": 0,
-          "w": 102,
-          "d": 102
+          "w": 85,
+          "d": 82
         },
         {
-          "x": -55,
-          "z": -14,
-          "w": 26,
-          "d": 42
+          "x": -42,
+          "z": -10,
+          "w": 22,
+          "d": 30
         },
         {
-          "x": 55,
-          "z": 19,
-          "w": 24,
-          "d": 42
+          "x": 42,
+          "z": 12,
+          "w": 23,
+          "d": 31
         }
       ],
       "features": [
         {
-          "id": "vault",
-          "x": -56,
-          "z": -17,
-          "w": 8,
-          "d": 2,
-          "h": 3,
+          "id": "vault-counter",
+          "x": -34,
+          "z": -8,
+          "w": 6,
+          "d": 3,
+          "h": 1.35,
           "kind": "cover",
-          "label": "Vault checkpoint"
+          "label": "Vault counter"
         },
         {
-          "id": "west-duct",
-          "x": -61,
-          "z": -5,
-          "w": 2,
-          "d": 11,
-          "h": 3,
-          "kind": "cover",
-          "label": "Service duct"
-        },
-        {
-          "id": "east-gate",
-          "x": 58,
-          "z": 17,
-          "w": 3,
-          "d": 11,
-          "h": 2.8,
-          "kind": "cover",
-          "label": "Blast door"
-        },
-        {
-          "id": "power-room",
-          "x": 49,
-          "z": 30,
-          "w": 8,
-          "d": 2,
-          "h": 2.6,
-          "kind": "cover",
-          "label": "Power transfer"
-        },
-        {
-          "id": "east-crates",
-          "x": 58,
-          "z": 37,
+          "id": "generator",
+          "x": 32,
+          "z": 20,
           "w": 5,
           "d": 4,
-          "h": 1.3,
+          "h": 2.6,
           "kind": "cover",
-          "label": "Crate stack"
+          "label": "Power generator"
+        },
+        {
+          "id": "security-console",
+          "x": -44,
+          "z": -14,
+          "w": 4,
+          "d": 3,
+          "h": 1.2,
+          "kind": "cover",
+          "label": "Security console"
+        },
+        {
+          "id": "maintenance-bench",
+          "x": 45,
+          "z": 13,
+          "w": 5,
+          "d": 2.6,
+          "h": 1.15,
+          "kind": "cover",
+          "label": "Maintenance bench"
         }
       ],
       "spawns": {
         "ffa": [
           [
-            -58,
+            -48,
             0,
-            -21
+            -16
           ],
           [
-            64,
+            46,
             0,
-            33
+            24
           ]
         ],
         "red": [
           [
-            -58,
+            -48,
             0,
-            -21
+            -16
           ]
         ],
         "blue": [
           [
-            64,
+            46,
             0,
-            33
+            24
           ]
         ]
       }
@@ -111,194 +101,149 @@
     "shipyard": {
       "name": "BREAKWATER",
       "shortName": "BRK",
-      "description": "Split shipping berths, an L-shaped dry dock and a crane route overlooking linked container alleys.",
+      "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
       "pace": "compact",
       "regions": [
         {
           "x": 0,
           "z": 0,
-          "w": 118,
-          "d": 118
+          "w": 110,
+          "d": 104
         },
         {
-          "x": -72,
+          "x": -55,
           "z": 0,
-          "w": 44,
-          "d": 58
+          "w": 34,
+          "d": 48
         },
         {
           "x": 0,
-          "z": 67,
-          "w": 72,
-          "d": 51
+          "z": 56,
+          "w": 70,
+          "d": 36
         },
         {
-          "x": 34,
-          "z": -71,
-          "w": 57,
-          "d": 42
+          "x": 27,
+          "z": -55,
+          "w": 52,
+          "d": 37
         }
       ],
       "features": [
         {
-          "id": "dock-west",
-          "x": -70,
-          "z": -10,
-          "w": 11,
-          "d": 3,
-          "h": 2.7,
+          "id": "fish-market-stalls",
+          "x": -59,
+          "z": -9,
+          "w": 8,
+          "d": 5,
+          "h": 1.4,
           "kind": "cover",
-          "label": "West container stack"
+          "label": "Market stalls"
         },
         {
-          "id": "dock-west-alt",
-          "x": -76,
-          "z": 18,
-          "w": 3,
-          "d": 13,
-          "h": 3,
+          "id": "drydock-crates",
+          "x": -63,
+          "z": 17,
+          "w": 5,
+          "d": 6,
+          "h": 1.8,
           "kind": "cover",
-          "label": "Dockside wall"
+          "label": "Dry dock crates"
         },
         {
-          "id": "dock-south",
-          "x": -21,
-          "z": 75,
-          "w": 10,
-          "d": 2,
-          "h": 2.8,
+          "id": "southern-containers",
+          "x": -17,
+          "z": 60,
+          "w": 8,
+          "d": 6,
+          "h": 2.9,
           "kind": "cover",
-          "label": "Southern containers"
+          "label": "Container stack"
         },
         {
-          "id": "dock-south-alt",
-          "x": 18,
-          "z": 72,
-          "w": 3,
-          "d": 11,
-          "h": 2.5,
-          "kind": "cover",
-          "label": "Forklift loading"
-        },
-        {
-          "id": "dock-north",
-          "x": 39,
-          "z": -75,
-          "w": 14,
-          "d": 2,
-          "h": 3,
-          "kind": "cover",
-          "label": "Inspection barrier"
-        },
-        {
-          "id": "pier-gantry",
-          "x": -6,
-          "z": 76,
-          "w": 10,
-          "d": 11,
-          "h": 4.5,
+          "id": "crane-platform",
+          "x": 14,
+          "z": 60,
+          "w": 12,
+          "d": 10,
+          "h": 3.6,
           "kind": "platform",
-          "label": "Raised pier gantry"
+          "label": "Accessible crane platform"
         },
         {
-          "id": "lane-1-0",
-          "x": -22,
-          "z": 56,
+          "id": "forklift",
+          "x": 33,
+          "z": -62,
           "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "d": 4,
+          "h": 1.6,
           "kind": "cover",
-          "label": "shipyard district 2 hard cover"
+          "label": "Forklift"
         },
         {
-          "id": "lane-1-1",
-          "x": 2,
-          "z": 56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "dock-bollards",
+          "x": -32,
+          "z": 49,
+          "w": 3,
+          "d": 3,
+          "h": 1.1,
           "kind": "cover",
-          "label": "shipyard district 2 hard cover"
-        },
-        {
-          "id": "lane-1-2",
-          "x": 7,
-          "z": 78,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "shipyard district 2 hard cover"
+          "label": "Mooring bollards"
         }
       ],
       "spawns": {
         "ffa": [
           [
-            -79,
+            -65,
             0,
-            12
+            -15
           ],
           [
-            -78,
+            30,
             0,
-            -20
+            -62
           ],
           [
-            -18,
+            -27,
             0,
-            80
+            63
           ],
           [
-            24,
+            9,
             0,
-            82
-          ],
-          [
-            42,
-            0,
-            -79
+            69
           ]
         ],
         "red": [
           [
-            -85,
+            -65,
             0,
-            12
+            -15
           ],
           [
-            -78,
+            -27,
             0,
-            -20
-          ],
-          [
-            24,
-            0,
-            82
+            63
           ]
         ],
         "blue": [
           [
-            42,
+            30,
             0,
-            -79
+            -62
           ],
           [
-            14,
+            9,
             0,
-            -82
-          ],
-          [
-            -18,
-            0,
-            80
+            69
           ]
         ]
       }
     },
     "compound": {
-      "name": "IRON DIVIDE",
+      "name": "VERDANT RUINS",
       "shortName": "IRD",
-      "description": "An asymmetric checkpoint complex: central fortifications, western housing, northern relay station and eastern quarry.",
+      "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
       "pace": "balanced",
       "regions": [
         {
@@ -338,56 +283,6 @@
           "label": "Quarry berm"
         },
         {
-          "id": "quarry-lane",
-          "x": 120,
-          "z": 29,
-          "w": 3,
-          "d": 17,
-          "h": 3,
-          "kind": "cover",
-          "label": "Quarry lane"
-        },
-        {
-          "id": "relay-west",
-          "x": -51,
-          "z": -106,
-          "w": 3,
-          "d": 16,
-          "h": 3,
-          "kind": "cover",
-          "label": "Relay blastwall"
-        },
-        {
-          "id": "relay-east",
-          "x": 13,
-          "z": -96,
-          "w": 4,
-          "d": 18,
-          "h": 3,
-          "kind": "cover",
-          "label": "Service fence"
-        },
-        {
-          "id": "housing-north",
-          "x": -91,
-          "z": 24,
-          "w": 19,
-          "d": 2,
-          "h": 2.6,
-          "kind": "cover",
-          "label": "Apartment block"
-        },
-        {
-          "id": "housing-south",
-          "x": -93,
-          "z": 62,
-          "w": 14,
-          "d": 2,
-          "h": 2.6,
-          "kind": "cover",
-          "label": "Housing fence"
-        },
-        {
           "id": "quarry-overlook",
           "x": 99,
           "z": 38,
@@ -408,126 +303,6 @@
           "label": "Relay overlook"
         },
         {
-          "id": "lane-0-0",
-          "x": 69,
-          "z": -11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-1",
-          "x": 93,
-          "z": -11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-2",
-          "x": 117,
-          "z": -11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-3",
-          "x": 74,
-          "z": 11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-4",
-          "x": 98,
-          "z": 11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-5",
-          "x": 122,
-          "z": 11,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-0-6",
-          "x": 69,
-          "z": 33,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 1 hard cover"
-        },
-        {
-          "id": "lane-1-7",
-          "x": -28,
-          "z": -121,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 2 hard cover"
-        },
-        {
-          "id": "lane-1-8",
-          "x": -23,
-          "z": -99,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 2 hard cover"
-        },
-        {
-          "id": "lane-1-9",
-          "x": 1,
-          "z": -99,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 2 hard cover"
-        },
-        {
-          "id": "lane-1-10",
-          "x": -52,
-          "z": -77,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 2 hard cover"
-        },
-        {
-          "id": "lane-1-11",
-          "x": -28,
-          "z": -77,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 2 hard cover"
-        },
-        {
           "id": "lane-1-12",
           "x": -4,
           "z": -77,
@@ -538,44 +313,74 @@
           "label": "compound district 2 hard cover"
         },
         {
-          "id": "lane-2-13",
-          "x": -102,
-          "z": 26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 3 hard cover"
-        },
-        {
-          "id": "lane-2-14",
-          "x": -78,
-          "z": 26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "compound district 3 hard cover"
-        },
-        {
-          "id": "lane-2-15",
-          "x": -97,
-          "z": 48,
+          "id": "fallen-column-1",
+          "x": 76,
+          "z": 5,
           "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "d": 6,
+          "h": 1.8,
           "kind": "cover",
-          "label": "compound district 3 hard cover"
+          "label": "fallen column"
         },
         {
-          "id": "lane-2-16",
-          "x": -73,
-          "z": 48,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "mossy-boulder-1",
+          "x": 109,
+          "z": 38,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
           "kind": "cover",
-          "label": "compound district 3 hard cover"
+          "label": "mossy boulder"
+        },
+        {
+          "id": "broken-plinth-1",
+          "x": 125,
+          "z": -11,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "broken plinth"
+        },
+        {
+          "id": "fallen-column-2",
+          "x": -42,
+          "z": -107,
+          "w": 7,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "fallen column"
+        },
+        {
+          "id": "mossy-boulder-2",
+          "x": -5,
+          "z": -77,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "mossy boulder"
+        },
+        {
+          "id": "mossy-boulder-3",
+          "x": -71,
+          "z": 63,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "mossy boulder"
+        },
+        {
+          "id": "broken-plinth-3",
+          "x": -58,
+          "z": 23,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "broken plinth"
         }
       ],
       "spawns": {
@@ -658,451 +463,189 @@
       }
     },
     "terminal": {
-      "name": "TRANSIT ZERO",
-      "shortName": "TRZ",
-      "description": "Dog-leg terminal with a multilevel departure hall, freight sorting yard and separated parking structure.",
-      "pace": "balanced",
+      "name": "Afterlight City (Day)",
+      "shortName": "DAY",
+      "description": "The identical Afterlight neighborhood and spawns in natural daylight; day and night are lighting variants.",
+      "pace": "tactical",
       "regions": [
         {
           "x": 0,
           "z": 0,
-          "w": 148,
-          "d": 148
+          "w": 150,
+          "d": 150
         },
         {
-          "x": 111,
-          "z": 5,
-          "w": 100,
-          "d": 84
+          "x": -132,
+          "z": -14,
+          "w": 156,
+          "d": 112
         },
         {
-          "x": 20,
-          "z": 110,
-          "w": 112,
-          "d": 88
+          "x": 131,
+          "z": 35,
+          "w": 141,
+          "d": 111
         },
         {
-          "x": -91,
-          "z": -39,
-          "w": 82,
-          "d": 85
-        }
-      ],
-      "features": [
-        {
-          "id": "freight-bank",
-          "x": 113,
-          "z": -10,
-          "w": 18,
-          "d": 3,
-          "h": 3,
-          "kind": "cover",
-          "label": "Freight scanners"
+          "x": -25,
+          "z": -126,
+          "w": 132,
+          "d": 120
         },
         {
-          "id": "freight-bank2",
-          "x": 136,
-          "z": 28,
-          "w": 3,
-          "d": 17,
-          "h": 3,
-          "kind": "cover",
-          "label": "Baggage partitions"
-        },
-        {
-          "id": "southern-check",
-          "x": 22,
+          "x": 51,
           "z": 125,
-          "w": 18,
-          "d": 2,
-          "h": 2.7,
-          "kind": "cover",
-          "label": "Security gate"
+          "w": 138,
+          "d": 119
         },
         {
-          "id": "bus-terminal",
-          "x": -20,
-          "z": 111,
-          "w": 3,
-          "d": 17,
-          "h": 3,
-          "kind": "cover",
-          "label": "Bus shelter"
+          "x": -126,
+          "z": -104,
+          "w": 100,
+          "d": 92
         },
         {
-          "id": "parking-fence",
-          "x": -102,
-          "z": -41,
-          "w": 3,
-          "d": 20,
-          "h": 3,
-          "kind": "cover",
-          "label": "Parking screen"
-        },
-        {
-          "id": "parking-deck",
-          "x": -91,
-          "z": -38,
-          "w": 14,
-          "d": 11,
-          "h": 4.5,
-          "kind": "platform",
-          "label": "Parking mezzanine"
-        },
-        {
-          "id": "sorting-platform",
-          "x": 105,
-          "z": 28,
-          "w": 12,
-          "d": 11,
-          "h": 4,
-          "kind": "platform",
-          "label": "Sorting level"
-        },
-        {
-          "id": "lane-0-0",
-          "x": 75,
-          "z": -23,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-1",
-          "x": 99,
-          "z": -23,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-2",
-          "x": 80,
-          "z": -1,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-3",
-          "x": 104,
-          "z": -1,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-4",
-          "x": 128,
-          "z": -1,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-5",
-          "x": 75,
-          "z": 21,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-6",
-          "x": 123,
-          "z": 21,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-0-7",
-          "x": 147,
-          "z": 21,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 1 hard cover"
-        },
-        {
-          "id": "lane-1-8",
-          "x": -22,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-9",
-          "x": 2,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-10",
-          "x": 26,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-11",
-          "x": 50,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-12",
-          "x": 7,
-          "z": 102,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-13",
-          "x": 31,
-          "z": 102,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-14",
-          "x": 55,
-          "z": 102,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-15",
-          "x": -22,
-          "z": 124,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-16",
-          "x": 2,
-          "z": 124,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-1-17",
-          "x": 50,
-          "z": 124,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 2 hard cover"
-        },
-        {
-          "id": "lane-2-18",
-          "x": -118,
-          "z": -67,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-19",
-          "x": -94,
-          "z": -67,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-20",
-          "x": -70,
-          "z": -67,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-21",
-          "x": -113,
-          "z": -45,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-22",
-          "x": -65,
-          "z": -45,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-23",
-          "x": -118,
-          "z": -23,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-24",
-          "x": -94,
-          "z": -23,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
-        },
-        {
-          "id": "lane-2-25",
-          "x": -70,
-          "z": -23,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "terminal district 3 hard cover"
+          "x": -111,
+          "z": 74,
+          "w": 112,
+          "d": 103
         }
       ],
+      "features": [],
       "spawns": {
         "ffa": [
           [
-            130,
+            -184,
             0,
-            -24
+            -52
           ],
           [
-            128,
+            -184,
             0,
-            44
+            22
           ],
           [
-            33,
+            -148,
             0,
-            135
+            -129
           ],
           [
-            -28,
+            -102,
             0,
-            135
+            -131
           ],
           [
-            -105,
+            -47,
             0,
-            -63
+            -169
           ],
           [
-            -109,
+            16,
             0,
-            -12
+            -169
+          ],
+          [
+            182,
+            0,
+            -1
+          ],
+          [
+            182,
+            0,
+            79
+          ],
+          [
+            110,
+            0,
+            73
+          ],
+          [
+            99,
+            0,
+            163
+          ],
+          [
+            26,
+            0,
+            167
+          ],
+          [
+            -152,
+            0,
+            106
           ]
         ],
         "red": [
           [
-            -109,
+            -181,
             0,
-            -63
+            -47
           ],
           [
-            -109,
+            -182,
             0,
-            -12
+            20
           ],
           [
-            -24,
+            -150,
             0,
-            137
+            -131
           ],
           [
-            33,
+            -98,
             0,
-            137
+            -131
+          ],
+          [
+            -45,
+            0,
+            -167
+          ],
+          [
+            -156,
+            0,
+            101
           ]
         ],
         "blue": [
           [
-            137,
+            183,
             0,
-            43
+            0
           ],
           [
-            141,
+            183,
             0,
-            -25
+            78
           ],
           [
-            48,
+            116,
             0,
-            136
+            70
           ],
           [
-            132,
+            101,
             0,
-            10
+            165
+          ],
+          [
+            27,
+            0,
+            163
+          ],
+          [
+            16,
+            0,
+            -168
           ]
         ]
-      }
+      },
+      "templateMapId": "terminal"
     },
     "skybridge": {
-      "name": "HIGHWATER FRONT",
+      "name": "RIDGEFALL",
       "shortName": "HWF",
-      "description": "Massive east-west frontline of separated strongholds, traversable gantries, high perches and long flanking approaches.",
+      "description": "Snowbound highland combat: contrasting radio installations, split alpine outlooks and exposed glacial flanks.",
       "pace": "tactical",
       "regions": [
         {
@@ -1154,16 +697,6 @@
           "label": "Western stronghold"
         },
         {
-          "id": "west-parapet",
-          "x": -157,
-          "z": 24,
-          "w": 3,
-          "d": 30,
-          "h": 3,
-          "kind": "cover",
-          "label": "Western parapet"
-        },
-        {
           "id": "west-ladder",
           "x": -117,
           "z": 3,
@@ -1182,16 +715,6 @@
           "h": 4,
           "kind": "cover",
           "label": "Eastern stronghold"
-        },
-        {
-          "id": "east-parapet",
-          "x": 156,
-          "z": -24,
-          "w": 3,
-          "d": 30,
-          "h": 3,
-          "kind": "cover",
-          "label": "Eastern parapet"
         },
         {
           "id": "east-ladder",
@@ -1234,142 +757,12 @@
           "label": "Power switch yard"
         },
         {
-          "id": "lane-0-0",
-          "x": -155,
-          "z": -50,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-1",
-          "x": -131,
-          "z": -50,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-2",
-          "x": -107,
-          "z": -50,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-3",
-          "x": -83,
-          "z": -50,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-4",
-          "x": -174,
-          "z": -28,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-5",
-          "x": -126,
-          "z": -28,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-6",
-          "x": -102,
-          "z": -28,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-7",
-          "x": -78,
-          "z": -28,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-8",
-          "x": -179,
-          "z": -6,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
           "id": "lane-0-9",
           "x": -155,
           "z": -6,
           "w": 2.6,
           "d": 9,
           "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-10",
-          "x": -131,
-          "z": -6,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-11",
-          "x": -107,
-          "z": -6,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-12",
-          "x": -83,
-          "z": -6,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-13",
-          "x": -174,
-          "z": 16,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
           "kind": "cover",
           "label": "skybridge district 1 hard cover"
         },
@@ -1384,161 +777,11 @@
           "label": "skybridge district 1 hard cover"
         },
         {
-          "id": "lane-0-15",
-          "x": -126,
-          "z": 16,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-16",
-          "x": -102,
-          "z": 16,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-17",
-          "x": -78,
-          "z": 16,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-18",
-          "x": -155,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-19",
-          "x": -107,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-0-20",
-          "x": -83,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 1 hard cover"
-        },
-        {
-          "id": "lane-1-21",
-          "x": 79,
-          "z": -48,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-22",
-          "x": 127,
-          "z": -48,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-23",
-          "x": 151,
-          "z": -48,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-24",
-          "x": 175,
-          "z": -48,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-25",
-          "x": 84,
-          "z": -26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-26",
-          "x": 108,
-          "z": -26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-27",
-          "x": 132,
-          "z": -26,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
           "id": "lane-1-28",
           "x": 180,
           "z": -26,
           "w": 2.6,
           "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-29",
-          "x": 79,
-          "z": -4,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-30",
-          "x": 127,
-          "z": -4,
-          "w": 7,
-          "d": 2.4,
           "h": 2.9,
           "kind": "cover",
           "label": "skybridge district 2 hard cover"
@@ -1554,82 +797,12 @@
           "label": "skybridge district 2 hard cover"
         },
         {
-          "id": "lane-1-32",
-          "x": 175,
-          "z": -4,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-33",
-          "x": 84,
-          "z": 18,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-34",
-          "x": 108,
-          "z": 18,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-35",
-          "x": 132,
-          "z": 18,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-36",
-          "x": 156,
-          "z": 18,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
           "id": "lane-1-37",
           "x": 180,
           "z": 18,
           "w": 7,
           "d": 2.4,
           "h": 1.4,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-38",
-          "x": 79,
-          "z": 40,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 2 hard cover"
-        },
-        {
-          "id": "lane-1-39",
-          "x": 127,
-          "z": 40,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
           "kind": "cover",
           "label": "skybridge district 2 hard cover"
         },
@@ -1654,194 +827,224 @@
           "label": "skybridge district 3 hard cover"
         },
         {
-          "id": "lane-2-42",
-          "x": 135,
-          "z": -83,
+          "id": "rock-shelf-1",
+          "x": -158,
+          "z": -17,
           "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "d": 6,
+          "h": 1.8,
           "kind": "cover",
-          "label": "skybridge district 3 hard cover"
+          "label": "rock shelf"
         },
         {
-          "id": "lane-2-43",
-          "x": 183,
-          "z": -83,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "avalanche-stones-1",
+          "x": -105,
+          "z": 34,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
           "kind": "cover",
-          "label": "skybridge district 3 hard cover"
+          "label": "avalanche stones"
         },
         {
-          "id": "lane-2-44",
-          "x": 130,
-          "z": -61,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "supply-cache-1",
+          "x": -79,
+          "z": -43,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
           "kind": "cover",
-          "label": "skybridge district 3 hard cover"
+          "label": "supply cache"
         },
         {
-          "id": "lane-2-45",
-          "x": 154,
-          "z": -61,
+          "id": "rock-shelf-2",
+          "x": 101,
+          "z": -14,
           "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "d": 6,
+          "h": 1.8,
           "kind": "cover",
-          "label": "skybridge district 3 hard cover"
+          "label": "rock shelf"
         },
         {
-          "id": "lane-2-46",
-          "x": 178,
-          "z": -61,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "avalanche-stones-2",
+          "x": 157,
+          "z": 38,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
           "kind": "cover",
-          "label": "skybridge district 3 hard cover"
+          "label": "avalanche stones"
         },
         {
-          "id": "lane-3-47",
-          "x": -180,
+          "id": "overlook-2",
+          "x": 146,
+          "z": 6,
+          "w": 14,
+          "d": 12,
+          "h": 4.2,
+          "kind": "platform",
+          "label": "Climbable flank overlook"
+        },
+        {
+          "id": "rock-shelf-3",
+          "x": 139,
+          "z": -90,
+          "w": 7,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "rock shelf"
+        },
+        {
+          "id": "avalanche-stones-3",
+          "x": 175,
+          "z": -59,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "avalanche stones"
+        },
+        {
+          "id": "supply-cache-3",
+          "x": 193,
+          "z": -106,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "supply cache"
+        },
+        {
+          "id": "rock-shelf-4",
+          "x": -171,
+          "z": 73,
+          "w": 7,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "rock shelf"
+        },
+        {
+          "id": "avalanche-stones-4",
+          "x": -134,
+          "z": 106,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "avalanche stones"
+        },
+        {
+          "id": "supply-cache-4",
+          "x": -117,
           "z": 57,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "supply cache"
+        },
+        {
+          "id": "rock-shelf-5",
+          "x": -13,
+          "z": 97,
           "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "d": 6,
+          "h": 1.8,
           "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "label": "rock shelf"
         },
         {
-          "id": "lane-3-48",
-          "x": -156,
-          "z": 57,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "avalanche-stones-5",
+          "x": 19,
+          "z": 134,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
           "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "label": "avalanche stones"
         },
         {
-          "id": "lane-3-49",
-          "x": -132,
-          "z": 57,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "supply-cache-5",
+          "x": 34,
+          "z": 78,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
           "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "label": "supply cache"
         },
         {
-          "id": "lane-3-50",
-          "x": -175,
-          "z": 79,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "id": "radio-outpost-west",
+          "x": -145,
+          "z": -3,
+          "w": 13,
+          "d": 11,
+          "h": 5,
+          "kind": "platform",
+          "label": "West radio station"
         },
         {
-          "id": "lane-3-51",
-          "x": -127,
-          "z": 79,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "id": "radio-outpost-east",
+          "x": 149,
+          "z": -7,
+          "w": 13,
+          "d": 11,
+          "h": 5,
+          "kind": "platform",
+          "label": "East radio station"
         },
         {
-          "id": "lane-3-52",
-          "x": -156,
-          "z": 101,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
+          "id": "ridge-moraine-west",
+          "x": -82,
+          "z": -13,
+          "w": 11,
+          "d": 5,
+          "h": 2.8,
           "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "label": "Glacial moraine"
         },
         {
-          "id": "lane-3-53",
-          "x": -132,
-          "z": 101,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
+          "id": "ridge-moraine-east",
+          "x": 82,
+          "z": 13,
+          "w": 12,
+          "d": 5,
+          "h": 2.7,
           "kind": "cover",
-          "label": "skybridge district 4 hard cover"
+          "label": "Glacial moraine"
         },
         {
-          "id": "lane-4-54",
-          "x": -20,
-          "z": 77,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 5 hard cover"
+          "id": "alpine-supply-bunker",
+          "x": 12,
+          "z": 132,
+          "w": 13,
+          "d": 10,
+          "h": 4.5,
+          "kind": "platform",
+          "label": "High communications bunker"
         },
         {
-          "id": "lane-4-55",
-          "x": 4,
-          "z": 77,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "snowfall-rock-01",
+          "x": 172,
+          "z": -13,
+          "w": 8,
+          "d": 7,
+          "h": 3,
           "kind": "cover",
-          "label": "skybridge district 5 hard cover"
+          "label": "Snow rock"
         },
         {
-          "id": "lane-4-56",
-          "x": 28,
-          "z": 77,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
+          "id": "snowfall-rock-02",
+          "x": -173,
+          "z": 15,
+          "w": 8,
+          "d": 7,
+          "h": 3,
           "kind": "cover",
-          "label": "skybridge district 5 hard cover"
-        },
-        {
-          "id": "lane-4-57",
-          "x": -15,
-          "z": 99,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 5 hard cover"
-        },
-        {
-          "id": "lane-4-58",
-          "x": 9,
-          "z": 99,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 5 hard cover"
-        },
-        {
-          "id": "lane-4-59",
-          "x": -20,
-          "z": 121,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 5 hard cover"
-        },
-        {
-          "id": "lane-4-60",
-          "x": 28,
-          "z": 121,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "skybridge district 5 hard cover"
+          "label": "Snow rock"
         }
       ],
       "spawns": {
@@ -1974,9 +1177,9 @@
       }
     },
     "arena_neon": {
-      "name": "AFTERLIGHT CITY",
+      "name": "Afterlight City",
       "shortName": "ALC",
-      "description": "A sprawling connected district: off-axis streets, rooftop markets, factory lanes, a northern maze and a southern promenade.",
+      "description": "Nighttime streets in a glowing grid of shops, accessible rooftops and a central garden bandstand.",
       "pace": "tactical",
       "regions": [
         {
@@ -2022,1198 +1225,7 @@
           "d": 103
         }
       ],
-      "features": [
-        {
-          "id": "market-gate",
-          "x": -160,
-          "z": -15,
-          "w": 3,
-          "d": 22,
-          "h": 4.2,
-          "kind": "cover",
-          "label": "Market gate"
-        },
-        {
-          "id": "market-stalls",
-          "x": -135,
-          "z": 19,
-          "w": 23,
-          "d": 3,
-          "h": 2.5,
-          "kind": "cover",
-          "label": "Covered stalls"
-        },
-        {
-          "id": "factory-ramp",
-          "x": 135,
-          "z": 36,
-          "w": 18,
-          "d": 16,
-          "h": 5.4,
-          "kind": "platform",
-          "label": "Factory rooftop"
-        },
-        {
-          "id": "factory-wall",
-          "x": 162,
-          "z": 8,
-          "w": 3,
-          "d": 22,
-          "h": 4,
-          "kind": "cover",
-          "label": "Factory separator"
-        },
-        {
-          "id": "factory-screen",
-          "x": 184,
-          "z": 56,
-          "w": 11,
-          "d": 3,
-          "h": 3,
-          "kind": "cover",
-          "label": "Workshop gate"
-        },
-        {
-          "id": "north-corridor",
-          "x": -25,
-          "z": -130,
-          "w": 3,
-          "d": 25,
-          "h": 4,
-          "kind": "cover",
-          "label": "Northern corridor"
-        },
-        {
-          "id": "north-roof",
-          "x": -31,
-          "z": -154,
-          "w": 16,
-          "d": 15,
-          "h": 6.4,
-          "kind": "platform",
-          "label": "Rooftop station"
-        },
-        {
-          "id": "south-promenade",
-          "x": 52,
-          "z": 138,
-          "w": 26,
-          "d": 3,
-          "h": 3,
-          "kind": "cover",
-          "label": "Promenade station"
-        },
-        {
-          "id": "south-roof",
-          "x": 94,
-          "z": 135,
-          "w": 15,
-          "d": 13,
-          "h": 5.2,
-          "kind": "platform",
-          "label": "South overlook"
-        },
-        {
-          "id": "west-neon",
-          "x": -108,
-          "z": 77,
-          "w": 22,
-          "d": 3,
-          "h": 4,
-          "kind": "cover",
-          "label": "West billboard"
-        },
-        {
-          "id": "north-market",
-          "x": -130,
-          "z": -114,
-          "w": 20,
-          "d": 3,
-          "h": 3.1,
-          "kind": "cover",
-          "label": "Neon arcade"
-        },
-        {
-          "id": "west-watch",
-          "x": -159,
-          "z": -102,
-          "w": 11,
-          "d": 12,
-          "h": 4.4,
-          "kind": "platform",
-          "label": "West lookout"
-        },
-        {
-          "id": "lane-0-0",
-          "x": -196,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-1",
-          "x": -172,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-2",
-          "x": -148,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-3",
-          "x": -124,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-4",
-          "x": -100,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-5",
-          "x": -76,
-          "z": -56,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-6",
-          "x": -191,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-7",
-          "x": -167,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-8",
-          "x": -143,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-9",
-          "x": -119,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-10",
-          "x": -95,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-11",
-          "x": -71,
-          "z": -34,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-12",
-          "x": -196,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-13",
-          "x": -172,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-14",
-          "x": -148,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-15",
-          "x": -124,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-16",
-          "x": -100,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-17",
-          "x": -76,
-          "z": -12,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-18",
-          "x": -191,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-19",
-          "x": -167,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-20",
-          "x": -143,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-21",
-          "x": -119,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-22",
-          "x": -95,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-0-23",
-          "x": -71,
-          "z": 10,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 1 hard cover"
-        },
-        {
-          "id": "lane-1-24",
-          "x": 75,
-          "z": -6,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-25",
-          "x": 99,
-          "z": -6,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-26",
-          "x": 123,
-          "z": -6,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-27",
-          "x": 147,
-          "z": -6,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-28",
-          "x": 171,
-          "z": -6,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-29",
-          "x": 80,
-          "z": 16,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-30",
-          "x": 104,
-          "z": 16,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-31",
-          "x": 128,
-          "z": 16,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-32",
-          "x": 152,
-          "z": 16,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-33",
-          "x": 176,
-          "z": 16,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-34",
-          "x": 75,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-35",
-          "x": 99,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-36",
-          "x": 123,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-37",
-          "x": 147,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-38",
-          "x": 171,
-          "z": 38,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-39",
-          "x": 80,
-          "z": 60,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-40",
-          "x": 104,
-          "z": 60,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-41",
-          "x": 128,
-          "z": 60,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-1-42",
-          "x": 152,
-          "z": 60,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 2 hard cover"
-        },
-        {
-          "id": "lane-2-43",
-          "x": -77,
-          "z": -172,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-44",
-          "x": -29,
-          "z": -172,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-45",
-          "x": -5,
-          "z": -172,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-46",
-          "x": -72,
-          "z": -150,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-47",
-          "x": -48,
-          "z": -150,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-48",
-          "x": 0,
-          "z": -150,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-49",
-          "x": 24,
-          "z": -150,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-50",
-          "x": -77,
-          "z": -128,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-51",
-          "x": -53,
-          "z": -128,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-52",
-          "x": -5,
-          "z": -128,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-53",
-          "x": 19,
-          "z": -128,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-54",
-          "x": -72,
-          "z": -106,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-55",
-          "x": -48,
-          "z": -106,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-56",
-          "x": -24,
-          "z": -106,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-57",
-          "x": 0,
-          "z": -106,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-58",
-          "x": 24,
-          "z": -106,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-59",
-          "x": -77,
-          "z": -84,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-60",
-          "x": -53,
-          "z": -84,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-61",
-          "x": -29,
-          "z": -84,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-62",
-          "x": -5,
-          "z": -84,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-2-63",
-          "x": 19,
-          "z": -84,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 3 hard cover"
-        },
-        {
-          "id": "lane-3-64",
-          "x": -4,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-65",
-          "x": 20,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-66",
-          "x": 44,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-67",
-          "x": 68,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-68",
-          "x": 92,
-          "z": 80,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-69",
-          "x": 1,
-          "z": 102,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-70",
-          "x": 25,
-          "z": 102,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-71",
-          "x": 49,
-          "z": 102,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-72",
-          "x": 73,
-          "z": 102,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-73",
-          "x": 97,
-          "z": 102,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-74",
-          "x": -4,
-          "z": 124,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-75",
-          "x": 20,
-          "z": 124,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-76",
-          "x": 44,
-          "z": 124,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-77",
-          "x": 68,
-          "z": 124,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-78",
-          "x": 92,
-          "z": 124,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-79",
-          "x": 1,
-          "z": 146,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-80",
-          "x": 25,
-          "z": 146,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-81",
-          "x": 73,
-          "z": 146,
-          "w": 7,
-          "d": 2.4,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-82",
-          "x": -4,
-          "z": 168,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-83",
-          "x": 44,
-          "z": 168,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-3-84",
-          "x": 68,
-          "z": 168,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 4 hard cover"
-        },
-        {
-          "id": "lane-4-85",
-          "x": -162,
-          "z": -136,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-86",
-          "x": -138,
-          "z": -136,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-87",
-          "x": -114,
-          "z": -136,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-88",
-          "x": -157,
-          "z": -114,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-89",
-          "x": -109,
-          "z": -114,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-90",
-          "x": -138,
-          "z": -92,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-91",
-          "x": -114,
-          "z": -92,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-4-92",
-          "x": -90,
-          "z": -92,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 5 hard cover"
-        },
-        {
-          "id": "lane-5-93",
-          "x": -153,
-          "z": 37,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-94",
-          "x": -129,
-          "z": 37,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-95",
-          "x": -105,
-          "z": 37,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-96",
-          "x": -81,
-          "z": 37,
-          "w": 2.6,
-          "d": 9,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-97",
-          "x": -148,
-          "z": 59,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-98",
-          "x": -124,
-          "z": 59,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-99",
-          "x": -100,
-          "z": 59,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-100",
-          "x": -76,
-          "z": 59,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-101",
-          "x": -153,
-          "z": 81,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-102",
-          "x": -129,
-          "z": 81,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-103",
-          "x": -81,
-          "z": 81,
-          "w": 7,
-          "d": 2.4,
-          "h": 2.9,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-104",
-          "x": -124,
-          "z": 103,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-105",
-          "x": -100,
-          "z": 103,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        },
-        {
-          "id": "lane-5-106",
-          "x": -76,
-          "z": 103,
-          "w": 2.6,
-          "d": 9,
-          "h": 1.4,
-          "kind": "cover",
-          "label": "arena_neon district 6 hard cover"
-        }
-      ],
+      "features": [],
       "spawns": {
         "ffa": [
           [

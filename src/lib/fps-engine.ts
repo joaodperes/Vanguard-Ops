@@ -4,6 +4,7 @@
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import * as THREE from "three";
+import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
@@ -135,6 +136,7 @@ export interface HudState {
   timeLeft: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
+  lastDeath?: { killer:string; weaponId:string; attachments:string[] };
   lastElimination?: { at: number; victim: string; headshot: boolean };
   hitMarker: number;     // timestamp of last hit
   headshotMarker?: number;  // Round 20g: timestamp of last headshot hit (distinct visual)
@@ -224,8 +226,8 @@ export interface ScoreRow {
 }
 
 export interface MatchEndResult {
-  kills: number; deaths: number; headshots: number; won: boolean; score: number; mode: GameMode;
-  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[];
+  kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
+  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   durationSec?: number;
   placement?: number;
   multikills?: number;
@@ -475,6 +477,8 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
+  private surfaceMaterials: MapSurfaceMaterials | null = null;
+  private gardenMaterial: THREE.MeshStandardMaterial | null = null;
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private environmentMeshes = new Map<string, THREE.Group>();
@@ -490,6 +494,7 @@ export class FPSEngine {
   private alive = true;
   private respawnAt = 0;
   private onGround = true;
+  private cameraFeetY: number | null = null;
   private lastGroundedAt = -Infinity;
   private lastJumpPressedAt = -Infinity;
   private wasJumpHeld = false;
@@ -532,7 +537,7 @@ export class FPSEngine {
   private boltPickups = new Map<string, { mesh: THREE.Object3D; ownerId: string; pos: Vec3; expiresAt: number; retryAt: number }>();
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
-  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string }>();
+  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number }>();
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
   // set to the burst count; the update loop drains it one shot per intra-burst
@@ -621,12 +626,14 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
-  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
+  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
   private kills = 0;
   private deaths = 0;
   private headshots = 0;
+  private assists = 0;
+  private offlineAssistDamage = new Map<string, {damage:number; at:number}>();
   private teamScores = { red: 0, blue: 0 };
   // Kill Confirmed collectibles and per-player objectives (separate from kills).
   private kcTags = new Map<string, { tag: KillConfirmedTag; mesh: THREE.Group }>();
@@ -742,6 +749,7 @@ export class FPSEngine {
   private survivalReinforcements = 0;
   private survivalMaxReinforcements = 0;
   private survivalDowned = false;
+  private lastDeath: HudState["lastDeath"];
   private survivalPrepLeft = 0;
   private survivalWaveActive = false;
   // Round 18-b: wave banner — set to performance.now() when a wave starts.
@@ -937,6 +945,7 @@ export class FPSEngine {
       throw error;
     }
     this.buildArena();
+    this.buildMapProps();
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
@@ -1014,9 +1023,11 @@ export class FPSEngine {
 
   private buildArena() {
     const theme = this.map.theme;
-    // floor
-    const floorMat = new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.95, metalness: 0.0 });
-    // The visible ground follows the union of authored regions, not a square.
+    // World-scaled, themed materials generated once for this match from JSON.
+    this.surfaceMaterials=createMapSurfaceMaterials(this.map);
+    const {floor:floorMat,wall:wallMat,cover:coverMat,stair:stairMat,platform:platformMat}=this.surfaceMaterials;
+    const floorTileSize=this.map.surfaces?.floor.tileSize??7;
+        // The visible ground follows the union of authored regions, not a square.
     // Shared area overlaps are coplanar; polygon-union cells avoid Z fighting.
     const regions = this.map.regions;
     if (regions?.length) {
@@ -1025,12 +1036,16 @@ export class FPSEngine {
       for (let i=0;i<xs.length-1;i++) for(let j=0;j<zs.length-1;j++) {
         const x=(xs[i]+xs[i+1])/2, z=(zs[j]+zs[j+1])/2;
         if (!regions.some(r=>Math.abs(x-r.x)<r.w/2 && Math.abs(z-r.z)<r.d/2)) continue;
-        const tile = new THREE.Mesh(new THREE.PlaneGeometry(xs[i+1]-xs[i],zs[j+1]-zs[j]),floorMat);
+        const groundGeo=new THREE.PlaneGeometry(xs[i+1]-xs[i],zs[j+1]-zs[j]);
+        mapFloorUV(groundGeo,x,z,floorTileSize);
+        const tile = new THREE.Mesh(groundGeo,floorMat);
         tile.rotation.x=-Math.PI/2; tile.position.set(x,0,z); tile.receiveShadow=true;
         this.scene.add(tile);
       }
     } else {
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(this.map.size*2,this.map.size*2),floorMat);
+      const floorGeo=new THREE.PlaneGeometry(this.map.size*2,this.map.size*2);
+      mapFloorUV(floorGeo,0,0,floorTileSize);
+      const floor = new THREE.Mesh(floorGeo,floorMat);
       floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; this.scene.add(floor);
       const grid=new THREE.GridHelper(this.map.size*2,64,theme.gridColor,theme.gridColor);
       (grid.material as THREE.Material).opacity=0.4;
@@ -1039,7 +1054,6 @@ export class FPSEngine {
     }
 
     // walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.8, metalness: 0.1 });
     const wallH = this.map.wallHeight;
     const t = 1;
     const s = this.map.size;
@@ -1051,6 +1065,7 @@ export class FPSEngine {
     ] as const;
     for (const w of walls) {
       const geo = new THREE.BoxGeometry(w.size[0], w.size[1], w.size[2]);
+      mapBoxUV(geo,w.pos[0],w.pos[2],this.map.surfaces?.wall.tileSize??6);
       const m = new THREE.Mesh(geo, wallMat);
       m.position.set(w.pos[0], w.pos[1], w.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
@@ -1058,15 +1073,16 @@ export class FPSEngine {
     }
 
     // cover / platforms / stairs
-    const coverMat = new THREE.MeshStandardMaterial({ color: theme.cover, roughness: 0.7, metalness: 0.2 });
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
-    const stairMat = new THREE.MeshStandardMaterial({ color: theme.stair, roughness: 0.85, metalness: 0.15 });
-    const platformMat = new THREE.MeshStandardMaterial({ color: theme.platform, roughness: 0.8, metalness: 0.2 });
     for (const c of this.map.cover) {
       if (c.environmentId) continue; // handled by animated environment meshes
       const kind = c.kind ?? "cover";
-      const mat = kind === "accent" ? accentMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
+      const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
+      if(kind !== "accent"){
+        const slot=kind==="solid"?"wall":kind==="stair"?"stair":kind==="platform"?"platform":"cover";
+        mapBoxUV(geo,c.pos[0],c.pos[2],this.map.surfaces?.[slot]?.tileSize??4);
+      }
       const m = new THREE.Mesh(geo, mat);
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
@@ -1100,6 +1116,234 @@ export class FPSEngine {
         pl.position.set(L.pos[0], L.pos[1], L.pos[2]);
         this.scene.add(pl);
       }
+    }
+  }
+
+  /**
+   * Landmarks, vegetation and city architecture are lightweight primitive
+   * meshes driven by one authored JSON theme per map. These decorations are
+   * visually distinct but never create a corridor wall; the world colliders
+   * for solid props are generated separately on client AND server.
+   */
+  private buildMapProps() {
+    const biome = this.map.biome ?? "industrial";
+    const palette = this.map.theme;
+    const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
+    const masonry = this.surfaceMaterials?.wall ?? new THREE.MeshStandardMaterial({color:palette.wall,roughness:.8});
+    const trim = new THREE.MeshStandardMaterial({color:palette.coverAccent,roughness:.48,metalness:.2});
+    const trunk = new THREE.MeshStandardMaterial({color:biome==="jungle"?0x66523d:0x615448,roughness:1});
+    const leaf = new THREE.MeshStandardMaterial({color:biome==="highlands"?0x326158:0x4a874e,roughness:1,side:THREE.DoubleSide});
+    const leafDark = new THREE.MeshStandardMaterial({color:biome==="jungle"?0x315e37:0x3d6f5b,roughness:1});
+    const moss = new THREE.MeshStandardMaterial({color:0x63834b,roughness:1});
+    const glass = new THREE.MeshStandardMaterial({color:biome==="city"?0xffd7ac:0x8cdae7,
+      metalness:.16,roughness:.3,emissive:biome==="city"?0xaa5d4b:0x317487,emissiveIntensity:.32});
+    const asphalt = new THREE.MeshStandardMaterial({color:0x404858,roughness:.9});
+    const scene = this.scene;
+    if(biome==="city"||biome==="city_day"){
+      this.gardenMaterial=createPatternedMaterial(biome==="city_day"?0x6e9f5b:0x408458,
+        {pattern:"grass",tileSize:5,roughness:1});
+    }
+    const cube=(parent:THREE.Object3D,mat:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{
+      const geo=new THREE.BoxGeometry(w,h,d);
+      if(mat instanceof THREE.MeshStandardMaterial && mat.map?.wrapS===THREE.RepeatWrapping){
+        const slot=mat===this.surfaceMaterials?.wall?"wall":"cover";
+        mapBoxUV(geo,parent.position.x+x,parent.position.z+z,this.map.surfaces?.[slot]?.tileSize??4);
+      }
+      const m=new THREE.Mesh(geo,mat);
+      m.position.set(x,y,z);m.castShadow=h>=1;m.receiveShadow=true;parent.add(m);return m;
+    };
+    // Show moss/lichen on the upper faces of existing solid ruins, not as a
+    // separate wall or a volumetric obstruction players can get trapped in.
+    if(biome==="jungle") {
+      let planted=0;
+      for(const c of this.map.cover){
+        if(planted>=90)break;
+        if(c.kind==="stair"||c.kind==="solid"||c.kind==="accent"||c.environmentId)continue;
+        if(c.size[0]<1.5||c.size[2]<1.3||c.size[1]<.6)continue;
+        if(Math.abs(c.pos[0])+Math.abs(c.pos[2])>320)continue;
+        const patch=new THREE.Mesh(new THREE.PlaneGeometry(c.size[0]*2*.8,c.size[2]*2*.74),moss);
+        patch.rotation.x=-Math.PI/2;patch.position.set(c.pos[0],c.pos[1]+c.size[1]+.03,c.pos[2]);
+        scene.add(patch);planted++;
+      }
+    }
+
+    for(const p of this.map.props ?? []){
+      const group=new THREE.Group();
+      group.position.set(p.x,p.y??0,p.z);
+      const h=p.h??(p.kind==="shop"?8:4),w=p.w??8,d=p.d??7;
+      if(p.kind==="tree"){
+        const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
+        bole.position.y=h*.21;bole.castShadow=true;group.add(bole);
+        for(let i=0;i<3;i++){
+          const canopy=new THREE.Mesh(new THREE.ConeGeometry(h*(.22-i*.025),h*.37,7),i===1?leafDark:leaf);
+          canopy.position.y=h*(.43+i*.19);canopy.castShadow=i===0;group.add(canopy);
+        }
+      }else if(p.kind==="bush"){
+        const bush=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.max(.7,h*.6),0),leaf);
+        bush.scale.set(1.25,.65,1);bush.position.y=h*.4;group.add(bush);
+        const other=new THREE.Mesh(new THREE.IcosahedronGeometry(h*.4,0),leafDark);
+        other.position.set(.8,h*.35,.3);group.add(other);
+      }else if(p.kind==="rock"){
+        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),stone);
+        rock.scale.set(w*.48,h*.56,d*.5);rock.position.y=h*.48;rock.rotation.y=p.x*.07;rock.castShadow=true;group.add(rock);
+        if(biome==="jungle"){
+          const carpet=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),moss);
+          carpet.scale.set(w*.35,h*.14,d*.31);carpet.position.y=h*.87;group.add(carpet);
+        }else if(biome==="highlands"){
+          const snow=new THREE.Mesh(new THREE.ConeGeometry(w*.33,h*.25,6),
+            new THREE.MeshStandardMaterial({color:0xe2edf0,roughness:1}));
+          snow.position.y=h*.82;group.add(snow);
+        }
+
+      }else if(p.kind==="garden"){
+        // Large, accessible grass square; there is no solid collision volume.
+        const parkGeo=new THREE.PlaneGeometry(w,d);
+        mapFloorUV(parkGeo,p.x,p.z,5);
+        const park=new THREE.Mesh(parkGeo,
+          this.gardenMaterial??new THREE.MeshStandardMaterial({color:0x63965b,roughness:1}));
+        park.rotation.x=-Math.PI/2;park.position.y=.035;park.receiveShadow=true;group.add(park);
+        for(const side of [-1,1]){
+          cube(group,stone,side*w*.49,.11,0,.45,.22,d);
+          cube(group,stone,0,.11,side*d*.49,w,.22,.45);
+        }
+      }else if(p.kind==="bench"){
+        const wood=new THREE.MeshStandardMaterial({color:0xa8835c,roughness:.85});
+        cube(group,wood,0,.78,0,2.5,.22,.9);
+        cube(group,wood,0,1.3,-.43,2.5,1.1,.18);
+        for(const x of [-.9,.9])cube(group,masonry,x,.36,0,.18,.65,.75);
+      }else if(p.kind==="bandstand"){
+        // Accessible sniper lookout: the shared physical roof + two full
+        // stair flights are emitted by propColliders and drawn by buildArena.
+        const columns=new THREE.MeshStandardMaterial({color:biome==="city_day"?0xf0d7ad:0xaec7d8,roughness:.72});
+        for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
+          cube(group,columns,x,(h+5.2)/2,z,.72,h+5.2,.72);
+        const cap=new THREE.Mesh(new THREE.ConeGeometry(w*.63,2.4,8),trim);
+        cap.position.y=h+6.1;cap.rotation.y=Math.PI/8;cap.castShadow=true;group.add(cap);
+        cube(group,stone,0,.22,0,w*.88,.45,d*.88);
+        for(const z of [-d*.42,d*.42])cube(group,columns,0,h+5.05,z,w*.82,.35,.45);
+      }else if(p.kind==="building"){
+        // Physical wall segments match map-visuals.propColliders, leaving
+        // an actual SOUTH doorway. Roof platform + outdoor stair flights let
+        // players flank snipers without teleporting or clipping through walls.
+        const wall=.9,door=6,side=(w-door)/2;
+        const brick=this.surfaceMaterials?.wall ?? new THREE.MeshStandardMaterial({color:palette.wall,roughness:.84});
+        cube(group,brick,0,h/2,-d/2,w,h,wall);
+        cube(group,brick,-w/2,h/2,0,wall,h,d);
+        cube(group,brick,w/2,h/2,0,wall,h,d);
+        cube(group,brick,-(w+door)/4,h/2,d/2,side,h,wall);
+        cube(group,brick,(w+door)/4,h/2,d/2,side,h,wall);
+        cube(group,brick,0,(h+2.4)/2,d/2,door,h-2.4,wall);
+        // Roof deck has a real hatch cutout; never draw a solid ornamental
+        // slab over the interior stair exit. Physical roof segments are
+        // already rendered by buildArena from shared collision geometry.
+        cube(group,trim,0,h+.22,-d/2,w,.35,.22);
+        // Floor markings and glass shopfront panels, leaving open doorway.
+        cube(group,asphalt,0,.045,0,w-.9,.09,d-.9);
+        for(let x=-w/2+3;x<=w/2-3;x+=6){
+          if(Math.abs(x)>door/2+2)cube(group,glass,x,h*.45,d/2+.53,3.3,h*.27,.15);
+          cube(group,glass,x,h*.45,-d/2-.53,3.3,h*.27,.15);
+        }
+        for(let z=-d/2+3;z<=d/2-3;z+=7){
+          cube(group,glass,-w/2-.51,h*.49,z,.12,h*.26,3.4);
+          cube(group,glass,w/2+.51,h*.49,z,.12,h*.26,3.4);
+        }
+      }else if(p.kind==="dock"){
+        const timber=new THREE.MeshStandardMaterial({color:0xa87b52,roughness:.9});
+        cube(group,timber,0,.43,0,w,.7,d);
+        for(let x=-w/2+1;x<w/2;x+=2)
+          cube(group,masonry,x,.84,0,.08,.06,d);
+        for(const x of [-w*.4,w*.4])for(const z of [-d*.42,d*.42])
+          cube(group,stone,x,.85,z,.28,1.7,.28);
+      }else if(p.kind==="boat"){
+        // Clearly readable hull, gunwale and wheelhouse, authored at dockside.
+        const hull=new THREE.MeshStandardMaterial({color:0x335872,roughness:.67});
+        const boat=new THREE.Mesh(new THREE.CylinderGeometry(Math.min(d*.46,w*.26),Math.min(d*.36,w*.18),1.7,8),hull);
+        boat.scale.set(w/Math.max(4,d),1,1);boat.rotation.z=Math.PI/2;
+        boat.position.y=1.3;boat.castShadow=true;group.add(boat);
+        cube(group,stone,0,1.95,0,w*.72,.35,d*.9);
+        cube(group,masonry,-w*.13,3.3,0,w*.34,2.3,d*.58);
+        cube(group,glass,-w*.13,3.6,d*.3,w*.24,.8,.12);
+        cube(group,trim,w*.4,1.95,0,.2,2.6,.2);
+      }else if(p.kind==="shop"){
+        // Solid shop exteriors deliberately sit beside open streets/plazas.
+        // Windows, illuminated signage and an entry graphic give recognisable
+        // facades; no false doorway claims to be an enterable interior.
+        cube(group,masonry,0,h/2,0,w,h,d);
+        const windowCount=Math.max(2,Math.min(6,Math.round(w/3)));
+        for(let i=0;i<windowCount;i++){
+          const wx=-w/2+(i+.5)*w/windowCount;
+          cube(group,glass,wx,h*.58,d/2+.07,w/windowCount*.64,h*.23,.14);
+          cube(group,trim,wx,h*.73,d/2+.09,w/windowCount*.75,.14,.2);
+        }
+        cube(group,asphalt,-w*.22,h*.25,d/2+.09,w*.19,h*.47,.16);
+        cube(group,trim,0,h*.84,d/2+.20,w*.86,h*.17,.24);
+        if(p.text){
+          const canvas=document.createElement("canvas");
+          canvas.width=512;canvas.height=96;
+          const ctx=canvas.getContext("2d");
+          if(ctx){
+            ctx.fillStyle="#202439";ctx.fillRect(0,0,512,96);
+            ctx.fillStyle="#fff0c1";ctx.font="bold 44px sans-serif";
+            ctx.textAlign="center";ctx.textBaseline="middle";
+            ctx.fillText(p.text.slice(0,20),256,48,490);
+            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+            const sign=new THREE.Mesh(new THREE.PlaneGeometry(w*.83,h*.17),
+              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+            sign.position.set(0,h*.84,d/2+.35);group.add(sign);
+          }
+        }
+      }else if(p.kind==="ruin"||p.kind==="temple"){
+        // Roofless broken masonry frame: open approach and sight through the
+        // centre, with collision approximated by the JSON prop footprint.
+        const col=Math.max(1.2,w*.14);
+        for(const x of [-w*.35,w*.35])for(const z of [-d*.35,d*.35])
+          cube(group,stone,x,h*.37,z,col,h*.74,col);
+        cube(group,masonry,0,h*.8,0,w,.65,d*.16);
+        if(biome==="jungle"){
+          cube(group,moss,0,h*.83,0,w*.86,.08,d*.12);
+        }
+      }else if(p.kind==="container"){
+        const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
+        cube(group,paint,0,h/2,0,w,h,d);
+        for(let x=-w/2+1;x<w/2;x+=1.5)
+          cube(group,trim,x,h/2,d/2+.045,.10,h*.75,.08);
+      }else if(p.kind==="crane"){
+        cube(group,masonry,0,h*1.3,0,1.4,h*2.6,1.4);
+        cube(group,trim,w*.15,h*2.55,0,w*.95,.65,.8);
+        cube(group,masonry,w*.55,h*1.9,0,.08,h*.85,.08);
+      }else if(p.kind==="antenna"){
+        cube(group,stone,0,h/2,0,.35,h,.35);
+        cube(group,trim,0,h*.75,0,5,.22,.22);
+      }else if(p.kind==="terminal"){
+        cube(group,masonry,0,1.1,0,2,2.2,1.3);
+        cube(group,glass,0,1.48,.7,1.5,.75,.08);
+      }else if(p.kind==="lamp"){
+        cube(group,masonry,0,2.7,0,.25,5.4,.25);
+        cube(group,trim,0,5.4,0,1.1,.35,.7);
+        const glow=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6),
+          new THREE.MeshBasicMaterial({color:palette.coverAccent}));
+        glow.position.y=5.15;group.add(glow);
+        const pl=new THREE.PointLight(palette.coverAccent,.65,15);
+        pl.position.y=5;group.add(pl);
+      }else if(p.kind==="sign"){
+        cube(group,masonry,0,2.15,0,.3,4.3,.3);
+        cube(group,trim,0,4.35,0,w,1.4,.35);
+        if(p.text){
+          const canvas=document.createElement("canvas");
+          canvas.width=512;canvas.height=96;
+          const ctx=canvas.getContext("2d");
+          if(ctx){
+            ctx.clearRect(0,0,512,96);
+            ctx.fillStyle="#ffffff";ctx.font="bold 38px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+            ctx.fillText(p.text.slice(0,22),256,48,480);
+            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+            const board=new THREE.Mesh(new THREE.PlaneGeometry(w*.92,1.15),
+              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+            board.position.set(0,4.35,.22);group.add(board);
+          }
+        }
+      }
+      if(group.children.length)scene.add(group);
     }
   }
 
@@ -2472,7 +2716,7 @@ export class FPSEngine {
     this.scene.add(root);
     this.bulletSpitters.set(id, {
       ownerId, pos, yaw, expiresAt,
-      nextShotAt: Date.now() + 300, lastFiredAt: 0,
+      nextShotAt: Date.now() + 300, lastFiredAt: 0, hp:95,
       mesh: root, yawPivot, barrelPivot, offline,
     });
   }
@@ -2768,14 +3012,16 @@ export class FPSEngine {
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
-    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
+    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
+      assists:c.id===this.selfId?this.assists:0,
+      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     // Treat a mid-match leave as a loss (the player didn't win by leaving).
     const won = false;
     return {
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won,
       score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
@@ -3588,6 +3834,9 @@ export class FPSEngine {
         break;
       }
       case "kill": {
+        if(msg.entry.victim===this.opts.playerName)
+          this.lastDeath={killer:msg.entry.killer,weaponId:msg.entry.weapon,
+            attachments:msg.entry.attachments??[]};
         this.killFeed.unshift(msg.entry);
         if (this.killFeed.length > 6) this.killFeed.pop();
         this.opts.onKillFeed(msg.entry);
@@ -3604,7 +3853,7 @@ export class FPSEngine {
       case "respawn":
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
-          this.health = msg.health; this.alive = true; this.respawnAt = 0;
+          this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
           this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
@@ -4072,6 +4321,7 @@ export class FPSEngine {
   private respawnSelf() {
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
+    this.cameraFeetY=this.pos.y;
     this.vel.set(0, 0, 0);
     this.onGround = true;
     this.lastGroundedAt = -Infinity;
@@ -4182,7 +4432,7 @@ export class FPSEngine {
         if (now >= poison.tickAt) {
           poison.tickAt = now + 500;
           if (!victim.spawnProtectedUntil || victim.spawnProtectedUntil <= Date.now()) {
-            this.applyDamageLocal(victim, 2, false, poison.weaponId);
+            this.applyDamageLocal(victim, poison.damagePerTick ?? 2, false, poison.weaponId);
           }
         }
       }
@@ -4427,7 +4677,7 @@ export class FPSEngine {
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
     this.shotBloom = Math.min(1.4, this.shotBloom + shotBloomIncrease(this.eff.fireRate));
-    const pellets = w.stats.pellets ?? 1;
+    const pellets = this.eff.pellets ?? 1;
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
@@ -4590,6 +4840,9 @@ export class FPSEngine {
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
+      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive)
+        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+5000,
+          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:4 });
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }
@@ -4637,8 +4890,19 @@ export class FPSEngine {
 
   private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId) {
     if (!victim.alive || (victim.spawnProtectedUntil ?? 0) > Date.now()) return;
+    // Remember the player's meaningful non-lethal contributions so a
+    // friendly offline bot finishing the same enemy can award an assist.
+    if (!this.opts.online && victim.team !== this.opts.team &&
+        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="survival")) {
+      const old=this.offlineAssistDamage.get(victim.id);
+      this.offlineAssistDamage.set(victim.id,{
+        damage:(old && performance.now()-old.at<=10000?old.damage:0)+Math.max(0,Math.min(damage,victim.health)),
+        at:performance.now(),
+      });
+    }
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
+      this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
       if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
@@ -4812,6 +5076,7 @@ export class FPSEngine {
     setTimeout(() => {
       if (this.disposed || this.matchEnded) return;
       const sp = this.pickSpawn(c.team);
+      this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
@@ -4956,7 +5221,9 @@ export class FPSEngine {
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
-    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score ?? c.kills, isBot: c.isBot }))
+    }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
+      assists:c.id===this.selfId?this.assists:0,
+      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     // Win detection: FFA and Gun Game are both free-for-all — the player wins
@@ -4976,7 +5243,7 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
       durationSec, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
@@ -5016,7 +5283,7 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
+      kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
       score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
@@ -5602,7 +5869,10 @@ export class FPSEngine {
       this.respawnSelf();
     }
 
-    this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+    // Physics remains exact; ease only the first-person camera across stair risers.
+    if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
+    else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
+    this.camera.position.set(this.pos.x,this.cameraFeetY+EYE_HEIGHT,this.pos.z);
     // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
     // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
     // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
@@ -5973,6 +6243,23 @@ export class FPSEngine {
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
+    const rival=this.nearestEnemy(c);
+    const hostiles=[...this.bulletSpitters.entries()].filter(([,t])=>t.offline &&
+      t.ownerId!==c.id && turretCanAttack(this.opts.mode,c.team,this.opts.team as string,false) &&
+      Math.hypot(c.pos[0]-t.pos[0],c.pos[2]-t.pos[2])<25 &&
+      this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
+      .sort((a,b)=>Math.hypot(a[1].pos[0]-c.pos[0],a[1].pos[2]-c.pos[2])-
+        Math.hypot(b[1].pos[0]-c.pos[0],b[1].pos[2]-c.pos[2]));
+    if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
+      now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0){
+      const [id,t]=hostiles[0],origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
+      const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
+      const len=Math.hypot(...diff)||1;
+      t.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
+      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+      this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default");
+      if(t.hp<=0)this.removeBulletSpitter(id);
+    }
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
       const enemy = this.nearestEnemy(c);
@@ -6111,6 +6398,7 @@ export class FPSEngine {
       // cover push-out and BEFORE the ground snap so the snap uses the
       // separated XZ position.
       this.separateBots(c, c.pos[1]);
+        c.pos=this.collideBots(c.pos,c.pos[1]);
       // ---- Reaction delay: skill-scaled ----
       // Easy bots take 500-900ms; veteran bots take 120-250ms. Gives the player a window.
       const REACTION_MS = botReactionDelay(ai.difficulty);
@@ -6144,7 +6432,7 @@ export class FPSEngine {
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
         const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        const pellets = w.stats.pellets ?? 1;
+        const pellets = eff.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
           const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(eff.spread))) : dir;
           this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
@@ -6275,6 +6563,7 @@ export class FPSEngine {
         c.pos = this.collideBots(c.pos, c.pos[1]);
         // Task 16-a: soft bot-vs-bot separation (same as engage path).
         this.separateBots(c, c.pos[1]);
+        c.pos=this.collideBots(c.pos,c.pos[1]);
 
       }
     }
@@ -6317,6 +6606,7 @@ export class FPSEngine {
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
           this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
         ai.targetId = null;        // wander instead of engaging
+      ai.routeWaypoint=null;ai.nextRouteAt=0;
         ai.strafeDir = -ai.strafeDir;
         ai.stuckSince = 0;
         // Nudge sideways so the bot has a chance to unstick from the corner.
@@ -6432,6 +6722,12 @@ export class FPSEngine {
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
+          const recent=this.offlineAssistDamage.get(nearest.victim.id);
+          if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
+              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed") &&
+              recent && recent.damage>=15 && performance.now()-recent.at<=10000)
+            this.assists++;
+          this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
           if (this.opts.mode !== "killconfirmed") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
@@ -6473,6 +6769,7 @@ export class FPSEngine {
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(this.selfId, this.opts.team as string, [this.pos.x, this.pos.y, this.pos.z]);
       // Local player death SFX.
       this.sound.play("death", { volume: 0.8 });
+      this.lastDeath={killer:attackerName,weaponId,attachments:[]};
       const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: weaponId, headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
       this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
       this.opts.onKillFeed(entry);
@@ -6543,6 +6840,7 @@ export class FPSEngine {
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
       scoreboard,
       killFeed: this.killFeed,
+      lastDeath: this.lastDeath,
       lastElimination: this.lastElimination,
       hitMarker: this.hitMarkerAt,
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker
@@ -6794,6 +7092,18 @@ export class FPSEngine {
     this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
     this.weaponAudio.dispose();
+    if(this.gardenMaterial){
+      this.gardenMaterial.map?.dispose();
+      this.gardenMaterial.dispose();
+      this.gardenMaterial=null;
+    }
+    if(this.surfaceMaterials){
+      for(const m of Object.values(this.surfaceMaterials)){
+        m.map?.dispose();
+        m.dispose();
+      }
+      this.surfaceMaterials=null;
+    }
     this.renderer.dispose();
     // Promptly free the graphics context between matches and dev remounts.
     this.renderer.forceContextLoss();

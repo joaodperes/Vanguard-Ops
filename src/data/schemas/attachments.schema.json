@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Attachments",
+  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "description",
+      "slot",
+      "unlockLevel",
+      "unlockCost",
+      "effects"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "slot": {
+        "enum": [
+          "sight",
+          "barrel",
+          "grip",
+          "magazine"
+        ]
+      },
+      "unlockLevel": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "unlockCost": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "exclusiveWeaponIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_:-]*$"
+        }
+      },
+      "weaponCategories": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "recommendedFor": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "sightType": {
+        "type": "string"
+      },
+      "effects": {
+        "type": "object",
+        "properties": {
+          "damage": {
+            "type": "number"
+          },
+          "recoil": {
+            "type": "number"
+          },
+          "spread": {
+            "type": "number"
+          },
+          "adsSpread": {
+            "type": "number"
+          },
+          "adsTime": {
+            "type": "number"
+          },
+          "magSize": {
+            "type": "number"
+          },
+          "reloadTime": {
+            "type": "number"
+          },
+          "moveSpeed": {
+            "type": "number"
+          },
+          "range": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "shotgunAmmo": {
+        "enum": [
+          "slug",
+          "pellets",
+          "dragons_breath",
+          "beanbag"
+        ]
+      }
+    },
+    "additionalProperties": false
+  }
+}

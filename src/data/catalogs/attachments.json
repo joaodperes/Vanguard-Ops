@@ -1,0 +1,645 @@
+[
+  {
+    "id": "barrel_poison",
+    "name": "Venom Bolt Tips",
+    "slot": "barrel",
+    "unlockLevel": 9,
+    "unlockCost": 550,
+    "description": "Crossbow bolts apply 4 damage per second for 4 seconds. Repeated hits refresh duration.",
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {}
+  },
+  {
+    "id": "sight_red_dot",
+    "name": "Red Dot Sight",
+    "slot": "sight",
+    "sightType": "red_dot",
+    "unlockLevel": 2,
+    "unlockCost": 200,
+    "description": "1x red dot. Clean reticle, tighter ADS spread.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "lmg",
+      "sidearm"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "lmg",
+      "sidearm"
+    ],
+    "effects": {
+      "adsSpread": -12,
+      "adsTime": -5
+    }
+  },
+  {
+    "id": "sight_holo",
+    "name": "Holographic Sight",
+    "slot": "sight",
+    "sightType": "holo",
+    "unlockLevel": 6,
+    "unlockCost": 250,
+    "description": "1x holo. Wide FOV reticle for tracking fast targets.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "lmg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "lmg"
+    ],
+    "effects": {
+      "adsTime": -10,
+      "adsSpread": -8
+    }
+  },
+  {
+    "id": "sight_laser",
+    "name": "Laser Sight",
+    "slot": "sight",
+    "sightType": "laser",
+    "unlockLevel": 5,
+    "unlockCost": 250,
+    "description": "Iron sight + visible laser indicator. Dramatically tightens hipfire.",
+    "recommendedFor": [
+      "smg",
+      "shotgun",
+      "sidearm"
+    ],
+    "weaponCategories": [
+      "smg",
+      "shotgun",
+      "sidearm"
+    ],
+    "effects": {
+      "spread": -30
+    }
+  },
+  {
+    "id": "sight_acog",
+    "name": "ACOG 4x Scope",
+    "slot": "sight",
+    "sightType": "acog",
+    "unlockLevel": 10,
+    "unlockCost": 300,
+    "description": "4x magnification. Extends effective range, tighter ADS at distance.",
+    "recommendedFor": [
+      "assault",
+      "dmr",
+      "lmg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "dmr",
+      "lmg"
+    ],
+    "effects": {
+      "range": 20,
+      "adsTime": 15,
+      "adsSpread": -15
+    }
+  },
+  {
+    "id": "sight_thermal",
+    "name": "Thermal 2x Scope",
+    "slot": "sight",
+    "sightType": "thermal",
+    "unlockLevel": 12,
+    "unlockCost": 300,
+    "description": "2x thermal. Highlights heat signatures through fog/darkness.",
+    "recommendedFor": [
+      "dmr",
+      "sniper",
+      "assault"
+    ],
+    "weaponCategories": [
+      "dmr",
+      "sniper",
+      "assault"
+    ],
+    "effects": {
+      "range": 15,
+      "adsSpread": -10,
+      "adsTime": 10
+    }
+  },
+  {
+    "id": "sight_nvg",
+    "name": "NVG Scope",
+    "slot": "sight",
+    "sightType": "nvg",
+    "unlockLevel": 14,
+    "unlockCost": 300,
+    "description": "1.5x night vision. Brightens dark scenes with green tint.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "dmr",
+      "sniper"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "dmr",
+      "sniper"
+    ],
+    "effects": {
+      "adsSpread": -8,
+      "adsTime": 5
+    }
+  },
+  {
+    "id": "sight_hunter",
+    "name": "Hunter 6x Scope",
+    "slot": "sight",
+    "sightType": "hunter",
+    "unlockLevel": 16,
+    "unlockCost": 300,
+    "description": "6x magnification. Sniper-grade optic, very slow ADS, extreme range.",
+    "recommendedFor": [
+      "sniper",
+      "dmr"
+    ],
+    "weaponCategories": [
+      "sniper",
+      "dmr"
+    ],
+    "effects": {
+      "range": 30,
+      "adsTime": 20,
+      "adsSpread": -20
+    }
+  },
+  {
+    "id": "barrel_suppressor",
+    "name": "Suppressor",
+    "slot": "barrel",
+    "unlockLevel": 4,
+    "unlockCost": 250,
+    "description": "Silences fire and hides muzzle flash. Slight damage drop, tighter hipfire.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "dmr",
+      "sidearm"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "dmr",
+      "sidearm"
+    ],
+    "effects": {
+      "damage": -5,
+      "recoil": -10,
+      "spread": -8
+    }
+  },
+  {
+    "id": "barrel_compensator",
+    "name": "Compensator",
+    "slot": "barrel",
+    "unlockLevel": 7,
+    "unlockCost": 200,
+    "description": "Redirects gas. Strong vertical recoil reduction.",
+    "recommendedFor": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "effects": {
+      "recoil": -22
+    }
+  },
+  {
+    "id": "barrel_muzzle_brake",
+    "name": "Muzzle Brake",
+    "slot": "barrel",
+    "unlockLevel": 8,
+    "unlockCost": 250,
+    "description": "Redirects muzzle climb. Strong recoil control + tighter hipfire.",
+    "recommendedFor": [
+      "assault",
+      "lmg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "lmg"
+    ],
+    "effects": {
+      "recoil": -18,
+      "spread": -5
+    }
+  },
+  {
+    "id": "barrel_heavy",
+    "name": "Heavy Barrel",
+    "slot": "barrel",
+    "unlockLevel": 11,
+    "unlockCost": 300,
+    "description": "Stiffer barrel. More damage + range, but MORE recoil kick.",
+    "recommendedFor": [
+      "dmr",
+      "sniper",
+      "assault"
+    ],
+    "weaponCategories": [
+      "dmr",
+      "sniper",
+      "assault"
+    ],
+    "effects": {
+      "damage": 12,
+      "recoil": 15,
+      "range": 10,
+      "adsSpread": -8
+    }
+  },
+  {
+    "id": "grip_vertical",
+    "name": "Vertical Grip",
+    "slot": "grip",
+    "unlockLevel": 3,
+    "unlockCost": 200,
+    "description": "Controls vertical climb. Best on high-recoil autos.",
+    "recommendedFor": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "effects": {
+      "recoil": -15
+    }
+  },
+  {
+    "id": "grip_angled",
+    "name": "Angled Grip",
+    "slot": "grip",
+    "unlockLevel": 9,
+    "unlockCost": 250,
+    "description": "Faster aim-down-sights. Slight hipfire recovery.",
+    "recommendedFor": [
+      "smg",
+      "assault",
+      "shotgun"
+    ],
+    "weaponCategories": [
+      "smg",
+      "assault",
+      "shotgun"
+    ],
+    "effects": {
+      "adsTime": -20,
+      "spread": -4
+    }
+  },
+  {
+    "id": "grip_laser",
+    "name": "Laser Grip",
+    "slot": "grip",
+    "unlockLevel": 13,
+    "unlockCost": 300,
+    "description": "Laser pointer grip. Tightens hipfire dramatically (no ADS effect).",
+    "recommendedFor": [
+      "smg",
+      "shotgun",
+      "sidearm"
+    ],
+    "weaponCategories": [
+      "smg",
+      "shotgun",
+      "sidearm"
+    ],
+    "effects": {
+      "spread": -28
+    }
+  },
+  {
+    "id": "grip_runner_ads",
+    "name": "Run-and-Gun Grip",
+    "slot": "grip",
+    "unlockLevel": 16,
+    "unlockCost": 400,
+    "description": "Allows aiming down sights while sprinting. Sprint speed is reduced during ADS.",
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "shotgun",
+      "dmr",
+      "sidearm"
+    ],
+    "effects": {
+      "adsTime": 12,
+      "recoil": 6
+    }
+  },
+  {
+    "id": "mag_extended",
+    "name": "Extended Mag",
+    "slot": "magazine",
+    "unlockLevel": 5,
+    "unlockCost": 200,
+    "description": "+50% magazine capacity.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "lmg",
+      "shotgun"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "lmg",
+      "shotgun"
+    ],
+    "effects": {
+      "magSize": 50
+    }
+  },
+  {
+    "id": "mag_quickdraw",
+    "name": "Quickdraw Mag",
+    "slot": "magazine",
+    "unlockLevel": 8,
+    "unlockCost": 250,
+    "description": "Faster reloads.",
+    "recommendedFor": [
+      "assault",
+      "smg",
+      "shotgun",
+      "dmr"
+    ],
+    "weaponCategories": [
+      "assault",
+      "smg",
+      "shotgun",
+      "dmr"
+    ],
+    "effects": {
+      "reloadTime": -25
+    }
+  },
+  {
+    "id": "mag_drum",
+    "name": "Drum Mag",
+    "slot": "magazine",
+    "unlockLevel": 14,
+    "unlockCost": 300,
+    "description": "Massive capacity, slower handling + reload.",
+    "recommendedFor": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "weaponCategories": [
+      "assault",
+      "lmg",
+      "smg"
+    ],
+    "effects": {
+      "magSize": 100,
+      "moveSpeed": -8,
+      "reloadTime": 15
+    }
+  },
+  {
+    "id": "barrel_match",
+    "name": "Match Barrel",
+    "slot": "barrel",
+    "unlockLevel": 12,
+    "unlockCost": 380,
+    "description": "Precision rifling tightens aimed spread and adds range at the cost of slower ADS.",
+    "weaponCategories": [
+      "dmr",
+      "sniper"
+    ],
+    "effects": {
+      "adsSpread": -18,
+      "range": 12,
+      "adsTime": 10
+    }
+  },
+  {
+    "id": "barrel_ported",
+    "name": "Ported Barrel",
+    "slot": "barrel",
+    "unlockLevel": 8,
+    "unlockCost": 300,
+    "description": "Faster recovery and lower recoil, with a small range penalty.",
+    "weaponCategories": [
+      "smg",
+      "shotgun",
+      "lmg",
+      "sidearm"
+    ],
+    "effects": {
+      "recoil": -14,
+      "range": -7
+    }
+  },
+  {
+    "id": "barrel_lightweight",
+    "name": "Lightweight Barrel",
+    "slot": "barrel",
+    "unlockLevel": 11,
+    "unlockCost": 330,
+    "description": "Better handling and mobility, reduced damage at distance.",
+    "weaponCategories": [
+      "smg",
+      "shotgun",
+      "sidearm"
+    ],
+    "effects": {
+      "moveSpeed": 6,
+      "adsTime": -12,
+      "range": -12
+    }
+  },
+  {
+    "id": "barrel_choke",
+    "name": "Tight Choke",
+    "slot": "barrel",
+    "unlockLevel": 9,
+    "unlockCost": 300,
+    "description": "Concentrates shotgun pellets for tighter hip-fire and aimed spread.",
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "effects": {
+      "spread": -18,
+      "adsSpread": -16
+    }
+  },
+  {
+    "id": "barrel_bolt_fletching",
+    "name": "Stabilized Fletching",
+    "slot": "barrel",
+    "unlockLevel": 10,
+    "unlockCost": 300,
+    "description": "Improves crossbow bolt accuracy and effective range.",
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "spread": -16,
+      "adsSpread": -14,
+      "range": 14
+    }
+  },
+  {
+    "id": "barrel_bolt_piercing",
+    "name": "Piercing Bolt Head",
+    "slot": "barrel",
+    "unlockLevel": 15,
+    "unlockCost": 420,
+    "description": "Heavier bolt head deals more direct damage but is slower to reload.",
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "damage": 10,
+      "reloadTime": 12
+    }
+  },
+  {
+    "id": "grip_precision",
+    "name": "Precision Grip",
+    "slot": "grip",
+    "unlockLevel": 10,
+    "unlockCost": 320,
+    "description": "Steadier aim and lower recoil, at the cost of a slightly slower ADS transition.",
+    "effects": {
+      "recoil": -12,
+      "adsSpread": -10,
+      "adsTime": 7
+    }
+  },
+  {
+    "id": "grip_stability",
+    "name": "Stability Grip",
+    "slot": "grip",
+    "unlockLevel": 12,
+    "unlockCost": 340,
+    "description": "Helps keep sustained long-range fire controlled, at a slight mobility cost.",
+    "effects": {
+      "recoil": -20,
+      "moveSpeed": -4
+    }
+  },
+  {
+    "id": "mag_balanced",
+    "name": "Balanced Magazine",
+    "slot": "magazine",
+    "unlockLevel": 10,
+    "unlockCost": 310,
+    "description": "A few additional rounds and quicker reloads without the bulk of a drum.",
+    "effects": {
+      "magSize": 20,
+      "reloadTime": -12
+    }
+  },
+  {
+    "id": "mag_shell_carrier",
+    "name": "Shell Carrier",
+    "slot": "magazine",
+    "unlockLevel": 12,
+    "unlockCost": 325,
+    "description": "Carries a few additional shotgun shells and improves reload handling.",
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "effects": {
+      "magSize": 25,
+      "reloadTime": -14
+    }
+  },
+  {
+    "id": "mag_slug",
+    "name": "Slug Rounds",
+    "description": "Single accurate heavy projectile for medium and long-range engagements.",
+    "slot": "magazine",
+    "unlockLevel": 16,
+    "unlockCost": 500,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "slug",
+    "effects": {}
+  },
+  {
+    "id": "mag_pellets",
+    "name": "Buckshot Swarm",
+    "description": "More pellets in a broad cloud; useful for groups at close range.",
+    "slot": "magazine",
+    "unlockLevel": 12,
+    "unlockCost": 420,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "pellets",
+    "effects": {}
+  },
+  {
+    "id": "mag_dragons_breath",
+    "name": "Dragon's Breath",
+    "description": "Incendiary slug: less impact damage, burns victims and delays regeneration.",
+    "slot": "magazine",
+    "unlockLevel": 20,
+    "unlockCost": 700,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "dragons_breath",
+    "effects": {}
+  },
+  {
+    "id": "mag_beanbag",
+    "name": "Beanbag Rounds",
+    "description": "Smaller tighter pellet pattern, lower damage, faster follow-up shots.",
+    "slot": "magazine",
+    "unlockLevel": 10,
+    "unlockCost": 375,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "beanbag",
+    "effects": {}
+  }
+]

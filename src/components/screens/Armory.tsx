@@ -452,10 +452,6 @@ export function Armory() {
         </Tabs>
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Earn XP &amp; credits by playing matches. Complete permanent challenges to unlock purchases — no microtransactions.</div>
-      </footer>
-
       {/* Customize modal — opens when the user clicks "Customize" on a weapon card. */}
       <CustomizeModal
         weapon={customizing?.weapon ?? null}

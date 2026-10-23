@@ -68,8 +68,21 @@ export function weaponChallengeProgress(
  * All existing purchased skins remain owned, regardless of challenge updates.
  */
 function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): WeaponChallengeDef {
-  // Preserve hand-authored headshot challenges, including unusual melee mastery.
-  if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
+  // A melee strike cannot count as a headshot mastery milestone.
+  // Preserve the historical challenge ID and target, but express it as
+  // achievable close-range knife eliminations for existing player progress.
+  if (weapon.category === "melee" && ch.metric === "headshots") {
+    return {...ch,metric:"close_range_kills",
+      description:`Get ${ch.goal} melee eliminations with the ${weapon.name} at 10m or closer.`};
+  }
+  // Preserve the full hand-authored melee Carbon milestone after migrating
+  // the old impossible headshot requirement; don't rewrite to a generic
+  // hip-fire challenge or silently shrink its goal.
+  if (weapon.category==="melee" && ch.metric==="close_range_kills" &&
+      ch.id.includes("_hs_")) {
+    return {...ch,description:`Get ${ch.goal} close-range eliminations with the ${weapon.name}.`};
+  }
+    if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
   const category = weapon.category;
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";

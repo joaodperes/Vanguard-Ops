@@ -1,0 +1,12 @@
+{
+  "killXp": 25,
+  "killCredits": 8,
+  "headshotXpBonus": 25,
+  "headshotCreditsBonus": 8,
+  "winXpBonus": 150,
+  "winCreditsBonus": 50,
+  "participationXp": 25,
+  "participationCredits": 10,
+  "assistXp": 12,
+  "assistCredits": 5
+}

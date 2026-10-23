@@ -167,12 +167,18 @@ export interface MapDef {
   environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
   theme: MapTheme;
+  /** Authored map palette, props and rendered landmarks (see JSON map theme). */
+  props?: import("./map-visuals").MapProp[];
+  biome?: string;
+  surfaces?: import("./map-visuals").MapSurfaceRecipes;
   accentColor: string;   // for UI badge
   lights?: MapAccentLight[]; // optional per-map accent point lights
 }
 
 // ===== MAP 1: COMPOUND — symmetric, central tower + corners, mid-cover =====
 const COMPOUND_COVER: CoverBox[] = [
+  {pos:[-7,1.5,34],size:[4,1.5,.5],kind:"cover"},
+  {pos:[7,1.5,34],size:[4,1.5,.5],kind:"cover"},
   // Central raised platform (top at y=2.5) — dominates map center
   { pos: [0, 1.25, 0], size: [4, 1.25, 4], kind: "platform" },
   // Stairs up to platform (south side, ascending north)
@@ -530,10 +536,10 @@ const SHIPYARD_COVER: CoverBox[] = [
   // feel impenetrable. Now it's a clean raised platform with wide-open ramps.
   { pos: [0, 0.6, 0], size: [5, 0.6, 8], kind: "platform" },
   // Wide ramps up to the central platform from all 4 directions (walkable, no jumping)
-  ...stairs(0, 8, 1.2, 4, 5, 5, "z", 1),
-  ...stairs(0, -8, 1.2, 4, 5, 5, "z", -1),
-  ...stairs(5, 0, 1.2, 4, 5, 5, "x", 1),
-  ...stairs(-5, 0, 1.2, 4, 5, 5, "x", -1),
+  ...stairs(0, 8, 1.2, 5, 8, 7, "z", 1),
+  ...stairs(0, -8, 1.2, 5, 8, 7, "z", -1),
+  ...stairs(5, 0, 1.2, 5, 8, 7, "x", 1),
+  ...stairs(-5, 0, 1.2, 5, 8, 7, "x", -1),
   // Shipping containers (rust-orange). Some stacked 2-high to create vertical play.
   // West row (3 containers, middle one stacked)
   { pos: [-12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
@@ -946,13 +952,15 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   compound: [
     // Fuel service yard east of the northern security checkpoint.
-    { id: "compound_fire", type: "fire", pos: [38, 0, -28], size: [2.4, 1.6, 2.4], dps: 24 },
+    { id: "compound_spikes_service", type: "spikes", pos: [38, 0, -28], size: [1.8, .4, 1.8], damage: 24, period: 4.5, activeFor: 1.6 },
     // Timed security crossing next to the alternate north gate.
     { id: "compound_spikes", type: "spikes", pos: [18, 0, -34], size: [1.8, 0.4, 1.8], damage: 32, period: 4.4, activeFor: 1.5 },
     // South lane launch: reaches elevated walkway at z≈42.
-    { id: "compound_jump", type: "jump_pad", pos: [22, 0, 32], size: [1.8, 0.2, 1.8], launch: [0, 16, 8] },
+    { id: "compound_spikes_south", type: "spikes", pos: [22, 0, 32], size: [1.8, .4, 1.8], damage: 29, period: 5.2, activeFor: 1.8 },
     // Breachable service gate, between the new concrete checkpoint walls.
     { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, -34], size: [2.8, 1.5, 0.45], hp: 180 },
+    { id:"compound_wall_south",type:"destructible_wall",pos:[0,1.5,34],size:[2.8,1.5,.45],hp:190 },
+    { id:"compound_spikes_quarry",type:"spikes",pos:[84,0,-3],size:[1.6,.4,1.6],damage:26,period:5.1,activeFor:1.5 },
   ],
   skybridge: [
     // Maintenance bay faults, on opposite sides of the elevated transit structure.
@@ -972,35 +980,19 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   ],
   shipyard: [
     // Cargo/fuel handling area, separated from the original spawn grid.
-    { id: "shipyard_fire", type: "fire", pos: [33, 0, 31], size: [2.3, 1.6, 2.3], dps: 24 },
+    { id: "shipyard_spikes_fuel", type: "spikes", pos: [33, 0, 31], size: [2, .4, 2], damage: 27, period: 4.6, activeFor: 1.5 },
     // Moving dock machinery on the western loading route.
     { id: "shipyard_spikes", type: "spikes", pos: [-34, 0, -12], size: [1.8, 0.4, 1.8], damage: 32, period: 4.8, activeFor: 1.6 },
     // Launch towards the south container roofs; stairs provide backup access.
-    { id: "shipyard_jump", type: "jump_pad", pos: [16, 0, 20], size: [1.8, 0.2, 1.8], launch: [0, 14, 8] },
+    { id: "shipyard_spikes_conveyor", type: "spikes", pos: [16, 0, 20], size: [1.8, .4, 1.8], damage: 24, period: 5.4, activeFor: 1.6 },
     // Cargo transfer cart, deliberately not essential to navigation.
     { id: "shipyard_platform", type: "moving_platform", pos: [-9, 0.85, 40], size: [2.5, 0.25, 2.5], to: [9, 0.85, 40], period: 7 },
     // Container-checkpoint gate with static wall wings.
     { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -38], size: [2.8, 1.5, 0.45], hp: 200 },
   ],
-  terminal: [
-    // Timed checkpoint floor beyond security doors, not random concourse fire.
-    { id: "terminal_spikes", type: "spikes", pos: [0, 0, -46], size: [1.8, 0.4, 1.8], damage: 28, period: 4.8, activeFor: 1.4 },
-    // Baggage transport: an optional interaction on the outer concourse.
-    { id: "terminal_platform", type: "moving_platform", pos: [-10, 0.85, 37], size: [2.6, 0.25, 2.6], to: [10, 0.85, 37], period: 7 },
-    // Security partition: breaking it opens the centre lane.
-    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -40], size: [2.8, 1.5, 0.45], hp: 180 },
-  ],
-  arena_neon: [
-    // Damaged power panel and flashing electrical grid mark risky flank routes.
-    { id: "arena_neon_fire", type: "fire", pos: [39, 0, 27], size: [2.3, 1.6, 2.3], dps: 24 },
-    { id: "arena_neon_spikes", type: "spikes", pos: [-23, 0, -22], size: [1.8, 0.4, 1.8], damage: 32, period: 4.2, activeFor: 1.5 },
-    // Boost toward the southeast balcony without eliminating stair paths.
-    { id: "arena_neon_jump", type: "jump_pad", pos: [21, 0, 17], size: [1.8, 0.2, 1.8], launch: [7, 15, 8] },
-    // Holographic shuttle travels across the south arcade.
-    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 7 },
-    // Breachable storefront shutter between permanent flanking partitions.
-    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -46], size: [2.8, 1.5, 0.45], hp: 180 },
-  ],
+  // Day and night city editions are hazard-free urban combat spaces.
+  terminal: [],
+  arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {
@@ -1161,7 +1153,12 @@ export const MAPS: Record<string, MapDef> = {
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
   shipyard: applyMapFootprint(BASE_MAPS.shipyard),
-  terminal: applyMapFootprint(BASE_MAPS.terminal),
+  terminal: applyMapFootprint({
+    ...BASE_MAPS.arena_neon,
+    id:"terminal",theme:BASE_MAPS.terminal.theme,
+    accentColor:BASE_MAPS.terminal.accentColor,
+    lights:BASE_MAPS.terminal.lights,environment:[],
+  }),
   arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
 };
 // Any additional JSON blueprint becomes a selectable map automatically. The
@@ -1277,6 +1274,7 @@ export interface KillConfirmedTag {
 export interface KillFeedEntry {
   killer: string; victim: string; weapon: string; headshot: boolean; killerTeam: string; victimTeam: string;
   botDifficulty?: KillDifficulty;
+  attachments?: string[];
 }
 
 export interface SnapshotPlayer {
@@ -1318,7 +1316,7 @@ export type S2C =
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[]; winnerTeam: string | null }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }

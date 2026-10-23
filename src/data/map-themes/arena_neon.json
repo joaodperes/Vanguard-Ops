@@ -1,0 +1,45 @@
+{
+  "biome": "city",
+  "label": "Afterlight city grid, gardens and lit store fronts",
+  "palette": {
+    "floor": "#66677c",
+    "wall": "#8778a6",
+    "cover": "#ae90a8",
+    "accent": "#fe72b9",
+    "platform": "#8996b6",
+    "stair": "#bba9c5",
+    "sky": "#243354",
+    "fog": "#4a587b",
+    "grid": "#70739a"
+  },
+  "ambient": 1.65,
+  "vegetation": 0,
+  "props": [],
+  "surfaces": {
+    "floor": {
+      "pattern": "asphalt",
+      "tileSize": 7,
+      "roughness": 0.91
+    },
+    "wall": {
+      "pattern": "brick",
+      "tileSize": 5,
+      "roughness": 0.79
+    },
+    "cover": {
+      "pattern": "concrete",
+      "tileSize": 4,
+      "roughness": 0.83
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 3,
+      "roughness": 0.8
+    },
+    "platform": {
+      "pattern": "metal",
+      "tileSize": 5,
+      "roughness": 0.73
+    }
+  }
+}

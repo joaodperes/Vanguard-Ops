@@ -1,0 +1,238 @@
+{
+  "biome": "highlands",
+  "label": "Snowbound communications ridge, glacial rock basin and remote radio outposts",
+  "palette": {
+    "floor": "#d1dadb",
+    "wall": "#7c919d",
+    "cover": "#929fa6",
+    "accent": "#f0d68c",
+    "platform": "#b4c5c5",
+    "stair": "#c0ced0",
+    "sky": "#bad9e9",
+    "fog": "#aecbd8",
+    "grid": "#91aabb"
+  },
+  "ambient": 1.7,
+  "vegetation": 0.66,
+  "props": [
+    {
+      "kind": "rock",
+      "x": -163,
+      "z": 12,
+      "w": 12,
+      "d": 9,
+      "h": 6
+    },
+    {
+      "kind": "rock",
+      "x": 152,
+      "z": 46,
+      "w": 13,
+      "d": 8,
+      "h": 5
+    },
+    {
+      "kind": "tree",
+      "x": -111,
+      "z": -49,
+      "h": 14
+    },
+    {
+      "kind": "tree",
+      "x": 118,
+      "z": 34,
+      "h": 12
+    },
+    {
+      "kind": "antenna",
+      "x": 158,
+      "z": -87,
+      "h": 12
+    },
+    {
+      "kind": "rock",
+      "x": -147,
+      "z": -42,
+      "w": 9,
+      "d": 8,
+      "h": 4
+    },
+    {
+      "kind": "rock",
+      "x": 159,
+      "z": 48,
+      "w": 12,
+      "d": 10,
+      "h": 6
+    },
+    {
+      "kind": "rock",
+      "x": 127,
+      "z": -48,
+      "w": 9,
+      "d": 9,
+      "h": 4
+    },
+    {
+      "kind": "rock",
+      "x": -91,
+      "z": 43,
+      "w": 10,
+      "d": 8,
+      "h": 4.5
+    },
+    {
+      "kind": "tree",
+      "x": -168,
+      "z": 26,
+      "h": 17
+    },
+    {
+      "kind": "tree",
+      "x": -134,
+      "z": 47,
+      "h": 15
+    },
+    {
+      "kind": "tree",
+      "x": 143,
+      "z": 14,
+      "h": 14
+    },
+    {
+      "kind": "tree",
+      "x": 177,
+      "z": -62,
+      "h": 16
+    },
+    {
+      "kind": "tree",
+      "x": 44,
+      "z": 128,
+      "h": 16
+    },
+    {
+      "kind": "tree",
+      "x": -96,
+      "z": 74,
+      "h": 18
+    },
+    {
+      "kind": "rock",
+      "x": 36,
+      "z": 113,
+      "w": 10,
+      "d": 10,
+      "h": 4
+    },
+    {
+      "kind": "rock",
+      "x": -125,
+      "z": 8,
+      "w": 8,
+      "d": 8,
+      "h": 4
+    },
+    {
+      "kind": "container",
+      "x": -111,
+      "z": -18,
+      "w": 10,
+      "d": 6,
+      "h": 3.5,
+      "color": "#6e98af"
+    },
+    {
+      "kind": "container",
+      "x": 114,
+      "z": -15,
+      "w": 11,
+      "d": 6,
+      "h": 3.5,
+      "color": "#b9b8a5"
+    },
+    {
+      "kind": "antenna",
+      "x": -179,
+      "z": 84,
+      "h": 19
+    },
+    {
+      "kind": "antenna",
+      "x": 179,
+      "z": -96,
+      "h": 17
+    },
+    {
+      "kind": "rock",
+      "x": -161,
+      "z": -2,
+      "w": 16,
+      "d": 10,
+      "h": 7
+    },
+    {
+      "kind": "rock",
+      "x": 152,
+      "z": -35,
+      "w": 15,
+      "d": 11,
+      "h": 8
+    },
+    {
+      "kind": "rock",
+      "x": -119,
+      "z": 61,
+      "w": 13,
+      "d": 8,
+      "h": 5
+    },
+    {
+      "kind": "tree",
+      "x": -63,
+      "z": 133,
+      "h": 17
+    },
+    {
+      "kind": "tree",
+      "x": 44,
+      "z": 149,
+      "h": 16
+    },
+    {
+      "kind": "rock",
+      "x": 47,
+      "z": 87,
+      "w": 12,
+      "d": 8,
+      "h": 5
+    }
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "snow",
+      "tileSize": 9,
+      "roughness": 0.98
+    },
+    "wall": {
+      "pattern": "stone",
+      "tileSize": 5.5,
+      "roughness": 0.95
+    },
+    "cover": {
+      "pattern": "stone",
+      "tileSize": 5,
+      "roughness": 0.95
+    },
+    "stair": {
+      "pattern": "metal",
+      "tileSize": 3,
+      "roughness": 0.8
+    },
+    "platform": {
+      "pattern": "grate",
+      "tileSize": 5,
+      "roughness": 0.82
+    }
+  }
+}

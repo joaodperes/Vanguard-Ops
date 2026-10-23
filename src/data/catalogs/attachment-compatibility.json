@@ -1,0 +1,92 @@
+{
+  "crossbow_reclaimer": {
+    "sight": [
+      "sight_acog",
+      "sight_hunter",
+      "sight_thermal"
+    ],
+    "barrel": [
+      "barrel_poison",
+      "barrel_bolt_fletching",
+      "barrel_bolt_piercing"
+    ]
+  },
+  "rifle_electron": {
+    "sight": [
+      "sight_red_dot",
+      "sight_holo",
+      "sight_acog"
+    ],
+    "grip": [
+      "grip_vertical",
+      "grip_precision",
+      "grip_runner_ads"
+    ]
+  },
+  "pistol_arc": {
+    "sight": [
+      "sight_red_dot",
+      "sight_laser",
+      "sight_holo"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "sniper_lr": {
+    "sight": [
+      "sight_hunter",
+      "sight_thermal",
+      "sight_acog",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_heavy",
+      "barrel_match"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "sniper_scout": {
+    "sight": [
+      "sight_hunter",
+      "sight_thermal",
+      "sight_acog",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_heavy",
+      "barrel_match"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "sniper_heavy": {
+    "sight": [
+      "sight_hunter",
+      "sight_thermal",
+      "sight_acog",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_heavy",
+      "barrel_match"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  }
+}

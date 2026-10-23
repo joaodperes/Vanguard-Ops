@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Weapon challenges",
+  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "weaponId",
+      "skinId",
+      "goal",
+      "metric",
+      "title",
+      "description"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "weaponId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "skinId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "goal": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "metric": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "requirements": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "metric": {
+              "type": "string"
+            },
+            "goal": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "metric",
+            "goal"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

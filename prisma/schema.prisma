@@ -144,6 +144,9 @@ model Loadout {
   /// JSON string of attachment ids for the SECONDARY (sidearm) slot. Sidearms
   /// support attachments just like primaries. Default empty ("{}").
   secondaryAttachments String @default("{}")
+  /// Remember the last equipped skin and attachments for every weapon ID,
+  /// independent of which loadout slot currently contains it.
+  weaponSetups String @default("{}")
   /// JSON string of attachment ids for the MELEE slot. Melee weapons don't
   /// take attachments — this column exists for forward-compat (future melee
   /// weapons could have skins/attachments). Default empty ("{}").

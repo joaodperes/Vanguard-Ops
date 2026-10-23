@@ -19,6 +19,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
+import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
@@ -106,6 +107,8 @@ interface Room {
   sockets: Map<string, string>;        // socketId -> playerId (same for humans)
   bots: Map<string, PlayerNet & { ai: BotAI; loadout: LoadoutWire }>;
   loadouts: Map<string, LoadoutWire>;  // playerId -> loadout
+  assists: Map<string, number>;        // playerId -> successful team assists
+  damageContributions: Map<string, Map<string, Contribution>>; // victimId -> allies recently damaging victim
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
@@ -160,11 +163,11 @@ interface Room {
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
-  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number }>;
+  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
-  poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number }>;
+  poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number; damagePerTick?: number }>;
   equipmentCharges: Map<string, number>;
   equipmentLastAt: Map<string, number>;
   equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
@@ -363,7 +366,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -521,7 +524,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -590,6 +593,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
+  room.assists.clear(); room.damageContributions.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -972,7 +976,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
   const expiresAt = now + TURRET_LIFETIME_MS;
   room.turrets.set(id, {
     ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
-    expiresAt, nextShotAt: now + 300,
+    expiresAt, nextShotAt: now + 300, hp:95,
   });
   io.to(room.id).emit("message", {
     t: "turretPlaced", id, ownerId, pos, yaw: player.yaw, expiresAt,
@@ -1064,7 +1068,7 @@ function tickSpecialEffects(room: Room, now: number) {
     if (!victim?.alive || now >= dot.expiresAt) { room.poison.delete(id); continue; }
     if (now >= dot.tickAt) {
       dot.tickAt = now + 500;
-      applyDamage(room, dot.attackerId, victim, 2, false, dot.weaponId);
+      applyDamage(room, dot.attackerId, victim, dot.damagePerTick ?? 2, false, dot.weaponId);
       if (room.ended) break;
     }
   }
@@ -1087,6 +1091,18 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
   room.lastDamagedAt.set(victim.id, Date.now());
+  // Only count actual opponent damage. Contributions are cleared at death, so
+  // an assist cannot leak into the next respawn of the same victim.
+  if (attacker && attacker.id !== victim.id && attacker.team !== victim.team &&
+    (room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="survival")) {
+    const contributions=room.damageContributions.get(victim.id)??new Map<string,Contribution>();
+    const previous=contributions.get(attackerId);
+    contributions.set(attackerId,{
+      damage:(previous && Date.now()-previous.at<10000 ? previous.damage:0)+Math.min(dmg,Math.max(0,victim.health)),
+      at:Date.now(),team:attacker.team,
+    });
+    room.damageContributions.set(victim.id,contributions);
+  }
   victim.health -= dmg;
   const killed = victim.health <= 0;
   // For rewards scaling: attach the victim's difficulty to the hit event when
@@ -1098,6 +1114,11 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     ...(killDiff ? { botDifficulty: killDiff } : {}),
   } as S2C);
   if (killed) {
+    const contributions=room.damageContributions.get(victim.id);
+    if (contributions && attacker) for(const id of countEligibleAssists(contributions,attackerId,attacker.team,Date.now()))
+      { room.assists.set(id,(room.assists.get(id)??0)+1);
+        room.scores.set(id,(room.scores.get(id)??0)+1); }
+    room.damageContributions.delete(victim.id);
     if (attacker && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
       for (const [key, state] of room.wonderCharges) {
@@ -1143,10 +1164,21 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       killer: attacker?.name ?? "World", victim: victim.name, weapon: weaponId, headshot: head,
       killerTeam: attacker?.team ?? "ffa", victimTeam: victim.team,
       botDifficulty: killDiff,
+      attachments:(()=>{
+        const kit=room.loadouts.get(attackerId);
+        const sel=kit && weaponId===kit.weaponId ? kit.attachments
+          :kit && weaponId===kit.secondaryWeaponId ? kit.secondaryAttachments
+          :kit && weaponId===kit.meleeWeaponId ? kit.meleeAttachments : undefined;
+        return sel?Object.values(sel).filter((x):x is string=>!!x):[];
+      })(),
     };
     io.to(room.id).emit("message", { t: "kill", entry } as S2C);
     if (room.mode === "survival") {
       if (!victim.isBot) {
+        // Solo runs end on death rather than showing a co-op rescue state.
+        const hasRescuer=[...room.players.values()].some(p=>
+          p.id!==victim.id&&!p.isBot&&p.alive&&!room.downed.has(p.id));
+        if(!hasRescuer){endMatch(room);return;}
         room.downed.add(victim.id);
         // Downed players can only shoot the secondary, cannot move or
         // take further damage; every-operative-downed ends the match.
@@ -1265,6 +1297,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   room.respawnTimers.clear();
   const standings = allCombatants(room).map((p) => ({
     id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths,
+    assists: room.assists.get(p.id) ?? 0,
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;
@@ -1583,6 +1616,24 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   const weapon = weaponById(bot.weaponId);
   const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
+  const rival = nearestEnemy(room,bot);
+  const hostiles=[...room.turrets.entries()].filter(([,t])=>
+    t.ownerId!==bot.id && turretCanAttack(room.mode,bot.team,t.ownerTeam,false) &&
+    Math.hypot(bot.pos[0]-t.pos[0],bot.pos[2]-t.pos[2])<25 &&
+    hasLineOfSight(room,[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
+    .sort((a,b)=>Math.hypot(a[1].pos[0]-bot.pos[0],a[1].pos[2]-bot.pos[2])-
+      Math.hypot(b[1].pos[0]-bot.pos[0],b[1].pos[2]-bot.pos[2]));
+  if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-bot.pos[0],rival.pos[2]-bot.pos[2])>17) &&
+    now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0) {
+    const [id,t]=hostiles[0],origin:Vec3=[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]];
+    const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
+    const len=Math.hypot(...diff)||1;
+    t.hp-=Math.max(5,eff.damage*.55);
+    ai.ammoInMag--;ai.lastFiredAt=now;ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+    io.to(room.id).emit("message",{t:"shotFx",origin,dir:[diff[0]/len,diff[1]/len,diff[2]/len],
+      weaponId:bot.weaponId,attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
+    if(t.hp<=0){room.turrets.delete(id);io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);}
+  }
 
   if (now > ai.nextDecisionAt) {
     ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
@@ -1716,6 +1767,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // cover push-out and BEFORE the ground snap so the snap uses the
     // separated XZ position.
     separateBots(room, bot, bot.pos[1]);
+        bot.pos=collideBots(room,bot.pos,bot.pos[1]);
     // ---- Reaction delay (skill-scaled) ----
     const REACTION_MS = botReactionDelay(ai.difficulty);
     const reacted = now - ai.acquiredTargetAt >= REACTION_MS;
@@ -1739,7 +1791,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
-      const pellets = weapon.stats.pellets ?? 1;
+      const pellets = eff.pellets ?? 1;
       let didHit = false;
       for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(eff.spread))) : dir;
@@ -1867,6 +1919,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       bot.pos = collideBots(room, bot.pos, bot.pos[1]);
       // Task 16-a: soft bot-vs-bot separation (same as engage path).
       separateBots(room, bot, bot.pos[1]);
+        bot.pos=collideBots(room,bot.pos,bot.pos[1]);
 
     }
   }
@@ -1909,6 +1962,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
         room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
       ai.targetId = null;        // wander instead of engaging
+      ai.routeWaypoint=null;ai.nextRouteAt=0;
       ai.strafeDir = -ai.strafeDir;
       ai.stuckSince = 0;
       // Nudge sideways so the bot has a chance to unstick from the corner.
@@ -2377,7 +2431,8 @@ async function handle(socket: any, msg: C2S) {
           }
         }
       } else {
-        const pellets = weapon.stats.pellets ?? 1;
+        const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
+        const pellets = eff.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
           const dir = pellets > 1 ? normalize(add(msg.dir, randSpread(eff.spread))) : msg.dir;
           // A bullet first intersects cover. Damage destructible walls instead of
@@ -2393,6 +2448,9 @@ async function handle(socket: any, msg: C2S) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
             const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId);
+            if (incendiary && hit.victim.alive)
+              room.poison.set(hit.victim.id, { attackerId:socket.id, weaponId:msg.weaponId,
+                expiresAt:now+5000, tickAt:now+500, damagePerTick:4 });
             if (weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
               room.poison.set(hit.victim.id, { attackerId: socket.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });

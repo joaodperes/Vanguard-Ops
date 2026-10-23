@@ -37,6 +37,7 @@ export interface MatchResultInput {
   kills: number;
   deaths: number;
   headshots: number;
+  assists?: number;
   won: boolean;
   mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
   score: number;
@@ -372,7 +373,7 @@ export interface AwardResult {
   newPrestiges: string[];
   newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[];
   challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[];
-  challengeProgress: { id: string; kind: "daily" | "weekly" | "elite" | "weapon"; title: string; before: number; progress: number; goal: number; completed: boolean }[];
+  challengeProgress: { id: string; kind: "daily" | "weekly" | "elite" | "weapon"; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }[];
   bonusXp: number;
   bonusCredits: number;
 }
@@ -514,6 +515,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     killXp = input.kills * REWARDS.killXp + input.headshots * REWARDS.headshotXpBonus;
     killCredits = input.kills * REWARDS.killCredits + input.headshots * REWARDS.headshotCreditsBonus;
   }
+  // Team assists reward meaningful contributions without treating them as
+  // kills for win conditions, challenges or killstreak calculations.
+  const assists=Math.max(0,Math.min(200,Math.floor(input.assists??0)));
+  killXp += assists*REWARDS.assistXp;
+  killCredits += assists*REWARDS.assistCredits;
   // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
   // Wave-clear bonus compensates (see below).
   if (input.mode === "survival") {
@@ -611,7 +617,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
-      id: ch.id, kind: isElite ? "elite" : "daily", title: ch.title,
+      id: ch.id, kind: isElite ? "elite" : "daily", title: ch.title, description: ch.description,
       before: existing?.progress ?? 0, progress: newProgress, goal: ch.goal, completed: newProgress >= ch.goal,
     });
     if (existing) {
@@ -653,7 +659,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
-      id: ch.id, kind: isElite ? "elite" : "weekly", title: ch.title,
+      id: ch.id, kind: isElite ? "elite" : "weekly", title: ch.title, description: ch.description,
       before: existing?.progress ?? 0, progress: newProgress, goal: ch.goal, completed: newProgress >= ch.goal,
     });
     if (existing) {
@@ -838,7 +844,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         const nextState = weaponChallengeProgress(ch, { kills: weaponKills, headshots: weaponHeadshots, conditionStats: newContext });
         const previousState = weaponChallengeProgress(ch, { kills: wp?.kills ?? 0, headshots: wp?.headshots ?? 0, conditionStats: oldContext });
         if (nextState.progress > previousState.progress) challengeProgress.push({
-          id: ch.id, kind: "weapon", title: `${weaponById(wid).name} · ${ch.title}`,
+          id: ch.id, kind: "weapon", title: `${weaponById(wid).name} · ${ch.title}`, description: ch.description,
           before: previousState.progress, progress: nextState.progress, goal: nextState.goal,
           completed: nextState.completed,
         });
