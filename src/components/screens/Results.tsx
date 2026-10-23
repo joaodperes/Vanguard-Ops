@@ -34,6 +34,7 @@ export function Results() {
   const w = weaponById(r.weaponId ?? "rifle_ar");
   const kd = r.deaths === 0 ? r.kills.toFixed(2) : (r.kills / r.deaths).toFixed(2);
   const hsPct = r.kills > 0 ? Math.round((r.headshots / r.kills) * 100) : 0;
+  const isSurvival = playConfig.mode === "survival";
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-950 to-black">
@@ -59,25 +60,34 @@ export function Results() {
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {playConfig.mode === "survival" ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival` : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over
+            {isSurvival
+              ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
+              : `${playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
           </h1>
-          <p className="text-white/50 mt-2">
-            {playConfig.mode === "survival" ? `${r.survivalWaves ?? 0} waves cleared` : playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
-            {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
-          </p>
+          {!isSurvival && (
+            <p className="text-white/50 mt-2">
+              {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
+              {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
+            </p>
+          )}
         </div>
 
-        {playConfig.mode === "survival" && (
+        {isSurvival && (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
             <div className="text-amber-300 font-bold text-lg">
               {r.won ? "STANDARD SURVIVAL CONQUERED" : `WAVES CLEARED · ${r.survivalWaves ?? 0}`}
             </div>
-            <div className="text-white/50 text-xs mt-1">
-              {r.won ? "30-wave victory bonus awarded · Hard mode unlocked"
-                : r.survivalTier === "hard" && (r.survivalWaves ?? 0)>=20 ? "Elite unlocked"
-                : r.survivalTier === "elite" && (r.survivalWaves ?? 0)>=20 ? "Nightmare unlocked"
-                : "Your longest completed run is saved to your profile"}
+            {r.won && <div className="text-amber-200/80 text-sm mt-1">WAVES CLEARED · {r.survivalWaves ?? 0}</div>}
+            <div className="text-white/60 text-xs mt-2 inline-flex items-center justify-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Duration · {durationMin}:{durationSec.toString().padStart(2, "0")}
             </div>
+            {(r.won || (r.survivalTier === "hard" && (r.survivalWaves ?? 0) >= 20)
+              || (r.survivalTier === "elite" && (r.survivalWaves ?? 0) >= 20)) && (
+              <div className="text-white/50 text-xs mt-1">
+                {r.won ? "30-wave victory bonus awarded · Hard mode unlocked"
+                  : r.survivalTier === "hard" ? "Elite unlocked" : "Nightmare unlocked"}
+              </div>
+            )}
           </div>
         )}
 
