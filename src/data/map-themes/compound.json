@@ -2,15 +2,15 @@
   "biome": "jungle",
   "label": "Lush jungle ruins",
   "palette": {
-    "floor": "#566647",
-    "wall": "#475340",
-    "cover": "#849077",
+    "floor": "#738360",
+    "wall": "#657953",
+    "cover": "#a69e7d",
     "accent": "#b9cf77",
-    "platform": "#7b8b71",
-    "stair": "#9c9c7c",
+    "platform": "#86936f",
+    "stair": "#c0b38f",
     "sky": "#9cc3b6",
     "fog": "#9fb9a5",
-    "grid": "#53674a"
+    "grid": "#65875a"
   },
   "ambient": 1.65,
   "vegetation": 1,

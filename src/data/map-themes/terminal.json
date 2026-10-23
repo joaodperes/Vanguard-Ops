@@ -2,15 +2,15 @@
   "biome": "city_day",
   "label": "Afterlight day: the same urban building grammar under bright sunlight",
   "palette": {
-    "floor": "#a8b5a9",
-    "wall": "#d1c1a5",
-    "cover": "#bfa893",
+    "floor": "#c5c7b3",
+    "wall": "#d6c7a9",
+    "cover": "#a8bcba",
     "accent": "#32a6a0",
-    "platform": "#c7bdad",
-    "stair": "#d9d6c5",
+    "platform": "#afbdac",
+    "stair": "#e2d5b6",
     "sky": "#abd6ec",
     "fog": "#cbe0e6",
-    "grid": "#a1b6b3"
+    "grid": "#b7c8b5"
   },
   "ambient": 1.85,
   "vegetation": 0,

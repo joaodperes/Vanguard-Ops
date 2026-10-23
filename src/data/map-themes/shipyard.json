@@ -2,15 +2,15 @@
   "biome": "harbor",
   "label": "Golden-hour container wharf",
   "palette": {
-    "floor": "#7c7464",
-    "wall": "#426a7b",
-    "cover": "#c28855",
+    "floor": "#a58b6c",
+    "wall": "#527b89",
+    "cover": "#cb9468",
     "accent": "#ffd18d",
-    "platform": "#8c7156",
-    "stair": "#b7a080",
+    "platform": "#a38161",
+    "stair": "#c7ad82",
     "sky": "#99afc5",
     "fog": "#9aa9b5",
-    "grid": "#7d776d"
+    "grid": "#977e5e"
   },
   "ambient": 1.65,
   "vegetation": 0.06,

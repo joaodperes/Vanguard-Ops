@@ -2,15 +2,15 @@
   "biome": "bunker",
   "label": "Emergency-lit underground facility",
   "palette": {
-    "floor": "#594a43",
-    "wall": "#433633",
-    "cover": "#8a7061",
+    "floor": "#8c735f",
+    "wall": "#735950",
+    "cover": "#ae977e",
     "accent": "#ff6457",
-    "platform": "#746560",
-    "stair": "#9a8378",
+    "platform": "#947867",
+    "stair": "#c5ab8c",
     "sky": "#2e2424",
-    "fog": "#34292c",
-    "grid": "#5e4840"
+    "fog": "#4b3a34",
+    "grid": "#6f5147"
   },
   "ambient": 1.45,
   "vegetation": 0,

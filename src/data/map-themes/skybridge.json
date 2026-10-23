@@ -2,15 +2,15 @@
   "biome": "highlands",
   "label": "Wind-swept alpine ridge",
   "palette": {
-    "floor": "#88959a",
-    "wall": "#6e7f88",
-    "cover": "#88949a",
+    "floor": "#bdcdd2",
+    "wall": "#8ca0a7",
+    "cover": "#a6afb1",
     "accent": "#f0d68c",
-    "platform": "#aebabe",
-    "stair": "#b7c2c4",
+    "platform": "#b4c5c5",
+    "stair": "#c0ced0",
     "sky": "#bad9e9",
     "fog": "#aecbd8",
-    "grid": "#91a4af"
+    "grid": "#91aabb"
   },
   "ambient": 1.7,
   "vegetation": 0.66,
