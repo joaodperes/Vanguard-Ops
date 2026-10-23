@@ -21,7 +21,8 @@ export interface StudioTransform {
 }
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
-  mode:StudioMode;snap:number;
+  mode:StudioMode;snap:number;tool:string;
+  onAddAt:(tool:string,point:{x:number;z:number})=>void;
   onSelect:(selection:StudioSelection|null)=>void;
   onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
 }
@@ -40,7 +41,7 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,snap,onSelect,onTransform}:Props) {
+export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const runtime=useRef<Context|null>(null);
   const callbacks=useRef({selected,mode,snap,onSelect,onTransform});
@@ -329,8 +330,20 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,onSelect
     transform.showY=selected.type!=="region"&&selected.type!=="spawn";
   },[selected,mode,snap,map,theme,mapId]);
 
-  return <div ref={host} className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950"
-    aria-label="Interactive 3D map editor. Drag to orbit, right-drag to pan, scroll to zoom, WASD to fly and Q/E to change elevation." />;
+  return <div className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950">
+    <div ref={host} className="absolute inset-0"
+      aria-label="Interactive 3D map editor. Drag to orbit, right-drag to pan, scroll to zoom, WASD to fly and Q/E to change elevation."/>
+    {tool!=="select"&&<button className="absolute bottom-4 left-4 z-10 rounded-md bg-amber-500 px-4 py-2 text-sm font-bold text-black shadow-lg hover:bg-amber-400"
+      onClick={()=>{
+        const point=runtime.current?.orbit.target;
+        if(point)onAddAt(tool,{x:point.x,z:point.z});
+      }}>
+      Add {tool.replaceAll("_"," ")} at camera focus
+    </button>}
+    {selected?.type==="legacyCover"&&<div className="pointer-events-none absolute bottom-4 right-4 rounded bg-black/80 px-3 py-2 text-xs text-amber-200">
+      Existing engine geometry #{selected.index+1} — edit in Inspector or use a 3D gizmo
+    </div>}
+  </div>;
 }
 
 function disposeGroup(root:THREE.Group){
