@@ -304,6 +304,7 @@ export default function MapEditor() {
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
   const inherited=(getMap(mapId).environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
+  const inheritedStairs=getMap(mapId).cover.filter(o=>o.kind==="stair");
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
@@ -464,7 +465,7 @@ export default function MapEditor() {
             <rect x={-radius} y={-radius} width={radius*2} height={radius*2} fill="url(#mapgrid)"/>
             <path d={`M${-radius} 0 H${radius} M0 ${-radius} V${radius}`} stroke="#8191a3" strokeWidth=".4" strokeDasharray="4 3"/>
             {map.regions.map((r,i)=>{
-              const common={key:i,fill:"#15403d",fillOpacity:.43,
+              const common={key:i,fill:editorTab==="theme"?theme.palette.floor:"#15403d",fillOpacity:.43,
                 stroke:selected?.type==="region"&&selected.index===i?"#f59e0b":"#34d399",
                 strokeWidth:selected?.type==="region"&&selected.index===i?1.6:.65,
                 pointerEvents:(tool==="select"?"all":"stroke") as "all"|"stroke",
@@ -476,6 +477,11 @@ export default function MapEditor() {
                 <polygon {...common} points={`${r.x},${r.z-r.d/2} ${r.x-r.w/2},${r.z+r.d/2} ${r.x+r.w/2},${r.z+r.d/2}`}/>:
                 <rect {...common} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}/>;
             })}
+            {/* Pre-existing engine stairs are informative only: JSON export doesn't replace template geometry. */}
+            {inheritedStairs.map((step,i)=><rect key={"legacy-stair-"+i} pointerEvents="none"
+              x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
+              width={step.size[0]*2} height={step.size[2]*2}
+              fill="#fbbf24" fillOpacity=".10" stroke="#fbbf24" strokeOpacity=".28" strokeWidth=".2"/>)}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
               style={{cursor:tool==="select"?"move":"crosshair"}}>
               <rect x={f.kind==="stairs"&&f.axis==="x"?(f.sign===-1?f.x-f.d:f.x):f.x-f.w/2}
