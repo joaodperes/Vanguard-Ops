@@ -466,7 +466,7 @@ export default function MapEditor() {
                 ["stairs","Independent stairs",Layers3],["hazard","Place hazard",AlertTriangle],
                 ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
               ] as const)
-            ] as const).map(([key,label,Icon])=>
+            ] as readonly (readonly [Tool,string,typeof MousePointer2])[]).map(([key,label,Icon])=>
               <button key={key} onClick={()=>{setTool(key);setSelected(null);}} className={`rounded-lg p-2 border text-left text-xs flex items-center gap-1.5 ${tool===key?"bg-amber-500/15 border-amber-500 text-amber-200":"bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-300"}`}>
                 <Icon size={14}/>{label}
               </button>)}
