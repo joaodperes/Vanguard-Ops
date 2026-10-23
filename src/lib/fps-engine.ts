@@ -22,7 +22,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
-import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT } from "./turret-rules";
+import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
@@ -2716,7 +2716,7 @@ export class FPSEngine {
     this.scene.add(root);
     this.bulletSpitters.set(id, {
       ownerId, pos, yaw, expiresAt,
-      nextShotAt: Date.now() + 300, lastFiredAt: 0, hp:95,
+      nextShotAt: Date.now() + 300, lastFiredAt: 0, hp: TURRET_HP,
       mesh: root, yawPivot, barrelPivot, offline,
     });
   }
