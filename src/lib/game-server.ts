@@ -17,7 +17,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
-import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT } from "./turret-rules";
+import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -976,7 +976,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
   const expiresAt = now + TURRET_LIFETIME_MS;
   room.turrets.set(id, {
     ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
-    expiresAt, nextShotAt: now + 300, hp:95,
+    expiresAt, nextShotAt: now + 300, hp: TURRET_HP,
   });
   io.to(room.id).emit("message", {
     t: "turretPlaced", id, ownerId, pos, yaw: player.yaw, expiresAt,
