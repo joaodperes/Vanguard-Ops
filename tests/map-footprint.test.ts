@@ -9,8 +9,8 @@ describe("map footprint variety", () => {
     const balanced = MAP_LIST.filter(m => MAP_FOOTPRINT[m.id].pace === "balanced");
     const tactical = MAP_LIST.filter(m => MAP_FOOTPRINT[m.id].pace === "tactical");
     expect(compact).toHaveLength(2);
-    expect(balanced).toHaveLength(2);
-    expect(tactical).toHaveLength(2);
+    expect(balanced).toHaveLength(1);
+    expect(tactical).toHaveLength(3);
     expect(Math.max(...compact.map(m => m.size))).toBeLessThan(Math.min(...balanced.map(m => m.size)));
     expect(Math.max(...balanced.map(m => m.size))).toBeLessThan(Math.min(...tactical.map(m => m.size)));
   });

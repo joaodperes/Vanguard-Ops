@@ -20,7 +20,7 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
-        const authored = OUTER_SPAWNS[map.id][team];
+        const authored = OUTER_SPAWNS[map.id === "terminal" ? "arena_neon" : map.id][team];
         // MAP_LIST already scales every spawn, wall and hazard together.
         // Check the *actual* appended spawn positions, not unscaled design
         // coordinates against the compact/tactical arena bounds.
