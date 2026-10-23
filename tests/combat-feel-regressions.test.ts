@@ -73,7 +73,7 @@ describe("Bullet Spitter deployment", () => {
     expect(turret.wonder?.kind).toBe("turret");
     expect(turret.wonder?.maxCharges).toBe(1);
     expect(turret.stats.reloadTime).toBe(0);
-    expect(TURRET_LIFETIME_MS).toBe(25000);
+    expect(TURRET_LIFETIME_MS).toBe(45000);
   });
 
   test("plants ahead of the player and falls back before blocking cover", () => {
