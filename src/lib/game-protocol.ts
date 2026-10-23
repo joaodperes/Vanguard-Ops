@@ -177,6 +177,8 @@ export interface MapDef {
 
 // ===== MAP 1: COMPOUND — symmetric, central tower + corners, mid-cover =====
 const COMPOUND_COVER: CoverBox[] = [
+  {pos:[-7,1.5,34],size:[4,1.5,.5],kind:"cover"},
+  {pos:[7,1.5,34],size:[4,1.5,.5],kind:"cover"},
   // Central raised platform (top at y=2.5) — dominates map center
   { pos: [0, 1.25, 0], size: [4, 1.25, 4], kind: "platform" },
   // Stairs up to platform (south side, ascending north)
@@ -957,6 +959,8 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
     { id: "compound_spikes_south", type: "spikes", pos: [22, 0, 32], size: [1.8, .4, 1.8], damage: 29, period: 5.2, activeFor: 1.8 },
     // Breachable service gate, between the new concrete checkpoint walls.
     { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, -34], size: [2.8, 1.5, 0.45], hp: 180 },
+    { id:"compound_wall_south",type:"destructible_wall",pos:[0,1.5,34],size:[2.8,1.5,.45],hp:190 },
+    { id:"compound_spikes_quarry",type:"spikes",pos:[84,0,-3],size:[1.6,.4,1.6],damage:26,period:5.1,activeFor:1.5 },
   ],
   skybridge: [
     // Maintenance bay faults, on opposite sides of the elevated transit structure.

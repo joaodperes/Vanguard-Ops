@@ -1767,6 +1767,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // cover push-out and BEFORE the ground snap so the snap uses the
     // separated XZ position.
     separateBots(room, bot, bot.pos[1]);
+        bot.pos=collideBots(room,bot.pos,bot.pos[1]);
     // ---- Reaction delay (skill-scaled) ----
     const REACTION_MS = botReactionDelay(ai.difficulty);
     const reacted = now - ai.acquiredTargetAt >= REACTION_MS;
@@ -1918,6 +1919,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       bot.pos = collideBots(room, bot.pos, bot.pos[1]);
       // Task 16-a: soft bot-vs-bot separation (same as engage path).
       separateBots(room, bot, bot.pos[1]);
+        bot.pos=collideBots(room,bot.pos,bot.pos[1]);
 
     }
   }

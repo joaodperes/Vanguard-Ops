@@ -494,6 +494,7 @@ export class FPSEngine {
   private alive = true;
   private respawnAt = 0;
   private onGround = true;
+  private cameraFeetY: number | null = null;
   private lastGroundedAt = -Infinity;
   private lastJumpPressedAt = -Infinity;
   private wasJumpHeld = false;
@@ -4320,6 +4321,7 @@ export class FPSEngine {
   private respawnSelf() {
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
+    this.cameraFeetY=this.pos.y;
     this.vel.set(0, 0, 0);
     this.onGround = true;
     this.lastGroundedAt = -Infinity;
@@ -5867,7 +5869,10 @@ export class FPSEngine {
       this.respawnSelf();
     }
 
-    this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+    // Physics remains exact; ease only the first-person camera across stair risers.
+    if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
+    else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
+    this.camera.position.set(this.pos.x,this.cameraFeetY+EYE_HEIGHT,this.pos.z);
     // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
     // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
     // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
@@ -6393,6 +6398,7 @@ export class FPSEngine {
       // cover push-out and BEFORE the ground snap so the snap uses the
       // separated XZ position.
       this.separateBots(c, c.pos[1]);
+        c.pos=this.collideBots(c.pos,c.pos[1]);
       // ---- Reaction delay: skill-scaled ----
       // Easy bots take 500-900ms; veteran bots take 120-250ms. Gives the player a window.
       const REACTION_MS = botReactionDelay(ai.difficulty);
@@ -6557,6 +6563,7 @@ export class FPSEngine {
         c.pos = this.collideBots(c.pos, c.pos[1]);
         // Task 16-a: soft bot-vs-bot separation (same as engage path).
         this.separateBots(c, c.pos[1]);
+        c.pos=this.collideBots(c.pos,c.pos[1]);
 
       }
     }

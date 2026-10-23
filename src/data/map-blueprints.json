@@ -645,7 +645,7 @@
     "skybridge": {
       "name": "RIDGEFALL",
       "shortName": "HWF",
-      "description": "Vast alpine battleground: open rocky basins, snowy ridge overlooks and multiple close-range outcrops.",
+      "description": "Snowbound highland combat: contrasting radio installations, split alpine outlooks and exposed glacial flanks.",
       "pace": "tactical",
       "regions": [
         {
@@ -975,6 +975,76 @@
           "h": 2.2,
           "kind": "cover",
           "label": "supply cache"
+        },
+        {
+          "id": "radio-outpost-west",
+          "x": -145,
+          "z": -3,
+          "w": 13,
+          "d": 11,
+          "h": 5,
+          "kind": "platform",
+          "label": "West radio station"
+        },
+        {
+          "id": "radio-outpost-east",
+          "x": 149,
+          "z": -7,
+          "w": 13,
+          "d": 11,
+          "h": 5,
+          "kind": "platform",
+          "label": "East radio station"
+        },
+        {
+          "id": "ridge-moraine-west",
+          "x": -82,
+          "z": -13,
+          "w": 11,
+          "d": 5,
+          "h": 2.8,
+          "kind": "cover",
+          "label": "Glacial moraine"
+        },
+        {
+          "id": "ridge-moraine-east",
+          "x": 82,
+          "z": 13,
+          "w": 12,
+          "d": 5,
+          "h": 2.7,
+          "kind": "cover",
+          "label": "Glacial moraine"
+        },
+        {
+          "id": "alpine-supply-bunker",
+          "x": 12,
+          "z": 132,
+          "w": 13,
+          "d": 10,
+          "h": 4.5,
+          "kind": "platform",
+          "label": "High communications bunker"
+        },
+        {
+          "id": "snowfall-rock-01",
+          "x": 172,
+          "z": -13,
+          "w": 8,
+          "d": 7,
+          "h": 3,
+          "kind": "cover",
+          "label": "Snow rock"
+        },
+        {
+          "id": "snowfall-rock-02",
+          "x": -173,
+          "z": 15,
+          "w": 8,
+          "d": 7,
+          "h": 3,
+          "kind": "cover",
+          "label": "Snow rock"
         }
       ],
       "spawns": {
