@@ -14,7 +14,18 @@ export interface MapFeature extends MapRegion {
 export interface MapBlueprint {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
   regions: MapRegion[]; features: MapFeature[]; hazards?: MapHazard[];
+  /** Indexes refer to the stable engine-authored portion of the compiled map.
+   * Values are world-space box centers and full extents. */
+  legacyCoverOverrides?: Record<string,MapBoxOverride>;
+  legacyEnvironmentOverrides?: Record<string,MapBoxOverride>;
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
+}
+export interface MapBoxOverride {
+  x:number; y:number; z:number; w:number; h:number; d:number;
+}
+export function overrideBox<T extends {pos:Vec3;size:Vec3}>(box:T,edit?:MapBoxOverride):T {
+  if(!edit)return box;
+  return {...box,pos:[edit.x,edit.y,edit.z],size:[edit.w/2,edit.h/2,edit.d/2]} as T;
 }
 export interface MapHazard {
   id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
@@ -174,6 +185,17 @@ export function validateBlueprint(b: MapBlueprint): string[] {
       issues.push(`Hazard ${h.id} invalid spike timing/damage`);
     if(h.type==="destructible_wall"&&!(Number.isFinite(h.hp)&&h.hp!>0))issues.push(`Hazard ${h.id} needs HP > 0`);
     if(h.type==="moving_platform"&&!(Number.isFinite(h.period)&&h.period!>0))issues.push(`Hazard ${h.id} needs period > 0`);
+  }
+  for(const [name,overrides] of [
+    ["legacyCoverOverrides",b.legacyCoverOverrides],
+    ["legacyEnvironmentOverrides",b.legacyEnvironmentOverrides],
+  ] as const){
+    for(const [index,v] of Object.entries(overrides??{})){
+      if(!/^(0|[1-9][0-9]*)$/.test(index))
+        issues.push(`${name}: invalid index ${index}`);
+      if(!v || ![v.x,v.y,v.z,v.w,v.h,v.d].every(Number.isFinite) || v.w<=0||v.h<=0||v.d<=0)
+        issues.push(`${name}[${index}]: expected positive full extents and finite coordinates`);
+    }
   }
   for(const team of ["ffa","red","blue"] as const){
     if(!b.spawns?.[team]?.length)issues.push(`Missing ${team} spawns`);
