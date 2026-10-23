@@ -195,7 +195,7 @@ export default function MapEditor() {
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
   };
   const legacyFlight=(index:number)=>baseMap.editorLegacyStairFlights?.find(f=>f.start===index);
-  const effectiveLegacyCover=()=>baseMap.cover.map((box,i)=>
+  const effectiveLegacyCover=()=>(baseMap.editorLegacyCoverSource??baseMap.cover).map((box,i)=>
     overrideBox(box,map.legacyCoverOverrides?.[String(i)]));
   const legacyFlightBounds=(index:number)=>{
     const flight=legacyFlight(index);
