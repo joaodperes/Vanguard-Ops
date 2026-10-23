@@ -1760,8 +1760,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
-        const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
-        const pellets = eff.pellets ?? 1;
+      const pellets = eff.pellets ?? 1;
       let didHit = false;
       for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(eff.spread))) : dir;
@@ -2399,7 +2398,8 @@ async function handle(socket: any, msg: C2S) {
           }
         }
       } else {
-        const pellets = weapon.stats.pellets ?? 1;
+        const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
+        const pellets = eff.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
           const dir = pellets > 1 ? normalize(add(msg.dir, randSpread(eff.spread))) : msg.dir;
           // A bullet first intersects cover. Damage destructible walls instead of
