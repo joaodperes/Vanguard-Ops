@@ -161,7 +161,7 @@ export interface MapDef {
   shortName: string;
   description: string;
   size: number;          // broadphase half-extents; regions determine the playable footprint
-  regions?: import("./map-blueprints").MapRegion[]; // union of connected walkable rectangles
+  regions?: import("./map-blueprints").MapRegion[]; // union of rectangles, circles or triangles (stepped boundary collision)
   wallHeight: number;
   cover: CoverBox[];
   environment?: EnvironmentObject[];
