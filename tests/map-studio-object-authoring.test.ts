@@ -56,6 +56,15 @@ describe("Map Studio authored objects",()=>{
     expect(boxes[0].pos[1]+boxes[0].size[1]).toBeCloseTo(platform.h+wall.h);
     expect(snapCoverToPlatform(wall,[])).toBeNull();
   });
+  test("platform-top stairs reach elevated landings without overshooting",()=>{
+    const raised:MapFeature={...platform,y:4,h:3};
+    const snapped=nearestPlatformSnap({...stairs,y:0,h:1},[raised]);
+    expect(snapped?.y).toBe(0);
+    expect(snapped?.h).toBe(7);
+    expect(snapped?.d).toBeCloseTo(Math.ceil(7/.42)*.76);
+    const boxes=featureBoxes(snapped!);
+    expect(boxes.at(-1)!.pos[1]+boxes.at(-1)!.size[1]).toBeCloseTo(7);
+  });
   test("authored hazards convert to existing authoritative environment types",()=>{
     const fire=authoredHazardEnvironment({id:"heat",type:"fire",x:10,z:5,y:1,w:6,d:4,h:2,dps:9});
     expect(fire.type).toBe("fire");
