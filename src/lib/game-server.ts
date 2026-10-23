@@ -1164,10 +1164,21 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       killer: attacker?.name ?? "World", victim: victim.name, weapon: weaponId, headshot: head,
       killerTeam: attacker?.team ?? "ffa", victimTeam: victim.team,
       botDifficulty: killDiff,
+      attachments:(()=>{
+        const kit=room.loadouts.get(attackerId);
+        const sel=kit && weaponId===kit.weaponId ? kit.attachments
+          :kit && weaponId===kit.secondaryWeaponId ? kit.secondaryAttachments
+          :kit && weaponId===kit.meleeWeaponId ? kit.meleeAttachments : undefined;
+        return sel?Object.values(sel).filter((x):x is string=>!!x):[];
+      })(),
     };
     io.to(room.id).emit("message", { t: "kill", entry } as S2C);
     if (room.mode === "survival") {
       if (!victim.isBot) {
+        // Solo runs end on death rather than showing a co-op rescue state.
+        const hasRescuer=[...room.players.values()].some(p=>
+          p.id!==victim.id&&!p.isBot&&p.alive&&!room.downed.has(p.id));
+        if(!hasRescuer){endMatch(room);return;}
         room.downed.add(victim.id);
         // Downed players can only shoot the secondary, cannot move or
         // take further damage; every-operative-downed ends the match.

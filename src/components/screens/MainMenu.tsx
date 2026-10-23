@@ -154,7 +154,7 @@ export function MainMenu() {
               </Button>
             </div>
             {/* weapon preview thumbnail */}
-            <div className="relative h-20 rounded-xl mb-3 overflow-hidden border border-white/10 flex items-center justify-center"
+            <div className="relative h-24 rounded-xl mb-3 overflow-hidden border border-white/10 flex items-center justify-center"
               style={{ background: `linear-gradient(135deg, ${equipped?.weaponSkin.color ?? "#2b2f36"}, ${equipped?.weaponSkin.emissive ?? "#0a0a0a"})` }}>
               {equipped?.weaponSkin.emissive && <div className="absolute inset-0" style={{ boxShadow: `inset 0 0 30px ${equipped.weaponSkin.emissive}` }} />}
               <div className="absolute left-2 top-2 text-[10px] uppercase tracking-wider text-white/50 font-mono">{equippedWeapon.category}</div>
@@ -163,7 +163,7 @@ export function MainMenu() {
               </div>
               {/* weapon silhouette */}
               <div className="w-32 h-2.5 rounded-sm" style={{ background: equipped?.weaponSkin.color ?? "#2b2f36", boxShadow: equipped?.weaponSkin.emissive ? `0 0 16px ${equipped.weaponSkin.emissive}` : "none" }} />
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/80 font-bold text-sm tracking-wider drop-shadow">
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/90 font-bold text-xs sm:text-sm tracking-wide drop-shadow-lg text-center leading-snug max-w-[88%] w-max px-3 py-2 rounded-md border border-white/20 bg-black/75 break-words">
                 {equippedWeapon.name}
               </div>
             </div>

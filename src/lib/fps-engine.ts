@@ -136,6 +136,7 @@ export interface HudState {
   timeLeft: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
+  lastDeath?: { killer:string; weaponId:string; attachments:string[] };
   lastElimination?: { at: number; victim: string; headshot: boolean };
   hitMarker: number;     // timestamp of last hit
   headshotMarker?: number;  // Round 20g: timestamp of last headshot hit (distinct visual)
@@ -747,6 +748,7 @@ export class FPSEngine {
   private survivalReinforcements = 0;
   private survivalMaxReinforcements = 0;
   private survivalDowned = false;
+  private lastDeath: HudState["lastDeath"];
   private survivalPrepLeft = 0;
   private survivalWaveActive = false;
   // Round 18-b: wave banner — set to performance.now() when a wave starts.
@@ -3830,6 +3832,9 @@ export class FPSEngine {
         break;
       }
       case "kill": {
+        if(msg.entry.victim===this.opts.playerName)
+          this.lastDeath={killer:msg.entry.killer,weaponId:msg.entry.weapon,
+            attachments:msg.entry.attachments??[]};
         this.killFeed.unshift(msg.entry);
         if (this.killFeed.length > 6) this.killFeed.pop();
         this.opts.onKillFeed(msg.entry);
@@ -3846,7 +3851,7 @@ export class FPSEngine {
       case "respawn":
         if (msg.playerId === this.selfId) {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
-          this.health = msg.health; this.alive = true; this.respawnAt = 0;
+          this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
           this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
@@ -6756,6 +6761,7 @@ export class FPSEngine {
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(this.selfId, this.opts.team as string, [this.pos.x, this.pos.y, this.pos.z]);
       // Local player death SFX.
       this.sound.play("death", { volume: 0.8 });
+      this.lastDeath={killer:attackerName,weaponId,attachments:[]};
       const entry: KillFeedEntry = { killer: attackerName, victim: this.opts.playerName, weapon: weaponId, headshot: head, killerTeam: attackerTeam, victimTeam: this.opts.team as string };
       this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
       this.opts.onKillFeed(entry);
@@ -6826,6 +6832,7 @@ export class FPSEngine {
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
       scoreboard,
       killFeed: this.killFeed,
+      lastDeath: this.lastDeath,
       lastElimination: this.lastElimination,
       hitMarker: this.hitMarkerAt,
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker

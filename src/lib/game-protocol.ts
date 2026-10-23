@@ -1270,6 +1270,7 @@ export interface KillConfirmedTag {
 export interface KillFeedEntry {
   killer: string; victim: string; weapon: string; headshot: boolean; killerTeam: string; victimTeam: string;
   botDifficulty?: KillDifficulty;
+  attachments?: string[];
 }
 
 export interface SnapshotPlayer {

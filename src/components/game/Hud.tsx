@@ -556,6 +556,18 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {!hud.alive && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
           <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
+          {hud.lastDeath && (
+            <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
+              <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
+              <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
+              <div className="text-amber-200 text-sm">{hud.lastDeath.weaponId.startsWith("hazard_")
+                ? hud.lastDeath.weaponId.replace("hazard_","Environment: ").replaceAll("_"," ")
+                : weaponById(hud.lastDeath.weaponId).name}</div>
+              {hud.lastDeath.attachments.length>0 && <div className="text-white/60 text-xs mt-1">
+                {hud.lastDeath.attachments.join(" · ")}
+              </div>}
+            </div>
+          )}
           {mode === "survival" ? (
             <div className="text-white/70 text-lg">Survival run ended</div>
           ) : (
@@ -876,6 +888,7 @@ function ScopeOrCrosshair({
   // Show the scope overlay only when meaningfully ADS (>0.5) AND the setting is on.
   // The dedicated `scoped` flag also triggers it for snipers with non-scope sights.
   const showScope = scopeOverlay && (isMagnified || isSniperScoped) && adsP > 0.5;
+  const hasReflex = sightType === "red_dot" || sightType === "holo";
   // Reticle color per sight type. Snipers (scoped flag) use the dark sniper crosshair.
   const reticleColor =
     sightType === "thermal" ? "#ffb347" :
@@ -901,6 +914,21 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
+          {/* A recognizable sight housing in ADS instead of an unmodified crosshair. */}
+          {hasReflex && adsP > .3 && (
+            <div className="absolute rounded-full border-2"
+              style={{width:sightType==="holo"?92:62,height:sightType==="holo"?80:62,
+                transform:"translate(-50%,-50%)",opacity:Math.min(1,(adsP-.3)*2),
+                borderColor:sightType==="holo"?"rgba(166,223,205,.58)":"rgba(169,182,185,.55)",
+                background:"radial-gradient(circle,rgba(80,150,130,.045),rgba(4,17,22,.14))",
+                boxShadow:"0 0 0 6px rgba(18,24,29,.75), inset 0 0 7px rgba(175,230,228,.2)"}}
+            />
+          )}
+          {hasReflex && sightType==="holo" && adsP>.3 && (
+            <div className="absolute rounded-full border pointer-events-none"
+              style={{width:29,height:29,transform:"translate(-50%,-50%)",
+                borderColor:reticleColor,opacity:Math.min(.7,(adsP-.3)*1.4)}}/>
+          )}
           {/* For red_dot/holo/laser, render a single dot in the reticle color instead of the crosshair */}
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
             <div className="absolute rounded-full"
@@ -961,7 +989,7 @@ function ScopeOrCrosshair({
               {/* ACOG: vertical line top + chevron at center + stadia lines */}
               <line x1="0" y1="-90" x2="0" y2="-12" stroke={reticleColor} strokeWidth="0.6" />
               <line x1="0" y1="6" x2="0" y2="90" stroke={reticleColor} strokeWidth="0.6" />
-              <polygon points="-8,4 8,4 0,-8" fill={reticleColor} />
+              <path d="M-3,1 L0,-3 L3,1" fill="none" stroke={reticleColor} strokeWidth="0.75" strokeLinecap="round" strokeLinejoin="round"/>
               <line x1="-30" y1="0" x2="-15" y2="0" stroke={reticleColor} strokeWidth="0.4" />
               <line x1="15" y1="0" x2="30" y2="0" stroke={reticleColor} strokeWidth="0.4" />
             </>
