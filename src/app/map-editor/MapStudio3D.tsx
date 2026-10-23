@@ -279,7 +279,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>
         createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62));
     }
-    const base=getMap(mapId);
+    const compiled=getMap(mapId);
+    const base=compiled.id===mapId?compiled:getMap(map.templateMapId);
     for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
       const original=base.cover[i];
       if(!original)continue;
