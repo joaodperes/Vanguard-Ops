@@ -49,6 +49,10 @@ export default function MapEditor() {
   const drag=useRef<Drag|null>(null);
   const history=useRef<BlueprintDoc[]>([]);
   const map=doc.maps[mapId];
+  // A newly authored map does not enter the compiled runtime registry until
+  // export and rebuild; preview its chosen template rather than always compound.
+  const compiledMap=getMap(mapId);
+  const baseMap=compiledMap.id===mapId?compiledMap:getMap(map?.templateMapId);
   const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
   const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
     ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
@@ -194,7 +198,7 @@ export default function MapEditor() {
     const sel=selected;
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
-      const base=getMap(mapId);
+      const base=baseMap;
       const source=sel.type==="legacyCover"?base.cover[sel.index]:base.environment?.[sel.index];
       if(!source)return;
       const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
@@ -298,7 +302,6 @@ export default function MapEditor() {
     }catch(err){setStatus("Import failed: "+(err instanceof Error?err.message:String(err)));}
     e.target.value="";
   };
-  const baseMap=getMap(mapId);
   const legacyObject=(sel:Selection)=>{
     const source=sel.type==="legacyCover"?baseMap.cover[sel.index]:baseMap.environment?.[sel.index];
     if(!source)return null;
@@ -415,8 +418,8 @@ export default function MapEditor() {
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
-  const inherited=(getMap(mapId).environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
-  const inheritedStairs=getMap(mapId).cover.filter(o=>o.kind==="stair");
+  const inherited=(baseMap.environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
+  const inheritedStairs=baseMap.cover.filter(o=>o.kind==="stair");
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
