@@ -124,6 +124,11 @@ export default function MapEditor() {
     const p=getPoint(e),d=drag.current;
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
+    if(sel.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
+        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
+      return;
+    }
     update(m=>{
       if(sel.type==="region")return {...m,regions:m.regions.map((r,i)=>i===sel.index?
         {...r,x:(source as MapRegion).x+dx,z:(source as MapRegion).z+dz}:r)};
@@ -131,8 +136,6 @@ export default function MapEditor() {
         {...f,x:(source as MapFeature).x+dx,z:(source as MapFeature).z+dz}:f)};
       if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
         {...h,x:(source as MapHazard).x+dx,z:(source as MapHazard).z+dz}:h)};
-      if(sel.type==="prop"){updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
-        {...p,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:p)}));return m;}
       const team=sel.team!;
       return {...m,spawns:{...m.spawns,[team]:m.spawns[team].map((v,i)=>i===sel.index?
         [((source as number[])[0])+dx,(source as number[])[1],((source as number[])[2])+dz] as [number,number,number]:v)}};
@@ -186,6 +189,11 @@ export default function MapEditor() {
     if(!selected)return;
     pushUndo();
     const sel=selected;
+    if(sel.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
+        {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
+      return;
+    }
     update(m=>{
       if(sel.type==="region"){
         return {...m,regions:m.regions.map((r,i)=>i===sel.index?
@@ -197,11 +205,6 @@ export default function MapEditor() {
       }
       if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
         {...h,[key]:["id","type"].includes(key)?value:Number(value)}:h)};
-      if(sel.type==="prop"){
-        updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
-          {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
-        return m;
-      }
       const t=sel.team!,axis=Number(key);
       return {...m,spawns:{...m.spawns,[t]:m.spawns[t].map((r,i)=>i===sel.index?
         r.map((v,j)=>j===axis?Number(value):v) as [number,number,number]:r)}};
@@ -210,10 +213,13 @@ export default function MapEditor() {
   const remove=()=>{
     if(!selected)return;pushUndo();
     const s=selected;
+    if(s.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)}));
+      setSelected(null);return;
+    }
     update(m=>s.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==s.index)}:
       s.type==="feature"?{...m,features:m.features.filter((_,i)=>i!==s.index)}:
       s.type==="hazard"?{...m,hazards:(m.hazards??[]).filter((_,i)=>i!==s.index)}:
-      s.type==="prop"?(updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)})),m):
       {...m,spawns:{...m.spawns,[s.team!]:m.spawns[s.team!].filter((_,i)=>i!==s.index)}});
     setSelected(null);
   };
@@ -439,7 +445,7 @@ export default function MapEditor() {
       <main className="p-3 md:p-5 overflow-hidden">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div><h1 className="text-xl font-bold">{map.name}</h1>
-            <p className="text-xs text-zinc-500">{map.regions.length} regions · {map.features.length} features · {Object.values(map.spawns).flat().length} spawn points</p></div>
+            <p className="text-xs text-zinc-500">{map.regions.length} regions · {map.features.length} features · {uiHazards.length} hazards · {theme.props.length} props · {Object.values(map.spawns).flat().length} spawn points</p></div>
           <label className="text-xs text-zinc-400 flex items-center gap-2">Zoom
             <input aria-label="Zoom" type="range" min="55" max="180" step="5" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>
             <span className="tabular-nums w-10">{zoom}%</span></label>
@@ -454,19 +460,47 @@ export default function MapEditor() {
             </pattern></defs>
             <rect x={-radius} y={-radius} width={radius*2} height={radius*2} fill="url(#mapgrid)"/>
             <path d={`M${-radius} 0 H${radius} M0 ${-radius} V${radius}`} stroke="#8191a3" strokeWidth=".4" strokeDasharray="4 3"/>
-            {map.regions.map((r,i)=><rect key={i} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}
-              fill="#15403d" fillOpacity=".43" stroke={selected?.type==="region"&&selected.index===i?"#f59e0b":"#34d399"}
-              strokeWidth={selected?.type==="region"&&selected.index===i?1.6:0.65} pointerEvents={tool==="select"?"all":"stroke"}
-              style={{cursor:tool==="select"?"move":"crosshair"}}
-              onPointerDown={e=>beginMove(e,{type:"region",index:i})}/>)}
+            {map.regions.map((r,i)=>{
+              const common={key:i,fill:"#15403d",fillOpacity:.43,
+                stroke:selected?.type==="region"&&selected.index===i?"#f59e0b":"#34d399",
+                strokeWidth:selected?.type==="region"&&selected.index===i?1.6:.65,
+                pointerEvents:(tool==="select"?"all":"stroke") as "all"|"stroke",
+                style:{cursor:tool==="select"?"move":"crosshair"},
+                onPointerDown:(e:React.PointerEvent<SVGElement>)=>beginMove(e,{type:"region",index:i})};
+              return r.shape==="circle"?
+                <ellipse {...common} cx={r.x} cy={r.z} rx={r.w/2} ry={r.d/2}/>:
+                r.shape==="triangle"?
+                <polygon {...common} points={`${r.x},${r.z-r.d/2} ${r.x-r.w/2},${r.z+r.d/2} ${r.x+r.w/2},${r.z+r.d/2}`}/>:
+                <rect {...common} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}/>;
+            })}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
               style={{cursor:tool==="select"?"move":"crosshair"}}>
-              <rect x={f.x-f.w/2} y={f.z-f.d/2} width={f.w} height={f.d}
-                fill={f.kind==="platform"?"#cb8b47":f.kind==="accent"?"#a855f7":"#64748b"}
+              <rect x={f.kind==="stairs"&&f.axis==="x"?(f.sign===-1?f.x-f.d:f.x):f.x-f.w/2}
+                y={f.kind==="stairs"&&f.axis!=="x"?(f.sign===-1?f.z-f.d:f.z):f.z-(f.kind==="stairs"?f.w:f.d)/2}
+                width={f.kind==="stairs"&&f.axis==="x"?f.d:f.w}
+                height={f.kind==="stairs"&&f.axis!=="x"?f.d:(f.kind==="stairs"?f.w:f.d)}
+                fill={f.kind==="platform"?"#cb8b47":f.kind==="stairs"?"#f59e0b":f.kind==="accent"?"#a855f7":"#64748b"}
                 stroke={selected?.type==="feature"&&selected.index===i?"#fef08a":"#d1d5db"}
                 strokeWidth={selected?.type==="feature"&&selected.index===i?1.5:0.5} rx=".45"/>
-              {f.kind==="platform"&&<><rect x={f.x-2} y={f.z+f.d/2} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/>
+              {f.kind==="platform"&&f.autoStairs!==false&&<><rect x={f.x-2} y={f.z+f.d/2} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/>
                 <rect x={f.x-2} y={f.z-f.d/2-Math.ceil(f.h/.42)*.76} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/></>}
+            </g>)}
+            {inherited.map((h,i)=><rect key={"inherited-"+i} pointerEvents="none" x={h.pos[0]-h.size[0]} y={h.pos[2]-h.size[2]}
+              width={h.size[0]*2} height={h.size[2]*2} fill="#a855f7" fillOpacity=".10"
+              stroke="#e879f9" strokeDasharray="2 2" strokeWidth=".5"/>)}
+            {uiHazards.map((h,i)=><g key={h.id||i} onPointerDown={e=>beginMove(e,{type:"hazard",index:i})}>
+              <rect x={h.x-h.w/2} y={h.z-h.d/2} width={h.w} height={h.d} rx=".5"
+                fill={h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":h.type==="jump_pad"?"#38bdf8":"#f97316"}
+                fillOpacity=".35" stroke={selected?.type==="hazard"&&selected.index===i?"#fef08a":"#fda4af"}
+                strokeWidth={selected?.type==="hazard"&&selected.index===i?1.5:.5}/>
+              <text x={h.x} y={h.z} textAnchor="middle" fill="#fff" fontSize="5" pointerEvents="none">{h.type.replaceAll("_"," ")}</text>
+            </g>)}
+            {theme.props.map((p,i)=><g key={"prop-"+i} onPointerDown={e=>beginMove(e,{type:"prop",index:i})}>
+              <circle cx={p.x} cy={p.z} r={Math.max(2,Math.min(8,(p.w??5)/2))}
+                fill={p.color??theme.palette.accent} fillOpacity=".32"
+                stroke={selected?.type==="prop"&&selected.index===i?"#fef08a":theme.palette.accent}
+                strokeWidth=".7"/>
+              <text x={p.x} y={p.z-4} fill="#fff" textAnchor="middle" fontSize="3.6" pointerEvents="none">{p.kind}</text>
             </g>)}
             {(["ffa","red","blue"] as Team[]).flatMap(team=>map.spawns[team].map((p,i)=>
               <g key={team+i} transform={`translate(${p[0]} ${p[2]})`}
@@ -477,8 +511,12 @@ export default function MapEditor() {
                 {selected?.type==="spawn"&&selected.team===team&&selected.index===i&&<circle r="5" fill="none" stroke="#fef08a" strokeWidth=".8"/>}
               </g>))}
             {shape&&tool!=="select"&&!["ffa","blue","red"].includes(tool)&&
+              (tool==="circle"?<ellipse cx={shape.x} cy={shape.z} rx={shape.w/2} ry={shape.d/2}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
+              tool==="triangle"?<polygon points={`${shape.x},${shape.z-shape.d/2} ${shape.x-shape.w/2},${shape.z+shape.d/2} ${shape.x+shape.w/2},${shape.z+shape.d/2}`}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
               <rect x={shape.x-shape.w/2} y={shape.z-shape.d/2} width={shape.w} height={shape.d}
-                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="3 2" pointerEvents="none"/>}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="3 2" pointerEvents="none"/> )}
             <text x={-radius+7} y={-radius+12} fill="#9ca3af" fontSize="7">N ↑</text>
             <text x={radius-5} y={radius-6} fill="#64748b" fontSize="5" textAnchor="end">X → / Z ↓ · 10u grid</text>
           </svg>
