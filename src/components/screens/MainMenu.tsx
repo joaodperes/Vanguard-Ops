@@ -70,7 +70,6 @@ export function MainMenu() {
             </Button>
             <NavBtn onClick={() => setScreen("armory")} icon={<Backpack className="w-4 h-4" />} label="Armory" />
             <NavBtn onClick={() => setScreen("profile")} icon={<Trophy className="w-4 h-4" />} label="Profile" />
-            <a href="/map-editor" className="hidden lg:inline-flex items-center px-2.5 py-1.5 rounded-lg border border-white/10 bg-black/20 hover:bg-white/10 text-white/70 text-xs font-semibold" title="Author and export playable JSON maps">Map Studio</a>
             <NavBtn onClick={() => setScreen("faq")} icon={<BookOpen className="w-4 h-4" />} label="Guide" />
             <NavBtn onClick={() => setScreen("settings")} icon={<Sparkles className="w-4 h-4" />} label="Settings" />
             {/* account indicator + sign out */}
