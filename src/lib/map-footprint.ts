@@ -96,6 +96,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
+    editorLegacyCoverSource:legacyCoverSource,
     editorLegacyStairFlights,
     editorLegacyEnvironmentCount:legacyEnvironment.length,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
