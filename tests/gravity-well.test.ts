@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS,
-  gravityTravelMs, gravityPullOffset, gravityBlastDamage,
+  gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityClientTime,
 } from "../src/lib/gravity-well";
 
 describe("Event Horizon timing", () => {
@@ -10,6 +10,19 @@ describe("Event Horizon timing", () => {
     expect(gravityTravelMs(50)).toBe(450);
     expect(gravityTravelMs(200)).toBe(900);
     expect(GRAVITY_WELL_DURATION_MS).toBe(2800);
+  });
+});
+
+describe("Event Horizon network clock synchronization",()=>{
+  test("preserves the full pull window when the client clock is ahead or behind",()=>{
+    const sent=1_500_000,clientNow=sent+65_000;
+    const starts=sent+450,expires=starts+GRAVITY_WELL_DURATION_MS;
+    const localStart=gravityClientTime(starts,sent,clientNow);
+    const localEnd=gravityClientTime(expires,sent,clientNow);
+    expect(localStart-clientNow).toBe(450);
+    expect(localEnd-localStart).toBe(2800);
+    const behind=sent-28_000;
+    expect(gravityClientTime(starts,sent,behind)-behind).toBe(450);
   });
 });
 
