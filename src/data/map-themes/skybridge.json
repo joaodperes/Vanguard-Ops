@@ -1,238 +1,278 @@
 {
-  "biome": "highlands",
-  "label": "Snowbound communications ridge, glacial rock basin and remote radio outposts",
+  "biome": "factory_interior",
+  "label": "Ridgefall steelworks — enclosed industrial assembly hall, foundries, gantries and maintenance bays",
   "palette": {
-    "floor": "#d1dadb",
-    "wall": "#7c919d",
-    "cover": "#929fa6",
-    "accent": "#f0d68c",
-    "platform": "#b4c5c5",
-    "stair": "#c0ced0",
-    "sky": "#bad9e9",
-    "fog": "#aecbd8",
-    "grid": "#91aabb"
+    "floor": "#424a4f",
+    "wall": "#5b6870",
+    "cover": "#8b989e",
+    "accent": "#f9b04b",
+    "platform": "#697b87",
+    "stair": "#a6adb2",
+    "sky": "#1c242d",
+    "fog": "#253038",
+    "grid": "#53616a"
   },
-  "ambient": 1.7,
-  "vegetation": 0.66,
+  "ambient": 1.32,
+  "vegetation": 0,
   "props": [
     {
-      "kind": "rock",
-      "x": -163,
-      "z": 12,
-      "w": 12,
-      "d": 9,
-      "h": 6
+      "kind": "lamp",
+      "x": -58,
+      "z": -44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "rock",
-      "x": 152,
-      "z": 46,
-      "w": 13,
-      "d": 8,
-      "h": 5
+      "kind": "lamp",
+      "x": 58,
+      "z": -44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "tree",
-      "x": -111,
-      "z": -49,
-      "h": 14
+      "kind": "lamp",
+      "x": -58,
+      "z": 44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "tree",
-      "x": 118,
-      "z": 34,
-      "h": 12
+      "kind": "lamp",
+      "x": 58,
+      "z": 44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "antenna",
-      "x": 158,
-      "z": -87,
-      "h": 12
+      "kind": "lamp",
+      "x": -109,
+      "z": -44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "rock",
-      "x": -147,
-      "z": -42,
-      "w": 9,
-      "d": 8,
-      "h": 4
+      "kind": "lamp",
+      "x": 109,
+      "z": 44,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "rock",
-      "x": 159,
-      "z": 48,
-      "w": 12,
-      "d": 10,
-      "h": 6
+      "kind": "lamp",
+      "x": 0,
+      "z": -97,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "rock",
-      "x": 127,
-      "z": -48,
-      "w": 9,
-      "d": 9,
-      "h": 4
+      "kind": "lamp",
+      "x": 0,
+      "z": 98,
+      "w": 1.5,
+      "d": 1.5,
+      "h": 10,
+      "color": "#ffd282"
     },
     {
-      "kind": "rock",
-      "x": -91,
-      "z": 43,
-      "w": 10,
-      "d": 8,
-      "h": 4.5
+      "kind": "crane",
+      "x": 0,
+      "z": -38,
+      "w": 18,
+      "d": 14,
+      "h": 15,
+      "color": "#e8a23b"
     },
     {
-      "kind": "tree",
-      "x": -168,
-      "z": 26,
-      "h": 17
-    },
-    {
-      "kind": "tree",
-      "x": -134,
-      "z": 47,
-      "h": 15
-    },
-    {
-      "kind": "tree",
-      "x": 143,
-      "z": 14,
-      "h": 14
-    },
-    {
-      "kind": "tree",
-      "x": 177,
-      "z": -62,
-      "h": 16
-    },
-    {
-      "kind": "tree",
-      "x": 44,
-      "z": 128,
-      "h": 16
-    },
-    {
-      "kind": "tree",
-      "x": -96,
-      "z": 74,
-      "h": 18
-    },
-    {
-      "kind": "rock",
-      "x": 36,
-      "z": 113,
-      "w": 10,
-      "d": 10,
-      "h": 4
-    },
-    {
-      "kind": "rock",
-      "x": -125,
-      "z": 8,
-      "w": 8,
-      "d": 8,
-      "h": 4
-    },
-    {
-      "kind": "container",
-      "x": -111,
-      "z": -18,
-      "w": 10,
-      "d": 6,
-      "h": 3.5,
-      "color": "#6e98af"
-    },
-    {
-      "kind": "container",
-      "x": 114,
-      "z": -15,
-      "w": 11,
-      "d": 6,
-      "h": 3.5,
-      "color": "#b9b8a5"
-    },
-    {
-      "kind": "antenna",
-      "x": -179,
-      "z": 84,
-      "h": 19
-    },
-    {
-      "kind": "antenna",
-      "x": 179,
-      "z": -96,
-      "h": 17
-    },
-    {
-      "kind": "rock",
-      "x": -161,
-      "z": -2,
+      "kind": "crane",
+      "x": -87,
+      "z": 3,
       "w": 16,
-      "d": 10,
-      "h": 7
+      "d": 13,
+      "h": 14,
+      "color": "#e7ab50"
+    },
+    {
+      "kind": "crane",
+      "x": 88,
+      "z": 3,
+      "w": 16,
+      "d": 13,
+      "h": 14,
+      "color": "#e7ab50"
+    },
+    {
+      "kind": "terminal",
+      "x": -65,
+      "z": 22,
+      "w": 3,
+      "d": 2.5,
+      "h": 2.4,
+      "color": "#50bed4",
+      "text": "FURNACE CONTROL"
+    },
+    {
+      "kind": "terminal",
+      "x": 64,
+      "z": -15,
+      "w": 3,
+      "d": 2.5,
+      "h": 2.4,
+      "color": "#50bed4",
+      "text": "LOADOUT CONTROL"
+    },
+    {
+      "kind": "terminal",
+      "x": 0,
+      "z": -82,
+      "w": 3,
+      "d": 2.5,
+      "h": 2.4,
+      "color": "#50bed4",
+      "text": "SHIPMENT MONITOR"
+    },
+    {
+      "kind": "container",
+      "x": -110,
+      "z": -22,
+      "w": 9,
+      "d": 6,
+      "h": 4,
+      "color": "#ac583b"
+    },
+    {
+      "kind": "container",
+      "x": -102,
+      "z": 23,
+      "w": 8,
+      "d": 6,
+      "h": 3.5,
+      "color": "#8bafba"
+    },
+    {
+      "kind": "container",
+      "x": 113,
+      "z": 31,
+      "w": 8,
+      "d": 6,
+      "h": 3.5,
+      "color": "#ba883f"
+    },
+    {
+      "kind": "container",
+      "x": 87,
+      "z": -42,
+      "w": 7,
+      "d": 6,
+      "h": 3.5,
+      "color": "#677b89"
+    },
+    {
+      "kind": "container",
+      "x": -40,
+      "z": 105,
+      "w": 9,
+      "d": 6,
+      "h": 3.6,
+      "color": "#667b8d"
+    },
+    {
+      "kind": "container",
+      "x": 42,
+      "z": 106,
+      "w": 9,
+      "d": 6,
+      "h": 3.6,
+      "color": "#ba723f"
     },
     {
       "kind": "rock",
-      "x": 152,
-      "z": -35,
-      "w": 15,
-      "d": 11,
-      "h": 8
+      "x": -115,
+      "z": 35,
+      "w": 3,
+      "d": 3,
+      "h": 1.7,
+      "color": "#616f76"
     },
     {
-      "kind": "rock",
-      "x": -119,
-      "z": 61,
+      "kind": "sign",
+      "x": 0,
+      "z": -113,
+      "w": 16,
+      "d": 1,
+      "h": 3,
+      "color": "#ffb34b",
+      "text": "RIDGEFALL STEELWORKS"
+    },
+    {
+      "kind": "sign",
+      "x": 0,
+      "z": 109,
       "w": 13,
-      "d": 8,
-      "h": 5
+      "d": 1,
+      "h": 3,
+      "color": "#fca44a",
+      "text": "MAINTENANCE / BAY 4"
     },
     {
-      "kind": "tree",
-      "x": -63,
-      "z": 133,
-      "h": 17
+      "kind": "sign",
+      "x": -92,
+      "z": -42,
+      "w": 11,
+      "d": 1,
+      "h": 3,
+      "color": "#fca44a",
+      "text": "FURNACE HALL"
     },
     {
-      "kind": "tree",
-      "x": 44,
-      "z": 149,
-      "h": 16
-    },
-    {
-      "kind": "rock",
-      "x": 47,
-      "z": 87,
-      "w": 12,
-      "d": 8,
-      "h": 5
+      "kind": "sign",
+      "x": 92,
+      "z": -43,
+      "w": 11,
+      "d": 1,
+      "h": 3,
+      "color": "#fca44a",
+      "text": "LOADING ZONE"
     }
   ],
   "surfaces": {
     "floor": {
-      "pattern": "snow",
-      "tileSize": 9,
-      "roughness": 0.98
+      "pattern": "concrete",
+      "tileSize": 7,
+      "roughness": 0.92
     },
     "wall": {
-      "pattern": "stone",
-      "tileSize": 5.5,
-      "roughness": 0.95
+      "pattern": "metal",
+      "tileSize": 6,
+      "roughness": 0.78
     },
     "cover": {
-      "pattern": "stone",
-      "tileSize": 5,
-      "roughness": 0.95
+      "pattern": "rust",
+      "tileSize": 3.5,
+      "roughness": 0.84
     },
     "stair": {
-      "pattern": "metal",
+      "pattern": "grate",
       "tileSize": 3,
-      "roughness": 0.8
+      "roughness": 0.78
     },
     "platform": {
       "pattern": "grate",
-      "tileSize": 5,
-      "roughness": 0.82
+      "tileSize": 4,
+      "roughness": 0.72
     }
   }
 }
