@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
@@ -42,6 +42,7 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
 export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
+  const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
   const callbacks=useRef({selected,mode,snap,onSelect,onTransform});
   callbacks.current={selected,mode,snap,onSelect,onTransform};
@@ -54,7 +55,13 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     scene.fog=new THREE.Fog(editableHex(theme.palette.fog),120,900);
     const camera=new THREE.PerspectiveCamera(60,1,.2,3000);
     camera.position.set(96,100,128);
-    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+    let renderer:THREE.WebGLRenderer;
+    try {
+      renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+    }catch(error){
+      setRendererError("3D rendering unavailable on this device. Use the 2D View toggle. "+String(error));
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     renderer.domElement.tabIndex=0;
     renderer.domElement.style.cssText="width:100%;height:100%;display:block;outline:none";
@@ -344,7 +351,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
   return <div className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950">
     <div ref={host} className="absolute inset-0"
       aria-label="Interactive 3D map editor. Drag to orbit, right-drag to pan, scroll to zoom, WASD to fly and Q/E to change elevation."/>
-    {tool!=="select"&&<button className="absolute bottom-4 left-4 z-10 rounded-md bg-amber-500 px-4 py-2 text-sm font-bold text-black shadow-lg hover:bg-amber-400"
+    {rendererError&&<p role="alert" className="absolute inset-0 flex items-center justify-center bg-zinc-950 p-6 text-sm text-amber-200">{rendererError}</p>}
+    {tool!=="select"&&!rendererError&&<button className="absolute bottom-4 left-4 z-10 rounded-md bg-amber-500 px-4 py-2 text-sm font-bold text-black shadow-lg hover:bg-amber-400"
       onClick={()=>{
         const point=runtime.current?.orbit.target;
         if(point)onAddAt(tool,{x:point.x,z:point.z});
