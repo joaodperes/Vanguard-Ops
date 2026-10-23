@@ -13,10 +13,11 @@ export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: str
 
 // Center of the visible twin-barrel assembly above the planted feet.
 export const TURRET_MUZZLE_HEIGHT = 1.29;
-export const TURRET_RANGE = 30;
+export const TURRET_RANGE = 54; // Matches the Hailstorm LMG's effective range.
 export const TURRET_DAMAGE = 17;
+export const TURRET_HP = 180;
 export const TURRET_INTERVAL_MS = 245;
-export const TURRET_LIFETIME_MS = 25000;
+export const TURRET_LIFETIME_MS = 45000;
 export function turretCanTrack(
   turret: readonly number[], forwardYaw: number, target: readonly number[],
   range = TURRET_RANGE,
