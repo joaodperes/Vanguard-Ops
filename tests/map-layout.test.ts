@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MAP_LIST } from "../src/lib/game-protocol";
+import { MAP_BLUEPRINTS } from "../src/lib/map-blueprints";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "../src/lib/map-tactics";
 import { MAP_FOOTPRINT } from "../src/lib/map-footprint";
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
@@ -20,6 +21,13 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
+        if(map.id==="skybridge"){
+          // Ridgefall's old outdoor spawn coordinates were deliberately removed.
+          // The compiled factory must use only the new indoor JSON spawn set.
+          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps.skybridge.spawns[team]);
+          for(const point of map.spawns[team])expect(botPositionEmbedded(collision,point)).toBe(false);
+          continue;
+        }
         const authored = OUTER_SPAWNS[map.id === "terminal" ? "arena_neon" : map.id][team];
         // MAP_LIST already scales every spawn, wall and hazard together.
         // Check the *actual* appended spawn positions, not unscaled design
