@@ -4,6 +4,7 @@
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import * as THREE from "three";
+import { createMapSurfaceMaterials, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
@@ -475,6 +476,7 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
+  private surfaceMaterials: MapSurfaceMaterials | null = null;
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private environmentMeshes = new Map<string, THREE.Group>();
@@ -1017,29 +1019,11 @@ export class FPSEngine {
 
   private buildArena() {
     const theme = this.map.theme;
-    // floor
-    // Original procedural material: varied paving and worn stone instead of
-    // flat charcoal surfaces. No third-party texture assets are redistributed.
-    const groundCanvas=document.createElement("canvas");
-    groundCanvas.width=256;groundCanvas.height=256;
-    const ctx=groundCanvas.getContext("2d");
-    if(ctx){
-      const base=new THREE.Color(theme.floor), accent=new THREE.Color(theme.floorPattern);
-      ctx.fillStyle="#"+base.getHexString();ctx.fillRect(0,0,256,256);
-      for(let i=0;i<540;i++){
-        // Repeatable integer hash — maps look identical every load.
-        const x=(i*73+Math.floor(i*i*1.7))%256,y=(i*131+Math.floor(i*i*.8))%256;
-        ctx.fillStyle=i%3===0?"#"+accent.getHexString():"rgba(255,255,255,0.05)";
-        ctx.fillRect(x,y,2+(i%5),2+(i%4));
-      }
-      ctx.strokeStyle="#"+accent.getHexString();ctx.lineWidth=2;ctx.globalAlpha=.35;
-      for(let p=0;p<=256;p+=64){ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,256);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(256,p);ctx.stroke();}
-    }
-    const groundTexture=new THREE.CanvasTexture(groundCanvas);
-    groundTexture.wrapS=groundTexture.wrapT=THREE.RepeatWrapping;
-    groundTexture.repeat.set(3,3);groundTexture.colorSpace=THREE.SRGBColorSpace;
-    const floorMat = new THREE.MeshStandardMaterial({map:groundTexture,color:0xffffff,roughness:.94,metalness:0});
-    // The visible ground follows the union of authored regions, not a square.
+    // World-scaled, themed materials generated once for this match from JSON.
+    this.surfaceMaterials=createMapSurfaceMaterials(this.map);
+    const {floor:floorMat,wall:wallMat,cover:coverMat,stair:stairMat,platform:platformMat}=this.surfaceMaterials;
+    const floorTileSize=this.map.surfaces?.floor.tileSize??7;
+        // The visible ground follows the union of authored regions, not a square.
     // Shared area overlaps are coplanar; polygon-union cells avoid Z fighting.
     const regions = this.map.regions;
     if (regions?.length) {
@@ -1048,12 +1032,16 @@ export class FPSEngine {
       for (let i=0;i<xs.length-1;i++) for(let j=0;j<zs.length-1;j++) {
         const x=(xs[i]+xs[i+1])/2, z=(zs[j]+zs[j+1])/2;
         if (!regions.some(r=>Math.abs(x-r.x)<r.w/2 && Math.abs(z-r.z)<r.d/2)) continue;
-        const tile = new THREE.Mesh(new THREE.PlaneGeometry(xs[i+1]-xs[i],zs[j+1]-zs[j]),floorMat);
+        const groundGeo=new THREE.PlaneGeometry(xs[i+1]-xs[i],zs[j+1]-zs[j]);
+        mapFloorUV(groundGeo,x,z,floorTileSize);
+        const tile = new THREE.Mesh(groundGeo,floorMat);
         tile.rotation.x=-Math.PI/2; tile.position.set(x,0,z); tile.receiveShadow=true;
         this.scene.add(tile);
       }
     } else {
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(this.map.size*2,this.map.size*2),floorMat);
+      const floorGeo=new THREE.PlaneGeometry(this.map.size*2,this.map.size*2);
+      mapFloorUV(floorGeo,0,0,floorTileSize);
+      const floor = new THREE.Mesh(floorGeo,floorMat);
       floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; this.scene.add(floor);
       const grid=new THREE.GridHelper(this.map.size*2,64,theme.gridColor,theme.gridColor);
       (grid.material as THREE.Material).opacity=0.4;
@@ -1062,7 +1050,6 @@ export class FPSEngine {
     }
 
     // walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: theme.wall, roughness: 0.8, metalness: 0.1 });
     const wallH = this.map.wallHeight;
     const t = 1;
     const s = this.map.size;
@@ -1074,6 +1061,7 @@ export class FPSEngine {
     ] as const;
     for (const w of walls) {
       const geo = new THREE.BoxGeometry(w.size[0], w.size[1], w.size[2]);
+      mapBoxUV(geo,w.pos[0],w.pos[2],this.map.surfaces?.wall.tileSize??6);
       const m = new THREE.Mesh(geo, wallMat);
       m.position.set(w.pos[0], w.pos[1], w.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
@@ -1081,15 +1069,16 @@ export class FPSEngine {
     }
 
     // cover / platforms / stairs
-    const coverMat = new THREE.MeshStandardMaterial({ color: theme.cover, roughness: 0.7, metalness: 0.2 });
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
-    const stairMat = new THREE.MeshStandardMaterial({ color: theme.stair, roughness: 0.85, metalness: 0.15 });
-    const platformMat = new THREE.MeshStandardMaterial({ color: theme.platform, roughness: 0.8, metalness: 0.2 });
     for (const c of this.map.cover) {
       if (c.environmentId) continue; // handled by animated environment meshes
       const kind = c.kind ?? "cover";
-      const mat = kind === "accent" ? accentMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
+      const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
+      if(kind !== "accent"){
+        const slot=kind==="solid"?"wall":kind==="stair"?"stair":kind==="platform"?"platform":"cover";
+        mapBoxUV(geo,c.pos[0],c.pos[2],this.map.surfaces?.[slot]?.tileSize??4);
+      }
       const m = new THREE.Mesh(geo, mat);
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
@@ -1135,8 +1124,8 @@ export class FPSEngine {
   private buildMapProps() {
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
-    const stone = new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
-    const masonry = new THREE.MeshStandardMaterial({color:palette.wall,roughness:.8});
+    const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
+    const masonry = this.surfaceMaterials?.wall ?? new THREE.MeshStandardMaterial({color:palette.wall,roughness:.8});
     const trim = new THREE.MeshStandardMaterial({color:palette.coverAccent,roughness:.48,metalness:.2});
     const trunk = new THREE.MeshStandardMaterial({color:biome==="jungle"?0x66523d:0x615448,roughness:1});
     const leaf = new THREE.MeshStandardMaterial({color:biome==="highlands"?0x326158:0x4a874e,roughness:1,side:THREE.DoubleSide});
@@ -1221,7 +1210,7 @@ export class FPSEngine {
         // an actual SOUTH doorway. Roof platform + outdoor stair flights let
         // players flank snipers without teleporting or clipping through walls.
         const wall=.9,door=6,side=(w-door)/2;
-        const brick=new THREE.MeshStandardMaterial({color:palette.wall,roughness:.84});
+        const brick=this.surfaceMaterials?.wall ?? new THREE.MeshStandardMaterial({color:palette.wall,roughness:.84});
         cube(group,brick,0,h/2,-d/2,w,h,wall);
         cube(group,brick,-w/2,h/2,0,wall,h,d);
         cube(group,brick,w/2,h/2,0,wall,h,d);
@@ -7072,6 +7061,13 @@ export class FPSEngine {
     this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
     this.weaponAudio.dispose();
+    if(this.surfaceMaterials){
+      for(const m of Object.values(this.surfaceMaterials)){
+        m.map?.dispose();
+        m.dispose();
+      }
+      this.surfaceMaterials=null;
+    }
     this.renderer.dispose();
     // Promptly free the graphics context between matches and dev remounts.
     this.renderer.forceContextLoss();
