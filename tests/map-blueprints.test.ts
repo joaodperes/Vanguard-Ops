@@ -27,7 +27,7 @@ describe("JSON map blueprints",()=>{
   });
   test("large cross-district paths use local region portals",()=>{
     const b=MAP_BLUEPRINTS.maps.skybridge;
-    const p=nextRegionPortal([-175,0,-44],[190,0,51],b.regions);
+    const p=nextRegionPortal([-108,0,-5],[108,0,-5],b.regions);
     expect(p).not.toBeNull();
     expect(insideRegions(p![0],p![2],b.regions)).toBe(true);
   });
