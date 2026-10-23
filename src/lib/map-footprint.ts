@@ -5,7 +5,7 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment } from "./map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, overrideBox } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
 
 export type MapPace = "compact" | "balanced" | "tactical";
@@ -72,25 +72,27 @@ export function applyMapFootprint(base:MapDef):MapDef {
     const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
+  const legacyCover=scaledBase.cover.filter(c=>{
+    if(base.id!=="shipyard"||c.kind!=="cover")return true;
+    const stairs=scaledBase.cover.filter(b=>b.kind==="stair"&&
+      (Math.abs(b.pos[0])>24||Math.abs(b.pos[2])>24));
+    return !stairs.some(b=>{
+      const stairTop=b.pos[1]+b.size[1],coverTop=c.pos[1]+c.size[1];
+      return stairTop>2.5 && coverTop>stairTop+1.2 &&
+        Math.abs(c.pos[0]-b.pos[0])<c.size[0]+b.size[0]+.1 &&
+        Math.abs(c.pos[2]-b.pos[2])<c.size[2]+b.size[2]+.1;
+    });
+  }).map((c,i)=>overrideBox(c,plan.legacyCoverOverrides?.[String(i)]));
+  const legacyEnvironment=(scaledBase.environment??[]).map((e,i)=>
+    overrideBox(e,plan.legacyEnvironmentOverrides?.[String(i)]));
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
+    editorLegacyCoverCount:legacyCover.length,
+    editorLegacyEnvironmentCount:legacyEnvironment.length,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
     regions,
-    environment:[...(scaledBase.environment??[]),...(plan.hazards??[]).map(authoredHazardEnvironment)],
-    // Shipyard's old outer cargo partitions could intersect stair crests.
-    // Do not leave a landing blocked by a tall obstacle beyond the accessible
-    // rooftop: remove only legacy cover at the outer elevated approaches.
-    cover:[...scaledBase.cover.filter(c=>{
-      if(base.id!=="shipyard"||c.kind!=="cover")return true;
-      const stairs=scaledBase.cover.filter(b=>b.kind==="stair"&&
-        (Math.abs(b.pos[0])>24||Math.abs(b.pos[2])>24));
-      return !stairs.some(b=>{
-        const stairTop=b.pos[1]+b.size[1],coverTop=c.pos[1]+c.size[1];
-        return stairTop>2.5 && coverTop>stairTop+1.2 &&
-          Math.abs(c.pos[0]-b.pos[0])<c.size[0]+b.size[0]+.1 &&
-          Math.abs(c.pos[2]-b.pos[2])<c.size[2]+b.size[2]+.1;
-      });
-    }),...flankFeatures.flatMap(featureBoxes),
+    environment:[...legacyEnvironment,...(plan.hazards??[]).map(authoredHazardEnvironment)],
+    cover:[...legacyCover,...flankFeatures.flatMap(featureBoxes),
       ...propColliders(props,allSpawns),
       ...regionBoundary(regions,base.id==="shipyard"?1.2:11)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
