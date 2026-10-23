@@ -335,7 +335,7 @@ export default function MapEditor() {
         const dx=axis==="x"?sign:0,dz=axis==="z"?sign:0;
         const rotatedX=Math.round(Math.cos(rotate)*dx+Math.sin(rotate)*dz);
         const rotatedZ=Math.round(-Math.sin(rotate)*dx+Math.cos(rotate)*dz);
-        return {...f,x:t.x,z:t.z,h:Math.max(.3,t.h+2*t.y),
+        return {...f,x:t.x,y:t.y,z:t.z,h:Math.max(.3,t.h),
           w:f.kind==="stairs"&&quarter%2?t.d:t.w,
           d:f.kind==="stairs"&&quarter%2?t.w:t.d,
           ...(f.kind==="stairs"?{axis:rotatedX!==0?"x" as const:"z" as const,
@@ -407,7 +407,7 @@ export default function MapEditor() {
     for(const [team,positions] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
       positions.forEach((p,i)=>{
         if(map.features.some(f=>f.kind!=="accent" && f.kind!=="stairs" && Math.abs(p[0]-f.x)<f.w/2+1 &&
-          Math.abs(p[2]-f.z)<f.d/2+1 && p[1]<f.h))
+          Math.abs(p[2]-f.z)<f.d/2+1 && p[1]<(f.y??0)+f.h&&p[1]+1.8>(f.y??0)))
           problems.push(`${team} spawn ${i+1} intersects an authored solid`);
       });
     for(const h of map.hazards??[])for(const [team,points] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
@@ -677,7 +677,7 @@ export default function MapEditor() {
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {(["x","y","z","w","h","d"] as const).map(key=>
-                      <label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
+                      <label key={key} className="text-xs text-zinc-400">{key==="y"&&selected.type==="feature"?"BASE ELEVATION (Y)":key.toUpperCase()}
                         <input className={fieldClass} type="number" step=".25" min={["w","h","d"].includes(key)?0.1:undefined}
                           value={(selectedObject as unknown as Record<string,number>)[key]}
                           onChange={e=>changeSelected(key,e.target.value)}/>
@@ -705,9 +705,9 @@ export default function MapEditor() {
                     </select></label>}
                   <div className="grid grid-cols-2 gap-2">
                     {(["x","z","w","d",...(["feature","hazard","prop"].includes(selected.type)?["h"]:[]),
-                      ...(selected.type==="hazard"?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
+                      ...(["feature","hazard"].includes(selected.type)?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
                       <input type="number" step=".5" className={fieldClass}
-                        value={(selectedObject as unknown as Record<string,number>)[key]??""}
+                        value={(selectedObject as unknown as Record<string,number>)[key]??(key==="y"?0:"")}
                         onChange={e=>changeSelected(key,e.target.value)}/></label>)}
                   </div>
                   {selected.type==="feature"&&<label className="block text-xs">Feature type
