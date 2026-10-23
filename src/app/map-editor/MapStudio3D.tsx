@@ -7,9 +7,10 @@ import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { getMap } from "@/lib/game-protocol";
 import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
 import type { MapVisualTheme } from "@/lib/map-visuals";
+import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 
 export type StudioSelection={
-  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyEnvironment";
+  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment";
   index:number;team?:"ffa"|"red"|"blue";
 };
 export type StudioMode="select"|"move"|"rotate"|"resize";
@@ -297,7 +298,30 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     const compiled=getMap(mapId);
     const compiledForThisMap=compiled.id===mapId;
     const base=compiledForThisMap?compiled:getMap(map.templateMapId);
+    // Treat each original flight as ONE selection/transform target. Source
+    // membership is captured before any per-step overrides, so an edited
+    // step cannot accidentally split or reassign a flight.
+    const stairIndices=new Set<number>();
+    for(const flight of base.editorLegacyStairFlights??[]){
+      const steps=flight.indices.map(i=>{
+        stairIndices.add(i);
+        const original=base.cover[i];
+        return original?overrideBox(original,map.legacyCoverOverrides?.[String(i)]):null;
+      }).filter((b):b is NonNullable<typeof b>=>b!==null);
+      if(!steps.length)continue;
+      const bounds=stairFlightBounds(steps);
+      if(compiledForThisMap){
+        add({type:"legacyStairs",index:flight.start},bounds,g=>{
+          for(const b of steps){
+            createBox(g,b.pos[0]-bounds.x,b.pos[1]-bounds.y,b.pos[2]-bounds.z,
+              b.size[0]*2,b.size[1]*2,b.size[2]*2,palette.stair,.8);
+          }
+        });
+      }else for(const b of steps)createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
+        b.size[0]*2,b.size[1]*2,b.size[2]*2,palette.stair,.25);
+    }
     for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
+      if(stairIndices.has(i))continue;
       const original=base.cover[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyCoverOverrides?.[String(i)]);
@@ -367,9 +391,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       }}>
       Add {tool.replaceAll("_"," ")} at camera focus
     </button>}
-    {selected?.type==="legacyCover"&&<div className="pointer-events-none absolute bottom-4 right-4 rounded bg-black/80 px-3 py-2 text-xs text-amber-200">
-      Existing engine geometry #{selected.index+1} — edit in Inspector or use a 3D gizmo
-    </div>}
+    {(selected?.type==="legacyCover"||selected?.type==="legacyStairs")&&
+      <div className="pointer-events-none absolute bottom-4 right-4 rounded bg-black/80 px-3 py-2 text-xs text-amber-200">
+        {selected.type==="legacyStairs"?"Entire staircase selected — move, rotate or resize the full flight":
+          "Existing engine geometry #"+(selected.index+1)} — edit in Inspector or use a 3D gizmo
+      </div>}
   </div>;
 }
 
