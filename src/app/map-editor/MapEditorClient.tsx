@@ -367,6 +367,12 @@ export default function MapEditor() {
                   <select className={fieldClass} value={(selectedObject as MapFeature).kind} onChange={e=>changeSelected("kind",e.target.value)}>
                     <option value="cover">Hard cover</option><option value="platform">Elevated platform + stairs</option><option value="accent">Decorative / nonblocking</option>
                   </select></label>}
+                {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
+                  <p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs text-zinc-300">
+                    Automatic north/south stairs: {Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)} steps
+                    per side, about {(Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)*.76).toFixed(1)}u
+                    of run. The Height field controls the landing elevation; stairs match it automatically.
+                  </p>}
               </>}
               <div className="flex gap-2">
                 {selected.type!=="spawn"&&<button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
