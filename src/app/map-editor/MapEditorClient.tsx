@@ -9,6 +9,8 @@ import {
 } from "@/lib/map-blueprints";
 import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
 import { getMap } from "@/lib/game-protocol";
+import { overrideBox } from "@/lib/map-blueprints";
+import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
@@ -192,10 +194,40 @@ export default function MapEditor() {
     drag.current=null;setPreview(null);
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
   };
+  const legacyFlight=(index:number)=>baseMap.editorLegacyStairFlights?.find(f=>f.start===index);
+  const effectiveLegacyCover=()=>baseMap.cover.map((box,i)=>
+    overrideBox(box,map.legacyCoverOverrides?.[String(i)]));
+  const legacyFlightBounds=(index:number)=>{
+    const flight=legacyFlight(index);
+    return flight?stairFlightBounds(flight.indices.map(i=>effectiveLegacyCover()[i]).filter(Boolean)):null;
+  };
+  /** One editor action updates every collision tread in this flight.
+   * Preserve stable source indices for publishing in legacyCoverOverrides. */
+  const editLegacyFlight=(index:number,t:StudioTransform)=>{
+    const flight=legacyFlight(index);
+    if(!flight)return;
+    const effective=effectiveLegacyCover();
+    const current=stairFlightBounds(flight.indices.map(i=>effective[i]));
+    const maximum=Math.max(current.h,maxLegacyFlightRise(flight.indices.length)+.02);
+    if(t.h>maximum+.001){
+      setStatus(`This original flight has ${flight.indices.length} steps. Maximum safe rise: ${maximum.toFixed(2)}u. For taller stairs add a new authored flight, which generates more steps.`);
+      return;
+    }
+    const changes=transformStairFlight(effective,flight.indices,t);
+    pushUndo();
+    update(m=>({...m,legacyCoverOverrides:{...(m.legacyCoverOverrides??{}),...changes}}));
+    setStatus(`Updated the entire staircase (${flight.indices.length} treads) in one edit.`);
+  };
   const changeSelected=(key:string,value:string|number|boolean)=>{
     if(!selected)return;
     pushUndo();
     const sel=selected;
+    if(sel.type==="legacyStairs"){
+      const bounds=legacyFlightBounds(sel.index);
+      if(bounds&&["x","y","z","w","h","d"].includes(key))
+        editLegacyFlight(sel.index,{...bounds,[key]:Number(value),turns:0});
+      return;
+    }
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       const base=baseMap;
@@ -231,6 +263,17 @@ export default function MapEditor() {
   const remove=()=>{
     if(!selected)return;pushUndo();
     const s=selected;
+    if(s.type==="legacyStairs"){
+      const flight=legacyFlight(s.index);
+      if(!flight)return;
+      update(m=>{
+        const overrides={...(m.legacyCoverOverrides??{})};
+        for(const i of flight.indices)delete overrides[String(i)];
+        return {...m,legacyCoverOverrides:overrides};
+      });
+      setStatus(`Reset overrides for all ${flight.indices.length} stair treads.`);
+      setSelected(null);return;
+    }
     if(s.type==="legacyCover"||s.type==="legacyEnvironment"){
       const overridesKey=s.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       update(m=>{
@@ -251,7 +294,7 @@ export default function MapEditor() {
     setSelected(null);
   };
   const duplicate=()=>{
-    if(!selected||selected.type==="spawn"||selected.type==="legacyCover"||selected.type==="legacyEnvironment")return;pushUndo();
+    if(!selected||selected.type==="spawn"||selected.type==="legacyCover"||selected.type==="legacyStairs"||selected.type==="legacyEnvironment")return;pushUndo();
     const s=selected;
     if(s.type==="region"){const index=map.regions.length;
       update(m=>({...m,regions:[...m.regions,{...m.regions[s.index],x:m.regions[s.index].x+12}]}));
@@ -312,6 +355,7 @@ export default function MapEditor() {
     return {...original,...existing};
   };
   const apply3DTransform=(sel:StudioSelection,t:StudioTransform)=>{
+    if(sel.type==="legacyStairs"){editLegacyFlight(sel.index,t);return;}
     pushUndo();
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const key=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
@@ -389,7 +433,8 @@ export default function MapEditor() {
     setEditMode("move");
     setStatus("Created object at the 3D camera focus. Move or resize it, then export JSON.");
   };
-  const selectedObject=selected?(selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
+  const selectedObject=selected?(selected.type==="legacyStairs"?legacyFlightBounds(selected.index):
+    selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
     legacyObject(selected):selected.type==="region"?map.regions[selected.index]:
     selected.type==="feature"?map.features[selected.index]:
     selected.type==="hazard"?(map.hazards??[])[selected.index]:
