@@ -88,7 +88,7 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
   const h=Math.max(0.3,feature.h);
-  const main: CoverBox={pos:[feature.x,h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind};
+  const main: CoverBox={pos:[feature.x,h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind};
   if(feature.kind==="stairs")return stairFeatureBoxes(feature);
   if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
@@ -203,6 +203,16 @@ export function nextRegionPortal(start:readonly number[],goal:readonly number[],
       const width=Math.min(a.x+a.w/2,b.x+b.w/2)-Math.max(a.x-a.w/2,b.x-b.w/2);
       const depth=Math.min(a.z+a.d/2,b.z+b.d/2)-Math.max(a.z-a.d/2,b.z-b.d/2);
       if(width<6||depth<6)continue;
+      // Bounding boxes of a circle/triangle may overlap without the shapes
+      // actually meeting. Require a genuinely shared walkable portal.
+      const left=Math.max(a.x-a.w/2,b.x-b.w/2),right=Math.min(a.x+a.w/2,b.x+b.w/2);
+      const top=Math.max(a.z-a.d/2,b.z-b.d/2),bottom=Math.min(a.z+a.d/2,b.z+b.d/2);
+      let shared=false;
+      for(let ix=1;ix<=3&&!shared;ix++)for(let iz=1;iz<=3;iz++){
+        const px=left+(right-left)*ix/4,pz=top+(bottom-top)*iz/4;
+        if(insideRegion(px,pz,a,1)&&insideRegion(px,pz,b,1))shared=true;
+      }
+      if(!shared)continue;
       visited.add(k);parent.set(k,i);queue.push(k);
     }
   }
