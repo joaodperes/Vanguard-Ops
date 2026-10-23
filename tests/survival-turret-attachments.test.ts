@@ -37,13 +37,14 @@ describe("Bullet Spitter turret", () => {
   });
   test("140-degree forward sweep with unlimited elevation", () => {
     expect(TURRET_ARC_DEG).toBe(140);
-    expect(TURRET_RANGE).toBe(30);
-    expect(TURRET_LIFETIME_MS).toBe(25000);
+    expect(TURRET_RANGE).toBe(54);
+    expect(TURRET_LIFETIME_MS).toBe(45000);
     const origin = [0,0,0] as const;
     expect(turretCanTrack(origin,0,[0,25,15])).toBe(true);
     expect(turretCanTrack(origin,0,[9,12,2])).toBe(false);
     expect(turretCanTrack(origin,0,[0,0,-5])).toBe(false);
-    expect(turretCanTrack(origin,0,[0,0,31])).toBe(false);
+    expect(turretCanTrack(origin,0,[0,0,31])).toBe(true);
+    expect(turretCanTrack(origin,0,[0,0,55])).toBe(false);
   });
   test("new turret is a 1-charge Wonder Weapon with no attachments", () => {
     const weapon = WEAPONS.find(w=>w.id==="wonder_turret")!;
