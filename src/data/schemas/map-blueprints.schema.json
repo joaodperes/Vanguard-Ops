@@ -74,6 +74,13 @@
                   "d": {
                     "type": "number",
                     "exclusiveMinimum": 0
+                  },
+                  "shape": {
+                    "enum": [
+                      "rect",
+                      "circle",
+                      "triangle"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -119,11 +126,27 @@
                     "enum": [
                       "cover",
                       "platform",
-                      "accent"
+                      "accent",
+                      "stairs"
                     ]
                   },
                   "label": {
                     "type": "string"
+                  },
+                  "axis": {
+                    "enum": [
+                      "x",
+                      "z"
+                    ]
+                  },
+                  "sign": {
+                    "enum": [
+                      -1,
+                      1
+                    ]
+                  },
+                  "autoStairs": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -175,6 +198,100 @@
                 }
               },
               "additionalProperties": false
+            },
+            "hazards": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "x",
+                  "z",
+                  "y",
+                  "w",
+                  "d",
+                  "h"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_:-]*$"
+                  },
+                  "type": {
+                    "enum": [
+                      "fire",
+                      "spikes",
+                      "jump_pad",
+                      "moving_platform",
+                      "destructible_wall"
+                    ]
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "w": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "d": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "h": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "dps": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "damage": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "period": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "activeFor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "hp": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "offset": {
+                    "type": "number"
+                  },
+                  "launchX": {
+                    "type": "number"
+                  },
+                  "launchY": {
+                    "type": "number"
+                  },
+                  "launchZ": {
+                    "type": "number"
+                  },
+                  "toX": {
+                    "type": "number"
+                  },
+                  "toY": {
+                    "type": "number"
+                  },
+                  "toZ": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false
