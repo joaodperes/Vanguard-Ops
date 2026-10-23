@@ -233,7 +233,7 @@ export default function MapEditor() {
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       const base=baseMap;
-      const source=sel.type==="legacyCover"?base.cover[sel.index]:base.environment?.[sel.index];
+      const source=sel.type==="legacyCover"?(base.editorLegacyCoverSource?.[sel.index]??base.cover[sel.index]):base.environment?.[sel.index];
       if(!source)return;
       const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
         w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
@@ -348,7 +348,7 @@ export default function MapEditor() {
     e.target.value="";
   };
   const legacyObject=(sel:Selection)=>{
-    const source=sel.type==="legacyCover"?baseMap.cover[sel.index]:baseMap.environment?.[sel.index];
+    const source=sel.type==="legacyCover"?(baseMap.editorLegacyCoverSource?.[sel.index]??baseMap.cover[sel.index]):baseMap.environment?.[sel.index];
     if(!source)return null;
     const original={x:source.pos[0],y:source.pos[1],z:source.pos[2],
       w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
@@ -675,7 +675,7 @@ export default function MapEditor() {
                 style={{cursor:tool==="select"?"pointer":"crosshair"}}>
                 <rect x={bounds.x-bounds.w/2} y={bounds.z-bounds.d/2}
                   width={bounds.w} height={bounds.d} pointerEvents={tool==="select"?"all":"none"}
-                  fill="#f59e0b" fillOpacity={active?.2:.045}
+                  fill="#f59e0b" fillOpacity={active ? .2 : .045}
                   stroke={active?"#fde68a":"#fbbf24"} strokeWidth={active?1.4:.35}
                   strokeDasharray={active?undefined:"1 1"}/>
                 {active&&<text x={bounds.x} y={bounds.z} textAnchor="middle"
