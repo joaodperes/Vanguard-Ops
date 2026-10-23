@@ -1321,7 +1321,7 @@ export type S2C =
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[]; winnerTeam: string | null }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }

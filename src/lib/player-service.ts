@@ -37,6 +37,7 @@ export interface MatchResultInput {
   kills: number;
   deaths: number;
   headshots: number;
+  assists?: number;
   won: boolean;
   mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
   score: number;
@@ -514,6 +515,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     killXp = input.kills * REWARDS.killXp + input.headshots * REWARDS.headshotXpBonus;
     killCredits = input.kills * REWARDS.killCredits + input.headshots * REWARDS.headshotCreditsBonus;
   }
+  // Team assists reward meaningful contributions without treating them as
+  // kills for win conditions, challenges or killstreak calculations.
+  const assists=Math.max(0,Math.min(200,Math.floor(input.assists??0)));
+  killXp += assists*12;
+  killCredits += assists*5;
   // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
   // Wave-clear bonus compensates (see below).
   if (input.mode === "survival") {

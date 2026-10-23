@@ -65,7 +65,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots,
+          playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots, assists:r.assists??0,
           won: r.won, mode: r.mode, score: r.score,
           online: playConfig.online,
           durationSec: r.durationSec ?? 0,

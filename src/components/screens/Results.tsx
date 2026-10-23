@@ -81,29 +81,6 @@ export function Results() {
           </div>
         )}
 
-        {/* personal stats */}
-        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
-          <h3 className="text-white/50 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Target className="w-3 h-3" /> Your Performance</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <StatBox icon={<Target className="w-4 h-4" />} value={r.kills} label="Kills" color="text-emerald-400" />
-            <StatBox icon={<Skull className="w-4 h-4" />} value={r.deaths} label="Deaths" color="text-rose-400" />
-            <StatBox icon={<TrendingUp className="w-4 h-4" />} value={kd} label="K/D" color="text-amber-400" />
-            <StatBox icon={<Crosshair className="w-4 h-4" />} value={`${r.headshots} (${hsPct}%)`} label="Headshots" color="text-purple-400" />
-          </div>
-          {r.mode === "killconfirmed" && (
-              <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 gap-3 text-center">
-                <div><div className="text-cyan-300 text-xl font-black">{r.confirmations ?? r.score}</div><div className="text-white/50 text-xs uppercase">Tags Confirmed</div></div>
-                <div><div className="text-emerald-300 text-xl font-black">{r.denials ?? 0}</div><div className="text-white/50 text-xs uppercase">Tags Denied</div></div>
-              </div>
-            )}
-            {(r.multikills ?? 0) > 0 && (
-            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2 text-xs text-white/60">
-              <Flame className="w-3.5 h-3.5 text-rose-400" />
-              Achieved <span className="text-rose-300 font-bold">{r.multikills}</span> multi-kill{(r.multikills ?? 0) > 1 ? "s" : ""} this match
-            </div>
-          )}
-        </div>
-
         {/* rewards */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
           <h3 className="text-white/50 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Coins className="w-3 h-3" /> Rewards Earned</h3>
@@ -245,7 +222,7 @@ export function Results() {
             <span className="text-white font-bold tracking-wide uppercase text-sm">Final Standings</span>
             <span className="ml-auto text-white/40 text-xs">Weapon: {w.name}</span>
           </div>
-          <div className="max-h-80 overflow-y-auto custom-scroll">
+          <div className="max-h-96 overflow-x-auto overflow-y-auto custom-scroll">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-white/40 text-xs uppercase">
@@ -253,6 +230,11 @@ export function Results() {
                   <th className="text-left px-2 py-2">Player</th>
                   <th className="text-center px-2 py-2 w-16">Kills</th>
                   <th className="text-center px-2 py-2 w-16">Deaths</th>
+                  <th className="text-center px-2 py-2 w-16">Assists</th>
+                  <th className="text-center px-2 py-2 w-16">K/D</th>
+                  <th className="text-center px-2 py-2">Headshots</th>
+                  <th className="text-center px-2 py-2">Multi</th>
+                  {r.mode==="killconfirmed"&&<><th className="text-center px-2 py-2">Tags +</th><th className="text-center px-2 py-2">Tags −</th></>}
                   <th className="text-center px-5 py-2 w-16">Score</th>
                 </tr>
               </thead>
@@ -273,6 +255,12 @@ export function Results() {
                       </td>
                       <td className="text-center px-2 py-2 text-white tabular-nums">{s.kills}</td>
                       <td className="text-center px-2 py-2 text-white/50 tabular-nums">{s.deaths}</td>
+                      <td className="text-center px-2 py-2 text-white/80 tabular-nums">{s.assists??(isMe?r.assists??0:"—")}</td>
+                      <td className="text-center px-2 py-2 tabular-nums">{(s.kills/Math.max(1,s.deaths)).toFixed(2)}</td>
+                      <td className="text-center px-2 py-2 text-violet-200 tabular-nums">{isMe?`${r.headshots} (${hsPct}%)`:"—"}</td>
+                      <td className="text-center px-2 py-2 text-rose-200 tabular-nums">{isMe?r.multikills??0:"—"}</td>
+                      {r.mode==="killconfirmed"&&<><td className="text-center px-2 py-2 text-cyan-200">{isMe?r.confirmations??r.score:"—"}</td>
+                        <td className="text-center px-2 py-2 text-emerald-200">{isMe?r.denials??0:"—"}</td></>}
                       <td className="text-center px-5 py-2 text-white font-bold tabular-nums">{s.score}</td>
                     </tr>
                   );

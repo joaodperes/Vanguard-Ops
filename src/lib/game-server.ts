@@ -19,6 +19,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
+import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
@@ -106,6 +107,8 @@ interface Room {
   sockets: Map<string, string>;        // socketId -> playerId (same for humans)
   bots: Map<string, PlayerNet & { ai: BotAI; loadout: LoadoutWire }>;
   loadouts: Map<string, LoadoutWire>;  // playerId -> loadout
+  assists: Map<string, number>;        // playerId -> successful team assists
+  damageContributions: Map<string, Map<string, Contribution>>; // victimId -> allies recently damaging victim
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
@@ -363,7 +366,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -521,7 +524,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -590,6 +593,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
+  room.assists.clear(); room.damageContributions.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
   // GUN_GAME_TYPE_PROGRESSION is a fixed list of weapon CATEGORIES (e.g.
@@ -1087,6 +1091,18 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
   room.lastDamagedAt.set(victim.id, Date.now());
+  // Only count actual opponent damage. Contributions are cleared at death, so
+  // an assist cannot leak into the next respawn of the same victim.
+  if (attacker && attacker.id !== victim.id && attacker.team !== victim.team &&
+    (room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="survival")) {
+    const contributions=room.damageContributions.get(victim.id)??new Map<string,Contribution>();
+    const previous=contributions.get(attackerId);
+    contributions.set(attackerId,{
+      damage:(previous && Date.now()-previous.at<10000 ? previous.damage:0)+Math.min(dmg,Math.max(0,victim.health)),
+      at:Date.now(),team:attacker.team,
+    });
+    room.damageContributions.set(victim.id,contributions);
+  }
   victim.health -= dmg;
   const killed = victim.health <= 0;
   // For rewards scaling: attach the victim's difficulty to the hit event when
@@ -1098,6 +1114,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     ...(killDiff ? { botDifficulty: killDiff } : {}),
   } as S2C);
   if (killed) {
+    const contributions=room.damageContributions.get(victim.id);
+    if (contributions && attacker) for(const id of countEligibleAssists(contributions,attackerId,attacker.team,Date.now()))
+      room.assists.set(id,(room.assists.get(id)??0)+1);
+    room.damageContributions.delete(victim.id);
     if (attacker && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
       for (const [key, state] of room.wonderCharges) {
@@ -1265,6 +1285,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   room.respawnTimers.clear();
   const standings = allCombatants(room).map((p) => ({
     id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths,
+    assists: room.assists.get(p.id) ?? 0,
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;

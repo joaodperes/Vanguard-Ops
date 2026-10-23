@@ -224,8 +224,8 @@ export interface ScoreRow {
 }
 
 export interface MatchEndResult {
-  kills: number; deaths: number; headshots: number; won: boolean; score: number; mode: GameMode;
-  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[];
+  kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
+  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   durationSec?: number;
   placement?: number;
   multikills?: number;
@@ -5168,7 +5168,7 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, won: !!won,
+      kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
       score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),

@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     kills,
     deaths,
     headshots,
+    assists:Math.max(0,Math.min(200,Math.floor(Number(input.assists)||0))),
     won: !!input.won,
     mode,
     score: Math.max(0, Math.floor(input.score ?? 0)),
