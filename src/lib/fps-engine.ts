@@ -5478,6 +5478,7 @@ export class FPSEngine {
     mesh.visible = false;
     const light = new THREE.PointLight(0x8844ff, 6, radius * 1.6);
     light.position.set(...pos);
+    light.visible = false;
     this.scene.add(mesh, light);
     this.gravityWells.set(id, { pos, ownerId, ownerTeam, radius, activatesAt, expiresAt, offline, mesh, light });
   }
@@ -5520,6 +5521,7 @@ export class FPSEngine {
         continue;
       }
       well.mesh.visible = true;
+      well.light.visible = true;
       const phase = now * 0.003;
       const [core, inner, halo, orbit, boundary] = well.mesh.children;
       core.scale.setScalar(0.9 + Math.sin(phase * 3) * 0.14);
@@ -5945,6 +5947,7 @@ export class FPSEngine {
       }
       const t = age / p.travelMs;
       p.mesh.position.lerpVectors(p.start, p.end, t);
+      if (p.weaponId === "wonder_singularity") p.mesh.rotation.z += dt * 5;
       return true;
     });
 
