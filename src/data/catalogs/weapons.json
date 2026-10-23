@@ -5,17 +5,17 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: a collapsing star launches a devastating gravity pulse. One charge.",
+    "description": "Wonder Weapon: launch a glowing purple gravity sphere that drags enemies into its vortex before a devastating wide-area detonation. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
       "rechargeMs": 48000,
       "killBonusMs": 2400,
-      "radius": 11
+      "radius": 14
     },
     "attachments": [],
     "stats": {
-      "damage": 165,
+      "damage": 240,
       "fireRate": 0.7,
       "magSize": 1,
       "reloadTime": 0,
