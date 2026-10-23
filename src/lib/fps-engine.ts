@@ -2618,8 +2618,10 @@ export class FPSEngine {
     if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
     const now = performance.now();
     const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats);
-    if (now - this.quickMeleeLastAt < melee.cooldownMs) return;
+    if (now - this.quickMeleeLastAt < melee.cooldownMs ||
+        (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
     this.quickMeleeLastAt = now;
+    if(this.weaponId===this.meleeWeaponId)this.lastShotAt=now;
     this.selfSpawnProtectedUntil = 0;
     this.quickMeleeFeedbackAt = now;
     this.meleeSwingAt = 0; // quick-melee viewmodel has its own animation
@@ -4799,8 +4801,9 @@ export class FPSEngine {
   private tryMeleeAttack(w: WeaponDef, now: number) {
     // Swing cooldown: based on the melee weapon's fireRate (1.6 rps machete →
     // ~625ms between swings; 3.5 rps shiv → ~285ms; 0.7 rps hammer → ~1430ms).
-    const swingGap = 1000 / Math.max(1, this.eff.fireRate) * 0.9;
-    if (now - this.lastShotAt < swingGap) return;
+    const swingGap=quickMeleeProfile(w.stats).cooldownMs;
+    if (now - this.lastShotAt < swingGap ||
+        (w.id===this.meleeWeaponId && now-this.quickMeleeLastAt < swingGap)) return;
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0;
     this.meleeSwingAt = now;
