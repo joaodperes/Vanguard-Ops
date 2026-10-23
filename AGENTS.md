@@ -43,3 +43,7 @@ When finished, report branch, commit SHA, changed catalog paths, test results, a
 - No melee headshot mastery milestones; keep stable challenge IDs.
 - Afterlight day/night share city building generation but have different playable footprints. Match visible geometry to collision.
 - Do not copy LibreQuake binary assets without checking licenses and credits; current textures are procedurally authored.
+
+## Art and texture direction
+
+Map theme JSON `surfaces` now owns floor/wall/cover/stair/platform pattern, tileSize and roughness. The material vocabulary and source/license research are in `docs/art-direction-and-materials.md`. When changing material kinds, update its docs, `src/lib/map-visuals.ts`, `src/lib/map-materials.ts`, `src/lib/content-validation.ts`, `src/data/schemas/map-theme.schema.json` and tests. Do not hotlink texture assets, use third-party game screenshots as textures or accidentally import differently licensed source packs. Keep collision independent of graphics.

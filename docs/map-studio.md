@@ -104,3 +104,7 @@ Recommended validation before merging from dev: `bun test`, `npx tsc --noEmit`, 
 - Enterable buildings have physically open doorways, exterior stairs, and climbable roof geometry. City centers feature an open park and bandstand.
 - Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins and Ridgefall have more flora and rocks.
 - The renderer creates procedural worn surface textures without third-party binary assets. [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) is used for visual guidance; redistribute its individual textures only after verifying the exact license and retaining appropriate credits/notice.
+
+## Retro FPS material language
+
+Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio itself still edits geometry only.

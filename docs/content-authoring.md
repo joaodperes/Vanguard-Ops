@@ -231,3 +231,7 @@ Shotgun shell variants in `attachments.json` use the `shotgunAmmo` field: `slug`
 Team assists are awarded from server-tracked damage: at least 15 damage within 10 seconds before another teammate kills the victim. Each assist grants one personal scoreboard point, 12 XP and 5 CR, as set in `rewards.json`, but does not count toward the team win condition. Single-player bots do not yet award teammate assists.
 
 Historic melee challenge IDs remain stable while authored headshot requirements become achievable close-range melee eliminations. Equipping melee grants a 19% movement speed multiplier.
+
+## Game art, map textures and external asset safety
+
+Each map's JSON visual theme now contains a `surfaces` recipe for ground, wall, cover, stairs and platforms. Patterns/roughness/tile size are validated and rendered with shared world-space procedural textures; a map is no longer restricted to flat colors. See [Map art direction and vetted references](art-direction-and-materials.md). External stock/game textures are **not** silently imported: confirm license and asset provenance first and bundle only approved files. Preserve the retro art style and always test collision and FPS separately from visuals.
