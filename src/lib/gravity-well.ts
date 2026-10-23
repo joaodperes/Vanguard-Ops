@@ -2,6 +2,12 @@
  * All positions are in world units; the pull is horizontal to respect ground collision.
  */
 export const GRAVITY_WELL_DURATION_MS = 2800;
+/** Convert server-based absolute effect timestamps to local time using the
+ * timestamp carried by the event/snapshot, avoiding premature disappearance
+ * when the player computer clock differs from the server's clock. */
+export function gravityClientTime(serverStamp:number,serverNow:number,clientNow:number):number {
+  return serverStamp+(clientNow-serverNow);
+}
 export const GRAVITY_PULL_SPEED = 11;
 export const GRAVITY_WELL_RADIUS = 14;
 
