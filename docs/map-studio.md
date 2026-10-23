@@ -94,3 +94,11 @@ The Map Studio editor currently edits **blueprint geometry only**. Theme JSON is
 `Ridgefall` and `Afterlight City` extend past 380 units across, with outer strongholds and multiple separated combat districts. Larger maps intentionally support slower first contact and stronger reconnaissance/sightline choices. Both still have the inherited core as a contested hub, but their main flanks now sit far outside it.
 
 Recommended validation before merging from dev: `bun test`, `npx tsc --noEmit`, `bun run build`, followed by human/bot 3v3–7v7 playtests on all maps, especially distant spawn fairness, tunnel junctions, stair transitions, FPS and minimap readability. Manual gameplay tests are necessary; basic geometry validation is not sufficient.
+
+## October 2026 map art update
+
+- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their existing physical region blueprints are still different.
+- Both city editions exclude hazards and legacy arena cover. New scenery prop types: `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`.
+- Enterable buildings have physically open doorways, exterior stairs, and climbable roof geometry. City centers feature an open park and bandstand.
+- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins and Ridgefall have more flora and rocks.
+- The renderer creates procedural worn surface textures without third-party binary assets. [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) is used for visual guidance; redistribute its individual textures only after verifying the exact license and retaining appropriate credits/notice.

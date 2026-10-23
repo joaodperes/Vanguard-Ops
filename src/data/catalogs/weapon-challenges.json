@@ -418,9 +418,9 @@
     "weaponId": "knife_tactical",
     "skinId": "carbon",
     "goal": 50,
-    "metric": "headshots",
+    "metric": "close_range_kills",
     "title": "Carbon Blade",
-    "description": "Land 50 headshots with the Tactical Knife"
+    "description": "Get 50 melee eliminations with knife tactical at 10m or closer."
   },
   {
     "id": "wc_knife_tactical_kills_160",
@@ -958,9 +958,9 @@
     "weaponId": "shiv",
     "skinId": "carbon",
     "goal": 30,
-    "metric": "headshots",
+    "metric": "close_range_kills",
     "title": "Carbon Shiv",
-    "description": "Land 30 headshots with the Shiv"
+    "description": "Get 30 melee eliminations with shiv at 10m or closer."
   },
   {
     "id": "wc_shiv_kills_80",
@@ -1012,9 +1012,9 @@
     "weaponId": "machete",
     "skinId": "carbon",
     "goal": 35,
-    "metric": "headshots",
+    "metric": "close_range_kills",
     "title": "Carbon Striker",
-    "description": "Land 35 headshots with the Machete"
+    "description": "Get 35 melee eliminations with machete at 10m or closer."
   },
   {
     "id": "wc_machete_kills_100",
@@ -1075,9 +1075,9 @@
     "weaponId": "hammer",
     "skinId": "carbon",
     "goal": 30,
-    "metric": "headshots",
+    "metric": "close_range_kills",
     "title": "Carbon Smasher",
-    "description": "Land 30 headshots with the Sledge Hammer"
+    "description": "Get 30 melee eliminations with hammer at 10m or closer."
   },
   {
     "id": "wc_hammer_kills_120",

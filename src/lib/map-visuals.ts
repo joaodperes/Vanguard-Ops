@@ -112,7 +112,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     if(!solidKinds.has(p.kind))return true;
     const h=p.h??(p.kind==="shop"||p.kind==="building"?7:3);
     const radiusX=p.kind==="tree" ? 0.5 :(p.w??(p.kind==="rock"?4:8))/2;
-    const radiusZ=p.kind==="tree" ? 0.5 :(p.d??(p.kind==="rock"?3:7))/2;
+    const radiusZ=p.kind==="tree" ? 0.5 :(p.d??(p.kind==="rock"?3:7))/2 + (p.kind==="building" ? 17 : 0);
     return !spawns.some(s=>Math.abs(s[0]-p.x)<radiusX+3&&Math.abs(s[2]-p.z)<radiusZ+3);
   });
 }
@@ -147,6 +147,10 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       wallBoxes.push(...featureBoxes({id:"roof",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1));
       if(!wallBoxes.some(c=>spawns.some(s=>Math.abs(s[0]-c.pos[0])<c.size[0]+1.5&&Math.abs(s[2]-c.pos[2])<c.size[2]+1.5)))
         result.push(...wallBoxes);
+      continue;
+    }
+    if(p.kind==="bench"){
+      result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53]});
       continue;
     }
     if(p.kind==="bandstand"){

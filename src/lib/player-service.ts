@@ -518,8 +518,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // Team assists reward meaningful contributions without treating them as
   // kills for win conditions, challenges or killstreak calculations.
   const assists=Math.max(0,Math.min(200,Math.floor(input.assists??0)));
-  killXp += assists*12;
-  killCredits += assists*5;
+  killXp += assists*REWARDS.assistXp;
+  killCredits += assists*REWARDS.assistCredits;
   // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
   // Wave-clear bonus compensates (see below).
   if (input.mode === "survival") {

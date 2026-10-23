@@ -1116,7 +1116,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if (killed) {
     const contributions=room.damageContributions.get(victim.id);
     if (contributions && attacker) for(const id of countEligibleAssists(contributions,attackerId,attacker.team,Date.now()))
-      room.assists.set(id,(room.assists.get(id)??0)+1);
+      { room.assists.set(id,(room.assists.get(id)??0)+1);
+        room.scores.set(id,(room.scores.get(id)??0)+1); }
     room.damageContributions.delete(victim.id);
     if (attacker && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.

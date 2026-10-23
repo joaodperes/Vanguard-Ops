@@ -33,3 +33,10 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Challenge/achievement: add supported metrics in JSON; new metrics always require tracking/server/test work.
 
 When finished, report branch, commit SHA, changed catalog paths, test results, and any manual playtests still needed.
+
+## New gameplay and scenery invariants
+- Shotgun profiles must affect both offline and authoritative server simulation.
+- Assist contributors are decided by server damage events, not player-selected IDs.
+- No melee headshot mastery milestones; keep stable challenge IDs.
+- Afterlight day/night share city building generation but have different playable footprints. Match visible geometry to collision.
+- Do not copy LibreQuake binary assets without checking licenses and credits; current textures are procedurally authored.
