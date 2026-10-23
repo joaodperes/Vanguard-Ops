@@ -42,7 +42,7 @@ export function insideRegions(x:number,z:number,regions:readonly MapRegion[],pad
 export function regionRectangles(regions:readonly MapRegion[],step=2):MapRegion[]{
   return regions.flatMap(r=>{
     if(!r.shape||r.shape==="rect")return [{x:r.x,z:r.z,w:r.w,d:r.d}];
-    const strips:MapRegion[]=[],rows=Math.max(1,Math.ceil(r.d/step));
+    const strips:MapRegion[]=[],rows=Math.min(120,Math.max(1,Math.ceil(r.d/step)));
     for(let i=0;i<rows;i++){
       const d=r.d/rows,z=r.z-r.d/2+(i+.5)*d;
       const span=r.shape==="circle"?Math.sqrt(Math.max(0,1-((z-r.z)/(r.d/2))**2)):
