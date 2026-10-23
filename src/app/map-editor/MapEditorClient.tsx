@@ -305,6 +305,11 @@ export default function MapEditor() {
       <div><div className="text-sm font-black tracking-[.22em]">VANGUARD / MAP STUDIO</div>
         <div className="text-[11px] text-zinc-500">Visual authoring • JSON source of truth • local drafts</div></div>
       <div className="ml-auto flex gap-2 flex-wrap">
+        <button className={btn} onClick={()=>{setEditorTab("blueprint");setSelected(null);}}>Geometry</button>
+        <button className={btn} onClick={()=>{setEditorTab("theme");setSelected(null);}}>Theme & props</button>
+        {editorTab==="theme"&&<><button className={btn} onClick={()=>themeFileRef.current?.click()}><FileUp size={14}/> Import theme</button>
+          <input ref={themeFileRef} type="file" accept=".json,application/json" className="hidden" onChange={importTheme}/>
+          <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
         <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
@@ -325,21 +330,37 @@ export default function MapEditor() {
           </div>
         </section>
         <section>
-          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Paint tools</div>
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{editorTab==="theme"?"Theme props":"Paint tools"}</div>
           <div className="grid grid-cols-2 gap-2">
             {([
-              ["select","Select / Move",MousePointer2],["region","Region",Grid2x2],
-              ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
-              ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
+              ["select","Select / Move",MousePointer2],
+              ...(editorTab==="theme" ? [["prop","Place prop",Layers3]] as const : [
+                ["region","Rectangle",Grid2x2],["circle","Circle / ellipse",Grid2x2],
+                ["triangle","Triangle",Grid2x2],
+                ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
+                ["stairs","Independent stairs",Layers3],["hazard","Place hazard",AlertTriangle],
+                ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
+              ] as const)
             ] as const).map(([key,label,Icon])=>
               <button key={key} onClick={()=>{setTool(key);setSelected(null);}} className={`rounded-lg p-2 border text-left text-xs flex items-center gap-1.5 ${tool===key?"bg-amber-500/15 border-amber-500 text-amber-200":"bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-300"}`}>
                 <Icon size={14}/>{label}
               </button>)}
           </div>
+          {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">New hazard type
+            <select value={hazardKind} className={fieldClass} onChange={e=>setHazardKind(e.target.value as MapHazard["type"])}>
+              {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
+                <option key={kind} value={kind}>{kind.replaceAll("_"," ")}</option>)}
+            </select></label>}
+          {editorTab==="theme"&&<label className="block text-xs text-zinc-400 mt-3">New prop type
+            <select value={propKind} className={fieldClass} onChange={e=>setPropKind(e.target.value as MapProp["kind"])}>
+              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const)
+                .map(kind=><option key={kind} value={kind}>{kind}</option>)}
+            </select></label>}
           <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
             Drag on the grid to draw regions or structures. Click to place a spawn.
             Use Select to drag and reposition. Adjust exact dimensions in the inspector.
-            Platforms automatically generate two walkable stair approaches.
+            Platforms can generate two automatic stairs or accept independently placed stair flights.
+            Select stairs and click Snap to nearest platform for height/steps.
           </p>
         </section>
         <section className="rounded-lg border border-white/10 bg-zinc-900/45 p-3">
@@ -356,6 +377,51 @@ export default function MapEditor() {
           </label>
           <p className="text-[11px] text-zinc-500 mt-2">Snap applies to X/Z placement. Platform stairs already match platform height automatically.</p>
         </section>
+        {editorTab==="theme"&&<section className="rounded-lg border border-white/10 p-3 space-y-2">
+          <div className="text-xs font-bold text-amber-300">Visual theme — {mapId}</div>
+          <label className="block text-xs">Theme label
+            <input className={fieldClass} value={theme.label} onChange={e=>updateTheme(t=>({...t,label:e.target.value}))}/>
+          </label>
+          <label className="block text-xs">Biome
+            <input className={fieldClass} value={theme.biome} onChange={e=>updateTheme(t=>({...t,biome:e.target.value}))}/>
+          </label>
+          <label className="block text-xs">Ambient intensity
+            <input type="number" min="0.01" step=".05" className={fieldClass} value={theme.ambient}
+              onChange={e=>updateTheme(t=>({...t,ambient:Number(e.target.value)}))}/>
+          </label>
+          <label className="block text-xs">Vegetation density (0–1)
+            <input type="number" min="0" max="1" step=".05" className={fieldClass} value={theme.vegetation}
+              onChange={e=>updateTheme(t=>({...t,vegetation:Number(e.target.value)}))}/>
+          </label>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 pt-2">Palette</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(theme.palette) as (keyof MapVisualTheme["palette"])[]).map(key=><label key={key} className="text-xs capitalize">
+              {key}
+              <div className="flex items-center gap-1">
+                <input type="color" className="w-8 h-7 bg-transparent" value={theme.palette[key]}
+                  onChange={e=>updateTheme(t=>({...t,palette:{...t.palette,[key]:e.target.value}}))}/>
+                <input className={fieldClass+" min-w-0"} value={theme.palette[key]}
+                  onChange={e=>updateTheme(t=>({...t,palette:{...t.palette,[key]:e.target.value}}))}/>
+              </div>
+            </label>)}
+          </div>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 pt-2">Surface materials</div>
+          {theme.surfaces&&(["floor","wall","cover","stair","platform"] as const).map(slot=>
+            <div key={slot} className="rounded-md border border-white/10 p-2 text-xs">
+              <div className="capitalize mb-1">{slot}</div>
+              <select className={fieldClass} value={theme.surfaces![slot].pattern}
+                onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],pattern:e.target.value as typeof SURFACE_PATTERNS[number]}}}))}>
+                {SURFACE_PATTERNS.map(pattern=><option key={pattern} value={pattern}>{pattern}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <label>Tile size<input className={fieldClass} type="number" step=".2" min=".01" max="100"
+                  value={theme.surfaces![slot].tileSize} onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],tileSize:Number(e.target.value)}}}))}/></label>
+                <label>Roughness<input className={fieldClass} type="number" step=".05" min="0" max="1"
+                  value={theme.surfaces![slot].roughness} onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],roughness:Number(e.target.value)}}}))}/></label>
+              </div>
+            </div>)}
+          <p className="text-[11px] text-zinc-500">Theme exports are separate from map-blueprints.json. Props can be selected and moved on the canvas.</p>
+        </section>}
         <section>
           <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Map metadata</div>
           <label className="block text-xs text-zinc-400 mb-2">Name
