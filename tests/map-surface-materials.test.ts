@@ -23,7 +23,7 @@ describe("JSON-authored art material recipes",()=>{
     }
     expect(patterns.size).toBeGreaterThanOrEqual(7);
     expect(MAPS.compound.surfaces?.floor.pattern).toBe("moss");
-    expect(MAPS.skybridge.surfaces?.floor.pattern).toBe("snow");
+    expect(MAPS.skybridge.surfaces?.floor.pattern).toBe("concrete");
     expect(MAPS.shipyard.surfaces?.floor.pattern).toBe("planks");
     expect(MAPS.bunker.surfaces?.stair.pattern).toBe("grate");
     expect(MAPS.arena_neon.surfaces?.floor.pattern).toBe("asphalt");
