@@ -189,11 +189,18 @@ export default function MapEditor() {
     update(m=>{
       if(sel.type==="region"){
         return {...m,regions:m.regions.map((r,i)=>i===sel.index?
-          {...r,[key]:Number(value)}:r)};
+          {...r,[key]:key==="shape"?value:Number(value)}:r)};
       }
       if(sel.type==="feature"){
         return {...m,features:m.features.map((r,i)=>i===sel.index?
-          {...r,[key]:["id","kind","label"].includes(key)?value:Number(value)}:r)};
+          {...r,[key]:["id","kind","label","axis"].includes(key)?value:Number(value)}:r)};
+      }
+      if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
+        {...h,[key]:["id","type"].includes(key)?value:Number(value)}:h)};
+      if(sel.type==="prop"){
+        updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
+          {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
+        return m;
       }
       const t=sel.team!,axis=Number(key);
       return {...m,spawns:{...m.spawns,[t]:m.spawns[t].map((r,i)=>i===sel.index?
@@ -205,6 +212,8 @@ export default function MapEditor() {
     const s=selected;
     update(m=>s.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==s.index)}:
       s.type==="feature"?{...m,features:m.features.filter((_,i)=>i!==s.index)}:
+      s.type==="hazard"?{...m,hazards:(m.hazards??[]).filter((_,i)=>i!==s.index)}:
+      s.type==="prop"?(updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)})),m):
       {...m,spawns:{...m.spawns,[s.team!]:m.spawns[s.team!].filter((_,i)=>i!==s.index)}});
     setSelected(null);
   };
@@ -214,6 +223,14 @@ export default function MapEditor() {
     if(s.type==="region"){const index=map.regions.length;
       update(m=>({...m,regions:[...m.regions,{...m.regions[s.index],x:m.regions[s.index].x+12}]}));
       setSelected({type:"region",index});
+    }else if(s.type==="hazard"){
+      const index=(map.hazards??[]).length;
+      update(m=>({...m,hazards:[...(m.hazards??[]),{...m.hazards![s.index],id:"copy_"+Date.now().toString(36),x:m.hazards![s.index].x+10}]}));
+      setSelected({type:"hazard",index});
+    }else if(s.type==="prop"){
+      const index=theme.props.length;
+      updateTheme(t=>({...t,props:[...t.props,{...t.props[s.index],x:t.props[s.index].x+10}]}));
+      setSelected({type:"prop",index});
     }else{const index=map.features.length;update(m=>({...m,features:[...m.features,
       {...m.features[s.index],id:`copy-${Date.now().toString(36)}`,x:m.features[s.index].x+10}]}));
       setSelected({type:"feature",index});
@@ -225,6 +242,7 @@ export default function MapEditor() {
     pushUndo();
     const template=map.templateMapId || (["bunker","shipyard","compound","terminal","skybridge","arena_neon"].includes(mapId)?mapId:"compound");
     setDoc(v=>({...v,maps:{...v.maps,[id]:{...clone(map),name:id.replace(/_/g," ").toUpperCase(),shortName:id.slice(0,3).toUpperCase(),templateMapId:template}}}));
+    setThemes(old=>({...old,[id]:clone(theme)}));
     setMapId(id);setSelected(null);setNewId("");setStatus(`Created ${id}. Export JSON and restart the game dev server to make it playable.`);
   };
   const undo=()=>{
@@ -252,7 +270,9 @@ export default function MapEditor() {
     e.target.value="";
   };
   const selectedObject=selected?(selected.type==="region"?map.regions[selected.index]:
-    selected.type==="feature"?map.features[selected.index]:map.spawns[selected.team!][selected.index]):null;
+    selected.type==="feature"?map.features[selected.index]:
+    selected.type==="hazard"?(map.hazards??[])[selected.index]:
+    selected.type==="prop"?theme.props[selected.index]:map.spawns[selected.team!][selected.index]):null;
   const issues=useMemo(()=>{
     if(!map)return [];
     const problems=validateBlueprint(map);
@@ -273,6 +293,8 @@ export default function MapEditor() {
   },[map]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
+  const inherited=getMap(mapId).environment??[];
+  const uiHazards=map.hazards??[];
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
