@@ -78,20 +78,28 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
   if(theme.biome==="city"||theme.biome==="city_day"){
     result.push({kind:"garden",x:0,z:0,w:80,d:80});
     result.push({kind:"bandstand",x:0,z:0,w:16,d:16,h:5});
-    for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
-      if(i===0&&j===0)continue;
-      const x=i*14,z=j*14;
-      if(Math.hypot(x,z)>32)continue;
-      result.push({kind:(i+j)%4===0?"bench":(i+j)%3===0?"bush":"tree",x,z,h:5.5});
+    // Garden foliage stays off both stair approaches of the pavilion.
+    for(let x=-30;x<=30;x+=12)for(let z=-30;z<=30;z+=12){
+      if(Math.hypot(x,z)<14||Math.abs(x)<5&&Math.abs(z)<26)continue;
+      result.push({kind:(x+z)%24===0?"bench":"tree",x,z,h:6.8});
     }
     const labels=["CAFÉ","BAKERY","ARCADE","METRO","HOTEL","MARKET","DINER","LIBRARY"];
-    for(let x=-174;x<=174;x+=58)for(let z=-174;z<=174;z+=58){
+    // 40m blocks with 14m streets: substantially denser than old 58m
+    // spacing. Both map editions use identical coordinate seeds and bounds.
+    for(let x=-180;x<=180;x+=40)for(let z=-180;z<=180;z+=40){
       if(Math.hypot(x,z)<62)continue;
-      if(!insideRegions(x,z,plan.regions,24))continue;
-      const kind:PropKind=(Math.abs(x+z)%3===0)?"building":"shop";
-      const h=kind==="building"?8.6+Math.round(hashed(x+":"+z)*4):8+Math.round(hashed(z+":"+x)*6);
-      result.push({kind,x,z,w:35,d:35,h,text:labels[Math.floor(hashed(x+":"+z)*labels.length)]});
-      if(hashed("light"+x+":"+z)>.69)result.push({kind:"lamp",x:x+23,z:z+23});
+      if(!insideRegions(x,z,plan.regions,17))continue;
+      const kind:PropKind=(Math.abs(x+z)%5===0)?"building":"shop";
+      const h=kind==="building"?6.4:7.8;
+      const prop:MapProp={kind,x,z,w:26,d:26,h,text:labels[Math.floor(hashed(x+":"+z)*labels.length)]};
+      if(kind==="building"){
+        const boxes=cityBuildingBoxes(prop);
+        if(boxes.some(b=>spawns.some(s=>Math.abs(s[0]-b.pos[0])<b.size[0]+2&&
+          Math.abs(s[2]-b.pos[2])<b.size[2]+2)))continue;
+      }
+      result.push(prop);
+      // Street lamps set OUTSIDE the structure, not above the stair entrance.
+      if(hashed("light"+x+":"+z)>.35)result.push({kind:"lamp",x:x+17,z:z+17});
     }
   } else {
     const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?24:18));
@@ -112,14 +120,22 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     }
   }
   }
-  // An authored façade must never render at a spawn while its collider is
-  // silently suppressed: both visual and physics representations must agree.
+  // Deterministic visual/physics parity: do not render an actor-blocking
+  // structure whose generated hitboxes would be missing or intersect a spawn.
   const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","building","container","boat","dock"]);
+  const stairways=result.filter(p=>p.kind==="building"||p.kind==="bandstand")
+    .flatMap(p=>(p.kind==="building"?cityBuildingBoxes(p):cityBandstandBoxes(p)).filter(c=>c.kind==="stair"));
   return result.filter(p=>{
+    if(p.kind==="tree"||p.kind==="bush"||p.kind==="bench"){
+      if(stairways.some(c=>Math.abs(c.pos[0]-p.x)<c.size[0]+3&&
+        Math.abs(c.pos[2]-p.z)<c.size[2]+3))return false;
+    }
     if(!solidKinds.has(p.kind))return true;
-    const h=p.h??(p.kind==="shop"||p.kind==="building"?7:3);
-    const radiusX=p.kind==="tree" ? 0.5 :(p.w??(p.kind==="rock"?4:8))/2;
-    const radiusZ=p.kind==="tree" ? 0.5 :(p.d??(p.kind==="rock"?3:7))/2 + (p.kind==="building" ? 17 : 0);
+    if(p.kind==="building")
+      return !cityBuildingBoxes(p).some(c=>spawns.some(s=>
+        Math.abs(s[0]-c.pos[0])<c.size[0]+2&&Math.abs(s[2]-c.pos[2])<c.size[2]+2));
+    const radiusX=p.kind==="tree"?0.5:(p.w??(p.kind==="rock"?4:8))/2;
+    const radiusZ=p.kind==="tree"?0.5:(p.d??(p.kind==="rock"?3:7))/2;
     return !spawns.some(s=>Math.abs(s[0]-p.x)<radiusX+3&&Math.abs(s[2]-p.z)<radiusZ+3);
   });
 }
@@ -127,6 +143,66 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
  * Low foliage is atmospheric; trees have slender trunks only, not an invisible
  * solid canopy. Shop fronts/ruins are solid exteriors, not fictitious entrances.
  */
+
+/**
+ * Identical physics and art plan for every enterable city block.
+ * Outer stairs are mounted against the west flank; interior stairs rise from
+ * the south doorway to an actual aperture in the upper floor.
+ * Never silently drop collision while still displaying a building.
+ */
+export function cityBuildingBoxes(p:MapProp):CoverBox[]{
+  const w=p.w??26,d=p.d??26,h=p.h??6.4;
+  const wall=.45,door=6,front=(w-door)/2;
+  const a:CoverBox[]=[
+    {kind:"cover",pos:[p.x,h/2,p.z-d/2],size:[w/2,h/2,wall]},
+    {kind:"cover",pos:[p.x-w/2,h/2,p.z],size:[wall,h/2,d/2]},
+    {kind:"cover",pos:[p.x+w/2,h/2,p.z],size:[wall,h/2,d/2]},
+    {kind:"cover",pos:[p.x-(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
+    {kind:"cover",pos:[p.x+(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
+    {kind:"cover",pos:[p.x,h-1.2,p.z+d/2],size:[door/2,Math.max(.4,(h-2.4)/2),wall]},
+  ];
+  const addRoof=(x:number,z:number,width:number,depth:number)=>{
+    if(width>.2&&depth>.2)a.push({kind:"platform",pos:[p.x+x,h+.16,p.z+z],size:[width/2,.16,depth/2]});
+  };
+  // The roof hatch (about 4.4 × 6) sits over the crest of the inside stair.
+  const hatchX=w/2-4,hatchZ=-2,hatchW=4.4,hatchD=6;
+  const left=-w/2,right=w/2,bottom=-d/2,top=d/2;
+  const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
+  const az=hatchZ-hatchD/2,bz=hatchZ+hatchD/2;
+  addRoof((left+ax)/2,0,ax-left,d);
+  addRoof((bx+right)/2,0,right-bx,d);
+  addRoof((ax+bx)/2,(bottom+az)/2,bx-ax,az-bottom);
+  addRoof((ax+bx)/2,(bz+top)/2,bx-ax,top-bz);
+
+  const count=Math.ceil(h/.4),step=h/count,tread=.78;
+  // Interior flight: start by the doorway on the east, climb northwards.
+  const insideX=p.x+hatchX;
+  const endZ=p.z+hatchZ;
+  for(let i=0;i<count;i++){
+    const height=(i+1)*step;
+    const z=endZ+(count-i-.5)*tread;
+    a.push({kind:"stair",pos:[insideX,height/2,z],size:[1.45,height/2+.001,tread/2+.015]});
+  }
+  // Concealed exterior staircase alongside the west wall, ascending towards
+  // the northern half of the facade, not directly in front of the doorway.
+  const outsideX=p.x-w/2-2.2;
+  const exitZ=p.z-1.4;
+  for(let i=0;i<count;i++){
+    const height=(i+1)*step,z=exitZ+(count-i-.5)*tread;
+    a.push({kind:"stair",pos:[outsideX,height/2,z],size:[1.5,height/2+.001,tread/2+.015]});
+  }
+  return a;
+}
+export function cityBandstandBoxes(p:MapProp):CoverBox[]{
+  const w=p.w??16,d=p.d??16,h=p.h??5;
+  const roof:CoverBox={kind:"platform",pos:[p.x,h+.22,p.z],size:[w/2,.22,d/2]};
+  const steps=featureBoxes({id:"bandstand",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1);
+  const pillars:CoverBox[]=[];
+  for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
+    pillars.push({kind:"cover",pos:[p.x+x,(h+5.2)/2,p.z+z],size:[.36,(h+5.2)/2,.36]});
+  return [roof,...steps,...pillars];
+}
+
 export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):CoverBox[] {
   const result:CoverBox[]=[];
   for(const p of props){
@@ -137,23 +213,7 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
     if(p.kind==="shop"||p.kind==="ruin"||p.kind==="temple"||p.kind==="container"||p.kind==="boat"||p.kind==="dock")
       size=[(p.w??8)/2,h/2,(p.d??7)/2];
     if(p.kind==="building"){
-      // Four accessible walls; the south façade has a six-meter doorway.
-      // Rooftop is a thin physical platform, NOT a solid filled box.
-      const w=p.w??35,d=p.d??35, wall=.45,door=6;
-      const front=(w-door)/2;
-      const wallBoxes:CoverBox[]=[
-        {kind:"cover",pos:[p.x,h/2,p.z-d/2],size:[w/2,h/2,wall]},
-        {kind:"cover",pos:[p.x-w/2,h/2,p.z],size:[wall,h/2,d/2]},
-        {kind:"cover",pos:[p.x+w/2,h/2,p.z],size:[wall,h/2,d/2]},
-        {kind:"cover",pos:[p.x-(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
-        {kind:"cover",pos:[p.x+(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
-        {kind:"cover",pos:[p.x,h-1.2,p.z+d/2],size:[door/2,Math.max(.4,(h-2.4)/2),wall]},
-        {kind:"platform",pos:[p.x,h+.22,p.z],size:[w/2,.22,d/2]},
-      ];
-      // External stairs along two sides, leave the south doorway free.
-      wallBoxes.push(...featureBoxes({id:"roof",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1));
-      if(!wallBoxes.some(c=>spawns.some(s=>Math.abs(s[0]-c.pos[0])<c.size[0]+1.5&&Math.abs(s[2]-c.pos[2])<c.size[2]+1.5)))
-        result.push(...wallBoxes);
+      result.push(...cityBuildingBoxes(p));
       continue;
     }
     if(p.kind==="bench"){
@@ -161,10 +221,7 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       continue;
     }
     if(p.kind==="bandstand"){
-      const w=p.w??16,d=p.d??16;
-      const roof:CoverBox={kind:"platform",pos:[p.x,h+.22,p.z],size:[w/2,.22,d/2]};
-      const steps=featureBoxes({id:"bandstand",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1);
-      result.push(roof,...steps);
+      result.push(...cityBandstandBoxes(p));
       continue;
     }
     if(!size)continue;
