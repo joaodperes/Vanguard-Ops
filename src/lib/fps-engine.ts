@@ -4,7 +4,7 @@
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import * as THREE from "three";
-import { createMapSurfaceMaterials, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
+import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
@@ -477,6 +477,7 @@ export class FPSEngine {
   // current map
   private map: MapDef;
   private surfaceMaterials: MapSurfaceMaterials | null = null;
+  private gardenMaterial: THREE.MeshStandardMaterial | null = null;
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private environmentMeshes = new Map<string, THREE.Group>();
@@ -1135,8 +1136,17 @@ export class FPSEngine {
       metalness:.16,roughness:.3,emissive:biome==="city"?0xaa5d4b:0x317487,emissiveIntensity:.32});
     const asphalt = new THREE.MeshStandardMaterial({color:0x404858,roughness:.9});
     const scene = this.scene;
+    if(biome==="city"||biome==="city_day"){
+      this.gardenMaterial=createPatternedMaterial(biome==="city_day"?0x6e9f5b:0x408458,
+        {pattern:"grass",tileSize:5,roughness:1});
+    }
     const cube=(parent:THREE.Object3D,mat:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{
-      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      const geo=new THREE.BoxGeometry(w,h,d);
+      if(mat instanceof THREE.MeshStandardMaterial && mat.map?.wrapS===THREE.RepeatWrapping){
+        const slot=mat===this.surfaceMaterials?.wall?"wall":"cover";
+        mapBoxUV(geo,parent.position.x+x,parent.position.z+z,this.map.surfaces?.[slot]?.tileSize??4);
+      }
+      const m=new THREE.Mesh(geo,mat);
       m.position.set(x,y,z);m.castShadow=h>=1;m.receiveShadow=true;parent.add(m);return m;
     };
     // Show moss/lichen on the upper faces of existing solid ruins, not as a
@@ -1184,8 +1194,10 @@ export class FPSEngine {
 
       }else if(p.kind==="garden"){
         // Large, accessible grass square; there is no solid collision volume.
-        const park=new THREE.Mesh(new THREE.PlaneGeometry(w,d),
-          new THREE.MeshStandardMaterial({color:biome==="city_day"?0x63965b:0x357b5a,roughness:1}));
+        const parkGeo=new THREE.PlaneGeometry(w,d);
+        mapFloorUV(parkGeo,p.x,p.z,5);
+        const park=new THREE.Mesh(parkGeo,
+          this.gardenMaterial??new THREE.MeshStandardMaterial({color:0x63965b,roughness:1}));
         park.rotation.x=-Math.PI/2;park.position.y=.035;park.receiveShadow=true;group.add(park);
         for(const side of [-1,1]){
           cube(group,stone,side*w*.49,.11,0,.45,.22,d);
@@ -7061,6 +7073,11 @@ export class FPSEngine {
     this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
     this.weaponAudio.dispose();
+    if(this.gardenMaterial){
+      this.gardenMaterial.map?.dispose();
+      this.gardenMaterial.dispose();
+      this.gardenMaterial=null;
+    }
     if(this.surfaceMaterials){
       for(const m of Object.values(this.surfaceMaterials)){
         m.map?.dispose();

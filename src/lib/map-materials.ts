@@ -153,6 +153,18 @@ function patternCanvas(pattern:SurfacePattern,color:number):HTMLCanvasElement {
   }
   return c;
 }
+export function createPatternedMaterial(color:number,recipe:SurfaceRecipe):THREE.MeshStandardMaterial {
+  const tex=new THREE.CanvasTexture(patternCanvas(recipe.pattern,color));
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.magFilter=THREE.NearestFilter;
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  tex.anisotropy=4;
+  return new THREE.MeshStandardMaterial({
+    map:tex,color:0xffffff,roughness:recipe.roughness,
+    metalness:["metal","rust","grate"].includes(recipe.pattern)?.20:0,
+  });
+}
 export function createMapSurfaceMaterials(map:MapDef):MapSurfaceMaterials{
   const colors:Record<SurfaceSlot,number>={
     floor:map.theme.floor,wall:map.theme.wall,cover:map.theme.cover,
@@ -160,16 +172,7 @@ export function createMapSurfaceMaterials(map:MapDef):MapSurfaceMaterials{
   };
   return Object.fromEntries(SLOTS.map(slot=>{
     const recipe=map.surfaces?.[slot]??DEFAULTS[slot];
-    const tex=new THREE.CanvasTexture(patternCanvas(recipe.pattern,colors[slot]));
-    tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-    tex.colorSpace=THREE.SRGBColorSpace;
-    tex.magFilter=THREE.NearestFilter;
-    tex.minFilter=THREE.LinearMipmapLinearFilter;
-    tex.anisotropy=4;
-    return [slot,new THREE.MeshStandardMaterial({
-      map:tex,color:0xffffff,roughness:recipe.roughness,
-      metalness:["metal","rust","grate"].includes(recipe.pattern)?.20:0,
-    })];
+    return [slot,createPatternedMaterial(colors[slot],recipe)];
   })) as MapSurfaceMaterials;
 }
 /** World-space UVs keep the surface scale consistent across differently sized
