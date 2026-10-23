@@ -151,8 +151,8 @@ export default function MapEditor() {
         update(m=>({...m,spawns:{...m.spawns,[team]:[...m.spawns[team],[p.x,0,p.z]]}}));
         setSelected({type:"spawn",team,index});
       }else{
-        const w=Math.max(d.tool==="region"?12:4,Math.abs(p.x-start.x));
-        const depth=Math.max(d.tool==="region"?12:4,Math.abs(p.z-start.z));
+        const w=Math.max(["region","circle","triangle"].includes(d.tool)?12:4,Math.abs(p.x-start.x));
+        const depth=Math.max(["region","circle","triangle"].includes(d.tool)?12:4,Math.abs(p.z-start.z));
         const x=(start.x+p.x)/2,z=(start.z+p.z)/2;
         if(["region","circle","triangle"].includes(d.tool)){
           const index=map.regions.length;
@@ -291,16 +291,19 @@ export default function MapEditor() {
     });
     for(const [team,positions] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
       positions.forEach((p,i)=>{
-        if(map.features.some(f=>f.kind!=="accent" && Math.abs(p[0]-f.x)<f.w/2+1 &&
+        if(map.features.some(f=>f.kind!=="accent" && f.kind!=="stairs" && Math.abs(p[0]-f.x)<f.w/2+1 &&
           Math.abs(p[2]-f.z)<f.d/2+1 && p[1]<f.h))
           problems.push(`${team} spawn ${i+1} intersects an authored solid`);
       });
+    for(const h of map.hazards??[])for(const [team,points] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
+      if(points.some(p=>Math.abs(p[0]-h.x)<h.w/2+1&&Math.abs(p[2]-h.z)<h.d/2+1))
+        problems.push(`Hazard ${h.id} intersects a ${team} spawn`);
     return problems;
   },[map]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
-  const inherited=getMap(mapId).environment??[];
   const uiHazards=map.hazards??[];
+  const inherited=(getMap(mapId).environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
