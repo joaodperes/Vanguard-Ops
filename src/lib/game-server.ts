@@ -9,7 +9,7 @@ import { fullWonderCharges, spendWonderCharge, accelerateWonderCharge, type Wond
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment"; // retained only for legacy internal types
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
-import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
+import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
 import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
@@ -2276,8 +2276,12 @@ async function handle(socket: any, msg: C2S) {
       if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return;
       const p = room.players.get(socket.id);
       if (!p?.alive || room.downed.has(socket.id)) return;
+      const meleeId=room.loadouts.get(socket.id)?.meleeWeaponId ?? "knife_tactical";
+      const weapon=weaponById(meleeId);
+      if(weapon.category!=="melee")return;
+      const attack=quickMeleeProfile(weapon.stats);
       const now = Date.now();
-      if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < QUICK_MELEE_COOLDOWN_MS) return;
+      if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs) return;
       room.quickMeleeAt.set(socket.id, now);
       clearSpawnProtection(room, p);
       const target = chooseQuickMeleeTarget(p.pos, p.yaw,
@@ -2290,12 +2294,12 @@ async function handle(socket: any, msg: C2S) {
           const eye: Vec3 = [p.pos[0], p.pos[1] + 1.1, p.pos[2]];
           const dir: Vec3 = [(c.pos[0]-p.pos[0])/dist, 0, (c.pos[2]-p.pos[2])/dist];
           return !losBlocked(room, eye, dir, dist - 0.15);
-        });
+        },attack.reach);
       // Quick melee disarms a turret on contact regardless of remaining lifetime.
-      destroyTurretsHitByMelee(room, p, 2.5);
+      destroyTurretsHitByMelee(room, p, attack.reach);
       if (target) {
         const victim = room.players.get(target.id) ?? room.bots.get(target.id);
-        if (victim) applyDamage(room, socket.id, victim, QUICK_MELEE_DAMAGE, false, "knife_tactical");
+        if (victim) applyDamage(room, socket.id, victim, attack.damage, false, meleeId);
       }
       break;
     }
