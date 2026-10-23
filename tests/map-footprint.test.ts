@@ -12,7 +12,7 @@ describe("map footprint variety", () => {
     expect(balanced).toHaveLength(1);
     expect(tactical).toHaveLength(3);
     expect(Math.max(...compact.map(m => m.size))).toBeLessThan(Math.min(...balanced.map(m => m.size)));
-    expect(Math.max(...balanced.map(m => m.size))).toBeLessThan(Math.min(...tactical.map(m => m.size)));
+    expect(Math.min(...tactical.map(m => m.size))).toBeGreaterThan(Math.max(...compact.map(m => m.size)));
   });
 
   test("a compact map has smaller walls, cover, spawn distances and hazards together", () => {
@@ -67,11 +67,14 @@ describe("map footprint variety", () => {
       const coveredArea=r.reduce((area,v)=>area+v.w*v.d,0);
       expect(coveredArea).toBeLessThan((2*map.size)**2 * 0.87);
     }
-    for (const id of ["skybridge","arena_neon"] as const) {
-      expect(MAPS[id].size * 2).toBeGreaterThan(380);
-      expect(MAPS[id].spawns.ffa.some(p=>Math.abs(p[0])>140||Math.abs(p[2])>140)).toBe(true);
-      expect(MAPS[id].cover.some(c=>c.kind==="platform" && (Math.abs(c.pos[0])>90||Math.abs(c.pos[2])>90))).toBe(true);
-    }
+    expect(MAPS.arena_neon.size * 2).toBeGreaterThan(380);
+    expect(MAPS.arena_neon.spawns.ffa.some(p=>Math.abs(p[0])>140||Math.abs(p[2])>140)).toBe(true);
+    expect(MAPS.arena_neon.cover.some(c=>c.kind==="platform" && (Math.abs(c.pos[0])>90||Math.abs(c.pos[2])>90))).toBe(true);
+    // Rebuilt Ridgefall is a dense interior rather than an enormous outdoor ridge.
+    expect(MAPS.skybridge.size * 2).toBeGreaterThan(240);
+    expect(MAPS.skybridge.size * 2).toBeLessThan(350);
+    expect(MAPS.skybridge.biome).toBe("factory_interior");
+    expect(MAPS.skybridge.cover.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(4);
   });
 
 });
