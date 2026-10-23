@@ -2,7 +2,7 @@ import { describe,expect,test } from "bun:test";
 import { getMap } from "../src/lib/game-protocol";
 import {
   insideRegion, insideRegions, regionRectangles, regionBoundary, featureBoxes,
-  nearestPlatformSnap, authoredHazardEnvironment, validateBlueprint, overrideBox,
+  nearestPlatformSnap, snapCoverToPlatform, authoredHazardEnvironment, validateBlueprint, overrideBox,
   type MapFeature, type MapBlueprint,
 } from "../src/lib/map-blueprints";
 
@@ -45,6 +45,16 @@ describe("Map Studio authored objects",()=>{
     expect(snapped!.h).toBe(platform.h);
     expect(snapped!.d).toBeCloseTo(Math.ceil(platform.h/.42)*.76);
     expect(nearestPlatformSnap(stairs,[])).toBeNull();
+  });
+  test("elevated walls keep their own thickness above floating platforms",()=>{
+    const wall:MapFeature={id:"gantry-wall",kind:"cover",x:12,z:8,w:3,d:1,h:2.3};
+    const snapped=snapCoverToPlatform(wall,[platform]);
+    expect(snapped?.y).toBeCloseTo(platform.h);
+    expect(snapped?.h).toBe(2.3);
+    const boxes=featureBoxes(snapped!);
+    expect(boxes[0].pos[1]-boxes[0].size[1]).toBeCloseTo(platform.h);
+    expect(boxes[0].pos[1]+boxes[0].size[1]).toBeCloseTo(platform.h+wall.h);
+    expect(snapCoverToPlatform(wall,[])).toBeNull();
   });
   test("authored hazards convert to existing authoritative environment types",()=>{
     const fire=authoredHazardEnvironment({id:"heat",type:"fire",x:10,z:5,y:1,w:6,d:4,h:2,dps:9});
