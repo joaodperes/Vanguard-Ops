@@ -5457,13 +5457,13 @@ export class FPSEngine {
     } else {
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(wonder ? 0.095 : 0.06, wonder ? 0.095 : 0.06, wonder ? 0.34 : 0.22, 10),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x8056ff : wonder?.kind === "corrosion" ? 0x80f23c : 0x888888 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "corrosion" ? 0x80f23c : 0x888888 }),
     );
     body.rotation.x = Math.PI / 2; // align with -Z (forward)
     rocketGroup.add(body);
     const warhead = new THREE.Mesh(
       new THREE.ConeGeometry(0.06, 0.10, 10),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x21104f : wonder?.kind === "corrosion" ? 0x214e14 : 0x444444 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "corrosion" ? 0x214e14 : 0x444444 }),
     );
     warhead.rotation.x = -Math.PI / 2; // point forward
     warhead.position.z = -0.16;
@@ -5471,7 +5471,7 @@ export class FPSEngine {
     // Glowing trail (small sphere at the back)
     const trail = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x973aff : wonder?.kind === "corrosion" ? 0x88ff33 : 0xff6600, transparent: true, opacity: 0.7 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind === "corrosion" ? 0x88ff33 : 0xff6600, transparent: true, opacity: 0.7 }),
     );
     trail.position.z = 0.14;
     rocketGroup.add(trail);
