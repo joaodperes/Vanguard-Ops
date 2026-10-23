@@ -147,6 +147,9 @@
                   },
                   "autoStairs": {
                     "type": "boolean"
+                  },
+                  "y": {
+                    "type": "number"
                   }
                 },
                 "additionalProperties": false
