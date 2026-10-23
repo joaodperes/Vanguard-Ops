@@ -1056,6 +1056,41 @@ export class FPSEngine {
       grid.position.y=0.02; this.scene.add(grid);
     }
 
+    // Ridgefall is an indoor factory. Render a ceiling over each connected
+    // production bay so the map reads as an interior rather than an outdoor arena.
+    // These are decorative overhead panels: the boundary and authored machinery
+    // below still own authoritative ground and combat collision.
+    if (this.map.biome === "factory_interior" && this.map.regions?.length) {
+      const steel = new THREE.MeshStandardMaterial({
+        color:0x343f48,metalness:.55,roughness:.77,side:THREE.DoubleSide,
+      });
+      const girder = new THREE.MeshStandardMaterial({
+        color:0x657780,metalness:.7,roughness:.62,
+      });
+      const luminaire = new THREE.MeshStandardMaterial({
+        color:0xffd09a,emissive:0xffaf60,emissiveIntensity:1.8,
+      });
+      const roofY = 17.9;
+      this.map.regions.forEach((r,i)=>{
+        const ceiling=new THREE.Mesh(new THREE.BoxGeometry(r.w,.45,r.d),steel);
+        ceiling.position.set(r.x,roofY+i*.012,r.z);
+        ceiling.receiveShadow=true;
+        this.scene.add(ceiling);
+        // Long girders and recessed light strips establish the factory roof.
+        const beam=new THREE.Mesh(new THREE.BoxGeometry(r.w,.65,.8),girder);
+        beam.position.set(r.x,roofY-1.0,r.z);
+        this.scene.add(beam);
+        const lamp=new THREE.Mesh(new THREE.BoxGeometry(Math.min(26,r.w*.55),.18,.52),luminaire);
+        lamp.position.set(r.x,roofY-1.52,r.z);
+        this.scene.add(lamp);
+      });
+      for (const [x,z] of [[0,0],[-91,0],[91,0],[0,-86],[0,89]]) {
+        const fixture=new THREE.PointLight(0xffc68d,2.4,82,1.7);
+        fixture.position.set(x,15.4,z);
+        this.scene.add(fixture);
+      }
+    }
+
     // walls
     const wallH = this.map.wallHeight;
     const t = 1;
