@@ -14,7 +14,7 @@ import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, r
 import { quickSwapTarget } from "./quick-swap";
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
-import { chooseQuickMeleeTarget, QUICK_MELEE_DAMAGE, QUICK_MELEE_COOLDOWN_MS } from "./quick-melee";
+import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
@@ -2370,8 +2370,15 @@ export class FPSEngine {
     }
     this.laserBeam.visible = true;
     this.laserDot.visible = true;
-    // Muzzle origin: camera position offset slightly down/forward (approximate barrel exit)
-    const origin = new THREE.Vector3(this.pos.x, this.pos.y + EYE_HEIGHT - 0.1, this.pos.z);
+    // Raycast from the *crosshair* to determine the exact aim point. The
+    // visible beam starts at the weapon's muzzle (in camera-local coordinates),
+    // not at the camera eye: eye-origin lines collapse into screen-space streaks.
+    const origin = new THREE.Vector3(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+    this.camera.updateMatrixWorld();
+    const muzzle = new THREE.Vector3(
+      this.vmOffset.x+0.025, this.vmOffset.y-0.018,
+      this.vmOffset.z-0.48,
+    ).applyMatrix4(this.camera.matrixWorld);
     // Aim direction: same as aimDir but with zero spread (laser shows where you'd actually hit)
     const cp = Math.cos(this.pitch);
     const dir: Vec3 = [Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp];
@@ -2393,9 +2400,10 @@ export class FPSEngine {
     const endZ = origin.z + dir[2] * maxT;
     // Update beam geometry
     const posAttr = this.laserBeam.geometry.getAttribute("position") as THREE.BufferAttribute;
-    posAttr.setXYZ(0, origin.x, origin.y, origin.z);
+    posAttr.setXYZ(0, muzzle.x, muzzle.y, muzzle.z);
     posAttr.setXYZ(1, endX, endY, endZ);
     posAttr.needsUpdate = true;
+    this.laserBeam.geometry.computeBoundingSphere();
     // Place the dot at the impact point
     this.laserDot.position.set(endX, endY, endZ);
     // Pulse the dot opacity slightly for visibility
@@ -2406,34 +2414,42 @@ export class FPSEngine {
   /** Independent first-person quick-melee prop. Does not change the weapon slot,
    * active ammunition, attachment state, or multiplayer weapon identity. */
   private createQuickMeleeModel() {
-    const group = new THREE.Group();
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.040, 0.34, 10),
-      new THREE.MeshStandardMaterial({ color: 0x262c32, metalness: 0.35, roughness: 0.72 }));
-    handle.position.y = -0.12; group.add(handle);
-    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.026, 0.065),
-      new THREE.MeshStandardMaterial({ color: 0x687480, metalness: 0.7 }));
-    guard.position.y = 0.06; group.add(guard);
-    const isBaton = this.meleeWeaponId === "baton";
-    const isHeavy = this.meleeWeaponId === "hammer" || this.meleeWeaponId === "axe";
-    if (isBaton) {
-      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.031, 0.43, 10),
-        new THREE.MeshStandardMaterial({ color: 0x455963, emissive: 0x074b73, emissiveIntensity: 0.8 }));
-      rod.position.y = 0.29; group.add(rod);
-    } else if (isHeavy) {
-      const head = new THREE.Mesh(new THREE.BoxGeometry(this.meleeWeaponId === "axe" ? 0.32 : 0.27, 0.15, 0.12),
-        new THREE.MeshStandardMaterial({ color: 0x91a5b3, metalness: 0.75 }));
-      head.position.y = 0.32; group.add(head);
+    // Same weapon-specific geometry/dimensions as the selected slot-3 melee.
+    // Unlike the old vertical generic dagger, these silhouettes extend forward.
+    const group=new THREE.Group();
+    const metal=new THREE.MeshStandardMaterial({color:0xb5c6d2,metalness:.76,roughness:.32});
+    const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
+    const place=(mesh:THREE.Mesh,x:number,y:number,z:number)=>{
+      mesh.position.set(x,y,z);group.add(mesh);
+    };
+    const box=(w:number,h:number,d:number,material:THREE.Material,x:number,y:number,z:number)=>{
+      place(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material),x,y,z);
+    };
+    const id=this.meleeWeaponId;
+    if(id==="hammer"||id==="axe"){
+      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.023,.029,.69,10),grip);
+      shaft.rotation.x=Math.PI/2;place(shaft,0,-.045,-.17);
+      if(id==="hammer"){
+        box(.27,.14,.16,metal,0,-.045,-.48);
+        box(.045,.155,.18,grip,.14,-.045,-.48);
+      }else{
+        box(.29,.075,.24,metal,0,-.045,-.48);
+        box(.028,.09,.25,grip,-.15,-.045,-.48);
+      }
+    } else if(id==="baton"){
+      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.027,.026,.63,12),metal);
+      shaft.rotation.x=Math.PI/2;place(shaft,0,-.05,-.16);
+      box(.095,.035,.045,grip,0,-.05,.08);
     } else {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.066, this.meleeWeaponId === "machete" ? 0.52 : 0.37, 0.018),
-        new THREE.MeshStandardMaterial({ color: 0xc3d2de, metalness: 0.77, roughness: 0.3 }));
-      blade.position.y = 0.27; group.add(blade);
+      const isMachete=id==="machete",isShiv=id==="shiv";
+      box(isShiv?.035:.04,isShiv?.035:.04,isShiv?.08:.10,grip,0,-.05,.08);
+      box(isShiv?.02:isMachete?.03:.025,isShiv?.035:isMachete?.06:.05,
+        isShiv?.22:isMachete?.45:.32,metal,0,-.05,
+        isShiv?-.13:isMachete?-.22:-.18);
     }
-    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.13),
-      new THREE.MeshStandardMaterial({ color: 0x354652 }));
-    fist.position.set(0.025, -0.19, 0.03); group.add(fist);
-    group.visible = false;
+    group.visible=false;
     this.camera.add(group);
-    this.quickMeleeModel = group;
+    this.quickMeleeModel=group;
   }
   private updateQuickMeleeModel(now: number): boolean {
     if (!this.quickMeleeModel) return false;
@@ -2566,12 +2582,13 @@ export class FPSEngine {
   private quickMelee() {
     if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
     const now = performance.now();
-    if (now - this.quickMeleeLastAt < QUICK_MELEE_COOLDOWN_MS) return;
+    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats);
+    if (now - this.quickMeleeLastAt < melee.cooldownMs) return;
     this.quickMeleeLastAt = now;
     this.selfSpawnProtectedUntil = 0;
     this.quickMeleeFeedbackAt = now;
     this.meleeSwingAt = 0; // quick-melee viewmodel has its own animation
-    this.meleeSwingDur = 390;
+    this.meleeSwingDur = melee.swingMs;
     this.manualAiming = false;
     this.weaponAudio.play("melee", { weaponId: this.meleeWeaponId, volume: 0.9 });
     if (this.opts.online) {
@@ -2588,11 +2605,11 @@ export class FPSEngine {
         const to: Vec3 = [c.pos[0], c.pos[1] + 1.1, c.pos[2]];
         const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
         return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
-      });
+      }, melee.reach);
     if (candidate) {
       const target = this.combatants.get(candidate.id);
       if (target) {
-        this.applyDamageLocal(target, QUICK_MELEE_DAMAGE, false, this.meleeWeaponId);
+        this.applyDamageLocal(target, melee.damage, false, this.meleeWeaponId);
         this.hitMarkerAt = now;
         this.sound.play("melee_hit", { volume: 0.7 });
       }
@@ -5463,20 +5480,20 @@ export class FPSEngine {
     if (this.gravityWells.has(id) || expiresAt < Date.now() || this.disposed) return;
     const mesh = new THREE.Group();
     mesh.position.set(...pos);
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.66, 22, 18),
+    const core = new THREE.Mesh(new THREE.SphereGeometry(1.1, 22, 18),
       new THREE.MeshBasicMaterial({ color: 0x5e1dbb }));
-    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 16),
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.68, 20, 16),
       new THREE.MeshBasicMaterial({ color: 0xc57aff }));
-    const halo = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16),
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(2.4, 20, 16),
       new THREE.MeshBasicMaterial({ color: 0x9a54ff, transparent: true, opacity: 0.19, depthWrite: false }));
-    const orbit = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.07, 10, 70),
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.10, 10, 70),
       new THREE.MeshBasicMaterial({ color: 0xb983ff, transparent: true, opacity: 0.67 }));
     const boundary = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.06, 8, 96),
       new THREE.MeshBasicMaterial({ color: 0x955dff, transparent: true, opacity: 0.35, depthWrite: false }));
     boundary.rotation.x = Math.PI / 2;
     mesh.add(core, inner, halo, orbit, boundary);
     mesh.visible = false;
-    const light = new THREE.PointLight(0x8844ff, 6, radius * 1.6);
+    const light = new THREE.PointLight(0x8844ff, 8, radius * 1.6);
     light.position.set(...pos);
     light.visible = false;
     this.scene.add(mesh, light);
