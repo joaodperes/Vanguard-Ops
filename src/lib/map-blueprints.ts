@@ -131,6 +131,17 @@ export function stairFeatureBoxes(f:MapFeature):CoverBox[] {
       size:(axis==="z"?[f.w/2,top/2,depth/2+.02]:[depth/2+.02,top/2,f.w/2]) as Vec3,kind:"stair" as const};
   });
 }
+/** Place ground-box cover onto the top face of the closest elevated platform.
+ * Never modify its thickness when changing the base elevation. */
+export function snapCoverToPlatform(cover:MapFeature,features:readonly MapFeature[]):MapFeature|null {
+  const platforms=features.filter(f=>f.kind==="platform"&&f.id!==cover.id);
+  if(!platforms.length)return null;
+  const overlapping=platforms.filter(p=>Math.abs(p.x-cover.x)<(p.w+cover.w)/2&&Math.abs(p.z-cover.z)<(p.d+cover.d)/2);
+  const choices=overlapping.length?overlapping:platforms;
+  const closest=choices.reduce((best,p)=>
+    Math.hypot(p.x-cover.x,p.z-cover.z)<Math.hypot(best.x-cover.x,best.z-cover.z)?p:best);
+  return {...cover,y:(closest.y??0)+closest.h};
+}
 export function nearestPlatformSnap(stair:MapFeature,features:readonly MapFeature[]):MapFeature|null {
   const candidates=features.filter(f=>f.kind==="platform").flatMap(p=>[
     {x:p.x,z:p.z-p.d/2,axis:"z" as const,sign:-1 as const,p},
@@ -141,7 +152,7 @@ export function nearestPlatformSnap(stair:MapFeature,features:readonly MapFeatur
   if(!candidates.length)return null;
   candidates.sort((a,b)=>Math.hypot(a.x-stair.x,a.z-stair.z)-Math.hypot(b.x-stair.x,b.z-stair.z));
   const c=candidates[0];
-  return {...stair,x:c.x,z:c.z,h:c.p.h,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
+  return {...stair,x:c.x,z:c.z,h:(c.p.y??0)+c.p.h,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
     d:Math.ceil(c.p.h/.42)*.76,axis:c.axis,sign:c.sign};
 }
 export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol").EnvironmentObject {
