@@ -93,12 +93,11 @@ Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp
 
 For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
 
-**Editor scope and requested features:** The current blueprint grammar has no independent stair or hazard feature. Built-in hazard objects live in engine-authored template/environment definitions; the editor does not display or modify them, so do not assume an exported blueprint contains every obstacle or hazard visible during a match. Editing biome/lighting/palette/prop theme JSON in the browser would need a second form/editor and per-map theme export/registration workflow; for now edit `src/data/map-themes/<mapId>.json` in code.
+**Editor scope:** Map Studio authors blueprint geometry, standalone stairs, supported hazards and local theme/prop drafts. Existing TypeScript template hazards, platform stairs and some scenery are displayed as read-only previews, not removed by blueprint exports. Theme exports are separate files and still require static import registration for new map IDs. The preview does not fully render Three.js materials, effects or scenery.
 
-The editor loads as a browser-only Next.js component, preventing stale server-rendered map option labels from disagreeing with the client during hydration.
-The newer editor also supports shaped regions, independently authored stairs/hazards and theme JSON exports, as detailed below; the older geometry-only note describes the baseline version. Drafts are stored under `vanguard-map-studio-v1` in local browser storage. If an older saved draft has different map names than source JSON, export it first, then use **Restore shipped maps** if you want to return to the current committed content. During development, a full reload or restarting `bun run dev` can resolve stale Turbopack modules.
+The editor loads as a browser-only Next.js component, avoiding hydration mismatches between server map labels and browser drafts. Drafts are stored under `vanguard-map-studio-v1` (blueprints) and `vanguard-map-studio-themes-v1` (themes). If an old draft has different map names, export it first before using **Restore shipped maps**. Restart the dev server if Turbopack displays stale code.
 
-The Map Studio editor currently edits **blueprint geometry only**. Theme JSON is edited in the repository; restart/rebuild for changes to appear in the game. The editor's preview does not fully render Three.js scenery. Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and a manual visual match before requesting a merge.
+Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and perform manual offline/online matches before requesting a merge.
 
 ## Map Studio object authoring (October 2026)
 
