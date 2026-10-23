@@ -660,6 +660,28 @@ export default function MapEditor() {
               x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
               width={step.size[0]*2} height={step.size[2]*2}
               fill="#fbbf24" fillOpacity=".10" stroke="#fbbf24" strokeOpacity=".28" strokeWidth=".2"/>)}
+            {/* Original template stairs: one selectable outline per complete
+                flight in 2D, rather than dozens of individual step rectangles. */}
+            {(baseMap.editorLegacyStairFlights??[]).map(flight=>{
+              const bounds=legacyFlightBounds(flight.start);
+              if(!bounds)return null;
+              const active=selected?.type==="legacyStairs"&&selected.index===flight.start;
+              return <g key={"flight-"+flight.start}
+                onPointerDown={e=>{
+                  if(tool!=="select")return;
+                  e.stopPropagation();
+                  setSelected({type:"legacyStairs",index:flight.start});
+                }}
+                style={{cursor:tool==="select"?"pointer":"crosshair"}}>
+                <rect x={bounds.x-bounds.w/2} y={bounds.z-bounds.d/2}
+                  width={bounds.w} height={bounds.d} pointerEvents={tool==="select"?"all":"none"}
+                  fill="#f59e0b" fillOpacity={active?.2:.045}
+                  stroke={active?"#fde68a":"#fbbf24"} strokeWidth={active?1.4:.35}
+                  strokeDasharray={active?undefined:"1 1"}/>
+                {active&&<text x={bounds.x} y={bounds.z} textAnchor="middle"
+                  fill="#fff7ed" fontSize="4.5" pointerEvents="none">STAIR FLIGHT</text>}
+              </g>;
+            })}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
               style={{cursor:tool==="select"?"move":"crosshair"}}>
               <rect x={f.kind==="stairs"&&f.axis==="x"?(f.sign===-1?f.x-f.d:f.x):f.x-f.w/2}
