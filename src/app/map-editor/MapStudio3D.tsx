@@ -326,7 +326,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     transform.translationSnap=snap>0?snap:null;
     transform.setRotationSnap(Math.PI/2);
     transform.setSpace("world");
-    transform.showY=selected.type!=="region"&&selected.type!=="spawn";
+    // Existing game collision boxes are axis-aligned. Rotate only around Y,
+    // with quarter-turn snapping so the exported dimensions match physics.
+    transform.showX=mode!=="rotate";
+    transform.showZ=mode!=="rotate";
+    transform.showY=mode==="rotate" || (selected.type!=="region"&&selected.type!=="spawn");
   },[selected,mode,snap,map,theme,mapId]);
 
   return <div className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950">
