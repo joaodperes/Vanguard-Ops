@@ -263,9 +263,9 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     }
     for(let i=0;i<map.features.length;i++){
       const f=map.features[i];
-      add({type:"feature",index:i},{x:f.x,y:0,z:f.z,w:f.w,h:f.h,d:f.d},g=>{
+      add({type:"feature",index:i},{x:f.x,y:f.y??0,z:f.z,w:f.w,h:f.h,d:f.d},g=>{
         for(const b of featureBoxes(f)){
-          createBox(g,b.pos[0]-f.x,b.pos[1],b.pos[2]-f.z,
+          createBox(g,b.pos[0]-f.x,b.pos[1]-(f.y??0),b.pos[2]-f.z,
             b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:
               f.kind==="platform"?palette.platform:palette.cover,.86);
         }
