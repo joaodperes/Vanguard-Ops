@@ -292,6 +292,88 @@
                 },
                 "additionalProperties": false
               }
+            },
+            "legacyCoverOverrides": {
+              "type": "object",
+              "patternProperties": {
+                "^(0|[1-9][0-9]*)$": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z",
+                    "w",
+                    "h",
+                    "d"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    },
+                    "w": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "h": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "d": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "legacyEnvironmentOverrides": {
+              "type": "object",
+              "patternProperties": {
+                "^(0|[1-9][0-9]*)$": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z",
+                    "w",
+                    "h",
+                    "d"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    },
+                    "w": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "h": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "d": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
