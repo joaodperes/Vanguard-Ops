@@ -106,7 +106,7 @@ The feature branch `feat/map-studio-object-authoring-20261023` adds a **Geometry
 ### Walkable shapes and region union
 
 - **Rectangle**, **Circle / ellipse**, and **Triangle** tools draw regions. The inspector can switch their `shape`. The circle/ellipse uses its `w`/`d` bounding dimensions; the triangle has a north-facing tip and south-facing base. Regions can still be dragged and overlapped.
-- Overlapping regions form one walkable footprint, not internal physical walls. All shapes are translated into a union of **2-world-unit horizontal rectangle strips** for the existing axis-aligned collision and visible floor generation. This means round and sloping boundaries have intentional small steps, *not* perfect curved/diagonal hitboxes. Playtest near those edges.
+- Overlapping regions form one walkable footprint, not internal physical walls. All shapes are translated into a union of **horizontal rectangle strips** (usually 2 world units, capped at 120 strips for very large shapes) for the existing axis-aligned collision and visible floor generation. This means round and sloping boundaries have intentional small steps, *not* perfect curved/diagonal hitboxes. Playtest near those edges.
 - The HUD minimap draws the union boundary, including curved regions approximated by their strips. Don't mistake individual editable region selection outlines for walls.
 
 ### Independent stairs, hazards and existing environment previews
