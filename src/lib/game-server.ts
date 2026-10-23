@@ -686,7 +686,7 @@ function snapshot(room: Room): S2C {
   const scores: Record<string, number> = {};
   for (const [id, k] of room.scores) scores[id] = k;
   const base: S2C = {
-    t: "snapshot", players, scores, teamScores: room.teamScores,
+    t: "snapshot", serverNow:Date.now(), players, scores, teamScores: room.teamScores,
     timeLeft: Math.max(0, Math.ceil(room.timeLeft)),
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
@@ -2453,7 +2453,7 @@ async function handle(socket: any, msg: C2S) {
           });
           io.to(room.id).emit("message", {
             t: "gravityWell", id, ownerId: socket.id, ownerTeam: p.team,
-            pos: impact, radius, activatesAt, expiresAt,
+            pos: impact, radius, activatesAt, expiresAt, serverNow:now,
           } as S2C);
         } else {
         destroyTurretsNear(room, impact, weapon.wonder?.radius || 8);
