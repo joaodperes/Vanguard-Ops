@@ -1271,6 +1271,26 @@
           "h": 8,
           "kind": "cover",
           "label": "Freight blast-door east frame"
+        },
+        {
+          "id": "freight-security-left-wing",
+          "x": -30,
+          "z": -65,
+          "w": 44,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight hall security partition; left"
+        },
+        {
+          "id": "freight-security-right-wing",
+          "x": 30,
+          "z": -65,
+          "w": 44,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight hall security partition; right"
         }
       ],
       "hazards": [
