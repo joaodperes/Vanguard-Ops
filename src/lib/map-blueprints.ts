@@ -8,7 +8,8 @@ import type { CoverBox, Vec3 } from "./game-protocol";
 
 export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
 export interface MapFeature extends MapRegion {
-  id: string; h: number; kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
+  id: string; h: number; /** Bottom elevation in world units (default ground y=0). */ y?: number;
+  kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
   axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
 }
 export interface MapBlueprint {
@@ -98,17 +99,18 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 }
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
-  const h=Math.max(0.3,feature.h);
-  const main: CoverBox={pos:[feature.x,h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind};
+  const h=Math.max(0.3,feature.h),baseY=feature.y??0;
+  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind};
   if(feature.kind==="stairs")return stairFeatureBoxes(feature);
   if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
   // Risers stay below the 0.55-unit step threshold used by client/server AI.
-  const count=Math.ceil(h/0.42), tread=0.76;
+  const fullRise=Math.max(.3,baseY+h);
+  const count=Math.ceil(fullRise/0.42), tread=0.76;
   const steps:CoverBox[]=[];
   for(const sign of [-1,1]){
     for(let i=0;i<count;i++){
-      const top=h*(i+1)/count;
+      const top=fullRise*(i+1)/count;
       const distance=(count-i-0.5)*tread;
       steps.push({
         pos:[feature.x,top/2,feature.z+sign*(feature.d/2+distance)],
@@ -122,10 +124,10 @@ export function featureBoxes(feature: MapFeature): CoverBox[] {
 
 /** Independent stairs rise toward their (x,z) landing, starting in the sign direction. */
 export function stairFeatureBoxes(f:MapFeature):CoverBox[] {
-  const h=Math.max(.3,f.h),steps=Math.ceil(h/.42),depth=f.d/steps,axis=f.axis??"z",sign=f.sign??1;
+  const h=Math.max(.3,f.h),baseY=f.y??0,steps=Math.ceil(h/.42),depth=f.d/steps,axis=f.axis??"z",sign=f.sign??1;
   return Array.from({length:steps},(_,i)=>{
     const top=h*(i+1)/steps,offset=sign*(steps-i-.5)*depth;
-    return {pos:(axis==="z"?[f.x,top/2,f.z+offset]:[f.x+offset,top/2,f.z]) as Vec3,
+    return {pos:(axis==="z"?[f.x,baseY+top/2,f.z+offset]:[f.x+offset,baseY+top/2,f.z]) as Vec3,
       size:(axis==="z"?[f.w/2,top/2,depth/2+.02]:[depth/2+.02,top/2,f.w/2]) as Vec3,kind:"stair" as const};
   });
 }
@@ -163,7 +165,7 @@ export function validateBlueprint(b: MapBlueprint): string[] {
   for(const [i,f] of (b.features??[]).entries()){
     if(!f.id || seen.has(f.id))issues.push(`Feature ${i+1} has a missing or duplicate ID`);
     seen.add(f.id);
-    if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
+    if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h,f.y??0].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
       issues.push(`Feature ${f.id||i} has invalid geometry`);
     if(!insideRegions(f.x,f.z,b.regions??[])) issues.push(`Feature ${f.id||i} is outside walkable space`);
   }
