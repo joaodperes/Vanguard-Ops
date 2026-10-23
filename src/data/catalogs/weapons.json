@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 25 seconds; any explosive or melee strike destroys it immediately.",
+    "description": "Wonder Weapon: deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but an explosive or melee strike still destroys it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -82,7 +82,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 30,
+      "range": 54,
       "adsTime": 0.1,
       "moveSpeed": 0.9,
       "auto": false,
