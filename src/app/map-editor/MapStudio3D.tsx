@@ -4,9 +4,8 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
-import { getMap, type CoverBox, type EnvironmentObject } from "@/lib/game-protocol";
-import { featureBoxes, regionBoundary, regionRectangles,
-  overrideBox, type MapBlueprint, type MapBoxOverride } from "@/lib/map-blueprints";
+import { getMap } from "@/lib/game-protocol";
+import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
 import type { MapVisualTheme } from "@/lib/map-visuals";
 
 export type StudioSelection={
@@ -84,7 +83,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     scene.add(floor);
     const ctx:Context={renderer,scene,camera,orbit,transform,root,objects:new Map(),keys:new Set()};
     runtime.current=ctx;
-    const onDragging=(event:THREE.Event)=>{orbit.enabled=!(event as THREE.Event&{value?:boolean}).value;};
+    const onDragging=(event:unknown)=>{orbit.enabled=!((event as {value?:unknown})?.value===true);};
     transform.addEventListener("dragging-changed",onDragging);
     const onMouseUp=()=>{
       const group=transform.object as THREE.Group|undefined;
@@ -324,7 +323,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     if(mode==="rotate"&&(selected.type==="region"||selected.type==="spawn"))return;
     transform.attach(group);
     transform.setMode(mode==="move"?"translate":mode==="resize"?"scale":"rotate");
-    transform.setTranslationSnap(snap>0?snap:null);
+    transform.translationSnap=snap>0?snap:null;
     transform.setRotationSnap(Math.PI/2);
     transform.setSpace("world");
     transform.showY=selected.type!=="region"&&selected.type!=="spawn";
