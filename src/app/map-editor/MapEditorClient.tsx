@@ -127,17 +127,6 @@ export default function MapEditor() {
     const p=getPoint(e),d=drag.current;
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
-    if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
-      const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
-      const base=getMap(mapId);
-      const source=sel.type==="legacyCover"?base.cover[sel.index]:base.environment?.[sel.index];
-      if(!source)return;
-      const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
-        w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
-      update(m=>({...m,[overridesKey]:{...(m[overridesKey]??{}),
-        [sel.index]:{...initial,...m[overridesKey]?.[String(sel.index)],[key]:Number(value)}}}));
-      return;
-    }
     if(sel.type==="prop"){
       updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
         {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
@@ -203,6 +192,17 @@ export default function MapEditor() {
     if(!selected)return;
     pushUndo();
     const sel=selected;
+    if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
+      const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
+      const base=getMap(mapId);
+      const source=sel.type==="legacyCover"?base.cover[sel.index]:base.environment?.[sel.index];
+      if(!source)return;
+      const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
+        w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
+      update(m=>({...m,[overridesKey]:{...(m[overridesKey]??{}),
+        [sel.index]:{...initial,...m[overridesKey]?.[String(sel.index)],[key]:Number(value)}}}));
+      return;
+    }
     if(sel.type==="prop"){
       updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
         {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
@@ -676,7 +676,7 @@ export default function MapEditor() {
                     {(["x","y","z","w","h","d"] as const).map(key=>
                       <label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
                         <input className={fieldClass} type="number" step=".25" min={["w","h","d"].includes(key)?0.1:undefined}
-                          value={(selectedObject as Record<string,number>)[key]}
+                          value={(selectedObject as unknown as Record<string,number>)[key]}
                           onChange={e=>changeSelected(key,e.target.value)}/>
                       </label>)}
                   </div>
