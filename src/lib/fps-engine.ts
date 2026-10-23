@@ -1016,7 +1016,27 @@ export class FPSEngine {
   private buildArena() {
     const theme = this.map.theme;
     // floor
-    const floorMat = new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.95, metalness: 0.0 });
+    // Original procedural material: varied paving and worn stone instead of
+    // flat charcoal surfaces. No third-party texture assets are redistributed.
+    const groundCanvas=document.createElement("canvas");
+    groundCanvas.width=256;groundCanvas.height=256;
+    const ctx=groundCanvas.getContext("2d");
+    if(ctx){
+      const base=new THREE.Color(theme.floor), accent=new THREE.Color(theme.floorPattern);
+      ctx.fillStyle="#"+base.getHexString();ctx.fillRect(0,0,256,256);
+      for(let i=0;i<540;i++){
+        // Repeatable integer hash — maps look identical every load.
+        const x=(i*73+Math.floor(i*i*1.7))%256,y=(i*131+Math.floor(i*i*.8))%256;
+        ctx.fillStyle=i%3===0?"#"+accent.getHexString():"rgba(255,255,255,0.05)";
+        ctx.fillRect(x,y,2+(i%5),2+(i%4));
+      }
+      ctx.strokeStyle="#"+accent.getHexString();ctx.lineWidth=2;ctx.globalAlpha=.35;
+      for(let p=0;p<=256;p+=64){ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,256);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(256,p);ctx.stroke();}
+    }
+    const groundTexture=new THREE.CanvasTexture(groundCanvas);
+    groundTexture.wrapS=groundTexture.wrapT=THREE.RepeatWrapping;
+    groundTexture.repeat.set(3,3);groundTexture.colorSpace=THREE.SRGBColorSpace;
+    const floorMat = new THREE.MeshStandardMaterial({map:groundTexture,color:0xffffff,roughness:.94,metalness:0});
     // The visible ground follows the union of authored regions, not a square.
     // Shared area overlaps are coplanar; polygon-union cells avoid Z fighting.
     const regions = this.map.regions;
@@ -1170,6 +1190,70 @@ export class FPSEngine {
             new THREE.MeshStandardMaterial({color:0xe2edf0,roughness:1}));
           snow.position.y=h*.82;group.add(snow);
         }
+
+      }else if(p.kind==="garden"){
+        // Large, accessible grass square; there is no solid collision volume.
+        const park=new THREE.Mesh(new THREE.PlaneGeometry(w,d),
+          new THREE.MeshStandardMaterial({color:biome==="city_day"?0x63965b:0x357b5a,roughness:1}));
+        park.rotation.x=-Math.PI/2;park.position.y=.035;park.receiveShadow=true;group.add(park);
+        for(const side of [-1,1]){
+          cube(group,stone,side*w*.49,.11,0,.45,.22,d);
+          cube(group,stone,0,.11,side*d*.49,w,.22,.45);
+        }
+      }else if(p.kind==="bench"){
+        const wood=new THREE.MeshStandardMaterial({color:0xa8835c,roughness:.85});
+        cube(group,wood,0,.78,0,2.5,.22,.9);
+        cube(group,wood,0,1.3,-.43,2.5,1.1,.18);
+        for(const x of [-.9,.9])cube(group,masonry,x,.36,0,.18,.65,.75);
+      }else if(p.kind==="bandstand"){
+        // Accessible sniper lookout: the shared physical roof + two full
+        // stair flights are emitted by propColliders and drawn by buildArena.
+        const columns=new THREE.MeshStandardMaterial({color:biome==="city_day"?0xf0d7ad:0xaec7d8,roughness:.72});
+        for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
+          cube(group,columns,x,h+1.25,z,.75,2.8,.75);
+        const cap=new THREE.Mesh(new THREE.ConeGeometry(w*.63,2.4,8),trim);
+        cap.position.y=h+4.0;cap.rotation.y=Math.PI/8;cap.castShadow=true;group.add(cap);
+        cube(group,stone,0,.22,0,w*.88,.45,d*.88);
+      }else if(p.kind==="building"){
+        // Physical wall segments match map-visuals.propColliders, leaving
+        // an actual SOUTH doorway. Roof platform + outdoor stair flights let
+        // players flank snipers without teleporting or clipping through walls.
+        const wall=.9,door=6,side=(w-door)/2;
+        const brick=new THREE.MeshStandardMaterial({color:palette.wall,roughness:.84});
+        cube(group,brick,0,h/2,-d/2,w,h,wall);
+        cube(group,brick,-w/2,h/2,0,wall,h,d);
+        cube(group,brick,w/2,h/2,0,wall,h,d);
+        cube(group,brick,-(w+door)/4,h/2,d/2,side,h,wall);
+        cube(group,brick,(w+door)/4,h/2,d/2,side,h,wall);
+        cube(group,brick,0,(h+2.4)/2,d/2,door,h-2.4,wall);
+        cube(group,trim,0,h+.07,0,w,.28,d);
+        // Floor markings and glass shopfront panels, leaving open doorway.
+        cube(group,asphalt,0,.045,0,w-.9,.09,d-.9);
+        for(let x=-w/2+3;x<=w/2-3;x+=6){
+          if(Math.abs(x)>door/2+2)cube(group,glass,x,h*.45,d/2+.53,3.3,h*.27,.15);
+          cube(group,glass,x,h*.45,-d/2-.53,3.3,h*.27,.15);
+        }
+        for(let z=-d/2+3;z<=d/2-3;z+=7){
+          cube(group,glass,-w/2-.51,h*.49,z,.12,h*.26,3.4);
+          cube(group,glass,w/2+.51,h*.49,z,.12,h*.26,3.4);
+        }
+      }else if(p.kind==="dock"){
+        const timber=new THREE.MeshStandardMaterial({color:0xa87b52,roughness:.9});
+        cube(group,timber,0,.43,0,w,.7,d);
+        for(let x=-w/2+1;x<w/2;x+=2)
+          cube(group,masonry,x,.84,0,.08,.06,d);
+        for(const x of [-w*.4,w*.4])for(const z of [-d*.42,d*.42])
+          cube(group,stone,x,.85,z,.28,1.7,.28);
+      }else if(p.kind==="boat"){
+        // Clearly readable hull, gunwale and wheelhouse, authored at dockside.
+        const hull=new THREE.MeshStandardMaterial({color:0x335872,roughness:.67});
+        const boat=new THREE.Mesh(new THREE.CylinderGeometry(Math.min(d*.46,w*.26),Math.min(d*.36,w*.18),1.7,8),hull);
+        boat.scale.set(w/Math.max(4,d),1,1);boat.rotation.z=Math.PI/2;
+        boat.position.y=1.3;boat.castShadow=true;group.add(boat);
+        cube(group,stone,0,1.95,0,w*.72,.35,d*.9);
+        cube(group,masonry,-w*.13,3.3,0,w*.34,2.3,d*.58);
+        cube(group,glass,-w*.13,3.6,d*.3,w*.24,.8,.12);
+        cube(group,trim,w*.4,1.95,0,.2,2.6,.2);
       }else if(p.kind==="shop"){
         // Solid shop exteriors deliberately sit beside open streets/plazas.
         // Windows, illuminated signage and an entry graphic give recognisable

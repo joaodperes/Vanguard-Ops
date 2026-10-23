@@ -84,11 +84,10 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       const kind:PropKind=(Math.abs(x+z)%3===0)?"building":"shop";
       const h=kind==="building"?8.6+Math.round(hashed(x+":"+z)*4):8+Math.round(hashed(z+":"+x)*6);
       result.push({kind,x,z,w:35,d:35,h,text:labels[Math.floor(hashed(x+":"+z)*labels.length)]});
-      if(x%2===0&&z%2===0)result.push({kind:"lamp",x:x+23,z:z+23});
+      if(hashed("light"+x+":"+z)>.69)result.push({kind:"lamp",x:x+23,z:z+23});
     }
   } else {
     const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?24:18));
-  const frequency=Math.ceil(theme.vegetation*9);
   for(let r=0;r<plan.regions.length;r++){
     const region=plan.regions[r];
     for(let n=0;n<frequency;n++){
