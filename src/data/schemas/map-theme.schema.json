@@ -104,7 +104,13 @@
               "crane",
               "terminal",
               "sign",
-              "antenna"
+              "antenna",
+              "building",
+              "boat",
+              "dock",
+              "garden",
+              "bench",
+              "bandstand"
             ]
           },
           "x": {
@@ -135,6 +141,9 @@
         },
         "additionalProperties": false
       }
+    },
+    "inheritPropsFrom": {
+      "type": "string"
     }
   },
   "additionalProperties": false

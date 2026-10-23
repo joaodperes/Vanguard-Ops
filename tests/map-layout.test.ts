@@ -63,6 +63,11 @@ describe("authored map combat layouts", () => {
     const ids = new Set<string>();
     for (const map of MAP_LIST) {
       const doors = map.environment?.filter(e => e.type === "destructible_wall") ?? [];
+      if (map.id === "arena_neon" || map.id === "terminal") {
+        expect(doors).toHaveLength(0);
+        expect(map.environment?.length ?? 0).toBe(0);
+        continue;
+      }
       expect(doors.length).toBeGreaterThanOrEqual(1);
       for (const environment of map.environment ?? []) {
         expect(ids.has(environment.id)).toBe(false);

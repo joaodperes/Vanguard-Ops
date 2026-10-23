@@ -28,13 +28,13 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
   const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
-  const environment=base.environment?.map(o=>scaleEnvironment(o,factor));
+  const environment=(base.id==="arena_neon"||base.id==="terminal"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,size:Math.round(base.size*factor*1000)/1000,
     // Old maps included a full rectangular perimeter. Leaving these walls
     // behind turns the new outdoor districts into inaccessible rings.
     // Region-union walls replace these, without blocking core-to-flank travel.
-    cover:base.cover.filter(c=>{
+    cover:(base.id==="arena_neon"||base.id==="terminal"?[]:base.cover).filter(c=>{
       const longX=c.size[0] > base.size*.7 && c.size[2]<2.5 && Math.abs(c.pos[2])>base.size*.8;
       const longZ=c.size[2] > base.size*.7 && c.size[0]<2.5 && Math.abs(c.pos[0])>base.size*.8;
       // Elevated walkways must remain: only ground-level perimeter barriers
@@ -54,9 +54,9 @@ export function applyMapFootprint(base:MapDef):MapDef {
   if(!plan)return scaledBase;
   const regions=plan.regions.map(r=>({...r}));
   const visuals=visualThemeForMap(base.id,plan.templateMapId);
-  const props=mapProps(base.id,plan,visuals);
   const allSpawns=[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
+  const props=mapProps(base.id,plan,visuals,allSpawns);
   const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
     Math.abs(p[0]-c.pos[0]) < c.size[0]+1.25 &&
     Math.abs(p[2]-c.pos[2]) < c.size[2]+1.25 &&

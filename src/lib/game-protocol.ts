@@ -985,25 +985,9 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
     // Container-checkpoint gate with static wall wings.
     { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -38], size: [2.8, 1.5, 0.45], hp: 200 },
   ],
-  terminal: [
-    // Timed checkpoint floor beyond security doors, not random concourse fire.
-    { id: "terminal_spikes", type: "spikes", pos: [0, 0, -46], size: [1.8, 0.4, 1.8], damage: 28, period: 4.8, activeFor: 1.4 },
-    // Baggage transport: an optional interaction on the outer concourse.
-    { id: "terminal_platform", type: "moving_platform", pos: [-10, 0.85, 37], size: [2.6, 0.25, 2.6], to: [10, 0.85, 37], period: 7 },
-    // Security partition: breaking it opens the centre lane.
-    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -40], size: [2.8, 1.5, 0.45], hp: 180 },
-  ],
-  arena_neon: [
-    // Damaged power panel and flashing electrical grid mark risky flank routes.
-    { id: "arena_neon_fire", type: "fire", pos: [39, 0, 27], size: [2.3, 1.6, 2.3], dps: 24 },
-    { id: "arena_neon_spikes", type: "spikes", pos: [-23, 0, -22], size: [1.8, 0.4, 1.8], damage: 32, period: 4.2, activeFor: 1.5 },
-    // Boost toward the southeast balcony without eliminating stair paths.
-    { id: "arena_neon_jump", type: "jump_pad", pos: [21, 0, 17], size: [1.8, 0.2, 1.8], launch: [7, 15, 8] },
-    // Holographic shuttle travels across the south arcade.
-    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 7 },
-    // Breachable storefront shutter between permanent flanking partitions.
-    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -46], size: [2.8, 1.5, 0.45], hp: 180 },
-  ],
+  // Day and night city editions are hazard-free urban combat spaces.
+  terminal: [],
+  arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {

@@ -2,12 +2,12 @@
   "biome": "harbor",
   "label": "Golden-hour container wharf",
   "palette": {
-    "floor": "#71675b",
-    "wall": "#575967",
-    "cover": "#c07a4a",
+    "floor": "#7c7464",
+    "wall": "#426a7b",
+    "cover": "#c28855",
     "accent": "#ffd18d",
-    "platform": "#777e89",
-    "stair": "#a58b75",
+    "platform": "#8c7156",
+    "stair": "#b7a080",
     "sky": "#99afc5",
     "fog": "#9aa9b5",
     "grid": "#7d776d"
@@ -16,29 +16,99 @@
   "vegetation": 0.06,
   "props": [
     {
-      "kind": "container",
-      "x": -63,
-      "z": 18,
+      "kind": "dock",
+      "x": -44,
+      "z": 42,
+      "w": 23,
+      "d": 6,
+      "h": 1.1
+    },
+    {
+      "kind": "dock",
+      "x": 31,
+      "z": -43,
+      "w": 23,
+      "d": 6,
+      "h": 1.1
+    },
+    {
+      "kind": "boat",
+      "x": -42,
+      "z": 31,
+      "w": 11,
+      "d": 5,
+      "h": 2.4
+    },
+    {
+      "kind": "boat",
+      "x": 34,
+      "z": -30,
       "w": 9,
       "d": 5,
+      "h": 2.1
+    },
+    {
+      "kind": "crane",
+      "x": 13,
+      "z": 59,
+      "w": 29,
+      "h": 12
+    },
+    {
+      "kind": "crane",
+      "x": -59,
+      "z": -5,
+      "w": 19,
+      "h": 10
+    },
+    {
+      "kind": "container",
+      "x": -35,
+      "z": 37,
+      "w": 9,
+      "d": 5,
+      "h": 3.3
+    },
+    {
+      "kind": "container",
+      "x": 9,
+      "z": -48,
+      "w": 11,
+      "d": 5,
+      "h": 3.4
+    },
+    {
+      "kind": "container",
+      "x": 44,
+      "z": 25,
+      "w": 10,
+      "d": 4,
+      "h": 3
+    },
+    {
+      "kind": "container",
+      "x": -54,
+      "z": 23,
+      "w": 8,
+      "d": 4,
       "h": 3
     },
     {
       "kind": "lamp",
-      "x": -37,
-      "z": 48
+      "x": 0,
+      "z": 42
     },
     {
-      "kind": "crane",
-      "x": 17,
-      "z": 68
+      "kind": "lamp",
+      "x": 18,
+      "z": -44
     },
     {
       "kind": "sign",
-      "x": 5,
-      "z": -54,
-      "w": 7,
-      "text": "DOCK 07"
+      "x": 1,
+      "z": 47,
+      "w": 11,
+      "text": "BREAKWATER HARBOR"
     }
   ]
 }

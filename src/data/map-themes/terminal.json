@@ -1,107 +1,19 @@
 {
-  "biome": "metro",
-  "label": "Modern city transport plaza",
+  "biome": "city_day",
+  "label": "Afterlight day: the same urban building grammar under bright sunlight",
   "palette": {
-    "floor": "#a4adaf",
-    "wall": "#758996",
-    "cover": "#a0b3be",
-    "accent": "#49bdd7",
-    "platform": "#8c9fa8",
-    "stair": "#b4babe",
-    "sky": "#b6d5e6",
-    "fog": "#bed4dc",
-    "grid": "#8fa7b0"
+    "floor": "#a8b5a9",
+    "wall": "#d1c1a5",
+    "cover": "#bfa893",
+    "accent": "#32a6a0",
+    "platform": "#c7bdad",
+    "stair": "#d9d6c5",
+    "sky": "#abd6ec",
+    "fog": "#cbe0e6",
+    "grid": "#a1b6b3"
   },
-  "ambient": 1.8,
-  "vegetation": 0.18,
-  "props": [
-    {
-      "kind": "shop",
-      "x": 121,
-      "z": 18,
-      "w": 12,
-      "d": 8,
-      "h": 7,
-      "text": "COFFEE & CO."
-    },
-    {
-      "kind": "shop",
-      "x": 38,
-      "z": 128,
-      "w": 11,
-      "d": 8,
-      "h": 7,
-      "text": "MARKET"
-    },
-    {
-      "kind": "lamp",
-      "x": -91,
-      "z": -47
-    },
-    {
-      "kind": "sign",
-      "x": 14,
-      "z": 103,
-      "w": 10,
-      "text": "GLASSLINE"
-    },
-    {
-      "kind": "shop",
-      "x": 138,
-      "z": 14,
-      "w": 13,
-      "d": 8,
-      "h": 9,
-      "text": "BAGELS"
-    },
-    {
-      "kind": "shop",
-      "x": 25,
-      "z": 150,
-      "w": 12,
-      "d": 8,
-      "h": 8,
-      "text": "BOOK STORE"
-    },
-    {
-      "kind": "shop",
-      "x": -106,
-      "z": -61,
-      "w": 12,
-      "d": 8,
-      "h": 9,
-      "text": "CITY PHARMACY"
-    },
-    {
-      "kind": "shop",
-      "x": -125,
-      "z": -14,
-      "w": 12,
-      "d": 8,
-      "h": 7,
-      "text": "TRANSIT SHOP"
-    },
-    {
-      "kind": "lamp",
-      "x": 131,
-      "z": 37
-    },
-    {
-      "kind": "lamp",
-      "x": -121,
-      "z": -26
-    },
-    {
-      "kind": "bush",
-      "x": 37,
-      "z": 142,
-      "h": 1.8
-    },
-    {
-      "kind": "bush",
-      "x": -122,
-      "z": -40,
-      "h": 1.5
-    }
-  ]
+  "ambient": 1.85,
+  "vegetation": 0,
+  "props": [],
+  "inheritPropsFrom": "arena_neon"
 }

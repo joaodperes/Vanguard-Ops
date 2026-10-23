@@ -1,140 +1,18 @@
 {
   "biome": "city",
-  "label": "Colourful night market city",
+  "label": "Afterlight city grid, gardens and lit store fronts",
   "palette": {
-    "floor": "#49516b",
-    "wall": "#464664",
-    "cover": "#777294",
-    "accent": "#ff7dc4",
-    "platform": "#646688",
-    "stair": "#8c89a7",
-    "sky": "#46466b",
-    "fog": "#686c91",
-    "grid": "#707796"
+    "floor": "#414b5d",
+    "wall": "#68769d",
+    "cover": "#8d789d",
+    "accent": "#fe72b9",
+    "platform": "#8591bc",
+    "stair": "#b49ab6",
+    "sky": "#243354",
+    "fog": "#4a587b",
+    "grid": "#637084"
   },
   "ambient": 1.65,
-  "vegetation": 0.13,
-  "props": [
-    {
-      "kind": "shop",
-      "x": -139,
-      "z": 17,
-      "w": 12,
-      "d": 9,
-      "h": 8,
-      "text": "NOODLE BAR"
-    },
-    {
-      "kind": "shop",
-      "x": 151,
-      "z": 25,
-      "w": 14,
-      "d": 10,
-      "h": 9,
-      "text": "ARCADE"
-    },
-    {
-      "kind": "shop",
-      "x": 43,
-      "z": 137,
-      "w": 15,
-      "d": 11,
-      "h": 8,
-      "text": "BAZAAR"
-    },
-    {
-      "kind": "sign",
-      "x": -118,
-      "z": -119,
-      "w": 10,
-      "text": "OPEN LATE"
-    },
-    {
-      "kind": "lamp",
-      "x": 110,
-      "z": 65
-    },
-    {
-      "kind": "lamp",
-      "x": -155,
-      "z": -23
-    },
-    {
-      "kind": "shop",
-      "x": -174,
-      "z": 49,
-      "w": 12,
-      "d": 8,
-      "h": 8,
-      "text": "TACO STATION"
-    },
-    {
-      "kind": "shop",
-      "x": 162,
-      "z": 62,
-      "w": 12,
-      "d": 8,
-      "h": 10,
-      "text": "MIDNIGHT MART"
-    },
-    {
-      "kind": "shop",
-      "x": 41,
-      "z": -167,
-      "w": 11,
-      "d": 8,
-      "h": 9,
-      "text": "NEON NOODLES"
-    },
-    {
-      "kind": "shop",
-      "x": -68,
-      "z": -163,
-      "w": 13,
-      "d": 8,
-      "h": 7,
-      "text": "ROBOT REPAIR"
-    },
-    {
-      "kind": "shop",
-      "x": -104,
-      "z": 95,
-      "w": 11,
-      "d": 9,
-      "h": 9,
-      "text": "VIDEO PALACE"
-    },
-    {
-      "kind": "shop",
-      "x": 95,
-      "z": 156,
-      "w": 12,
-      "d": 9,
-      "h": 10,
-      "text": "VINYL RECORDS"
-    },
-    {
-      "kind": "lamp",
-      "x": 165,
-      "z": -29
-    },
-    {
-      "kind": "lamp",
-      "x": -182,
-      "z": 42
-    },
-    {
-      "kind": "sign",
-      "x": 36,
-      "z": -173,
-      "w": 11,
-      "text": "DOWNTOWN"
-    },
-    {
-      "kind": "antenna",
-      "x": -184,
-      "z": -121,
-      "h": 11
-    }
-  ]
+  "vegetation": 0,
+  "props": []
 }
