@@ -78,6 +78,8 @@ describe("Afterlight architectural maps",()=>{
     for(const k of ["boat","crane","dock","container"])
       expect(harbor.some(p=>p.kind===k)).toBe(true);
     expect((MAPS.compound.props??[]).filter(p=>["tree","bush","rock","ruin","temple"].includes(p.kind)).length).toBeGreaterThan(10);
-    expect((MAPS.skybridge.props??[]).filter(p=>["tree","rock"].includes(p.kind)).length).toBeGreaterThan(10);
+    expect(MAPS.skybridge.biome).toBe("factory_interior");
+    expect((MAPS.skybridge.props??[]).filter(p=>["crane","container","lamp","terminal"].includes(p.kind)).length).toBeGreaterThan(14);
+    expect((MAPS.skybridge.props??[]).some(p=>p.kind==="tree")).toBe(false);
   });
 });
