@@ -25,7 +25,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityClientTime, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -3743,7 +3743,7 @@ export class FPSEngine {
         // Hydrate live turrets for late-joining clients; synchronize removals.
         if (msg.gravityWells) {
           const activeIds = new Set(msg.gravityWells.map(w => w.id));
-          for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false);
+          for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false, msg.serverNow);
           for (const [id, well] of this.gravityWells) if (!well.offline && !activeIds.has(id)) this.removeGravityWell(id);
         }
         if (msg.turrets) {
@@ -3928,7 +3928,7 @@ export class FPSEngine {
         }
         break;
       case "gravityWell":
-        this.addGravityWell(msg.id, msg.ownerId, msg.ownerTeam, msg.pos, msg.radius, msg.activatesAt, msg.expiresAt, false);
+        this.addGravityWell(msg.id, msg.ownerId, msg.ownerTeam, msg.pos, msg.radius, msg.activatesAt, msg.expiresAt, false, msg.serverNow);
         break;
       case "gravityDetonate":
         this.removeGravityWell(msg.id);
@@ -5514,7 +5514,12 @@ export class FPSEngine {
    * spawned when our locally simulated projectile reaches its impact.
    */
   private addGravityWell(id: string, ownerId: string, ownerTeam: string, pos: Vec3,
-    radius: number, activatesAt: number, expiresAt: number, offline: boolean) {
+    radius: number, activatesAt: number, expiresAt: number, offline: boolean, serverNow?: number) {
+    if (!offline && Number.isFinite(serverNow)) {
+      const receivedAt=Date.now();
+      activatesAt=gravityClientTime(activatesAt,serverNow!,receivedAt);
+      expiresAt=gravityClientTime(expiresAt,serverNow!,receivedAt);
+    }
     if (this.gravityWells.has(id) || expiresAt < Date.now() || this.disposed) return;
     const mesh = new THREE.Group();
     mesh.position.set(...pos);
