@@ -183,6 +183,13 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     const z=endZ+(count-i-.5)*tread;
     a.push({kind:"stair",pos:[insideX,height/2,z],size:[1.45,height/2+.001,tread/2+.015]});
   }
+  // Hatch landing joins the interior staircase to the surrounding roof deck.
+  a.push({kind:"platform",pos:[p.x+ax+1.3,h+.16,p.z+hatchZ],
+    size:[1.3,.16,1.55]});
+  // Small west roof landing connects the concealed outside stair to the roof
+  // without forcing the player to walk through the building's wall.
+  a.push({kind:"platform",pos:[p.x-w/2-1.35,h+.16,p.z-1.4],
+    size:[2.05,.16,1.75]});
   // Concealed exterior staircase alongside the west wall, ascending towards
   // the northern half of the facade, not directly in front of the doorway.
   const outsideX=p.x-w/2-2.2;

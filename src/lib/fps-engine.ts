@@ -1213,10 +1213,11 @@ export class FPSEngine {
         // stair flights are emitted by propColliders and drawn by buildArena.
         const columns=new THREE.MeshStandardMaterial({color:biome==="city_day"?0xf0d7ad:0xaec7d8,roughness:.72});
         for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
-          cube(group,columns,x,h+1.25,z,.75,2.8,.75);
+          cube(group,columns,x,(h+5.2)/2,z,.72,h+5.2,.72);
         const cap=new THREE.Mesh(new THREE.ConeGeometry(w*.63,2.4,8),trim);
-        cap.position.y=h+4.0;cap.rotation.y=Math.PI/8;cap.castShadow=true;group.add(cap);
+        cap.position.y=h+6.1;cap.rotation.y=Math.PI/8;cap.castShadow=true;group.add(cap);
         cube(group,stone,0,.22,0,w*.88,.45,d*.88);
+        for(const z of [-d*.42,d*.42])cube(group,columns,0,h+5.05,z,w*.82,.35,.45);
       }else if(p.kind==="building"){
         // Physical wall segments match map-visuals.propColliders, leaving
         // an actual SOUTH doorway. Roof platform + outdoor stair flights let
@@ -1229,7 +1230,10 @@ export class FPSEngine {
         cube(group,brick,-(w+door)/4,h/2,d/2,side,h,wall);
         cube(group,brick,(w+door)/4,h/2,d/2,side,h,wall);
         cube(group,brick,0,(h+2.4)/2,d/2,door,h-2.4,wall);
-        cube(group,trim,0,h+.07,0,w,.28,d);
+        // Roof deck has a real hatch cutout; never draw a solid ornamental
+        // slab over the interior stair exit. Physical roof segments are
+        // already rendered by buildArena from shared collision geometry.
+        cube(group,trim,0,h+.22,-d/2,w,.35,.22);
         // Floor markings and glass shopfront panels, leaving open doorway.
         cube(group,asphalt,0,.045,0,w-.9,.09,d-.9);
         for(let x=-w/2+3;x<=w/2-3;x+=6){
