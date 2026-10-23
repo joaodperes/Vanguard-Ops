@@ -52,7 +52,12 @@ describe("shotgun ammunition",()=>{
   test("melee is faster than its own base move speed and never has a headshot objective",()=>{
     const w=WEAPONS.find(x=>x.id==="knife_tactical")!;
     expect(computeEffectiveStats(w,{...empty}).moveSpeed).toBeGreaterThan(w.stats.moveSpeed);
-    for(const weapon of WEAPONS.filter(w=>w.category==="melee"))
+    const carbon=allSkinChallengesForWeapon("knife_tactical")
+      .find(x=>x.id==="wc_knife_tactical_hs_50");
+    expect(carbon?.goal).toBe(50);
+    expect(carbon?.metric).toBe("close_range_kills");
+    expect(carbon?.description).toContain("close-range");
+        for(const weapon of WEAPONS.filter(w=>w.category==="melee"))
       for(const challenge of allSkinChallengesForWeapon(weapon.id))
         expect(challenge.metric).not.toBe("headshots");
   });

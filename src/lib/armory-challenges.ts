@@ -75,7 +75,14 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     return {...ch,metric:"close_range_kills",
       description:`Get ${ch.goal} melee eliminations with the ${weapon.name} at 10m or closer.`};
   }
-  if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
+  // Preserve the full hand-authored melee Carbon milestone after migrating
+  // the old impossible headshot requirement; don't rewrite to a generic
+  // hip-fire challenge or silently shrink its goal.
+  if (weapon.category==="melee" && ch.metric==="close_range_kills" &&
+      ch.id.includes("_hs_")) {
+    return {...ch,description:`Get ${ch.goal} close-range eliminations with the ${weapon.name}.`};
+  }
+    if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
   const category = weapon.category;
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";
