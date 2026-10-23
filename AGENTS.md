@@ -6,6 +6,7 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Check the current Git branch and head SHA. For content system work, use `feature/json-content-catalogs` or a fresh topic branch; do not push directly to `main` or `dev` unless explicitly asked.
 - Read `docs/content-authoring.md` first. For map work also read `docs/map-studio.md` and `src/lib/map-blueprints.ts`.
 - Inspect nearby catalog entries and the matching TypeScript definition before adding a new object.
+- Identify the catalog shape first (array, keyed object, scalar settings, versioned map dictionary or standalone theme); a single draft fragment is not a replacement for the whole file.
 - Do not change unrelated game balance, player progression, authentication, Prisma schema or networking to implement a data-only object.
 
 ## Authoritative ownership
@@ -14,11 +15,13 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Do not add new JSON keys that imply executable behavior unless the relevant client and server code explicitly implements them.
 - Keep stable IDs and all existing player unlock references. Never rename, remove or recycle a shipped ID without a separately approved migration.
 - Follow the actual attachment allowlists, challenge eligibility vs purchase ownership, and Wonder/Prestige exceptions explained in the handbook.
+- Treat catalog schema validity as a starting point, not proof of integration: new skin IDs, operator IDs, optic types, map IDs, challenge metrics and game modes may need TypeScript registration, server tracking or unlock contracts.
 - No live server endpoint should accept untrusted JSON catalogs as shared game content.
 
 ## Mandatory checks
 - Run `bun run content:validate` for any catalog/map edit.
 - Run `bun run test:smoke`, `bun run typecheck` and `bun run build` before calling a change ready.
+- Inspect exact catalog-size assertions in `tests/content-catalogs.test.ts` after adding entries; compare against real JSON counts before editing tests.
 - Validate server/client parity for new mechanics and run gameplay tests for new map layout, weapon tuning, rendering or bot navigation. A green CI build does not prove a map feels balanced.
 - Update documentation whenever a new object kind, allowed enum value, required field, runtime behavior or authoring workflow changes.
 - If any check has not actually run, state that clearly instead of claiming it passed.
