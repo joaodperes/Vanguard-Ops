@@ -2,7 +2,7 @@
  * The map runtime still uses individual stair tread boxes for physics.
  * The input order and indices are stable before authored spatial overrides.
  */
-import type { CoverBox, Vec3 } from "./game-protocol";
+import type { CoverBox } from "./game-protocol";
 
 export interface LegacyStairFlight { start:number; indices:number[] }
 export interface FlightBounds { x:number; y:number; z:number; w:number; h:number; d:number }
