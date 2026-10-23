@@ -524,11 +524,27 @@ export default function MapEditor() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div><h1 className="text-xl font-bold">{map.name}</h1>
             <p className="text-xs text-zinc-500">{map.regions.length} regions · {map.features.length} features · {uiHazards.length} hazards · {theme.props.length} props · {Object.values(map.spawns).flat().length} spawn points</p></div>
-          <label className="text-xs text-zinc-400 flex items-center gap-2">Zoom
+          {viewport==="2d"&&<label className="text-xs text-zinc-400 flex items-center gap-2">Zoom
             <input aria-label="Zoom" type="range" min="55" max="180" step="5" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>
-            <span className="tabular-nums w-10">{zoom}%</span></label>
+            <span className="tabular-nums w-10">{zoom}%</span></label>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="inline-flex rounded-md border border-white/15 overflow-hidden" aria-label="Viewport">
+            {(["3d","2d"] as const).map(v=><button key={v} className={btn+(viewport===v?" bg-amber-600 text-zinc-950":"")}
+              onClick={()=>{setViewport(v);setSelected(null);setEditMode("select");}}>{v.toUpperCase()} view</button>)}
+          </div>
+          {viewport==="3d"&&<div className="inline-flex rounded-md border border-white/15 flex-wrap" aria-label="Edit mode">
+            {(["select","move","rotate","resize"] as StudioMode[]).map(m=><button key={m}
+              className={btn+(editMode===m?" bg-amber-500 text-zinc-950":"")}
+              onClick={()=>setEditMode(m)}>{m==="select"?"Camera / select":m==="move"?"Move object":m==="rotate"?"Rotate 90°":"Resize object"}</button>)}
+          </div>}
+          <span className="text-xs text-zinc-500">3D: drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
         </div>
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
+          {viewport==="3d"?
+            <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
+              mode={editMode} snap={gridSnapEnabled?gridSnapStep:0}
+              onSelect={setSelected} onTransform={apply3DTransform}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
             style={{touchAction:"none"}} onPointerDown={onPointerDown}
@@ -602,7 +618,7 @@ export default function MapEditor() {
                 fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="3 2" pointerEvents="none"/> )}
             <text x={-radius+7} y={-radius+12} fill="#9ca3af" fontSize="7">N ↑</text>
             <text x={radius-5} y={radius-6} fill="#64748b" fontSize="5" textAnchor="end">X → / Z ↓ · 10u grid</text>
-          </svg>
+          </svg>}
         </div>
         <p role="status" className="text-xs text-zinc-400 mt-3">{status}</p>
       </main>
