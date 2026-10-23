@@ -7,6 +7,7 @@
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
 import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, overrideBox } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
+import { detectLegacyStairFlights } from "./legacy-stair-flights";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
@@ -75,7 +76,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
     if(base.id==="skybridge")return plan.spawns[team].map(p=>[...p] as Vec3);
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
-  const legacyCover=scaledBase.cover.filter(c=>{
+  const legacyCoverSource=scaledBase.cover.filter(c=>{
     if(base.id!=="shipyard"||c.kind!=="cover")return true;
     const stairs=scaledBase.cover.filter(b=>b.kind==="stair"&&
       (Math.abs(b.pos[0])>24||Math.abs(b.pos[2])>24));
@@ -85,12 +86,17 @@ export function applyMapFootprint(base:MapDef):MapDef {
         Math.abs(c.pos[0]-b.pos[0])<c.size[0]+b.size[0]+.1 &&
         Math.abs(c.pos[2]-b.pos[2])<c.size[2]+b.size[2]+.1;
     });
-  }).map((c,i)=>overrideBox(c,plan.legacyCoverOverrides?.[String(i)]));
+  });
+  // Detect flights before spatial overrides, so groups remain stable even when
+  // a user modifies an individual tread's position or elevation.
+  const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
+  const legacyCover=legacyCoverSource.map((c,i)=>overrideBox(c,plan.legacyCoverOverrides?.[String(i)]));
   const legacyEnvironment=(scaledBase.environment??[]).map((e,i)=>
     overrideBox(e,plan.legacyEnvironmentOverrides?.[String(i)]));
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
+    editorLegacyStairFlights,
     editorLegacyEnvironmentCount:legacyEnvironment.length,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
     regions,
