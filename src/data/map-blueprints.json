@@ -791,13 +791,13 @@
         },
         {
           "x": 0,
-          "z": -89,
+          "z": -86,
           "w": 116,
           "d": 73
         },
         {
           "x": 0,
-          "z": 91,
+          "z": 88,
           "w": 115,
           "d": 78
         }
@@ -1251,6 +1251,26 @@
           "h": 2,
           "kind": "cover",
           "label": "Reinforced supply palette"
+        },
+        {
+          "id": "shipping-security-frame-west",
+          "x": -6.3,
+          "z": -65,
+          "w": 4,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight blast-door west frame"
+        },
+        {
+          "id": "shipping-security-frame-east",
+          "x": 6.3,
+          "z": -65,
+          "w": 4,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight blast-door east frame"
         }
       ],
       "hazards": [
@@ -1289,6 +1309,17 @@
           "period": 5,
           "activeFor": 1.1,
           "offset": 0
+        },
+        {
+          "id": "factory-blast-door",
+          "type": "destructible_wall",
+          "x": 0,
+          "y": 3,
+          "z": -65,
+          "w": 8,
+          "d": 2,
+          "h": 6,
+          "hp": 220
         }
       ],
       "spawns": {
