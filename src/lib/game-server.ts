@@ -19,6 +19,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -164,6 +165,7 @@ interface Room {
   wonderCharges: Map<string, WonderChargeState>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
+  gravityWells: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -382,7 +384,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -544,7 +546,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -593,6 +595,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
+  room.gravityWells.clear();
   room.assists.clear(); room.damageContributions.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
   // ---- Gun Game: resolve the per-match weapon list from the TYPE progression ----
@@ -688,6 +691,7 @@ function snapshot(room: Room): S2C {
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
+    gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1013,8 +1017,46 @@ function tickBulletSpitters(room: Room, now: number) {
   }
 }
 
+/** Server-authoritative Event Horizon: pull bots each tick, then detonate.
+ * Human movement stays client-authoritative: the client applies the same pull
+ * to its own motion, with cover collision.
+ */
+function tickGravityWells(room: Room, now: number) {
+  for (const [id, well] of room.gravityWells) {
+    if (now < well.activatesAt) continue;
+    if (now >= well.expiresAt) {
+      room.gravityWells.delete(id);
+      io.to(room.id).emit("message", { t: "gravityDetonate", id, pos: well.pos } as S2C);
+      destroyTurretsNear(room, well.pos, well.radius);
+      for (const target of allCombatants(room)) {
+        if (!target.alive || target.id === well.ownerId ||
+            (room.mode !== "ffa" && room.mode !== "gungame" && target.team === well.ownerTeam)) continue;
+        const dx = target.pos[0] - well.pos[0], dz = target.pos[2] - well.pos[2];
+        const dy = target.pos[1] + PLAYER_HEIGHT / 2 - well.pos[1];
+        const distance = Math.hypot(dx, dy, dz);
+        const damage = gravityBlastDamage(distance, well.radius, well.damage);
+        if (!damage || !hasLineOfSight(room, well.pos, [target.pos[0], target.pos[1] + PLAYER_HEIGHT / 2, target.pos[2]])) continue;
+        applyDamage(room, well.ownerId, target, damage, false, "wonder_singularity");
+        if (room.ended) return;
+      }
+      continue;
+    }
+    for (const bot of room.bots.values()) {
+      if (!bot.alive || (room.mode !== "ffa" && room.mode !== "gungame" && bot.team === well.ownerTeam) ||
+          (bot.spawnProtectedUntil && bot.spawnProtectedUntil > now)) continue;
+      const [dx, dz] = gravityPullOffset(well.pos, bot.pos, well.radius, 1 / 20);
+      if (dx === 0 && dz === 0) continue;
+      if (!hasLineOfSight(room, well.pos, [bot.pos[0], bot.pos[1] + 1, bot.pos[2]])) continue;
+      const next: Vec3 = [bot.pos[0] + dx, bot.pos[1], bot.pos[2] + dz];
+      if (!botMoveBlocked(room, bot.pos, next, bot.pos[1])) bot.pos = next;
+    }
+  }
+}
+
 function tickSpecialEffects(room: Room, now: number) {
   tickBulletSpitters(room, now);
+  if (room.ended) return;
+  tickGravityWells(room, now);
   for (const [id, bomb] of room.deathBombs) {
     if (now < bomb.explodesAt) continue;
     room.deathBombs.delete(id); // disarm first: no repeat detonations
@@ -2386,11 +2428,26 @@ async function handle(socket: any, msg: C2S) {
           const hit = rayCapsule(msg.origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
           if (hit && hit.t >= 0 && hit.t < impactT) impactT = hit.t;
         }
-        if (coverImpact?.box.environmentId && room.environmentWalls.has(coverImpact.box.environmentId) &&
+        if (weapon.wonder?.kind !== "singularity" && coverImpact?.box.environmentId && room.environmentWalls.has(coverImpact.box.environmentId) &&
             impactT >= coverImpact.distance - 1e-5) {
           damageEnvironmentWall(room, coverImpact.box.environmentId, eff.damage);
         }
         const impact: Vec3 = [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
+        if (weapon.wonder?.kind === "singularity") {
+          // Event Horizon detonates only after the vortex has gathered targets.
+          const id = genId("gravity");
+          const activatesAt = now + gravityTravelMs(impactT);
+          const radius = weapon.wonder.radius;
+          const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS;
+          room.gravityWells.set(id, {
+            ownerId: socket.id, ownerTeam: p.team, pos: impact,
+            radius, damage: eff.damage, activatesAt, expiresAt,
+          });
+          io.to(room.id).emit("message", {
+            t: "gravityWell", id, ownerId: socket.id, ownerTeam: p.team,
+            pos: impact, radius, activatesAt, expiresAt,
+          } as S2C);
+        } else {
         destroyTurretsNear(room, impact, weapon.wonder?.radius || 8);
         const splashRadius = weapon.wonder?.radius ?? 8;
         // CRITICAL FIX: splash damage is computed against the rocket's FULL
@@ -2430,6 +2487,7 @@ async function handle(socket: any, msg: C2S) {
             }
           }
         }
+        } // Other explosives retain their immediate splash behavior.
       } else {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
