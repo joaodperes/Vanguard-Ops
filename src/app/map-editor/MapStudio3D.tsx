@@ -90,7 +90,12 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     scene.add(floor);
     const ctx:Context={renderer,scene,camera,orbit,transform,root,objects:new Map(),keys:new Set()};
     runtime.current=ctx;
-    const onDragging=(event:unknown)=>{orbit.enabled=!((event as {value?:unknown})?.value===true);};
+    let gizmoActive=false;
+    const onDragging=(event:unknown)=>{
+      const dragging=(event as {value?:unknown})?.value===true;
+      orbit.enabled=!dragging;
+      if(dragging)gizmoActive=true;
+    };
     transform.addEventListener("dragging-changed",onDragging);
     const onMouseUp=()=>{
       const group=transform.object as THREE.Group|undefined;
@@ -120,6 +125,9 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       if(event.button!==0||!down)return;
       const moved=Math.hypot(down.x-event.clientX,down.y-event.clientY);
       down=null;
+      // A gizmo pointer-up is never a new scene selection, even if the
+      // TransformControls handler has already set dragging=false.
+      if(gizmoActive){gizmoActive=false;return;}
       if(moved>5||transform.dragging)return;
       const bounds=renderer.domElement.getBoundingClientRect();
       pointer.set((event.clientX-bounds.left)/bounds.width*2-1,
