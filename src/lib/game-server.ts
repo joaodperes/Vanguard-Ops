@@ -2281,8 +2281,10 @@ async function handle(socket: any, msg: C2S) {
       if(weapon.category!=="melee")return;
       const attack=quickMeleeProfile(weapon.stats);
       const now = Date.now();
-      if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs) return;
+      if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs ||
+          (p.weaponId===meleeId && now - p.lastShotAt < attack.cooldownMs)) return;
       room.quickMeleeAt.set(socket.id, now);
+      if(p.weaponId===meleeId)p.lastShotAt=now;
       clearSpawnProtection(room, p);
       const target = chooseQuickMeleeTarget(p.pos, p.yaw,
         allCombatants(room).filter(c => c.id !== p.id).map(c => ({
@@ -2349,6 +2351,8 @@ async function handle(socket: any, msg: C2S) {
       if (weapon.category === "melee") destroyTurretsHitByMelee(room, p, Math.max(2.5, weapon.stats.range));
       const now = Date.now();
       const interval = 1000 / Math.max(1, weapon.stats.fireRate);
+      if(weapon.category==="melee" &&
+        now-(room.quickMeleeAt.get(socket.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
       if (burstSize > 1) {
         const previous = room.burstState.get(socket.id);
