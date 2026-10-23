@@ -164,7 +164,7 @@ export function Results() {
                     <Target className="w-4 h-4" /> Challenge progress this match
                   </h4>
                   <div className="grid sm:grid-cols-2 gap-2.5">
-                    {rewards.challengeProgress?.map((c: { id: string; kind: string; title: string; before: number; progress: number; goal: number; completed: boolean }) => {
+                    {rewards.challengeProgress?.map((c: { id: string; kind: string; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }) => {
                       const isWeapon = c.kind === "weapon";
                       const isElite = c.kind === "elite";
                       const color = isWeapon ? "text-violet-200 border-violet-500/30 bg-violet-500/10" :
@@ -176,7 +176,8 @@ export function Results() {
                           <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : c.kind + " challenge"}</span>
                           {c.completed ? <span className="text-emerald-300">Completed ✓</span> : <span>+{c.progress-c.before}</span>}
                         </div>
-                        <div className="text-white font-semibold text-xs mt-1 mb-2">{c.title}</div>
+                        <div className="text-white font-semibold text-xs mt-1">{c.title}</div>
+                        <div className="text-white/65 text-[11px] mb-2">{c.description ?? `Progress toward ${c.goal} required actions`}</div>
                         <div className="h-1.5 rounded-full bg-black/40 overflow-hidden">
                           <div className="h-full bg-current" style={{width: `${Math.min(100,100*c.progress/Math.max(1,c.goal))}%`}} />
                         </div>

@@ -164,7 +164,7 @@ interface Room {
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
-  poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number }>;
+  poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number; damagePerTick?: number }>;
   equipmentCharges: Map<string, number>;
   equipmentLastAt: Map<string, number>;
   equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
@@ -1064,7 +1064,7 @@ function tickSpecialEffects(room: Room, now: number) {
     if (!victim?.alive || now >= dot.expiresAt) { room.poison.delete(id); continue; }
     if (now >= dot.tickAt) {
       dot.tickAt = now + 500;
-      applyDamage(room, dot.attackerId, victim, 2, false, dot.weaponId);
+      applyDamage(room, dot.attackerId, victim, dot.damagePerTick ?? 2, false, dot.weaponId);
       if (room.ended) break;
     }
   }
@@ -1739,7 +1739,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
-      const pellets = eff.pellets ?? 1;
+      const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
+        const pellets = eff.pellets ?? 1;
       let didHit = false;
       for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(eff.spread))) : dir;
@@ -2393,6 +2394,9 @@ async function handle(socket: any, msg: C2S) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
             const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId);
+            if (incendiary && hit.victim.alive)
+              room.poison.set(hit.victim.id, { attackerId:socket.id, weaponId:msg.weaponId,
+                expiresAt:now+5000, tickAt:now+500, damagePerTick:4 });
             if (weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
               room.poison.set(hit.victim.id, { attackerId: socket.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });

@@ -532,7 +532,7 @@ export class FPSEngine {
   private boltPickups = new Map<string, { mesh: THREE.Object3D; ownerId: string; pos: Vec3; expiresAt: number; retryAt: number }>();
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
-  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string }>();
+  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number }>();
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
   // set to the burst count; the update loop drains it one shot per intra-burst
@@ -4739,6 +4739,9 @@ export class FPSEngine {
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
+      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive)
+        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+5000,
+          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:4 });
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }

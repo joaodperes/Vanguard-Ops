@@ -489,7 +489,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     adsSpread: Math.max(0.0, base.adsSpread * (1 + ((acc.adsSpread ?? acc.spread) ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     adsTime: Math.max(0.05, base.adsTime * (1 + (acc.adsTime ?? 0) / 100)),
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
-    moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100)),
+    moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
     range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
     magSize: Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
     sightType: sightDef.type,
