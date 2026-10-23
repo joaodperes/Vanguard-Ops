@@ -14,7 +14,7 @@ export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; descri
   shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
   compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},
   terminal: {scale:1.02,pace:"tactical",description:"Afterlight City shared neighborhood in natural daylight"},
-  skybridge: {scale:1.07,pace:"tactical",description:"Mountain ridges, alpine overlooks and rocky cover"},
+  skybridge: {scale:1.07,pace:"tactical",description:"Enclosed steelworks with machinery lanes, freight bays and elevated gantries"},
   arena_neon: {scale:1.02,pace:"tactical",description:"Downtown markets, vibrant shopfronts and rooftop fighting"},
 };
 const scaled=(p:Vec3,s:number):Vec3=>[Math.round(p[0]*s*1000)/1000,p[1],Math.round(p[2]*s*1000)/1000];
