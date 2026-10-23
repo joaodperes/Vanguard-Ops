@@ -163,7 +163,7 @@ interface Room {
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
-  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number }>;
+  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -976,7 +976,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
   const expiresAt = now + TURRET_LIFETIME_MS;
   room.turrets.set(id, {
     ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
-    expiresAt, nextShotAt: now + 300,
+    expiresAt, nextShotAt: now + 300, hp:95,
   });
   io.to(room.id).emit("message", {
     t: "turretPlaced", id, ownerId, pos, yaw: player.yaw, expiresAt,
@@ -1604,6 +1604,24 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   const weapon = weaponById(bot.weaponId);
   const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
+  const rival = nearestEnemy(room,bot);
+  const hostiles=[...room.turrets.entries()].filter(([,t])=>
+    t.ownerId!==bot.id && turretCanAttack(room.mode,bot.team,t.ownerTeam,false) &&
+    Math.hypot(bot.pos[0]-t.pos[0],bot.pos[2]-t.pos[2])<25 &&
+    hasLineOfSight(room,[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
+    .sort((a,b)=>Math.hypot(a[1].pos[0]-bot.pos[0],a[1].pos[2]-bot.pos[2])-
+      Math.hypot(b[1].pos[0]-bot.pos[0],b[1].pos[2]-bot.pos[2]));
+  if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-bot.pos[0],rival.pos[2]-bot.pos[2])>17) &&
+    now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0) {
+    const [id,t]=hostiles[0],origin:Vec3=[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]];
+    const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
+    const len=Math.hypot(...diff)||1;
+    t.hp-=Math.max(5,eff.damage*.55);
+    ai.ammoInMag--;ai.lastFiredAt=now;ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+    io.to(room.id).emit("message",{t:"shotFx",origin,dir:[diff[0]/len,diff[1]/len,diff[2]/len],
+      weaponId:bot.weaponId,attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
+    if(t.hp<=0){room.turrets.delete(id);io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);}
+  }
 
   if (now > ai.nextDecisionAt) {
     ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
@@ -1930,6 +1948,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
         room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
       ai.targetId = null;        // wander instead of engaging
+      ai.routeWaypoint=null;ai.nextRouteAt=0;
       ai.strafeDir = -ai.strafeDir;
       ai.stuckSince = 0;
       // Nudge sideways so the bot has a chance to unstick from the corner.

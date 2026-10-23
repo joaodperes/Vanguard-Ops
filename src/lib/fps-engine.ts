@@ -621,7 +621,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
-  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
+  private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
   private kills = 0;
@@ -2705,7 +2705,7 @@ export class FPSEngine {
     this.scene.add(root);
     this.bulletSpitters.set(id, {
       ownerId, pos, yaw, expiresAt,
-      nextShotAt: Date.now() + 300, lastFiredAt: 0,
+      nextShotAt: Date.now() + 300, lastFiredAt: 0, hp:95,
       mesh: root, yawPivot, barrelPivot, offline,
     });
   }
@@ -6209,6 +6209,23 @@ export class FPSEngine {
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
+    const rival=this.nearestEnemy(c);
+    const hostiles=[...this.bulletSpitters.entries()].filter(([,t])=>t.offline &&
+      t.ownerId!==c.id && turretCanAttack(this.opts.mode,c.team,this.opts.team as string,false) &&
+      Math.hypot(c.pos[0]-t.pos[0],c.pos[2]-t.pos[2])<25 &&
+      this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
+      .sort((a,b)=>Math.hypot(a[1].pos[0]-c.pos[0],a[1].pos[2]-c.pos[2])-
+        Math.hypot(b[1].pos[0]-c.pos[0],b[1].pos[2]-c.pos[2]));
+    if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
+      now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0){
+      const [id,t]=hostiles[0],origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
+      const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
+      const len=Math.hypot(...diff)||1;
+      t.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
+      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+      this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default");
+      if(t.hp<=0)this.removeBulletSpitter(id);
+    }
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
       const enemy = this.nearestEnemy(c);
@@ -6553,6 +6570,7 @@ export class FPSEngine {
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
           this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
         ai.targetId = null;        // wander instead of engaging
+      ai.routeWaypoint=null;ai.nextRouteAt=0;
         ai.strafeDir = -ai.strafeDir;
         ai.stuckSince = 0;
         // Nudge sideways so the bot has a chance to unstick from the corner.
