@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import MapStudio3D, {type StudioSelection,type StudioMode,type StudioTransform} from "./MapStudio3D";
 import {
-  MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, stairFeatureBoxes, regionRectangles,
+  MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, snapCoverToPlatform, stairFeatureBoxes, regionRectangles,
   type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
 } from "@/lib/map-blueprints";
 import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
@@ -716,6 +716,14 @@ export default function MapEditor() {
                       {(["cover","platform","accent","stairs"] as const).map(kind=>
                         <option key={kind} value={kind}>{kind}</option>)}
                     </select></label>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="cover"&&
+                    <button className={btn+" w-full"} onClick={()=>{
+                      const next=snapCoverToPlatform(selectedObject as MapFeature,map.features);
+                      if(!next){setStatus("Add a platform before snapping cover.");return;}
+                      pushUndo();
+                      update(m=>({...m,features:m.features.map((f,i)=>i===selected.index?next:f)}));
+                      setStatus("Cover bottom snapped to platform top, preserving wall height.");
+                    }}>Snap cover onto platform top</button>}
                   {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
                     <label className="flex items-center gap-2 text-xs">
                       <input type="checkbox" checked={(selectedObject as MapFeature).autoStairs!==false}
