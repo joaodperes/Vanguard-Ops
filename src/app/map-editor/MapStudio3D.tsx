@@ -1,0 +1,347 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
+import { getMap, type CoverBox, type EnvironmentObject } from "@/lib/game-protocol";
+import { featureBoxes, regionBoundary, regionRectangles,
+  overrideBox, type MapBlueprint, type MapBoxOverride } from "@/lib/map-blueprints";
+import type { MapVisualTheme } from "@/lib/map-visuals";
+
+export type StudioSelection={
+  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyEnvironment";
+  index:number;team?:"ffa"|"red"|"blue";
+};
+export type StudioMode="select"|"move"|"rotate"|"resize";
+export interface StudioTransform {
+  x:number;y:number;z:number;w:number;h:number;d:number;
+  /** Positive clockwise quarter-turns about world Y. Geometry remains axis-aligned. */
+  turns:number;
+}
+interface Props {
+  mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
+  mode:StudioMode;snap:number;
+  onSelect:(selection:StudioSelection|null)=>void;
+  onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
+}
+interface ObjectMeta {
+  selection:StudioSelection;
+  initial:StudioTransform;
+}
+type Context={
+  renderer:THREE.WebGLRenderer;scene:THREE.Scene;camera:THREE.PerspectiveCamera;
+  orbit:OrbitControls;transform:TransformControls;root:THREE.Group;
+  objects:Map<string,THREE.Group>; keys:Set<string>;
+};
+const idFor=(s:StudioSelection)=>s.type+":"+s.index+":"+(s.team??"");
+const minSize=.2;
+const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
+
+/** Three.js geometry preview. Map Studio exports data, not an executable map.
+ * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
+export default function MapStudio3D({mapId,map,theme,selected,mode,snap,onSelect,onTransform}:Props) {
+  const host=useRef<HTMLDivElement>(null);
+  const runtime=useRef<Context|null>(null);
+  const callbacks=useRef({selected,mode,snap,onSelect,onTransform});
+  callbacks.current={selected,mode,snap,onSelect,onTransform};
+
+  useEffect(()=>{
+    if(!host.current)return;
+    const element=host.current;
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color(editableHex(theme.palette.sky));
+    scene.fog=new THREE.Fog(editableHex(theme.palette.fog),120,900);
+    const camera=new THREE.PerspectiveCamera(60,1,.2,3000);
+    camera.position.set(96,100,128);
+    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.domElement.tabIndex=0;
+    renderer.domElement.style.cssText="width:100%;height:100%;display:block;outline:none";
+    element.appendChild(renderer.domElement);
+    const orbit=new OrbitControls(camera,renderer.domElement);
+    orbit.enableDamping=true;
+    orbit.dampingFactor=.12;
+    orbit.screenSpacePanning=true;
+    orbit.maxDistance=1300;
+    orbit.minDistance=3;
+    orbit.target.set(0,0,0);
+    const transform=new TransformControls(camera,renderer.domElement);
+    const helper=transform.getHelper();
+    scene.add(helper);
+    const root=new THREE.Group();
+    scene.add(root);
+    scene.add(new THREE.HemisphereLight("#e9f5ff","#5a626b",2));
+    const light=new THREE.DirectionalLight("#fff0d9",2.4);
+    light.position.set(80,160,35);
+    scene.add(light);
+    const axes=new THREE.AxesHelper(12);
+    axes.position.set(0,.1,0);
+    scene.add(axes);
+    const floor=new THREE.GridHelper(700,140,"#607185","#303a46");
+    floor.position.y=-.20;
+    scene.add(floor);
+    const ctx:Context={renderer,scene,camera,orbit,transform,root,objects:new Map(),keys:new Set()};
+    runtime.current=ctx;
+    const onDragging=(event:THREE.Event)=>{orbit.enabled=!(event as THREE.Event&{value?:boolean}).value;};
+    transform.addEventListener("dragging-changed",onDragging);
+    const onMouseUp=()=>{
+      const group=transform.object as THREE.Group|undefined;
+      const meta=group?.userData?.editor as ObjectMeta|undefined;
+      if(!group||!meta)return;
+      const d=meta.initial;
+      const turns=Math.round(group.rotation.y/(Math.PI/2));
+      const swapped=Math.abs(turns)%2===1;
+      const transformData:StudioTransform={
+        x:group.position.x,y:group.position.y,z:group.position.z,
+        w:Math.max(minSize,(swapped?d.d:d.w)*Math.abs(group.scale.x)),
+        h:Math.max(minSize,d.h*Math.abs(group.scale.y)),
+        d:Math.max(minSize,(swapped?d.w:d.d)*Math.abs(group.scale.z)),
+        turns
+      };
+      if(Math.abs(transformData.x-d.x)+Math.abs(transformData.y-d.y)+
+        Math.abs(transformData.z-d.z)+Math.abs(transformData.w-d.w)+
+        Math.abs(transformData.h-d.h)+Math.abs(transformData.d-d.d)+
+        Math.abs(turns)>.005)callbacks.current.onTransform(meta.selection,transformData);
+    };
+    transform.addEventListener("mouseUp",onMouseUp);
+    const raycaster=new THREE.Raycaster();
+    const pointer=new THREE.Vector2();
+    let down:{x:number;y:number}|null=null;
+    const downHandler=(event:PointerEvent)=>{if(event.button===0)down={x:event.clientX,y:event.clientY};};
+    const upHandler=(event:PointerEvent)=>{
+      if(event.button!==0||!down)return;
+      const moved=Math.hypot(down.x-event.clientX,down.y-event.clientY);
+      down=null;
+      if(moved>5||transform.dragging)return;
+      const bounds=renderer.domElement.getBoundingClientRect();
+      pointer.set((event.clientX-bounds.left)/bounds.width*2-1,
+        -(event.clientY-bounds.top)/bounds.height*2+1);
+      raycaster.setFromCamera(pointer,camera);
+      const hits=raycaster.intersectObjects([...ctx.objects.values()],true);
+      for(const hit of hits){
+        let item:THREE.Object3D|null=hit.object;
+        while(item&&!item.userData.editor)item=item.parent;
+        if(item?.userData.editor){
+          callbacks.current.onSelect((item.userData.editor as ObjectMeta).selection);
+          return;
+        }
+      }
+      callbacks.current.onSelect(null);
+    };
+    renderer.domElement.addEventListener("pointerdown",downHandler);
+    renderer.domElement.addEventListener("pointerup",upHandler);
+    let active=false;
+    const mouseEnter=()=>{active=true;};
+    const mouseLeave=()=>{active=false;ctx.keys.clear();};
+    renderer.domElement.addEventListener("pointerenter",mouseEnter);
+    renderer.domElement.addEventListener("pointerleave",mouseLeave);
+    const keyDown=(e:KeyboardEvent)=>{
+      if(!active||e.target instanceof HTMLInputElement||e.target instanceof HTMLTextAreaElement)return;
+      ctx.keys.add(e.key.toLowerCase());
+      if(["w","a","s","d","q","e","arrowup","arrowdown"].includes(e.key.toLowerCase()))e.preventDefault();
+    };
+    const keyUp=(e:KeyboardEvent)=>ctx.keys.delete(e.key.toLowerCase());
+    window.addEventListener("keydown",keyDown);
+    window.addEventListener("keyup",keyUp);
+    const resize=()=>{
+      const w=Math.max(1,element.clientWidth),h=Math.max(1,element.clientHeight);
+      camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);
+    };
+    const observer=new ResizeObserver(resize);
+    observer.observe(element);
+    resize();
+    let request=0,last=performance.now();
+    const forward=new THREE.Vector3(),right=new THREE.Vector3(),displace=new THREE.Vector3();
+    function frame(now:number){
+      request=requestAnimationFrame(frame);
+      const dt=Math.min(.05,(now-last)/1000);last=now;
+      if(active&&!transform.dragging){
+        camera.getWorldDirection(forward);
+        forward.y=0;forward.normalize();
+        right.crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+        displace.set(0,0,0);
+        const k=ctx.keys;
+        if(k.has("w"))displace.add(forward);
+        if(k.has("s"))displace.sub(forward);
+        if(k.has("a"))displace.sub(right);
+        if(k.has("d"))displace.add(right);
+        if(k.has("q"))displace.y-=1;
+        if(k.has("e"))displace.y+=1;
+        if(displace.lengthSq()){
+          const distance=dt*(k.has("shift")?110:35);
+          displace.normalize().multiplyScalar(distance);
+          camera.position.add(displace);orbit.target.add(displace);
+        }
+      }
+      orbit.update();
+      renderer.render(scene,camera);
+    }
+    request=requestAnimationFrame(frame);
+    return ()=>{
+      cancelAnimationFrame(request);
+      observer.disconnect();
+      window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);
+      renderer.domElement.removeEventListener("pointerdown",downHandler);
+      renderer.domElement.removeEventListener("pointerup",upHandler);
+      renderer.domElement.removeEventListener("pointerenter",mouseEnter);
+      renderer.domElement.removeEventListener("pointerleave",mouseLeave);
+      transform.removeEventListener("dragging-changed",onDragging);
+      transform.removeEventListener("mouseUp",onMouseUp);
+      transform.detach();transform.dispose();scene.remove(helper);
+      orbit.dispose();
+      disposeGroup(root);
+      renderer.dispose();renderer.domElement.remove();
+      runtime.current=null;
+    };
+  },[]);
+
+  useEffect(()=>{
+    const ctx=runtime.current;
+    if(!ctx)return;
+    ctx.scene.background=new THREE.Color(editableHex(theme.palette.sky));
+    ctx.scene.fog=new THREE.Fog(editableHex(theme.palette.fog),120,900);
+    ctx.transform.detach();
+    disposeGroup(ctx.root);
+    ctx.objects.clear();
+    const palette=theme.palette;
+    const createBox=(group:THREE.Group,x:number,y:number,z:number,w:number,h:number,d:number,hex:string,opacity=1)=>{
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.05,w),Math.max(.05,h),Math.max(.05,d)),
+        new THREE.MeshStandardMaterial({color:hex,transparent:opacity<1,opacity,roughness:.78,
+          side:THREE.DoubleSide,depthWrite:opacity>=1}));
+      mesh.position.set(x,y,z);group.add(mesh);
+      return mesh;
+    };
+    const add=(selection:StudioSelection,p:{x:number;y:number;z:number;w:number;h:number;d:number},draw:(g:THREE.Group)=>void)=>{
+      const group=new THREE.Group();
+      group.position.set(p.x,p.y,p.z);
+      const meta:ObjectMeta={selection,initial:{...p,turns:0}};
+      group.userData.editor=meta;
+      draw(group);
+      ctx.root.add(group);
+      ctx.objects.set(idFor(selection),group);
+    };
+    for(let i=0;i<map.regions.length;i++){
+      const r=map.regions[i];
+      add({type:"region",index:i},{x:r.x,y:0,z:r.z,w:r.w,h:.2,d:r.d},g=>{
+        if(r.shape==="circle"){
+          const m=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.2,40),
+            new THREE.MeshStandardMaterial({color:palette.floor,transparent:true,opacity:.42,side:THREE.DoubleSide}));
+          m.scale.set(r.w,1,r.d);g.add(m);
+        } else if(r.shape==="triangle"){
+          const shape=new THREE.Shape();
+          shape.moveTo(0,.5);shape.lineTo(-.5,-.5);shape.lineTo(.5,-.5);shape.closePath();
+          const geometry=new THREE.ShapeGeometry(shape);
+          geometry.rotateX(-Math.PI/2);
+          geometry.scale(r.w,1,r.d);
+          const m=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
+            color:palette.floor,transparent:true,opacity:.42,side:THREE.DoubleSide}));
+          g.add(m);
+        }else createBox(g,0,0,0,r.w,.2,r.d,palette.floor,.36);
+      });
+    }
+    // Collision perimeter preview is deliberately not clickable; select regions instead.
+    const outline=regionBoundary(map.regions);
+    for(const edge of outline){
+      createBox(ctx.root,edge.pos[0],edge.pos[1],edge.pos[2],
+        edge.size[0]*2,edge.size[1]*2,edge.size[2]*2,palette.wall,.17);
+    }
+    for(let i=0;i<map.features.length;i++){
+      const f=map.features[i];
+      add({type:"feature",index:i},{x:f.x,y:0,z:f.z,w:f.w,h:f.h,d:f.d},g=>{
+        for(const b of featureBoxes(f)){
+          createBox(g,b.pos[0]-f.x,b.pos[1],b.pos[2]-f.z,
+            b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:
+              f.kind==="platform"?palette.platform:palette.cover,.86);
+        }
+      });
+    }
+    for(let i=0;i<(map.hazards??[]).length;i++){
+      const h=map.hazards![i];
+      add({type:"hazard",index:i},{x:h.x,y:h.y,z:h.z,w:h.w,h:h.h,d:h.d},g=>
+        createBox(g,0,0,0,h.w,h.h,h.d,h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":
+          h.type==="jump_pad"?"#38bdf8":"#f97316",.55));
+    }
+    for(const team of ["ffa","red","blue"] as const){
+      const arr=map.spawns[team];
+      for(let i=0;i<arr.length;i++){
+        const p=arr[i];
+        add({type:"spawn",team,index:i},{x:p[0],y:p[1],z:p[2],w:2,h:2,d:2},g=>{
+          const mesh=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),
+            new THREE.MeshStandardMaterial({color:team==="red"?"#f87171":team==="blue"?"#38bdf8":"#fde047"}));
+          mesh.position.y=1;g.add(mesh);
+        });
+      }
+    }
+    for(let i=0;i<theme.props.length;i++){
+      const p=theme.props[i];
+      const w=p.w??4,h=p.h??5,d=p.d??4;
+      add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>
+        createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62));
+    }
+    const base=getMap(mapId);
+    for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
+      const original=base.cover[i];
+      if(!original)continue;
+      const b=overrideBox(original,map.legacyCoverOverrides?.[String(i)]);
+      add({type:"legacyCover",index:i},{
+        x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
+        createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,
+          b.kind==="stair"?palette.stair:"#728399",.64));
+    }
+    for(let i=0;i<(base.editorLegacyEnvironmentCount??0);i++){
+      const original=base.environment?.[i];
+      if(!original)continue;
+      const b=overrideBox(original,map.legacyEnvironmentOverrides?.[String(i)]);
+      add({type:"legacyEnvironment",index:i},{
+        x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
+        createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.45));
+    }
+  },[map,theme,mapId]);
+
+  useEffect(()=>{
+    const ctx=runtime.current;
+    if(!ctx)return;
+    const transform=ctx.transform;
+    transform.detach();
+    for(const group of ctx.objects.values()){
+      group.traverse(object=>{
+        const mesh=object as THREE.Mesh;
+        if(mesh.material && !Array.isArray(mesh.material) && "emissive" in mesh.material)
+          (mesh.material as THREE.MeshStandardMaterial).emissive.set("#000000");
+      });
+    }
+    if(!selected)return;
+    const group=ctx.objects.get(idFor(selected));
+    if(!group)return;
+    group.traverse(object=>{
+      const mesh=object as THREE.Mesh;
+      if(mesh.material && !Array.isArray(mesh.material) && "emissive" in mesh.material)
+        (mesh.material as THREE.MeshStandardMaterial).emissive.set("#554214");
+    });
+    if(mode==="select")return;
+    if(mode==="rotate"&&(selected.type==="region"||selected.type==="spawn"))return;
+    transform.attach(group);
+    transform.setMode(mode==="move"?"translate":mode==="resize"?"scale":"rotate");
+    transform.setTranslationSnap(snap>0?snap:null);
+    transform.setRotationSnap(Math.PI/2);
+    transform.setSpace("world");
+    transform.showY=selected.type!=="region"&&selected.type!=="spawn";
+  },[selected,mode,snap,map,theme,mapId]);
+
+  return <div ref={host} className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950"
+    aria-label="Interactive 3D map editor. Drag to orbit, right-drag to pan, scroll to zoom, WASD to fly and Q/E to change elevation." />;
+}
+
+function disposeGroup(root:THREE.Group){
+  const resources=new Set<THREE.Material>();
+  root.traverse(object=>{
+    if(object instanceof THREE.Mesh){
+      object.geometry.dispose();
+      if(Array.isArray(object.material))object.material.forEach(m=>resources.add(m));
+      else resources.add(object.material);
+    }
+  });
+  resources.forEach(m=>m.dispose());
+  root.clear();
+}
