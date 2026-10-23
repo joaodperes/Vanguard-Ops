@@ -1,10 +1,10 @@
 {
   "biome": "highlands",
-  "label": "Wind-swept alpine ridge",
+  "label": "Snowbound communications ridge, glacial rock basin and remote radio outposts",
   "palette": {
-    "floor": "#bdcdd2",
-    "wall": "#8ca0a7",
-    "cover": "#a6afb1",
+    "floor": "#d1dadb",
+    "wall": "#7c919d",
+    "cover": "#929fa6",
     "accent": "#f0d68c",
     "platform": "#b4c5c5",
     "stair": "#c0ced0",
@@ -132,6 +132,80 @@
       "w": 8,
       "d": 8,
       "h": 4
+    },
+    {
+      "kind": "container",
+      "x": -111,
+      "z": -18,
+      "w": 10,
+      "d": 6,
+      "h": 3.5,
+      "color": "#6e98af"
+    },
+    {
+      "kind": "container",
+      "x": 114,
+      "z": -15,
+      "w": 11,
+      "d": 6,
+      "h": 3.5,
+      "color": "#b9b8a5"
+    },
+    {
+      "kind": "antenna",
+      "x": -179,
+      "z": 84,
+      "h": 19
+    },
+    {
+      "kind": "antenna",
+      "x": 179,
+      "z": -96,
+      "h": 17
+    },
+    {
+      "kind": "rock",
+      "x": -161,
+      "z": -2,
+      "w": 16,
+      "d": 10,
+      "h": 7
+    },
+    {
+      "kind": "rock",
+      "x": 152,
+      "z": -35,
+      "w": 15,
+      "d": 11,
+      "h": 8
+    },
+    {
+      "kind": "rock",
+      "x": -119,
+      "z": 61,
+      "w": 13,
+      "d": 8,
+      "h": 5
+    },
+    {
+      "kind": "tree",
+      "x": -63,
+      "z": 133,
+      "h": 17
+    },
+    {
+      "kind": "tree",
+      "x": 44,
+      "z": 149,
+      "h": 16
+    },
+    {
+      "kind": "rock",
+      "x": 47,
+      "z": 87,
+      "w": 12,
+      "d": 8,
+      "h": 5
     }
   ],
   "surfaces": {

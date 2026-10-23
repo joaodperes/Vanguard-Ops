@@ -534,10 +534,10 @@ const SHIPYARD_COVER: CoverBox[] = [
   // feel impenetrable. Now it's a clean raised platform with wide-open ramps.
   { pos: [0, 0.6, 0], size: [5, 0.6, 8], kind: "platform" },
   // Wide ramps up to the central platform from all 4 directions (walkable, no jumping)
-  ...stairs(0, 8, 1.2, 4, 5, 5, "z", 1),
-  ...stairs(0, -8, 1.2, 4, 5, 5, "z", -1),
-  ...stairs(5, 0, 1.2, 4, 5, 5, "x", 1),
-  ...stairs(-5, 0, 1.2, 4, 5, 5, "x", -1),
+  ...stairs(0, 8, 1.2, 5, 8, 7, "z", 1),
+  ...stairs(0, -8, 1.2, 5, 8, 7, "z", -1),
+  ...stairs(5, 0, 1.2, 5, 8, 7, "x", 1),
+  ...stairs(-5, 0, 1.2, 5, 8, 7, "x", -1),
   // Shipping containers (rust-orange). Some stacked 2-high to create vertical play.
   // West row (3 containers, middle one stacked)
   { pos: [-12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
@@ -950,11 +950,11 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   compound: [
     // Fuel service yard east of the northern security checkpoint.
-    { id: "compound_fire", type: "fire", pos: [38, 0, -28], size: [2.4, 1.6, 2.4], dps: 24 },
+    { id: "compound_spikes_service", type: "spikes", pos: [38, 0, -28], size: [1.8, .4, 1.8], damage: 24, period: 4.5, activeFor: 1.6 },
     // Timed security crossing next to the alternate north gate.
     { id: "compound_spikes", type: "spikes", pos: [18, 0, -34], size: [1.8, 0.4, 1.8], damage: 32, period: 4.4, activeFor: 1.5 },
     // South lane launch: reaches elevated walkway at z≈42.
-    { id: "compound_jump", type: "jump_pad", pos: [22, 0, 32], size: [1.8, 0.2, 1.8], launch: [0, 16, 8] },
+    { id: "compound_spikes_south", type: "spikes", pos: [22, 0, 32], size: [1.8, .4, 1.8], damage: 29, period: 5.2, activeFor: 1.8 },
     // Breachable service gate, between the new concrete checkpoint walls.
     { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, -34], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
@@ -976,11 +976,11 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   ],
   shipyard: [
     // Cargo/fuel handling area, separated from the original spawn grid.
-    { id: "shipyard_fire", type: "fire", pos: [33, 0, 31], size: [2.3, 1.6, 2.3], dps: 24 },
+    { id: "shipyard_spikes_fuel", type: "spikes", pos: [33, 0, 31], size: [2, .4, 2], damage: 27, period: 4.6, activeFor: 1.5 },
     // Moving dock machinery on the western loading route.
     { id: "shipyard_spikes", type: "spikes", pos: [-34, 0, -12], size: [1.8, 0.4, 1.8], damage: 32, period: 4.8, activeFor: 1.6 },
     // Launch towards the south container roofs; stairs provide backup access.
-    { id: "shipyard_jump", type: "jump_pad", pos: [16, 0, 20], size: [1.8, 0.2, 1.8], launch: [0, 14, 8] },
+    { id: "shipyard_spikes_conveyor", type: "spikes", pos: [16, 0, 20], size: [1.8, .4, 1.8], damage: 24, period: 5.4, activeFor: 1.6 },
     // Cargo transfer cart, deliberately not essential to navigation.
     { id: "shipyard_platform", type: "moving_platform", pos: [-9, 0.85, 40], size: [2.5, 0.25, 2.5], to: [9, 0.85, 40], period: 7 },
     // Container-checkpoint gate with static wall wings.

@@ -18,7 +18,7 @@ export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "
   "building" | "boat" | "dock" | "garden" | "bench" | "bandstand";
 export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
-  w?: number; d?: number; h?: number; text?: string;
+  w?: number; d?: number; h?: number; text?: string; color?: string;
 }
 export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
 export type SurfacePattern = typeof SURFACE_PATTERNS[number];

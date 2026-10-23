@@ -78,7 +78,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
     regions,
     cover:[...scaledBase.cover,...flankFeatures.flatMap(featureBoxes),
       ...propColliders(props,allSpawns),
-      ...regionBoundary(regions)],
+      ...regionBoundary(regions,base.id==="shipyard"?1.2:11)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
     props,biome:visuals.biome,surfaces:visuals.surfaces,accentColor:visuals.palette.accent,
     theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),

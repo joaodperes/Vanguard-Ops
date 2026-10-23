@@ -1302,7 +1302,8 @@ export class FPSEngine {
           cube(group,moss,0,h*.83,0,w*.86,.08,d*.12);
         }
       }else if(p.kind==="container"){
-        cube(group,stone,0,h/2,0,w,h,d);
+        const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
+        cube(group,paint,0,h/2,0,w,h,d);
         for(let x=-w/2+1;x<w/2;x+=1.5)
           cube(group,trim,x,h/2,d/2+.045,.10,h*.75,.08);
       }else if(p.kind==="crane"){

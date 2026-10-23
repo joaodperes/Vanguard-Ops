@@ -217,7 +217,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     props:z.array(z.object({
       kind:z.enum(["tree","bush","rock","ruin","temple","shop","lamp","container",
         "crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"]),
-      x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),
+      x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),
     })),
   });
   for(const [mapId,theme] of Object.entries(MAP_VISUAL_THEMES))
