@@ -25,6 +25,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -627,6 +628,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
+  private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
@@ -3685,6 +3687,11 @@ export class FPSEngine {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
         // Hydrate live turrets for late-joining clients; synchronize removals.
+        if (msg.gravityWells) {
+          const activeIds = new Set(msg.gravityWells.map(w => w.id));
+          for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false);
+          for (const [id, well] of this.gravityWells) if (!well.offline && !activeIds.has(id)) this.removeGravityWell(id);
+        }
         if (msg.turrets) {
           const activeIds = new Set(msg.turrets.map(t => t.id));
           for (const t of msg.turrets) {
@@ -3865,6 +3872,13 @@ export class FPSEngine {
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
         }
+        break;
+      case "gravityWell":
+        this.addGravityWell(msg.id, msg.ownerId, msg.ownerTeam, msg.pos, msg.radius, msg.activatesAt, msg.expiresAt, false);
+        break;
+      case "gravityDetonate":
+        this.removeGravityWell(msg.id);
+        this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity");
         break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
@@ -5373,9 +5387,19 @@ export class FPSEngine {
       if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
     const endX = origin[0] + ndir[0] * maxT, endY = origin[1] + ndir[1] * maxT, endZ = origin[2] + ndir[2] * maxT;
-    // Build the rocket mesh: a small elongated body + cone warhead + glowing trail.
+    // Event Horizon is an unmistakable glowing PURPLE GRAVITY BALL, not a
+    // generic missile. Other wonders and rockets keep the classic warhead.
     const rocketGroup = new THREE.Group();
     const wonder = weaponById(weaponId).wonder;
+    if (wonder?.kind === "singularity") {
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.38, 22, 18),
+        new THREE.MeshBasicMaterial({ color: 0x9b57ff }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.58, 20, 16),
+        new THREE.MeshBasicMaterial({ color: 0x7138ff, transparent: true, opacity: 0.35, depthWrite: false }));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.055, 8, 40),
+        new THREE.MeshBasicMaterial({ color: 0xe0b5ff, transparent: true, opacity: 0.9 }));
+      rocketGroup.add(core, halo, ring);
+    } else {
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(wonder ? 0.095 : 0.06, wonder ? 0.095 : 0.06, wonder ? 0.34 : 0.22, 10),
       new THREE.MeshBasicMaterial({ color: wonder?.kind === "singularity" ? 0x8056ff : wonder?.kind === "corrosion" ? 0x80f23c : 0x888888 }),
@@ -5396,6 +5420,7 @@ export class FPSEngine {
     );
     trail.position.z = 0.14;
     rocketGroup.add(trail);
+    }
     // Orient the rocket group to face the travel direction.
     const start = new THREE.Vector3(origin[0], origin[1], origin[2]);
     const end = new THREE.Vector3(endX, endY, endZ);
@@ -5404,7 +5429,8 @@ export class FPSEngine {
     this.scene.add(rocketGroup);
     // Travel time scales with distance but caps at 400ms (feels responsive).
     const dist = start.distanceTo(end);
-    const travelMs = Math.min(400, Math.max(120, dist * 3));
+    const travelMs = wonder?.kind === "singularity"
+      ? gravityTravelMs(dist) : Math.min(400, Math.max(120, dist * 3));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
     const splashRadius = weaponById(weaponId).wonder?.radius ?? 8;
@@ -5423,9 +5449,97 @@ export class FPSEngine {
     const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : 0xff6622, wonderKind ? 7 : 4, wonderKind ? 20 : 12);
     light.position.copy(pos);
     this.scene.add(light);
-    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: 500 });
+    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 950 : 500 });
     // Explosion SFX.
     this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
+  }
+
+  /** Persistent visual vortex: purple heart, concentric orbiting rings and glow.
+   * Online wells are synced from server events and snapshots; offline wells are
+   * spawned when our locally simulated projectile reaches its impact.
+   */
+  private addGravityWell(id: string, ownerId: string, ownerTeam: string, pos: Vec3,
+    radius: number, activatesAt: number, expiresAt: number, offline: boolean) {
+    if (this.gravityWells.has(id) || expiresAt < Date.now() || this.disposed) return;
+    const mesh = new THREE.Group();
+    mesh.position.set(...pos);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.66, 22, 18),
+      new THREE.MeshBasicMaterial({ color: 0x5e1dbb }));
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 16),
+      new THREE.MeshBasicMaterial({ color: 0xc57aff }));
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16),
+      new THREE.MeshBasicMaterial({ color: 0x9a54ff, transparent: true, opacity: 0.19, depthWrite: false }));
+    const orbit = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.07, 10, 70),
+      new THREE.MeshBasicMaterial({ color: 0xb983ff, transparent: true, opacity: 0.67 }));
+    const boundary = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.06, 8, 96),
+      new THREE.MeshBasicMaterial({ color: 0x955dff, transparent: true, opacity: 0.35, depthWrite: false }));
+    boundary.rotation.x = Math.PI / 2;
+    mesh.add(core, inner, halo, orbit, boundary);
+    mesh.visible = false;
+    const light = new THREE.PointLight(0x8844ff, 6, radius * 1.6);
+    light.position.set(...pos);
+    this.scene.add(mesh, light);
+    this.gravityWells.set(id, { pos, ownerId, ownerTeam, radius, activatesAt, expiresAt, offline, mesh, light });
+  }
+
+  private removeGravityWell(id: string) {
+    const well = this.gravityWells.get(id);
+    if (!well) return;
+    this.scene.remove(well.mesh, well.light);
+    well.mesh.traverse(child => { if (child instanceof THREE.Mesh) {
+      child.geometry.dispose();
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mat.dispose();
+    } });
+    well.light.dispose();
+    this.gravityWells.delete(id);
+  }
+
+  private tickGravityWells(dt: number) {
+    const now = Date.now();
+    for (const [id, well] of this.gravityWells) {
+      if (now < well.activatesAt) continue;
+      if (now >= well.expiresAt) {
+        if (well.offline && !this.matchEnded) {
+          this.spawnExplosion(new THREE.Vector3(...well.pos), "singularity");
+          for (const enemy of this.combatants.values()) {
+            if (!enemy.alive || enemy.id === well.ownerId ||
+                (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
+            const distance = Math.hypot(enemy.pos[0] - well.pos[0],
+              enemy.pos[1] + PLAYER_HEIGHT / 2 - well.pos[1], enemy.pos[2] - well.pos[2]);
+            const damage = gravityBlastDamage(distance, well.radius, weaponById("wonder_singularity").stats.damage);
+            if (damage && this.hasLineOfSight(well.pos,
+              [enemy.pos[0], enemy.pos[1] + PLAYER_HEIGHT / 2, enemy.pos[2]])) {
+              this.applyDamageLocal(enemy, damage, false, "wonder_singularity");
+            }
+          }
+          this.hitMarkerAt = performance.now();
+        }
+        // Online wells are removed by the authoritative gravityDetonate message,
+        // or the snapshot fallback below if a detonation packet was missed.
+        if (well.offline || now > well.expiresAt + 1200) this.removeGravityWell(id);
+        continue;
+      }
+      well.mesh.visible = true;
+      const phase = now * 0.003;
+      const [core, inner, halo, orbit, boundary] = well.mesh.children;
+      core.scale.setScalar(0.9 + Math.sin(phase * 3) * 0.14);
+      inner.scale.setScalar(0.82 + Math.sin(phase * 4) * 0.22);
+      halo.scale.setScalar(0.95 + Math.sin(phase * 2) * 0.18);
+      orbit.rotation.z += dt * 2.2;
+      orbit.rotation.y += dt;
+      boundary.rotation.z += dt * 0.23;
+      well.light.intensity = 4.6 + Math.sin(phase * 5) * 1.2;
+      if (!well.offline || this.matchEnded) continue;
+      for (const enemy of this.combatants.values()) {
+        if (!enemy.alive || !enemy.isBot || enemy.id === well.ownerId ||
+            (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
+        const [dx, dz] = gravityPullOffset(well.pos, enemy.pos, well.radius, dt);
+        if (!dx && !dz) continue;
+        if (!this.hasLineOfSight(well.pos, [enemy.pos[0], enemy.pos[1] + 1, enemy.pos[2]])) continue;
+        const dest: Vec3 = [enemy.pos[0] + dx, enemy.pos[1], enemy.pos[2] + dz];
+        if (!blocksBotMotion(this.map.cover, enemy.pos, dest, enemy.pos[1])) enemy.pos = dest;
+      }
+    }
   }
 
   private startReload() {
@@ -5547,6 +5661,7 @@ export class FPSEngine {
       this.pulseMineBeacons(performance.now());
     }
     if (!this.matchEnded) this.updateEnvironment(dt);
+    this.tickGravityWells(dt);
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
     // at the death position and suppress movement, firing, and viewmodel
@@ -5757,7 +5872,16 @@ export class FPSEngine {
       if (age >= p.travelMs) {
         // Projectile reached the impact point — spawn explosion + remove.
         const explosionKind = weaponById(p.weaponId).wonder?.kind;
-        this.spawnExplosion(p.end, explosionKind === "turret" ? undefined : explosionKind);
+        if (explosionKind === "singularity") {
+          if (p.applyLocalSplash) {
+            const at = Date.now();
+            this.addGravityWell(`offline_gravity_${at}_${Math.random()}`, this.selfId, this.opts.team,
+              [p.end.x, p.end.y, p.end.z], p.splashRadius,
+              at, at + GRAVITY_WELL_DURATION_MS, true);
+          }
+        } else {
+          this.spawnExplosion(p.end, explosionKind === "turret" ? undefined : explosionKind);
+        }
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).
         //
@@ -5770,7 +5894,7 @@ export class FPSEngine {
         // dealt ZERO damage. Now the closest point on the trajectory line is used,
         // so near-misses deal partial damage (the rocket's value is area denial).
         // The local player is NOT hit by their own rocket (no self-damage).
-        if (p.applyLocalSplash) {
+        if (p.applyLocalSplash && explosionKind !== "singularity") {
           // Trajectory segment: p.start → p.end (both THREE.Vector3 in world space).
           const segDx = p.end.x - p.start.x;
           const segDy = p.end.y - p.start.y;
@@ -5836,7 +5960,7 @@ export class FPSEngine {
       }
       const t = age / e.life;
       // Expand from 0.3 to ~2.5 radius.
-      const scale = 0.3 + t * 2.2;
+      const scale = 0.3 + t * (e.life > 500 ? 43 : 2.2);
       e.mesh.scale.setScalar(scale);
       (e.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - t);
       // Light fades faster.
@@ -6160,6 +6284,18 @@ export class FPSEngine {
     next.x += this.vel.x * dt;
     next.z += this.vel.z * dt;
     next.y += this.vel.y * dt;
+    // Gravity wells drag the local human player as well as bots. This remains
+    // inside the normal collision resolution, so no pulling through walls.
+    for (const well of this.gravityWells.values()) {
+      const nowMs = Date.now();
+      if (!this.alive || nowMs < well.activatesAt || nowMs >= well.expiresAt ||
+          well.ownerId === this.selfId ||
+          (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && well.ownerTeam === this.opts.team)) continue;
+      if (!this.hasLineOfSight(well.pos, [this.pos.x, this.pos.y + 1, this.pos.z])) continue;
+      const [dx, dz] = gravityPullOffset(well.pos, [this.pos.x, this.pos.y, this.pos.z], well.radius, dt);
+      next.x += dx;
+      next.z += dz;
+    }
     const desiredHorizontalX = next.x, desiredHorizontalZ = next.z;
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
@@ -7053,6 +7189,7 @@ export class FPSEngine {
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
     for (const id of [...this.bulletSpitters.keys()]) this.removeBulletSpitter(id);
+    for (const id of [...this.gravityWells.keys()]) this.removeGravityWell(id);
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
