@@ -167,6 +167,7 @@ export interface MapDef {
   /** Stable prefix length of engine-authored cover after legacy filtering. Map Studio
    * can address and edit these objects without modifying generated boundaries. */
   editorLegacyCoverCount?: number;
+  editorLegacyStairFlights?: import("./legacy-stair-flights").LegacyStairFlight[];
   editorLegacyEnvironmentCount?: number;
   environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
