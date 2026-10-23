@@ -6,31 +6,62 @@
 import source from "../data/map-blueprints.json";
 import type { CoverBox, Vec3 } from "./game-protocol";
 
-export interface MapRegion { x: number; z: number; w: number; d: number }
+export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
 export interface MapFeature extends MapRegion {
-  id: string; h: number; kind: "cover" | "platform" | "accent"; label?: string;
+  id: string; h: number; kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
+  axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
 }
 export interface MapBlueprint {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
-  regions: MapRegion[]; features: MapFeature[];
+  regions: MapRegion[]; features: MapFeature[]; hazards?: MapHazard[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
+}
+export interface MapHazard {
+  id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
+  x: number; z: number; y: number; w: number; d: number; h: number;
+  dps?: number; damage?: number; period?: number; activeFor?: number; offset?: number;
+  hp?: number; launchX?: number; launchY?: number; launchZ?: number;
+  toX?: number; toY?: number; toZ?: number;
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
 export const MAP_BLUEPRINTS = source as unknown as MapBlueprintFile;
 
-export function insideRegions(x: number, z: number, regions: readonly MapRegion[], padding = 0): boolean {
-  return regions.some(r => Math.abs(x-r.x) <= r.w/2-padding && Math.abs(z-r.z) <= r.d/2-padding);
+export function insideRegion(x:number,z:number,r:MapRegion,padding=0):boolean {
+  const rx=r.w/2-padding,rz=r.d/2-padding;
+  if(rx<=0||rz<=0)return false;
+  const dx=Math.abs(x-r.x),dz=z-r.z;
+  if(r.shape==="circle")return (dx/rx)**2+(dz/rz)**2<=1;
+  if(r.shape==="triangle")return Math.abs(dz)<=rz&&dx<=rx*(dz+rz)/(2*rz);
+  return dx<=rx&&Math.abs(dz)<=rz;
 }
-
+export function insideRegions(x:number,z:number,regions:readonly MapRegion[],padding=0):boolean {
+  return regions.some(r=>insideRegion(x,z,r,padding));
+}
+/** Non-rectangular shapes are rendered in the existing AABB collision engine as
+ * 2-unit strips. Rectangles remain exact. This approximation has stepped edges. */
+export function regionRectangles(regions:readonly MapRegion[],step=2):MapRegion[]{
+  return regions.flatMap(r=>{
+    if(!r.shape||r.shape==="rect")return [{x:r.x,z:r.z,w:r.w,d:r.d}];
+    const strips:MapRegion[]=[],rows=Math.max(1,Math.ceil(r.d/step));
+    for(let i=0;i<rows;i++){
+      const d=r.d/rows,z=r.z-r.d/2+(i+.5)*d;
+      const span=r.shape==="circle"?Math.sqrt(Math.max(0,1-((z-r.z)/(r.d/2))**2)):
+        (z-(r.z-r.d/2))/r.d;
+      if(span>0.001)strips.push({x:r.x,z,w:r.w*span,d});
+    }
+    return strips;
+  });
+}
 /** Exact union perimeter: split only at rectangle edges, then merge shared runs.
  * All concave re-entrant corners remain solid; internal shared edges disappear. */
 export function regionBoundary(regions: readonly MapRegion[], height = 11): CoverBox[] {
   if (!regions.length) return [];
-  const xs = [...new Set(regions.flatMap(r => [r.x-r.w/2, r.x+r.w/2]))].sort((a,b)=>a-b);
-  const zs = [...new Set(regions.flatMap(r => [r.z-r.d/2, r.z+r.d/2]))].sort((a,b)=>a-b);
+  const tiles=regionRectangles(regions);
+  const xs = [...new Set(tiles.flatMap(r => [r.x-r.w/2, r.x+r.w/2]))].sort((a,b)=>a-b);
+  const zs = [...new Set(tiles.flatMap(r => [r.z-r.d/2, r.z+r.d/2]))].sort((a,b)=>a-b);
   const occupancy = Array.from({length:xs.length-1}, (_,i) =>
     Array.from({length:zs.length-1}, (_,j) =>
-      insideRegions((xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2, regions)));
+      insideRegions((xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2, tiles)));
   type Edge={axis:"x"|"z";at:number;start:number;end:number};
   const edges: Edge[]=[];
   for(let i=0;i<xs.length-1;i++) for(let j=0;j<zs.length-1;j++){
