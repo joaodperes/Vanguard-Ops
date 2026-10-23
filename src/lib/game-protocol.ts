@@ -1149,7 +1149,12 @@ export const MAPS: Record<string, MapDef> = {
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
   shipyard: applyMapFootprint(BASE_MAPS.shipyard),
-  terminal: applyMapFootprint(BASE_MAPS.terminal),
+  terminal: applyMapFootprint({
+    ...BASE_MAPS.arena_neon,
+    id:"terminal",theme:BASE_MAPS.terminal.theme,
+    accentColor:BASE_MAPS.terminal.accentColor,
+    lights:BASE_MAPS.terminal.lights,environment:[],
+  }),
   arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
 };
 // Any additional JSON blueprint becomes a selectable map automatically. The

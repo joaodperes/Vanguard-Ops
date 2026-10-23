@@ -13,7 +13,7 @@ export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; descri
   bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
   shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
   compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},
-  terminal: {scale:1.00,pace:"balanced",description:"Transit plazas, shops and street-level crossfires"},
+  terminal: {scale:1.02,pace:"tactical",description:"Afterlight City shared neighborhood in natural daylight"},
   skybridge: {scale:1.07,pace:"tactical",description:"Mountain ridges, alpine overlooks and rocky cover"},
   arena_neon: {scale:1.02,pace:"tactical",description:"Downtown markets, vibrant shopfronts and rooftop fighting"},
 };
