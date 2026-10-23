@@ -152,8 +152,9 @@ export function nearestPlatformSnap(stair:MapFeature,features:readonly MapFeatur
   if(!candidates.length)return null;
   candidates.sort((a,b)=>Math.hypot(a.x-stair.x,a.z-stair.z)-Math.hypot(b.x-stair.x,b.z-stair.z));
   const c=candidates[0];
-  return {...stair,x:c.x,z:c.z,h:(c.p.y??0)+c.p.h,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
-    d:Math.ceil(c.p.h/.42)*.76,axis:c.axis,sign:c.sign};
+  const targetElevation=(c.p.y??0)+c.p.h;
+  return {...stair,x:c.x,z:c.z,y:0,h:targetElevation,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
+    d:Math.ceil(targetElevation/.42)*.76,axis:c.axis,sign:c.sign};
 }
 export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol").EnvironmentObject {
   const base={id:h.id,pos:[h.x,h.y,h.z] as Vec3,size:[h.w/2,h.h/2,h.d/2] as Vec3};
