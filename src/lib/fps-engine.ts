@@ -4331,7 +4331,7 @@ export class FPSEngine {
         if (now >= poison.tickAt) {
           poison.tickAt = now + 500;
           if (!victim.spawnProtectedUntil || victim.spawnProtectedUntil <= Date.now()) {
-            this.applyDamageLocal(victim, 2, false, poison.weaponId);
+            this.applyDamageLocal(victim, poison.damagePerTick ?? 2, false, poison.weaponId);
           }
         }
       }
