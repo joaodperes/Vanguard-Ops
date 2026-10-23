@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
-import { getMap } from "@/lib/game-protocol";
+import { getMap, type CoverBox } from "@/lib/game-protocol";
 import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
 import type { MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
