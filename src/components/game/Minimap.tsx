@@ -2,6 +2,16 @@
 import type { HudState } from "@/lib/fps-engine";
 import { unionRegionOutlinePath } from "@/lib/region-outline";
 
+// The HUD refreshes frequently, but region geometry changes only with the map.
+const cachedOutlines=new Map<string,string>();
+function outlineForRegions(regions: NonNullable<NonNullable<HudState["radar"]>["regions"]>):string {
+  const key=JSON.stringify(regions),hit=cachedOutlines.get(key);
+  if(hit!==undefined)return hit;
+  const outline=unionRegionOutlinePath(regions);
+  if(cachedOutlines.size>=16)cachedOutlines.clear();
+  cachedOutlines.set(key,outline);
+  return outline;
+}
 /** North-up tactical radar: allies persist, enemy positions track movement only while nearby gunfire reveals them. */
 export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar"]>; compact?: boolean }) {
   const clamp = (n: number) => Math.max(2, Math.min(98, n));
@@ -18,7 +28,7 @@ export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar
         <g opacity=".24" fill="#155e50">
           {radar.regions?.map((r,i)=><rect key={i} x={r.x} y={r.z} width={r.w} height={r.h}/>)}
         </g>
-        <path d={unionRegionOutlinePath(radar.regions ?? [])} fill="none"
+        <path d={outlineForRegions(radar.regions ?? [])} fill="none"
           stroke="#2dd4bf" strokeOpacity=".48" strokeWidth=".45"/>
         {radar.cover.map((wall, i) => <rect key={i} x={wall.x} y={wall.z} width={wall.w} height={wall.h} rx="0.6" fill="#64748b" fillOpacity="0.42" stroke="#94a3b8" strokeOpacity="0.36" strokeWidth="0.3" />)}
         {radar.markers.map(marker => marker.kind === "ally" ? (

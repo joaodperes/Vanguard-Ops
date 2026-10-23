@@ -3,19 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  MAP_BLUEPRINTS, insideRegions, validateBlueprint,
-  type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion,
+  MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, stairFeatureBoxes, regionRectangles,
+  type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
 } from "@/lib/map-blueprints";
+import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
+import { getMap } from "@/lib/game-protocol";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
 type Team="ffa"|"red"|"blue";
-type Selection={type:"region"|"feature"|"spawn";index:number;team?:Team};
-type Tool="select"|"region"|"cover"|"platform"|"ffa"|"red"|"blue";
+type Selection={type:"region"|"feature"|"spawn"|"hazard"|"prop";index:number;team?:Team};
+type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
 type Drag =
   | {mode:"create";start:Point;tool:Tool}
-  | {mode:"move";start:Point;item:Selection;source:MapRegion|MapFeature|[number,number,number]};
+  | {mode:"move";start:Point;item:Selection;source:MapRegion|MapFeature|MapHazard|MapProp|[number,number,number]};
 const STARTER:BlueprintDoc=MAP_BLUEPRINTS as BlueprintDoc;
 const snap=(n:number,step=2)=>Math.round(n/step)*step;
 const clone=<T,>(v:T):T=>JSON.parse(JSON.stringify(v));
@@ -26,6 +28,10 @@ const btn="inline-flex items-center justify-center gap-1.5 rounded-md border bor
 export default function MapEditor() {
   const [doc,setDoc]=useState<BlueprintDoc>(()=>clone(STARTER));
   const [mapId,setMapId]=useState("compound");
+  const [editorTab,setEditorTab]=useState<"blueprint"|"theme">("blueprint");
+  const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
+  const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
+  const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
   const [selected,setSelected]=useState<Selection|null>(null);
   const [preview,setPreview]=useState<{start:Point;end:Point}|null>(null);
@@ -36,9 +42,32 @@ export default function MapEditor() {
   const [status,setStatus]=useState("Export the JSON into src/data/map-blueprints.json to publish changes.");
   const svg=useRef<SVGSVGElement>(null);
   const fileRef=useRef<HTMLInputElement>(null);
+  const themeFileRef=useRef<HTMLInputElement>(null);
   const drag=useRef<Drag|null>(null);
   const history=useRef<BlueprintDoc[]>([]);
   const map=doc.maps[mapId];
+  const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
+  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
+    ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
+  }));
+  const downloadJSON=(name:string,value:unknown)=>{
+    const blob=new Blob([JSON.stringify(value,null,2)+"\n"],{type:"application/json"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  const exportTheme=()=>{downloadJSON(mapId+".json",theme);setStatus("Exported "+mapId+".json. Register new themes in src/lib/map-visuals.ts.");};
+  const importTheme=async(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const t=JSON.parse(await file.text()) as MapVisualTheme;
+      if(!t.biome||!t.label||!t.palette||!Array.isArray(t.props)||!Number.isFinite(t.ambient)||!Number.isFinite(t.vegetation))
+        throw Error("Expected a map theme with biome, palette, ambient, vegetation and props.");
+      for(const key of ["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const)
+        if(!/^#[a-fA-F0-9]{6}$/.test(t.palette[key]))throw Error("Invalid palette color "+key);
+      setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
+    }catch(err){setStatus("Theme import failed: "+String(err));}
+    e.target.value="";
+  };
 
   useEffect(()=>{
     try {
@@ -51,6 +80,13 @@ export default function MapEditor() {
     }catch{}
   },[]);
   useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-v1",JSON.stringify(doc));}catch{}},[doc]);
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem("vanguard-map-studio-themes-v1");
+      if(saved){const parsed=JSON.parse(saved) as Record<string,MapVisualTheme>;if(parsed&&typeof parsed==="object")setThemes(old=>({...old,...parsed}));}
+    }catch{}
+  },[]);
+  useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));}catch{}},[themes]);
   const pushUndo=()=>{history.current=[...history.current.slice(-24),clone(doc)];};
   const update=(fn:(m:MapBlueprint)=>MapBlueprint)=>{
     setDoc(prev=>({...prev,maps:{...prev.maps,[mapId]:fn(prev.maps[mapId])}}));
@@ -69,7 +105,9 @@ export default function MapEditor() {
     e.stopPropagation();pushUndo();
     const pos=getPoint(e as unknown as React.PointerEvent<SVGSVGElement>);
     const source=sel.type==="region"?map.regions[sel.index]:
-      sel.type==="feature"?map.features[sel.index]:map.spawns[sel.team!][sel.index];
+      sel.type==="feature"?map.features[sel.index]:
+      sel.type==="hazard"?(map.hazards??[])[sel.index]:
+      sel.type==="prop"?theme.props[sel.index]:map.spawns[sel.team!][sel.index];
     drag.current={mode:"move",item:sel,start:pos,source:clone(source)};
     setSelected(sel);svg.current?.setPointerCapture(e.pointerId);
   };
@@ -86,11 +124,18 @@ export default function MapEditor() {
     const p=getPoint(e),d=drag.current;
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
+    if(sel.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
+        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
+      return;
+    }
     update(m=>{
       if(sel.type==="region")return {...m,regions:m.regions.map((r,i)=>i===sel.index?
         {...r,x:(source as MapRegion).x+dx,z:(source as MapRegion).z+dz}:r)};
       if(sel.type==="feature")return {...m,features:m.features.map((f,i)=>i===sel.index?
         {...f,x:(source as MapFeature).x+dx,z:(source as MapFeature).z+dz}:f)};
+      if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
+        {...h,x:(source as MapHazard).x+dx,z:(source as MapHazard).z+dz}:h)};
       const team=sel.team!;
       return {...m,spawns:{...m.spawns,[team]:m.spawns[team].map((v,i)=>i===sel.index?
         [((source as number[])[0])+dx,(source as number[])[1],((source as number[])[2])+dz] as [number,number,number]:v)}};
@@ -106,19 +151,31 @@ export default function MapEditor() {
         update(m=>({...m,spawns:{...m.spawns,[team]:[...m.spawns[team],[p.x,0,p.z]]}}));
         setSelected({type:"spawn",team,index});
       }else{
-        const w=Math.max(d.tool==="region"?12:4,Math.abs(p.x-start.x));
-        const depth=Math.max(d.tool==="region"?12:4,Math.abs(p.z-start.z));
+        const w=Math.max(["region","circle","triangle"].includes(d.tool)?12:4,Math.abs(p.x-start.x));
+        const depth=Math.max(["region","circle","triangle"].includes(d.tool)?12:4,Math.abs(p.z-start.z));
         const x=(start.x+p.x)/2,z=(start.z+p.z)/2;
-        if(d.tool==="region"){
+        if(["region","circle","triangle"].includes(d.tool)){
           const index=map.regions.length;
-          update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth}]}));
+          update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth,shape:d.tool==="region"?"rect":d.tool as "circle"|"triangle"}]}));
           setSelected({type:"region",index});
+        }else if(d.tool==="hazard"){
+          const index=(map.hazards??[]).length;
+          const base:MapHazard={id:"hazard_"+Date.now().toString(36),type:hazardKind,x,z,y:1,w,d:depth,h:2,
+            dps:7,damage:25,period:5,activeFor:2,hp:120,launchY:18,toX:x+12,toY:1,toZ:z};
+          update(m=>({...m,hazards:[...(m.hazards??[]),base]}));
+          setSelected({type:"hazard",index});
+        }else if(d.tool==="prop"){
+          const index=theme.props.length;
+          const p:MapProp={kind:propKind,x,z,w,d:depth,h:Math.max(2,w)};
+          updateTheme(t=>({...t,props:[...t.props,p]}));
+          setSelected({type:"prop",index});setEditorTab("theme");
         }else{
           const index=map.features.length;
-          const kind=d.tool as "cover"|"platform";
+          const kind=d.tool as "cover"|"platform"|"stairs";
           const feature:MapFeature={id:`custom-${Date.now().toString(36)}-${index}`,
             x,z,w:Math.max(w,kind==="platform"?10:4),d:Math.max(depth,kind==="platform"?10:4),
-            h:kind==="platform"?4.2:2.8,kind,label:"New "+kind};
+            h:kind==="platform"||kind==="stairs"?4.2:2.8,kind,label:"New "+kind,
+            ...(kind==="stairs"?{axis:"z" as const,sign:1 as const}: {})};
           update(m=>({...m,features:[...m.features,feature]}));
           setSelected({type:"feature",index});
         }
@@ -128,19 +185,26 @@ export default function MapEditor() {
     drag.current=null;setPreview(null);
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
   };
-  const changeSelected=(key:string,value:string|number)=>{
+  const changeSelected=(key:string,value:string|number|boolean)=>{
     if(!selected)return;
     pushUndo();
     const sel=selected;
+    if(sel.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
+        {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
+      return;
+    }
     update(m=>{
       if(sel.type==="region"){
         return {...m,regions:m.regions.map((r,i)=>i===sel.index?
-          {...r,[key]:Number(value)}:r)};
+          {...r,[key]:key==="shape"?value:Number(value)}:r)};
       }
       if(sel.type==="feature"){
         return {...m,features:m.features.map((r,i)=>i===sel.index?
-          {...r,[key]:["id","kind","label"].includes(key)?value:Number(value)}:r)};
+          {...r,[key]:["id","kind","label","axis","autoStairs"].includes(key)?value:Number(value)}:r)};
       }
+      if(sel.type==="hazard")return {...m,hazards:(m.hazards??[]).map((h,i)=>i===sel.index?
+        {...h,[key]:["id","type"].includes(key)?value:Number(value)}:h)};
       const t=sel.team!,axis=Number(key);
       return {...m,spawns:{...m.spawns,[t]:m.spawns[t].map((r,i)=>i===sel.index?
         r.map((v,j)=>j===axis?Number(value):v) as [number,number,number]:r)}};
@@ -149,8 +213,13 @@ export default function MapEditor() {
   const remove=()=>{
     if(!selected)return;pushUndo();
     const s=selected;
+    if(s.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)}));
+      setSelected(null);return;
+    }
     update(m=>s.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==s.index)}:
       s.type==="feature"?{...m,features:m.features.filter((_,i)=>i!==s.index)}:
+      s.type==="hazard"?{...m,hazards:(m.hazards??[]).filter((_,i)=>i!==s.index)}:
       {...m,spawns:{...m.spawns,[s.team!]:m.spawns[s.team!].filter((_,i)=>i!==s.index)}});
     setSelected(null);
   };
@@ -160,6 +229,14 @@ export default function MapEditor() {
     if(s.type==="region"){const index=map.regions.length;
       update(m=>({...m,regions:[...m.regions,{...m.regions[s.index],x:m.regions[s.index].x+12}]}));
       setSelected({type:"region",index});
+    }else if(s.type==="hazard"){
+      const index=(map.hazards??[]).length;
+      update(m=>({...m,hazards:[...(m.hazards??[]),{...m.hazards![s.index],id:"copy_"+Date.now().toString(36),x:m.hazards![s.index].x+10}]}));
+      setSelected({type:"hazard",index});
+    }else if(s.type==="prop"){
+      const index=theme.props.length;
+      updateTheme(t=>({...t,props:[...t.props,{...t.props[s.index],x:t.props[s.index].x+10}]}));
+      setSelected({type:"prop",index});
     }else{const index=map.features.length;update(m=>({...m,features:[...m.features,
       {...m.features[s.index],id:`copy-${Date.now().toString(36)}`,x:m.features[s.index].x+10}]}));
       setSelected({type:"feature",index});
@@ -171,6 +248,7 @@ export default function MapEditor() {
     pushUndo();
     const template=map.templateMapId || (["bunker","shipyard","compound","terminal","skybridge","arena_neon"].includes(mapId)?mapId:"compound");
     setDoc(v=>({...v,maps:{...v.maps,[id]:{...clone(map),name:id.replace(/_/g," ").toUpperCase(),shortName:id.slice(0,3).toUpperCase(),templateMapId:template}}}));
+    setThemes(old=>({...old,[id]:clone(theme)}));
     setMapId(id);setSelected(null);setNewId("");setStatus(`Created ${id}. Export JSON and restart the game dev server to make it playable.`);
   };
   const undo=()=>{
@@ -198,7 +276,9 @@ export default function MapEditor() {
     e.target.value="";
   };
   const selectedObject=selected?(selected.type==="region"?map.regions[selected.index]:
-    selected.type==="feature"?map.features[selected.index]:map.spawns[selected.team!][selected.index]):null;
+    selected.type==="feature"?map.features[selected.index]:
+    selected.type==="hazard"?(map.hazards??[])[selected.index]:
+    selected.type==="prop"?theme.props[selected.index]:map.spawns[selected.team!][selected.index]):null;
   const issues=useMemo(()=>{
     if(!map)return [];
     const problems=validateBlueprint(map);
@@ -211,14 +291,20 @@ export default function MapEditor() {
     });
     for(const [team,positions] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
       positions.forEach((p,i)=>{
-        if(map.features.some(f=>f.kind!=="accent" && Math.abs(p[0]-f.x)<f.w/2+1 &&
+        if(map.features.some(f=>f.kind!=="accent" && f.kind!=="stairs" && Math.abs(p[0]-f.x)<f.w/2+1 &&
           Math.abs(p[2]-f.z)<f.d/2+1 && p[1]<f.h))
           problems.push(`${team} spawn ${i+1} intersects an authored solid`);
       });
+    for(const h of map.hazards??[])for(const [team,points] of Object.entries(map.spawns) as [Team,[number,number,number][]][])
+      if(points.some(p=>Math.abs(p[0]-h.x)<h.w/2+1&&Math.abs(p[2]-h.z)<h.d/2+1))
+        problems.push(`Hazard ${h.id} intersects a ${team} spawn`);
     return problems;
   },[map]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
+  const uiHazards=map.hazards??[];
+  const inherited=(getMap(mapId).environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
+  const inheritedStairs=getMap(mapId).cover.filter(o=>o.kind==="stair");
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
@@ -229,6 +315,11 @@ export default function MapEditor() {
       <div><div className="text-sm font-black tracking-[.22em]">VANGUARD / MAP STUDIO</div>
         <div className="text-[11px] text-zinc-500">Visual authoring • JSON source of truth • local drafts</div></div>
       <div className="ml-auto flex gap-2 flex-wrap">
+        <button className={btn} onClick={()=>{setEditorTab("blueprint");setSelected(null);}}>Geometry</button>
+        <button className={btn} onClick={()=>{setEditorTab("theme");setSelected(null);}}>Theme & props</button>
+        {editorTab==="theme"&&<><button className={btn} onClick={()=>themeFileRef.current?.click()}><FileUp size={14}/> Import theme</button>
+          <input ref={themeFileRef} type="file" accept=".json,application/json" className="hidden" onChange={importTheme}/>
+          <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
         <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
@@ -249,21 +340,37 @@ export default function MapEditor() {
           </div>
         </section>
         <section>
-          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Paint tools</div>
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{editorTab==="theme"?"Theme props":"Paint tools"}</div>
           <div className="grid grid-cols-2 gap-2">
             {([
-              ["select","Select / Move",MousePointer2],["region","Region",Grid2x2],
-              ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
-              ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
+              ["select","Select / Move",MousePointer2],
+              ...(editorTab==="theme" ? [["prop","Place prop",Layers3]] as const : [
+                ["region","Rectangle",Grid2x2],["circle","Circle / ellipse",Grid2x2],
+                ["triangle","Triangle",Grid2x2],
+                ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
+                ["stairs","Independent stairs",Layers3],["hazard","Place hazard",AlertTriangle],
+                ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
+              ] as const)
             ] as const).map(([key,label,Icon])=>
               <button key={key} onClick={()=>{setTool(key);setSelected(null);}} className={`rounded-lg p-2 border text-left text-xs flex items-center gap-1.5 ${tool===key?"bg-amber-500/15 border-amber-500 text-amber-200":"bg-zinc-900 border-white/10 hover:bg-zinc-800 text-zinc-300"}`}>
                 <Icon size={14}/>{label}
               </button>)}
           </div>
+          {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">New hazard type
+            <select value={hazardKind} className={fieldClass} onChange={e=>setHazardKind(e.target.value as MapHazard["type"])}>
+              {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
+                <option key={kind} value={kind}>{kind.replaceAll("_"," ")}</option>)}
+            </select></label>}
+          {editorTab==="theme"&&<label className="block text-xs text-zinc-400 mt-3">New prop type
+            <select value={propKind} className={fieldClass} onChange={e=>setPropKind(e.target.value as MapProp["kind"])}>
+              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const)
+                .map(kind=><option key={kind} value={kind}>{kind}</option>)}
+            </select></label>}
           <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
             Drag on the grid to draw regions or structures. Click to place a spawn.
             Use Select to drag and reposition. Adjust exact dimensions in the inspector.
-            Platforms automatically generate two walkable stair approaches.
+            Platforms can generate two automatic stairs or accept independently placed stair flights.
+            Select stairs and click Snap to nearest platform for height/steps.
           </p>
         </section>
         <section className="rounded-lg border border-white/10 bg-zinc-900/45 p-3">
@@ -280,6 +387,51 @@ export default function MapEditor() {
           </label>
           <p className="text-[11px] text-zinc-500 mt-2">Snap applies to X/Z placement. Platform stairs already match platform height automatically.</p>
         </section>
+        {editorTab==="theme"&&<section className="rounded-lg border border-white/10 p-3 space-y-2">
+          <div className="text-xs font-bold text-amber-300">Visual theme — {mapId}</div>
+          <label className="block text-xs">Theme label
+            <input className={fieldClass} value={theme.label} onChange={e=>updateTheme(t=>({...t,label:e.target.value}))}/>
+          </label>
+          <label className="block text-xs">Biome
+            <input className={fieldClass} value={theme.biome} onChange={e=>updateTheme(t=>({...t,biome:e.target.value}))}/>
+          </label>
+          <label className="block text-xs">Ambient intensity
+            <input type="number" min="0.01" step=".05" className={fieldClass} value={theme.ambient}
+              onChange={e=>updateTheme(t=>({...t,ambient:Number(e.target.value)}))}/>
+          </label>
+          <label className="block text-xs">Vegetation density (0–1)
+            <input type="number" min="0" max="1" step=".05" className={fieldClass} value={theme.vegetation}
+              onChange={e=>updateTheme(t=>({...t,vegetation:Number(e.target.value)}))}/>
+          </label>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 pt-2">Palette</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(theme.palette) as (keyof MapVisualTheme["palette"])[]).map(key=><label key={key} className="text-xs capitalize">
+              {key}
+              <div className="flex items-center gap-1">
+                <input type="color" className="w-8 h-7 bg-transparent" value={theme.palette[key]}
+                  onChange={e=>updateTheme(t=>({...t,palette:{...t.palette,[key]:e.target.value}}))}/>
+                <input className={fieldClass+" min-w-0"} value={theme.palette[key]}
+                  onChange={e=>updateTheme(t=>({...t,palette:{...t.palette,[key]:e.target.value}}))}/>
+              </div>
+            </label>)}
+          </div>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 pt-2">Surface materials</div>
+          {theme.surfaces&&(["floor","wall","cover","stair","platform"] as const).map(slot=>
+            <div key={slot} className="rounded-md border border-white/10 p-2 text-xs">
+              <div className="capitalize mb-1">{slot}</div>
+              <select className={fieldClass} value={theme.surfaces![slot].pattern}
+                onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],pattern:e.target.value as typeof SURFACE_PATTERNS[number]}}}))}>
+                {SURFACE_PATTERNS.map(pattern=><option key={pattern} value={pattern}>{pattern}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <label>Tile size<input className={fieldClass} type="number" step=".2" min=".01" max="100"
+                  value={theme.surfaces![slot].tileSize} onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],tileSize:Number(e.target.value)}}}))}/></label>
+                <label>Roughness<input className={fieldClass} type="number" step=".05" min="0" max="1"
+                  value={theme.surfaces![slot].roughness} onChange={e=>updateTheme(t=>({...t,surfaces:{...t.surfaces!,[slot]:{...t.surfaces![slot],roughness:Number(e.target.value)}}}))}/></label>
+              </div>
+            </div>)}
+          <p className="text-[11px] text-zinc-500">Theme exports are separate from map-blueprints.json. Props can be selected and moved on the canvas.</p>
+        </section>}
         <section>
           <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Map metadata</div>
           <label className="block text-xs text-zinc-400 mb-2">Name
@@ -297,7 +449,7 @@ export default function MapEditor() {
       <main className="p-3 md:p-5 overflow-hidden">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div><h1 className="text-xl font-bold">{map.name}</h1>
-            <p className="text-xs text-zinc-500">{map.regions.length} regions · {map.features.length} features · {Object.values(map.spawns).flat().length} spawn points</p></div>
+            <p className="text-xs text-zinc-500">{map.regions.length} regions · {map.features.length} features · {uiHazards.length} hazards · {theme.props.length} props · {Object.values(map.spawns).flat().length} spawn points</p></div>
           <label className="text-xs text-zinc-400 flex items-center gap-2">Zoom
             <input aria-label="Zoom" type="range" min="55" max="180" step="5" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>
             <span className="tabular-nums w-10">{zoom}%</span></label>
@@ -312,19 +464,52 @@ export default function MapEditor() {
             </pattern></defs>
             <rect x={-radius} y={-radius} width={radius*2} height={radius*2} fill="url(#mapgrid)"/>
             <path d={`M${-radius} 0 H${radius} M0 ${-radius} V${radius}`} stroke="#8191a3" strokeWidth=".4" strokeDasharray="4 3"/>
-            {map.regions.map((r,i)=><rect key={i} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}
-              fill="#15403d" fillOpacity=".43" stroke={selected?.type==="region"&&selected.index===i?"#f59e0b":"#34d399"}
-              strokeWidth={selected?.type==="region"&&selected.index===i?1.6:0.65} pointerEvents={tool==="select"?"all":"stroke"}
-              style={{cursor:tool==="select"?"move":"crosshair"}}
-              onPointerDown={e=>beginMove(e,{type:"region",index:i})}/>)}
+            {map.regions.map((r,i)=>{
+              const common={key:i,fill:editorTab==="theme"?theme.palette.floor:"#15403d",fillOpacity:.43,
+                stroke:selected?.type==="region"&&selected.index===i?"#f59e0b":"#34d399",
+                strokeWidth:selected?.type==="region"&&selected.index===i?1.6:.65,
+                pointerEvents:(tool==="select"?"all":"stroke") as "all"|"stroke",
+                style:{cursor:tool==="select"?"move":"crosshair"},
+                onPointerDown:(e:React.PointerEvent<SVGElement>)=>beginMove(e,{type:"region",index:i})};
+              return r.shape==="circle"?
+                <ellipse {...common} cx={r.x} cy={r.z} rx={r.w/2} ry={r.d/2}/>:
+                r.shape==="triangle"?
+                <polygon {...common} points={`${r.x},${r.z-r.d/2} ${r.x-r.w/2},${r.z+r.d/2} ${r.x+r.w/2},${r.z+r.d/2}`}/>:
+                <rect {...common} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}/>;
+            })}
+            {/* Pre-existing engine stairs are informative only: JSON export doesn't replace template geometry. */}
+            {inheritedStairs.map((step,i)=><rect key={"legacy-stair-"+i} pointerEvents="none"
+              x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
+              width={step.size[0]*2} height={step.size[2]*2}
+              fill="#fbbf24" fillOpacity=".10" stroke="#fbbf24" strokeOpacity=".28" strokeWidth=".2"/>)}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
               style={{cursor:tool==="select"?"move":"crosshair"}}>
-              <rect x={f.x-f.w/2} y={f.z-f.d/2} width={f.w} height={f.d}
-                fill={f.kind==="platform"?"#cb8b47":f.kind==="accent"?"#a855f7":"#64748b"}
+              <rect x={f.kind==="stairs"&&f.axis==="x"?(f.sign===-1?f.x-f.d:f.x):f.x-f.w/2}
+                y={f.kind==="stairs"&&f.axis!=="x"?(f.sign===-1?f.z-f.d:f.z):f.z-(f.kind==="stairs"?f.w:f.d)/2}
+                width={f.kind==="stairs"&&f.axis==="x"?f.d:f.w}
+                height={f.kind==="stairs"&&f.axis!=="x"?f.d:(f.kind==="stairs"?f.w:f.d)}
+                fill={f.kind==="platform"?"#cb8b47":f.kind==="stairs"?"#f59e0b":f.kind==="accent"?"#a855f7":"#64748b"}
                 stroke={selected?.type==="feature"&&selected.index===i?"#fef08a":"#d1d5db"}
                 strokeWidth={selected?.type==="feature"&&selected.index===i?1.5:0.5} rx=".45"/>
-              {f.kind==="platform"&&<><rect x={f.x-2} y={f.z+f.d/2} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/>
+              {f.kind==="platform"&&f.autoStairs!==false&&<><rect x={f.x-2} y={f.z+f.d/2} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/>
                 <rect x={f.x-2} y={f.z-f.d/2-Math.ceil(f.h/.42)*.76} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/></>}
+            </g>)}
+            {inherited.map((h,i)=><rect key={"inherited-"+i} pointerEvents="none" x={h.pos[0]-h.size[0]} y={h.pos[2]-h.size[2]}
+              width={h.size[0]*2} height={h.size[2]*2} fill="#a855f7" fillOpacity=".10"
+              stroke="#e879f9" strokeDasharray="2 2" strokeWidth=".5"/>)}
+            {uiHazards.map((h,i)=><g key={h.id||i} onPointerDown={e=>beginMove(e,{type:"hazard",index:i})}>
+              <rect x={h.x-h.w/2} y={h.z-h.d/2} width={h.w} height={h.d} rx=".5"
+                fill={h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":h.type==="jump_pad"?"#38bdf8":"#f97316"}
+                fillOpacity=".35" stroke={selected?.type==="hazard"&&selected.index===i?"#fef08a":"#fda4af"}
+                strokeWidth={selected?.type==="hazard"&&selected.index===i?1.5:.5}/>
+              <text x={h.x} y={h.z} textAnchor="middle" fill="#fff" fontSize="5" pointerEvents="none">{h.type.replaceAll("_"," ")}</text>
+            </g>)}
+            {theme.props.map((p,i)=><g key={"prop-"+i} onPointerDown={e=>beginMove(e,{type:"prop",index:i})}>
+              <circle cx={p.x} cy={p.z} r={Math.max(2,Math.min(8,(p.w??5)/2))}
+                fill={p.color??theme.palette.accent} fillOpacity=".32"
+                stroke={selected?.type==="prop"&&selected.index===i?"#fef08a":theme.palette.accent}
+                strokeWidth=".7"/>
+              <text x={p.x} y={p.z-4} fill="#fff" textAnchor="middle" fontSize="3.6" pointerEvents="none">{p.kind}</text>
             </g>)}
             {(["ffa","red","blue"] as Team[]).flatMap(team=>map.spawns[team].map((p,i)=>
               <g key={team+i} transform={`translate(${p[0]} ${p[2]})`}
@@ -335,8 +520,12 @@ export default function MapEditor() {
                 {selected?.type==="spawn"&&selected.team===team&&selected.index===i&&<circle r="5" fill="none" stroke="#fef08a" strokeWidth=".8"/>}
               </g>))}
             {shape&&tool!=="select"&&!["ffa","blue","red"].includes(tool)&&
+              (tool==="circle"?<ellipse cx={shape.x} cy={shape.z} rx={shape.w/2} ry={shape.d/2}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
+              tool==="triangle"?<polygon points={`${shape.x},${shape.z-shape.d/2} ${shape.x-shape.w/2},${shape.z+shape.d/2} ${shape.x+shape.w/2},${shape.z+shape.d/2}`}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
               <rect x={shape.x-shape.w/2} y={shape.z-shape.d/2} width={shape.w} height={shape.d}
-                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="3 2" pointerEvents="none"/>}
+                fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="3 2" pointerEvents="none"/> )}
             <text x={-radius+7} y={-radius+12} fill="#9ca3af" fontSize="7">N ↑</text>
             <text x={radius-5} y={radius-6} fill="#64748b" fontSize="5" textAnchor="end">X → / Z ↓ · 10u grid</text>
           </svg>
@@ -349,31 +538,100 @@ export default function MapEditor() {
             <div className="space-y-3">
               <div className="text-sm font-semibold capitalize text-amber-300">{selected.type} #{selected.index+1}
                 {selected.team?" / "+selected.team.toUpperCase():""}</div>
-              {selected.type==="spawn"?(
-                <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((a,i)=>
-                  <label key={a} className="text-xs text-zinc-500">{["X","Y","Z"][i]}
-                    <input className={fieldClass} type="number" value={(selectedObject as number[])[i]}
-                      onChange={e=>changeSelected(a,e.target.value)}/></label>)}</div>
-              ):<>
-                {selected.type==="feature"&&<><label className="block text-xs text-zinc-400">ID
-                  <input className={fieldClass} value={(selectedObject as MapFeature).id} onChange={e=>changeSelected("id",e.target.value)}/></label>
-                  <label className="block text-xs text-zinc-400">Label
-                    <input className={fieldClass} value={(selectedObject as MapFeature).label||""} onChange={e=>changeSelected("label",e.target.value)}/></label></>}
-                <div className="grid grid-cols-2 gap-2">{(["x","z","w","d",...(selected.type==="feature"?["h"]:[])] as string[]).map(k=>
-                  <label key={k} className="text-xs text-zinc-500 uppercase">{k==="w"?"Width":k==="d"?"Depth":k==="h"?"Height":k}
-                    <input type="number" step="0.5" className={fieldClass} value={(selectedObject as unknown as Record<string,number>)[k]}
-                      onChange={e=>changeSelected(k,e.target.value)}/></label>)}</div>
-                {selected.type==="feature"&&<label className="block text-xs text-zinc-400">Type
-                  <select className={fieldClass} value={(selectedObject as MapFeature).kind} onChange={e=>changeSelected("kind",e.target.value)}>
-                    <option value="cover">Hard cover</option><option value="platform">Elevated platform + stairs</option><option value="accent">Decorative / nonblocking</option>
-                  </select></label>}
-                {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
-                  <p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs text-zinc-300">
-                    Automatic north/south stairs: {Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)} steps
-                    per side, about {(Math.ceil(Math.max(.3,(selectedObject as MapFeature).h)/.42)*.76).toFixed(1)}u
-                    of run. The Height field controls the landing elevation; stairs match it automatically.
-                  </p>}
-              </>}
+              {selected.type==="spawn"?
+                <div className="grid grid-cols-3 gap-2">{["0","1","2"].map((key,i)=><label key={key} className="text-xs text-zinc-400">{["X","Y","Z"][i]}
+                  <input type="number" className={fieldClass} value={(selectedObject as number[])[i]}
+                    onChange={e=>changeSelected(key,e.target.value)}/></label>)}</div>:
+                <>
+                  {(selected.type==="feature"||selected.type==="hazard")&&<label className="block text-xs">Object ID
+                    <input className={fieldClass} value={(selectedObject as MapFeature|MapHazard).id}
+                      onChange={e=>changeSelected("id",e.target.value)}/></label>}
+                  {selected.type==="feature"&&<label className="block text-xs">Label
+                    <input className={fieldClass} value={(selectedObject as MapFeature).label??""}
+                      onChange={e=>changeSelected("label",e.target.value)}/></label>}
+                  {selected.type==="region"&&<label className="block text-xs">Region shape
+                    <select className={fieldClass} value={(selectedObject as MapRegion).shape??"rect"}
+                      onChange={e=>changeSelected("shape",e.target.value)}>
+                      <option value="rect">Rectangle</option><option value="circle">Circle / ellipse</option>
+                      <option value="triangle">Triangle</option>
+                    </select></label>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["x","z","w","d",...(["feature","hazard","prop"].includes(selected.type)?["h"]:[]),
+                      ...(selected.type==="hazard"?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
+                      <input type="number" step=".5" className={fieldClass}
+                        value={(selectedObject as unknown as Record<string,number>)[key]??""}
+                        onChange={e=>changeSelected(key,e.target.value)}/></label>)}
+                  </div>
+                  {selected.type==="feature"&&<label className="block text-xs">Feature type
+                    <select className={fieldClass} value={(selectedObject as MapFeature).kind}
+                      onChange={e=>changeSelected("kind",e.target.value)}>
+                      {(["cover","platform","accent","stairs"] as const).map(kind=>
+                        <option key={kind} value={kind}>{kind}</option>)}
+                    </select></label>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
+                    <label className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={(selectedObject as MapFeature).autoStairs!==false}
+                        onChange={e=>changeSelected("autoStairs",e.target.checked)}/> Auto-generate north/south stairs
+                    </label>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="stairs"&&<>
+                    <label className="block text-xs">Orientation
+                      <select className={fieldClass} value={(selectedObject as MapFeature).axis??"z"}
+                        onChange={e=>changeSelected("axis",e.target.value)}>
+                        <option value="x">East/west (X)</option><option value="z">North/south (Z)</option>
+                      </select></label>
+                    <label className="block text-xs">Extends outward
+                      <select className={fieldClass} value={(selectedObject as MapFeature).sign??1}
+                        onChange={e=>changeSelected("sign",Number(e.target.value))}>
+                        <option value={1}>Positive axis</option><option value={-1}>Negative axis</option>
+                      </select></label>
+                    <button className={btn+" w-full"} onClick={()=>{
+                      const snapped=nearestPlatformSnap(selectedObject as MapFeature,map.features);
+                      if(!snapped){setStatus("Add a platform before snapping.");return;}
+                      update(m=>({...m,features:m.features.map((obj,i)=>i===selected.index?snapped:obj)}));
+                      setStatus("Stairs snapped to landing height and edge.");
+                    }}>Snap to nearest platform (height + steps)</button>
+                    <p className="text-xs text-zinc-400">Rise {(selectedObject as MapFeature).h}u;
+                      {Math.ceil((selectedObject as MapFeature).h/.42)} steps;
+                      run {(selectedObject as MapFeature).d}u.</p>
+                  </>}
+                  {selected.type==="feature"&&(selectedObject as MapFeature).kind==="platform"&&
+                    <p className="text-xs text-zinc-400">
+                      {(selectedObject as MapFeature).autoStairs===false?"Manual stair placement enabled.":"Automatic north/south stairs enabled."}
+                    </p>}
+                  {selected.type==="hazard"&&<>
+                    <label className="block text-xs">Hazard kind
+                      <select className={fieldClass} value={(selectedObject as MapHazard).type}
+                        onChange={e=>changeSelected("type",e.target.value)}>
+                        {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
+                          <option key={kind} value={kind}>{kind}</option>)}
+                      </select></label>
+                    {(["dps","damage","period","activeFor","offset","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
+                      .filter(key=>({
+                        fire:["dps"],spikes:["damage","period","activeFor","offset"],
+                        jump_pad:["launchX","launchY","launchZ"],
+                        moving_platform:["period","toX","toY","toZ"],destructible_wall:["hp"],
+                      }[(selectedObject as MapHazard).type] as readonly string[]).includes(key))
+                      .map(key=><label key={key} className="block text-xs">{key}
+                        <input type="number" step=".1" className={fieldClass}
+                          value={(selectedObject as MapHazard)[key]??0}
+                          onChange={e=>changeSelected(key,e.target.value)}/></label>)}
+                  </>}
+                  {selected.type==="prop"&&<>
+                    <label className="block text-xs">Prop type
+                      <select className={fieldClass} value={(selectedObject as MapProp).kind}
+                        onChange={e=>changeSelected("kind",e.target.value)}>
+                        {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const).map(kind=>
+                          <option key={kind} value={kind}>{kind}</option>)}
+                      </select></label>
+                    <label className="block text-xs">Text (optional)
+                      <input className={fieldClass} value={(selectedObject as MapProp).text??""}
+                        onChange={e=>changeSelected("text",e.target.value)}/></label>
+                    <label className="block text-xs">Color (optional)
+                      <input className={fieldClass} value={(selectedObject as MapProp).color??""}
+                        onChange={e=>changeSelected("color",e.target.value)}/></label>
+                  </>}
+                </>
+              }
               <div className="flex gap-2">
                 {selected.type!=="spawn"&&<button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
                 <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/> Delete</button>

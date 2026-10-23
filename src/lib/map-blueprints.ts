@@ -6,31 +6,62 @@
 import source from "../data/map-blueprints.json";
 import type { CoverBox, Vec3 } from "./game-protocol";
 
-export interface MapRegion { x: number; z: number; w: number; d: number }
+export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
 export interface MapFeature extends MapRegion {
-  id: string; h: number; kind: "cover" | "platform" | "accent"; label?: string;
+  id: string; h: number; kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
+  axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
 }
 export interface MapBlueprint {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
-  regions: MapRegion[]; features: MapFeature[];
+  regions: MapRegion[]; features: MapFeature[]; hazards?: MapHazard[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
+}
+export interface MapHazard {
+  id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
+  x: number; z: number; y: number; w: number; d: number; h: number;
+  dps?: number; damage?: number; period?: number; activeFor?: number; offset?: number;
+  hp?: number; launchX?: number; launchY?: number; launchZ?: number;
+  toX?: number; toY?: number; toZ?: number;
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
 export const MAP_BLUEPRINTS = source as unknown as MapBlueprintFile;
 
-export function insideRegions(x: number, z: number, regions: readonly MapRegion[], padding = 0): boolean {
-  return regions.some(r => Math.abs(x-r.x) <= r.w/2-padding && Math.abs(z-r.z) <= r.d/2-padding);
+export function insideRegion(x:number,z:number,r:MapRegion,padding=0):boolean {
+  const rx=r.w/2-padding,rz=r.d/2-padding;
+  if(rx<=0||rz<=0)return false;
+  const dx=Math.abs(x-r.x),dz=z-r.z;
+  if(r.shape==="circle")return (dx/rx)**2+(dz/rz)**2<=1;
+  if(r.shape==="triangle")return Math.abs(dz)<=rz&&dx<=rx*(dz+rz)/(2*rz);
+  return dx<=rx&&Math.abs(dz)<=rz;
 }
-
+export function insideRegions(x:number,z:number,regions:readonly MapRegion[],padding=0):boolean {
+  return regions.some(r=>insideRegion(x,z,r,padding));
+}
+/** Non-rectangular shapes are rendered in the existing AABB collision engine as
+ * 2-unit strips. Rectangles remain exact. This approximation has stepped edges. */
+export function regionRectangles(regions:readonly MapRegion[],step=2):MapRegion[]{
+  return regions.flatMap(r=>{
+    if(!r.shape||r.shape==="rect")return [{x:r.x,z:r.z,w:r.w,d:r.d}];
+    const strips:MapRegion[]=[],rows=Math.min(120,Math.max(1,Math.ceil(r.d/step)));
+    for(let i=0;i<rows;i++){
+      const d=r.d/rows,z=r.z-r.d/2+(i+.5)*d;
+      const span=r.shape==="circle"?Math.sqrt(Math.max(0,1-((z-r.z)/(r.d/2))**2)):
+        (z-(r.z-r.d/2))/r.d;
+      if(span>0.001)strips.push({x:r.x,z,w:r.w*span,d});
+    }
+    return strips;
+  });
+}
 /** Exact union perimeter: split only at rectangle edges, then merge shared runs.
  * All concave re-entrant corners remain solid; internal shared edges disappear. */
 export function regionBoundary(regions: readonly MapRegion[], height = 11): CoverBox[] {
   if (!regions.length) return [];
-  const xs = [...new Set(regions.flatMap(r => [r.x-r.w/2, r.x+r.w/2]))].sort((a,b)=>a-b);
-  const zs = [...new Set(regions.flatMap(r => [r.z-r.d/2, r.z+r.d/2]))].sort((a,b)=>a-b);
+  const tiles=regionRectangles(regions);
+  const xs = [...new Set(tiles.flatMap(r => [r.x-r.w/2, r.x+r.w/2]))].sort((a,b)=>a-b);
+  const zs = [...new Set(tiles.flatMap(r => [r.z-r.d/2, r.z+r.d/2]))].sort((a,b)=>a-b);
   const occupancy = Array.from({length:xs.length-1}, (_,i) =>
     Array.from({length:zs.length-1}, (_,j) =>
-      insideRegions((xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2, regions)));
+      insideRegions((xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2, tiles)));
   type Edge={axis:"x"|"z";at:number;start:number;end:number};
   const edges: Edge[]=[];
   for(let i=0;i<xs.length-1;i++) for(let j=0;j<zs.length-1;j++){
@@ -57,8 +88,9 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
   const h=Math.max(0.3,feature.h);
-  const main: CoverBox={pos:[feature.x,h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind};
-  if(feature.kind!=="platform")return [main];
+  const main: CoverBox={pos:[feature.x,h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind};
+  if(feature.kind==="stairs")return stairFeatureBoxes(feature);
+  if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
   // Risers stay below the 0.55-unit step threshold used by client/server AI.
   const count=Math.ceil(h/0.42), tread=0.76;
@@ -77,6 +109,38 @@ export function featureBoxes(feature: MapFeature): CoverBox[] {
   return [main,...steps];
 }
 
+/** Independent stairs rise toward their (x,z) landing, starting in the sign direction. */
+export function stairFeatureBoxes(f:MapFeature):CoverBox[] {
+  const h=Math.max(.3,f.h),steps=Math.ceil(h/.42),depth=f.d/steps,axis=f.axis??"z",sign=f.sign??1;
+  return Array.from({length:steps},(_,i)=>{
+    const top=h*(i+1)/steps,offset=sign*(steps-i-.5)*depth;
+    return {pos:(axis==="z"?[f.x,top/2,f.z+offset]:[f.x+offset,top/2,f.z]) as Vec3,
+      size:(axis==="z"?[f.w/2,top/2,depth/2+.02]:[depth/2+.02,top/2,f.w/2]) as Vec3,kind:"stair" as const};
+  });
+}
+export function nearestPlatformSnap(stair:MapFeature,features:readonly MapFeature[]):MapFeature|null {
+  const candidates=features.filter(f=>f.kind==="platform").flatMap(p=>[
+    {x:p.x,z:p.z-p.d/2,axis:"z" as const,sign:-1 as const,p},
+    {x:p.x,z:p.z+p.d/2,axis:"z" as const,sign:1 as const,p},
+    {x:p.x-p.w/2,z:p.z,axis:"x" as const,sign:-1 as const,p},
+    {x:p.x+p.w/2,z:p.z,axis:"x" as const,sign:1 as const,p},
+  ]);
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>Math.hypot(a.x-stair.x,a.z-stair.z)-Math.hypot(b.x-stair.x,b.z-stair.z));
+  const c=candidates[0];
+  return {...stair,x:c.x,z:c.z,h:c.p.h,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
+    d:Math.ceil(c.p.h/.42)*.76,axis:c.axis,sign:c.sign};
+}
+export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol").EnvironmentObject {
+  const base={id:h.id,pos:[h.x,h.y,h.z] as Vec3,size:[h.w/2,h.h/2,h.d/2] as Vec3};
+  switch(h.type){
+    case "fire":return {...base,type:"fire",dps:h.dps??7};
+    case "spikes":return {...base,type:"spikes",damage:h.damage??25,period:h.period??5,activeFor:h.activeFor??2,offset:h.offset??0};
+    case "jump_pad":return {...base,type:"jump_pad",launch:[h.launchX??0,h.launchY??18,h.launchZ??0] as Vec3};
+    case "moving_platform":return {...base,type:"moving_platform",to:[h.toX??h.x,h.toY??h.y,h.toZ??h.z] as Vec3,period:h.period??6};
+    case "destructible_wall":return {...base,type:"destructible_wall",hp:h.hp??120};
+  }
+}
 /** Reject malformed or out-of-area edits before a JSON draft is published. */
 export function validateBlueprint(b: MapBlueprint): string[] {
   const issues:string[]=[];
@@ -88,9 +152,28 @@ export function validateBlueprint(b: MapBlueprint): string[] {
   for(const [i,f] of (b.features??[]).entries()){
     if(!f.id || seen.has(f.id))issues.push(`Feature ${i+1} has a missing or duplicate ID`);
     seen.add(f.id);
-    if(!["cover","accent","platform"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
+    if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
       issues.push(`Feature ${f.id||i} has invalid geometry`);
     if(!insideRegions(f.x,f.z,b.regions??[])) issues.push(`Feature ${f.id||i} is outside walkable space`);
+  }
+  for(const [i,r] of (b.regions??[]).entries())if(r.shape && !["rect","circle","triangle"].includes(r.shape))
+    issues.push(`Region ${i+1} invalid shape`);
+  for(const [i,f] of (b.features??[]).entries())if(f.kind==="stairs" &&
+    ((f.axis!==undefined&&!["x","z"].includes(f.axis))||(f.sign!==undefined&&f.sign!==1&&f.sign!==-1)))
+    issues.push(`Stairs ${f.id||i} invalid axis/sign`);
+  for(const h of b.hazards??[]){
+    if(!h.id||seen.has(h.id))issues.push(`Hazard ${h.id} missing/duplicate ID`);
+    seen.add(h.id);
+    if(!["fire","spikes","jump_pad","moving_platform","destructible_wall"].includes(h.type))
+      issues.push(`Hazard ${h.id} invalid type`);
+    if(![h.x,h.z,h.y,h.w,h.d,h.h].every(Number.isFinite)||h.w<=0||h.d<=0||h.h<=0)
+      issues.push(`Hazard ${h.id} invalid geometry`);
+    if(!insideRegions(h.x,h.z,b.regions??[]))issues.push(`Hazard ${h.id} outside walkable space`);
+    if(h.type==="fire"&&!(Number.isFinite(h.dps)&&h.dps!>0))issues.push(`Hazard ${h.id} needs DPS > 0`);
+    if(h.type==="spikes"&&!(Number.isFinite(h.damage)&&h.damage!>0&&Number.isFinite(h.period)&&h.period!>0&&Number.isFinite(h.activeFor)&&h.activeFor!>0&&h.activeFor!<=h.period!))
+      issues.push(`Hazard ${h.id} invalid spike timing/damage`);
+    if(h.type==="destructible_wall"&&!(Number.isFinite(h.hp)&&h.hp!>0))issues.push(`Hazard ${h.id} needs HP > 0`);
+    if(h.type==="moving_platform"&&!(Number.isFinite(h.period)&&h.period!>0))issues.push(`Hazard ${h.id} needs period > 0`);
   }
   for(const team of ["ffa","red","blue"] as const){
     if(!b.spawns?.[team]?.length)issues.push(`Missing ${team} spawns`);
@@ -120,6 +203,16 @@ export function nextRegionPortal(start:readonly number[],goal:readonly number[],
       const width=Math.min(a.x+a.w/2,b.x+b.w/2)-Math.max(a.x-a.w/2,b.x-b.w/2);
       const depth=Math.min(a.z+a.d/2,b.z+b.d/2)-Math.max(a.z-a.d/2,b.z-b.d/2);
       if(width<6||depth<6)continue;
+      // Bounding boxes of a circle/triangle may overlap without the shapes
+      // actually meeting. Require a genuinely shared walkable portal.
+      const left=Math.max(a.x-a.w/2,b.x-b.w/2),right=Math.min(a.x+a.w/2,b.x+b.w/2);
+      const top=Math.max(a.z-a.d/2,b.z-b.d/2),bottom=Math.min(a.z+a.d/2,b.z+b.d/2);
+      let shared=false;
+      for(let ix=1;ix<=3&&!shared;ix++)for(let iz=1;iz<=3;iz++){
+        const px=left+(right-left)*ix/4,pz=top+(bottom-top)*iz/4;
+        if(insideRegion(px,pz,a,1)&&insideRegion(px,pz,b,1))shared=true;
+      }
+      if(!shared)continue;
       visited.add(k);parent.set(k,i);queue.push(k);
     }
   }

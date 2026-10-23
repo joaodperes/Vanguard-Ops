@@ -4,6 +4,7 @@
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import * as THREE from "three";
+import { regionRectangles } from "./map-blueprints";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1029,7 +1030,7 @@ export class FPSEngine {
     const floorTileSize=this.map.surfaces?.floor.tileSize??7;
         // The visible ground follows the union of authored regions, not a square.
     // Shared area overlaps are coplanar; polygon-union cells avoid Z fighting.
-    const regions = this.map.regions;
+    const regions = this.map.regions?.length?regionRectangles(this.map.regions):undefined;
     if (regions?.length) {
       const xs = [...new Set(regions.flatMap(r => [r.x-r.w/2,r.x+r.w/2]))].sort((a,b)=>a-b);
       const zs = [...new Set(regions.flatMap(r => [r.z-r.d/2,r.z+r.d/2]))].sort((a,b)=>a-b);
@@ -6853,10 +6854,10 @@ export class FPSEngine {
       mapName: this.map.name,
       radar: {
         size: this.map.size, playerX: this.pos.x, playerZ: this.pos.z, yaw: this.yaw,
-        regions:this.map.regions?.map(r=>({
+        regions:this.map.regions?.length ? regionRectangles(this.map.regions).map(r=>({
           x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
           w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,
-        })),
+        })) : undefined,
         cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
           x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
           z: radarToPercent(c.pos[2] - c.size[2], this.map.size),

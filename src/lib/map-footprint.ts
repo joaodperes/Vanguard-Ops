@@ -5,7 +5,7 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary } from "./map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
 
 export type MapPace = "compact" | "balanced" | "tactical";
@@ -76,6 +76,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:Math.max(base.wallHeight,11),
     regions,
+    environment:[...(scaledBase.environment??[]),...(plan.hazards??[]).map(authoredHazardEnvironment)],
     // Shipyard's old outer cargo partitions could intersect stair crests.
     // Do not leave a landing blocked by a tall obstacle beyond the accessible
     // rooftop: remove only legacy cover at the outer elevated approaches.

@@ -93,11 +93,45 @@ Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp
 
 For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
 
-**Editor scope and requested features:** The current blueprint grammar has no independent stair or hazard feature. Built-in hazard objects live in engine-authored template/environment definitions; the editor does not display or modify them, so do not assume an exported blueprint contains every obstacle or hazard visible during a match. Editing biome/lighting/palette/prop theme JSON in the browser would need a second form/editor and per-map theme export/registration workflow; for now edit `src/data/map-themes/<mapId>.json` in code.
+**Editor scope:** Map Studio authors blueprint geometry, standalone stairs, supported hazards and local theme/prop drafts. Existing TypeScript template hazards, platform stairs and some scenery are displayed as read-only previews, not removed by blueprint exports. Theme exports are separate files and still require static import registration for new map IDs. The preview does not fully render Three.js materials, effects or scenery.
 
-The editor loads as a browser-only Next.js component, preventing stale server-rendered map option labels from disagreeing with the client during hydration. Drafts are stored under `vanguard-map-studio-v1` in local browser storage. If an older saved draft has different map names than source JSON, export it first, then use **Restore shipped maps** if you want to return to the current committed content. During development, a full reload or restarting `bun run dev` can resolve stale Turbopack modules.
+The editor loads as a browser-only Next.js component, avoiding hydration mismatches between server map labels and browser drafts. Drafts are stored under `vanguard-map-studio-v1` (blueprints) and `vanguard-map-studio-themes-v1` (themes). If an old draft has different map names, export it first before using **Restore shipped maps**. Restart the dev server if Turbopack displays stale code.
 
-The Map Studio editor currently edits **blueprint geometry only**. Theme JSON is edited in the repository; restart/rebuild for changes to appear in the game. The editor's preview does not fully render Three.js scenery. Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and a manual visual match before requesting a merge.
+Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and perform manual offline/online matches before requesting a merge.
+
+## Map Studio object authoring (October 2026)
+
+The feature branch `feat/map-studio-object-authoring-20261023` adds a **Geometry** tab and **Theme & props** tab. Both stay as browser-local drafts until the appropriate JSON files are exported, placed in the repository and rebuilt.
+
+### Walkable shapes and region union
+
+- **Rectangle**, **Circle / ellipse**, and **Triangle** tools draw regions. The inspector can switch their `shape`. The circle/ellipse uses its `w`/`d` bounding dimensions; the triangle has a north-facing tip and south-facing base. Regions can still be dragged and overlapped.
+- Overlapping regions form one walkable footprint, not internal physical walls. All shapes are translated into a union of **horizontal rectangle strips** (usually 2 world units, capped at 120 strips for very large shapes) for the existing axis-aligned collision and visible floor generation. This means round and sloping boundaries have intentional small steps, *not* perfect curved/diagonal hitboxes. Playtest near those edges.
+- The HUD minimap draws the union boundary, including curved regions approximated by their strips. Don't mistake individual editable region selection outlines for walls.
+
+### Independent stairs, hazards and existing environment previews
+
+- **Independent stairs** are `features` with `kind: "stairs"`. `x,z` describe the top landing edge; `axis` is `x` or `z`; `sign` chooses the outward (descending) direction; `w` is width, `d` is horizontal run, and `h` is landing height. Steps automatically satisfy the engine's maximum approximately 0.42-unit rise. The selected stairs have **Snap to nearest platform**, which aligns them to the closest platform edge, matches height, selects axis/direction and derives the run. Review approach clearance and collision afterwards.
+- Existing platform features continue to generate north and south flights unless you uncheck **Auto-generate north/south stairs** (`autoStairs: false`). This prevents duplicating stairs when authoring custom access.
+- **Place hazard** supports `fire` (DPS), `spikes` (damage/period/active time), `jump_pad` (launch vector), `moving_platform` (destination/period) and `destructible_wall` (HP). Select an authored hazard for per-type parameters. These live under the blueprint's optional `hazards` array and convert to the existing shared `EnvironmentObject` representation used offline and by the server.
+- Existing hazards and legacy stair objects from the engine's TypeScript templates are read-only previews. To move/remove those, edit the source template or migrate them deliberately; exporting the new JSON does not erase the template objects. Avoid ID conflicts and placement over spawns.
+
+### Visual themes and props
+
+- **Theme & props** edits theme label, biome, palette colors, ambient intensity, vegetation density, optional surface patterns, tile sizes and roughness. Choose **Place prop** and drag a footprint; select it to edit the scenery kind, position, dimensions, height, text and optional color.
+- Click **Export theme** to download `<mapId>.json`, then replace or add `src/data/map-themes/<mapId>.json`. New map-specific themes require a **static import and registry entry** in `src/lib/map-visuals.ts`; they do not auto-load at runtime. Map blueprints still export separately via **Export JSON** into `src/data/map-blueprints.json`.
+- **Import theme** loads an existing theme file into the currently selected map's local editor draft. Drafts auto-save under `vanguard-map-studio-themes-v1` and `vanguard-map-studio-v1`. A theme edit is not reflected live in the game's 3D renderer before export and rebuild.
+
+### Shipping checks
+
+```sh
+bun run content:validate
+bun run test:smoke
+bun run typecheck
+bun run build
+```
+
+Test new hazards on both offline and authoritative-server matches; test stair traversal by players and bots, circle/triangle boundaries for leaks and stuck states, and new themes in 3D and on the minimap. Automated structural tests do not replace this.
 
 ## Large-scale performance and gameplay
 
