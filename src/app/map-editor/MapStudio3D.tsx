@@ -280,23 +280,30 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
         createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62));
     }
     const compiled=getMap(mapId);
-    const base=compiled.id===mapId?compiled:getMap(map.templateMapId);
+    const compiledForThisMap=compiled.id===mapId;
+    const base=compiledForThisMap?compiled:getMap(map.templateMapId);
     for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
       const original=base.cover[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyCoverOverrides?.[String(i)]);
-      add({type:"legacyCover",index:i},{
-        x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
-        createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,
-          b.kind==="stair"?palette.stair:"#728399",.64));
+      if(compiledForThisMap){
+        add({type:"legacyCover",index:i},{
+          x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
+          createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,
+            b.kind==="stair"?palette.stair:"#728399",.64));
+      }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
+        b.size[0]*2,b.size[1]*2,b.size[2]*2,"#728399",.28);
     }
     for(let i=0;i<(base.editorLegacyEnvironmentCount??0);i++){
       const original=base.environment?.[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyEnvironmentOverrides?.[String(i)]);
-      add({type:"legacyEnvironment",index:i},{
-        x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
-        createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.45));
+      if(compiledForThisMap){
+        add({type:"legacyEnvironment",index:i},{
+          x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
+          createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.45));
+      }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
+        b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
   },[map,theme,mapId]);
 
