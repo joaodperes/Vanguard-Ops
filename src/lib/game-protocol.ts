@@ -164,6 +164,10 @@ export interface MapDef {
   regions?: import("./map-blueprints").MapRegion[]; // union of rectangles, circles or triangles (stepped boundary collision)
   wallHeight: number;
   cover: CoverBox[];
+  /** Stable prefix length of engine-authored cover after legacy filtering. Map Studio
+   * can address and edit these objects without modifying generated boundaries. */
+  editorLegacyCoverCount?: number;
+  editorLegacyEnvironmentCount?: number;
   environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
   theme: MapTheme;
