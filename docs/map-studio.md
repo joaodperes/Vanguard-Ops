@@ -99,6 +99,28 @@ The editor loads as a browser-only Next.js component, avoiding hydration mismatc
 
 Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and perform manual offline/online matches before requesting a merge.
 
+## 3D map editing and legacy objects
+
+Map Studio opens in **3D View** by default. Use the **2D View** button to return to the original precision drafting grid. Both views edit the same browser-local blueprint/theme drafts.
+
+### Navigating the 3D viewport
+
+- **Camera / select:** Left-drag to orbit; right-drag to pan; scroll to zoom. While the mouse is over the viewport, **W/A/S/D** flies horizontally, **Q/E** moves down/up, and **Shift** increases speed. Click a selectable object to highlight it.
+- **Move object:** Select an object and choose **Move object**. Drag the red/green/blue gizmo arrows to change its coordinates.
+- **Rotate 90°:** Choose **Rotate 90°** to use a yaw-only rotation gizmo. The current collision engine uses axis-aligned boxes, so turning an object swaps its width/depth. Full arbitrary-angle rotations and rotated triangular region footprints are not supported.
+- **Resize object:** Choose **Resize object** and drag a gizmo axis; the right-hand **Inspector** also exposes exact dimensions. Changing the Y size of a cover, platform or stair object changes its height.
+- Use the left toolbar to select a shape/object type and click **Add [object] at camera focus** in the viewport. The editor creates it under the camera's orbit target. Select and transform the new object, then export JSON.
+
+### Editing pre-existing stairs, cover and hazards
+
+The 3D viewport can select the game's **original engine-authored collision boxes**, including individual stair steps, as well as authored JSON features, spawns, props and hazards. Engine-authored objects appear as semi-transparent gray or amber boxes, and the Inspector labels them **Existing game geometry**.
+
+These are not ordinary JSON `features` entries. Moving or resizing an original stair/cover box adds a `legacyCoverOverrides[index]` entry to `src/data/map-blueprints.json`; original engine hazards similarly use `legacyEnvironmentOverrides[index]`. Each override stores an exact world-space center (`x,y,z`) and **full** dimensions (`w,h,d`). The runtime applies those overrides to the stable engine-authored prefix before adding JSON features and generated perimeter walls. The original TypeScript map source is not mutated, and per-step edits affect only that step.
+
+This is important for legacy staircases: they are originally built as multiple collision step boxes. To adjust an entire staircase coherently, select and update its steps, or author a new **independent stairs** feature and disable the relevant automatic staircase on its platform where possible. Avoid leaving gaps that block AI/player traversal. The 3D viewer uses lightweight collision/prop proxies, not an exact rendered game match.
+
+**Export and rebuild:** 3D transformations are saved to your local editor draft; publish using **Export JSON** to replace `src/data/map-blueprints.json`. Theme edits still require their separate theme JSON export. Test the compiled map in an actual match after rebuilding. For new maps, update typed runtime registries as explained earlier.
+
 ## Map Studio object authoring (October 2026)
 
 The feature branch `feat/map-studio-object-authoring-20261023` adds a **Geometry** tab and **Theme & props** tab. Both stay as browser-local drafts until the appropriate JSON files are exported, placed in the repository and rebuilt.
