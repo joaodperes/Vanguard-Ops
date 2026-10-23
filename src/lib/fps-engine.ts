@@ -4576,7 +4576,7 @@ export class FPSEngine {
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
     this.shotBloom = Math.min(1.4, this.shotBloom + shotBloomIncrease(this.eff.fireRate));
-    const pellets = w.stats.pellets ?? 1;
+    const pellets = this.eff.pellets ?? 1;
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
@@ -6293,7 +6293,7 @@ export class FPSEngine {
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
         const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        const pellets = w.stats.pellets ?? 1;
+        const pellets = eff.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
           const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(eff.spread))) : dir;
           this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);

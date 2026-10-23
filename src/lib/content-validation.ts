@@ -60,6 +60,7 @@ const attachment = z.object({
   unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
   weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
   sightType: z.string().optional(),
+  shotgunAmmo: z.enum(["slug","pellets","dragons_breath","beanbag"]).optional(),
   effects: z.object({
     damage: num.optional(), recoil: num.optional(), spread: num.optional(),
     adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),

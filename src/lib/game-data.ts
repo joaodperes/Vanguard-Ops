@@ -201,6 +201,8 @@ export interface AttachmentDef {
   // catalog entries that still use the old name). When both are set, they
   // should be the same list — `weaponCategories` is canonical.
   recommendedFor?: WeaponCategory[];
+  /** Only effective for shotguns; changes pellet count, spread and status effects. */
+  shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
   effects: {
     damage?: number;       // additive percent e.g. 10 => +10%
     recoil?: number;       // additive percent (negative reduces)
@@ -443,6 +445,7 @@ export function damageAtRange(baseDamage: number, distance: number, range: numbe
 // applied to ADS too (backward-compat with attachments authored before the
 // decoupling).
 export interface EffectiveStats extends WeaponStats {
+  shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
   magSize: number;
   // The resolved sight type for this loadout (engine reads this for zoom/reticle).
   sightType: SightType;
@@ -461,21 +464,33 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     }
   }
   const pct = (val: number, key: string) => base[key as keyof WeaponStats] as number * (1 + (acc[key] ?? 0) / 100);
-  const magBonus = acc.magSize ?? 0;
+  // Shell choice is a magazine attachment but alters projectile behavior. All
+  // these values go through EffectiveStats so offline and server agree.
+  const ammoAttachment = attachmentById(atts.magazine ?? "");
+  const shell = weapon.category === "shotgun" ? ammoAttachment?.shotgunAmmo : undefined;
+  const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.0, spreadMul: .18, rangeMul: 3.2, rateMul: .8 } :
+    shell === "dragons_breath" ? { pellets: 1, damageMul: 1.9, spreadMul: .24, rangeMul: 2.2, rateMul: .85 } :
+    shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .63, spreadMul: 1.8, rangeMul: .87, rateMul: 1 } :
+    shell === "beanbag" ? { pellets: 4, damageMul: .65, spreadMul: .66, rangeMul: 1.08, rateMul: 1.35 } :
+    null;
+    const magBonus = acc.magSize ?? 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
   const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
   return {
     ...base,
-    damage: Math.round(pct(base.damage, "damage")),
+    shotgunAmmo: shell,
+    pellets: shellTuning?.pellets ?? base.pellets,
+    fireRate: base.fireRate * (shellTuning?.rateMul ?? 1),
+    damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.
-    spread: Math.max(0.0005, base.spread * (1 + (acc.spread ?? 0) / 100)),
+    spread: Math.max(0.0005, base.spread * (1 + (acc.spread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     // ADS spread: uses adsSpread modifier if set, else falls back to spread modifier.
-    adsSpread: Math.max(0.0, base.adsSpread * (1 + ((acc.adsSpread ?? acc.spread) ?? 0) / 100)),
+    adsSpread: Math.max(0.0, base.adsSpread * (1 + ((acc.adsSpread ?? acc.spread) ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     adsTime: Math.max(0.05, base.adsTime * (1 + (acc.adsTime ?? 0) / 100)),
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100)),
-    range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100)),
+    range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
     magSize: Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
     sightType: sightDef.type,
   };

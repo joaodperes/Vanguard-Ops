@@ -15,7 +15,7 @@ export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: str
 export const TURRET_MUZZLE_HEIGHT = 1.29;
 export const TURRET_RANGE = 30;
 export const TURRET_DAMAGE = 17;
-export const TURRET_INTERVAL_MS = 360;
+export const TURRET_INTERVAL_MS = 245;
 export const TURRET_LIFETIME_MS = 25000;
 export function turretCanTrack(
   turret: readonly number[], forwardYaw: number, target: readonly number[],

@@ -691,12 +691,6 @@ export function Play() {
         </Tabs>
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-white/40">
-          <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> All rooms are live online matches</span>
-          <span className="hidden sm:inline">Create a room · invite friends · bots fill the gaps</span>
-        </div>
-      </footer>
     </div>
   );
 }

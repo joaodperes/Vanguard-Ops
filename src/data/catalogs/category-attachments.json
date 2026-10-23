@@ -70,7 +70,11 @@
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_shell_carrier"
+      "mag_shell_carrier",
+      "mag_slug",
+      "mag_pellets",
+      "mag_dragons_breath",
+      "mag_beanbag"
     ]
   },
   "dmr": {

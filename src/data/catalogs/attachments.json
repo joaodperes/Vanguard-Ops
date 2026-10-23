@@ -577,5 +577,69 @@
       "magSize": 25,
       "reloadTime": -14
     }
+  },
+  {
+    "id": "mag_slug",
+    "name": "Slug Rounds",
+    "description": "Single accurate heavy projectile for medium and long-range engagements.",
+    "slot": "magazine",
+    "unlockLevel": 16,
+    "unlockCost": 500,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "slug",
+    "effects": {}
+  },
+  {
+    "id": "mag_pellets",
+    "name": "Buckshot Swarm",
+    "description": "More pellets in a broad cloud; useful for groups at close range.",
+    "slot": "magazine",
+    "unlockLevel": 12,
+    "unlockCost": 420,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "pellets",
+    "effects": {}
+  },
+  {
+    "id": "mag_dragons_breath",
+    "name": "Dragon's Breath",
+    "description": "Incendiary slug: less impact damage, burns victims and delays regeneration.",
+    "slot": "magazine",
+    "unlockLevel": 20,
+    "unlockCost": 700,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "dragons_breath",
+    "effects": {}
+  },
+  {
+    "id": "mag_beanbag",
+    "name": "Beanbag Rounds",
+    "description": "Smaller tighter pellet pattern, lower damage, faster follow-up shots.",
+    "slot": "magazine",
+    "unlockLevel": 10,
+    "unlockCost": 375,
+    "weaponCategories": [
+      "shotgun"
+    ],
+    "recommendedFor": [
+      "shotgun"
+    ],
+    "shotgunAmmo": "beanbag",
+    "effects": {}
   }
 ]

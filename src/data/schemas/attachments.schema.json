@@ -95,6 +95,14 @@
           }
         },
         "additionalProperties": false
+      },
+      "shotgunAmmo": {
+        "enum": [
+          "slug",
+          "pellets",
+          "dragons_breath",
+          "beanbag"
+        ]
       }
     },
     "additionalProperties": false
