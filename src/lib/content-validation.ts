@@ -203,6 +203,13 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   // Validate those files as well as walkable geometry, not just map metadata.
   const themeSchema=z.object({
     biome:label,label,ambient:pos,vegetation:unit,
+    surfaces:z.record(
+      z.enum(["floor","wall","cover","stair","platform"]),
+      z.object({
+        pattern:z.enum(["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]),tileSize:pos.max(100),roughness:unit,
+      }).strict(),
+    ).refine(s=>["floor","wall","cover","stair","platform"].every(k=>k in s),
+      "Every map requires floor/wall/cover/stair/platform surface recipes").optional(),
     palette:z.object({
       floor:cssColor,wall:cssColor,cover:cssColor,accent:cssColor,
       platform:cssColor,stair:cssColor,sky:cssColor,fog:cssColor,grid:cssColor,

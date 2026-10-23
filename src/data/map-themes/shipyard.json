@@ -110,5 +110,32 @@
       "w": 11,
       "text": "BREAKWATER HARBOR"
     }
-  ]
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "planks",
+      "tileSize": 7,
+      "roughness": 0.89
+    },
+    "wall": {
+      "pattern": "rust",
+      "tileSize": 5.5,
+      "roughness": 0.78
+    },
+    "cover": {
+      "pattern": "metal",
+      "tileSize": 4,
+      "roughness": 0.79
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 3,
+      "roughness": 0.65
+    },
+    "platform": {
+      "pattern": "planks",
+      "tileSize": 5,
+      "roughness": 0.86
+    }
+  }
 }

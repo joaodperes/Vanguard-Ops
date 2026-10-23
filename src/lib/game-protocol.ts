@@ -170,6 +170,7 @@ export interface MapDef {
   /** Authored map palette, props and rendered landmarks (see JSON map theme). */
   props?: import("./map-visuals").MapProp[];
   biome?: string;
+  surfaces?: import("./map-visuals").MapSurfaceRecipes;
   accentColor: string;   // for UI badge
   lights?: MapAccentLight[]; // optional per-map accent point lights
 }

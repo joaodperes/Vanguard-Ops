@@ -15,5 +15,32 @@
   "ambient": 1.85,
   "vegetation": 0,
   "props": [],
-  "inheritPropsFrom": "arena_neon"
+  "inheritPropsFrom": "arena_neon",
+  "surfaces": {
+    "floor": {
+      "pattern": "pavers",
+      "tileSize": 8,
+      "roughness": 0.78
+    },
+    "wall": {
+      "pattern": "brick",
+      "tileSize": 5,
+      "roughness": 0.73
+    },
+    "cover": {
+      "pattern": "concrete",
+      "tileSize": 4,
+      "roughness": 0.81
+    },
+    "stair": {
+      "pattern": "pavers",
+      "tileSize": 3.2,
+      "roughness": 0.75
+    },
+    "platform": {
+      "pattern": "concrete",
+      "tileSize": 5,
+      "roughness": 0.83
+    }
+  }
 }

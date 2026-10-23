@@ -35,5 +35,32 @@
       "x": 35,
       "z": -11
     }
-  ]
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "concrete",
+      "tileSize": 6,
+      "roughness": 0.95
+    },
+    "wall": {
+      "pattern": "metal",
+      "tileSize": 5,
+      "roughness": 0.79
+    },
+    "cover": {
+      "pattern": "concrete",
+      "tileSize": 3.6,
+      "roughness": 0.9
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 2.4,
+      "roughness": 0.72
+    },
+    "platform": {
+      "pattern": "metal",
+      "tileSize": 5,
+      "roughness": 0.74
+    }
+  }
 }

@@ -144,6 +144,204 @@
     },
     "inheritPropsFrom": {
       "type": "string"
+    },
+    "surfaces": {
+      "type": "object",
+      "required": [
+        "floor",
+        "wall",
+        "cover",
+        "stair",
+        "platform"
+      ],
+      "properties": {
+        "floor": {
+          "type": "object",
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "properties": {
+            "pattern": {
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "wall": {
+          "type": "object",
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "properties": {
+            "pattern": {
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "cover": {
+          "type": "object",
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "properties": {
+            "pattern": {
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "stair": {
+          "type": "object",
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "properties": {
+            "pattern": {
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "platform": {
+          "type": "object",
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "properties": {
+            "pattern": {
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

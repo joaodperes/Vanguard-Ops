@@ -80,7 +80,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
       ...propColliders(props,allSpawns),
       ...regionBoundary(regions)],
     spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
-    props,biome:visuals.biome,accentColor:visuals.palette.accent,
+    props,biome:visuals.biome,surfaces:visuals.surfaces,accentColor:visuals.palette.accent,
     theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),
       fogFar:Math.max(scaledBase.theme.fogFar,halfExtent*2.5+60)},
   };

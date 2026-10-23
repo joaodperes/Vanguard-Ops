@@ -127,5 +127,32 @@
       "d": 9,
       "h": 4
     }
-  ]
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "moss",
+      "tileSize": 7,
+      "roughness": 0.95
+    },
+    "wall": {
+      "pattern": "brick",
+      "tileSize": 6,
+      "roughness": 0.9
+    },
+    "cover": {
+      "pattern": "stone",
+      "tileSize": 3.8,
+      "roughness": 0.94
+    },
+    "stair": {
+      "pattern": "stone",
+      "tileSize": 2.8,
+      "roughness": 0.9
+    },
+    "platform": {
+      "pattern": "stone",
+      "tileSize": 5,
+      "roughness": 0.9
+    }
+  }
 }

@@ -133,5 +133,32 @@
       "d": 8,
       "h": 4
     }
-  ]
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "snow",
+      "tileSize": 9,
+      "roughness": 0.98
+    },
+    "wall": {
+      "pattern": "stone",
+      "tileSize": 5.5,
+      "roughness": 0.95
+    },
+    "cover": {
+      "pattern": "stone",
+      "tileSize": 5,
+      "roughness": 0.95
+    },
+    "stair": {
+      "pattern": "metal",
+      "tileSize": 3,
+      "roughness": 0.8
+    },
+    "platform": {
+      "pattern": "grate",
+      "tileSize": 5,
+      "roughness": 0.82
+    }
+  }
 }

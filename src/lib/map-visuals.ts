@@ -20,8 +20,15 @@ export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
   w?: number; d?: number; h?: number; text?: string;
 }
+export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
+export type SurfacePattern = typeof SURFACE_PATTERNS[number];
+export type SurfaceSlot = "floor" | "wall" | "cover" | "stair" | "platform";
+/** Physical texture scale is in WORLD units, not arbitrary geometry UV units. */
+export interface SurfaceRecipe { pattern: SurfacePattern; tileSize: number; roughness: number }
+export type MapSurfaceRecipes = Record<SurfaceSlot, SurfaceRecipe>;
 export interface MapVisualTheme {
   biome: string; label: string; inheritPropsFrom?: string;
+  surfaces?: MapSurfaceRecipes;
   palette: {
     floor:string; wall:string; cover:string; accent:string;
     platform:string; stair:string; sky:string; fog:string; grid:string;
