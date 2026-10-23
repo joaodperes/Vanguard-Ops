@@ -131,6 +131,10 @@ The feature branch `feat/map-studio-object-authoring-20261023` adds a **Geometry
 - Overlapping regions form one walkable footprint, not internal physical walls. All shapes are translated into a union of **horizontal rectangle strips** (usually 2 world units, capped at 120 strips for very large shapes) for the existing axis-aligned collision and visible floor generation. This means round and sloping boundaries have intentional small steps, *not* perfect curved/diagonal hitboxes. Playtest near those edges.
 - The HUD minimap draws the union boundary, including curved regions approximated by their strips. Don't mistake individual editable region selection outlines for walls.
 
+### Hard cover on raised platforms
+
+A hard cover feature has two separate vertical coordinates: **`y` is the bottom elevation**, and **`h` is the wall's own height**. Previously the editor treated height as a ground-up solid, causing walls placed on floating platforms to extend down to y=0. Now select the cover, set Base elevation (Y) to the platform's top or click **Snap cover onto platform top**. Its height remains unchanged (for example a 2.3-unit barrier on a 5.2-unit catwalk occupies y=5.2–7.5). In 3D Move shifts the cover vertically without resizing it, and Resize changes its height.
+
 ### Independent stairs, hazards and existing environment previews
 
 - **Independent stairs** are `features` with `kind: "stairs"`. `x,z` describe the top landing edge; `axis` is `x` or `z`; `sign` chooses the outward (descending) direction; `w` is width, `d` is horizontal run, and `h` is landing height. Steps automatically satisfy the engine's maximum approximately 0.42-unit rise. The selected stairs have **Snap to nearest platform**, which aligns them to the closest platform edge, matches height, selects axis/direction and derives the run. Review approach clearance and collision afterwards.
