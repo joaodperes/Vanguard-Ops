@@ -6857,7 +6857,7 @@ export class FPSEngine {
         regions:this.map.regions?.length ? regionRectangles(this.map.regions).map(r=>({
           x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
           w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,
-        })),
+        })) : undefined,
         cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
           x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
           z: radarToPercent(c.pos[2] - c.size[2], this.map.size),
