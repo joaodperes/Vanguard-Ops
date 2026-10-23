@@ -305,9 +305,9 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     for(const flight of base.editorLegacyStairFlights??[]){
       const steps=flight.indices.map(i=>{
         stairIndices.add(i);
-        const original=base.cover[i];
+        const original=base.editorLegacyCoverSource?.[i]??base.cover[i];
         return original?overrideBox(original,map.legacyCoverOverrides?.[String(i)]):null;
-      }).filter((b):b is NonNullable<typeof b>=>b!==null);
+      }).filter((b):b is CoverBox=>b!==null);
       if(!steps.length)continue;
       const bounds=stairFlightBounds(steps);
       if(compiledForThisMap){
@@ -322,7 +322,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     }
     for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
       if(stairIndices.has(i))continue;
-      const original=base.cover[i];
+      const original=base.editorLegacyCoverSource?.[i]??base.cover[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyCoverOverrides?.[String(i)]);
       if(compiledForThisMap){
