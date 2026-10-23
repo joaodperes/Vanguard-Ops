@@ -10,7 +10,8 @@ describe("map scale and route accessibility",()=>{
     expect(byId.bunker.size*2).toBeLessThan(140);
     expect(byId.shipyard.size*2).toBeLessThan(170);
     expect(byId.compound.size*2).toBeGreaterThan(240);
-    expect(byId.skybridge.size*2).toBeGreaterThan(380);
+    expect(byId.skybridge.size*2).toBeGreaterThan(240);
+    expect(byId.skybridge.size*2).toBeLessThan(350);
     expect(byId.arena_neon.size*2).toBeGreaterThan(380);
   });
 
