@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { formatWeaponNumber } from "@/lib/weapon-numbers";
 import { shotSpread } from "@/lib/weapon-accuracy";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
@@ -421,7 +422,7 @@ export function Armory() {
                       </div>
                     </div>
                     <div className="text-white font-bold text-sm">{s.name}</div>
-                    <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{s.rarity}</div>
+                    <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{displayLabel(s.rarity)}</div>
                     {!isOwned && contract && (
                       <div className="w-full mb-2">
                         <div className="text-[10px] text-white/60 mb-1">{contract.description}</div>
@@ -617,7 +618,7 @@ function WeaponCard(props: WeaponCardProps) {
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: rarityColor, opacity: 0.6 }} />
       <div className="mb-2 pr-20">
         <div className="text-white font-bold text-base">{w.name}</div>
-        <div className="text-white/40 text-xs uppercase tracking-wide">{w.category} · LVL {w.unlockLevel}</div>
+        <div className="text-white/40 text-xs uppercase tracking-wide">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</div>
       </div>
       <p className="text-white/50 text-xs mb-2 flex-1">{w.description}</p>
       {/* stat bars */}
@@ -751,7 +752,7 @@ function CustomizeModal(props: CustomizeModalProps) {
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-white text-xl">{w.name}</DialogTitle>
               <DialogDescription className="text-white/50">
-                {w.category.toUpperCase()} · {slot.toUpperCase()} SLOT · LVL {w.unlockLevel}
+                {weaponCategoryLabel(w.category).toUpperCase()} · {slot.toUpperCase()} SLOT · LVL {w.unlockLevel}
               </DialogDescription>
             </div>
           </div>
@@ -910,7 +911,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                     <div className="flex-1 min-w-0 break-words">
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
                         <span className="text-white text-xs font-semibold break-words min-w-0">{s.name}</span>
-                        <span className="text-[9px] uppercase font-semibold" style={{ color: rarityColor }}>{s.rarity}</span>
+                        <span className="text-[9px] uppercase font-semibold" style={{ color: rarityColor }}>{displayLabel(s.rarity)}</span>
                         
                         {/* Owned badge — small green pill to make ownership status
                             unmistakable. Only shown when owned, not baseline (baseline

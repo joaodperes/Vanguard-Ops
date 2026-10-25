@@ -5,6 +5,7 @@ import type { LoadoutWire, GameMode, MapId, BotDifficulty } from "@/lib/game-pro
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
 import { Hud } from "./Hud";
+import { displayMapLabel } from "@/lib/display-labels";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
 import { RoomLobby } from "./RoomLobby";
@@ -196,7 +197,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">TAP TO PLAY</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
             <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
-            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
+            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
       )}

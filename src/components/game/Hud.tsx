@@ -5,6 +5,7 @@ import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
+import { displayMapLabel } from "@/lib/display-labels";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
@@ -327,7 +328,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       <div className={`absolute left-4 flex flex-col gap-1 max-w-[60vw] ${isTouch ? "top-2" : "top-4"}`}>
         <div className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 mb-1 ${isTouch ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`}>
           <MapIcon className={isTouch ? "w-2.5 h-2.5 text-cyan-400" : "w-3 h-3 text-cyan-400"} />
-          <span className="text-cyan-300 font-bold tracking-wider uppercase">{hud.mapName ?? "Compound"}</span>
+          <span className="text-cyan-300 font-bold tracking-wider uppercase">{displayMapLabel(hud.mapName ?? "Compound")}</span>
           {hud.aiming && <span className="ml-auto text-amber-300 text-[9px] uppercase font-bold animate-pulse">ADS</span>}
         </div>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
@@ -637,7 +638,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
             {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}
             <span className="mx-2 text-white/20">·</span>
-            <span className="text-cyan-300">{hud.mapName ?? "Compound"}</span>
+            <span className="text-cyan-300">{displayMapLabel(hud.mapName ?? "Compound")}</span>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 "use client";
 import type { LobbyState } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
+import { displayLabel } from "@/lib/display-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Crown, DoorOpen, Play, Users, Shield, Skull, Radio, Bot as BotIcon, Swords, Wifi, WifiOff, Loader2 } from "lucide-react";
@@ -90,7 +91,7 @@ export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Pr
                       )}
                       {p.team !== "ffa" && (
                         <Badge variant="outline" className="border-white/15 text-white/60 text-[9px] uppercase shrink-0">
-                          {p.team}
+                          {displayLabel(p.team)}
                         </Badge>
                       )}
                     </div>
