@@ -539,8 +539,34 @@ export default function MapEditor() {
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
-  const inherited=(baseMap.environment??[]).filter(o=>!uiHazards.some(h=>h.id===o.id));
-  const inheritedStairs=baseMap.cover.filter(o=>o.kind==="stair");
+  const inherited=(baseMap.editorLegacyEnvironmentSource??baseMap.environment??[])
+    .filter((o,i)=>!(map.legacyEnvironmentDisabled??[]).includes(i)&&
+      !uiHazards.some(h=>h.id===o.id));
+  const inheritedStairs=(baseMap.editorLegacyCoverSource??baseMap.cover)
+    .filter((o,i)=>o.kind==="stair"&&!(map.legacyCoverDisabled??[]).includes(i));
+  const hiddenStairIndexes=new Set((baseMap.editorLegacyStairFlights??[]).flatMap(f=>f.indices));
+  const deletedFlights=(baseMap.editorLegacyStairFlights??[])
+    .filter(f=>f.indices.some(i=>(map.legacyCoverDisabled??[]).includes(i)));
+  const deletedCover=(map.legacyCoverDisabled??[]).filter(i=>!hiddenStairIndexes.has(i));
+  const deletedEnvironment=map.legacyEnvironmentDisabled??[];
+  const deletedCount=deletedFlights.length+deletedCover.length+deletedEnvironment.length;
+  const restoreOriginal=(kind:"flight"|"cover"|"environment",index:number)=>{
+    pushUndo();
+    if(kind==="flight"){
+      const flight=legacyFlight(index);
+      if(!flight)return;
+      update(m=>{
+        let disabled=m.legacyCoverDisabled??[];
+        for(const i of flight.indices)disabled=toggleOriginalIndex(disabled,i,false);
+        return {...m,legacyCoverDisabled:disabled};
+      });
+    }else if(kind==="cover"){
+      update(m=>({...m,legacyCoverDisabled:toggleOriginalIndex(m.legacyCoverDisabled,index,false)}));
+    }else {
+      update(m=>({...m,legacyEnvironmentDisabled:toggleOriginalIndex(m.legacyEnvironmentDisabled,index,false)}));
+    }
+    setStatus("Restored built-in map object. Export JSON to publish this change.");
+  };
   const radius=extent*100/zoom;
   const shape=preview?{x:(preview.start.x+preview.end.x)/2,z:(preview.start.z+preview.end.z)/2,
     w:Math.max(4,Math.abs(preview.end.x-preview.start.x)),d:Math.max(4,Math.abs(preview.end.z-preview.start.z))}:null;
@@ -737,6 +763,7 @@ export default function MapEditor() {
             {/* Original template stairs: one selectable outline per complete
                 flight in 2D, rather than dozens of individual step rectangles. */}
             {(baseMap.editorLegacyStairFlights??[]).map(flight=>{
+              if(flight.indices.every(i=>(map.legacyCoverDisabled??[]).includes(i)))return null;
               const bounds=legacyFlightBounds(flight.start);
               if(!bounds)return null;
               const active=selected?.type==="legacyStairs"&&selected.index===flight.start;
@@ -947,6 +974,24 @@ export default function MapEditor() {
               </div>
             </div>:
             <p className="text-xs text-zinc-500">Select a region, existing staircase/cover, hazard, prop, or spawn in 3D to edit its properties.</p>}
+        </section>
+        {deletedCount>0&&<section className="border-t border-white/10 pt-4 space-y-2">
+          <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400">Deleted built-in objects ({deletedCount})</h2>
+          <p className="text-xs text-zinc-500">Hidden originals stay excluded from exported map physics. Restore individual objects here or use Undo.</p>
+          <div className="max-h-40 overflow-auto space-y-1">
+            {deletedFlights.map(f=><div key={"flight-"+f.start} className="flex justify-between items-center gap-2 text-xs">
+              <span>Staircase #{f.start+1} ({f.indices.length} steps)</span>
+              <button className={btn} onClick={()=>restoreOriginal("flight",f.start)}><RotateCcw size={12}/> Restore</button>
+            </div>)}
+            {deletedCover.map(i=><div key={"cover-"+i} className="flex justify-between items-center gap-2 text-xs">
+              <span>Cover #{i+1}</span>
+              <button className={btn} onClick={()=>restoreOriginal("cover",i)}><RotateCcw size={12}/> Restore</button>
+            </div>)}
+            {deletedEnvironment.map(i=><div key={"environment-"+i} className="flex justify-between items-center gap-2 text-xs">
+              <span>Hazard #{i+1}</span>
+              <button className={btn} onClick={()=>restoreOriginal("environment",i)}><RotateCcw size={12}/> Restore</button>
+            </div>)}
+          </div>
         </section>
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Design checks</h2>
