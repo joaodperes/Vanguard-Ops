@@ -1,0 +1,39 @@
+name: Afterlight City dev map verification
+
+# Map-specific verification independent of other evolving content catalogs.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    paths:
+      - src/lib/map-visuals.ts
+      - src/lib/map-footprint.ts
+      - src/lib/fps-engine.ts
+      - src/data/map-blueprints.json
+      - src/data/map-themes/arena_neon.json
+      - src/data/map-themes/terminal.json
+      - tests/map-art-variants.test.ts
+      - .github/workflows/afterlight-dev-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify-afterlight:
+    name: City layout, physics, typecheck and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Generate Prisma client
+        run: bun run db:generate
+      - name: Afterlight and navigation regression tests
+        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
+      - name: TypeScript validation
+        run: bun run typecheck
+      - name: Production build
+        run: bun run build
