@@ -261,9 +261,9 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(0,(h+2.5)/2,Z,door,(h-2.5)/2,wall);
     // Walkable roof follows the smaller stepped footprint.
-    put(0,h+.16,0,X*.65,.16,Z);
-    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63);
-    put(X*.825,h+.16,0,X*.175,.16,Z*.63);
+    put(0,h+.16,0,X*.65,.16,Z,"platform");
+    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63,"platform");
+    put(X*.825,h+.16,0,X*.175,.16,Z*.63,"platform");
   }else{
     put(0,h/2,-d/2,w/2,h/2,wall);
     put(-w/2,h/2,0,wall,h/2,d/2);
