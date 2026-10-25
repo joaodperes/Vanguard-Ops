@@ -684,7 +684,7 @@ function joinLobbyRoom(
 function snapshot(room: Room): S2C {
   const players: SnapshotPlayer[] = [];
   for (const p of room.players.values()) {
-    players.push(toSnap(p));
+    players.push({ ...toSnap(p), perkId: room.loadouts.get(p.id)?.perkId });
   }
   for (const b of room.bots.values()) {
     players.push(toSnap(b));
