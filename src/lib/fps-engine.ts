@@ -1307,6 +1307,25 @@ export class FPSEngine {
             item.w+.025,item.h+.025,item.d+.025);
         const faceZ=d/2+.48;
         const doorWidth=Math.min(5,w*.31);
+        // Slim external cladding sits flush on the collision-backed masonry.
+        // Leave the real south entrance unpainted and avoid inventing square
+        // facade faces around the rounded/stepped footprints.
+        if(isRound){
+          const shoulderX=w*.32,shoulderZ=d*.32;
+          cube(group,tint,0,h/2,-d/2-.46,shoulderX*2-.15,h-.1,.055);
+          for(const side of [-1,1]){
+            cube(group,tint,side*(w/2+.46),h/2,0,.055,h-.1,shoulderZ*2-.12);
+            const span=shoulderX-doorWidth/2;
+            cube(group,tint,side*(shoulderX+doorWidth/2)/2,h/2,d/2+.46,span-.1,h-.1,.055);
+          }
+        }else{
+          const segment=(w-doorWidth)/2;
+          cube(group,tint,0,h/2,-d/2-.46,w-.15,h-.1,.055);
+          for(const side of [-1,1]){
+            cube(group,tint,side*(w/2+.46),h/2,0,.055,h-.1,d-.15);
+            cube(group,tint,side*(w+doorWidth)/4,h/2,d/2+.46,segment-.1,h-.1,.055);
+          }
+        }
         // Jambs keep the entrance conspicuous. All ornamentation is thin and
         // the opening at ground level remains collision-free.
         for(const side of [-1,1]){
@@ -1315,7 +1334,7 @@ export class FPSEngine {
             Math.min(2.5,w*.13),h*.23,.11);
         }
         cube(group,tint,0,2.58,faceZ,doorWidth+.45,.23,.38);
-        const windowZ=isRound?d/2-.02:d/2+.53;
+        const windowZ=d/2+.53;
         for(const side of [-1,1]){
           const x=side*(isRound?w*.18:w*.32);
           cube(group,glass,x,h*.55,windowZ,Math.min(2.5,w*.16),Math.max(1.15,h*.19),.12);

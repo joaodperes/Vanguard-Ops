@@ -40,7 +40,7 @@
       "kind": "corrosion",
       "maxCharges": 3,
       "rechargeMs": 38000,
-      "killBonusMs": 5000,
+      "killBonusMs": 3000,
       "radius": 9
     },
     "attachments": [],

@@ -18,6 +18,18 @@ describe("Wonder charge economy", () => {
     expect(tickWonderCharges(empty, rules, 41000).charges).toBe(1);
     expect(tickWonderCharges(empty, rules, 81000).charges).toBe(2);
   });
+  test("three-charge weapons consume and recover one charge at a time", () => {
+    const triple = { maxCharges: 3, rechargeMs: 10000, killBonusMs: 1000 };
+    const first = spendWonderCharge(fullWonderCharges(triple), triple, 1000)!;
+    expect(first.charges).toBe(2);
+    const second = spendWonderCharge(first, triple, 2000)!;
+    const third = spendWonderCharge(second, triple, 3000)!;
+    expect(third.charges).toBe(0);
+    expect(spendWonderCharge(third, triple, 4000)).toBeNull();
+    expect(tickWonderCharges(third, triple, 11000).charges).toBe(1);
+    expect(tickWonderCharges(third, triple, 21000).charges).toBe(2);
+    expect(tickWonderCharges(third, triple, 31000).charges).toBe(3);
+  });
   test("ordinary kills accelerate only pending recharge without free overflow", () => {
     const empty = spendWonderCharge(fullWonderCharges(rules), rules, 1000)!;
     const shorter = accelerateWonderCharge(empty, rules, 5000);
@@ -28,9 +40,11 @@ describe("Wonder charge economy", () => {
   test("all Wonder Weapons have finite charges and no manual reload", () => {
     const wonders = WEAPONS.filter(w => w.wonder);
     expect(wonders).toHaveLength(7);
+    // Plagueheart deliberately stores three charges; the runtime charge model supports it.
+    expect(wonders.find(w => w.id === "wonder_corrosion")?.wonder?.maxCharges).toBe(3);
     for (const w of wonders) {
       expect(w.wonder!.maxCharges).toBeGreaterThanOrEqual(1);
-      expect(w.wonder!.maxCharges).toBeLessThanOrEqual(2);
+      expect(w.wonder!.maxCharges).toBeLessThanOrEqual(3);
       expect(w.stats.magSize).toBe(w.wonder!.maxCharges);
       expect(w.stats.reloadTime).toBe(0);
       expect(w.attachments).toEqual([]);

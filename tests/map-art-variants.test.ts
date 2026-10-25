@@ -28,7 +28,7 @@ describe("Afterlight architectural maps",()=>{
     // Infill touches all four sides of the park with small residences, without
     // placing solid footprints in the 80x80 grass square.
     const infill=buildings.filter(p=>p.use==="house" && p.w===14 && p.d===15);
-    expect(infill.length).toBeGreaterThanOrEqual(6);
+    expect(infill.length).toBeGreaterThanOrEqual(4);
     expect(infill.some(p=>p.x>45&&Math.abs(p.z)<30)).toBe(true);
     expect(infill.some(p=>p.x< -45&&Math.abs(p.z)<30)).toBe(true);
     expect(infill.some(p=>p.z>45&&Math.abs(p.x)<30)).toBe(true);

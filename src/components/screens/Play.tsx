@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
 import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
+import { displayLabel, displayMapLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import { MAP_BLUEPRINTS } from "@/lib/map-blueprints";
@@ -543,7 +544,7 @@ export function Play() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-white font-bold text-sm truncate">{m.name}</span>
+                                <span className="text-white font-bold text-sm truncate">{displayMapLabel(m.name)}</span>
                                 {selected && (
                                   <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shrink-0">
                                     Selected
@@ -554,7 +555,7 @@ export function Play() {
                               <div className="text-cyan-200/70 text-[11px] mb-1.5">{(MAP_FOOTPRINT[m.id]?.description ?? m.description)}</div>
                               <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
                                 <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
-                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{m.biome}</span>}
+                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
                                 <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
                               </div>
@@ -616,7 +617,7 @@ export function Play() {
                       value={roomConfig.mode === "survival" ? `${roomConfig.survivalPlayers} player${roomConfig.survivalPlayers === 2 ? "s" : ""}` : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}
                     />
                     {roomConfig.mode === "survival" && <SummaryRow label="Survival Tier" value={SURVIVAL_TIER_INFO[roomConfig.survivalTier].label} accent={SURVIVAL_TIER_INFO[roomConfig.survivalTier].color} />}
-                    <SummaryRow label="Map" value={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.name ?? "—"} accent={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.accentColor} />
+                    <SummaryRow label="Map" value={displayMapLabel(MAP_LIST.find((m) => m.id === roomConfig.mapId)?.name ?? roomConfig.mapId)} accent={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.accentColor} />
                     <SummaryRow
                       label="Bots"
                       value={
@@ -652,7 +653,7 @@ export function Play() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-white text-sm font-semibold truncate">{equippedWeapon.name}</div>
-                          <div className="text-white/40 text-[10px] uppercase">{equippedWeapon.category}</div>
+                          <div className="text-white/40 text-[10px] uppercase">{weaponCategoryLabel(equippedWeapon.category)}</div>
                         </div>
                         <Button size="sm" variant="ghost" onClick={() => setScreen("armory")} className="text-white/50 hover:text-white h-7 px-2 text-xs">
                           Edit
@@ -883,7 +884,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] mb-3">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
-            <MapIcon className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {mapDef?.name ?? room.mapId}
+            <MapIcon className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {displayMapLabel(mapDef?.name ?? room.mapName ?? room.mapId)}
           </span>
           {room.mode === "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">

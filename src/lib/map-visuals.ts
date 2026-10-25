@@ -107,12 +107,20 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         Math.abs(s[2]-c.pos[2])<c.size[2]+2.6)))return;
       buildings.push(prop);result.push(prop);
     };
-    // Reserve small residential lots nearest the park FIRST, so the larger
-    // outer grid cannot consume the only available park-to-district frontage.
-    for(const side of [-1,1])for(const offset of [-27,0,27]){
-      for(const [x,z] of [[side*55,offset],[offset,side*55]]){
+    // Reserve small residential lots on all four park frontages FIRST.
+    // Legacy arena spawns crowd several obvious lots, so probe extra
+    // deterministic positions and keep at most two safe houses per frontage.
+    // addBuilding still rejects spawn collisions, overlapping lots and park
+    // intrusions; never bypass those constraints to meet the infill target.
+    const infillOffsets=[-27,0,27,-36,-18,-9,9,18,36];
+    for(const side of [-1,1])for(const onXAxis of [true,false]){
+      let placed=0;
+      for(const offset of infillOffsets){
+        const x=onXAxis?side*55:offset,z=onXAxis?offset:side*55;
+        const before=buildings.length;
         addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
           shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+        if(buildings.length>before && ++placed===2)break;
       }
     }
     // 32m urban blocks, with narrow homes among bigger civic / retail
@@ -121,7 +129,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       const n=Math.floor(hashed("use:"+x+":"+z)*purposes.length);
       const use=purposes[n];
       const variant=hashed("shape:"+x+":"+z);
-      const shape:MapProp["shape"]=variant<.16?"round":variant<.43?"narrow":"rect";
+      const shape:MapProp["shape"]=variant<.28?"round":variant<.52?"narrow":"rect";
       const w=shape==="round"?20:shape==="narrow"?13:use==="supermarket"?26:use==="hotel"?23:18+Math.floor(hashed("width:"+x+":"+z)*4)*2;
       const d=shape==="round"?20:shape==="narrow"?23:use==="supermarket"?25:18+Math.floor(hashed("depth:"+x+":"+z)*4)*2;
       const baseHeight=use==="hotel"?10.4:use==="apartments"?9.1:use==="office"?8.2:
@@ -168,8 +176,12 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     }
     if(!solidKinds.has(p.kind))return true;
     if(p.kind==="building")
+      // Same 3D spawn clearance as addBuilding: elevated spawns must not
+      // disqualify safe residences many metres below them.
       return !cityBuildingBoxes(p).some(c=>spawns.some(s=>
-        Math.abs(s[0]-c.pos[0])<c.size[0]+2&&Math.abs(s[2]-c.pos[2])<c.size[2]+2));
+        s[1]<c.pos[1]+c.size[1]+.3 && s[1]+1.8>c.pos[1]-c.size[1] &&
+        Math.abs(s[0]-c.pos[0])<c.size[0]+2.6 &&
+        Math.abs(s[2]-c.pos[2])<c.size[2]+2.6));
     const radiusX=p.kind==="tree"?0.5:(p.w??(p.kind==="rock"?4:8))/2;
     const radiusZ=p.kind==="tree"?0.5:(p.d??(p.kind==="rock"?3:7))/2;
     return !spawns.some(s=>Math.abs(s[0]-p.x)<radiusX+3&&Math.abs(s[2]-p.z)<radiusZ+3);
