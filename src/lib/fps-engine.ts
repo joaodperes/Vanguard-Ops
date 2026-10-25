@@ -4705,7 +4705,7 @@ export class FPSEngine {
       const target=this.aiming&&this.adsProgress>=.9?selectSmartTarget(origin,dir,
         enemies().map(c=>({id:c.id,pos:c.pos,alive:c.alive,team:c.team,protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()})),
         this.opts.team,this.opts.mode==="ffa"||this.opts.mode==="gungame",this.eff.range,
-        pos=>this.hasLineOfSight(origin,pos)):null;
+        pos=>this.hasLineOfSight(origin,[...pos] as Vec3)):null;
       const victim=target?this.combatants.get(target.id):null;
       if(victim?.alive){
         const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
@@ -6078,7 +6078,7 @@ export class FPSEngine {
               at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
           }
         } else {
-          this.spawnExplosion(p.end, explosionKind === "turret" ? undefined : explosionKind);
+          this.spawnExplosion(p.end, explosionKind);
         }
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).
