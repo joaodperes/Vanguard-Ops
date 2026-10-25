@@ -16,7 +16,7 @@ A category answers **what it is**; a slot answers **where it equips**. Keep the 
 
 ## Counts from `dev`
 
-The 43 shipped weapon IDs comprise **36 regular weapons** and **7 Wonder Weapons** (Wonders appear in their own Armory tab). Regular Primary categories already satisfy the desired multiple-of-3 rule; they should not be padded with redundant guns.
+The current catalog contains **36 regular weapons** across Primary, Secondary, and Melee. Wonder Weapons are handled separately and are not part of this proposal. Regular Primary categories already satisfy the multiple-of-three rule and should not be padded with redundant guns.
 
 | Family (regular only) | Current | Proposed | Additional |
 | --- | ---: | ---: | ---: |
@@ -32,7 +32,7 @@ The 43 shipped weapon IDs comprise **36 regular weapons** and **7 Wonder Weapons
 | Melee | 6 | 6 | 0 |
 | **Total regular** | **36** | **42** | **6** |
 
-The **Wonders** tab currently holds 7 special weapons; see the optional **7 → 9** concept pair below if “multiples of three” is also intended to apply to that special collection. With both Wonder concepts added, the total roster would become **51 weapons** (42 regular + 9 Wonders). Without them: **49** (42 + 7).
+After adding the six proposed regular weapons, the regular roster would contain **42 weapons**, with each regular weapon family a multiple of three.
 
 ### Reclassify shipped IDs without renaming them
 
@@ -71,17 +71,6 @@ Suggested progression after balance review, with normal in-game credit unlocks: 
 - **Launchers** need strong reload/swap penalties, low ammunition, a small number of distinct blast radii, meaningful cover, and explicit friendly-fire/self-damage design decisions. Test splash against groups, spawn protection, cover, and the server's full-trajectory damage rule.
 - Do not introduce homing or physics-bouncing grenades as catalog-only fields. Start with the existing impact-detonation projectile mechanic, made data-driven and reconciled offline vs server.
 
-## Optional: make the Wonders tab a multiple of three, too
-
-`Wonders` is a separate Armory tab, **not** a regular loadout category. It has **7** today. If the rule applies to every Armory collection, add exactly **2** *prestige-token* weapons to reach **9**, in a later mechanics-specific effort:
-
-| Proposed ID | Name | Novel role | Implementation caution |
-| --- | --- | --- | --- |
-| `wonder_whiteout` | Whiteout | Area denial: cold pulse that **slows** (not hard-freezes) enemies briefly | Needs a new authoritative slow status, audiovisual effects, immunity/falloff and persistence rules |
-| `wonder_aegis` | Aegis Projector | Defensive deployable energy shield that intercepts shots temporarily | Needs cover/blocking, ownership, network state, collision and expiration rules |
-
-These are **concepts only**: the existing `wonder.kind` registry cannot interpret `whiteout` or `aegis` without implementation in both client and server. Do not add them merely to force a numeric target.
-
 ## Alternative taxonomies (if the preferred split is rejected)
 
 1. **Literal Pistols / SMGs / Explosives:** permit the existing 3 Primary SMGs to equip as secondary (with explicit `allowedSlots` metadata rather than inferring from category), add 1 new pistol (5 → 6) and 2 launchers (1 → 3). Only **3** new regular guns, but it undercuts Well Prepared and creates a Primary/Secondary balance problem. Not recommended unless that perk is redesigned.
@@ -93,17 +82,15 @@ These are **concepts only**: the existing `wonder.kind` registry cannot interpre
 1. **Canonical data and schema.** Edit `src/data/catalogs/weapons.json` (retain every ID), `src/lib/game-data.ts` (`WeaponCategory`, `weaponSlot`, `isPrimaryWeaponCategory`), `src/lib/content-validation.ts`, and documented category enums. Make `isPrimaryWeaponCategory` an **explicit allowlist**, not “anything except sidearm and melee”, or both new secondary families become incorrectly primary. Consider a separate `defaultSlot`/allowed-slot model if more dual-slot families are likely later.
 2. **Attachments and mastery.** Split `src/data/catalogs/category-attachments.json` into `pistol`, `pdw`, and `launcher` entries; update specific overrides in `attachment-compatibility.json`, weapon-category restrictions in `attachments.json`, and `armory-challenges.ts` fallbacks. For launchers, start with `attachments: []`. Keep per-weapon unlocks and mastery IDs stable.
 3. **Loadout validation.** Update `src/components/screens/Armory.tsx`, `Loadout.tsx`, `src/app/api/loadout/route.ts`, `src/lib/game-server.ts`, and other runtime secondary-slot checks to accept all three secondary categories. The Well Prepared perk must still be needed for true Primary weapons; P-9 fallback remains valid.
-4. **Projectile mechanics.** `fps-engine.ts` and `game-server.ts` use explicit `launcher_rocket` checks and hard-coded projectile/splash behavior. Introduce one validated data field or typed explosive profile (e.g. `explosive: { radius: number }`) for all launchers; do not classify *all* Wonders as ordinary rockets. Use the same damage/radius/travel rules offline and online, including cover, spawn protection, and server-authoritative impact. Extend projectile silhouettes, audio, HUD and category accent map.
+4. **Projectile mechanics.** `fps-engine.ts` and `game-server.ts` use explicit `launcher_rocket` checks and hard-coded projectile/splash behavior. Introduce one validated data field or typed explosive profile (e.g. `explosive: { radius: number }`) for all launchers; keep other special-weapon projectile behavior unchanged. Use the same damage/radius/travel rules offline and online, including cover, spawn protection, and server-authoritative impact. Extend projectile silhouettes, audio, HUD and category accent map.
 5. **Gun Game.** Update `GUN_GAME_TYPE_PROGRESSION`, the CQC/long-range filters, and `buildGunGameWeapons` to recognize the new categories. Keep the existing **30-tier / final RL-7 then knife** rule initially; making the final launcher random requires updating completion validation and client/server parity deliberately. Ensure stages never duplicate a weapon ID within a cycle.
 6. **Bots, rendering, UI, docs.** Audit bot weapon pools, third-person and viewmodel geometry (a tiny PDW must not render as a full-length primary SMG), category dots/HUD, FAQ, screen reader labels and collection totals. `WeaponCategory` is exhaustive in several Record maps, so changing the union needs a compile check.
-7. **Regression tests.** Preserve 43 shipped IDs, and update exact `WEAPONS.length` assertions (currently 43 in `tests/content-catalogs.test.ts`) only when the new JSON exists. Add invariant tests that every **non-Wonder** family count is divisible by 3, that exactly 3 launcher IDs exist, that new secondary classes do not require Well Prepared, and that normal primary guns still do. Exercise launcher splash offline/online, first/third-person models, ammo, unlocks, respawns and Gun Game.
+7. **Regression tests.** Preserve all shipped weapon IDs, and update exact `WEAPONS.length` assertions (currently 43 in `tests/content-catalogs.test.ts`) only when the new JSON exists. Add invariant tests that every regular family count is divisible by 3, that exactly 3 launcher IDs exist, that new secondary classes do not require Well Prepared, and that normal primary guns still do. Exercise launcher splash offline/online, first/third-person models, ammo, unlocks, respawns and Gun Game.
 
 ## Phasing / approval gates
 
 **Phase A — taxonomy + pistols + PDWs:** implement the category split, preserve old IDs and add Ghost-18, Bastion .45, Mamba-9, Sentinel-45. The launchers group temporarily has 1 weapon during development; **do not release this phase alone** if the multiple-of-three invariant is required for every shipped category.
 
 **Phase B — launchers + full release:** add Breach-2 and Swarm-3, generalize rocket splash/profile logic and validate all 6/3/3 secondary counts. Hold for manual offline/online combat playtests.
-
-**Phase C — optional Wonder expansion:** only if the 7-Wonder tab must become 9; separate Prestige implementation scope.
 
 Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, and `bun run build` after implementing catalog/code changes, plus weapon-specific combat/play tests. **No tests were run for this documentation-only proposal; no gameplay changes are included.**
