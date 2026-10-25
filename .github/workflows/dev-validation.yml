@@ -1,12 +1,13 @@
 name: Vanguard Ops JSON content branch validation
 
-# The feature branch is isolated from dev. Pushes to it validate all catalog,
+# Feature branches are isolated from dev. Pushes to them validate all catalog,
 # gameplay and build contracts; dev keeps its existing manual-first workflow.
 on:
   workflow_dispatch:
   push:
     branches:
       - feature/json-content-catalogs
+      - feature/wonder-weapon-expansion
 
 permissions:
   contents: read
