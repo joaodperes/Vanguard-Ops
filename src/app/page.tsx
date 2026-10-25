@@ -10,6 +10,7 @@ import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
 import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
+import { MenuMusic } from "@/components/game/MenuMusic";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkSelection, perkById } from "@/lib/perks";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
@@ -170,6 +171,7 @@ export default function Page() {
 
   return (
     <div className="dark min-h-screen bg-[#0a0a0a] text-white">
+      <MenuMusic active={screen !== "playing"} />
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
