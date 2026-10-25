@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS,
-  gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityClientTime, gravityImpact,
+  gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityClientTime, gravityImpact, gravityTargetDistance,
 } from "../src/lib/gravity-well";
 
 describe("Event Horizon timing", () => {
@@ -69,5 +69,23 @@ describe("Event Horizon detonation", () => {
     expect(gravityBlastDamage(2, GRAVITY_WELL_RADIUS, 240)).toBeGreaterThan(gravityBlastDamage(7, GRAVITY_WELL_RADIUS, 240));
     expect(center).toBeGreaterThan(edge);
     expect(gravityBlastDamage(GRAVITY_WELL_RADIUS + 0.1, GRAVITY_WELL_RADIUS, 240)).toBe(0);
+  });
+});
+
+describe("Event Horizon aim proximity", () => {
+  const origin = [0, 1.6, 0];
+  const direction = [0, 0, 1];
+  test("catches a slightly missed enemy before the far wall", () => {
+    expect(gravityTargetDistance(origin, direction, [[1.2, 0.9, 12]], 36)).toBeCloseTo(11.4);
+  });
+  test("never locks onto an enemy behind solid cover or out of range", () => {
+    expect(gravityTargetDistance(origin, direction, [[1, 0.9, 20]], 10)).toBeNull();
+    expect(gravityTargetDistance(origin, direction, [[0, 0.9, 50]], 36)).toBeNull();
+  });
+  test("rejects players outside the gravity orb's acquisition tolerance", () => {
+    expect(gravityTargetDistance(origin, direction, [[4, 0.9, 12]], 36)).toBeNull();
+  });
+  test("selects the nearest valid enemy along the ray", () => {
+    expect(gravityTargetDistance(origin, direction, [[0.5, 0.9, 24], [1, 0.9, 10]], 36)).toBeCloseTo(9.4);
   });
 });
