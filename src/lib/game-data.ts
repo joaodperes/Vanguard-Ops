@@ -491,7 +491,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
     range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
-    magSize: Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
+    // A single-chamber bolt-action rifle cannot gain extra chambered rounds from old attachments.
+    magSize: weapon.id === "sniper_heavy" ? 1 : Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
     sightType: sightDef.type,
   };
 }

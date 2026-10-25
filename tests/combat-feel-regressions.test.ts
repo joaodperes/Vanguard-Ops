@@ -46,6 +46,18 @@ describe("player shot spread and recoil", () => {
     }
   });
 
+  test("sniper and shotgun hipfire is substantially wider than assault hipfire", () => {
+    const rifle = weaponById("rifle_ar");
+    const rifleHip = shotSpread(rifle.stats, rifle.category, false, 0, 0, false);
+    for (const id of ["sniper_scout", "sniper_lr", "sniper_heavy", "shotgun_br", "shotgun_auto", "shotgun_combat"]) {
+      const w = weaponById(id);
+      const hip = shotSpread(w.stats, w.category, false, 0, 0, false);
+      const ads = shotSpread(w.stats, w.category, true, 0, 0, true);
+      expect(hip).toBeGreaterThan(rifleHip * 4);
+      expect(hip).toBeGreaterThan(ads * (w.category === "sniper" ? 20 : 2));
+    }
+  });
+
   test("firing repeatedly blooms shot dispersion and increases the crosshair", () => {
     for (const w of regular) {
       const baseline = shotSpread(w.stats, w.category, false, 0, 0, false);

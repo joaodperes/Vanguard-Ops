@@ -5,13 +5,13 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: launch a glowing purple gravity sphere that drags enemies into its vortex before a devastating wide-area detonation. One charge.",
+    "description": "Wonder Weapon: launch a glowing purple gravity sphere that rapidly pulls enemies inward before a concentrated detonation. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
       "rechargeMs": 48000,
       "killBonusMs": 2400,
-      "radius": 14
+      "radius": 9.5
     },
     "attachments": [],
     "stats": {
@@ -455,9 +455,9 @@
     "category": "sniper",
     "unlockLevel": 26,
     "unlockCost": 800,
-    "description": "Bolt-action sniper. One-shot kills to the head, two to the body.",
+    "description": "Magazine-fed sniper. One-shot to the head, two shots to the body, with strong long-range accuracy.",
     "stats": {
-      "damage": 135,
+      "damage": 98,
       "fireRate": 1,
       "magSize": 5,
       "reloadTime": 3.2,
@@ -470,9 +470,7 @@
       "auto": false,
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6,
-      "reloadStyle": "incremental",
-      "reloadPerRound": 1.15
+      "minDamageMultiplier": 0.6
     },
     "attachments": [
       "sight",
@@ -840,9 +838,7 @@
       "auto": false,
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6,
-      "reloadStyle": "incremental",
-      "reloadPerRound": 1
+      "minDamageMultiplier": 0.6
     },
     "attachments": [
       "sight",
@@ -1016,7 +1012,7 @@
     "stats": {
       "damage": 170,
       "fireRate": 0.6,
-      "magSize": 4,
+      "magSize": 1,
       "reloadTime": 3.8,
       "spread": 0.001,
       "adsSpread": 0,
@@ -1029,13 +1025,12 @@
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
       "reloadStyle": "incremental",
-      "reloadPerRound": 1.24
+      "reloadPerRound": 1.55
     },
     "attachments": [
       "sight",
       "barrel",
-      "grip",
-      "magazine"
+      "grip"
     ],
     "baseSightType": "sniper_scope"
   },

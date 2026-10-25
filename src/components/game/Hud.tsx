@@ -115,7 +115,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // crosshairSize is the base arm length. When spread is high (sprinting/moving),
   // the gap from center grows so the crosshair visually "opens up".
   const spreadFactor = hud.spreadFactor ?? 0;
-  const dynamicGap = 2 + spreadFactor * 14;  // 2..16 px from center
+  const dynamicGap = 2 + spreadFactor * 30;  // up to ~62 px for high-spread sniper/shotgun hipfire
   // ---- Health-regen cooldown ring (visible while waiting for regen) ----
   const regenMs = hud.regenCooldownMs ?? 0;
   const regenWaiting = regenMs > 0 && hud.alive && hud.health < hud.maxHealth;

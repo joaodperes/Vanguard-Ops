@@ -952,7 +952,6 @@ export class FPSEngine {
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
-    this.buildLaserIndicator();
     this.setupInput();
     if (opts.online) this.connectSocket();
     else if (opts.mode === "survival") this.setupSurvival();
@@ -2000,6 +1999,8 @@ export class FPSEngine {
     this.scene.add(this.camera);
     this.buildFirstPersonRig();
     this.positionViewmodel();
+    // Rebuild the active sight's laser together with every weapon model change.
+    this.rebuildLaserIndicator();
   }
 
   /** Procedural camera-space glove, forearm and held object. Kept separate from
@@ -2371,6 +2372,23 @@ export class FPSEngine {
   }
 
   // ---- Laser indicator ----
+  // The laser belongs to the CURRENT weapon, never to the player globally.
+  private rebuildLaserIndicator() {
+    if (this.laserBeam) {
+      this.scene.remove(this.laserBeam);
+      this.laserBeam.geometry.dispose();
+      (this.laserBeam.material as THREE.Material).dispose();
+      this.laserBeam = null;
+    }
+    if (this.laserDot) {
+      this.scene.remove(this.laserDot);
+      this.laserDot.geometry.dispose();
+      (this.laserDot.material as THREE.Material).dispose();
+      this.laserDot = null;
+    }
+    this.buildLaserIndicator();
+  }
+
   // Builds a thin red line + dot mesh that shows where the player is aiming.
   // Visible only when a laser sight is equipped (sight slot OR grip slot laser).
   private buildLaserIndicator() {
@@ -2408,7 +2426,8 @@ export class FPSEngine {
     // Raycast from the *crosshair* to determine the exact aim point. The
     // visible beam starts at the weapon's muzzle (in camera-local coordinates),
     // not at the camera eye: eye-origin lines collapse into screen-space streaks.
-    const origin = new THREE.Vector3(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+    // The visible reticle aims from the rendered (stair-smoothed) camera eye.
+    const origin = this.camera.position.clone();
     this.camera.updateMatrixWorld();
     const muzzle = new THREE.Vector3(
       this.vmOffset.x+0.025, this.vmOffset.y-0.018,
@@ -2452,7 +2471,14 @@ export class FPSEngine {
     // Same weapon-specific geometry/dimensions as the selected slot-3 melee.
     // Unlike the old vertical generic dagger, these silhouettes extend forward.
     const group=new THREE.Group();
-    const metal=new THREE.MeshStandardMaterial({color:0xb5c6d2,metalness:.76,roughness:.32});
+    // Mirror the equipped melee slot's weapon finish, not the held firearm's skin.
+    const meleeSkin = weaponSkinById(this.opts.loadout.meleeWeaponSkinId ?? "default");
+    const metal=new THREE.MeshStandardMaterial({
+      color: meleeSkin.id === "default" ? 0xb5c6d2 : meleeSkin.color,
+      emissive: meleeSkin.emissive ?? 0x000000,
+      emissiveIntensity: meleeSkin.emissive ? 0.25 : 0,
+      metalness:.76,roughness:.32,
+    });
     const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
     const place=(mesh:THREE.Mesh,x:number,y:number,z:number)=>{
       mesh.position.set(x,y,z);group.add(mesh);
@@ -4735,7 +4761,10 @@ export class FPSEngine {
       this.startReload();
     }
 
-    const origin: Vec3 = [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z];
+    // Fire from the SAME camera eye the player sees. Stair/elevation smoothing
+    // may temporarily put the rendered eye above the physics feet; firing from
+    // pos.y + EYE_HEIGHT made magnified sniper shots land below the reticle.
+    const origin: Vec3 = [this.camera.position.x, this.camera.position.y, this.camera.position.z];
     // Hipfire is deliberately imprecise. Repeated shots build additional bloom,
     // which recovers between engagements even for high rate-of-fire guns.
     const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
@@ -7093,9 +7122,9 @@ export class FPSEngine {
       // Crosshair reflects both inherent hipfire inaccuracy and accumulated
       // firing/movement bloom. High-spread weapons no longer show a misleading
       // pin-point reticle just because the player is standing still.
-      spreadFactor: Math.min(1, this.currentSpread + Math.min(1,
-        shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true) / 0.16
-      ) * (this.aiming ? 0.35 : 0.7)),
+      spreadFactor: Math.min(2, this.currentSpread + Math.min(2,
+        shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true) / 0.12
+      ) * (this.aiming ? 0.12 : 0.8)),
       // Sprinting flag (HUD shows sprint indicator + tighter weapon-sway logic).
       sprinting: this.sprinting,
       // Health-regen cooldown in ms (0 = regen active; >0 = ms until regen starts).

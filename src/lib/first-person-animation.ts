@@ -27,7 +27,7 @@ const mix = (a: [number, number, number], b: [number, number, number], t: number
 const empty: ActionPose = { dip:0, pitch:0,roll:0,hand:[-.10,-.12,-.12],prop:[-.10,-.20,-.12],handRoll:0,propVisible:false,hideFixedMagazine:false,released:false };
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
-  if (special === "bolt") return "bolt";
+  if (special === "bolt" || weaponId === "sniper_heavy") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
   return "magazine";
