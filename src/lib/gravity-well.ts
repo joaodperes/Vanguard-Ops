@@ -56,3 +56,27 @@ export function gravityBlastDamage(distance: number, radius: number, baseDamage:
   // Concentrate the blast at the center rather than dealing heavy damage at the outer edge.
   return baseDamage * (0.08 + 1.67 * Math.pow(1 - fraction, 2));
 }
+
+/** Event Horizon has generous aim proximity but never locks past a wall.
+ * Returns the distance along the projectile ray to the first enemy near
+ * the crosshair; the exact world impact is resolved by gravityImpact.
+ */
+export function gravityTargetDistance(
+  origin: readonly number[], direction: readonly number[],
+  candidates: readonly (readonly number[])[], maxDistance: number,
+  tolerance = 2.25,
+): number | null {
+  let best: number | null = null;
+  const len = Math.hypot(direction[0], direction[1], direction[2]) || 1;
+  const dir = [direction[0] / len, direction[1] / len, direction[2] / len];
+  for (const pos of candidates) {
+    const vx = pos[0] - origin[0], vy = pos[1] - origin[1], vz = pos[2] - origin[2];
+    const forward = vx * dir[0] + vy * dir[1] + vz * dir[2];
+    if (forward <= 1 || forward > maxDistance) continue;
+    const deviation = Math.hypot(vx - forward * dir[0], vy - forward * dir[1], vz - forward * dir[2]);
+    if (deviation > tolerance) continue;
+    const landing = Math.max(1, forward - 0.6);
+    if (best === null || landing < best) best = landing;
+  }
+  return best;
+}
