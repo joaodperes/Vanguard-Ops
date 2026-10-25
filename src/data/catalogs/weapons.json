@@ -1062,5 +1062,95 @@
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.28
     }
+  },
+  {
+    "id": "wonder_rift_needle",
+    "name": "Rift Needle",
+    "category": "dmr",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "description": "Wonder Weapon: fire a compact gravity pin that drags nearby enemies into a tight 6m vortex before an intense detonation. Precision crowd-control, one charge.",
+    "wonder": {
+      "kind": "singularity",
+      "maxCharges": 1,
+      "rechargeMs": 37000,
+      "killBonusMs": 1500,
+      "radius": 6
+    },
+    "attachments": [],
+    "stats": {
+      "damage": 305,
+      "fireRate": 0.85,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0.0025,
+      "adsSpread": 0.0005,
+      "recoil": 2,
+      "range": 90,
+      "adsTime": 0.32,
+      "moveSpeed": 0.9,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_miasma_bloom",
+    "name": "Miasma Bloom",
+    "category": "shotgun",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "description": "Wonder Weapon: launch a low-impact 13m spore cloud that contaminates groups with lingering toxin. Wide coverage rather than instant damage; two charges.",
+    "wonder": {
+      "kind": "corrosion",
+      "maxCharges": 2,
+      "rechargeMs": 46000,
+      "killBonusMs": 2000,
+      "radius": 13
+    },
+    "attachments": [],
+    "stats": {
+      "damage": 45,
+      "fireRate": 1.4,
+      "magSize": 2,
+      "reloadTime": 0,
+      "spread": 0.012,
+      "adsSpread": 0.003,
+      "recoil": 1.4,
+      "range": 53,
+      "adsTime": 0.24,
+      "moveSpeed": 0.97,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_caustic_javelin",
+    "name": "Caustic Javelin",
+    "category": "sniper",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "description": "Wonder Weapon: precision corrosive penetrator with a fierce 4m blast and lingering toxin. Smaller hit zone and quicker recharge than Plagueheart; one charge.",
+    "wonder": {
+      "kind": "corrosion",
+      "maxCharges": 1,
+      "rechargeMs": 30000,
+      "killBonusMs": 1200,
+      "radius": 4
+    },
+    "attachments": [],
+    "stats": {
+      "damage": 118,
+      "fireRate": 1.1,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0.0015,
+      "adsSpread": 0.0003,
+      "recoil": 2.2,
+      "range": 76,
+      "adsTime": 0.27,
+      "moveSpeed": 0.95,
+      "auto": false,
+      "headshotMult": 1
+    }
   }
 ]
