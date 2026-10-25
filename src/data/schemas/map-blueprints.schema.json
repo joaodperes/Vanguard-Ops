@@ -377,6 +377,22 @@
                 }
               },
               "additionalProperties": false
+            },
+            "legacyCoverDisabled": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "legacyEnvironmentDisabled": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
             }
           },
           "additionalProperties": false
