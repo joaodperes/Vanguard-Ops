@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "@/lib/fps-engine";
 import type { LoadoutWire, GameMode, MapId, BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
+import type { SurvivalTier } from "@/lib/survival";
 import { Hud } from "./Hud";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
@@ -14,6 +15,7 @@ interface Props {
   mode: GameMode;
   botCount: number;
   botDifficulty: BotDifficulty;  // resolved per-room difficulty (from roomConnect.config or playConfig)
+  survivalTier?: SurvivalTier;
   online: boolean;
   playerName: string;
   playerKey: string;
@@ -26,12 +28,13 @@ interface Props {
   onExitWithStats?: (r: MatchEndResult) => void;  // called when user leaves mid-match (saves progression)
 }
 
-export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
+export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<FPSEngine | null>(null);
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
   const [hud, setHud] = useState<HudState | null>(null);
   const [ready, setReady] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [touchStarted, setTouchStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
@@ -43,7 +46,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const engine = new FPSEngine(containerRef.current, {
+    let engine: FPSEngine;
+    try {
+      engine = new FPSEngine(containerRef.current, {
       mode, botCount, online, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
@@ -53,7 +58,11 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
       autoAdsOnFire: settings.autoAdsOnFire,
       invertY: settings.invertY,
       botDifficulty,
+      survivalTier,
       masterVolume: settings.masterVolume,
+      musicVolume: settings.musicVolume,
+      footstepVolume: settings.footstepVolume,
+      fxVolume: settings.fxVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
       roomConnect: roomConnect ?? undefined,
@@ -86,7 +95,12 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
       },
       onLobbyState: (s) => setLobby(s),
       onReady: () => setReady(true),
-    });
+      });
+    } catch (error) {
+      setStartupError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setStartupError(null);
     engineRef.current = engine;
     setEngineInstance(engine);
     setIsTouch(engine.isTouchMode());
@@ -100,6 +114,14 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
       engine.dispose();
       engineRef.current = null;
     };
+  }, []);
+
+  // Settings are mutable during a match (e.g. via a future pause menu).
+  // Subscribe without rebuilding the engine or resetting the match.
+  useEffect(() => {
+    const apply = (s: typeof settings) => engineRef.current?.setAudioMix(s);
+    apply(useSettings.getState().settings);
+    return useSettings.subscribe((state) => apply(state.settings));
   }, []);
 
   const showStartOverlay = ready && isTouch && !touchStarted;
@@ -132,6 +154,19 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
   return (
     <div className="fixed inset-0 z-50 bg-black">
       <div ref={containerRef} className="absolute inset-0" />
+      {startupError && (
+        <div role="alert" className="absolute inset-0 z-[80] flex items-center justify-center bg-black p-6 text-white">
+          <div className="max-w-lg rounded-xl border border-amber-500/30 bg-zinc-900 p-6 text-center">
+            <h2 className="mb-3 text-xl font-bold text-amber-300">Unable to start 3D graphics</h2>
+            <p className="mb-3 text-sm text-white/70">
+              Your browser could not create a WebGL context. Check graphics acceleration,
+              update your GPU driver, and restart the browser.
+            </p>
+            <p className="mb-5 break-words font-mono text-xs text-white/40">{startupError}</p>
+            <Button onClick={onExit}>Return to lobby</Button>
+          </div>
+        </div>
+      )}
       {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
@@ -156,7 +191,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, online, pla
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">TAP TO PLAY</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
             <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
-            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Endless Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
+            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ?? ""}</div>
           </div>
         </button>
       )}

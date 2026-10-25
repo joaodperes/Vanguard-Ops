@@ -1,0 +1,1654 @@
+{
+  "version": 1,
+  "units": "world units; X east/west, Z north/south, Y elevation; widths/depths are FULL extents",
+  "maps": {
+    "bunker": {
+      "name": "BLACKSITE",
+      "shortName": "BLK",
+      "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
+      "pace": "compact",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 85,
+          "d": 82
+        },
+        {
+          "x": -42,
+          "z": -10,
+          "w": 22,
+          "d": 30
+        },
+        {
+          "x": 42,
+          "z": 12,
+          "w": 23,
+          "d": 31
+        }
+      ],
+      "features": [
+        {
+          "id": "vault-counter",
+          "x": -34,
+          "z": -8,
+          "w": 6,
+          "d": 3,
+          "h": 1.35,
+          "kind": "cover",
+          "label": "Vault counter"
+        },
+        {
+          "id": "generator",
+          "x": 32,
+          "z": 20,
+          "w": 5,
+          "d": 4,
+          "h": 2.6,
+          "kind": "cover",
+          "label": "Power generator"
+        },
+        {
+          "id": "security-console",
+          "x": -44,
+          "z": -14,
+          "w": 4,
+          "d": 3,
+          "h": 1.2,
+          "kind": "cover",
+          "label": "Security console"
+        },
+        {
+          "id": "maintenance-bench",
+          "x": 45,
+          "z": 13,
+          "w": 5,
+          "d": 2.6,
+          "h": 1.15,
+          "kind": "cover",
+          "label": "Maintenance bench"
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            -48,
+            0,
+            -16
+          ],
+          [
+            46,
+            0,
+            24
+          ]
+        ],
+        "red": [
+          [
+            -48,
+            0,
+            -16
+          ]
+        ],
+        "blue": [
+          [
+            46,
+            0,
+            24
+          ]
+        ]
+      }
+    },
+    "shipyard": {
+      "name": "BREAKWATER",
+      "shortName": "BRK",
+      "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
+      "pace": "compact",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 110,
+          "d": 104
+        },
+        {
+          "x": -55,
+          "z": 0,
+          "w": 34,
+          "d": 48
+        },
+        {
+          "x": 0,
+          "z": 56,
+          "w": 70,
+          "d": 36
+        },
+        {
+          "x": 27,
+          "z": -55,
+          "w": 52,
+          "d": 37
+        },
+        {
+          "x": 32,
+          "z": 17,
+          "w": 80,
+          "d": 58
+        }
+      ],
+      "features": [
+        {
+          "id": "fish-market-stalls",
+          "x": -59,
+          "z": -9,
+          "w": 8,
+          "d": 5,
+          "h": 1.4,
+          "kind": "cover",
+          "label": "Market stalls"
+        },
+        {
+          "id": "drydock-crates",
+          "x": -63,
+          "z": 17,
+          "w": 5,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "Dry dock crates"
+        },
+        {
+          "id": "southern-containers",
+          "x": -17,
+          "z": 60,
+          "w": 8,
+          "d": 6,
+          "h": 2.9,
+          "kind": "cover",
+          "label": "Container stack"
+        },
+        {
+          "id": "crane-platform",
+          "x": 14,
+          "z": 60,
+          "w": 12,
+          "d": 10,
+          "h": 3.6,
+          "kind": "platform",
+          "label": "Accessible crane platform"
+        },
+        {
+          "id": "forklift",
+          "x": 33,
+          "z": -62,
+          "w": 7,
+          "d": 4,
+          "h": 1.6,
+          "kind": "cover",
+          "label": "Forklift"
+        },
+        {
+          "id": "dock-bollards",
+          "x": -32,
+          "z": 49,
+          "w": 3,
+          "d": 3,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "Mooring bollards"
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            -65,
+            0,
+            -15
+          ],
+          [
+            24,
+            0,
+            -62
+          ],
+          [
+            -27,
+            0,
+            63
+          ],
+          [
+            9,
+            0,
+            69
+          ]
+        ],
+        "red": [
+          [
+            -65,
+            0,
+            -15
+          ],
+          [
+            -27,
+            0,
+            63
+          ]
+        ],
+        "blue": [
+          [
+            24,
+            0,
+            -62
+          ],
+          [
+            9,
+            0,
+            69
+          ]
+        ]
+      }
+    },
+    "compound": {
+      "name": "VERDANT RUINS",
+      "shortName": "IRD",
+      "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
+      "pace": "balanced",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 148,
+          "d": 148
+        },
+        {
+          "x": 96,
+          "z": 15,
+          "w": 82,
+          "d": 80
+        },
+        {
+          "x": -20,
+          "z": -98,
+          "w": 92,
+          "d": 74
+        },
+        {
+          "x": -82,
+          "z": 44,
+          "w": 68,
+          "d": 65
+        }
+      ],
+      "features": [
+        {
+          "id": "quarry-berm",
+          "x": 97,
+          "z": 0,
+          "w": 16,
+          "d": 3,
+          "h": 3.2,
+          "kind": "cover",
+          "label": "Quarry berm"
+        },
+        {
+          "id": "quarry-overlook",
+          "x": 99,
+          "z": 38,
+          "w": 13,
+          "d": 11,
+          "h": 4.5,
+          "kind": "platform",
+          "label": "Overwatch tower"
+        },
+        {
+          "id": "relay-platform",
+          "x": -16,
+          "z": -113,
+          "w": 12,
+          "d": 10,
+          "h": 3.6,
+          "kind": "platform",
+          "label": "Relay overlook"
+        },
+        {
+          "id": "lane-1-12",
+          "x": -4,
+          "z": -77,
+          "w": 7,
+          "d": 2.4,
+          "h": 2.9,
+          "kind": "cover",
+          "label": "compound district 2 hard cover"
+        },
+        {
+          "id": "fallen-column-1",
+          "x": 76,
+          "z": 5,
+          "w": 7,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "fallen column"
+        },
+        {
+          "id": "mossy-boulder-1",
+          "x": 109,
+          "z": 38,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "mossy boulder"
+        },
+        {
+          "id": "broken-plinth-1",
+          "x": 125,
+          "z": -11,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "broken plinth"
+        },
+        {
+          "id": "fallen-column-2",
+          "x": -42,
+          "z": -107,
+          "w": 7,
+          "d": 6,
+          "h": 1.8,
+          "kind": "cover",
+          "label": "fallen column"
+        },
+        {
+          "id": "mossy-boulder-2",
+          "x": -5,
+          "z": -77,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "mossy boulder"
+        },
+        {
+          "id": "mossy-boulder-3",
+          "x": -71,
+          "z": 63,
+          "w": 4.5,
+          "d": 8,
+          "h": 1.1,
+          "kind": "cover",
+          "label": "mossy boulder"
+        },
+        {
+          "id": "broken-plinth-3",
+          "x": -58,
+          "z": 23,
+          "w": 6,
+          "d": 5,
+          "h": 2.2,
+          "kind": "cover",
+          "label": "broken plinth"
+        },
+        {
+          "id": "editor_mvl57cxp_11",
+          "kind": "cover",
+          "x": 40.58171321278338,
+          "z": 43.55760455349407,
+          "w": 6.671082119381326,
+          "d": 1.150521295597434,
+          "h": 6.2424376338873735
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            108,
+            0,
+            -18
+          ],
+          [
+            113,
+            0,
+            51
+          ],
+          [
+            -45,
+            0,
+            -117
+          ],
+          [
+            5,
+            0,
+            -118
+          ],
+          [
+            -95,
+            0,
+            35
+          ],
+          [
+            -95,
+            0,
+            66
+          ]
+        ],
+        "red": [
+          [
+            -95,
+            0,
+            35
+          ],
+          [
+            -94,
+            0,
+            66
+          ],
+          [
+            -43,
+            0,
+            -119
+          ],
+          [
+            -11,
+            0,
+            -126
+          ]
+        ],
+        "blue": [
+          [
+            110,
+            0,
+            -22
+          ],
+          [
+            110,
+            0,
+            49
+          ],
+          [
+            21,
+            0,
+            -115
+          ],
+          [
+            24,
+            0,
+            -127
+          ]
+        ]
+      },
+      "legacyCoverOverrides": {
+        "0": {
+          "x": -6,
+          "y": 2,
+          "z": 34,
+          "w": 8.571352621027756,
+          "h": 3,
+          "d": 0.98
+        },
+        "1": {
+          "x": 6,
+          "y": 2,
+          "z": 34,
+          "w": 6.462384641900691,
+          "h": 3,
+          "d": 0.98
+        },
+        "16": {
+          "x": 10,
+          "y": 2,
+          "z": -14,
+          "w": 1.96,
+          "h": 3,
+          "d": 7.84
+        },
+        "45": {
+          "x": -8.82,
+          "y": 0.6,
+          "z": 2,
+          "w": 2.352,
+          "h": 1.2,
+          "d": 2.352
+        },
+        "46": {
+          "x": 8,
+          "y": 0,
+          "z": -2,
+          "w": 2.352,
+          "h": 1.2,
+          "d": 2.352
+        },
+        "47": {
+          "x": -2,
+          "y": 0,
+          "z": -14,
+          "w": 2.352,
+          "h": 1.2,
+          "d": 2.352
+        },
+        "48": {
+          "x": -14,
+          "y": -2,
+          "z": 8,
+          "w": 2.352,
+          "h": 1.2,
+          "d": 2.352
+        },
+        "50": {
+          "x": 12,
+          "y": 0,
+          "z": 0,
+          "w": 0.98,
+          "h": 1.5,
+          "d": 7.84
+        },
+        "104": {
+          "x": 0,
+          "y": 3,
+          "z": 0,
+          "w": 19.6,
+          "h": 0.5,
+          "d": 2.352
+        },
+        "157": {
+          "x": -14,
+          "y": 2,
+          "z": 34,
+          "w": 7.84,
+          "h": 2.8,
+          "d": 0.98
+        },
+        "158": {
+          "x": 10,
+          "y": 0,
+          "z": 34,
+          "w": 7.84,
+          "h": 2.8,
+          "d": 0.98
+        }
+      },
+      "legacyEnvironmentOverrides": {
+        "3": {
+          "x": 0,
+          "y": 1.5,
+          "z": -33.32,
+          "w": 6.603660066178609,
+          "h": 3.609872485155945,
+          "d": 1.0613025106358478
+        },
+        "4": {
+          "x": 0,
+          "y": 2,
+          "z": 34,
+          "w": 5.488,
+          "h": 3,
+          "d": 0.882
+        }
+      }
+    },
+    "terminal": {
+      "name": "Afterlight City (Day)",
+      "shortName": "DAY",
+      "description": "The identical Afterlight neighborhood and spawns in natural daylight; day and night are lighting variants.",
+      "pace": "tactical",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 150,
+          "d": 150
+        },
+        {
+          "x": -132,
+          "z": -14,
+          "w": 156,
+          "d": 112
+        },
+        {
+          "x": 131,
+          "z": 35,
+          "w": 141,
+          "d": 111
+        },
+        {
+          "x": -25,
+          "z": -126,
+          "w": 132,
+          "d": 120
+        },
+        {
+          "x": 51,
+          "z": 125,
+          "w": 138,
+          "d": 119
+        },
+        {
+          "x": -126,
+          "z": -104,
+          "w": 100,
+          "d": 92
+        },
+        {
+          "x": -111,
+          "z": 74,
+          "w": 112,
+          "d": 103
+        }
+      ],
+      "features": [],
+      "spawns": {
+        "ffa": [
+          [
+            -184,
+            0,
+            -52
+          ],
+          [
+            -184,
+            0,
+            22
+          ],
+          [
+            -148,
+            0,
+            -129
+          ],
+          [
+            -102,
+            0,
+            -131
+          ],
+          [
+            -47,
+            0,
+            -169
+          ],
+          [
+            16,
+            0,
+            -169
+          ],
+          [
+            182,
+            0,
+            -1
+          ],
+          [
+            182,
+            0,
+            79
+          ],
+          [
+            110,
+            0,
+            73
+          ],
+          [
+            99,
+            0,
+            163
+          ],
+          [
+            26,
+            0,
+            167
+          ],
+          [
+            -152,
+            0,
+            106
+          ]
+        ],
+        "red": [
+          [
+            -181,
+            0,
+            -47
+          ],
+          [
+            -182,
+            0,
+            20
+          ],
+          [
+            -150,
+            0,
+            -131
+          ],
+          [
+            -98,
+            0,
+            -131
+          ],
+          [
+            -45,
+            0,
+            -167
+          ],
+          [
+            -156,
+            0,
+            101
+          ]
+        ],
+        "blue": [
+          [
+            183,
+            0,
+            0
+          ],
+          [
+            183,
+            0,
+            78
+          ],
+          [
+            116,
+            0,
+            70
+          ],
+          [
+            101,
+            0,
+            165
+          ],
+          [
+            27,
+            0,
+            163
+          ],
+          [
+            16,
+            0,
+            -168
+          ]
+        ]
+      },
+      "templateMapId": "terminal"
+    },
+    "skybridge": {
+      "name": "RIDGEFALL",
+      "shortName": "RFL",
+      "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
+      "pace": "tactical",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 140,
+          "d": 118
+        },
+        {
+          "x": -90,
+          "z": -2,
+          "w": 85,
+          "d": 98
+        },
+        {
+          "x": 90,
+          "z": -2,
+          "w": 85,
+          "d": 98
+        },
+        {
+          "x": 0,
+          "z": -86,
+          "w": 116,
+          "d": 73
+        },
+        {
+          "x": 0,
+          "z": 88,
+          "w": 115,
+          "d": 78
+        }
+      ],
+      "features": [
+        {
+          "id": "press-line-west",
+          "x": -43,
+          "z": -12,
+          "w": 5,
+          "d": 40,
+          "h": 5.8,
+          "kind": "cover",
+          "label": "West hydraulic press line"
+        },
+        {
+          "id": "press-line-east",
+          "x": 43,
+          "z": -12,
+          "w": 5,
+          "d": 40,
+          "h": 5.8,
+          "kind": "cover",
+          "label": "East hydraulic press line"
+        },
+        {
+          "id": "assembly-divider-north",
+          "x": -16,
+          "z": -51,
+          "w": 3,
+          "d": 14,
+          "h": 9,
+          "kind": "cover",
+          "label": "North assembly divider"
+        },
+        {
+          "id": "assembly-divider-north-r",
+          "x": 16,
+          "z": -51,
+          "w": 3,
+          "d": 14,
+          "h": 9,
+          "kind": "cover",
+          "label": "North assembly divider"
+        },
+        {
+          "id": "conveyor-west",
+          "x": -21,
+          "z": 5,
+          "w": 13,
+          "d": 4,
+          "h": 1.7,
+          "kind": "cover",
+          "label": "West conveyor"
+        },
+        {
+          "id": "conveyor-east",
+          "x": 21,
+          "z": 5,
+          "w": 13,
+          "d": 4,
+          "h": 1.7,
+          "kind": "cover",
+          "label": "East conveyor"
+        },
+        {
+          "id": "furnace-housing",
+          "x": -83,
+          "z": -8,
+          "w": 12,
+          "d": 16,
+          "h": 7.8,
+          "kind": "cover",
+          "label": "Blast furnace casing"
+        },
+        {
+          "id": "furnace-exhaust",
+          "x": -110,
+          "z": 27,
+          "w": 8,
+          "d": 10,
+          "h": 5,
+          "kind": "cover",
+          "label": "Exhaust duct"
+        },
+        {
+          "id": "forge-crates",
+          "x": -104,
+          "z": -34,
+          "w": 10,
+          "d": 8,
+          "h": 2.8,
+          "kind": "cover",
+          "label": "Forge inventory stacks"
+        },
+        {
+          "id": "forge-baffle",
+          "x": -69,
+          "z": -35,
+          "w": 3,
+          "d": 32,
+          "h": 6.5,
+          "kind": "cover",
+          "label": "Foundry heat baffle"
+        },
+        {
+          "id": "east-racks",
+          "x": 83,
+          "z": -33,
+          "w": 14,
+          "d": 8,
+          "h": 5.5,
+          "kind": "cover",
+          "label": "Parts storage rack"
+        },
+        {
+          "id": "east-racks-south",
+          "x": 101,
+          "z": 12,
+          "w": 14,
+          "d": 8,
+          "h": 5.5,
+          "kind": "cover",
+          "label": "Parts storage rack"
+        },
+        {
+          "id": "east-loading-wall",
+          "x": 63,
+          "z": 36,
+          "w": 4,
+          "d": 25,
+          "h": 8,
+          "kind": "cover",
+          "label": "Loading dock partition"
+        },
+        {
+          "id": "east-tool-cabin",
+          "x": 119,
+          "z": -5,
+          "w": 9,
+          "d": 15,
+          "h": 4.2,
+          "kind": "cover",
+          "label": "Tool cage"
+        },
+        {
+          "id": "north-sorter",
+          "x": -37,
+          "z": -88,
+          "w": 18,
+          "d": 8,
+          "h": 3.3,
+          "kind": "cover",
+          "label": "Freight sorting machine"
+        },
+        {
+          "id": "north-sorter-r",
+          "x": 37,
+          "z": -88,
+          "w": 18,
+          "d": 8,
+          "h": 3.3,
+          "kind": "cover",
+          "label": "Freight sorting machine"
+        },
+        {
+          "id": "north-gantry-brace",
+          "x": 0,
+          "z": -105,
+          "w": 3,
+          "d": 24,
+          "h": 9,
+          "kind": "cover",
+          "label": "Overhead hoist support"
+        },
+        {
+          "id": "south-generator",
+          "x": -32,
+          "z": 84,
+          "w": 12,
+          "d": 16,
+          "h": 4.6,
+          "kind": "cover",
+          "label": "Backup generator"
+        },
+        {
+          "id": "south-generator-r",
+          "x": 32,
+          "z": 84,
+          "w": 12,
+          "d": 16,
+          "h": 4.6,
+          "kind": "cover",
+          "label": "Cooling skid"
+        },
+        {
+          "id": "south-service-divider",
+          "x": 0,
+          "z": 103,
+          "w": 3,
+          "d": 18,
+          "h": 7,
+          "kind": "cover",
+          "label": "Maintenance partition"
+        },
+        {
+          "id": "paint-booth-north",
+          "x": -12,
+          "z": 34,
+          "w": 22,
+          "d": 3,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber wall"
+        },
+        {
+          "id": "paint-booth-east",
+          "x": -1,
+          "z": 40,
+          "w": 3,
+          "d": 15,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber return"
+        },
+        {
+          "id": "paint-booth-south",
+          "x": -12,
+          "z": 47,
+          "w": 22,
+          "d": 3,
+          "h": 8,
+          "kind": "cover",
+          "label": "Spray chamber wall"
+        },
+        {
+          "id": "central-gantry",
+          "x": 0,
+          "z": -19,
+          "w": 34,
+          "d": 13,
+          "h": 5.2,
+          "kind": "platform",
+          "label": "Central overhead inspection gantry",
+          "autoStairs": false
+        },
+        {
+          "id": "west-mezzanine",
+          "x": -65,
+          "z": 27,
+          "w": 22,
+          "d": 23,
+          "h": 5.2,
+          "kind": "platform",
+          "label": "West furnace control deck",
+          "autoStairs": false
+        },
+        {
+          "id": "east-mezzanine",
+          "x": 65,
+          "z": -24,
+          "w": 22,
+          "d": 23,
+          "h": 5.2,
+          "kind": "platform",
+          "label": "East logistics mezzanine",
+          "autoStairs": false
+        },
+        {
+          "id": "shipping-overlook",
+          "x": 0,
+          "z": -77,
+          "w": 23,
+          "d": 17,
+          "h": 4.2,
+          "kind": "platform",
+          "label": "Shipping control tower",
+          "autoStairs": false
+        },
+        {
+          "id": "gantry-south-steps",
+          "x": 0,
+          "z": -12.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Central gantry south access"
+        },
+        {
+          "id": "gantry-north-steps",
+          "x": 0,
+          "z": -25.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1,
+          "label": "Central gantry north access"
+        },
+        {
+          "id": "west-mezzanine-steps",
+          "x": -65,
+          "z": 38.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Foundry control stairs"
+        },
+        {
+          "id": "east-mezzanine-steps",
+          "x": 65,
+          "z": -35.5,
+          "w": 5,
+          "d": 10,
+          "h": 5.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1,
+          "label": "Warehouse stairs"
+        },
+        {
+          "id": "shipping-steps",
+          "x": 0,
+          "z": -68.5,
+          "w": 4,
+          "d": 8,
+          "h": 4.2,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1,
+          "label": "Shipping tower stair"
+        },
+        {
+          "id": "gantry-north-railing",
+          "x": 0,
+          "z": -24.8,
+          "w": 28,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "Upper gantry safety rail"
+        },
+        {
+          "id": "gantry-south-railing",
+          "x": -12,
+          "z": -12.8,
+          "w": 6,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "Upper gantry guard"
+        },
+        {
+          "id": "gantry-south-railing-r",
+          "x": 12,
+          "z": -12.8,
+          "w": 6,
+          "d": 0.8,
+          "h": 1.4,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "Upper gantry guard"
+        },
+        {
+          "id": "west-deck-barrier",
+          "x": -74.5,
+          "z": 27,
+          "w": 1,
+          "d": 17,
+          "h": 1.3,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "West upper-level safety fence"
+        },
+        {
+          "id": "east-deck-barrier",
+          "x": 74.5,
+          "z": -24,
+          "w": 1,
+          "d": 17,
+          "h": 1.3,
+          "y": 5.2,
+          "kind": "cover",
+          "label": "East upper-level safety fence"
+        },
+        {
+          "id": "steel-crate-1",
+          "x": -20,
+          "z": -39,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-2",
+          "x": 20,
+          "z": -39,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-3",
+          "x": -19,
+          "z": 18,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-4",
+          "x": 19,
+          "z": 18,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-5",
+          "x": -89,
+          "z": 34,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "steel-crate-6",
+          "x": 92,
+          "z": 28,
+          "w": 6,
+          "d": 6,
+          "h": 2,
+          "kind": "cover",
+          "label": "Reinforced supply palette"
+        },
+        {
+          "id": "shipping-security-frame-west",
+          "x": -6.3,
+          "z": -65,
+          "w": 4,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight blast-door west frame"
+        },
+        {
+          "id": "shipping-security-frame-east",
+          "x": 6.3,
+          "z": -65,
+          "w": 4,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight blast-door east frame"
+        },
+        {
+          "id": "freight-security-left-wing",
+          "x": -30,
+          "z": -65,
+          "w": 44,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight hall security partition; left"
+        },
+        {
+          "id": "freight-security-right-wing",
+          "x": 30,
+          "z": -65,
+          "w": 44,
+          "d": 2,
+          "h": 8,
+          "kind": "cover",
+          "label": "Freight hall security partition; right"
+        }
+      ],
+      "hazards": [
+        {
+          "id": "foundry-heat-west",
+          "type": "fire",
+          "x": -99,
+          "y": 0.45,
+          "z": -10,
+          "w": 8,
+          "d": 10,
+          "h": 0.9,
+          "dps": 6
+        },
+        {
+          "id": "foundry-heat-east",
+          "type": "fire",
+          "x": 104,
+          "y": 0.45,
+          "z": -10,
+          "w": 7,
+          "d": 9,
+          "h": 0.9,
+          "dps": 6
+        },
+        {
+          "id": "press-cycle",
+          "type": "spikes",
+          "x": -23,
+          "y": 0.45,
+          "z": 8,
+          "w": 7,
+          "d": 6,
+          "h": 0.9,
+          "damage": 22,
+          "period": 5,
+          "activeFor": 1.1,
+          "offset": 0
+        },
+        {
+          "id": "factory-blast-door",
+          "type": "destructible_wall",
+          "x": 0,
+          "y": 3,
+          "z": -65,
+          "w": 8,
+          "d": 2,
+          "h": 6,
+          "hp": 220
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            -51,
+            0,
+            -43
+          ],
+          [
+            51,
+            0,
+            -43
+          ],
+          [
+            -55,
+            0,
+            44
+          ],
+          [
+            55,
+            0,
+            44
+          ],
+          [
+            -110,
+            0,
+            -16
+          ],
+          [
+            110,
+            0,
+            24
+          ],
+          [
+            -99,
+            0,
+            43
+          ],
+          [
+            99,
+            0,
+            -44
+          ],
+          [
+            -34,
+            0,
+            99
+          ],
+          [
+            36,
+            0,
+            99
+          ],
+          [
+            -35,
+            0,
+            -105
+          ],
+          [
+            35,
+            0,
+            -105
+          ]
+        ],
+        "red": [
+          [
+            -51,
+            0,
+            -45
+          ],
+          [
+            -100,
+            0,
+            -48
+          ],
+          [
+            -109,
+            0,
+            18
+          ],
+          [
+            -52,
+            0,
+            42
+          ],
+          [
+            -33,
+            0,
+            96
+          ],
+          [
+            -38,
+            0,
+            -107
+          ]
+        ],
+        "blue": [
+          [
+            51,
+            0,
+            43
+          ],
+          [
+            100,
+            0,
+            42
+          ],
+          [
+            111,
+            0,
+            -22
+          ],
+          [
+            52,
+            0,
+            -42
+          ],
+          [
+            33,
+            0,
+            98
+          ],
+          [
+            38,
+            0,
+            -107
+          ]
+        ]
+      }
+    },
+    "arena_neon": {
+      "name": "Afterlight City",
+      "shortName": "ALC",
+      "description": "Nighttime streets in a glowing grid of shops, accessible rooftops and a central garden bandstand.",
+      "pace": "tactical",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 150,
+          "d": 150
+        },
+        {
+          "x": -132,
+          "z": -14,
+          "w": 156,
+          "d": 112
+        },
+        {
+          "x": 131,
+          "z": 35,
+          "w": 141,
+          "d": 111
+        },
+        {
+          "x": -25,
+          "z": -126,
+          "w": 132,
+          "d": 120
+        },
+        {
+          "x": 51,
+          "z": 125,
+          "w": 138,
+          "d": 119
+        },
+        {
+          "x": -126,
+          "z": -104,
+          "w": 100,
+          "d": 92
+        },
+        {
+          "x": -111,
+          "z": 74,
+          "w": 112,
+          "d": 103
+        }
+      ],
+      "features": [],
+      "spawns": {
+        "ffa": [
+          [
+            -184,
+            0,
+            -52
+          ],
+          [
+            -184,
+            0,
+            22
+          ],
+          [
+            -148,
+            0,
+            -129
+          ],
+          [
+            -102,
+            0,
+            -131
+          ],
+          [
+            -47,
+            0,
+            -169
+          ],
+          [
+            16,
+            0,
+            -169
+          ],
+          [
+            182,
+            0,
+            -1
+          ],
+          [
+            182,
+            0,
+            79
+          ],
+          [
+            110,
+            0,
+            73
+          ],
+          [
+            99,
+            0,
+            163
+          ],
+          [
+            26,
+            0,
+            167
+          ],
+          [
+            -152,
+            0,
+            106
+          ]
+        ],
+        "red": [
+          [
+            -181,
+            0,
+            -47
+          ],
+          [
+            -182,
+            0,
+            20
+          ],
+          [
+            -150,
+            0,
+            -131
+          ],
+          [
+            -98,
+            0,
+            -131
+          ],
+          [
+            -45,
+            0,
+            -167
+          ],
+          [
+            -156,
+            0,
+            101
+          ]
+        ],
+        "blue": [
+          [
+            183,
+            0,
+            0
+          ],
+          [
+            183,
+            0,
+            78
+          ],
+          [
+            116,
+            0,
+            70
+          ],
+          [
+            101,
+            0,
+            165
+          ],
+          [
+            27,
+            0,
+            163
+          ],
+          [
+            16,
+            0,
+            -168
+          ]
+        ]
+      }
+    }
+  }
+}

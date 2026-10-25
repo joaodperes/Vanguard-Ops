@@ -3,9 +3,13 @@
 // Imported by BOTH the Next.js client (`@/lib/game-protocol`) and the
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
+import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
+import type { SurvivalTier } from "./survival";
+import { applyMapFootprint } from "./map-footprint";
+import { MAP_BLUEPRINTS } from "./map-blueprints";
 
 export type Vec3 = [number, number, number];
-export type GameMode = "ffa" | "tdm" | "survival" | "gungame";
+export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
 export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon";
 
 // ---- Room lobby system -------------------------------------------------------
@@ -36,6 +40,7 @@ export interface RoomSummary {
   humans: number;       // current human player count
   capacity: number;     // total slots
   hasStarted: boolean;  // match in progress (always true once created)
+  survivalTier?: SurvivalTier;
   state?: "lobby" | "playing";  // current room phase (lobby = waiting for host to start)
   createdAt: number;    // epoch ms
 }
@@ -57,14 +62,17 @@ export interface CreateRoomConfig {
   password: string | null;  // null/empty = no password
   roomName?: string;        // optional display name; defaults to "<host>'s Room"
   botDifficulty: BotDifficulty;
-  // Round 19i: Custom match limits for FFA/TDM. If omitted, defaults are used.
+  // Custom match limits for FFA/TDM/Kill Confirmed. If omitted, defaults are used.
   // Survival and Gun Game ignore these (survival is endless; gungame uses the
   // progression length as the score limit).
-  scoreLimit?: number;      // kills to win (per player FFA, per team TDM)
+  scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
+  tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
+  denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
+  survivalTier?: SurvivalTier; // default / hard / elite / nightmare
 }
 
 // ---- Combat constants -------------------------------------------------------
@@ -152,24 +160,40 @@ export interface MapDef {
   name: string;
   shortName: string;
   description: string;
-  size: number;          // half-extents (arena is 2*size x 2*size)
+  size: number;          // broadphase half-extents; regions determine the playable footprint
+  regions?: import("./map-blueprints").MapRegion[]; // union of rectangles, circles or triangles (stepped boundary collision)
   wallHeight: number;
   cover: CoverBox[];
+  /** Stable prefix length of engine-authored cover after legacy filtering. Map Studio
+   * can address and edit these objects without modifying generated boundaries. */
+  editorLegacyCoverCount?: number;
+  /** Pre-override collision boxes, indexed identically to editorLegacyStairFlights. */
+  editorLegacyCoverSource?: CoverBox[];
+  /** Pre-override environment sources indexed for deletion, copy and restore. */
+  editorLegacyEnvironmentSource?: EnvironmentObject[];
+  editorLegacyStairFlights?: import("./legacy-stair-flights").LegacyStairFlight[];
+  editorLegacyEnvironmentCount?: number;
   environment?: EnvironmentObject[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
   theme: MapTheme;
+  /** Authored map palette, props and rendered landmarks (see JSON map theme). */
+  props?: import("./map-visuals").MapProp[];
+  biome?: string;
+  surfaces?: import("./map-visuals").MapSurfaceRecipes;
   accentColor: string;   // for UI badge
   lights?: MapAccentLight[]; // optional per-map accent point lights
 }
 
 // ===== MAP 1: COMPOUND — symmetric, central tower + corners, mid-cover =====
 const COMPOUND_COVER: CoverBox[] = [
+  {pos:[-7,1.5,34],size:[4,1.5,.5],kind:"cover"},
+  {pos:[7,1.5,34],size:[4,1.5,.5],kind:"cover"},
   // Central raised platform (top at y=2.5) — dominates map center
   { pos: [0, 1.25, 0], size: [4, 1.25, 4], kind: "platform" },
   // Stairs up to platform (south side, ascending north)
-  ...stairs(0, 6, 2.5, 5, 3, 5, "z", -1),
+  ...stairs(0, 4, 2.5, 5, 3, 5, "z", 1),
   // Stairs up to platform (north side, ascending south)
-  ...stairs(0, -6, 2.5, 5, 3, 5, "z", 1),
+  ...stairs(0, -4, 2.5, 5, 3, 5, "z", -1),
   // 4 corner bunkers (L-shaped, walkable tops at y=3)
   // NW corner
   { pos: [-14, 1.5, -14], size: [4, 1.5, 1], kind: "cover" },
@@ -184,13 +208,13 @@ const COMPOUND_COVER: CoverBox[] = [
   { pos: [14, 1.5, 14], size: [4, 1.5, 1], kind: "cover" },
   { pos: [14, 1.5, 14], size: [1, 1.5, 4], kind: "cover" },
   // Stairs to NW bunker top
-  ...stairs(-19, -10, 3, 6, 3, 6, "z", 1),
+  ...stairs(-18, -14, 3, 6, 3, 6, "x", -1),
   // Stairs to NE bunker top
-  ...stairs(19, -10, 3, 6, 3, 6, "z", 1),
+  ...stairs(18, -14, 3, 6, 3, 6, "x", 1),
   // Stairs to SW bunker top
-  ...stairs(-19, 10, 3, 6, 3, 6, "z", -1),
+  ...stairs(-18, 14, 3, 6, 3, 6, "x", -1),
   // Stairs to SE bunker top
-  ...stairs(19, 10, 3, 6, 3, 6, "z", -1),
+  ...stairs(18, 14, 3, 6, 3, 6, "x", 1),
   // Mid-lane crates (low cover, jumpable)
   { pos: [-9, 0.6, 0], size: [1.2, 0.6, 1.2], kind: "cover" },
   { pos: [9, 0.6, 0], size: [1.2, 0.6, 1.2], kind: "cover" },
@@ -211,21 +235,21 @@ const COMPOUND_COVER: CoverBox[] = [
   { pos: [42, 2.5, -42], size: [2, 2.5, 2], kind: "cover" },
   { pos: [-42, 2.5, 42], size: [2, 2.5, 2], kind: "cover" },
   // Stairs up to each new building's roof (top at y=5)
-  ...stairs(42, -36, 5, 6, 3, 5, "z", 1),
-  ...stairs(-42, 36, 5, 6, 3, 5, "z", -1),
+  ...stairs(42, -40, 5, 10, 3, 5, "z", 1),
+  ...stairs(-42, 40, 5, 10, 3, 5, "z", -1),
   // Elevated platform (top at y=3) at SE outer corner + stair access
   { pos: [42, 3, 42], size: [4, 0.3, 4], kind: "platform" },
-  ...stairs(42, 36, 3, 5, 3, 5, "z", -1),
+  ...stairs(42, 38, 3, 6, 3, 5, "z", -1),
   // ---- Verticality: elevated cross-map walkway at y=4 connecting the buildings ----
   // Players can traverse the map from up high, accessing all 4 corners.
   { pos: [0, 4, -42], size: [42, 0.3, 1.2], kind: "platform" },
   { pos: [0, 4, 42], size: [42, 0.3, 1.2], kind: "platform" },
-  ...stairs(0, -36, 4, 6, 2, 5, "z", 1),
-  ...stairs(0, 36, 4, 6, 2, 5, "z", -1),
+  ...stairs(0, -40.8, 4, 8, 2, 5, "z", 1),
+  ...stairs(0, 40.8, 4, 8, 2, 5, "z", -1),
   // Central elevated catwalk (y=3) over the central platform — a mid-level perch
   { pos: [0, 3, 0], size: [10, 0.25, 1.2], kind: "platform" },
-  ...stairs(0, 5, 3, 5, 1.5, 4, "z", -1),
-  ...stairs(0, -5, 3, 5, 1.5, 4, "z", 1),
+  ...stairs(7, 1.2, 3, 6, 1.5, 4, "z", 1),
+  ...stairs(-7, -1.2, 3, 6, 1.5, 4, "z", -1),
   // Accent lights on building tops (emissive stripes for art direction)
   { pos: [42, 5.05, -42], size: [2, 0.03, 2], kind: "accent" },
   { pos: [-42, 5.05, 42], size: [2, 0.03, 2], kind: "accent" },
@@ -282,7 +306,7 @@ const COMPOUND_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
     [-26, 0, -26], [26, 0, -26], [-26, 0, 26], [26, 0, 26],
     [0, 0, -28], [0, 0, 28], [-28, 0, 0], [28, 0, 0],
-    [-14, 0, -14], [14, 0, 14], [-14, 0, 14], [14, 0, -14],
+    [-15, 0, -8], [15, 0, 8], [-15, 0, 8], [15, 0, -8],
     [-20, 0, 0], [20, 0, 0], [0, 0, -20], [0, 0, 20],
     [-8, 0, -22], [8, 0, 22], [-22, 0, 8], [22, 0, -8],
   ],
@@ -301,9 +325,9 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   // Central tower (tall, accessible top at y=6)
   { pos: [0, 3, 0], size: [3, 3, 3], kind: "platform" },
   // Stairs to central tower top (south side)
-  ...stairs(0, 8, 6, 8, 3, 8, "z", -1),
+  ...stairs(0, 3, 6, 12, 3, 8, "z", 1),
   // Stairs to central tower top (north side)
-  ...stairs(0, -8, 6, 8, 3, 8, "z", 1),
+  ...stairs(0, -3, 6, 12, 3, 8, "z", -1),
   // East-west elevated catwalk at y=4
   { pos: [0, 4, -10], size: [14, 0.4, 1.5], kind: "platform" },
   { pos: [0, 4, 10], size: [14, 0.4, 1.5], kind: "platform" },
@@ -316,20 +340,20 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   { pos: [-22, 4, 22], size: [3, 4, 3], kind: "platform" },
   { pos: [22, 4, 22], size: [3, 4, 3], kind: "platform" },
   // Ramps to corner towers (stairs)
-  ...stairs(-18, -16, 8, 8, 3, 6, "z", 1),
-  ...stairs(18, -16, 8, 8, 3, 6, "z", 1),
-  ...stairs(-18, 16, 8, 8, 3, 6, "z", -1),
-  ...stairs(18, 16, 8, 8, 3, 6, "z", -1),
+  ...stairs(-22, -19, 8, 16, 3, 6, "z", 1),
+  ...stairs(22, -19, 8, 16, 3, 6, "z", 1),
+  ...stairs(-22, 19, 8, 16, 3, 6, "z", -1),
+  ...stairs(22, 19, 8, 16, 3, 6, "z", -1),
   // Stairs up to east-west catwalks
-  ...stairs(-6, -16, 4, 5, 2, 6, "z", 1),
-  ...stairs(6, -16, 4, 5, 2, 6, "z", 1),
-  ...stairs(-6, 16, 4, 5, 2, 6, "z", -1),
-  ...stairs(6, 16, 4, 5, 2, 6, "z", -1),
+  ...stairs(-6, -11.5, 4, 8, 2, 6, "z", -1),
+  ...stairs(6, -11.5, 4, 8, 2, 6, "z", -1),
+  ...stairs(-6, 11.5, 4, 8, 2, 6, "z", 1),
+  ...stairs(6, 11.5, 4, 8, 2, 6, "z", 1),
   // Stairs up to north-south catwalks
-  ...stairs(-16, -6, 4, 5, 2, 6, "x", 1),
-  ...stairs(-16, 6, 4, 5, 2, 6, "x", 1),
-  ...stairs(16, -6, 4, 5, 2, 6, "x", -1),
-  ...stairs(16, 6, 4, 5, 2, 6, "x", -1),
+  ...stairs(-11.5, -6, 4, 8, 2, 6, "x", -1),
+  ...stairs(-11.5, 6, 4, 8, 2, 6, "x", -1),
+  ...stairs(11.5, -6, 4, 8, 2, 6, "x", 1),
+  ...stairs(11.5, 6, 4, 8, 2, 6, "x", 1),
   // Lower-level cover (crates and walls)
   { pos: [-6, 0.6, -6], size: [1.2, 0.6, 1.2], kind: "cover" },
   { pos: [6, 0.6, 6], size: [1.2, 0.6, 1.2], kind: "cover" },
@@ -344,14 +368,14 @@ const SKYBRIDGE_COVER: CoverBox[] = [
   { pos: [40, 5, 0], size: [2, 5, 2], kind: "platform" },
   { pos: [-40, 5, 0], size: [2, 5, 2], kind: "platform" },
   // Stairs up to the new outer towers (to y=10)
-  ...stairs(40, 6, 10, 8, 3, 6, "z", -1),
-  ...stairs(-40, -6, 10, 8, 3, 6, "z", 1),
+  ...stairs(40, 2, 10, 20, 3, 6, "z", 1),
+  ...stairs(-40, -2, 10, 20, 3, 6, "z", -1),
   // Outer elevated catwalks at y=6 (east-west, longer than the originals)
   { pos: [0, 6, -40], size: [40, 0.4, 1.5], kind: "platform" },
   { pos: [0, 6, 40], size: [40, 0.4, 1.5], kind: "platform" },
   // Stairs up to the outer catwalks
-  ...stairs(0, -36, 6, 7, 4, 6, "z", 1),
-  ...stairs(0, 36, 6, 7, 4, 6, "z", -1),
+  ...stairs(0, -38.5, 6, 12, 4, 6, "z", 1),
+  ...stairs(0, 38.5, 6, 12, 4, 6, "z", -1),
   // Perimeter walls (tall thin boxes)
   { pos: [0, 4, -62], size: [62, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 62], size: [62, 4, 0.5], kind: "cover" },
@@ -392,7 +416,7 @@ const SKYBRIDGE_COVER: CoverBox[] = [
 
 const SKYBRIDGE_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
-    [-30, 0, -30], [30, 0, -30], [-30, 0, 30], [30, 0, 30],
+    [-30, 0, -30], [30, 0, -27], [-30, 0, 27], [30, 0, 30],
     [0, 0, -32], [0, 0, 32], [-32, 0, 0], [32, 0, 0],
     [-15, 0, -15], [15, 0, 15], [-15, 0, 15], [15, 0, -15],
     [-25, 0, 0], [25, 0, 0], [0, 0, -25], [0, 0, 25],
@@ -414,19 +438,19 @@ const BUNKER_COVER: CoverBox[] = [
   // Central bunker (square, walkable roof at y=4)
   { pos: [0, 2, 0], size: [3.5, 2, 3.5], kind: "platform" },
   // Stairs to central bunker roof (south)
-  ...stairs(0, 6, 4, 8, 3, 5, "z", -1),
+  ...stairs(0, 3.5, 4, 8, 3, 5, "z", 1),
   // Stairs to central bunker roof (north)
-  ...stairs(0, -6, 4, 8, 3, 5, "z", 1),
+  ...stairs(0, -3.5, 4, 8, 3, 5, "z", -1),
   // Perimeter upper walkway at y=3.5 (4 sides)
   { pos: [0, 3.5, -22], size: [22, 0.4, 1.5], kind: "platform" },
   { pos: [0, 3.5, 22], size: [22, 0.4, 1.5], kind: "platform" },
   { pos: [-22, 3.5, 0], size: [1.5, 0.4, 22], kind: "platform" },
   { pos: [22, 3.5, 0], size: [1.5, 0.4, 22], kind: "platform" },
   // Stairs to perimeter walkway (4 corners)
-  ...stairs(-18, -18, 3.5, 7, 3, 5, "z", 1),
-  ...stairs(18, -18, 3.5, 7, 3, 5, "z", 1),
-  ...stairs(-18, 18, 3.5, 7, 3, 5, "z", -1),
-  ...stairs(18, 18, 3.5, 7, 3, 5, "z", -1),
+  ...stairs(-18, -20.5, 3.5, 7, 3, 5, "z", 1),
+  ...stairs(18, -20.5, 3.5, 7, 3, 5, "z", 1),
+  ...stairs(-18, 20.5, 3.5, 7, 3, 5, "z", -1),
+  ...stairs(18, 20.5, 3.5, 7, 3, 5, "z", -1),
   // Inner walls (corridors)
   { pos: [-8, 1.5, -10], size: [0.5, 1.5, 6], kind: "cover" },
   { pos: [8, 1.5, 10], size: [0.5, 1.5, 6], kind: "cover" },
@@ -449,24 +473,24 @@ const BUNKER_COVER: CoverBox[] = [
   { pos: [-50, 5, 0], size: [1.5, 0.4, 50], kind: "platform" },
   { pos: [50, 5, 0], size: [1.5, 0.4, 50], kind: "platform" },
   // Stairs up to the outer walkway (4 corners)
-  ...stairs(-44, -44, 5, 7, 3, 5, "z", 1),
-  ...stairs(44, -44, 5, 7, 3, 5, "z", 1),
-  ...stairs(-44, 44, 5, 7, 3, 5, "z", -1),
-  ...stairs(44, 44, 5, 7, 3, 5, "z", -1),
+  ...stairs(-44, -48.5, 5, 10, 3, 5, "z", 1),
+  ...stairs(44, -48.5, 5, 10, 3, 5, "z", 1),
+  ...stairs(-44, 48.5, 5, 10, 3, 5, "z", -1),
+  ...stairs(44, 48.5, 5, 10, 3, 5, "z", -1),
   // Two tall "bunker" boxes (top at y=4, 3x3 footprint) at outer midpoints
   { pos: [40, 2, 0], size: [1.5, 2, 1.5], kind: "cover" },
   { pos: [-40, 2, 0], size: [1.5, 2, 1.5], kind: "cover" },
   // Stairs to the new bunker tops
-  ...stairs(40, 6, 4, 6, 3, 5, "z", -1),
+  ...stairs(40, 1.5, 4, 8, 3, 5, "z", 1),
   // ---- Verticality: central elevated bridge at y=4 connecting east and west bunkers ----
   // A high perch overlooking the central bunker — accessible from both sides.
   { pos: [0, 4, 0], size: [30, 0.25, 1.2], kind: "platform" },
-  ...stairs(15, 0, 4, 6, 1.5, 5, "x", -1),
-  ...stairs(-15, 0, 4, 6, 1.5, 5, "x", 1),
+  ...stairs(15, 1.2, 4, 8, 1.5, 5, "z", 1),
+  ...stairs(-15, -1.2, 4, 8, 1.5, 5, "z", -1),
   // Accent stripes on the bunker tops (emissive — art direction)
   { pos: [40, 4.05, 0], size: [1.5, 0.03, 1.5], kind: "accent" },
   { pos: [-40, 4.05, 0], size: [1.5, 0.03, 1.5], kind: "accent" },
-  ...stairs(-40, -6, 4, 6, 3, 5, "z", 1),
+  ...stairs(-40, -1.5, 4, 8, 3, 5, "z", -1),
   // Outer perimeter walls (solid, taller than the walkway)
   { pos: [0, 4, -58], size: [58, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 58], size: [58, 4, 0.5], kind: "cover" },
@@ -495,20 +519,20 @@ const BUNKER_COVER: CoverBox[] = [
 
 const BUNKER_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
-    [-24, 0, -24], [24, 0, -24], [-24, 0, 24], [24, 0, 24],
+    [-27, 0, -24], [24, 0, -24], [-24, 0, 24], [27, 0, 24],
     [0, 0, -26], [0, 0, 26], [-26, 0, 0], [26, 0, 0],
-    [-12, 0, -12], [12, 0, 12], [-12, 0, 12], [12, 0, -12],
+    [-15, 0, -12], [15, 0, 12], [-15, 0, 12], [15, 0, -12],
     [-16, 0, 0], [16, 0, 0], [0, 0, -16], [0, 0, 16],
     // Elevated spawns on walkway
     [0, 3.95, -22], [0, 3.95, 22], [-22, 3.95, 0], [22, 3.95, 0],
   ],
   red: [
     [-26, 0, -16], [-26, 0, 0], [-26, 0, 16], [-22, 0, -26], [-22, 0, 26],
-    [-22, 3.95, 0], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
+    [-22, 3.95, 0], [-15, 0, -16], [-15, 0, 16], [-20, 0, -10], [-20, 0, 10],
   ],
   blue: [
     [26, 0, -16], [26, 0, 0], [26, 0, 16], [22, 0, -26], [22, 0, 26],
-    [22, 3.95, 0], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
+    [22, 3.95, 0], [15, 0, -16], [15, 0, 16], [20, 0, -10], [20, 0, 10],
   ],
 };
 
@@ -521,20 +545,20 @@ const SHIPYARD_COVER: CoverBox[] = [
   // feel impenetrable. Now it's a clean raised platform with wide-open ramps.
   { pos: [0, 0.6, 0], size: [5, 0.6, 8], kind: "platform" },
   // Wide ramps up to the central platform from all 4 directions (walkable, no jumping)
-  ...stairs(0, 9, 1.2, 4, 5, 5, "z", -1),
-  ...stairs(0, -9, 1.2, 4, 5, 5, "z", 1),
-  ...stairs(9, 0, 1.2, 4, 5, 5, "x", -1),
-  ...stairs(-9, 0, 1.2, 4, 5, 5, "x", 1),
+  ...stairs(0, 8, 1.2, 5, 8, 7, "z", 1),
+  ...stairs(0, -8, 1.2, 5, 8, 7, "z", -1),
+  ...stairs(5, 0, 1.2, 5, 8, 7, "x", 1),
+  ...stairs(-5, 0, 1.2, 5, 8, 7, "x", -1),
   // Shipping containers (rust-orange). Some stacked 2-high to create vertical play.
   // West row (3 containers, middle one stacked)
   { pos: [-12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
   { pos: [-12, 1.2, 0], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [-12, 2.4, 0], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [-12, 3.6, 0], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   { pos: [-12, 1.2, 10], size: [2.5, 1.2, 6], kind: "cover" },
   // East row (3 containers, middle one stacked)
   { pos: [12, 1.2, -10], size: [2.5, 1.2, 6], kind: "cover" },
   { pos: [12, 1.2, 0], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [12, 2.4, 0], size: [2.5, 1.2, 6], kind: "cover" },    // stacked
+  { pos: [12, 3.6, 0], size: [2.5, 1.2, 6], kind: "cover" },    // stacked
   { pos: [12, 1.2, 10], size: [2.5, 1.2, 6], kind: "cover" },
   // North + south container clusters (perpendicular, narrower corridors)
   { pos: [-5, 1.2, -16], size: [6, 1.2, 2.5], kind: "cover" },
@@ -542,39 +566,39 @@ const SHIPYARD_COVER: CoverBox[] = [
   { pos: [-5, 1.2, 16], size: [6, 1.2, 2.5], kind: "cover" },
   { pos: [5, 1.2, 16], size: [6, 1.2, 2.5], kind: "cover" },
   // Stairs up onto the stacked containers (west + east) — container-top sniper perches
-  ...stairs(-7, 0, 2.4, 4, 2.5, 4, "x", -1),
-  ...stairs(7, 0, 2.4, 4, 2.5, 4, "x", 1),
+  ...stairs(-14.5, 0, 4.8, 10, 2.5, 8, "x", -1),
+  ...stairs(14.5, 0, 4.8, 10, 2.5, 8, "x", 1),
   // Elevated crane walkway crossing east-west at y=5
   { pos: [0, 5, 0], size: [20, 0.3, 1.2], kind: "platform" },
   // Crane walkway crossing north-south at y=5
   { pos: [0, 5, 0], size: [1.2, 0.3, 20], kind: "platform" },
   // Stairs up to crane walkway (NW + SE corners)
-  ...stairs(-7, -7, 5, 7, 1.5, 5, "z", 1),
-  ...stairs(7, 7, 5, 7, 1.5, 5, "z", -1),
+  ...stairs(-7, -1.2, 5, 10, 1.5, 6, "z", -1),
+  ...stairs(7, 1.2, 5, 10, 1.5, 6, "z", 1),
   // Crane tower support (visual + walkable top) at the walkway intersection
   { pos: [0, 2.5, 0], size: [0.6, 2.5, 0.6], kind: "cover" },
   // Industrial hazard stripes on container tops (emissive accent)
-  { pos: [-12, 2.45, 0], size: [2.5, 0.05, 6], kind: "accent" },
-  { pos: [12, 2.45, 0], size: [2.5, 0.05, 6], kind: "accent" },
+  { pos: [-12, 4.85, 0], size: [2.5, 0.05, 6], kind: "accent" },
+  { pos: [12, 4.85, 0], size: [2.5, 0.05, 6], kind: "accent" },
   // ---- M1 (Maps Expansion): outer ring + multi-level cover (size 30 -> 62) ----
   // Additional shipping container stacks (stacked 2-high) at outer east/west
   { pos: [40, 1.2, -20], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [40, 2.4, -20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [40, 3.6, -20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   { pos: [-40, 1.2, 20], size: [2.5, 1.2, 6], kind: "cover" },
-  { pos: [-40, 2.4, 20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
+  { pos: [-40, 3.6, 20], size: [2.5, 1.2, 6], kind: "cover" },   // stacked
   // Stairs up onto the new stacked containers
-  ...stairs(35, -20, 2.4, 4, 2.5, 4, "x", -1),
-  ...stairs(-35, 20, 2.4, 4, 2.5, 4, "x", 1),
+  ...stairs(42.5, -20, 4.8, 10, 2.5, 8, "x", 1),
+  ...stairs(-42.5, 20, 4.8, 10, 2.5, 8, "x", -1),
   // Tall crane tower (top at y=6, 3x3 footprint) at outer NE corner
   { pos: [45, 3, -45], size: [1.5, 3, 1.5], kind: "platform" },
-  ...stairs(45, -39, 6, 7, 2, 5, "z", 1),
+  ...stairs(45, -43.5, 6, 12, 2, 5, "z", 1),
   // Outer elevated crane walkway at y=5 (east-west, longer span)
   { pos: [0, 5, -45], size: [45, 0.3, 1.2], kind: "platform" },
   // Stairs up to the outer walkway
-  ...stairs(0, -39, 5, 7, 2, 5, "z", 1),
+  ...stairs(0, -43.8, 5, 10, 2, 5, "z", 1),
   // Second outer walkway (north side, y=5) for more vertical connectivity
   { pos: [0, 5, 45], size: [45, 0.3, 1.2], kind: "platform" },
-  ...stairs(0, 39, 5, 7, 2, 5, "z", -1),
+  ...stairs(0, 43.8, 5, 10, 2, 5, "z", -1),
   // Perimeter walls
   { pos: [0, 4, -60], size: [60, 4, 0.5], kind: "cover" },
   { pos: [0, 4, 60], size: [60, 4, 0.5], kind: "cover" },
@@ -624,15 +648,15 @@ const SHIPYARD_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
     [-16, 0, -16], [16, 0, 16], [-16, 0, 16], [16, 0, -16],
     [-20, 0, -8], [20, 0, 8], [-8, 0, -20], [8, 0, 20],
     // Elevated: container tops + crane walkway
-    [-12, 2.45, 0], [12, 2.45, 0], [0, 5.15, -10], [0, 5.15, 10],
+    [-12, 4.85, -4], [12, 4.85, 4], [0, 5.15, -10], [0, 5.15, 10],
   ],
   red: [
-    [-26, 0, -20], [-26, 0, 0], [-26, 0, 20], [-22, 0, -26], [-22, 0, 26],
-    [-12, 2.45, 0], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
+    [-26, 0, -20], [-31, 0, 0], [-26, 0, 20], [-22, 0, -26], [-27, 0, 26],
+    [-12, 4.85, -4], [-16, 0, -16], [-16, 0, 16], [-20, 0, -10], [-20, 0, 10],
   ],
   blue: [
-    [26, 0, -20], [26, 0, 0], [26, 0, 20], [22, 0, -26], [22, 0, 26],
-    [12, 2.45, 0], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
+    [26, 0, -20], [31, 0, 0], [26, 0, 20], [27, 0, -26], [22, 0, 26],
+    [12, 4.85, 4], [16, 0, -16], [16, 0, 16], [20, 0, -10], [20, 0, 10],
   ],
 };
 
@@ -673,8 +697,8 @@ const TERMINAL_COVER: CoverBox[] = [
   { pos: [0, 5.6, -1.2], size: [16, 0.5, 0.1], kind: "accent" },
   { pos: [0, 5.6, 1.2], size: [16, 0.5, 0.1], kind: "accent" },
   // Stairs up to walkway (east + west ends)
-  ...stairs(14, 0, 5, 7, 2, 6, "x", -1),
-  ...stairs(-14, 0, 5, 7, 2, 6, "x", 1),
+  ...stairs(16, 0, 5, 10, 2, 6, "x", 1),
+  ...stairs(-16, 0, 5, 10, 2, 6, "x", -1),
   // 6 pillars along the central spine
   { pos: [-6, 1.5, -6], size: [0.6, 1.5, 0.6], kind: "cover" },
   { pos: [6, 1.5, -6], size: [0.6, 1.5, 0.6], kind: "cover" },
@@ -698,13 +722,13 @@ const TERMINAL_COVER: CoverBox[] = [
   { pos: [0, 5, -45], size: [50, 0.3, 2], kind: "platform" },
   { pos: [0, 5, 45], size: [50, 0.3, 2], kind: "platform" },
   // Stairs up to the outer walkway extensions
-  ...stairs(0, -38, 5, 7, 3, 6, "z", 1),
-  ...stairs(0, 38, 5, 7, 3, 6, "z", -1),
+  ...stairs(0, -43, 5, 10, 3, 6, "z", 1),
+  ...stairs(0, 43, 5, 10, 3, 6, "z", -1),
   // Tall kiosk "buildings" (top at y=4, 3x3 footprint) at outer NE/SW
   { pos: [42, 2, -42], size: [1.5, 2, 1.5], kind: "cover" },
   { pos: [-42, 2, 42], size: [1.5, 2, 1.5], kind: "cover" },
-  ...stairs(42, -36, 4, 6, 2, 5, "z", 1),
-  ...stairs(-42, 36, 4, 6, 2, 5, "z", -1),
+  ...stairs(42, -40.5, 4, 8, 2, 5, "z", 1),
+  ...stairs(-42, 40.5, 4, 8, 2, 5, "z", -1),
   // Outer shop kiosk rows (4 each on east and west outer edges)
   { pos: [50, 1.5, -30], size: [2, 1.5, 2], kind: "cover" },
   { pos: [50, 1.5, -10], size: [2, 1.5, 2], kind: "cover" },
@@ -759,8 +783,8 @@ const TERMINAL_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
     [-30, 0, -30], [30, 0, -30], [-30, 0, 30], [30, 0, 30],
     [0, 0, -32], [0, 0, 32], [-32, 0, 0], [32, 0, 0],
     [-16, 0, -16], [16, 0, 16], [-16, 0, 16], [16, 0, -16],
-    [-22, 0, -8], [22, 0, 8], [-8, 0, -22], [8, 0, 22],
-    [-24, 0, 0], [24, 0, 0], [0, 0, -24], [0, 0, 24],
+    [-26, 0, -8], [26, 0, 8], [-8, 0, -22], [8, 0, 22],
+    [-30, 0, 0], [30, 0, 0], [0, 0, -24], [0, 0, 24],
     // Elevated: walkway
     [0, 5.15, -10], [0, 5.15, 10], [-10, 5.15, 0], [10, 5.15, 0],
   ],
@@ -799,31 +823,31 @@ const ARENA_NEON_COVER: CoverBox[] = [
   // Mid-platform balcony extending south from the tower at y=3.5 (second-story ledge)
   { pos: [0, 3.5, 5], size: [3, 0.3, 2], kind: "platform" },
   // Stairs from ground up to mid-platform (south side, ascending north to y=3.5)
-  ...stairs(0, 10, 3.5, 7, 3, 6, "z", -1),
+  ...stairs(0, 7, 3.5, 7, 3, 6, "z", 1),
   // Stairs from ground up to tower top (north side, to y=6)
-  ...stairs(0, -10, 6, 8, 3, 8, "z", 1),
+  ...stairs(0, -3.5, 6, 12, 3, 8, "z", -1),
   // Stairs from ground up to tower top (east face, ascending west to y=6)
-  ...stairs(10, 0, 6, 8, 3, 8, "x", -1),
+  ...stairs(3.5, 0, 6, 12, 3, 8, "x", 1),
   // 4 corner platforms at y=2.5 (walkable tops) — reachable via stair-step ramps
   { pos: [-30, 2.5, -30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [30, 2.5, -30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [-30, 2.5, 30], size: [5, 0.4, 5], kind: "platform" },
   { pos: [30, 2.5, 30], size: [5, 0.4, 5], kind: "platform" },
   // Stair-step ramps up to each corner platform (to y=2.5)
-  ...stairs(-30, -22, 2.5, 5, 5, 5, "z", 1),
-  ...stairs(30, -22, 2.5, 5, 5, 5, "z", 1),
-  ...stairs(-30, 22, 2.5, 5, 5, 5, "z", -1),
-  ...stairs(30, 22, 2.5, 5, 5, 5, "z", -1),
-  // 2 elevated bridges at y=4 connecting opposite corners (long axis-aligned spans)
+  ...stairs(-30, -25, 2.5, 5, 5, 5, "z", 1),
+  ...stairs(30, -25, 2.5, 5, 5, 5, "z", 1),
+  ...stairs(-30, 25, 2.5, 5, 5, 5, "z", -1),
+  ...stairs(30, 25, 2.5, 5, 5, 5, "z", -1),
+  // 2 elevated bridges at y=6 connecting opposite corners (long axis-aligned spans)
   // Bridge 1: north edge — connects NW corner platform to NE corner platform
-  { pos: [0, 4, -30], size: [35, 0.3, 1.5], kind: "platform" },
-  // Bridge 2: south edge — connects SW corner platform to SE corner platform
-  { pos: [0, 4, 30], size: [35, 0.3, 1.5], kind: "platform" },
-  // Stairs up from corner platforms (y=2.5) to bridges (y=4) at each bridge end
-  ...stairs(-15, -30, 4, 4, 2, 3, "x", 1),
-  ...stairs(15, -30, 4, 4, 2, 3, "x", -1),
-  ...stairs(-15, 30, 4, 4, 2, 3, "x", 1),
-  ...stairs(15, 30, 4, 4, 2, 3, "x", -1),
+  { pos: [0, 6, -30], size: [35, 0.3, 1.5], kind: "platform" },
+  // Bridge 2: south edge — provides a separate upper crossing above the decks
+  { pos: [0, 6, 30], size: [35, 0.3, 1.5], kind: "platform" },
+  // Independent ground-to-bridge stair approaches; lower decks retain overhead clearance
+  ...stairs(-23, -31.5, 6, 12, 2, 5, "z", -1),
+  ...stairs(23, -31.5, 6, 12, 2, 5, "z", -1),
+  ...stairs(-23, 31.5, 6, 12, 2, 5, "z", 1),
+  ...stairs(23, 31.5, 6, 12, 2, 5, "z", 1),
   // Perimeter walls (tall thin boxes around the dense 128x128 arena)
   { pos: [0, 5, -62], size: [64, 5, 0.5], kind: "cover" },
   { pos: [0, 5, 62], size: [64, 5, 0.5], kind: "cover" },
@@ -889,8 +913,8 @@ const ARENA_NEON_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ffa: [
     // Scattered around the perimeter (compressed for 128x128 dense plaza)
     [-55, 0, -55], [55, 0, -55], [-55, 0, 55], [55, 0, 55],
-    [0, 0, -55], [0, 0, 55], [-55, 0, 0], [55, 0, 0],
-    [-50, 0, -50], [50, 0, 50], [-50, 0, 50], [50, 0, -50],
+    [6, 0, -54], [-6, 0, 54], [-54, 0, 6], [54, 0, -6],
+    [-47, 0, -50], [47, 0, 50], [-47, 0, 50], [47, 0, -50],
     [-55, 0, -30], [55, 0, 30], [-30, 0, -55], [30, 0, 55],
     [-40, 0, 0], [40, 0, 0], [0, 0, -40], [0, 0, 40],
     // Elevated: corner platforms
@@ -898,14 +922,14 @@ const ARENA_NEON_SPAWNS: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] } = {
   ],
   red: [
     // Red corner: NW (compressed for 128x128 dense plaza)
-    [-55, 0, -55], [-55, 0, -40], [-55, 0, -25], [-55, 0, 0],
-    [-50, 0, -50], [-40, 0, -55], [-30, 2.95, -30], [-45, 0, -45],
+    [-55, 0, -55], [-55, 0, -40], [-55, 0, -25], [-54, 0, 6],
+    [-47, 0, -50], [-40, 0, -55], [-30, 2.95, -30], [-45, 0, -45],
     [-50, 0, -35], [-45, 0, -50],
   ],
   blue: [
     // Blue corner: SE (opposite, compressed for 128x128 dense plaza)
-    [55, 0, 55], [55, 0, 40], [55, 0, 25], [55, 0, 0],
-    [50, 0, 50], [40, 0, 55], [30, 2.95, 30], [45, 0, 45],
+    [55, 0, 55], [55, 0, 40], [55, 0, 25], [54, 0, -6],
+    [47, 0, 50], [40, 0, 55], [30, 2.95, 30], [45, 0, 45],
     [50, 0, 35], [45, 0, 50],
   ],
 };
@@ -918,11 +942,11 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
   { pos: [30, 5, -30], color: 0xff2d95, intensity: 1.8, distance: 14 },
   { pos: [-30, 5, 30], color: 0xff2d95, intensity: 1.8, distance: 14 },
   { pos: [30, 5, 30], color: 0xff2d95, intensity: 1.8, distance: 14 },
-  // Purple bridge lights (along the elevated bridges at y=4)
-  { pos: [-15, 6, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [15, 6, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [-15, 6, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
-  { pos: [15, 6, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  // Purple bridge lights (along the elevated bridges at y=6)
+  { pos: [-15, 8, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [15, 8, -30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [-15, 8, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
+  { pos: [15, 8, 30], color: 0xb026ff, intensity: 1.6, distance: 12 },
   // Cyan accent lights scattered along the perimeter (compressed to +-55 for 128x128 dense plaza)
   { pos: [-55, 4, -55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
   { pos: [55, 4, -55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
@@ -930,52 +954,56 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
   { pos: [55, 4, 55], color: 0x00e5ff, intensity: 1.4, distance: 14 },
 ];
 
-/** Map-specific placements, with stable IDs for state replication. */
+/** Map interactions are part of designed combat routes. Preserve stable IDs.
+ * Hazard locations are not spawn sites; jump pads launch to authored surfaces.
+ * Moving platforms are optional side-route props, never mandatory bot links.
+ */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   compound: [
-    { id: "compound_fire", type: "fire", pos: [-33, 0, -10], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "compound_spikes", type: "spikes", pos: [33, 0, 10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "compound_jump", type: "jump_pad", pos: [0, 0, 40], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "compound_platform", type: "moving_platform", pos: [-8, 0.85, 35], size: [2.5, 0.25, 2.5], to: [8, 0.85, 35], period: 6 },
-    { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, 19], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Fuel service yard east of the northern security checkpoint.
+    { id: "compound_spikes_service", type: "spikes", pos: [38, 0, -28], size: [1.8, .4, 1.8], damage: 24, period: 4.5, activeFor: 1.6 },
+    // Timed security crossing next to the alternate north gate.
+    { id: "compound_spikes", type: "spikes", pos: [18, 0, -34], size: [1.8, 0.4, 1.8], damage: 32, period: 4.4, activeFor: 1.5 },
+    // South lane launch: reaches elevated walkway at z≈42.
+    { id: "compound_spikes_south", type: "spikes", pos: [22, 0, 32], size: [1.8, .4, 1.8], damage: 29, period: 5.2, activeFor: 1.8 },
+    // Breachable service gate, between the new concrete checkpoint walls.
+    { id: "compound_wall", type: "destructible_wall", pos: [0, 1.5, -34], size: [2.8, 1.5, 0.45], hp: 180 },
+    { id:"compound_wall_south",type:"destructible_wall",pos:[0,1.5,34],size:[2.8,1.5,.45],hp:190 },
+    { id:"compound_spikes_quarry",type:"spikes",pos:[84,0,-3],size:[1.6,.4,1.6],damage:26,period:5.1,activeFor:1.5 },
   ],
   skybridge: [
-    { id: "skybridge_fire", type: "fire", pos: [-30, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "skybridge_spikes", type: "spikes", pos: [30, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "skybridge_jump", type: "jump_pad", pos: [0, 0, 25], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "skybridge_platform", type: "moving_platform", pos: [-8, 0.85, 25], size: [2.5, 0.25, 2.5], to: [8, 0.85, 25], period: 6 },
-    { id: "skybridge_wall", type: "destructible_wall", pos: [0, 1.6, -25], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Maintenance bay faults, on opposite sides of the elevated transit structure.
+    { id: "skybridge_fire", type: "fire", pos: [-26, 0, -23], size: [2.2, 1.5, 2.2], dps: 24 },
+    { id: "skybridge_spikes", type: "spikes", pos: [26, 0, 23], size: [1.9, 0.4, 1.9], damage: 32, period: 4.5, activeFor: 1.6 },
+    // Alternate shortcut onto the central tower; stairs remain the bot-safe way.
+    { id: "skybridge_jump", type: "jump_pad", pos: [0, 0, 18], size: [1.8, 0.2, 1.8], launch: [0, 20, -13] },
+    // North transit security door creates a flank only when destroyed.
+    { id: "skybridge_wall", type: "destructible_wall", pos: [0, 1.5, -28], size: [2.8, 1.5, 0.45], hp: 180 },
   ],
   bunker: [
-    { id: "bunker_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "bunker_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "bunker_jump", type: "jump_pad", pos: [0, 0, 33], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "bunker_platform", type: "moving_platform", pos: [-8, 0.85, 32], size: [2.5, 0.25, 2.5], to: [8, 0.85, 32], period: 6 },
-    { id: "bunker_wall", type: "destructible_wall", pos: [0, 1.5, -30], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Damaged generator room and timed security floor; neither blocks spawns.
+    { id: "bunker_fire", type: "fire", pos: [-43, 0, -33], size: [2.2, 1.5, 2.2], dps: 24 },
+    { id: "bunker_spikes", type: "spikes", pos: [0, 0, -44], size: [1.8, 0.4, 1.8], damage: 32, period: 4.6, activeFor: 1.6 },
+    // Breakable north bulkhead opens a short route between service corridors.
+    { id: "bunker_wall", type: "destructible_wall", pos: [0, 1.5, -35], size: [2.8, 1.5, 0.45], hp: 220 },
   ],
   shipyard: [
-    { id: "shipyard_fire", type: "fire", pos: [-32, 0, 6], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "shipyard_spikes", type: "spikes", pos: [32, 0, -6], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "shipyard_jump", type: "jump_pad", pos: [0, 0, 42], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "shipyard_platform", type: "moving_platform", pos: [-8, 0.85, 36], size: [2.5, 0.25, 2.5], to: [8, 0.85, 36], period: 6 },
-    { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
+    // Cargo/fuel handling area, separated from the original spawn grid.
+    { id: "shipyard_spikes_fuel", type: "spikes", pos: [33, 0, 31], size: [2, .4, 2], damage: 27, period: 4.6, activeFor: 1.5 },
+    // Moving dock machinery on the western loading route.
+    { id: "shipyard_spikes", type: "spikes", pos: [-34, 0, -12], size: [1.8, 0.4, 1.8], damage: 32, period: 4.8, activeFor: 1.6 },
+    // Launch towards the south container roofs; stairs provide backup access.
+    { id: "shipyard_spikes_conveyor", type: "spikes", pos: [16, 0, 20], size: [1.8, .4, 1.8], damage: 24, period: 5.4, activeFor: 1.6 },
+    // Cargo transfer cart, deliberately not essential to navigation.
+    { id: "shipyard_platform", type: "moving_platform", pos: [-9, 0.85, 40], size: [2.5, 0.25, 2.5], to: [9, 0.85, 40], period: 7 },
+    // Container-checkpoint gate with static wall wings.
+    { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -38], size: [2.8, 1.5, 0.45], hp: 200 },
   ],
-  terminal: [
-    { id: "terminal_fire", type: "fire", pos: [-32, 0, 5], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "terminal_spikes", type: "spikes", pos: [32, 0, -5], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "terminal_jump", type: "jump_pad", pos: [0, 0, 30], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "terminal_platform", type: "moving_platform", pos: [-8, 0.85, 33], size: [2.5, 0.25, 2.5], to: [8, 0.85, 33], period: 6 },
-    { id: "terminal_wall", type: "destructible_wall", pos: [0, 1.5, -26], size: [2.8, 1.5, 0.4], hp: 180 },
-  ],
-  arena_neon: [
-    { id: "arena_neon_fire", type: "fire", pos: [-35, 0, 10], size: [2.5, 1.6, 2.5], dps: 24 },
-    { id: "arena_neon_spikes", type: "spikes", pos: [35, 0, -10], size: [2, 0.4, 2], damage: 32, period: 4, activeFor: 1.8 },
-    { id: "arena_neon_jump", type: "jump_pad", pos: [0, 0, 35], size: [1.8, 0.2, 1.8], launch: [0, 12.5, 5] },
-    { id: "arena_neon_platform", type: "moving_platform", pos: [-8, 0.85, 38], size: [2.5, 0.25, 2.5], to: [8, 0.85, 38], period: 6 },
-    { id: "arena_neon_wall", type: "destructible_wall", pos: [0, 1.5, -35], size: [2.8, 1.5, 0.4], hp: 180 },
-  ],
+  // Day and night city editions are hazard-free urban combat spaces.
+  terminal: [],
+  arena_neon: [],
 };
-export const MAPS: Record<MapId, MapDef> = {
+const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
@@ -984,8 +1012,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Symmetric arena with a central raised platform and four corner bunkers. Balanced for all ranges.",
     size: 64,
     wallHeight: 10,
-    cover: COMPOUND_COVER,
-    spawns: COMPOUND_SPAWNS,
+    cover: [...COMPOUND_COVER, ...TACTICAL_COVER.compound],
+    spawns: {
+      ffa: [...COMPOUND_SPAWNS.ffa, ...OUTER_SPAWNS.compound.ffa],
+      red: [...COMPOUND_SPAWNS.red, ...OUTER_SPAWNS.compound.red],
+      blue: [...COMPOUND_SPAWNS.blue, ...OUTER_SPAWNS.compound.blue],
+    },
     accentColor: "#f59e0b",
     theme: {
       floor: 0x2a3038, floorPattern: 0x1a1f26, wall: 0x1a1f26, cover: 0x3b424c, coverAccent: 0xf59e0b,
@@ -1008,8 +1040,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Vertical-focused map with crossing catwalks and corner sniper towers. Height is power.",
     size: 64,
     wallHeight: 14,
-    cover: SKYBRIDGE_COVER,
-    spawns: SKYBRIDGE_SPAWNS,
+    cover: [...SKYBRIDGE_COVER, ...TACTICAL_COVER.skybridge],
+    spawns: {
+      ffa: [...SKYBRIDGE_SPAWNS.ffa, ...OUTER_SPAWNS.skybridge.ffa],
+      red: [...SKYBRIDGE_SPAWNS.red, ...OUTER_SPAWNS.skybridge.red],
+      blue: [...SKYBRIDGE_SPAWNS.blue, ...OUTER_SPAWNS.skybridge.blue],
+    },
     accentColor: "#06b6d4",
     theme: {
       floor: 0x1e2935, floorPattern: 0x0f1722, wall: 0x0f1722, cover: 0x334155, coverAccent: 0x06b6d4,
@@ -1032,8 +1068,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Tight enclosed CQC with a perimeter upper walkway. Close-quarters brutality.",
     size: 60,
     wallHeight: 9,
-    cover: BUNKER_COVER,
-    spawns: BUNKER_SPAWNS,
+    cover: [...BUNKER_COVER, ...TACTICAL_COVER.bunker],
+    spawns: {
+      ffa: [...BUNKER_SPAWNS.ffa, ...OUTER_SPAWNS.bunker.ffa],
+      red: [...BUNKER_SPAWNS.red, ...OUTER_SPAWNS.bunker.red],
+      blue: [...BUNKER_SPAWNS.blue, ...OUTER_SPAWNS.bunker.blue],
+    },
     accentColor: "#ef4444",
     theme: {
       floor: 0x2a2020, floorPattern: 0x1a1414, wall: 0x1a1414, cover: 0x3b2c2c, coverAccent: 0xef4444,
@@ -1056,8 +1096,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Tight industrial dockside — stacked containers, crane walkways, brutal close-quarters firefights.",
     size: 62,
     wallHeight: 11,
-    cover: SHIPYARD_COVER,
-    spawns: SHIPYARD_SPAWNS,
+    cover: [...SHIPYARD_COVER, ...TACTICAL_COVER.shipyard],
+    spawns: {
+      ffa: [...SHIPYARD_SPAWNS.ffa, ...OUTER_SPAWNS.shipyard.ffa],
+      red: [...SHIPYARD_SPAWNS.red, ...OUTER_SPAWNS.shipyard.red],
+      blue: [...SHIPYARD_SPAWNS.blue, ...OUTER_SPAWNS.shipyard.blue],
+    },
     accentColor: "#ff8c1a",
     theme: {
       floor: 0x1c2128, floorPattern: 0x10141a, wall: 0x14181f, cover: 0x3a3026, coverAccent: 0xff8c1a,
@@ -1074,8 +1118,12 @@ export const MAPS: Record<MapId, MapDef> = {
     description: "Modern airport concourse — polished floors, glass walls, second-level walkway. Classic mid-range engagements.",
     size: 64,
     wallHeight: 12,
-    cover: TERMINAL_COVER,
-    spawns: TERMINAL_SPAWNS,
+    cover: [...TERMINAL_COVER, ...TACTICAL_COVER.terminal],
+    spawns: {
+      ffa: [...TERMINAL_SPAWNS.ffa, ...OUTER_SPAWNS.terminal.ffa],
+      red: [...TERMINAL_SPAWNS.red, ...OUTER_SPAWNS.terminal.red],
+      blue: [...TERMINAL_SPAWNS.blue, ...OUTER_SPAWNS.terminal.blue],
+    },
     accentColor: "#38bdf8",
     theme: {
       floor: 0x2c3036, floorPattern: 0x1e2228, wall: 0x1c2026, cover: 0x3c424c, coverAccent: 0x38bdf8,
@@ -1089,11 +1137,15 @@ export const MAPS: Record<MapId, MapDef> = {
     environment: ENVIRONMENTS.arena_neon,
     name: "Neon Plaza",
     shortName: "NPN",
-    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=4. Vertical arcade-shooter heaven.",
+    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=6. Vertical arcade-shooter heaven.",
     size: 64,
     wallHeight: 14,
-    cover: ARENA_NEON_COVER,
-    spawns: ARENA_NEON_SPAWNS,
+    cover: [...ARENA_NEON_COVER, ...TACTICAL_COVER.arena_neon],
+    spawns: {
+      ffa: [...ARENA_NEON_SPAWNS.ffa, ...OUTER_SPAWNS.arena_neon.ffa],
+      red: [...ARENA_NEON_SPAWNS.red, ...OUTER_SPAWNS.arena_neon.red],
+      blue: [...ARENA_NEON_SPAWNS.blue, ...OUTER_SPAWNS.arena_neon.blue],
+    },
     accentColor: "#ff2d95",
     theme: {
       floor: 0x1a0a2e, floorPattern: 0x0f0518, wall: 0x120829, cover: 0x2a1147, coverAccent: 0xff2d95,
@@ -1104,7 +1156,31 @@ export const MAPS: Record<MapId, MapDef> = {
   },
 };
 
-export const MAP_LIST: MapDef[] = [MAPS.compound, MAPS.skybridge, MAPS.bunker, MAPS.shipyard, MAPS.terminal, MAPS.arena_neon];
+/** Expose fully scaled layouts consistently to solo and multiplayer clients. */
+export const MAPS: Record<string, MapDef> = {
+  compound: applyMapFootprint(BASE_MAPS.compound),
+  skybridge: applyMapFootprint(BASE_MAPS.skybridge),
+  bunker: applyMapFootprint(BASE_MAPS.bunker),
+  shipyard: applyMapFootprint(BASE_MAPS.shipyard),
+  terminal: applyMapFootprint({
+    ...BASE_MAPS.arena_neon,
+    id:"terminal",theme:BASE_MAPS.terminal.theme,
+    accentColor:BASE_MAPS.terminal.accentColor,
+    lights:BASE_MAPS.terminal.lights,environment:[],
+  }),
+  arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
+};
+// Any additional JSON blueprint becomes a selectable map automatically. The
+// template chooses a tested 3D theme/core; the new blueprint owns its regions,
+// battle spaces, geometry and spawns. Rebuild/restart to publish editor exports.
+for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
+  if (id in MAPS) continue;
+  const template = blueprint.templateMapId && blueprint.templateMapId in BASE_MAPS
+    ? blueprint.templateMapId as MapId : "compound";
+  MAPS[id] = applyMapFootprint({...BASE_MAPS[template], id:id as MapId});
+}
+
+export const MAP_LIST: MapDef[] = Object.values(MAPS);
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
@@ -1123,7 +1199,7 @@ export interface LoadoutWire {
   /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
-  // Secondary (sidearm) and melee weapon ids — used by the engine to support
+  // Secondary (sidearm, or an additional primary with Well Prepared) and melee ids — used by the engine to support
   // in-match weapon swapping (keys 1/2/3, or on-screen buttons on mobile).
   secondaryWeaponId?: string;
   meleeWeaponId?: string;
@@ -1173,6 +1249,7 @@ export type C2S =
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string }   // server-side raycast
   | { t: "reload" }
+  | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
@@ -1187,9 +1264,26 @@ export type C2S =
   | { t: "leaveRoom" };
 
 // ---- Server -> Client events ----
+// Kill Confirmed dogtags are created on every death and expire after 25s.
+// Pickups are authoritative on the server; offline play uses the same rules.
+export const KC_TAG_LIFETIME_MS = 25000;
+export const KC_PICKUP_RADIUS = 2.25;
+/** Match points for a pickup; an unscored denial still prevents the opponent scoring. */
+export function killConfirmedPickupPoints(action: "confirm" | "deny", denialScoreEnabled: boolean): 0 | 1 {
+  return action === "confirm" || denialScoreEnabled ? 1 : 0;
+}
+export interface KillConfirmedTag {
+  id: string;
+  victimId: string;
+  victimTeam: "red" | "blue";
+  pos: Vec3;
+  expiresAt: number;
+}
+
 export interface KillFeedEntry {
   killer: string; victim: string; weapon: string; headshot: boolean; killerTeam: string; victimTeam: string;
   botDifficulty?: KillDifficulty;
+  attachments?: string[];
 }
 
 export interface SnapshotPlayer {
@@ -1197,6 +1291,7 @@ export interface SnapshotPlayer {
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
+  perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
   // shield aura while this is in the future. 0/undefined = no protection.
   spawnProtectedUntil?: number;
@@ -1207,6 +1302,16 @@ export interface LobbyPlayer {
 }
 
 export type S2C =
+  | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
+  | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
+  | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
+  | { t: "turretRejected"; reason: string }
+  | { t: "turretFired"; id: string; target: Vec3 }
+  | { t: "turretRemoved"; id: string }
+  | { t: "survivalDowned"; playerId: string; weaponId: string }
+  | { t: "survivalRecovered"; playerId: string; pos: Vec3; health: number }
+  | { t: "deathBomb"; id: string; ownerId: string; pos: Vec3; explodesAt: number }
+  | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
@@ -1215,14 +1320,15 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; environmentTime?: number; environmentWalls?: Record<string, number>; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[] }
+  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }> }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
+  | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[]; winnerTeam: string | null }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }
@@ -1230,6 +1336,8 @@ export type S2C =
   | { t: "boltRemoved"; id: string }
   | { t: "boltRecovered"; id: string; ownerId: string }
   | { t: "arcFx"; from: Vec3; to: Vec3 }
+  | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" }
+  | { t: "wonderField"; id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }
   // ---- Room lobby system ----
   | { t: "roomList"; rooms: RoomSummary[] }
   | { t: "roomJoined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[]; roomName: string; state?: "lobby" | "playing"; isHost?: boolean }
@@ -1247,14 +1355,20 @@ export interface MatchConfig {
   scoreLimit: number;     // kills to win (per player in FFA, per team in TDM). 0 = endless (survival)
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
+  tagLifetimeMs: number;   // Kill Confirmed tag lifetime
+  denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
+  survivalTier?: SurvivalTier;
 }
 
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" ? 0 : 360,
+  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
+  tagLifetimeMs: KC_TAG_LIFETIME_MS,
+  denialScoreEnabled: false,
+  survivalTier: mode === "survival" ? "default" : undefined,
 });
 
 // ---- Gun Game weapon progression ----

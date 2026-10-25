@@ -1,0 +1,76 @@
+[
+  {
+    "id": "default",
+    "name": "Operative",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "common",
+    "color": "#4b5563",
+    "accent": "#9ca3af"
+  },
+  {
+    "id": "red",
+    "name": "Crimson Recon",
+    "unlockLevel": 2,
+    "unlockCost": 400,
+    "rarity": "common",
+    "color": "#b91c1c",
+    "accent": "#fca5a5"
+  },
+  {
+    "id": "blue",
+    "name": "Azure Sentinel",
+    "unlockLevel": 3,
+    "unlockCost": 600,
+    "rarity": "common",
+    "color": "#1d4ed8",
+    "accent": "#93c5fd"
+  },
+  {
+    "id": "green",
+    "name": "Jungle Ghost",
+    "unlockLevel": 5,
+    "unlockCost": 1000,
+    "rarity": "rare",
+    "color": "#15803d",
+    "accent": "#86efac"
+  },
+  {
+    "id": "orange",
+    "name": "Ember Unit",
+    "unlockLevel": 7,
+    "unlockCost": 1500,
+    "rarity": "rare",
+    "color": "#c2410c",
+    "accent": "#fdba74"
+  },
+  {
+    "id": "purple",
+    "name": "Violet Spectre",
+    "unlockLevel": 9,
+    "unlockCost": 2000,
+    "rarity": "rare",
+    "color": "#6d28d9",
+    "accent": "#c4b5fd"
+  },
+  {
+    "id": "phantom",
+    "name": "Phantom",
+    "unlockLevel": 13,
+    "unlockCost": 3000,
+    "rarity": "epic",
+    "color": "#0a0a0a",
+    "accent": "#22d3ee",
+    "emissive": "#22d3ee"
+  },
+  {
+    "id": "crimson_lord",
+    "name": "Crimson Lord",
+    "unlockLevel": 16,
+    "unlockCost": 5000,
+    "rarity": "legendary",
+    "color": "#3f0a0a",
+    "accent": "#ef4444",
+    "emissive": "#ef4444"
+  }
+]

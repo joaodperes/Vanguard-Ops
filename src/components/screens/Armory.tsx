@@ -1,14 +1,19 @@
 "use client";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { formatWeaponNumber } from "@/lib/weapon-numbers";
+import { shotSpread } from "@/lib/weapon-accuracy";
+import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
+import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
-  weaponAttachmentSlots, compatibleAttachments,
-  challengesForWeapon, weaponSkinById,
-  type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef,
+  weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats,
+  weaponSkinById,
+  type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
+import { attachmentChallenge, armoryChallengeProgress, weaponMasteryProgress, weaponChallengeProgress, allSkinChallengesForWeapon, type WeaponConditionStats } from "@/lib/armory-challenges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -17,21 +22,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
 // ----------------------------------------------------------------------------
 // Per-weapon progress + challenges view (fetched from /api/weapon-progress).
 // ----------------------------------------------------------------------------
 interface WeaponProgressMap {
-  [weaponId: string]: { weaponId: string; kills: number; headshots: number };
+  [weaponId: string]: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> };
 }
 interface WeaponChallengeView {
   challengeId: string;
   weaponId: string;
   skinId: string;
-  metric: "kills" | "headshots";
+  metric: WeaponChallengeMetric;
   goal: number;
   progress: number;
   completed: boolean;
+  requirements?: { metric: WeaponChallengeMetric; goal: number; progress: number; completed: boolean }[];
   title: string;
   description: string;
 }
@@ -88,6 +95,9 @@ export function Armory() {
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
   // Currently open customize modal: { weapon, slot }. Null when closed.
   const [customizing, setCustomizing] = useState<{ weapon: WeaponDef; slot: WeaponSlot } | null>(null);
+  // Serialize attachment writes. Rapidly clearing several slots must not send
+  // concurrent full-map updates built from an obsolete profile snapshot.
+  const latestAttachmentMaps = useRef<Record<string, Record<AttachmentSlot, string | null>>>({});
   const level = profile?.level ?? 1;
   const credits = profile?.credits ?? 0;
 
@@ -95,8 +105,9 @@ export function Armory() {
   const attachmentsByWeapon = profile?.unlocks.attachmentsByWeapon ?? {};
   const skinsByWeapon = profile?.unlocks.skinsByWeapon ?? {};
   const ownedWeaponIds = new Set<string>([
-    ...WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
+    ...(profile?.prestige?.wonderWeapons ?? []),
   ]);
 
   // Fetch per-weapon progress (kills / headshots) and challenge completion.
@@ -118,7 +129,7 @@ export function Armory() {
   }, [playerKey, profile?.matchesPlayed]);
 
   const purchase = async (
-    kind: "weapon" | "attachment" | "playerSkin",
+    kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon",
     itemId: string,
     cost: number,
     name: string,
@@ -135,7 +146,7 @@ export function Armory() {
       if (!res.ok) {
         toast.error(data.error || "Purchase failed");
       } else {
-        toast.success(`Unlocked ${name}!`, { description: `-${cost} CR` });
+        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "-1 Prestige Token" : `-${cost} CR` });
         await refreshProfile();
         // Re-fetch weapon progress to refresh challenge completion tiles.
         try {
@@ -154,6 +165,29 @@ export function Armory() {
     }
   };
 
+  /** Equip the card weapon immediately; slot matches the section being viewed. */
+  const equipWeapon = async (weapon: WeaponDef, slot: WeaponSlot) => {
+    if (!profile) return;
+    const field = slot === "primary" ? "primaryWeapon" : slot === "secondary" ? "secondaryWeapon" : "meleeWeapon";
+    const body: Record<string, string> = { playerKey, [field]: weapon.id };
+    // Well Prepared cannot equip the same primary in both slots.
+    if (slot === "primary" && profile.loadout.secondary.id === weapon.id) body.secondaryWeapon = "pistol_side";
+    setBusy("equip:" + weapon.id);
+    try {
+      // Weapon switches and attachment edits must share one write order:
+      // otherwise a late attachment POST can land on the newly selected gun.
+      await enqueueAttachmentSave(async () => {
+        const response = await fetch("/api/loadout", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!response.ok) throw new Error((await response.json()).error || "Could not equip weapon");
+        await refreshProfile();
+      });
+      toast.success(`Equipped ${weapon.name}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Equip failed");
+    } finally { setBusy(null); }
+  };
+
   // Equip an attachment (or unequip by passing null) for the given slot. Saves
   // immediately via /api/loadout. The slot determines which field is updated:
   //   primary  -> attachments
@@ -165,29 +199,39 @@ export function Armory() {
     attId: string | null,
   ) => {
     if (!profile?.loadout) return;
-    // Build the full attachment map for the slot, with the changed field.
-    const current = slot === "primary"
-      ? profile.loadout.attachments
-      : slot === "secondary"
-        ? profile.loadout.secondaryAttachments
-        : profile.loadout.meleeAttachments;
-    const next = { ...current, [attSlot]: attId };
+    const equippedWeaponId = slot === "primary" ? profile.loadout.weapon.id
+      : slot === "secondary" ? profile.loadout.secondary.id : profile.loadout.melee.id;
+    // Do not apply a different weapon's customizations to the currently held gun.
+    if (customizing?.weapon.id !== equippedWeaponId) {
+      toast.error("Equip this weapon in your loadout before changing its attachments.");
+      return;
+    }
+    const current = slot === "primary" ? profile.loadout.attachments
+      : slot === "secondary" ? profile.loadout.secondaryAttachments
+      : profile.loadout.meleeAttachments;
+    const key = slot + ":" + equippedWeaponId;
+    const next = { ...(latestAttachmentMaps.current[key] ?? current), [attSlot]: attId };
+    latestAttachmentMaps.current[key] = next;
     const field = slot === "primary" ? "attachments" : slot === "secondary" ? "secondaryAttachments" : "meleeAttachments";
-    try {
+    const save = async () => {
       const res = await fetch("/api/loadout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerKey, [field]: next }),
       });
-      if (res.ok) {
-        await refreshProfile();
-        toast.success(attId ? `Equipped ${ATTACHMENTS.find((a) => a.id === attId)?.name ?? attId}` : "Attachment removed", { duration: 1500 });
-      } else {
+      if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Equip failed");
+        throw new Error(d.error || "Equip failed");
       }
-    } catch {
-      toast.error("Network error");
+      await refreshProfile();
+      toast.success(attId ? `Equipped ${ATTACHMENTS.find((a) => a.id === attId)?.name ?? attId}` : "Attachment removed", { duration: 1500 });
+    };
+    try {
+      await enqueueAttachmentSave(save);
+    } catch (error) {
+      // An unsuccessful update must not become the base for later edits.
+      delete latestAttachmentMaps.current[key];
+      toast.error(error instanceof Error ? error.message : "Network error");
     }
   };
 
@@ -234,20 +278,61 @@ export function Armory() {
             <span className="text-amber-300 font-bold tabular-nums">{credits}</span>
             <span className="text-amber-500/60 text-xs">CR</span>
           </div>
+          <div className="flex items-center gap-2 border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 rounded-lg">
+            <Sparkles className="w-4 h-4 text-violet-300" />
+            <span className="text-violet-200 font-bold">{profile?.prestige?.tokens ?? 0}</span>
+            <span className="text-violet-300/70 text-xs">Tokens</span>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
         {/* Current Loadout — top section (replaces the old Loadout tab) */}
         <div className="mb-6">
-          <LoadoutSelector />
+          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
         </div>
 
         <Tabs defaultValue="weapons">
           <TabsList className="bg-zinc-900/60 border border-white/10">
             <TabsTrigger value="weapons" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Zap className="w-4 h-4 mr-1.5" /> Weapons</TabsTrigger>
+            <TabsTrigger value="wonders" className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-200 text-white/60"><Sparkles className="w-4 h-4 mr-1.5" /> Wonders</TabsTrigger>
             <TabsTrigger value="pskins" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Shirt className="w-4 h-4 mr-1.5" /> Operatives</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="wonders" className="mt-5">
+            <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
+              <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
+              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos and one token. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {WEAPONS.filter(w => !!w.wonder).map(w => {
+                const owned = profile?.prestige?.wonderWeapons.includes(w.id) ?? false;
+                const ready = (profile?.prestige?.tokens ?? 0) > 0;
+                return <div key={w.id} className="rounded-xl border border-violet-500/25 bg-black/40 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-violet-100">{w.name}</h3>
+                    <Badge variant="outline" className="border-violet-400/40 text-violet-300">Wonder Weapon</Badge>
+                  </div>
+                  <p className="text-white/60 text-sm">{w.description}</p>
+                  <div className="flex gap-3 text-xs font-mono text-violet-300">
+                    <span>{w.wonder!.maxCharges} max shots</span>
+                    <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
+                    <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
+                  </div>
+                  {owned
+                    ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
+                      onClick={() => equipWeapon(w, "primary")}
+                      className="w-full border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                      {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
+                    </Button>
+                    : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
+                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Unlock · 1 Prestige Token" : "Requires 1 Prestige Token"}
+                      </Button>}
+                </div>;
+              })}
+            </div>
+          </TabsContent>
 
           {/* WEAPONS — organized into 3 collapsible slot sections.
               Within each section, weapons are sorted by unlock level (ascending)
@@ -256,7 +341,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="primary"
               label="Primary"
-              weapons={WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.wonder && PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
@@ -267,6 +352,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "primary" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.weapon.id ?? ""}
               defaultOpen
             />
             <WeaponSlotSection
@@ -283,6 +370,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "secondary" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.secondary.id ?? ""}
             />
             <WeaponSlotSection
               slot="melee"
@@ -298,6 +387,8 @@ export function Armory() {
               busy={busy}
               onPurchase={purchase}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "melee" })}
+              onEquip={equipWeapon}
+              equippedId={profile?.loadout.melee.id ?? ""}
             />
           </TabsContent>
 
@@ -307,8 +398,9 @@ export function Armory() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
                 const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (s.unlockLevel <= level && s.unlockCost === 0);
-                const lockedByLevel = level < s.unlockLevel;
-                const canBuy = !isOwned && !lockedByLevel && credits >= s.unlockCost;
+                const contract = profile?.operatorContracts.find(c => c.rewardId === s.id);
+                const challengeReady = s.id === "default" || !!contract?.completed;
+                const canBuy = !isOwned && challengeReady && credits >= s.unlockCost;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const equipped = profile?.loadout.playerSkin.id === s.id;
                 return (
@@ -330,6 +422,16 @@ export function Armory() {
                     </div>
                     <div className="text-white font-bold text-sm">{s.name}</div>
                     <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{s.rarity}</div>
+                    {!isOwned && contract && (
+                      <div className="w-full mb-2">
+                        <div className="text-[10px] text-white/60 mb-1">{contract.description}</div>
+                        <div className="h-1.5 rounded bg-black/60 overflow-hidden">
+                          <div className={contract.completed ? "h-full bg-emerald-500" : "h-full bg-amber-500"}
+                            style={{ width: `${Math.min(100, contract.progress / contract.goal * 100)}%` }} />
+                        </div>
+                        <div className="mt-1 text-[10px] text-white/50">{contract.progress}/{contract.goal} · {contract.completed ? "Available to purchase" : "Contract in progress"}</div>
+                      </div>
+                    )}
                     {isOwned
                       ? (equipped
                           ? <Badge variant="outline" className="border-amber-500/30 text-amber-300 text-xs">In Use</Badge>
@@ -340,7 +442,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {busy === s.id ? "…" : lockedByLevel ? `LVL ${s.unlockLevel}` : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
@@ -349,10 +451,6 @@ export function Armory() {
           </TabsContent>
         </Tabs>
       </main>
-
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-white/40">Earn XP &amp; credits by playing matches. Skins unlock through per-weapon challenges — no microtransactions.</div>
-      </footer>
 
       {/* Customize modal — opens when the user clicks "Customize" on a weapon card. */}
       <CustomizeModal
@@ -366,10 +464,17 @@ export function Armory() {
         attachmentsByWeapon={attachmentsByWeapon}
         skinsByWeapon={skinsByWeapon}
         progress={customizing ? (progress[customizing.weapon.id] ?? { weaponId: customizing.weapon.id, kills: 0, headshots: 0 }) : null}
-        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? challengesForWeapon(customizing.weapon.id).map((c) => ({
-          challengeId: c.id, weaponId: c.weaponId, skinId: c.skinId, metric: c.metric, goal: c.goal, progress: 0, completed: false, title: c.title, description: c.description,
-        }))) : []}
+        challengeViews={customizing ? (challenges[customizing.weapon.id] ?? allSkinChallengesForWeapon(customizing.weapon.id).map((c) => {
+          const state = weaponChallengeProgress(c, { kills: 0, headshots: 0 });
+          return {
+            challengeId: c.id, weaponId: c.weaponId, skinId: c.skinId, metric: c.metric,
+            goal: state.goal, progress: 0, completed: false,
+            requirements: c.requirements ? state.steps : undefined,
+            title: c.title, description: c.description,
+          };
+        })) : []}
         busy={busy}
+        prestiged={!!customizing && (profile?.prestige?.masteredWeapons.includes(customizing.weapon.id) ?? false)}
         onPurchase={purchase}
         onEquipAttachment={equipAttachment}
         onEquipSkin={equipSkin}
@@ -393,8 +498,10 @@ interface WeaponSlotSectionProps {
   progress: WeaponProgressMap;
   challenges: WeaponChallengesMap;
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
+  onEquip: (w: WeaponDef, slot: WeaponSlot) => void;
+  equippedId: string;
   defaultOpen?: boolean;
 }
 
@@ -437,22 +544,38 @@ function WeaponSlotSection(props: WeaponSlotSectionProps) {
           <CollapsibleContent>
             <div className="border-t border-white/10 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {groups.map((group) => (
-                <Fragment key={group.cat}>
-                  <div className="col-span-full flex items-center gap-2 mt-3 mb-1 px-1">
-                    <span className="text-white/50 text-xs font-bold uppercase tracking-wider">{CATEGORY_LABELS[group.cat]}</span>
-                    <span className="text-white/20 text-[10px]">({group.weapons.length})</span>
-                    <div className="flex-1 h-px bg-white/5" />
-                  </div>
-                  {group.weapons.map((w) => (
-                    <WeaponCard key={w.id} weapon={w} {...props} />
-                  ))}
-                </Fragment>
+                <WeaponCategoryGroup key={group.cat} group={group} parent={props} />
               ))}
             </div>
           </CollapsibleContent>
         </div>
       </Collapsible>
     </div>
+  );
+}
+
+/** Expand/collapse each weapon type independently within the Primary slot. */
+function WeaponCategoryGroup({ group, parent }: {
+  group: { cat: WeaponCategory; weapons: WeaponDef[] };
+  parent: WeaponSlotSectionProps;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="col-span-full">
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center gap-2 mt-1 rounded-lg px-3 py-3 text-left bg-white/[0.035] hover:bg-white/[0.075] border border-white/10 transition-colors">
+          {open ? <ChevronDown className="w-4 h-4 text-amber-300" /> : <ChevronRight className="w-4 h-4 text-white/50" />}
+          <span className="text-white/75 text-xs font-bold uppercase tracking-wider">{CATEGORY_LABELS[group.cat]}</span>
+          <span className="text-white/35 text-[11px]">({group.weapons.length})</span>
+          <span className="text-white/40 text-[10px] ml-auto">{group.weapons.filter(w => parent.ownedWeaponIds.has(w.id)).length} owned</span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-3">
+          {group.weapons.map(w => <WeaponCard key={w.id} weapon={w} {...parent} />)}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -465,7 +588,7 @@ interface WeaponCardProps extends WeaponSlotSectionProps {
 }
 
 function WeaponCard(props: WeaponCardProps) {
-  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot } = props;
+  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot, onEquip, equippedId } = props;
   const isOwned = ownedWeaponIds.has(w.id);
   const lockedByLevel = level < w.unlockLevel;
   const canBuy = !isOwned && !lockedByLevel && credits >= w.unlockCost;
@@ -506,8 +629,8 @@ function WeaponCard(props: WeaponCardProps) {
       </div>
       {/* handling stats */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
-        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={fmtSpread(w.stats.spread)} />
-        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={fmtSpread(w.stats.adsSpread)} />
+        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={fmtSpread(shotSpread(w.stats, w.category, false, 0, 0, false))} />
+        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={fmtSpread(shotSpread(w.stats, w.category, true, 0, 0, true))} />
         <HandlingStat icon={<TrendingUp className="w-3 h-3" />} label="RECOIL" value={w.stats.recoil.toFixed(1)} />
         <HandlingStat icon={<ZoomIn className="w-3 h-3" />} label="ADS-t" value={`${Math.round(w.stats.adsTime * 1000)}ms`} />
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
@@ -516,6 +639,13 @@ function WeaponCard(props: WeaponCardProps) {
       {!isOwned && (
         <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
           {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
+        </Button>
+      )}
+      {isOwned && (
+        <Button variant="outline" disabled={equippedId === w.id || busy === "equip:" + w.id}
+          onClick={() => onEquip(w, slot)}
+          className={`w-full mb-2 font-semibold ${equippedId === w.id ? "border-emerald-500/40 text-emerald-300" : "border-amber-400/40 text-amber-300 hover:bg-amber-500/10"}`}>
+          {equippedId === w.id ? <><Check className="w-4 h-4 mr-1.5" />Equipped</> : "Equip weapon"}
         </Button>
       )}
       {isOwned && (
@@ -549,17 +679,20 @@ interface CustomizeModalProps {
   credits: number;
   attachmentsByWeapon: Record<string, string[]>;
   skinsByWeapon: Record<string, string[]>;
-  progress: { weaponId: string; kills: number; headshots: number } | null;
+  progress: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> } | null;
   challengeViews: WeaponChallengeView[];
+  prestiged: boolean;
   busy: string | null;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquipAttachment: (slot: WeaponSlot, attSlot: AttachmentSlot, attId: string | null) => Promise<void>;
   onEquipSkin: (skinId: string) => Promise<void>;
 }
 
 function CustomizeModal(props: CustomizeModalProps) {
-  const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
+  const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
+  const [previewAttachment, setPreviewAttachment] = useState<{ slot: AttachmentSlot; id: string | null } | null>(null);
+  const [activeAttachmentSlot, setActiveAttachmentSlot] = useState<AttachmentSlot | null>(null);
   // Track which weapon the modal is currently showing. When the parent passes
   // a different weapon (or re-opens the modal), reset the active tab to
   // "attachments". Using the "adjust state during render" pattern (see
@@ -571,6 +704,8 @@ function CustomizeModal(props: CustomizeModalProps) {
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
     setTab("attachments");
+    setPreviewAttachment(null);
+    setActiveAttachmentSlot(null);
   }
 
   if (!w || !slot || !profile) {
@@ -581,12 +716,18 @@ function CustomizeModal(props: CustomizeModalProps) {
   // The weapon's currently-equipped attachments for THIS slot (primary uses
   // loadout.attachments; secondary uses loadout.secondaryAttachments; melee
   // uses loadout.meleeAttachments which is always empty).
-  const equippedAttsForSlot: Record<AttachmentSlot, string | null> = slot === "primary"
-    ? profile.attachments
-    : slot === "secondary"
-      ? profile.secondaryAttachments
-      : profile.meleeAttachments;
+  const currentlyEquippedWeapon = slot === "primary" ? profile.weapon.id
+    : slot === "secondary" ? profile.secondary.id : profile.melee.id;
+  const canEditAttachments = w.id === currentlyEquippedWeapon;
+  // Never show the attachment configuration of a different weapon just because
+  // it occupies the same primary/secondary slot in the saved loadout.
+  const equippedAttsForSlot: Record<AttachmentSlot, string | null> = !canEditAttachments
+    ? emptyAttachmentMap()
+    : slot === "primary" ? profile.attachments
+      : slot === "secondary" ? profile.secondaryAttachments : profile.meleeAttachments;
   const unlockedForWeapon = attachmentsByWeapon[w.id] ?? [];
+  const statPreview: AttachmentMap | undefined = previewAttachment ? { ...equippedAttsForSlot, [previewAttachment.slot]: previewAttachment.id } : undefined;
+  const currentEffectiveStats = computeEffectiveStats(w, equippedAttsForSlot);
   // Per-weapon equipped skin: read the skin for the slot whose modal is open.
   // Skins are per-weapon (like attachments) — each slot has its own skin.
   const equippedSkinId = slot === "secondary"
@@ -603,7 +744,7 @@ function CustomizeModal(props: CustomizeModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-white/10 max-w-3xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="bg-zinc-950 border-white/10 !max-w-[1120px] sm:!max-w-[1120px] w-[min(96vw,1120px)] h-[min(91vh,900px)] max-h-[91vh] flex flex-col gap-3 overflow-hidden">
         <DialogHeader>
           <div className="flex items-center gap-3 pr-8">
             <div className="w-1 h-12 rounded-full" style={{ background: rarityColor }} />
@@ -616,14 +757,14 @@ function CustomizeModal(props: CustomizeModalProps) {
           </div>
           {/* Stat bars */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-            <ModalStatBar label="DMG" value={w.stats.damage} max={120} color="bg-rose-500" />
-            <ModalStatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
-            <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
-            <ModalStatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
+            <ModalStatBar label="DMG" value={currentEffectiveStats.damage} max={120} color="bg-rose-500" />
+            <ModalStatBar label="RoF" value={currentEffectiveStats.fireRate} max={16} color="bg-amber-500" />
+            <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
+            <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
           </div>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={(v) => { setTab(v); setPreviewAttachment(null); }} className="flex flex-col flex-1 min-h-0">
           <TabsList className="bg-zinc-900/60 border border-white/10 w-full">
             <TabsTrigger value="attachments" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Wrench className="w-3.5 h-3.5 mr-1.5" /> Attachments
@@ -636,29 +777,74 @@ function CustomizeModal(props: CustomizeModalProps) {
             </TabsTrigger>
           </TabsList>
 
+          <div className="grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,180px)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
+          <div className="min-h-0 overflow-y-auto pr-1 lg:pr-2">
           {/* ATTACHMENTS TAB */}
           <TabsContent value="attachments" className="mt-4">
-            {supportedSlots.length === 0 ? (
+            {!canEditAttachments ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-4 text-sm text-amber-100/80">
+                Equip {w.name} in your loadout before changing its attachments. Attachments shown on your currently equipped weapon are not shared with this one.
+              </div>
+            ) : supportedSlots.length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">
                 This weapon does not accept attachments.
               </div>
             ) : (
-              <div className="space-y-4">
-                {supportedSlots.map((aSlot) => (
-                  <ModalAttachmentSlot
-                    key={aSlot}
-                    attSlot={aSlot}
-                    weaponId={w.id}
-                    equippedId={equippedAttsForSlot[aSlot]}
-                    unlockedForWeapon={unlockedForWeapon}
-                    level={level}
-                    credits={credits}
-                    busy={busy}
-                    slot={slot}
-                    onPurchase={onPurchase}
-                    onEquip={(attId) => onEquipAttachment(slot, aSlot, attId)}
-                  />
-                ))}
+              <div className="space-y-3">
+                {activeAttachmentSlot === null ? (
+                  <>
+                    <div className="mb-3 text-xs text-white/50 leading-relaxed">Select a slot to browse its compatible attachments. The equipped item is shown on each row.</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {supportedSlots.filter(aSlot => compatibleAttachments(w.id, aSlot).length > 0).map((aSlot) => {
+                        const equippedId = equippedAttsForSlot[aSlot];
+                        const equipped = ATTACHMENTS.find(a => a.id === equippedId);
+                        const options = compatibleAttachments(w.id, aSlot).length;
+                        return (
+                          <button key={aSlot} type="button"
+                            onClick={() => { setActiveAttachmentSlot(aSlot); setPreviewAttachment(null); }}
+                            className="text-left group rounded-xl border border-white/15 bg-white/[0.035] hover:bg-amber-500/10 hover:border-amber-500/50 focus-visible:outline-2 focus-visible:outline-amber-400 transition-colors p-4 min-h-[110px]"
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="font-bold uppercase tracking-wider text-xs text-amber-300">{aSlot}</span>
+                              <span className="text-[10px] text-white/35 ml-auto">{options} options</span>
+                              <ChevronRight className="w-4 h-4 text-white/45 group-hover:text-amber-300" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {equipped ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <X className="w-4 h-4 text-white/35 shrink-0" />}
+                              <span className={`text-sm font-semibold truncate ${equipped ? "text-white" : "text-white/45"}`}>{equipped?.name ?? "None equipped"}</span>
+                            </div>
+                            <div className="text-[11px] text-white/40 mt-2">Click to change attachment</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => { setActiveAttachmentSlot(null); setPreviewAttachment(null); }}
+                      className="flex items-center gap-2 rounded-md text-amber-300 hover:text-amber-100 text-xs font-semibold px-2 py-2 hover:bg-white/5">
+                      <ArrowLeft className="w-4 h-4" /> All attachment slots
+                    </button>
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:p-4">
+                      <ModalAttachmentSlot
+                        key={activeAttachmentSlot}
+                        attSlot={activeAttachmentSlot}
+                        weaponId={w.id}
+                        equippedId={equippedAttsForSlot[activeAttachmentSlot]}
+                        unlockedForWeapon={unlockedForWeapon}
+                        progress={progress}
+                        level={level}
+                        credits={credits}
+                        busy={busy}
+                        slot={slot}
+                        onPurchase={onPurchase}
+                        onPreview={(id) => setPreviewAttachment({ slot: activeAttachmentSlot, id })}
+                        onClearPreview={() => setPreviewAttachment(null)}
+                        onEquip={(attId) => onEquipAttachment(slot, activeAttachmentSlot, attId)}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
@@ -666,7 +852,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
             <div className="text-white/40 text-xs mb-3">
-              Each weapon has its own skin challenges. Finish the listed requirement before equipping that skin on this weapon.
+              Complete a weapon-specific challenge, then purchase the skin for its existing credit price before equipping.
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
@@ -683,6 +869,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                 const isOwned = isUnlocked || isBaseline;
                 const isUnlockable = !isOwned && !!challenge;
                 const isHardLocked = !isOwned && !challenge;
+                const canBuySkin = !isOwned && !!challenge?.completed && credits >= s.unlockCost;
+                const skinBusyKey = `${s.id}:${w.id}`;
                 return (
                   <div
                     key={s.id}
@@ -701,7 +889,10 @@ function CustomizeModal(props: CustomizeModalProps) {
                     <div
                       className="w-9 h-9 rounded shrink-0 relative overflow-hidden"
                       style={{
-                        background: `linear-gradient(135deg, ${s.color}, ${s.emissive ?? "#000"})`,
+                        background: s.prestige === "cosmic" ? "linear-gradient(110deg,#05071c,#42318e,#060b24,#8eb9ff,#05071c)"
+                          : s.prestige === "toxic" ? "linear-gradient(110deg,#021b0a,#57a218,#0c2b16,#b4e12f,#021b0a)"
+                          : `linear-gradient(135deg, ${s.color}, ${s.emissive ?? "#000"})`,
+                        ...(s.prestige ? { backgroundSize: "300% 300%", animation: "prestige-camo-drift 6s linear infinite" } : {}),
                         boxShadow: s.emissive && isOwned ? `0 0 8px ${s.emissive}` : "none",
                         opacity: isOwned ? 1 : 0.5,
                       }}
@@ -720,7 +911,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
                         <span className="text-white text-xs font-semibold break-words min-w-0">{s.name}</span>
                         <span className="text-[9px] uppercase font-semibold" style={{ color: rarityColor }}>{s.rarity}</span>
-                        {s.tier === "standard" && <span className="text-[9px] uppercase text-emerald-400/70 font-semibold">STANDARD</span>}
+                        
                         {/* Owned badge — small green pill to make ownership status
                             unmistakable. Only shown when owned, not baseline (baseline
                             has its own "Standard issue" label below), and not equipped
@@ -732,27 +923,36 @@ function CustomizeModal(props: CustomizeModalProps) {
                         )}
                       </div>
                       {isBaseline ? (
-                        <div className="text-white/40 text-[10px]">Standard issue — always available.</div>
+                        <div className="text-white/40 text-[11px]">Standard issue</div>
                       ) : isUnlockable ? (
                         <>
                           {/* "UNLOCK" label above the progress bar — clear callout
                               that this skin is locked-but-earnable via the challenge. */}
-                          <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" />Unlock
-                          </div>
-                          <div className="text-white/60 text-[10px] break-words">{challenge!.title}</div>
-                          <div className="mt-1 flex items-center gap-2">
+                          {!challenge?.completed && <div className="text-amber-400/80 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />Locked
+                          </div>}
+                          {!challenge!.completed && <div className="mt-1 space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2">
+                            <div className="text-amber-200 text-xs font-semibold">{challenge!.title}</div>
+                            <div className="text-amber-100/80 text-[12px] leading-relaxed">{challenge!.description}</div>
+                            {challenge!.requirements?.map(step => (
+                              <div key={step.metric} className="flex justify-between gap-2 text-[11px] font-mono text-white/65">
+                                <span>{step.metric.replaceAll("_", " ")}</span>
+                                <span className={step.completed ? "text-emerald-300" : "text-amber-300"}>{step.progress}/{step.goal}</span>
+                              </div>
+                            ))}
+                          </div>}
+                          {!challenge!.completed && <div className="mt-1 flex items-center gap-2">
                             <div className="flex-1 h-1 bg-black/60 rounded-full overflow-hidden">
                               <div className={`h-full ${challenge!.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                             </div>
                             <span className="text-[9px] font-mono tabular-nums text-white/60">
-                              {challenge!.progress}/{challenge!.goal}
+                              {challenge!.progress}/{challenge!.goal} {challenge!.requirements ? "objectives" : challenge!.metric.replaceAll("_", " ")}
                             </span>
-                          </div>
+                          </div>}
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />No unlock path
+                          <Lock className="w-2.5 h-2.5" />{s.prestige ? "Prestige this weapon to earn" : "No unlock path"}
                         </div>
                       ) : null}
                     </div>
@@ -761,12 +961,15 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <Check className="w-2.5 h-2.5 mr-0.5" />Equipped
                       </Badge>
                     ) : isOwned && canEquipSkin ? (
-                      <Button
-                        size="sm"
-                        onClick={() => onEquipSkin(s.id)}
-                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0"
-                      >
+                      <Button size="sm" onClick={() => onEquipSkin(s.id)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0">
                         Equip
+                      </Button>
+                    ) : !isOwned && !!challenge ? (
+                      <Button size="sm" disabled={!canBuySkin || busy === skinBusyKey}
+                        onClick={() => onPurchase("weaponSkin", s.id, s.unlockCost, s.name, w.id)}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0 disabled:opacity-50">
+                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{s.unlockCost}</> : "Locked"}
                       </Button>
                     ) : null}
                   </div>
@@ -777,17 +980,34 @@ function CustomizeModal(props: CustomizeModalProps) {
 
           {/* CHALLENGES TAB — per-weapon skin challenges with progress */}
           <TabsContent value="challenges" className="mt-4">
-            {progress && (
-              <div className="mb-3 text-[11px] text-white/50 flex items-center gap-4">
-                <span>Weapon kills: <span className="text-amber-300 font-mono tabular-nums">{progress.kills}</span></span>
-                <span>Headshots: <span className="text-amber-300 font-mono tabular-nums">{progress.headshots}</span></span>
+            <div className={`mb-3 rounded-lg border p-3 text-xs ${prestiged ? "border-violet-400/40 bg-violet-500/10" : "border-white/10 bg-black/30"}`}>
+              <div className="flex justify-between gap-2 items-center mb-2">
+                <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
+                  {prestiged ? "✦ PRESTIGED — Eventide + Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
+                </span>
+                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">+1 token on completion</span>}
               </div>
-            )}
-            {challengeViews.length === 0 ? (
-              <div className="text-white/40 text-sm italic py-6 text-center">No challenges defined for this weapon.</div>
+              <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
+                <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
+              </div>
+              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes can be equipped from Skins." : "Complete every cosmetic challenge to earn a permanent weapon Prestige and one Wonder Weapon token."}</p>
+            </div>
+            <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).title}</span>
+                <span className="text-white/50">Rank {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).rank}/5</span>
+              </div>
+              <div className="mt-1 text-white/50">
+                {progress?.kills ?? 0} kills · {progress?.headshots ?? 0} headshots
+                {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next &&
+                  ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.kills} kills / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.headshots} headshots`}
+              </div>
+            </div>
+            {challengeViews.filter(c => !c.completed).length === 0 ? (
+              <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>
             ) : (
               <div className="space-y-2">
-                {challengeViews.map((c) => {
+                {challengeViews.filter(c => !c.completed).map((c) => {
                   const skin = weaponSkinById(c.skinId);
                   const pct = Math.min(100, (c.progress / c.goal) * 100);
                   const rarityColor = RARITY_COLORS[skin.rarity];
@@ -798,18 +1018,27 @@ function CustomizeModal(props: CustomizeModalProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-white text-sm font-semibold">{c.title}</span>
-                            {c.completed && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[9px]"><Check className="w-2.5 h-2.5 mr-0.5" />Done</Badge>}
+                            
                           </div>
-                          <div className="text-white/50 text-[11px]">{c.description}</div>
-                          <div className="text-white/40 text-[10px] mt-0.5">Reward: <span style={{ color: rarityColor }}>{skin.name}</span> skin</div>
+                          <div className="text-amber-100/80 text-[13px] leading-relaxed mt-1">{c.description}</div>
+                           {c.requirements && (
+                             <div className="mt-1.5 space-y-0.5 text-[10px] text-white/50">
+                               {c.requirements.map(step => (
+                                 <div key={step.metric} className={step.completed ? "text-emerald-300" : ""}>
+                                   {step.completed ? "✓" : "○"} {step.metric.replaceAll("_", " ")}: {step.progress}/{step.goal}
+                                 </div>
+                               ))}
+                             </div>
+                           )}
+                          <div className="text-white/45 text-[11px] mt-2">Reward: <span className="font-semibold" style={{ color: rarityColor }}>{skin.name} Skin</span></div>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden">
                           <div className={`h-full ${c.completed ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[10px] font-mono tabular-nums text-white/60">
-                          {c.progress}/{c.goal} {c.metric === "kills" ? "kills" : "HS"}
+                        <span className="text-xs font-mono font-semibold tabular-nums text-amber-200">
+                          {c.progress}/{c.goal} {c.requirements ? "objectives" : c.metric.replaceAll("_", " ")}
                         </span>
                       </div>
                     </div>
@@ -818,6 +1047,12 @@ function CustomizeModal(props: CustomizeModalProps) {
               </div>
             )}
           </TabsContent>
+          </div>
+          <aside className="min-h-0 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-4">
+            <WeaponStatsPreview weapon={w} equipped={equippedAttsForSlot} preview={statPreview} />
+            <p className="mt-5 border-t border-white/10 pt-3 text-[11px] text-white/45 leading-relaxed">Hover, focus or tap Preview on an attachment to compare the weapon's final stats against the currently equipped configuration.</p>
+          </aside>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>
@@ -834,15 +1069,18 @@ interface ModalAttachmentSlotProps {
   weaponId: string;
   equippedId: string | null;
   unlockedForWeapon: string[];
+  progress: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> } | null;
   level: number;
   credits: number;
   busy: string | null;
   slot: WeaponSlot;
-  onPurchase: (kind: "weapon" | "attachment" | "playerSkin", itemId: string, cost: number, name: string, weaponId?: string) => void;
+  onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquip: (attId: string | null) => void;
+  onPreview: (id: string | null) => void;
+  onClearPreview: () => void;
 }
 
-function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, level, credits, busy, onPurchase, onEquip }: ModalAttachmentSlotProps) {
+function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip, onPreview, onClearPreview }: ModalAttachmentSlotProps) {
   // compatibleAttachments already filters by weaponCategories — so this list
   // contains ONLY attachments that fit this weapon. If empty, the slot is
   // hidden entirely by the parent (AttachmentSlotSection).
@@ -860,7 +1098,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
       <div className="space-y-1.5">
         {/* "None" option — unequip the slot */}
         <button
-          onClick={() => onEquip(null)}
+          onClick={() => onEquip(null)} onMouseEnter={() => onPreview(null)} onMouseLeave={onClearPreview} onFocus={() => onPreview(null)}
           className={`w-full text-left rounded-lg border px-2.5 py-2 flex items-center gap-2 transition-colors ${
             equippedId === null ? "border-amber-500 bg-amber-500/15 text-amber-300" : "border-white/10 bg-black/30 text-white/60 hover:bg-white/5"
           }`}
@@ -873,14 +1111,19 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
         </button>
         {attachments.map((a) => {
           const isOwned = unlockedForWeapon.includes(a.id);
-          const lockedByLevel = level < a.unlockLevel;
-          const canBuy = !isOwned && !lockedByLevel && credits >= a.unlockCost;
+          const ch = attachmentChallenge(weaponId, a.id);
+          const chProgress = ch ? armoryChallengeProgress(ch, {
+            kills: progress?.kills ?? 0, headshots: progress?.headshots ?? 0,
+            conditionStats: progress?.conditionStats,
+            matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
+          }) : null;
+          const canBuy = !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
           const sightInfo = a.sightType ? SIGHT_DEFS[a.sightType] : null;
           const rarityColor = a.unlockCost >= 1600 ? RARITY_COLORS.epic : a.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
           const busyKey = `${a.id}:${weaponId}`;
           const isEquipped = equippedId === a.id;
           return (
-            <div key={a.id} className={`relative rounded-lg border px-2.5 py-2 flex items-start gap-2.5 transition-colors ${isEquipped ? "border-amber-500/60 bg-amber-500/10" : isOwned ? "border-white/10 bg-black/30 hover:border-white/20" : "border-white/10 bg-black/30 opacity-80"}`}>
+            <div key={a.id} onMouseEnter={() => onPreview(a.id)} onMouseLeave={onClearPreview} onFocus={() => onPreview(a.id)} className={`relative rounded-lg border px-2.5 py-2 flex items-start gap-2.5 transition-colors ${isEquipped ? "border-amber-500/60 bg-amber-500/10" : isOwned ? "border-white/10 bg-black/30 hover:border-white/20" : "border-white/10 bg-black/30 opacity-80"}`}>
               <div className="absolute top-0 left-0 bottom-0 w-0.5 rounded-l" style={{ background: rarityColor, opacity: 0.7 }} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
@@ -888,7 +1131,15 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                   <span className="text-white text-xs font-semibold truncate">{a.name}</span>
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
-                <div className="text-white/40 text-[10px] mb-1">{a.description}</div>
+                <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
+                {!isOwned && chProgress && !chProgress.completed && (
+                  <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300 mb-1">Locked · Challenge</div>
+                    {chProgress.description}
+                    <span className="block mt-1 font-mono text-amber-200 font-bold">{chProgress.progress}/{chProgress.goal} {chProgress.metric.replaceAll("_", " ")}</span>
+                    
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(a.effects).map(([k, v]) => (
                     <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${isBonusGood(k, v!) ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-rose-500/15 text-rose-300 border border-rose-500/20"}`}>
@@ -916,7 +1167,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                     onClick={() => onPurchase("attachment", a.id, a.unlockCost, a.name, weaponId)}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 disabled:opacity-50"
                   >
-                    {busy === busyKey ? "…" : lockedByLevel ? <><Lock className="w-3 h-3 mr-0.5" />LVL {a.unlockLevel}</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
+                    {busy === busyKey ? "…" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
                   </Button>
                 )}
               </div>
@@ -936,7 +1187,7 @@ function StatBar({ label, value, max, color }: { label: string; value: number; m
       <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-white/60 text-[10px] font-mono tabular-nums w-6 text-right">{value}</span>
+      <span className="text-white/60 text-[10px] font-mono tabular-nums w-9 text-right">{formatWeaponNumber(value)}</span>
     </div>
   );
 }
@@ -947,7 +1198,7 @@ function ModalStatBar({ label, value, max, color }: { label: string; value: numb
     <div className="rounded-md border border-white/10 bg-black/40 px-2 py-1.5">
       <div className="flex items-center justify-between mb-1">
         <span className="text-white/40 text-[10px] font-mono uppercase">{label}</span>
-        <span className="text-white/80 text-xs font-mono tabular-nums">{value}</span>
+        <span className="text-white/80 text-xs font-mono tabular-nums">{formatWeaponNumber(value)}</span>
       </div>
       <div className="h-1 bg-black/60 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />

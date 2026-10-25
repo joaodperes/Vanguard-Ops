@@ -42,12 +42,15 @@ model Player {
   user            User?
   weaponUnlocks   WeaponUnlock[]
   skinUnlocks     SkinUnlock[]
+  playerSkinUnlocks PlayerSkinUnlock[]
   attachmentUnlocks AttachmentUnlock[]
   loadout         Loadout?
   matchRecords    MatchRecord[]
   achievements    PlayerAchievement[]
   dailyChallenges DailyChallenge[]
   weaponProgress  WeaponProgress[]
+  weaponPrestiges WeaponPrestige[]
+  wonderUnlocks WonderUnlock[]
 
   @@index([playerKey])
 }
@@ -92,6 +95,19 @@ model SkinUnlock {
   @@index([playerId, weaponId])
 }
 
+/// Operator skin purchases are permanent and independent of selection.
+/// Existing selectedSkin is grandfathered into ownership for old profiles.
+model PlayerSkinUnlock {
+  id         String   @id @default(cuid())
+  playerId   String
+  skinId     String
+  unlockedAt DateTime @default(now())
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, skinId])
+  @@index([playerId])
+}
+
 /// Attachments a player has unlocked PER-WEAPON. The unique constraint is
 /// (playerId, weaponId, attachmentId) — the same attachment must be unlocked
 /// separately for each weapon it can be equipped on.
@@ -128,6 +144,11 @@ model Loadout {
   /// JSON string of attachment ids for the SECONDARY (sidearm) slot. Sidearms
   /// support attachments just like primaries. Default empty ("{}").
   secondaryAttachments String @default("{}")
+  /// Remember the last equipped skin and attachments for every weapon ID,
+  /// independent of which loadout slot currently contains it.
+  weaponSetups String @default("{}")
+  /// JSON array of up to five named, player-owned loadout presets.
+  savedLoadouts String @default("[]")
   /// JSON string of attachment ids for the MELEE slot. Melee weapons don't
   /// take attachments — this column exists for forward-compat (future melee
   /// weapons could have skins/attachments). Default empty ("{}").
@@ -141,7 +162,7 @@ model Loadout {
 model MatchRecord {
   id           String   @id @default(cuid())
   playerId     String
-  mode         String   // "ffa" | "tdm" | "survival"
+  mode         String   // "ffa" | "tdm" | "killconfirmed" | "survival" | "gungame"
   online       Boolean  @default(false)
   kills        Int
   deaths       Int
@@ -169,9 +190,34 @@ model WeaponProgress {
   weaponId  String
   kills     Int      @default(0)
   headshots Int      @default(0)
+  // JSON map of contextual elimination counters; old profiles default to zero.
+  conditionStats String @default("{}")
   updatedAt DateTime @updatedAt
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// One permanent Prestige award per mastered ordinary weapon.
+model WeaponPrestige {
+  id String @id @default(cuid())
+  playerId String
+  weaponId String
+  awardedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// A token spent on a unique Wonder Weapon; token balance is awarded Prestiges
+/// minus Wonder unlocks, making replays and profile exports idempotent.
+model WonderUnlock {
+  id String @id @default(cuid())
+  playerId String
+  weaponId String
+  unlockedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   @@unique([playerId, weaponId])
   @@index([playerId])
 }

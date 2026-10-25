@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
 import type { FPSEngine } from "@/lib/fps-engine";
+import { shouldTouchAutoSprint } from "@/lib/movement-rules";
 import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife } from "lucide-react";
 
 interface Props {
@@ -23,6 +24,8 @@ export function TouchControls({ engine }: Props) {
   // ---- Movement joystick (left half, floating) ----
   const joyBaseRef = useRef<{ x: number; y: number } | null>(null);
   const joyTouchId = useRef<number | null>(null);
+  const sprintLatch = useRef(false);
+  const [sprintVisual, setSprintVisual] = useState(false);
   const [knob, setKnob] = useState<{ x: number; y: number } | null>(null); // knob offset from base
   const [joyBase, setJoyBase] = useState<{ x: number; y: number } | null>(null);
 
@@ -31,14 +34,13 @@ export function TouchControls({ engine }: Props) {
   const lookLast = useRef<{ x: number; y: number } | null>(null);
 
   const JOY_RADIUS = 56;
-  // Auto-sprint kicks in at this joystick magnitude (must match the engine's
-  // 0.85 threshold — kept in sync here for the visual glow only).
-  const SPRINT_MAG = 0.85;
 
   const onLeftTouchStart = (e: React.TouchEvent) => {
     if (joyTouchId.current !== null) return;
     const t = e.changedTouches[0];
     joyTouchId.current = t.identifier;
+    sprintLatch.current = false;
+    setSprintVisual(false);
     joyBaseRef.current = { x: t.clientX, y: t.clientY };
     setJoyBase({ x: t.clientX, y: t.clientY });
     setKnob({ x: 0, y: 0 });
@@ -56,6 +58,10 @@ export function TouchControls({ engine }: Props) {
       const dist = Math.hypot(dx, dy);
       if (dist > JOY_RADIUS) { dx = (dx / dist) * JOY_RADIUS; dy = (dy / dist) * JOY_RADIUS; }
       setKnob({ x: dx, y: dy });
+      sprintLatch.current = shouldTouchAutoSprint(
+        Math.hypot(dx, dy) / JOY_RADIUS, -dy / JOY_RADIUS, sprintLatch.current,
+      );
+      setSprintVisual(sprintLatch.current);
       engine?.setTouchMove(dx / JOY_RADIUS, dy / JOY_RADIUS);
     }
   };
@@ -64,6 +70,8 @@ export function TouchControls({ engine }: Props) {
       if (e.changedTouches[i].identifier === joyTouchId.current) {
         joyTouchId.current = null;
         joyBaseRef.current = null;
+        sprintLatch.current = false;
+        setSprintVisual(false);
         setJoyBase(null);
         setKnob(null);
         engine?.setTouchMove(0, 0);
@@ -107,10 +115,8 @@ export function TouchControls({ engine }: Props) {
     return () => document.removeEventListener("gesturestart", prevent);
   }, []);
 
-  // Auto-sprint visual feedback: when the joystick magnitude exceeds the
-  // sprint threshold AND is pushing forward (dy < 0), the knob glows cyan.
-  const mag = knob ? Math.hypot(knob.x, knob.y) / JOY_RADIUS : 0;
-  const sprinting = knob ? mag > SPRINT_MAG && knob.y < 0 : false;
+  // Show precisely the same hysteresis decision used by the engine.
+  const sprinting = sprintVisual;
 
   return (
     <div className="absolute inset-0 z-40 touch-none select-none" style={{ touchAction: "none" }}>

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
 import { weaponById } from "@/lib/game-data";
+import { perkById } from "@/lib/perks";
+import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 export function Results() {
   const { matchResult, profile, setScreen, playConfig } = useGame();
@@ -32,6 +34,7 @@ export function Results() {
   const w = weaponById(r.weaponId ?? "rifle_ar");
   const kd = r.deaths === 0 ? r.kills.toFixed(2) : (r.kills / r.deaths).toFixed(2);
   const hsPct = r.kills > 0 ? Math.round((r.headshots / r.kills) * 100) : 0;
+  const isSurvival = playConfig.mode === "survival";
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-950 to-black">
@@ -57,30 +60,36 @@ export function Results() {
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {playConfig.mode === "tdm" ? "Team Deathmatch" : "Free-For-All"} · Match Over
+            {isSurvival
+              ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
+              : `${playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
           </h1>
-          <p className="text-white/50 mt-2">
-            {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
-            {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
-          </p>
-        </div>
-
-        {/* personal stats */}
-        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
-          <h3 className="text-white/50 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Target className="w-3 h-3" /> Your Performance</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <StatBox icon={<Target className="w-4 h-4" />} value={r.kills} label="Kills" color="text-emerald-400" />
-            <StatBox icon={<Skull className="w-4 h-4" />} value={r.deaths} label="Deaths" color="text-rose-400" />
-            <StatBox icon={<TrendingUp className="w-4 h-4" />} value={kd} label="K/D" color="text-amber-400" />
-            <StatBox icon={<Crosshair className="w-4 h-4" />} value={`${r.headshots} (${hsPct}%)`} label="Headshots" color="text-purple-400" />
-          </div>
-          {(r.multikills ?? 0) > 0 && (
-            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2 text-xs text-white/60">
-              <Flame className="w-3.5 h-3.5 text-rose-400" />
-              Achieved <span className="text-rose-300 font-bold">{r.multikills}</span> multi-kill{(r.multikills ?? 0) > 1 ? "s" : ""} this match
-            </div>
+          {!isSurvival && (
+            <p className="text-white/50 mt-2">
+              {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
+              {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
+            </p>
           )}
         </div>
+
+        {isSurvival && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
+            <div className="text-amber-300 font-bold text-lg">
+              {r.won ? "STANDARD SURVIVAL CONQUERED" : `WAVES CLEARED · ${r.survivalWaves ?? 0}`}
+            </div>
+            {r.won && <div className="text-amber-200/80 text-sm mt-1">WAVES CLEARED · {r.survivalWaves ?? 0}</div>}
+            <div className="text-white/60 text-xs mt-2 inline-flex items-center justify-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Duration · {durationMin}:{durationSec.toString().padStart(2, "0")}
+            </div>
+            {(r.won || (r.survivalTier === "hard" && (r.survivalWaves ?? 0) >= 20)
+              || (r.survivalTier === "elite" && (r.survivalWaves ?? 0) >= 20)) && (
+              <div className="text-white/50 text-xs mt-1">
+                {r.won ? "30-wave victory bonus awarded · Hard mode unlocked"
+                  : r.survivalTier === "hard" ? "Elite unlocked" : "Nightmare unlocked"}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* rewards */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
@@ -106,7 +115,7 @@ export function Results() {
 
               {(rewards.bonusXp ?? 0) > 0 && (
                 <div className="text-xs text-white/40 flex items-center gap-1.5">
-                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from achievements &amp; challenges
+                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from objectives, streaks &amp; challenges
                 </div>
               )}
 
@@ -136,9 +145,39 @@ export function Results() {
                 </div>
               )}
 
+              {(rewards.challengeProgress?.length ?? 0) > 0 && (
+                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+                  <h4 className="font-bold text-cyan-200 text-sm mb-3 flex items-center gap-2">
+                    <Target className="w-4 h-4" /> Challenge progress this match
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    {rewards.challengeProgress?.map((c: { id: string; kind: string; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }) => {
+                      const isWeapon = c.kind === "weapon";
+                      const isElite = c.kind === "elite";
+                      const color = isWeapon ? "text-violet-200 border-violet-500/30 bg-violet-500/10" :
+                        isElite ? "text-amber-200 border-amber-500/30 bg-amber-500/10" :
+                        c.kind === "weekly" ? "text-blue-200 border-blue-500/30 bg-blue-500/10" :
+                        "text-cyan-200 border-cyan-500/30 bg-cyan-500/10";
+                      return <div key={c.id} className={`rounded-lg border p-3 ${color}`}>
+                        <div className="flex justify-between gap-2 text-[10px] uppercase tracking-wider font-semibold">
+                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : c.kind + " challenge"}</span>
+                          {c.completed ? <span className="text-emerald-300">Completed ✓</span> : <span>+{c.progress-c.before}</span>}
+                        </div>
+                        <div className="text-white font-semibold text-xs mt-1">{c.title}</div>
+                        <div className="text-white/65 text-[11px] mb-2">{c.description ?? `Progress toward ${c.goal} required actions`}</div>
+                        <div className="h-1.5 rounded-full bg-black/40 overflow-hidden">
+                          <div className="h-full bg-current" style={{width: `${Math.min(100,100*c.progress/Math.max(1,c.goal))}%`}} />
+                        </div>
+                        <div className="text-[11px] font-mono mt-1.5 text-right">{c.before} → {c.progress}/{c.goal}</div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              )}
+
               {rewards.challengeAwards?.length > 0 && (
                 <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-purple-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Trophy className="w-4 h-4" /> Daily Challenge Complete</div>
+                  <div className="text-purple-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Trophy className="w-4 h-4" /> Challenge Complete</div>
                   <div className="space-y-1.5">
                     {rewards.challengeAwards.map((c: any) => (
                       <div key={c.challengeId} className="flex items-center justify-between text-xs">
@@ -150,6 +189,26 @@ export function Results() {
                 </div>
               )}
 
+              {(rewards.newUnlocks?.perks?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/25">
+                  <div className="text-emerald-300 font-bold text-sm mb-2 flex items-center gap-2"><Zap className="w-4 h-4" /> New Perk Available</div>
+                  <div className="flex flex-wrap gap-2">
+                    {rewards.newUnlocks.perks.map((id: string) => <span key={id} className="text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 rounded-md px-2 py-1">
+                      {perkById(id).name} · LVL {perkById(id).unlockLevel}
+                    </span>)}
+                  </div>
+                </div>
+              )}
+              {(rewards.newUnlocks?.purchasableWeapons?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/20">
+                  <div className="text-cyan-300 font-bold text-sm mb-2"><Crosshair className="w-4 h-4 inline mr-1" /> Now Available in the Armory</div>
+                  <div className="flex flex-wrap gap-2">
+                    {rewards.newUnlocks.purchasableWeapons.map((id: string) => <span key={id} className="text-xs border border-cyan-500/20 bg-cyan-500/10 text-cyan-100 rounded-md px-2 py-1">
+                      {weaponById(id).name} · {weaponById(id).unlockCost} CR
+                    </span>)}
+                  </div>
+                </div>
+              )}
               {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length) > 0 && (
                 <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
@@ -173,7 +232,7 @@ export function Results() {
             <span className="text-white font-bold tracking-wide uppercase text-sm">Final Standings</span>
             <span className="ml-auto text-white/40 text-xs">Weapon: {w.name}</span>
           </div>
-          <div className="max-h-80 overflow-y-auto custom-scroll">
+          <div className="max-h-96 overflow-x-auto overflow-y-auto custom-scroll">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-white/40 text-xs uppercase">
@@ -181,6 +240,11 @@ export function Results() {
                   <th className="text-left px-2 py-2">Player</th>
                   <th className="text-center px-2 py-2 w-16">Kills</th>
                   <th className="text-center px-2 py-2 w-16">Deaths</th>
+                  <th className="text-center px-2 py-2 w-16">Assists</th>
+                  <th className="text-center px-2 py-2 w-16">K/D</th>
+                  <th className="text-center px-2 py-2">Headshots</th>
+                  <th className="text-center px-2 py-2">Multi</th>
+                  {r.mode==="killconfirmed"&&<><th className="text-center px-2 py-2">Tags +</th><th className="text-center px-2 py-2">Tags −</th></>}
                   <th className="text-center px-5 py-2 w-16">Score</th>
                 </tr>
               </thead>
@@ -201,6 +265,12 @@ export function Results() {
                       </td>
                       <td className="text-center px-2 py-2 text-white tabular-nums">{s.kills}</td>
                       <td className="text-center px-2 py-2 text-white/50 tabular-nums">{s.deaths}</td>
+                      <td className="text-center px-2 py-2 text-white/80 tabular-nums">{s.assists??(isMe?r.assists??0:"—")}</td>
+                      <td className="text-center px-2 py-2 tabular-nums">{(s.kills/Math.max(1,s.deaths)).toFixed(2)}</td>
+                      <td className="text-center px-2 py-2 text-violet-200 tabular-nums">{isMe?`${r.headshots} (${hsPct}%)`:"—"}</td>
+                      <td className="text-center px-2 py-2 text-rose-200 tabular-nums">{isMe?r.multikills??0:"—"}</td>
+                      {r.mode==="killconfirmed"&&<><td className="text-center px-2 py-2 text-cyan-200">{isMe?r.confirmations??r.score:"—"}</td>
+                        <td className="text-center px-2 py-2 text-emerald-200">{isMe?r.denials??0:"—"}</td></>}
                       <td className="text-center px-5 py-2 text-white font-bold tabular-nums">{s.score}</td>
                     </tr>
                   );

@@ -1,0 +1,101 @@
+[
+  {
+    "id": "wk_tags_50",
+    "metric": "kill_confirmations",
+    "goal": 50,
+    "rewardXp": 1800,
+    "rewardCredits": 1200,
+    "title": "Evidence Locker",
+    "description": "Collect 50 enemy dog tags across Kill Confirmed matches",
+    "icon": "Shield",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_kills_200",
+    "metric": "kills",
+    "goal": 200,
+    "rewardXp": 2250,
+    "rewardCredits": 1875,
+    "title": "Slayer",
+    "description": "Get 200 kills this week",
+    "icon": "Crosshair",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_hs_50",
+    "metric": "headshots",
+    "goal": 50,
+    "rewardXp": 1800,
+    "rewardCredits": 1500,
+    "title": "Marksman Elite",
+    "description": "Land 50 headshots this week",
+    "icon": "Target",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_wins_10",
+    "metric": "wins",
+    "goal": 10,
+    "rewardXp": 2700,
+    "rewardCredits": 2250,
+    "title": "Champion",
+    "description": "Win 10 matches this week",
+    "icon": "Trophy",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_multi_30",
+    "metric": "multikills",
+    "goal": 30,
+    "rewardXp": 1500,
+    "rewardCredits": 1250,
+    "title": "Spree Master",
+    "description": "Achieve 30 multi-kills this week",
+    "icon": "Zap",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_surv_kills_100",
+    "metric": "survival_kills",
+    "goal": 100,
+    "rewardXp": 1500,
+    "rewardCredits": 1250,
+    "title": "Last Stand Veteran",
+    "description": "Get 100 kills in Survival this week",
+    "icon": "Skull",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_gungame_30",
+    "metric": "gungame_kills",
+    "goal": 30,
+    "rewardXp": 1800,
+    "rewardCredits": 1500,
+    "title": "Gun Game Pro",
+    "description": "Get 30 kills in Gun Game this week",
+    "icon": "Swords",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_secondary_50",
+    "metric": "kills_with_secondary",
+    "goal": 50,
+    "rewardXp": 1500,
+    "rewardCredits": 1500,
+    "title": "Pistolero",
+    "description": "Get 50 kills with secondary weapons this week",
+    "icon": "Crosshair",
+    "category": "weekly"
+  },
+  {
+    "id": "wk_melee_15",
+    "metric": "kills_with_melee",
+    "goal": 15,
+    "rewardXp": 1800,
+    "rewardCredits": 1750,
+    "title": "Edgewalker",
+    "description": "Get 15 kills with melee weapons this week",
+    "icon": "Swords",
+    "category": "weekly"
+  }
+]

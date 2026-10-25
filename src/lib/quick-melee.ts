@@ -8,12 +8,22 @@ export interface QuickMeleeCandidate {
   friendly?: boolean;
 }
 export const QUICK_MELEE_REACH = 3.15;
-export const QUICK_MELEE_DAMAGE = 55;
-export const QUICK_MELEE_COOLDOWN_MS = 900;
+/** A quick swing is a temporary use of the equipped melee weapon.
+ * Its damage, attack interval and reach must match the weapon catalog. */
+export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:number}) {
+  const cooldownMs=Math.ceil(1000/Math.max(.1,stats.fireRate));
+  return {
+    damage:stats.damage,
+    cooldownMs,
+    swingMs:Math.max(160,Math.round(cooldownMs*.68)),
+    reach:stats.range,
+  };
+}
 export function chooseQuickMeleeTarget(
   origin: readonly [number, number, number], yaw: number,
   candidates: readonly QuickMeleeCandidate[],
   clearPath: (target: QuickMeleeCandidate, distance: number) => boolean,
+  reach = QUICK_MELEE_REACH,
 ): QuickMeleeCandidate | null {
   let best: QuickMeleeCandidate | null = null;
   let bestDist = Infinity;
@@ -21,7 +31,7 @@ export function chooseQuickMeleeTarget(
     if (!target.alive || target.protected || target.friendly) continue;
     const dx = target.pos[0] - origin[0], dz = target.pos[2] - origin[2];
     const dist = Math.hypot(dx, dz);
-    if (dist > QUICK_MELEE_REACH || dist < 0.001) continue;
+    if (dist > reach || dist < 0.001) continue;
     if (Math.abs(target.pos[1] - origin[1]) > 2.4) continue;
     if ((dx * Math.sin(yaw) + dz * Math.cos(yaw)) / dist < 0.35) continue;
     if (!clearPath(target, dist)) continue;

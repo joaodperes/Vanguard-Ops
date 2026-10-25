@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { WEAPONS } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
+import { parseWeaponConditionStats } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,7 @@ interface ExportData {
   weaponUnlocks?: { weaponId: string }[];
   skinUnlocks?: { weaponId: string; skinId: string }[];
   attachmentUnlocks?: { weaponId: string; attachmentId: string }[];
+  playerSkinUnlocks?: { skinId: string }[];
   loadout?: {
     primaryWeapon: string;
     secondaryWeapon: string;
@@ -51,7 +54,9 @@ interface ExportData {
     meleeAttachments: string;
   } | null;
   achievements?: { achievementId: string; earnedAt: string }[];
-  weaponProgress?: { weaponId: string; kills: number; headshots: number }[];
+  weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
+  weaponPrestiges?: { weaponId: string }[];
+  wonderUnlocks?: { weaponId: string }[];
   matchRecords?: {
     mode: string;
     online: boolean;
@@ -174,6 +179,22 @@ export async function POST(req: NextRequest) {
     if (toCreate.length) await db.attachmentUnlock.createMany({ data: toCreate.map((u) => ({ playerId: player.id, weaponId: u.weaponId, attachmentId: u.attachmentId })) });
   }
 
+  // Old exports have no ownership list. Grandfather their equipped operator
+  // without inventing ownership for skins not represented in the file.
+  const candidateOperatorSkins = [
+    ...(data.playerSkinUnlocks ?? []).map(u => u.skinId),
+    data.player.selectedSkin,
+  ].filter(id => typeof id === "string" && id !== "default");
+  if (candidateOperatorSkins.length) {
+    const existingOps = new Set(
+      (await db.playerSkinUnlock.findMany({ where: { playerId: player.id } })).map(u => u.skinId),
+    );
+    const toCreate = [...new Set(candidateOperatorSkins)].filter(id => !existingOps.has(id));
+    if (toCreate.length) await db.playerSkinUnlock.createMany({
+      data: toCreate.map(skinId => ({ playerId: player.id, skinId })),
+    });
+  }
+
   // --- Restore loadout ---
   if (data.loadout) {
     if (player.loadout) {
@@ -218,18 +239,55 @@ export async function POST(req: NextRequest) {
   if (data.weaponProgress?.length) {
     for (const wp of data.weaponProgress) {
       const existing = await db.weaponProgress.findUnique({ where: { playerId_weaponId: { playerId: player.id, weaponId: wp.weaponId } } });
+      const imported = parseWeaponConditionStats(wp.conditionStats);
       if (existing) {
+        const retained = parseWeaponConditionStats(existing.conditionStats);
+        for (const key of Object.keys(retained) as Array<keyof typeof retained>) {
+          retained[key] = Math.max(retained[key], imported[key]);
+        }
         await db.weaponProgress.update({
           where: { id: existing.id },
           data: {
             kills: Math.max(existing.kills, wp.kills),
             headshots: Math.max(existing.headshots, wp.headshots),
+            conditionStats: JSON.stringify(retained),
           },
         });
       } else {
         await db.weaponProgress.create({
-          data: { playerId: player.id, weaponId: wp.weaponId, kills: wp.kills, headshots: wp.headshots },
+          data: {
+            playerId: player.id, weaponId: wp.weaponId, kills: wp.kills, headshots: wp.headshots,
+            conditionStats: JSON.stringify(imported),
+          },
         });
+      }
+    }
+  }
+
+  // --- Restore one-time Prestige awards and Wonder purchases (dedup by key).
+  // Balance is derived from these two tables, not from a mutable imported counter.
+  if (data.weaponPrestiges?.length) {
+    for (const { weaponId } of data.weaponPrestiges) {
+      if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
+      await db.weaponPrestige.upsert({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+        create: { playerId: player.id, weaponId }, update: {},
+      });
+    }
+  }
+  if (data.wonderUnlocks?.length) {
+    for (const { weaponId } of data.wonderUnlocks) {
+      if (!WEAPONS.some(w => w.id === weaponId && w.wonder)) continue;
+      const owned = await db.wonderUnlock.findUnique({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+      });
+      if (owned) continue;
+      const [earned, spent] = await Promise.all([
+        db.weaponPrestige.count({ where: { playerId: player.id } }),
+        db.wonderUnlock.count({ where: { playerId: player.id } }),
+      ]);
+      if (spent < earned) {
+        await db.wonderUnlock.create({ data: { playerId: player.id, weaponId } });
       }
     }
   }
@@ -267,6 +325,7 @@ export async function POST(req: NextRequest) {
       weaponUnlocks: data.weaponUnlocks?.length ?? 0,
       skinUnlocks: data.skinUnlocks?.length ?? 0,
       attachmentUnlocks: data.attachmentUnlocks?.length ?? 0,
+      playerSkinUnlocks: data.playerSkinUnlocks?.length ?? 0,
       achievements: data.achievements?.length ?? 0,
       weaponProgress: data.weaponProgress?.length ?? 0,
       matchRecords: data.matchRecords?.length ?? 0,

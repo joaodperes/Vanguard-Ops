@@ -25,6 +25,11 @@ interface Profile {
 /** All ranged weapons have their own silhouette recipe, even within a class. */
 export const WEAPON_VISUALS: Record<string, Profile> = {
   // Experimental platforms deliberately have different physical silhouettes, not just new colours.
+  // Different silhouette, powerplant and emitter for each mechanical family.
+  wonder_deadlock: { receiver:[.105,.13,.27],guardLength:.08,barrelLength:.18,bore:.02,stock:"none",magazine:"grip",body:"angular",features:["scope","muzzle","rail"],signature:0xff476f },
+  wonder_hellfire: { receiver:[.24,.24,.52],guardLength:.49,barrelLength:.45,bore:.15,stock:"heavy",magazine:"drum",body:"ribbed",features:["dual","vent","shield"],signature:0xff7424 },
+  wonder_stormweaver: { receiver:[.14,.18,.33],guardLength:.16,barrelLength:.23,bore:.075,stock:"none",magazine:"revolver",body:"tapered",features:["vent","muzzle","rail"],signature:0x48d6ff },
+  wonder_bogfather: { receiver:[.23,.19,.48],guardLength:.4,barrelLength:.29,bore:.12,stock:"heavy",magazine:"drum",body:"block",features:["shield","dual","vent"],signature:0x86e042 },
   rifle_electron:   { receiver: [.180,.175,.48], guardLength:.32, barrelLength:.27, bore:.042, stock:"bullpup", magazine:"none", body:"ribbed", features:["vent","rail","muzzle"], signature:0x29d9fa },
   crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x8bd36a },
   pistol_arc:       { receiver: [.120,.135,.26], guardLength:.085, barrelLength:.11, bore:.027, stock:"none", magazine:"grip", body:"tapered", features:["muzzle","vent"], signature:0xac82ff },
@@ -104,13 +109,31 @@ export function buildFirstPersonWeapon(
   bodyMat: THREE.Material,
   darkMat: THREE.Material,
   add: WeaponPartAdder,
+  fullSkinMaterial?: THREE.Material,
 ): number {
+  // Bullet Spitter is a deployable tool rather than a conventional LMG.
+  // Show a compact placement controller in both first-person and world models;
+  // the actual machine is a separate turret mesh anchored on the map.
+  if (id === "wonder_turret") {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.19,.11,.32), bodyMat);
+    add(body,0,-.07,-.12);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(.10,.16,.11),darkMat);
+    add(grip,0,-.19,-.03);
+    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),fullSkinMaterial ?? new THREE.MeshBasicMaterial({color:0xffad33}));
+    add(indicator,0,.0,-.13);
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.21,8),darkMat);
+    add(antenna,.08,.045,-.23);
+    return -.3;
+  }
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
   const [w,h,l] = p.receiver;
   const c = -0.12;
-  const sig = new THREE.MeshBasicMaterial({ color: p.signature });
-  const metal = new THREE.MeshBasicMaterial({ color: 0x29313b });
-  const edge = new THREE.MeshBasicMaterial({ color: 0x69737e });
+  // Legendary finishes also cover the signature inserts, colored rails,
+  // magazine trim and bespoke energy parts. Ordinary skins retain each gun's
+  // recognizable colored furniture.
+  const sig = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
+  const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
+  const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
   const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(ww,hh,ll),material);
     add(m,x,y,z);
@@ -186,7 +209,7 @@ export function buildFirstPersonWeapon(
   // Three experimental weapon platforms. All meshes use the normal `add`
   // callback so the FPS engine can animate them and dispose them on swap.
   if (id === "rifle_electron") {
-    const cyan = new THREE.MeshBasicMaterial({ color: 0x65eaff });
+    const cyan = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x65eaff });
     for (const side of [-1, 1]) {
       box(side * (w/2 + .025), .030, guardZ, .024, .069, p.guardLength * .84, cyan);
       for (let k = 0; k < 4; k++)
@@ -201,7 +224,7 @@ export function buildFirstPersonWeapon(
   } else if (id === "crossbow_reclaimer") {
     // Wide compound-crossbow limbs and actual string, rather than a rifle barrel
     // with a new tint. All coordinates are local to the camera (-Z forward).
-    const green = new THREE.MeshBasicMaterial({ color: 0xa8f26c });
+    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xa8f26c });
     const addRod = (a: [number,number,number], b: [number,number,number], radius: number, material: THREE.Material) => {
       const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
       const d = vb.clone().sub(va);
@@ -224,7 +247,7 @@ export function buildFirstPersonWeapon(
     add(head, 0,.060,muzzle-.12);
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
   } else if (id === "pistol_arc") {
-    const violet = new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
+    const violet = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
     // Concentric emitter coils around an unmistakably wide front capacitor.
     for (const z of [muzzle+.015, muzzle+.080, muzzle+.145]) {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(.063,.012,7,20), violet);

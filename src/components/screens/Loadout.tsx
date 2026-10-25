@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
-import { PERKS, PERK_STORAGE_KEY, perkSelection, perkById, type PerkId } from "@/lib/perks";
+import { PERKS, PERK_STORAGE_KEY, DEFAULT_PERK_ID, perkSelection, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
+import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
 import {
   WEAPONS,
   weaponById,
+  isPrimaryWeaponCategory,
   type WeaponCategory, type WeaponSlot, type WeaponDef,
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
@@ -31,22 +33,24 @@ interface LoadoutSelectorProps {
   // Optional callback invoked after a successful save. Defaults to refreshing
   // the profile via the game store.
   onSaved?: () => void;
+  onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
 }
 
-export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
+  const level = profile?.level ?? 1;
   const [primary, setPrimary] = useState(current?.weapon.id ?? "rifle_ar");
   const [secondary, setSecondary] = useState(current?.secondary.id ?? "pistol_side");
   const [melee, setMelee] = useState(current?.melee.id ?? "knife_tactical");
   // Which slot's dropdown is currently open. Only one can be open at a time.
   const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
-  const [perkId, setPerkId] = useState<PerkId>("field_loader");
-  const [savedPerk, setSavedPerk] = useState<PerkId>("field_loader");
-  useEffect(() => { const selected = perkSelection(); setPerkId(selected); setSavedPerk(selected); }, []);
+  const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
+  const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
+  useEffect(() => { const selected = perkSelection(level); setPerkId(selected); setSavedPerk(selected); }, [level]);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -75,19 +79,21 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   // Owned weapons: free-by-level + purchased. Computed unconditionally so the
   // hook order is stable; the early return below handles the missing-profile
   // case (renders a loading placeholder).
-  const level = profile?.level ?? 1;
   const ownedWeaponIds = useMemo(() => new Set<string>([
-    ...WEAPONS.filter((w) => w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
-  ]), [level, profile?.unlocks.weapons]);
+    ...(profile?.prestige?.wonderWeapons ?? []),
+  ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
 
-  if (!profile) {
+  if (!profile || !current) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
   }
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
     if (slot === "primary") return WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category));
-    if (slot === "secondary") return WEAPONS.filter((w) => w.category === "sidearm");
+    if (slot === "secondary") return WEAPONS.filter((w) =>
+      w.category === "sidearm" || (perkId === "well_prepared" &&
+        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
     return WEAPONS.filter((w) => w.category === "melee");
   };
 
@@ -100,13 +106,16 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
   );
 
   const save = async () => {
+    if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
     setSaving(true);
     // Perks are account-agnostic, free passive choices persisted locally.
     const saveLocalPerk = () => {
       try { localStorage.setItem(PERK_STORAGE_KEY, perkId); } catch {}
       setSavedPerk(perkId);
     };
-    if (primary === current?.weapon.id && secondary === current?.secondary.id && melee === current?.melee.id) {
+    const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
+    const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
+    if (primary === current?.weapon.id && savedSecondary === current?.secondary.id && melee === current?.melee.id) {
       saveLocalPerk();
       toast.success("Perk equipped");
       setSaving(false);
@@ -120,7 +129,8 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
         body: JSON.stringify({
           playerKey,
           primaryWeapon: primary,
-          secondaryWeapon: secondary,
+          secondaryWeapon: savedSecondary,
+          perkId,
           meleeWeapon: melee,
         }),
       });
@@ -169,20 +179,28 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           ownedForSlot={ownedForSlot}
           open={openSlot === "primary"}
           onToggle={() => setOpenSlot(openSlot === "primary" ? null : "primary")}
-          onSelect={(id) => { setPrimary(id); setOpenSlot(null); }}
+          onSelect={(id) => { setPrimary(id); if (id === secondary) setSecondary("pistol_side"); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(primary), "primary") : undefined}
+          canCustomize={primary === current.weapon.id}
         />
         <SlotCard
           slot="secondary"
-          label="Secondary"
+          label={perkId === "well_prepared" ? "Secondary / Primary" : "Secondary"}
           icon={<Crosshair className="w-4 h-4 text-amber-400" />}
-          weapon={weaponById(secondary)}
+          weapon={weaponById(perkId !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category) ? "pistol_side" : secondary)}
           ownedWeaponIds={ownedWeaponIds}
           ownedForSlot={ownedForSlot}
           open={openSlot === "secondary"}
           onToggle={() => setOpenSlot(openSlot === "secondary" ? null : "secondary")}
           onSelect={(id) => { setSecondary(id); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
+          canCustomize={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
         />
         <SlotCard
           slot="melee"
@@ -195,6 +213,10 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           onToggle={() => setOpenSlot(openSlot === "melee" ? null : "melee")}
           onSelect={(id) => { setMelee(id); setOpenSlot(null); }}
           compact={compact}
+
+          attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
+          onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
+          canCustomize={melee === current.melee.id}
         />
         <div className="relative" data-slot-dropdown>
           <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
@@ -217,9 +239,13 @@ export function LoadoutSelector({ onSaved, compact }: LoadoutSelectorProps) {
           </div>
           {openSlot === "perk" && (
             <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-              {PERKS.map(perk => <button key={perk.id} type="button" onClick={() => {setPerkId(perk.id);setOpenSlot(null)}}
-                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 hover:bg-white/5 ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                <span className="font-semibold">{perk.name}</span>
+              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
+                  setPerkId(perk.id);
+                  if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
+                  setOpenSlot(null);
+                }}
+                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.unlockLevel === 1 ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
                 <span className="text-white/40 leading-relaxed">{perk.description}</span>
               </button>)}
             </div>
@@ -244,11 +270,14 @@ interface SlotCardProps {
   onToggle: () => void;
   onSelect: (id: string) => void;
   compact?: boolean;
+  attachments: AttachmentMap;
+  onCustomize?: () => void;
+  canCustomize?: boolean;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact }: SlotCardProps) {
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
   const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
-  const candidates = ownedForSlot(slot);
+  const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
   return (
     <div className="relative" data-slot-dropdown>
@@ -273,6 +302,15 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
         <div className="text-white/40 text-[10px] uppercase mb-2">{weapon.category} · LVL {weapon.unlockLevel}</div>
+        <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3 h-[227px] overflow-y-auto">
+          <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
+        </div>
+        {canCustomize && onCustomize && (
+          <button type="button" onClick={onCustomize}
+            className="w-full mb-2 px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
+            Customize this slot
+          </button>
+        )}
         <button
           onClick={onToggle}
           className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"

@@ -4,9 +4,9 @@ import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
-import { weaponById } from "@/lib/game-data";
+import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
@@ -115,7 +115,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // crosshairSize is the base arm length. When spread is high (sprinting/moving),
   // the gap from center grows so the crosshair visually "opens up".
   const spreadFactor = hud.spreadFactor ?? 0;
-  const dynamicGap = 2 + spreadFactor * 14;  // 2..16 px from center
+  const dynamicGap = 2 + spreadFactor * 30;  // up to ~62 px for high-spread sniper/shotgun hipfire
   // ---- Health-regen cooldown ring (visible while waiting for regen) ----
   const regenMs = hud.regenCooldownMs ?? 0;
   const regenWaiting = regenMs > 0 && hud.alive && hud.health < hud.maxHealth;
@@ -240,11 +240,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <span className={`text-rose-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalEnemiesLeft ?? 0}</span>
             </div>
           )}
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-emerald-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Shield className={isTouch ? "w-3 h-3 text-emerald-400" : "w-4 h-4 text-emerald-400"} />
-            <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Reinforcements</span>
-            <span className={`text-emerald-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalReinforcements ?? 0}<span className="text-white/30 text-[10px]">/{hud.survivalMaxReinforcements ?? 0}</span></span>
-          </div>
         </div>
       ) : (
       <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-3"}`}>
@@ -256,7 +251,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
         </div>
-        {mode === "tdm" ? (
+        {(mode === "tdm" || mode === "killconfirmed") ? (
           <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1.5 px-2 py-0.5" : "gap-3 px-4 py-1.5"}`}>
             <span className={`text-red-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.red}</span>
             {hud.scoreLimit && hud.scoreLimit > 0 && <span className={`text-white/30 ${isTouch ? "text-[9px]" : "text-xs"}`}>/{hud.scoreLimit}</span>}
@@ -270,8 +265,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
-          <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{hud.kills}</span>
+          {mode === "killconfirmed" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
+          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? hud.score : hud.kills}</span>
           {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
             <>
               <span className="text-white/30">/</span>
@@ -279,12 +274,41 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </>
           )}
           <span className="text-white/20 mx-0.5">·</span>
-          <span className="text-white/30">/</span>
-          <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
+          {mode === "killconfirmed" ? (
+            <span className={`text-cyan-300/75 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.denials ?? 0} denied</span>
+          ) : (
+            <>
+              <span className="text-white/30">/</span>
+              <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
+            </>
+          )}
         </div>
       </div>
       )}
 
+      {mode === "survival" && (
+        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-[90vw] max-w-xl ${isTouch?"top-11":"top-16"}`}>
+          <span className="text-[10px] tracking-widest font-bold uppercase text-amber-200">
+            {(hud.survivalTier ?? "default").toUpperCase()} SURVIVAL
+            {hud.survivalTier === "default" ? " · CLEAR 30" : " · ENDLESS"}
+          </span>
+          {(hud.survivalModifierNames?.length ?? 0) > 0 && (
+            <div className="text-[10px] text-rose-300 font-bold mt-1">
+              Mutators: {hud.survivalModifierNames!.join(" · ")}
+            </div>
+          )}
+          {hud.survivalBossWave && <div className="text-xs text-red-400 font-black uppercase tracking-widest mt-1 animate-pulse">Boss Wave · Heavy weapons / Shockwave</div>}
+        </div>
+      )}
+
+      {/* Kill Confirmed pickup callout — only shown briefly on a local pickup. */}
+      {mode === "killconfirmed" && hud.tagNotice && performance.now() - hud.tagNotice.at < 1300 && (
+        <div className="absolute left-1/2 top-[27%] -translate-x-1/2 px-4 py-2 rounded-lg bg-black/70 border border-cyan-500/30 text-center">
+          <span className={`font-black uppercase tracking-[0.18em] ${hud.tagNotice.action === "confirm" ? "text-cyan-300" : "text-emerald-300"}`}>
+            {hud.tagNotice.action === "confirm" ? "+1 KILL CONFIRMED" : hud.denialScoreEnabled ? "+1 KILL DENIED" : "KILL DENIED"}
+          </span>
+        </div>
+      )}
       {/* Gun Game progression indicator (gungame mode only) — sits below the top scoreboard */}
       {mode === "gungame" && hud.gungameTotal !== undefined && (
         <GunGameProgress
@@ -437,6 +461,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </div>
             <div className="text-[10px] text-white/50 mt-1">Unlimited energy · R to vent</div>
           </div>
+        ) : hud.weaponId === "wonder_turret" ? (
+          <div className="flex flex-col items-end">
+            <span className={`text-lg font-black tracking-widest ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
+              {hud.turretDeployPending ? "PLANTING TURRET…" : hud.turretDeployFailed ? "PLANT FAILED — RETRY" : hud.ammo > 0 ? "TURRET READY" : "TURRET CHARGING"}
+            </span>
+            <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
+          </div>
         ) : (
           <div className="flex items-end justify-end gap-1">
             <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
@@ -444,8 +475,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">{hud.heat !== undefined ? "VENTING…" : "RELOADING…"}</div>}
+        {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
-        {hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
+        {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.
             The active slot is highlighted; others are dim. Weapon name shows under each. */}
         <div className="mt-2 flex items-center justify-end gap-1.5">
@@ -479,11 +511,16 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <span className={`tabular-nums font-bold text-xs ${hud.overheated ? "text-rose-400" : "text-cyan-300"}`}>
                 {Math.round(hud.heat)}% HEAT
               </span>
+            ) : hud.weaponId === "wonder_turret" ? (
+              <span className={`text-[10px] font-bold ${hud.ammo > 0 ? "text-emerald-300" : "text-violet-300"}`}>
+                {hud.turretDeployPending ? "PLANTING…" : hud.turretDeployFailed ? "RETRY PLANT" : hud.ammo > 0 ? "PLANT READY" : "RECHARGING"}
+              </span>
             ) : (
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
             {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">{hud.heat !== undefined ? "VENT" : "RLD"}</span>}
+            {hud.wonderRechargeMs !== undefined && <span className="ml-1 text-violet-300 text-[9px] font-mono">{hud.wonderRechargeMs > 0 ? `${Math.ceil(hud.wonderRechargeMs / 1000)}s` : "READY"}</span>}
           </div>
           {/* Bottom row: health + stamina bars (small, side by side) */}
           <div className="flex items-center gap-2">
@@ -519,14 +556,31 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {!hud.alive && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
           <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
+          {hud.lastDeath && (
+            <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
+              <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
+              <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
+              <div className="text-amber-200 text-sm">{!WEAPONS.some(w=>w.id===hud.lastDeath!.weaponId)
+                ? "Environment: "+hud.lastDeath.weaponId.replace(/^(hazard_|env_)/,"").replaceAll("_"," ")
+                : weaponById(hud.lastDeath.weaponId).name}</div>
+              {hud.lastDeath.attachments.length>0 && <div className="text-white/60 text-xs mt-1">
+                {hud.lastDeath.attachments.map(id=>ATTACHMENTS.find(a=>a.id===id)?.name??id).join(" · ")}
+              </div>}
+            </div>
+          )}
           {mode === "survival" ? (
-            <>
-              <div className="text-white/70 text-lg">Reinforcements left: <span className="text-emerald-300 font-bold text-2xl">{hud.survivalReinforcements ?? 0}</span></div>
-              {(hud.survivalReinforcements ?? 0) > 0 && <div className="text-white/50 text-sm mt-1">Respawning in {hud.respawnIn}s…</div>}
-            </>
+            <div className="text-white/70 text-lg">Survival run ended</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}
+        </div>
+      )}
+
+      {mode === "survival" && hud.survivalDowned && (
+        <div className="absolute left-1/2 top-1/3 -translate-x-1/2 z-40 rounded-xl border border-amber-400/50 bg-black/80 px-7 py-5 text-center">
+          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED</div>
+          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Hold position</div>
+          <div className="text-white/50 text-xs mt-2">Survive until your teammate clears the wave to rejoin during preparation.</div>
         </div>
       )}
 
@@ -581,7 +635,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.preMatchCountdown}
           </div>
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
-            {mode === "tdm" ? "Team Deathmatch" : mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}
+            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{hud.mapName ?? "Compound"}</span>
           </div>
@@ -597,13 +651,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
       {showScoreboard && hud.alive !== undefined && hud.pointerLocked && (
-        mode === "tdm" ? (
+        (mode === "tdm" || mode === "killconfirmed") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               {/* header bar */}
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">Team Deathmatch</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "killconfirmed" ? "Kill Confirmed — tags recovered" : "Team Deathmatch"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               {/* team panels */}
@@ -618,7 +672,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? "Endless Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               <div className="max-h-[50vh] overflow-y-auto custom-scroll">
@@ -834,6 +888,7 @@ function ScopeOrCrosshair({
   // Show the scope overlay only when meaningfully ADS (>0.5) AND the setting is on.
   // The dedicated `scoped` flag also triggers it for snipers with non-scope sights.
   const showScope = scopeOverlay && (isMagnified || isSniperScoped) && adsP > 0.5;
+  const hasReflex = sightType === "red_dot" || sightType === "holo";
   // Reticle color per sight type. Snipers (scoped flag) use the dark sniper crosshair.
   const reticleColor =
     sightType === "thermal" ? "#ffb347" :
@@ -859,6 +914,21 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
+          {/* A recognizable sight housing in ADS instead of an unmodified crosshair. */}
+          {hasReflex && adsP > .3 && (
+            <div className="absolute rounded-full border-2"
+              style={{width:sightType==="holo"?92:62,height:sightType==="holo"?80:62,
+                transform:"translate(-50%,-50%)",opacity:Math.min(1,(adsP-.3)*2),
+                borderColor:sightType==="holo"?"rgba(166,223,205,.58)":"rgba(169,182,185,.55)",
+                background:"radial-gradient(circle,rgba(80,150,130,.045),rgba(4,17,22,.14))",
+                boxShadow:"0 0 0 6px rgba(18,24,29,.75), inset 0 0 7px rgba(175,230,228,.2)"}}
+            />
+          )}
+          {hasReflex && sightType==="holo" && adsP>.3 && (
+            <div className="absolute rounded-full border pointer-events-none"
+              style={{width:29,height:29,transform:"translate(-50%,-50%)",
+                borderColor:reticleColor,opacity:Math.min(.7,(adsP-.3)*1.4)}}/>
+          )}
           {/* For red_dot/holo/laser, render a single dot in the reticle color instead of the crosshair */}
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
             <div className="absolute rounded-full"
@@ -919,7 +989,7 @@ function ScopeOrCrosshair({
               {/* ACOG: vertical line top + chevron at center + stadia lines */}
               <line x1="0" y1="-90" x2="0" y2="-12" stroke={reticleColor} strokeWidth="0.6" />
               <line x1="0" y1="6" x2="0" y2="90" stroke={reticleColor} strokeWidth="0.6" />
-              <polygon points="-8,4 8,4 0,-8" fill={reticleColor} />
+              <path d="M-3,1 L0,-3 L3,1" fill="none" stroke={reticleColor} strokeWidth="0.75" strokeLinecap="round" strokeLinejoin="round"/>
               <line x1="-30" y1="0" x2="-15" y2="0" stroke={reticleColor} strokeWidth="0.4" />
               <line x1="15" y1="0" x2="30" y2="0" stroke={reticleColor} strokeWidth="0.4" />
             </>

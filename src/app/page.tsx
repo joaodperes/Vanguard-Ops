@@ -10,8 +10,10 @@ import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
 import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
+import { MenuMusic } from "@/components/game/MenuMusic";
 import type { LoadoutWire } from "@/lib/game-protocol";
-import { perkSelection } from "@/lib/perks";
+import { perkSelection, perkById } from "@/lib/perks";
+import { isPrimaryWeaponCategory } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
@@ -64,7 +66,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots,
+          playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots, assists:r.assists??0,
           won: r.won, mode: r.mode, score: r.score,
           online: playConfig.online,
           durationSec: r.durationSec ?? 0,
@@ -75,9 +77,13 @@ export default function Page() {
           // can update the player's lifetime bestKillstreak (Triple Threat /
           // Killstreak King / Untouchable Force achievements).
           bestStreak: r.bestStreak ?? 0,
-          survivalWaves: (r as any).survivalWaves ?? 0,
+           confirmations: r.confirmations ?? 0,
+           denials: r.denials ?? 0,
+          survivalWaves: r.survivalWaves ?? 0,
+          survivalTier: r.survivalTier ?? "default",
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
+          perWeaponActions: r.perWeaponActions,
         }),
       });
       const rewards = await res.json();
@@ -85,8 +91,17 @@ export default function Page() {
       await refreshProfile();
       setScreen("results");
       if (rewards.leveledUp) toast.success(`Level Up! → Level ${rewards.newLevel}`);
+      for (const perkId of rewards.newUnlocks?.perks ?? []) toast.success(`Perk available: ${perkById(perkId).name}`, { description: `Level ${perkById(perkId).unlockLevel} · Equip in Armory` });
       if (rewards.newAchievements?.length) {
         for (const a of rewards.newAchievements) toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR` });
+      }
+      if (rewards.newPrestiges?.length) {
+        for (const id of rewards.newPrestiges) {
+          toast.success("WEAPON PRESTIGE EARNED", {
+            description: `Mastered ${id.replaceAll("_", " ")} · +1 Prestige Token · Eventide & Viridian Blight camos`,
+            duration: 6500,
+          });
+        }
       }
       if (rewards.challengeAwards?.length) {
         for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${c.rewardCredits} CR` });
@@ -120,8 +135,9 @@ export default function Page() {
   const loadoutWire: LoadoutWire | null = profile?.loadout
     ? {
         weaponId: profile.loadout.weapon.id,
-        perkId: perkSelection(),
-        secondaryWeaponId: profile.loadout.secondary?.id ?? "pistol_side",
+        perkId: perkSelection(profile.level),
+        secondaryWeaponId: perkSelection(profile.level) === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
+          ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
         weaponSkinId: profile.loadout.weaponSkin.id,
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
@@ -155,6 +171,7 @@ export default function Page() {
 
   return (
     <div className="dark min-h-screen bg-[#0a0a0a] text-white">
+      <MenuMusic active={screen !== "playing"} />
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
@@ -168,6 +185,7 @@ export default function Page() {
           mode={playConfig.mode}
           botCount={playConfig.botCount}
           botDifficulty={playConfig.botDifficulty}
+          survivalTier={playConfig.survivalTier ?? "default"}
           online={playConfig.online}
           playerName={profile.name}
           playerKey={playerKey}

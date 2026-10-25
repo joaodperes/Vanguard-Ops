@@ -19,7 +19,7 @@ const sample = <T>(values: T[], random: () => number): T =>
  */
 export function buildGunGameWeapons(preset?: string, multiplier?: number, random: () => number = Math.random): string[] {
   const config = normalizeGunGameConfig(preset, multiplier);
-  const ranged = WEAPONS.filter(w => w.category !== "melee" && w.id !== "launcher_rocket");
+  const ranged = WEAPONS.filter(w => !w.wonder && w.category !== "melee" && w.id !== "launcher_rocket");
   if (ranged.length < GUN_GAME_BASE_TIERS - 2) throw new Error("Gun Game needs at least 28 unique ranged weapons");
   const cycles: string[] = [];
   for (let cycle = 0; cycle < config.multiplier; cycle++) {

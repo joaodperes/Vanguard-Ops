@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
+import type { SurvivalTier } from "@/lib/survival";
 
 export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "faq" | "playing" | "results";
 
@@ -14,6 +15,7 @@ export interface PlayConfig {
   timeLimit: number; // minutes
   mapId: MapId;
   botDifficulty: BotDifficulty;
+  survivalTier?: SurvivalTier;
 }
 
 // Room creation form state for the Play screen's "Create a Room" tab.
@@ -28,9 +30,12 @@ export interface RoomConfig {
   // Round 19i: Custom match limits (FFA/TDM only).
   scoreLimit: number;  // kills to win
   timeLimit: number;   // seconds (0 = no time limit)
+  tagLifetimeMs: number; // Kill Confirmed dogtag lifetime (milliseconds)
+  denialScoreEnabled: boolean; // friendly recoveries earn +1 team point
   gungamePreset: "all" | "cqc" | "long_range";
   gungameMultiplier: number;
   survivalPlayers: 1 | 2;
+  survivalTier: SurvivalTier;
 }
 
 // When joining/creating a room, the engine needs to know how to connect:
@@ -51,16 +56,20 @@ export interface SessionInfo {
 }
 
 export interface MatchResultView {
-  kills: number; deaths: number; headshots: number; won: boolean; score: number; mode: GameMode;
-  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean }[];
+  kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
+  standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   rewards?: {
     xpGained: number; creditsGained: number; leveledUp: boolean; newLevel: number;
-    newUnlocks: any; newAchievements: any[]; challengeAwards: any[]; bonusXp: number; bonusCredits: number;
+    newUnlocks: any; newAchievements: any[]; challengeAwards: any[]; challengeProgress?: { id: string; kind: string; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }[]; bonusXp: number; bonusCredits: number;
   };
+  /** Optional objective counters reported by Kill Confirmed matches. */
+  confirmations?: number;
+  denials?: number;
   durationSec?: number;
   placement?: number;
   multikills?: number;
   survivalWaves?: number;
+  survivalTier?: SurvivalTier;
   weaponId?: string;
 }
 
@@ -110,7 +119,7 @@ export const useGame = create<GameStore>((set, get) => ({
   screen: "auth",
   playConfig: { mode: "ffa", botCount: 5, online: false, scoreLimit: 30, timeLimit: 8, mapId: "compound", botDifficulty: "normal" },
   matchResult: null,
-  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2 },
+  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, tagLifetimeMs: 25000, denialScoreEnabled: false, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2, survivalTier: "default" },
   roomConnect: null,
   authState: "checking",
   session: null,

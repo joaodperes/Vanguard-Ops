@@ -1,0 +1,38 @@
+[
+  {
+    "threshold": 2,
+    "label": "DOUBLE KILL",
+    "color": "#22c55e",
+    "icon": "x2"
+  },
+  {
+    "threshold": 3,
+    "label": "TRIPLE KILL",
+    "color": "#06b6d4",
+    "icon": "x3"
+  },
+  {
+    "threshold": 4,
+    "label": "OVERKILL",
+    "color": "#a855f7",
+    "icon": "x4"
+  },
+  {
+    "threshold": 5,
+    "label": "KILLTACULAR",
+    "color": "#f59e0b",
+    "icon": "x5"
+  },
+  {
+    "threshold": 6,
+    "label": "KILLTASTROPHE",
+    "color": "#ef4444",
+    "icon": "x6"
+  },
+  {
+    "threshold": 8,
+    "label": "UNSTOPPABLE",
+    "color": "#ec4899",
+    "icon": "∞"
+  }
+]

@@ -45,7 +45,8 @@ export function FAQ() {
               <ul className="space-y-1.5">
                 <li><strong className="text-amber-300">Free-For-All (FFA):</strong> Everyone vs everyone. No teams. First to the kill limit (or highest kills when time runs out) wins.</li>
                 <li><strong className="text-rose-300">Team Deathmatch (TDM):</strong> Red vs Blue. Kills count toward your team&rsquo;s score. First team to the kill limit wins.</li>
-                <li><strong className="text-emerald-300">Survival (PvE):</strong> 1–2 humans vs endless waves of bots. You have a limited pool of reinforcements — when everyone is out, the game ends. Each wave gets harder.</li>
+                <li><strong className="text-cyan-300">Kill Confirmed:</strong> Red vs Blue. Defeated players drop a dogtag. Recover an enemy tag to score for your team; pick up friendly tags to deny enemy points. Tags expire after the room-selected tag lifetime (default 25 seconds). By default, friendly recoveries only deny an enemy point; hosts can enable +1 Denial Scoring so each recovered friendly tag also gives their team a point. The first team to the room score target (or the highest score at the time limit) wins.</li>
+                <li><strong className="text-emerald-300">Survival (PvE):</strong> Solo or duo with limited reinforcements. Clear 30 waves on Standard for a large XP/credits reward and unlock Hard (endless, mutators change every 5 waves). Clear Hard wave 20 for Elite (mutators every wave and a boss every 10 waves), then Elite wave 20 for Nightmare (mutators stack instead of rotate).</li>
                 <li><strong className="text-purple-300">Gun Game:</strong> Advance through a rotating 30-weapon list, finishing with Rocket Launcher and Melee. Weapons use base stats without Armory attachments; your chosen passive perk remains active. Free-for-all format — no teams.</li>
               </ul>
             </FaqItem>
@@ -99,16 +100,25 @@ export function FAQ() {
               <p>Skins are <strong>unlocked per-weapon via weapon challenges</strong>, not by player level or credits. Each weapon has specific challenges — for example, &ldquo;Get 50 kills with the VK-12 Assault&rdquo; to unlock the Crimson skin, or &ldquo;Land 100 headshots&rdquo; for the Neon skin. Visit a weapon in the Armory to see its challenges and your progress.</p>
               <p className="mt-2">Player skins (your operative&rsquo;s appearance) are still unlocked with credits in the Armory.</p>
             </FaqItem>
+            <FaqItem q="How do shotguns and bolt-action snipers reload?">
+              <p>Pump, automatic and combat shotguns, as well as the bolt-action sniper rifles, reload <strong>one shell or round at a time</strong>. You can interrupt a partial reload by firing once a round has been inserted. Rounds already loaded remain in the weapon if you sprint or swap away. Other weapons still reload their full magazines.</p>
+            </FaqItem>
+            <FaqItem q="How does Bullet Spitter work?">
+              <p>The Bullet Spitter is a <strong>deployable Wonder Weapon</strong>, not a one-round LMG. Equip it, then press Fire to plant an automated turret in front of you. It sits on the map for 25 seconds, scans a 140° horizontal arc, tracks enemies above and below it, and shoots targets in line of sight. Explosives and melee attacks can destroy it. You get one rechargeable deployment charge rather than conventional magazine ammo.</p>
+            </FaqItem>
+            <FaqItem q="How do killstreaks work?">
+              <p>Each elimination grants another <strong>five seconds to earn the next kill</strong>. The streak only ends when you go more than five seconds without a kill or you die. For example, a ten-kill streak can span nine successive five-second intervals rather than fitting all ten kills into five seconds.</p>
+            </FaqItem>
             <FaqItem q="What do the handling stats mean?">
               <p>Each weapon card shows these stats:</p>
               <div className="mt-2 space-y-1 text-xs">
-                <StatLine label="HIP" desc="Hipfire spread accuracy — higher % = tighter bullet grouping when not aiming." />
-                <StatLine label="ADS" desc="Aimed spread accuracy — higher % = tighter when aiming down sights." />
-                <StatLine label="RECOIL" desc="Vertical kick per shot — lower is steadier." />
+                <StatLine label="HIP" desc="Standing hipfire accuracy — lower dispersion produces a higher %. Movement and sustained firing make shots less accurate." />
+                <StatLine label="ADS" desc="Steady aimed accuracy — higher % = tighter while aiming. ADS reduces spread but does not eliminate it." />
+                <StatLine label="RECOIL" desc="Camera kick per shot — lower is steadier. Automatic fire also accumulates temporary accuracy bloom." />
                 <StatLine label="ADS-t" desc="Time to aim down sights (seconds) — lower is faster." />
                 <StatLine label="HS×" desc="Headshot damage multiplier — 1.5× means a headshot does 50% more damage." />
                 <StatLine label="MOVE" desc="Movement speed while holding this weapon — higher is faster." />
-                <StatLine label="RANGE" desc="Effective range in meters. Beyond this, damage falls off gradually." />
+                <StatLine label="RANGE" desc="Effective range in meters. Beyond this, weapon-specific damage falloff applies until maximum hit distance." />
               </div>
             </FaqItem>
             <FaqItem q="What sights are available?">
@@ -130,15 +140,15 @@ export function FAQ() {
         <FaqSection icon={<Users className="w-5 h-5 text-amber-400" />} title="Rooms & Multiplayer">
           <Accordion type="single" collapsible className="space-y-2">
             <FaqItem q="How do I create a room?">
-              <p>Go to <strong>Play → Create a Room</strong>. Choose your game mode (FFA/TDM/Survival), team size (3v3/5v5/7v7), map, bot difficulty, whether to fill empty slots with bots, and an optional room name and password. Click <strong>Create Room</strong> — you&rsquo;ll enter a lobby state where you can wait for friends to join before starting.</p>
+              <p>Go to <strong>Play → Create a Room</strong>. Choose your game mode (FFA/TDM/Kill Confirmed/Survival/Gun Game), team size (3v3/5v5/7v7), map, bot difficulty, whether to fill empty slots with bots, and an optional room name and password. Click <strong>Create Room</strong> — you&rsquo;ll enter a lobby state where you can wait for friends to join before starting.</p>
             </FaqItem>
             <FaqItem q="How do teams work?">
-              <p>In <strong>TDM</strong>, players pick Red or Blue team when joining (or auto-assign). Teams are balanced — each team has a size limit based on the room&rsquo;s team size setting (3v3, 5v5, or 7v7). If &ldquo;fill with bots&rdquo; is on, bots fill empty slots on both teams. When a human joins a full team, a bot is removed to make room (team size is respected).</p>
+              <p>In <strong>TDM and Kill Confirmed</strong>, players pick Red or Blue team when joining (or auto-assign). Teams are balanced — each team has a size limit based on the room&rsquo;s team size setting (3v3, 5v5, or 7v7). If &ldquo;fill with bots&rdquo; is on, bots fill empty slots on both teams. When a human joins a full team, a bot is removed to make room (team size is respected).</p>
               <p className="mt-2">In <strong>FFA</strong>, there are no teams — everyone is an enemy. The team size selector becomes &ldquo;player slots&rdquo; (e.g., 5v5 = 10 total players).</p>
               <p className="mt-2">In <strong>Survival</strong>, all humans are on the same side against the bot waves.</p>
             </FaqItem>
             <FaqItem q="What does 'Fill with Bots' do?">
-              <p>When enabled, bots automatically fill empty slots in the match. As human players join, bots are replaced one-for-one (respecting team size limits in TDM). If a human leaves, a bot refills their slot so the match stays populated. This ensures the match is always full of combatants.</p>
+              <p>When enabled, bots automatically fill empty slots in the match. As human players join, bots are replaced one-for-one (respecting team size limits in TDM or Kill Confirmed). If a human leaves, a bot refills their slot so the match stays populated. This ensures the match is always full of combatants.</p>
             </FaqItem>
             <FaqItem q="What is bot difficulty and 'Mixed'?">
               <p>Bot difficulty is set per-room (not per-player) when creating a room:</p>
@@ -163,7 +173,7 @@ export function FAQ() {
             <FaqItem q="How do achievements work?">
               <p>Achievements are long-term milestones (e.g., &ldquo;Reach Level 10&rdquo;, &ldquo;Get 500 kills&rdquo;, &ldquo;Survive 10 waves&rdquo;). They award bonus XP and credits when completed. Achievements are separated into two categories:</p>
               <ul className="space-y-0.5 mt-1.5">
-                <li><strong className="text-rose-300">PvP Achievements:</strong> Earned in FFA, TDM, and Gun Game matches (kills, wins, headshots, multikills).</li>
+                <li><strong className="text-rose-300">PvP Achievements:</strong> Earned in FFA, TDM, Kill Confirmed, and Gun Game matches (kills, wins, headshots, multikills).</li>
                 <li><strong className="text-emerald-300">PvE Achievements:</strong> Earned in Survival mode (waves survived, survival kills, reinforcements used).</li>
               </ul>
               <p className="mt-2">View your achievements on the <strong>Profile</strong> screen.</p>

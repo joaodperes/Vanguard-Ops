@@ -1,0 +1,72 @@
+[
+  {
+    "level": 1,
+    "name": "Recruit",
+    "shortName": "RCT",
+    "color": "#9ca3af",
+    "insignia": "▾"
+  },
+  {
+    "level": 3,
+    "name": "Private",
+    "shortName": "PVT",
+    "color": "#a3a3a3",
+    "insignia": "•"
+  },
+  {
+    "level": 5,
+    "name": "Corporal",
+    "shortName": "CPL",
+    "color": "#84cc16",
+    "insignia": "⌂"
+  },
+  {
+    "level": 8,
+    "name": "Sergeant",
+    "shortName": "SGT",
+    "color": "#22c55e",
+    "insignia": "◆"
+  },
+  {
+    "level": 11,
+    "name": "Lieutenant",
+    "shortName": "LT",
+    "color": "#06b6d4",
+    "insignia": "★"
+  },
+  {
+    "level": 14,
+    "name": "Captain",
+    "shortName": "CPT",
+    "color": "#3b82f6",
+    "insignia": "★"
+  },
+  {
+    "level": 17,
+    "name": "Major",
+    "shortName": "MAJ",
+    "color": "#a855f7",
+    "insignia": "✦"
+  },
+  {
+    "level": 20,
+    "name": "Colonel",
+    "shortName": "COL",
+    "color": "#ec4899",
+    "insignia": "✦"
+  },
+  {
+    "level": 24,
+    "name": "General",
+    "shortName": "GEN",
+    "color": "#f59e0b",
+    "insignia": "✪"
+  },
+  {
+    "level": 30,
+    "name": "Vanguard Elite",
+    "shortName": "VGE",
+    "color": "#ef4444",
+    "insignia": "✪"
+  }
+]

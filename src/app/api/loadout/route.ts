@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
+import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { db } from "@/lib/db";
+import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
+import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
+import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
+  isPrimaryWeaponCategory,
   weaponById,
   weaponAttachmentSlots,
   compatibleAttachments,
@@ -12,6 +18,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
+import { canEquipSecondaryPrimary, DEFAULT_PERK_ID, perkById } from "@/lib/perks";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +38,10 @@ function sanitizeAttachments(
   weaponId: string,
   raw: Record<string, string | null> | undefined,
 ): string {
-  if (!raw) return "{}";
   const wdef = weaponById(weaponId);
   const supportedSlots = weaponAttachmentSlots(wdef);
-  const cleaned: Record<string, string | null> = {};
+  const cleaned: Record<AttachmentSlot, string | null> = emptyAttachmentMap();
+  if (!raw) return JSON.stringify(cleaned);
   for (const slot of supportedSlots) {
     const id = raw[slot];
     if (!id) {
@@ -43,7 +50,8 @@ function sanitizeAttachments(
     }
     const allowed = compatibleAttachments(weaponId, slot as AttachmentSlot);
     if (allowed.includes(id)) cleaned[slot] = id;
-    // silently drop incompatible ids (client should have filtered already)
+    // Keep null for incompatible ids; an old attachment can never survive as
+    // a ghost optic when changing the weapon in the same loadout slot.
   }
   return JSON.stringify(cleaned);
 }
@@ -56,11 +64,23 @@ function sanitizeAttachments(
 // (like attachments) — weaponSkin applies to the primary, secondaryWeaponSkin to
 // the secondary, meleeWeaponSkin to the melee slot.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  // Equipping a saved preset flows through this same validation/ownership path
+  // as manual Armory changes. Preset content is always loaded from the DB.
+  const rawBody = await req.json().catch(() => ({}));
+  let body = rawBody;
+  if (typeof rawBody.presetId === "string") {
+    const { playerKey: ownerKey } = await resolvePlayerKey(req, rawBody.playerKey);
+    if (!ownerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
+    const owner = await getOrCreatePlayer(ownerKey);
+    const preset = parseSavedLoadouts(owner.loadout?.savedLoadouts).find(p => p.id === rawBody.presetId);
+    if (!preset) return NextResponse.json({ error: "Saved loadout not found" }, { status: 404 });
+    body = { ...preset, playerKey: rawBody.playerKey };
+  }
   const {
     playerKey: bodyKey,
     primaryWeapon,
     secondaryWeapon,
+    perkId,
     meleeWeapon,
     weaponSkin,
     secondaryWeaponSkin,
@@ -73,6 +93,7 @@ export async function POST(req: NextRequest) {
     playerKey?: string;
     primaryWeapon?: string;
     secondaryWeapon?: string;
+    perkId?: string;
     meleeWeapon?: string;
     weaponSkin?: string;
     secondaryWeaponSkin?: string;
@@ -87,10 +108,25 @@ export async function POST(req: NextRequest) {
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
 
+  // Level-gated passive unlocks: clients must explicitly identify the
+  // selected perk when equipping a second primary. The server checks level.
+  const selectedPerk = perkId ? perkById(perkId) : perkById(DEFAULT_PERK_ID);
+  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > player.level)) {
+    return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
+  }
   // Validate weapon selections against the catalog and their slot constraints.
   if (primaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === primaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown primaryWeapon" }, { status: 400 });
+    if (w.wonder) {
+      const owned = await db.wonderUnlock.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId: w.id },
+      } });
+      if (!owned) return NextResponse.json({ error: "Unlock this Wonder Weapon using a Prestige token first" }, { status: 403 });
+    }
+    if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
+    }
     if (w.category === "sidearm" || w.category === "melee") {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
@@ -98,8 +134,20 @@ export async function POST(req: NextRequest) {
   if (secondaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === secondaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown secondaryWeapon" }, { status: 400 });
-    if (w.category !== "sidearm") {
-      return NextResponse.json({ error: "secondaryWeapon must be a sidearm" }, { status: 400 });
+    if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
+    }
+    const anotherPrimary = isPrimaryWeaponCategory(w.category);
+    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, player.level) || w.wonder ||
+      w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
+      return NextResponse.json({ error: "Second primary requires Well Prepared (LVL 28), must be different from your first, and cannot be a Wonder Weapon" }, { status: 403 });
+    }
+    if (w.category !== "sidearm" && !anotherPrimary) {
+      return NextResponse.json({ error: "secondaryWeapon must be a sidearm or a permitted second primary" }, { status: 400 });
+    }
+    if (anotherPrimary && w.unlockCost > 0 &&
+      !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
+      return NextResponse.json({ error: "Second primary weapon is not owned" }, { status: 403 });
     }
   }
   if (meleeWeapon !== undefined) {
@@ -110,20 +158,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // If attachments are provided, validate each is compatible with the equipped
-  // primary weapon (after this update is applied). Drop any incompatible ones.
-  let attsJson: string | undefined;
-  if (attachments !== undefined) {
-    const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
-    attsJson = sanitizeAttachments(effectivePrimary, attachments);
+  // Attachment maps are tied to the weapon, not transferable across different
+  // weapons occupying the same primary/secondary loadout slot. A switch with
+  // no supplied map clears every attachment, including any old optic. Explicit
+  // None selections are also persisted as real null values.
+  // Snapshot previous selections before changing any slot. A weapon's saved
+  // setup follows its weapon ID rather than the transient loadout slot.
+  const setups=parseWeaponSetups(player.loadout?.weaponSetups);
+  if(player.loadout){
+    rememberSetup(setups,player.loadout.primaryWeapon,player.loadout.weaponSkin,player.loadout.attachments);
+    rememberSetup(setups,player.loadout.secondaryWeapon,player.loadout.secondaryWeaponSkin,player.loadout.secondaryAttachments);
+    rememberSetup(setups,player.loadout.meleeWeapon,player.loadout.meleeWeaponSkin,player.loadout.meleeAttachments);
   }
-  // Secondary attachments apply to the equipped secondary (sidearm). Sidearms
-  // support attachments just like primaries — validate + clean the same way.
-  let secAttsJson: string | undefined;
-  if (secondaryAttachments !== undefined) {
-    const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
-    secAttsJson = sanitizeAttachments(effectiveSecondary, secondaryAttachments);
-  }
+  const previousPrimary = safeWeaponId(player.loadout?.primaryWeapon ?? "rifle_ar");
+  const selectedPrimary = safeWeaponId(primaryWeapon ?? previousPrimary);
+  const primaryAtts = attachmentsForWeaponSelection(previousPrimary, selectedPrimary, attachments ?? (previousPrimary !== selectedPrimary ? setups[selectedPrimary]?.attachments : undefined));
+  const attsJson = primaryAtts === undefined ? undefined : sanitizeAttachments(selectedPrimary, primaryAtts);
+
+  const previousSecondary = safeWeaponId(player.loadout?.secondaryWeapon ?? "pistol_side");
+  const selectedSecondary = safeWeaponId(secondaryWeapon ?? previousSecondary);
+  const secondaryAtts = attachmentsForWeaponSelection(previousSecondary, selectedSecondary, secondaryAttachments ?? (previousSecondary !== selectedSecondary ? setups[selectedSecondary]?.attachments : undefined));
+  const secAttsJson = secondaryAtts === undefined ? undefined : sanitizeAttachments(selectedSecondary, secondaryAtts);
   // Melee attachments: melee weapons don't take attachments — always "{}".
   // We still accept the field for API symmetry but persist an empty object.
   let melAttsJson: string | undefined;
@@ -140,33 +195,59 @@ export async function POST(req: NextRequest) {
   // primary weapon, the secondary skin against the secondary weapon, etc.
   const sanitizeSkinForWeapon = async (skinId: string | undefined, weaponId: string): Promise<string | undefined> => {
     if (skinId === undefined || skinId === "default") return skinId;
-    const skinDef = WEAPON_SKINS.find((s) => s.id === skinId);
-    const isStd = skinDef ? isStandardSkin(skinDef) : true;
-    const existingSkin = isStd
-      ? await db.skinUnlock.findFirst({ where: { playerId: player.id, skinId } })
-      : await db.skinUnlock.findUnique({
-          where: {
-            playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId },
-          },
-        });
-    if (!existingSkin) {
-      // Maybe it's a challenge reward skin for this weapon that was auto-granted.
-      const isChallengeSkin = isStd
-        ? WEAPON_CHALLENGES.some((c) => c.skinId === skinId)
-        : WEAPON_CHALLENGES.some((c) => c.weaponId === weaponId && c.skinId === skinId);
-      if (isChallengeSkin) {
-        return undefined; // drop — not yet unlocked
-      }
+    const skinDef = WEAPON_SKINS.find(s => s.id === skinId);
+    if (!skinDef) return undefined;
+    if (skinDef.prestige) {
+      const earned = await db.weaponPrestige.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId },
+      } });
+      return earned ? skinId : undefined;
     }
-    return skinId;
+    const owned = await db.skinUnlock.findUnique({
+      where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
+    });
+    // A completed challenge is only eligibility to buy, not permission to equip.
+    if (owned) return skinId;
+    // Legacy wildcard grants existed before paid per-weapon unlocks. Preserve
+    // only if this specific weapon already completed its own skin challenge.
+    const legacy = await db.skinUnlock.findUnique({
+      where: { playerId_weaponId_skinId: { playerId: player.id, weaponId: "*", skinId } },
+    });
+    if (!legacy) return undefined;
+    const stats = await db.weaponProgress.findUnique({
+      where: { playerId_weaponId: { playerId: player.id, weaponId } },
+    });
+    return skinChallengesForWeaponAndSkin(weaponId, skinId).some(ch =>
+      weaponChallengeProgress(ch, { kills: stats?.kills ?? 0, headshots: stats?.headshots ?? 0,
+        conditionStats: parseWeaponConditionStats(stats?.conditionStats) }).completed,
+    ) ? skinId : undefined;
   };
   const effectivePrimary = safeWeaponId(primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar");
   const effectiveSecondary = safeWeaponId(secondaryWeapon ?? player.loadout?.secondaryWeapon ?? "pistol_side");
   const effectiveMelee = safeWeaponId(meleeWeapon ?? player.loadout?.meleeWeapon ?? "knife_tactical");
-  const sanitizedWeaponSkin = await sanitizeSkinForWeapon(weaponSkin, effectivePrimary);
-  const sanitizedSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin, effectiveSecondary);
-  const sanitizedMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin, effectiveMelee);
+  const candidatePrimarySkin = await sanitizeSkinForWeapon(weaponSkin ?? (effectivePrimary!==previousPrimary ? setups[effectivePrimary]?.skin ?? "default" : undefined), effectivePrimary);
+  const candidateSecondarySkin = await sanitizeSkinForWeapon(secondaryWeaponSkin ?? (effectiveSecondary!==previousSecondary ? setups[effectiveSecondary]?.skin ?? "default" : undefined), effectiveSecondary);
+  const candidateMeleeSkin = await sanitizeSkinForWeapon(meleeWeaponSkin ?? (effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical") ? setups[effectiveMelee]?.skin ?? "default" : undefined), effectiveMelee);
+  // On a weapon swap, never retain the outgoing weapon's old skin if a
+  // previously saved skin is now unowned or invalid.
+  const sanitizedWeaponSkin=candidatePrimarySkin??(effectivePrimary!==previousPrimary?"default":undefined);
+  const sanitizedSecondarySkin=candidateSecondarySkin??(effectiveSecondary!==previousSecondary?"default":undefined);
+  const sanitizedMeleeSkin=candidateMeleeSkin??(effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical")?"default":undefined);
+    if (playerSkin !== undefined &&
+      playerSkin !== "default" && playerSkin !== player.selectedSkin &&
+      !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
+    return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+  }
 
+  // Persist each newly chosen setup after ownership/compatibility checks,
+  // preserving explicit None attachments and falling back to default when a
+  // formerly owned skin is no longer available.
+  rememberSetup(setups,effectivePrimary,sanitizedWeaponSkin??player.loadout?.weaponSkin??"default",
+    attsJson??player.loadout?.attachments??"{}");
+  rememberSetup(setups,effectiveSecondary,sanitizedSecondarySkin??player.loadout?.secondaryWeaponSkin??"default",
+    secAttsJson??player.loadout?.secondaryAttachments??"{}");
+  rememberSetup(setups,effectiveMelee,sanitizedMeleeSkin??player.loadout?.meleeWeaponSkin??"default",
+    melAttsJson??player.loadout?.meleeAttachments??"{}");
   await db.loadout.upsert({
     where: { playerId: player.id },
     create: {
@@ -181,20 +262,34 @@ export async function POST(req: NextRequest) {
       attachments: attsJson ?? "{}",
       secondaryAttachments: secAttsJson ?? "{}",
       meleeAttachments: melAttsJson ?? "{}",
+      weaponSetups:JSON.stringify(setups),
     },
     update: {
+      weaponSetups:JSON.stringify(setups),
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),
-      ...(playerSkin !== undefined ? { playerSkin, selectedSkin: playerSkin } : {}),
+      ...(playerSkin !== undefined ? { playerSkin } : {}),
       ...(attsJson !== undefined ? { attachments: attsJson } : {}),
       ...(secAttsJson !== undefined ? { secondaryAttachments: secAttsJson } : {}),
       ...(melAttsJson !== undefined ? { meleeAttachments: melAttsJson } : {}),
     },
   });
+  if (playerSkin !== undefined) {
+    // The old Armory only stored the last selected operator, not every
+    // purchase. Preserve this last known legacy entitlement before switching.
+    if (player.selectedSkin !== "default") {
+      await db.playerSkinUnlock.upsert({
+        where: { playerId_skinId: { playerId: player.id, skinId: player.selectedSkin } },
+        create: { playerId: player.id, skinId: player.selectedSkin },
+        update: {},
+      });
+    }
+    await db.player.update({ where: { id: player.id }, data: { selectedSkin: playerSkin } });
+  }
   const view = await buildProfileView(playerKey);
   return NextResponse.json(view);
 }

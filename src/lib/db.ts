@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { existsSync, mkdirSync, accessSync, constants, readFileSync } from 'fs'
+import { existsSync, mkdirSync, accessSync, constants, statSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { execSync } from 'child_process'
 
@@ -45,6 +45,20 @@ const PROJECT_DB_URL = 'file:' + resolve(PROJECT_DB_DIR, 'custom.db')
 const TMP_DB_DIR = resolve(tmpdir(), 'vanguard-ops')
 const TMP_DB_URL = 'file:' + resolve(TMP_DB_DIR, 'custom.db')
 
+// Prisma resolves relative SQLite file: paths from the folder containing
+// prisma/schema.prisma, NOT from process.cwd(). Use the same interpretation
+// for existence / writability checks; otherwise Windows startup incorrectly
+// reports a missing root-level database and attempts to reinitialize it.
+const SCHEMA_PATH = resolve(process.cwd(), 'prisma', 'schema.prisma')
+function sqliteFilePath(dbUrl: string): string {
+  const filePath = dbUrl.slice('file:'.length)
+  if (/^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith('/') || filePath.startsWith('\\')) {
+    return resolve(filePath)
+  }
+  const schemaDir = existsSync(SCHEMA_PATH) ? dirname(SCHEMA_PATH) : process.cwd()
+  return resolve(schemaDir, filePath)
+}
+
 /**
  * Returns true if we are currently running inside `next build` (page-data
  * collection / static generation), where the DB should NOT be touched.
@@ -88,19 +102,8 @@ function resolveDbUrl(): string {
   // back to alternatives if the env path's directory isn't writable.
   // This ensures local dev, deploy, and Prisma CLI all use the SAME DB file.
 
-  // Extract the directory from the file: URL to check if it's writable.
-  // Handle both absolute (file:/path/to/db) and relative (file:./db/custom.db) URLs.
-  let dbDir: string
-  if (raw.startsWith('file:./') || raw.startsWith('file:../')) {
-    // Relative path — resolve from the project root (cwd)
-    const relPath = raw.slice('file:'.length)
-    dbDir = resolve(process.cwd(), dirname(relPath))
-  } else if (raw.startsWith('file:/')) {
-    // Absolute path
-    dbDir = resolve(dirname(raw.slice('file:'.length)))
-  } else {
-    dbDir = resolve(process.cwd(), 'db')
-  }
+  // Check the actual SQLite location that Prisma CLI / engine will use.
+  const dbDir = dirname(sqliteFilePath(raw))
 
   // Try the env path first
   if (isDirWritable(dbDir)) {
@@ -137,96 +140,64 @@ function resolveDbUrl(): string {
  * GUARDED: this function does nothing if isBuildContext() is true.
  */
 function ensureSchemaApplied(dbUrl: string): void {
-  if (isBuildContext()) return // Never touch DB during build
-  if (!dbUrl.startsWith('file:')) return
+  if (isBuildContext() || !dbUrl.startsWith('file:')) return
 
-  const filePath = dbUrl.slice('file:'.length)
-  const absPath = filePath.startsWith('.')
-    ? resolve(process.cwd(), filePath)
-    : filePath
-
+  const absPath = sqliteFilePath(dbUrl)
   const fileExists = existsSync(absPath)
-  const fileIsEmpty = fileExists && readFileSync(absPath).length === 0
+  const fileIsEmpty = fileExists && statSync(absPath).size === 0
 
+  // Existing DBs are updated safely by the package dev script (prisma db
+  // push, with NO --accept-data-loss). Do not asynchronously probe just the
+  // Player table: an older DB can have Player but still lack WeaponPrestige,
+  // WonderUnlock, or the conditionStats column, and a fire-and-forget schema
+  // update races against API requests.
   if (!fileExists || fileIsEmpty) {
     console.warn(
       `[db.ts] DB file ${absPath} is ${fileIsEmpty ? 'empty' : 'missing'}. ` +
-        `Applying schema via prisma db push...`
+        'Applying schema via prisma db push...'
     )
     runPrismaDbPush(dbUrl)
-    return
-  }
-
-  // File exists and is non-empty — check for the Player table via a probe.
-  try {
-    const probe = new PrismaClient({
-      datasources: { db: { url: dbUrl } },
-      log: [],
-    })
-    probe
-      .$queryRawUnsafe<{ name: string }[]>(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='Player' LIMIT 1"
-      )
-      .then((rows) => {
-        if (!rows || rows.length === 0) {
-          console.warn(
-            `[db.ts] Player table missing in ${absPath}. Applying schema...`
-          )
-          runPrismaDbPush(dbUrl)
-        }
-      })
-      .catch((err) => {
-        console.warn(
-          `[db.ts] Schema probe failed for ${absPath}:`,
-          (err as Error)?.message ?? err
-        )
-        runPrismaDbPush(dbUrl)
-      })
-      .finally(() => {
-        probe.$disconnect().catch(() => {})
-      })
-  } catch (err) {
-    console.warn(
-      `[db.ts] Could not probe DB schema:`,
-      (err as Error)?.message ?? err
-    )
   }
 }
 
 function runPrismaDbPush(dbUrl: string): void {
+  const projectRoot = resolve(process.cwd())
+  const schemaPath = existsSync(SCHEMA_PATH)
+    ? SCHEMA_PATH
+    : existsSync(resolve(__dirname, '../../prisma/schema.prisma'))
+      ? resolve(__dirname, '../../prisma/schema.prisma')
+      : null
+
+  if (!schemaPath) {
+    throw new Error(
+      `[db.ts] Cannot find prisma/schema.prisma for ${dbUrl}. ` +
+        'Run `bun run db:setup` from the repository root and restart the app.'
+    )
+  }
+
+  // Passing env through execSync options works on Windows (cmd.exe / PowerShell)
+  // and on Linux/macOS. The old `DATABASE_URL="..." command` shell prefix only
+  // works in Unix shells and caused dev startup to fail on Windows.
+  const options = {
+    stdio: 'inherit' as const,
+    cwd: projectRoot,
+    timeout: 60_000,
+    env: { ...process.env, DATABASE_URL: dbUrl },
+  }
+  const args = `db push --schema "${schemaPath}" --skip-generate`
   try {
-    const projectRoot = resolve(process.cwd())
-    const schemaPath = existsSync(`${projectRoot}/prisma/schema.prisma`)
-      ? `${projectRoot}/prisma/schema.prisma`
-      : existsSync(`${__dirname}/../../prisma/schema.prisma`)
-        ? resolve(`${__dirname}/../../prisma/schema.prisma`)
-        : null
-
-    if (!schemaPath) {
-      console.error(
-        `[db.ts] Cannot find prisma/schema.prisma. The DB at ${dbUrl} has ` +
-          `no tables. Run \`bun run db:push\` manually.`
-      )
-      return
-    }
-
     try {
-      execSync(
-        `DATABASE_URL="${dbUrl}" bunx prisma db push --schema "${schemaPath}" --accept-data-loss --skip-generate`,
-        { stdio: 'inherit', cwd: projectRoot, timeout: 60_000 }
-      )
-      console.log(`[db.ts] Schema applied successfully to ${dbUrl}`)
+      execSync(`npx --no-install prisma ${args}`, options)
     } catch {
-      execSync(
-        `DATABASE_URL="${dbUrl}" npx --yes prisma@6 db push --schema "${schemaPath}" --accept-data-loss --skip-generate`,
-        { stdio: 'inherit', cwd: projectRoot, timeout: 60_000 }
-      )
-      console.log(`[db.ts] Schema applied successfully to ${dbUrl} (via npx)`)
+      // Bun projects may not have npx available, particularly in deployments.
+      execSync(`bunx prisma ${args}`, options)
     }
+    console.log(`[db.ts] Schema applied successfully to ${dbUrl}`)
   } catch (err) {
-    console.error(
-      `[db.ts] Failed to apply Prisma schema to ${dbUrl}:`,
-      (err as Error)?.message ?? err
+    console.error(`[db.ts] Failed to apply Prisma schema to ${dbUrl}:`, err)
+    throw new Error(
+      '[db.ts] Database schema setup failed. Run `bun run db:setup` ' +
+        'from the project root, then restart the dev server.'
     )
   }
 }
@@ -244,17 +215,23 @@ const globalForPrisma = globalThis as unknown as {
 
 function createClient(): PrismaClient {
   const url = resolveDbUrl()
-  // Run schema self-heal BEFORE creating the client so the tables exist
-  // when Prisma tries to query them.
-  try {
-    ensureSchemaApplied(url)
-  } catch (err) {
-    console.error('[db.ts] Schema check failed:', err)
-  }
+  // Fail with the actual setup error instead of continuing with an unusable
+  // database and crashing later in unrelated profile/Prestige queries.
+  ensureSchemaApplied(url)
   const client = new PrismaClient({
     log: ['error', 'warn'],
     datasources: { db: { url } },
   })
+  // Next dev can keep an older generated Prisma client across branch switches.
+  // Catch this immediately with a remediation hint, rather than letting
+  // db.weaponPrestige.findMany fail with "Cannot read properties of undefined".
+  const models = client as unknown as Record<string, unknown>
+  if (!models.weaponPrestige || !models.wonderUnlock) {
+    throw new Error(
+      '[db.ts] The generated Prisma client is outdated (Prestige models missing). ' +
+        'Stop Next.js, run `bun run db:setup`, then restart with `bun run dev`.'
+    )
+  }
   globalForPrisma.__vanguardPrisma = client
   globalForPrisma.__vanguardDbUrl = url
   return client

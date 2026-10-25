@@ -13,7 +13,7 @@ const geistMono = { variable: "--font-geist-mono" };
 
 export const metadata: Metadata = {
   title: "VANGUARD OPS — Browser FPS",
-  description: "A browser-based 3D FPS with FFA & TDM modes, bots & online play, weapon unlocks, attachments and skins.",
+  description: "A browser-based 3D FPS with FFA, TDM, Kill Confirmed, Gun Game and Survival, bots & online play, weapon unlocks, attachments and skins.",
   keywords: ["FPS", "browser game", "Three.js", "multiplayer", "Vanguard Ops"],
   authors: [{ name: "Z.ai" }],
   icons: {

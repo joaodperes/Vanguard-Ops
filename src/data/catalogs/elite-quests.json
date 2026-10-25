@@ -1,0 +1,57 @@
+[
+  {
+    "id": "elite_kills_1000",
+    "metric": "kills",
+    "goal": 1000,
+    "rewardXp": 5000,
+    "rewardCredits": 2500,
+    "title": "Reaper Elite",
+    "description": "Get 1000 kills — lifetime",
+    "icon": "Crosshair",
+    "category": "elite"
+  },
+  {
+    "id": "elite_wins_50",
+    "metric": "wins",
+    "goal": 50,
+    "rewardXp": 6000,
+    "rewardCredits": 3000,
+    "title": "Tactician Supreme",
+    "description": "Win 50 matches — lifetime",
+    "icon": "Trophy",
+    "category": "elite"
+  },
+  {
+    "id": "elite_surv_waves_20",
+    "metric": "survival_waves",
+    "goal": 20,
+    "rewardXp": 7500,
+    "rewardCredits": 3500,
+    "title": "Untouchable",
+    "description": "Survive 20 waves in a single Survival run",
+    "icon": "Shield",
+    "category": "elite"
+  },
+  {
+    "id": "elite_hs_500",
+    "metric": "headshots",
+    "goal": 500,
+    "rewardXp": 8000,
+    "rewardCredits": 4000,
+    "title": "Headhunter Prime",
+    "description": "Land 500 headshots — lifetime",
+    "icon": "Target",
+    "category": "elite"
+  },
+  {
+    "id": "elite_level_25",
+    "metric": "level",
+    "goal": 25,
+    "rewardXp": 10000,
+    "rewardCredits": 5000,
+    "title": "Vanguard Legend",
+    "description": "Reach level 25",
+    "icon": "TrendingUp",
+    "category": "elite"
+  }
+]

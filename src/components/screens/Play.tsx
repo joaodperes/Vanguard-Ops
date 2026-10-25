@@ -2,6 +2,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
+import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
+import { resolveGameServerConnection } from "@/lib/game-network";
+import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
+import { MAP_BLUEPRINTS } from "@/lib/map-blueprints";
 import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
@@ -20,16 +24,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnlocked, type SurvivalProgress } from "@/lib/survival";
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
 // difficulty per bot at spawn time. Colors avoid indigo/blue per project rules.
-const BOT_DIFFICULTY_OPTIONS: { id: BotDifficulty; label: string; desc: string; color: string }[] = [
+const BOT_DIFFICULTY_OPTIONS: { id: BotDifficulty | "none"; label: string; desc: string; color: string }[] = [
+  { id: "none", label: "No bots", desc: "Leave unoccupied player slots open for humans", color: "#94a3b8" },
   { id: "easy", label: "Easy", desc: "Slow reactions, frequent misses", color: "#22c55e" },
   { id: "normal", label: "Normal", desc: "Balanced — recommended", color: "#facc15" },
   { id: "hard", label: "Hard", desc: "Quick reflexes, tight bursts", color: "#f97316" },
@@ -55,8 +60,9 @@ function useLobby(active: boolean) {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       return;
     }
-    const sock = ioClient("/?XTransformPort=3003", {
-      path: "/",
+    const { socketUrl, socketPath } = resolveGameServerConnection(window.location);
+    const sock = ioClient(socketUrl, {
+      path: socketPath,
       transports: ["polling", "websocket"],
       reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1200, timeout: 8000,
     });
@@ -95,73 +101,86 @@ function useLobby(active: boolean) {
 // Play screen
 // ============================================================================
 export function Play() {
-  const { profile, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
+  const { profile, playerKey, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
   const [tab, setTab] = useState<"create" | "browse">("create");
+  const [mapPaceFilter, setMapPaceFilter] = useState<"all" | MapPace>("all");
   const lobby = useLobby(tab === "browse");
-  // Round 20a: Server status indicator. The game server runs on port 3003
-  // (started by instrumentation.ts). Connection strategy depends on environment:
-  // - Sandbox (Caddy on :81): check via "?XTransformPort=3003" (Caddy routes it)
-  // - Local dev (no Caddy): check directly on port 3003
-  // - Deploy (no Caddy): check /socket.io/ on same origin (may fail gracefully)
+  const [survivalProgress,setSurvivalProgress]=useState<SurvivalProgress>(ZERO_SURVIVAL_PROGRESS);
+  useEffect(()=>{
+    let cancelled=false;
+    fetch(`/api/survival/progress?playerKey=${encodeURIComponent(playerKey)}`)
+      .then(r=>r.ok?r.json():ZERO_SURVIVAL_PROGRESS)
+      .then(d=>{if(!cancelled)setSurvivalProgress(d);})
+      .catch(()=>{});
+    return ()=>{cancelled=true;};
+  },[playerKey]);
+  // LAN / Tailscale players should probe the same endpoint that the game
+  // engine and room browser use, rather than assuming a sandbox proxy.
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     const checkServer = async () => {
-      const isLocalhost = typeof window !== "undefined"
-        && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-      const isSandboxWithCaddy = typeof window !== "undefined"
-        && (window.location.port === "81" || window.location.search.includes("XTransformPort"));
-
-      // Helper: check if a fetch response looks like a socket.io engine.io response
+      const { probeUrls } = resolveGameServerConnection(window.location);
       const isSocketIoResponse = (ct: string, text: string) => {
         const isHtml = ct.includes("text/html") || text.startsWith("<!DOCTYPE") || text.startsWith("<html");
-        const isSocketIo = ct.includes("text/plain") || text.startsWith("0{") || text.startsWith("0[");
-        return isSocketIo && !isHtml;
+        return !isHtml && (ct.includes("text/plain") || text.startsWith("0{") || text.startsWith("0["));
       };
 
-      try {
-        if (isLocalhost && !isSandboxWithCaddy) {
-          // Local dev without Caddy: check the game server directly on port 3003.
-          const res = await fetch(`http://${window.location.hostname}:3003/?EIO=4&transport=polling`, { method: "GET" });
+      for (const url of probeUrls) {
+        try {
+          const res = await fetch(url, { method: "GET" });
           if (cancelled) return;
           const ct = res.headers.get("content-type") || "";
           const text = await res.text();
-          if (!cancelled) setServerOnline(isSocketIoResponse(ct, text));
-        } else {
-          // Sandbox (Caddy) or deploy: try the XTransformPort path first.
-          const res = await fetch("/?XTransformPort=3003&EIO=4&transport=polling", { method: "GET" });
           if (cancelled) return;
-          const ct = res.headers.get("content-type") || "";
-          const text = await res.text();
-          if (isSocketIoResponse(ct, text)) {
-            if (!cancelled) setServerOnline(true);
+          if (res.ok && isSocketIoResponse(ct, text)) {
+            setServerOnline(true);
             return;
           }
-          // If XTransformPort returned HTML, try the standard /socket.io/ path.
-          try {
-            const res2 = await fetch("/socket.io/?EIO=4&transport=polling", { method: "GET" });
-            if (cancelled) return;
-            const ct2 = res2.headers.get("content-type") || "";
-            if (!cancelled) setServerOnline(ct2.includes("text/plain") || (res2.ok && !ct2.includes("text/html")));
-          } catch {
-            if (!cancelled) setServerOnline(false);
-          }
+        } catch {
+          // Try the next endpoint. Sandbox proxies may not all be available.
         }
-      } catch {
-        if (!cancelled) setServerOnline(false);
       }
+      if (!cancelled) setServerOnline(false);
     };
     checkServer();
     const interval = setInterval(checkServer, 15000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
+  const launchInProgress = useRef(false);
+  // Read the actual persisted loadout AFTER pending Armory edits complete.
+  // This protects every weapon and both offline/online match launch paths from
+  // using a stale React profile while a sight/attachment removal is saving.
+  const prepareMatchLoadout = async (): Promise<boolean> => {
+    if (launchInProgress.current) return false;
+    launchInProgress.current = true;
+    try {
+      await waitForAttachmentSaves();
+      const res = await fetch(`/api/profile?playerKey=${encodeURIComponent(playerKey)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Could not verify your saved loadout");
+      const freshProfile = await res.json();
+      if (!freshProfile?.loadout) throw new Error("No saved loadout found");
+      useGame.getState().setProfile(freshProfile);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load saved attachments");
+      return false;
+    } finally {
+      launchInProgress.current = false;
+    }
+  };
+
   const equipped = profile?.loadout;
   const equippedWeapon = equipped ? weaponById(equipped.weapon.id) : WEAPONS[0];
 
   // ---- Create Room: launch the match via the engine ----
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const mode = roomConfig.mode;
+    if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
+      toast.error("This Survival tier is locked. Clear the previous milestone first.");
+      return;
+    }
     const teamSize = roomConfig.teamSize;
     const cfg = MATCH_MODES[mode];
     const cap = roomCapacity(mode, teamSize, roomConfig.survivalPlayers);
@@ -176,10 +195,14 @@ export function Play() {
       gungamePreset: roomConfig.mode === "gungame" ? roomConfig.gungamePreset : undefined,
       gungameMultiplier: roomConfig.mode === "gungame" ? roomConfig.gungameMultiplier : undefined,
       survivalPlayers: roomConfig.survivalPlayers,
+      survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
       // Round 19i: Pass custom limits for FFA/TDM.
-      scoreLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.scoreLimit : undefined,
-      timeLimit: (mode === "ffa" || mode === "tdm") ? roomConfig.timeLimit : undefined,
+      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.scoreLimit : undefined,
+      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.timeLimit : undefined,
+      tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
+      denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
     };
+    if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
       mode,
@@ -189,16 +212,18 @@ export function Play() {
       scoreLimit: cfg.defaultScoreLimit,
       timeLimit: cfg.defaultTimeLimit,
       botDifficulty: roomConfig.botDifficulty,
+      survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
     });
     setScreen("playing");
     toast.success(`Creating room "${config.roomName || `${profile?.name ?? "Host"}'s Room`}"…`);
   };
 
   // ---- Join Room from the browser ----
-  // For TDM rooms, the caller passes the chosen team (red/blue/auto). For FFA /
+  // For team-based rooms, the caller passes the chosen team (red/blue/auto). For FFA /
   // survival, team is undefined (the server assigns automatically).
-  const handleJoin = (room: RoomSummary, password: string | null, team?: "red" | "blue" | "auto") => {
+  const handleJoin = async (room: RoomSummary, password: string | null, team?: "red" | "blue" | "auto") => {
     const cfg = MATCH_MODES[room.mode];
+    if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "join", roomId: room.id, password, roomName: room.name, team });
     setPlayConfig({
       mode: room.mode,
@@ -208,6 +233,7 @@ export function Play() {
       scoreLimit: cfg.defaultScoreLimit,
       timeLimit: cfg.defaultTimeLimit,
       botDifficulty: "normal",  // joiners inherit the room's difficulty (server-authoritative)
+      survivalTier: room.survivalTier ?? "default",
     });
     setScreen("playing");
     toast.success(`Joining "${room.name}"…`);
@@ -275,9 +301,9 @@ export function Play() {
               <div className="space-y-5">
                 {/* Game mode */}
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {(["ffa", "tdm", "survival", "gungame"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode })} />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {(["ffa", "tdm", "killconfirmed", "survival", "gungame"] as GameMode[]).map((m) => (
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
                 </Section>
@@ -330,45 +356,40 @@ export function Play() {
                   )}
                 </Section>
 
-                {/* Fill with bots */}
-                <Section icon={<Bot className="w-4 h-4 text-emerald-400" />} title="Bot Fill" hint="Bots occupy empty slots; humans replace them on join">
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                    roomConfig.mode === "survival" ? "border-white/5 bg-black/20 opacity-60" : "border-white/10 bg-zinc-900/50"
-                  }`}>
-                    <Switch
-                      id="fill-bots"
-                      checked={roomConfig.mode === "survival" ? false : roomConfig.fillWithBots}
-                      onCheckedChange={(v) => setRoomConfig({ fillWithBots: v })}
-                      disabled={roomConfig.mode === "survival"}
-                    />
-                    <div className="flex-1">
-                      <Label htmlFor="fill-bots" className="text-white font-medium text-sm cursor-pointer">
-                        Fill empty slots with bots
-                      </Label>
-                      <div className="text-white/50 text-xs mt-0.5">
-                        {roomConfig.mode === "survival"
-                          ? "Survival uses wave-based bots — this option is disabled."
-                          : "When a human joins your team, a bot is removed to make room (team size respected)."}
-                      </div>
+                {roomConfig.mode === "survival" && (
+                  <Section icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {SURVIVAL_TIERS.map(tier=>{
+                        const info=SURVIVAL_TIER_INFO[tier];
+                        const unlocked=survivalUnlocked(tier,survivalProgress);
+                        const selected=roomConfig.survivalTier===tier;
+                        const progress=tier==="hard" ? "Unlock: win Standard (wave 30)" : tier==="elite" ? "Unlock: clear Hard wave 20" : tier==="nightmare" ? "Unlock: clear Elite wave 20" : "Available from the start";
+                        return (
+                          <button key={tier} type="button" disabled={!unlocked} onClick={()=>setRoomConfig({survivalTier:tier})}
+                            className={`text-left p-3 rounded-xl border transition-colors ${selected ? "border-amber-400/70 bg-amber-500/10" : unlocked ? "border-white/10 bg-black/30 hover:border-white/30" : "border-white/5 bg-black/20 opacity-50 cursor-not-allowed"}`}>
+                            <div className="flex items-center justify-between font-bold text-sm" style={{color:info.color}}>{info.label}{!unlocked && <Lock className="w-3.5 h-3.5" />}</div>
+                            <p className="text-white/60 text-xs mt-1 leading-relaxed">{info.description}</p>
+                            <div className="text-[10px] text-white/40 mt-2">{unlocked?"Unlocked":progress}</div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    {roomConfig.fillWithBots && roomConfig.mode !== "survival" && (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-300/80 text-[10px] uppercase">
-                        <Bot className="w-3 h-3 mr-1" /> {Math.max(0, cap - 1)} bots ready
-                      </Badge>
-                    )}
-                  </div>
-                </Section>
+                    <div className="mt-3 text-xs text-white/50">
+                      Standard wins: {survivalProgress.defaultWins} · Hard best: {survivalProgress.hardBest} · Elite best: {survivalProgress.eliteBest} · Nightmare best: {survivalProgress.nightmareBest}
+                    </div>
+                  </Section>
+                )}
 
                 {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
                 {roomConfig.mode !== "survival" && (
-                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Difficulty" hint="How skilled enemy bots are. Affects rewards.">
+                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {BOT_DIFFICULTY_OPTIONS.map((d) => {
-                        const selected = roomConfig.botDifficulty === d.id;
+                        const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
                         return (
                           <button
                             key={d.id}
-                            onClick={() => setRoomConfig({ botDifficulty: d.id })}
+                            onClick={() => setRoomConfig(d.id === "none" ? { fillWithBots: false } : { fillWithBots: true, botDifficulty: d.id })}
                             className={`text-left p-3 rounded-xl border transition-all ${
                               selected ? "border-white/40 bg-white/10" : "border-white/10 bg-black/30 hover:border-white/25"
                             }`}
@@ -385,7 +406,7 @@ export function Play() {
                       })}
                     </div>
                     <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-white/50 leading-relaxed">
-                      <span className="font-semibold text-white/70">Rewards scale with difficulty:</span> harder bots award more XP/credits per kill (Easy 10/5 → Veteran 30/18). Mixed rolls a random tier per bot.
+                      <span className="font-semibold text-white/70">With bots enabled:</span> harder difficulties award more XP/credits per bot kill (Easy 10/5 → Veteran 30/18). Mixed rolls a random tier per bot. No bots keeps all player slots open.
                     </div>
                   </Section>
                 )}
@@ -419,13 +440,13 @@ export function Play() {
                     </div>
                   </div>
                 )}
-                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm") && (
-                  <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the kill target and/or time limit (at least one required)">
+                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed") && (
+                  <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> Kill Target</Label>
+                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
-                          {[0, 15, 25, 30, 50, 60, 75, 100].map((s) => (
+                          {[0, 15, 25, 30, 40, 50, 60, 75, 100].map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
@@ -444,6 +465,35 @@ export function Play() {
                           ))}
                         </div>
                       </div>
+                      {roomConfig.mode === "killconfirmed" && (
+                        <div>
+                          <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[10000, 15000, 25000, 30000, 45000].map((ms) => (
+                              <button key={ms} type="button" onClick={() => setRoomConfig({ tagLifetimeMs: ms })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                {ms / 1000}s
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/35 text-xs mt-1">Time before an unclaimed dogtag disappears.</p>
+                        </div>
+                      )}
+                      {roomConfig.mode === "killconfirmed" && (
+                        <div>
+                          <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Denial Scoring</Label>
+                          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Denial Scoring">
+                            {([{ enabled: false, label: "Off" }, { enabled: true, label: "+1 Point" }] as const).map((option) => (
+                              <button key={option.label} type="button" aria-pressed={roomConfig.denialScoreEnabled === option.enabled}
+                                onClick={() => setRoomConfig({ denialScoreEnabled: option.enabled })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/35 text-xs mt-1">Off: deny opponents a point. +1 Point: also score for your team when retrieving a teammate's tag.</p>
+                        </div>
+                      )}
                       {(roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) && (
                         <div className="text-rose-400 text-xs font-semibold flex items-center gap-1.5">
                           <AlertTriangle className="w-3 h-3" /> At least one limit must be set for the match to end.
@@ -454,9 +504,26 @@ export function Play() {
                 )}
 
                 {/* Map choice */}
-                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Pick the battleground">
+                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Choose the combat pace and map footprint">
+                  <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter maps by size and combat pace">
+                    {([
+                      ["all", "All sizes"], ["compact", "Compact · intense"],
+                      ["balanced", "Balanced"], ["tactical", "Tactical · spacious"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value} type="button"
+                        aria-pressed={mapPaceFilter === value}
+                        onClick={() => setMapPaceFilter(value)}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          mapPaceFilter === value
+                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                            : "border-white/10 bg-black/30 text-white/55 hover:border-white/30"
+                        }`}
+                      >{label}</button>
+                    ))}
+                  </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {MAP_LIST.map((m) => {
+                    {MAP_LIST.filter((m) => mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter).map((m) => {
                       const selected = roomConfig.mapId === m.id;
                       const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
                       return (
@@ -484,8 +551,11 @@ export function Play() {
                                 )}
                               </div>
                               <div className="text-white/50 text-[11px] leading-snug mb-1.5 line-clamp-2">{m.description}</div>
-                              <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {m.size * 2}×{m.size * 2}</span>
+                              <div className="text-cyan-200/70 text-[11px] mb-1.5">{(MAP_FOOTPRINT[m.id]?.description ?? m.description)}</div>
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
+                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{m.biome}</span>}
+                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
                               </div>
                             </div>
@@ -539,10 +609,13 @@ export function Play() {
                     <SummaryRow label="Room Name" value={roomConfig.roomName.trim() || `${profile?.name ?? "Host"}'s Room`} />
                     <SummaryRow label="Host" value={profile?.name ?? "Recruit"} />
                     <SummaryRow label="Mode" value={MATCH_MODES[roomConfig.mode].label} accent={MATCH_MODES[roomConfig.mode].accentColor} />
+                    {roomConfig.mode === "killconfirmed" && <SummaryRow label="Tag Lifetime" value={`${roomConfig.tagLifetimeMs / 1000}s`} />}
+                    {roomConfig.mode === "killconfirmed" && <SummaryRow label="Denial Scoring" value={roomConfig.denialScoreEnabled ? "+1 Point" : "Off"} />}
                     <SummaryRow
                       label={roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Slots" : roomConfig.mode === "survival" ? "Squad" : "Teams"}
                       value={roomConfig.mode === "survival" ? `${roomConfig.survivalPlayers} player${roomConfig.survivalPlayers === 2 ? "s" : ""}` : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${cap} players` : `${roomConfig.teamSize}v${roomConfig.teamSize}`}
                     />
+                    {roomConfig.mode === "survival" && <SummaryRow label="Survival Tier" value={SURVIVAL_TIER_INFO[roomConfig.survivalTier].label} accent={SURVIVAL_TIER_INFO[roomConfig.survivalTier].color} />}
                     <SummaryRow label="Map" value={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.name ?? "—"} accent={MAP_LIST.find((m) => m.id === roomConfig.mapId)?.accentColor} />
                     <SummaryRow
                       label="Bots"
@@ -553,7 +626,7 @@ export function Play() {
                       }
                       accent={roomConfig.fillWithBots && roomConfig.mode !== "survival" ? "#22c55e" : undefined}
                     />
-                    {roomConfig.mode !== "survival" && (
+                    {roomConfig.mode !== "survival" && roomConfig.fillWithBots && (
                       <SummaryRow
                         label="Difficulty"
                         value={BOT_DIFFICULTY_OPTIONS.find((d) => d.id === roomConfig.botDifficulty)?.label ?? "Normal"}
@@ -589,7 +662,7 @@ export function Play() {
 
                     <Button
                       onClick={handleCreate}
-                      disabled={serverOnline === false}
+                      disabled={serverOnline === false || (roomConfig.mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress))}
                       className="w-full mt-5 h-11 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {serverOnline === false ? (
@@ -618,12 +691,6 @@ export function Play() {
         </Tabs>
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-white/40">
-          <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> All rooms are live online matches</span>
-          <span className="hidden sm:inline">Create a room · invite friends · bots fill the gaps</span>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -647,7 +714,7 @@ function RoomBrowser({
   const { rooms, status, refresh } = lobby;
 
   const submitJoin = (room: RoomSummary) => {
-    const needsTeam = room.mode === "tdm";
+    const needsTeam = room.mode === "tdm" || room.mode === "killconfirmed";
     if (room.hasPassword || needsTeam) {
       setPending({ room, needsTeam });
       setPwInput("");
@@ -782,7 +849,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
   const cfg = MATCH_MODES[room.mode];
   const mapDef = MAP_LIST.find((m) => m.id === room.mapId);
   const full = room.humans >= room.capacity;
-  const Icon = room.mode === "ffa" ? Users : room.mode === "tdm" ? Shield : room.mode === "gungame" ? Swords : Skull;
+  const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed") ? Shield : room.mode === "gungame" ? Swords : Skull;
   const inLobby = room.state === "lobby";
 
   return (
@@ -818,6 +885,11 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
             <MapIcon className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {mapDef?.name ?? room.mapId}
           </span>
+          {room.mode === "survival" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">
+              {SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}
+            </span>
+          )}
           {room.mode !== "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
               <Users className="w-3 h-3" /> {room.mode === "ffa" || room.mode === "gungame" ? `${room.capacity} slots` : `${room.teamSize}v${room.teamSize}`}
@@ -891,7 +963,7 @@ function SummaryRow({ label, value, accent }: { label: string; value: string; ac
 
 function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: boolean; onSelect: (m: GameMode) => void }) {
   const cfg = MATCH_MODES[mode];
-  const Icon = mode === "ffa" ? Users : mode === "tdm" ? Shield : mode === "survival" ? Skull : Swords;
+  const Icon = mode === "ffa" ? Users : mode === "tdm" ? Shield : mode === "killconfirmed" ? Target : mode === "survival" ? Skull : Swords;
   return (
     <button
       onClick={() => onSelect(mode)}
@@ -907,11 +979,7 @@ function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: 
         <div className="flex items-center gap-2 mb-1">
           <span style={{ color: cfg.accentColor }}><Icon className="w-5 h-5" /></span>
           <span className="text-white font-bold text-sm">{cfg.label}</span>
-          {selected && (
-            <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold border" style={{ color: cfg.accentColor, borderColor: `${cfg.accentColor}50`, background: `${cfg.accentColor}20` }}>
-              On
-            </span>
-          )}
+
         </div>
         <div className="text-white/50 text-[11px] leading-snug">{cfg.description}</div>
       </div>

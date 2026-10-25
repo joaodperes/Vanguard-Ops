@@ -1,3 +1,5 @@
+import { ROUND_INSERT_FRACTION } from "./incremental-reload";
+
 /** Deterministic cosmetic animation timing. No Three.js or gameplay side effects.
  * Timelines use elapsed time from an action's own start (never the weapon's
  * catalog reload time: recoverable bolts and active venting override it).
@@ -25,7 +27,7 @@ const mix = (a: [number, number, number], b: [number, number, number], t: number
 const empty: ActionPose = { dip:0, pitch:0,roll:0,hand:[-.10,-.12,-.12],prop:[-.10,-.20,-.12],handRoll:0,propVisible:false,hideFixedMagazine:false,released:false };
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
-  if (special === "bolt") return "bolt";
+  if (special === "bolt" || weaponId === "sniper_heavy") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
   return "magazine";
@@ -70,14 +72,19 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
       handRoll:-.20*weight,propVisible:p>.29&&p<.75 };
   }
   if (kind === "shell") {
-    // Feed shells one by one. Gun is mostly kept visible while the left hand
-    // oscillates between the pocket and the port under the receiver.
-    const wave = Math.sin(p * Math.PI * 4);
+    // ONE visible shell insertion per gameplay reload cycle. The previous
+    // sin(4πp) path visited the loading port twice per cycle, making it look
+    // as if multiple shells had been inserted without adding ammunition.
+    // The shell visibly seats at ROUND_INSERT_FRACTION, from the shared
+    // gameplay timing rule, so cosmetic and ammo state cannot drift.
     const pocket: [number,number,number] = [-.23,-.47,.18];
     const port: [number,number,number] = [-.015,-.20,-.12];
-    const hand = mix(pocket,port,ease((wave+1)/2));
+    const hand = p < .24 ? pocket
+      : p < ROUND_INSERT_FRACTION ? mix(pocket,port,ease((p-.24)/(ROUND_INSERT_FRACTION-.24)))
+      : mix(port,pocket,ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION)));
+    const insert = ease((p-.24)/(ROUND_INSERT_FRACTION-.24));
     return {...empty,dip:-.10*weight,pitch:.33*weight,roll:-.16*weight,hand,prop:hand,
-      handRoll:.24*wave,propVisible:p>.10&&p<.87};
+      handRoll:.24*(1-insert),propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
   }
   if (kind === "cylinder") {
     return {...empty,dip:-.11*weight,pitch:.30*weight,roll:-.35*weight,

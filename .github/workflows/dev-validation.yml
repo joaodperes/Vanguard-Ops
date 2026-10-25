@@ -1,0 +1,67 @@
+name: Vanguard Ops JSON content branch validation
+
+# Feature branches are isolated from dev. Pushes to them validate all catalog,
+# gameplay and build contracts; dev keeps its existing manual-first workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/json-content-catalogs
+      - feature/wonder-weapon-expansion
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: JSON catalogs, map tests, regressions, types and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Generate Prisma client
+        run: bun run db:generate
+      - name: Validate catalogs and map definitions
+        id: catalog
+        continue-on-error: true
+        run: bun run content:validate
+      - name: Map geometry and bot regression tests
+        id: maps
+        continue-on-error: true
+        run: bun test tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
+      - name: All automated regression tests
+        id: tests
+        continue-on-error: true
+        run: bun run test:smoke
+      - name: TypeScript validation
+        id: types
+        continue-on-error: true
+        run: bun run typecheck
+      - name: Production application build
+        id: build
+        continue-on-error: true
+        run: bun run build
+      - name: Fail if any validation failed
+        if: always()
+        env:
+          CATALOG: ${{ steps.catalog.outcome }}
+          MAPS: ${{ steps.maps.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          TYPES: ${{ steps.types.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+        run: |
+          echo "Content: $CATALOG"
+          echo "Maps: $MAPS"
+          echo "Tests: $TESTS"
+          echo "Types: $TYPES"
+          echo "Build: $BUILD"
+          test "$CATALOG" = success
+          test "$MAPS" = success
+          test "$TESTS" = success
+          test "$TYPES" = success
+          test "$BUILD" = success

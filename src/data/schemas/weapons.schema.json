@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Weapons",
+  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "description",
+      "category",
+      "unlockLevel",
+      "unlockCost",
+      "stats"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_:-]*$"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "category": {
+        "enum": [
+          "assault",
+          "smg",
+          "shotgun",
+          "dmr",
+          "sniper",
+          "lmg",
+          "sidearm",
+          "melee"
+        ]
+      },
+      "unlockLevel": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "unlockCost": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "attachments": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "enum": [
+            "sight",
+            "barrel",
+            "grip",
+            "magazine"
+          ]
+        }
+      },
+      "baseSightType": {
+        "type": "string"
+      },
+      "special": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "heat",
+              "arc",
+              "bolt"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": true
+      },
+      "wonder": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "singularity",
+              "corrosion",
+              "turret"
+            ]
+          },
+          "maxCharges": {
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "rechargeMs": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "killBonusMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "radius": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind",
+          "maxCharges",
+          "rechargeMs",
+          "killBonusMs",
+          "radius"
+        ],
+        "additionalProperties": false
+      },
+      "stats": {
+        "type": "object",
+        "required": [
+          "damage",
+          "fireRate",
+          "magSize",
+          "reloadTime",
+          "spread",
+          "adsSpread",
+          "recoil",
+          "range",
+          "adsTime",
+          "moveSpeed",
+          "auto",
+          "headshotMult"
+        ],
+        "properties": {
+          "damage": {
+            "type": "number",
+            "minimum": 0
+          },
+          "reloadTime": {
+            "type": "number",
+            "minimum": 0
+          },
+          "spread": {
+            "type": "number",
+            "minimum": 0
+          },
+          "adsSpread": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recoil": {
+            "type": "number",
+            "minimum": 0
+          },
+          "adsTime": {
+            "type": "number",
+            "minimum": 0
+          },
+          "fireRate": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "magSize": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "range": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "moveSpeed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "headshotMult": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "falloffEndMultiplier": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "reloadPerRound": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "auto": {
+            "type": "boolean"
+          },
+          "minDamageMultiplier": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "burst": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pellets": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reloadStyle": {
+            "const": "incremental"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

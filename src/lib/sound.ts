@@ -20,6 +20,8 @@
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
 
+import { MUSIC_THEMES, type MusicThemeId } from "./music-themes";
+
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
 // the same base sound; distance + suppressor modifiers are layered on top.
@@ -137,10 +139,23 @@ const SHOT_PROFILES: Record<WeaponShotCategory, ShotProfile> = {
   launcher: { baseFreq: 50,  dur: 0.60, vol: 1.60, tail: 3.0, oscType: "sine",     noiseMix: 1.00, filterType: "lowpass",  filterFreq: 1200, subBass: { freq: 35,  dur: 0.60, vol: 1.2  } },
 };
 
+/** Expected loudness of a remote footstep at world-space distance. */
+export function footstepVolumeAtDistance(distance: number, sprinting = false): number {
+  if (!Number.isFinite(distance) || distance >= 38) return 0;
+  const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
+  return (sprinting ? 0.72 : 0.5) * attenuation;
+}
+
 export class SoundManager {
   private ctx: AudioContext | null = null;
+  /** Legacy masterGain name is the FX bus; all existing SFX route through it. */
   private masterGain: GainNode | null = null;
+  private outputGain: GainNode | null = null;
+  private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
+  private musicVolume = 0.65;
+  private footstepVolume = 0.85;
+  private fxVolume = 1;
   private muted = false;
   // Throttle: don't play more than N of the same sfx within `windowMs`.
   private lastPlayed: Map<SfxName, number> = new Map();
@@ -151,6 +166,13 @@ export class SoundManager {
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private musicLayer: GainNode | null = null;
+  private retiredMusicLayers: { node: GainNode; removeAt: number }[] = [];
+  private ambientTheme: MusicThemeId = "compound";
+  private ambientStep = 0;
+  private nextAmbientAt = 0;
+  private ambientActive = false;
 
   constructor() {
     // Defer AudioContext creation until the first resume() call — browsers
@@ -164,15 +186,28 @@ export class SoundManager {
       try {
         const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
         this.ctx = new AC();
+        // Master scales all channels. Music, footsteps, and FX are independent.
+        this.outputGain = this.ctx.createGain();
+        this.outputGain.gain.value = this.muted ? 0 : this.masterVolume;
+        this.outputGain.connect(this.ctx.destination);
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = this.muted ? 0 : this.masterVolume;
-        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.gain.value = this.fxVolume;
+        this.masterGain.connect(this.outputGain);
+        this.footstepGain = this.ctx.createGain();
+        this.footstepGain.gain.value = this.footstepVolume;
+        this.footstepGain.connect(this.outputGain);
         // Build the noise buffer once.
         this.noiseBuffer = this.makeNoiseBuffer(0.5);
         // Build a short impulse response for the convolver tail.
         this.convolver = this.ctx.createConvolver();
         this.convolver.buffer = this.makeImpulseResponse(0.18, 2.0);
         this.convolver.connect(this.masterGain);
+        this.ambientGain = this.ctx.createGain();
+        this.ambientGain.gain.value = 0;
+        this.ambientGain.connect(this.outputGain);
+        this.musicLayer = this.ctx.createGain();
+        this.musicLayer.gain.value = 1;
+        this.musicLayer.connect(this.ambientGain);
       } catch (e) {
         // Web Audio not available — silently degrade.
         this.ctx = null;
@@ -185,15 +220,36 @@ export class SoundManager {
 
   setMasterVolume(v: number) {
     this.masterVolume = Math.max(0, Math.min(1, v));
+    if (this.outputGain && this.ctx) {
+      this.outputGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
+    }
+  }
+
+  setMusicVolume(v: number) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    if (this.ambientGain && this.ctx) {
+      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * 0.19 : 0, this.ctx.currentTime, 0.08);
+    }
+  }
+
+  setFootstepVolume(v: number) {
+    this.footstepVolume = Math.max(0, Math.min(1, v));
+    if (this.footstepGain && this.ctx) {
+      this.footstepGain.gain.setTargetAtTime(this.footstepVolume, this.ctx.currentTime, 0.02);
+    }
+  }
+
+  setFxVolume(v: number) {
+    this.fxVolume = Math.max(0, Math.min(1, v));
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
+      this.masterGain.gain.setTargetAtTime(this.fxVolume, this.ctx.currentTime, 0.02);
     }
   }
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(m ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
+    if (this.outputGain && this.ctx) {
+      this.outputGain.gain.setTargetAtTime(m ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
   }
 
@@ -262,6 +318,79 @@ export class SoundManager {
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
     }
+  }
+
+  /** Schedule the appropriate menu, lobby or map arrangement. The active theme
+   * is swapped with a short gain crossfade, even when a chord is still decaying.
+   */
+  tickAmbientMusic(active: boolean, themeId: MusicThemeId = "compound"): void {
+    const ctx = this.ctx, bus = this.ambientGain;
+    if (!ctx || !bus) return;
+    if (themeId !== this.ambientTheme) {
+      this.ambientTheme = themeId;
+      // Fade the prior arrangement, including already scheduled sustaining notes.
+      if (this.musicLayer) {
+        this.musicLayer.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
+        this.retiredMusicLayers.push({ node: this.musicLayer, removeAt: ctx.currentTime + 3 });
+      }
+      this.musicLayer = ctx.createGain();
+      this.musicLayer.gain.value = 0;
+      this.musicLayer.connect(bus);
+      this.musicLayer.gain.setTargetAtTime(1, ctx.currentTime, 0.2);
+      this.ambientStep = 0;
+      this.nextAmbientAt = ctx.currentTime + 0.07;
+    }
+    // After the final old note ends, dispose its routing bus.
+    this.retiredMusicLayers = this.retiredMusicLayers.filter(({ node, removeAt }) => {
+      if (ctx.currentTime < removeAt) return true;
+      node.disconnect();
+      return false;
+    });
+    if (active !== this.ambientActive) {
+      this.ambientActive = active;
+      bus.gain.setTargetAtTime(active ? this.musicVolume * 0.19 : 0, ctx.currentTime, 0.25);
+      if (active) this.nextAmbientAt = ctx.currentTime + 0.06;
+    }
+    if (!active || this.muted || this.musicVolume === 0 || ctx.state !== "running") return;
+    if (this.nextAmbientAt < ctx.currentTime - 0.4) this.nextAmbientAt = ctx.currentTime + 0.06;
+    const interval = 60 / MUSIC_THEMES[themeId].bpm / 2;
+    for (let count = 0; count < 5 && this.nextAmbientAt < ctx.currentTime + 0.42; count++) {
+      this.scheduleAmbientStep(this.nextAmbientAt, this.ambientStep, themeId, interval);
+      this.ambientStep = (this.ambientStep + 1) % 32;
+      this.nextAmbientAt += interval;
+    }
+  }
+
+  private scheduleAmbientStep(time: number, step: number, themeId: MusicThemeId, interval: number): void {
+    const ctx = this.ctx!, bus = this.musicLayer!;
+    const theme = MUSIC_THEMES[themeId];
+    const root = theme.roots[Math.floor(step / 8)];
+    const note = theme.melody[step % theme.melody.length];
+    const freq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+    const voice = (midi: number, level: number, seconds: number, type: OscillatorType) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq(midi);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(level, time + Math.min(0.11, seconds * 0.25));
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + seconds);
+      osc.connect(gain).connect(bus);
+      osc.start(time); osc.stop(time + seconds + 0.02);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    };
+    if (note !== null) voice(root + note, theme.leadLevel, interval * theme.noteLength, theme.wave);
+    if (step % 8 === 0) {
+      const padDuration = interval * 7.2;
+      for (const offset of theme.chord) voice(root + offset, theme.padLevel, padDuration, "sine");
+      voice(root - 12, theme.bassLevel, interval * 4, "sine");
+    }
+  }
+
+  /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
+  playFootstepAtDistance(distance: number, sprinting = false): void {
+    const volume = footstepVolumeAtDistance(distance, sprinting);
+    if (volume < 0.004) return;
+    this.play("footstep", { volume });
   }
 
   // ---- Distant / enemy fire ----
@@ -674,19 +803,29 @@ export class SoundManager {
     osc.start(t); osc.stop(t + 0.22);
   }
 
-  /** Footstep: a tiny soft click. */
+  /** Bootfall: soft gravel noise + short low-frequency heel thump. */
   private synthFootstep(vol: number) {
     const ctx = this.ctx!;
     const t = ctx.currentTime;
     const noise = ctx.createBufferSource();
     noise.buffer = this.noiseBuffer;
     const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass"; filt.frequency.value = 400;
+    filt.type = "lowpass"; filt.frequency.value = 680;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol * 0.15, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-    noise.connect(filt).connect(g).connect(this.masterGain!);
-    noise.start(t); noise.stop(t + 0.07);
+    g.gain.setValueAtTime(Math.max(0.0001, vol * 0.26), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
+    noise.connect(filt).connect(g).connect(this.footstepGain!);
+    noise.start(t); noise.stop(t + 0.1);
+    noise.onended = () => { noise.disconnect(); filt.disconnect(); g.disconnect(); };
+    const thump = ctx.createOscillator(), tg = ctx.createGain();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(110, t);
+    thump.frequency.exponentialRampToValueAtTime(65, t + 0.085);
+    tg.gain.setValueAtTime(Math.max(0.0001, vol * 0.14), t);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+    thump.connect(tg).connect(this.footstepGain!);
+    thump.start(t); thump.stop(t + 0.095);
+    thump.onended = () => { thump.disconnect(); tg.disconnect(); };
   }
 
   /** Weapon swap: a quick swoosh + click. */
@@ -759,8 +898,14 @@ export class SoundManager {
       this.ctx.close().catch(() => {});
       this.ctx = null;
       this.masterGain = null;
+      this.outputGain = null;
+      this.footstepGain = null;
       this.noiseBuffer = null;
       this.convolver = null;
+      this.ambientGain = null;
+      this.musicLayer = null;
+      this.retiredMusicLayers = [];
+      this.ambientActive = false;
     }
   }
 }

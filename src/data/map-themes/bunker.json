@@ -1,0 +1,66 @@
+{
+  "biome": "bunker",
+  "label": "Emergency-lit underground facility",
+  "palette": {
+    "floor": "#8c735f",
+    "wall": "#735950",
+    "cover": "#ae977e",
+    "accent": "#ff6457",
+    "platform": "#947867",
+    "stair": "#c5ab8c",
+    "sky": "#2e2424",
+    "fog": "#4b3a34",
+    "grid": "#6f5147"
+  },
+  "ambient": 1.45,
+  "vegetation": 0,
+  "props": [
+    {
+      "kind": "lamp",
+      "x": -29,
+      "z": -21
+    },
+    {
+      "kind": "lamp",
+      "x": 26,
+      "z": 20
+    },
+    {
+      "kind": "terminal",
+      "x": -34,
+      "z": 15
+    },
+    {
+      "kind": "terminal",
+      "x": 35,
+      "z": -11
+    }
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "concrete",
+      "tileSize": 6,
+      "roughness": 0.95
+    },
+    "wall": {
+      "pattern": "metal",
+      "tileSize": 5,
+      "roughness": 0.79
+    },
+    "cover": {
+      "pattern": "concrete",
+      "tileSize": 3.6,
+      "roughness": 0.9
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 2.4,
+      "roughness": 0.72
+    },
+    "platform": {
+      "pattern": "metal",
+      "tileSize": 5,
+      "roughness": 0.74
+    }
+  }
+}
