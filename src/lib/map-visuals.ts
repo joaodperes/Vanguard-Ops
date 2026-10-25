@@ -121,7 +121,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       const n=Math.floor(hashed("use:"+x+":"+z)*purposes.length);
       const use=purposes[n];
       const variant=hashed("shape:"+x+":"+z);
-      const shape:MapProp["shape"]=variant<.16?"round":variant<.43?"narrow":"rect";
+      const shape:MapProp["shape"]=variant<.28?"round":variant<.52?"narrow":"rect";
       const w=shape==="round"?20:shape==="narrow"?13:use==="supermarket"?26:use==="hotel"?23:18+Math.floor(hashed("width:"+x+":"+z)*4)*2;
       const d=shape==="round"?20:shape==="narrow"?23:use==="supermarket"?25:18+Math.floor(hashed("depth:"+x+":"+z)*4)*2;
       const baseHeight=use==="hotel"?10.4:use==="apartments"?9.1:use==="office"?8.2:
