@@ -540,8 +540,12 @@ export default function MapEditor() {
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
   const inherited=(baseMap.editorLegacyEnvironmentSource??baseMap.environment??[])
-    .filter((o,i)=>!(map.legacyEnvironmentDisabled??[]).includes(i)&&
-      !uiHazards.some(h=>h.id===o.id));
+    .map((source,index)=>({index,object:overrideBox(source,map.legacyEnvironmentOverrides?.[String(index)])}))
+    .filter(({index,object})=>!(map.legacyEnvironmentDisabled??[]).includes(index)&&
+      !uiHazards.some(h=>h.id===object.id));
+  const inheritedCovers=(baseMap.editorLegacyCoverSource??baseMap.cover)
+    .map((source,index)=>({index,box:overrideBox(source,map.legacyCoverOverrides?.[String(index)])}))
+    .filter(({index,box})=>box.kind!=="stair"&&!(map.legacyCoverDisabled??[]).includes(index));
   const inheritedStairs=(baseMap.editorLegacyCoverSource??baseMap.cover)
     .filter((o,i)=>o.kind==="stair"&&!(map.legacyCoverDisabled??[]).includes(i));
   const hiddenStairIndexes=new Set((baseMap.editorLegacyStairFlights??[]).flatMap(f=>f.indices));
@@ -783,6 +787,18 @@ export default function MapEditor() {
                   fill="#fff7ed" fontSize="4.5" pointerEvents="none">STAIR FLIGHT</text>}
               </g>;
             })}
+            {inheritedCovers.map(({index,box})=><rect key={"legacy-cover-"+index}
+              x={box.pos[0]-box.size[0]} y={box.pos[2]-box.size[2]}
+              width={box.size[0]*2} height={box.size[2]*2}
+              fill="#94a3b8" fillOpacity=".07"
+              stroke={selected?.type==="legacyCover"&&selected.index===index?"#fde68a":"#94a3b8"}
+              strokeWidth={selected?.type==="legacyCover"&&selected.index===index?1.1:.16}
+              pointerEvents={tool==="select"?"all":"none"}
+              style={{cursor:"pointer"}}
+              onPointerDown={e=>{
+                if(tool!=="select")return;e.stopPropagation();
+                setSelected({type:"legacyCover",index});
+              }}/>)}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
               style={{cursor:tool==="select"?"move":"crosshair"}}>
               <rect x={f.kind==="stairs"&&f.axis==="x"?(f.sign===-1?f.x-f.d:f.x):f.x-f.w/2}
@@ -795,9 +811,17 @@ export default function MapEditor() {
               {f.kind==="platform"&&f.autoStairs!==false&&<><rect x={f.x-2} y={f.z+f.d/2} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/>
                 <rect x={f.x-2} y={f.z-f.d/2-Math.ceil(f.h/.42)*.76} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/></>}
             </g>)}
-            {inherited.map((h,i)=><rect key={"inherited-"+i} pointerEvents="none" x={h.pos[0]-h.size[0]} y={h.pos[2]-h.size[2]}
+            {inherited.map(({index,object:h})=><rect key={"inherited-"+index}
+              pointerEvents={tool==="select"?"all":"none"}
+              onPointerDown={e=>{
+                if(tool!=="select")return;e.stopPropagation();
+                setSelected({type:"legacyEnvironment",index});
+              }}
+              style={{cursor:"pointer"}}
+              x={h.pos[0]-h.size[0]} y={h.pos[2]-h.size[2]}
               width={h.size[0]*2} height={h.size[2]*2} fill="#a855f7" fillOpacity=".10"
-              stroke="#e879f9" strokeDasharray="2 2" strokeWidth=".5"/>)}
+              stroke={selected?.type==="legacyEnvironment"&&selected.index===index?"#fde68a":"#e879f9"}
+              strokeDasharray="2 2" strokeWidth={selected?.type==="legacyEnvironment"&&selected.index===index?1.2:.5}/>)}
             {uiHazards.map((h,i)=><g key={h.id||i} onPointerDown={e=>beginMove(e,{type:"hazard",index:i})}>
               <rect x={h.x-h.w/2} y={h.z-h.d/2} width={h.w} height={h.d} rx=".5"
                 fill={h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":h.type==="jump_pad"?"#38bdf8":"#f97316"}
