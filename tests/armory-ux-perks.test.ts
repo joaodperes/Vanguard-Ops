@@ -13,9 +13,10 @@ describe("level-ordered passive perk unlocks", () => {
   });
 
   test("perk choices arrive every three levels and end with the new perks", () => {
-    expect(PERKS.map(p => p.unlockLevel)).toEqual([1,4,7,10,13,16,19,22,25,28]);
-    expect(PERKS[PERKS.length - 2].id).toBe("explonando");
-    expect(PERKS[PERKS.length - 1].id).toBe("well_prepared");
+    expect(PERKS.map(p => p.unlockLevel)).toEqual([1,4,7,10,13,16,19,22,25,28,31]);
+    expect(PERKS[PERKS.length - 3].id).toBe("explonando");
+    expect(PERKS[PERKS.length - 2].id).toBe("well_prepared");
+    expect(PERKS[PERKS.length - 1].id).toBe("silent_steps");
     for (let i = 1; i < PERKS.length; i++) {
       expect(PERKS[i].unlockLevel - PERKS[i-1].unlockLevel).toBe(3);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel - 1)).toBe(false);
