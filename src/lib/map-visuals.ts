@@ -168,8 +168,12 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     }
     if(!solidKinds.has(p.kind))return true;
     if(p.kind==="building")
+      // Same 3D spawn clearance as addBuilding: elevated spawns must not
+      // disqualify safe residences many metres below them.
       return !cityBuildingBoxes(p).some(c=>spawns.some(s=>
-        Math.abs(s[0]-c.pos[0])<c.size[0]+2&&Math.abs(s[2]-c.pos[2])<c.size[2]+2));
+        s[1]<c.pos[1]+c.size[1]+.3 && s[1]+1.8>c.pos[1]-c.size[1] &&
+        Math.abs(s[0]-c.pos[0])<c.size[0]+2.6 &&
+        Math.abs(s[2]-c.pos[2])<c.size[2]+2.6));
     const radiusX=p.kind==="tree"?0.5:(p.w??(p.kind==="rock"?4:8))/2;
     const radiusZ=p.kind==="tree"?0.5:(p.d??(p.kind==="rock"?3:7))/2;
     return !spawns.some(s=>Math.abs(s[0]-p.x)<radiusX+3&&Math.abs(s[2]-p.z)<radiusZ+3);
