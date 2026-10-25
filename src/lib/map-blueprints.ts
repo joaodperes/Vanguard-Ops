@@ -19,6 +19,9 @@ export interface MapBlueprint {
    * Values are world-space box centers and full extents. */
   legacyCoverOverrides?: Record<string,MapBoxOverride>;
   legacyEnvironmentOverrides?: Record<string,MapBoxOverride>;
+  /** Hide built-in collision/environment by original, stable source index. */
+  legacyCoverDisabled?: number[];
+  legacyEnvironmentDisabled?: number[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
 }
 export interface MapBoxOverride {
@@ -209,6 +212,18 @@ export function validateBlueprint(b: MapBlueprint): string[] {
         issues.push(`${name}: invalid index ${index}`);
       if(!v || ![v.x,v.y,v.z,v.w,v.h,v.d].every(Number.isFinite) || v.w<=0||v.h<=0||v.d<=0)
         issues.push(`${name}[${index}]: expected positive full extents and finite coordinates`);
+    }
+  }
+  for(const [field,disabled] of [
+    ["legacyCoverDisabled",b.legacyCoverDisabled],
+    ["legacyEnvironmentDisabled",b.legacyEnvironmentDisabled],
+  ] as const){
+    if(!Array.isArray(disabled)&&disabled!==undefined){issues.push(`${field}: expected an array`);continue;}
+    const seenIndices=new Set<number>();
+    for(const index of disabled??[]){
+      if(!Number.isSafeInteger(index)||index<0||seenIndices.has(index))
+        issues.push(`${field}: invalid or duplicate index ${index}`);
+      seenIndices.add(index);
     }
   }
   for(const team of ["ffa","red","blue"] as const){
