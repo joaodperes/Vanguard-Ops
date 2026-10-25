@@ -1,11 +1,12 @@
 name: Vanguard Ops JSON content branch validation
 
-# Feature branches are isolated from dev. Pushes to them validate all catalog,
-# gameplay and build contracts; dev keeps its existing manual-first workflow.
+# Validate dev changes and designated feature branches before release.
+# Keep this workflow active for future regressions in map geometry and gameplay.
 on:
   workflow_dispatch:
   push:
     branches:
+      - dev
       - feature/json-content-catalogs
       - feature/wonder-weapon-expansion
 
@@ -33,7 +34,7 @@ jobs:
       - name: Map geometry and bot regression tests
         id: maps
         continue-on-error: true
-        run: bun test tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
+        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
       - name: All automated regression tests
         id: tests
         continue-on-error: true
