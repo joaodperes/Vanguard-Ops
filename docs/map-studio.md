@@ -103,6 +103,14 @@ Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun 
 
 Map Studio opens in **3D View** by default. Use the **2D View** button to return to the original precision drafting grid. Both views edit the same browser-local blueprint/theme drafts.
 
+### Precise vertical placement
+
+The 3D editor's original **Snap drawing and movement to grid** option was a 2-unit grid by default. Three.js's stock transform snap applies to all three axes, causing moving a wall, platform or stair flight up/down to jump between whole grid levels. **Map Studio now snaps X/Z only**; Y movement in Move mode remains free, even when the horizontal drawing grid is on.
+
+For exact placement, select an object and use **Exact vertical placement → Bottom Y** or **Top Y** in the Inspector. Enter any decimal (for example `5.25`), then press Enter or leave the field. Changing either face moves the whole object **without resizing it**. Authored cover/platform/stairs and props use bottom-based Y; built-in collision boxes, original staircase groups, and hazards have center-based Y internally. The Inspector handles that conversion automatically. Spawn points have zero height and their Y is their exact elevation.
+
+**Height (H)** is still the object's thickness/rise and can be edited separately. For example, a 2.5-unit-tall barrier with Bottom Y = 5.25 occupies Y = 5.25 through 7.75; setting Top Y to 8.0 moves it up to Bottom Y = 5.5 without stretching it.
+
 ### Navigating the 3D viewport
 
 - **Camera / select:** Left-drag to orbit; right-drag to pan; scroll to zoom. While the mouse is over the viewport, **W/A/S/D** flies horizontally, **Q/E** moves down/up, and **Shift** increases speed. Click a selectable object to highlight it.
