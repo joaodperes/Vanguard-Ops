@@ -21,6 +21,8 @@ export function MenuMusic({ active }: { active: boolean }) {
       sound.setFootstepVolume(s.footstepVolume / 100);
       sound.setFxVolume(s.fxVolume / 100);
     };
+    // Load persisted settings even if the player never opens Settings.
+    if (!useSettings.getState().loaded) useSettings.getState().load();
     applyMix(useSettings.getState().settings);
     const unsubscribe = useSettings.subscribe((state) => applyMix(state.settings));
     const unlock = () => {
