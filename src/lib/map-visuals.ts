@@ -107,6 +107,14 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         Math.abs(s[2]-c.pos[2])<c.size[2]+2.6)))return;
       buildings.push(prop);result.push(prop);
     };
+    // Reserve small residential lots nearest the park FIRST, so the larger
+    // outer grid cannot consume the only available park-to-district frontage.
+    for(const side of [-1,1])for(const offset of [-27,0,27]){
+      for(const [x,z] of [[side*55,offset],[offset,side*55]]){
+        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+      }
+    }
     // 32m urban blocks, with narrow homes among bigger civic / retail
     // buildings. The old 40m grid left 25m+ dead zones around the park.
     for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
@@ -123,14 +131,6 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       const jitterZ=(hashed("offsetZ:"+x+":"+z)-.5)*1.2;
       addBuilding({kind:"building",x:x+jitterX,z:z+jitterZ,w,d,h,use,shape,
         stairSide:hashed("stairs:"+x+":"+z)<.5?"east":"west",text:signs[use]});
-    }
-    // Small residences close the remaining four park-to-district gaps. Keep
-    // these lots subordinate to the main block grid and out of walking routes.
-    for(const side of [-1,1])for(const offset of [-27,0,27]){
-      for(const [x,z] of [[side*55,offset],[offset,side*55]]){
-        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
-          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
-      }
     }
     for(const p of buildings){
       // Lamps belong in the remaining pavements, never inside rooms.
