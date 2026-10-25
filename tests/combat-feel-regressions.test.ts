@@ -3,7 +3,7 @@ import { WEAPONS, weaponById, weaponSkinById } from "../src/lib/game-data";
 import { formatWeaponNumber } from "../src/lib/weapon-numbers";
 import { advanceKillChain, KILL_CHAIN_GRACE_MS } from "../src/lib/kill-chain";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "../src/lib/weapon-accuracy";
-import { turretCanTrack, turretDeployPosition, TURRET_LIFETIME_MS } from "../src/lib/turret-rules";
+import { turretCanTrack, turretDeployPosition, TURRET_LIFETIME_MS, TURRET_DAMAGE, TURRET_HP, TURRET_INTERVAL_MS } from "../src/lib/turret-rules";
 
 describe("player-facing number formatting", () => {
   test("rounds floating-point artifacts without appending arbitrary zeroes", () => {
@@ -88,6 +88,11 @@ describe("Bullet Spitter deployment", () => {
     expect(TURRET_LIFETIME_MS).toBe(45000);
   });
 
+  test("wins an uncontested 1v1 against a standard 100 HP bot", () => {
+    expect(TURRET_HP).toBeGreaterThanOrEqual(400);
+    expect(TURRET_DAMAGE * 3).toBeGreaterThanOrEqual(100);
+    expect(TURRET_INTERVAL_MS * 3).toBeLessThan(500);
+  });
   test("plants ahead of the player and falls back before blocking cover", () => {
     const player: [number,number,number] = [0,0,0];
     expect(turretDeployPosition(player, 0, [])).toEqual([0,0,3.2]);
