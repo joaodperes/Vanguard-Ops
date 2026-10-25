@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { WEAPONS, weaponById } from "../src/lib/game-data";
 import { WEAPON_VISUALS } from "../src/lib/weapon-models";
+import { ownsWeapon, ownsWeaponSkin } from "../src/lib/collection-ownership";
 import { fullWonderCharges, spendWonderCharge, tickWonderCharges } from "../src/lib/wonder-charge";
 
 const VARIANTS = ["wonder_rift_needle", "wonder_miasma_bloom", "wonder_caustic_javelin"] as const;
@@ -20,6 +21,15 @@ describe("Prestige Arsenal: tactical Wonder variants", () => {
       expect(weapon.stats.magSize).toBe(weapon.wonder!.maxCharges);
       expect(WEAPON_VISUALS[id]).toBeDefined();
     }
+  });
+
+  test("level-only ownership cannot silently grant token-locked Wonders", () => {
+    const wonder = weaponById("wonder_rift_needle");
+    expect(ownsWeapon(wonder, 99, [])).toBe(false);
+    expect(ownsWeapon(wonder, 1, [wonder.id])).toBe(true);
+    expect(ownsWeaponSkin(wonder.id, "default", 99, [], {}, WEAPONS)).toBe(false);
+    expect(ownsWeaponSkin(wonder.id, "default", 1, [wonder.id], {}, WEAPONS)).toBe(true);
+    expect(ownsWeapon(weaponById("rifle_ar"), 1, [])).toBe(true);
   });
 
   test("Rift Needle trades Event Horizon's reach for greater local damage", () => {
