@@ -105,9 +105,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     const onObjectChange=()=>{
       if(callbacks.current.mode!=="move"||callbacks.current.snap<=0)return;
       const object=transform.object;
-      if(!object)return;
-      object.position.x=horizontalSnap(object.position.x,callbacks.current.snap);
-      object.position.z=horizontalSnap(object.position.z,callbacks.current.snap);
+      const axis=transform.axis;
+      if(!object||!axis)return;
+      // Dragging only Y must not unexpectedly shift an off-grid X/Z position.
+      if(axis.includes("X"))object.position.x=horizontalSnap(object.position.x,callbacks.current.snap);
+      if(axis.includes("Z"))object.position.z=horizontalSnap(object.position.z,callbacks.current.snap);
     };
     transform.addEventListener("objectChange",onObjectChange);
     const onMouseUp=()=>{
