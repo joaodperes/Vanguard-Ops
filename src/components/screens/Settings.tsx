@@ -138,8 +138,8 @@ export function Settings() {
           </div>
         </Section>
 
-        {/* Audio (reserved) */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio" desc="Master volume for game and weapon effects">
+        {/* Music, footsteps and combat audio */
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio" desc="Master volume for ambient music, footsteps and combat sounds">
           <div>
             <div className="flex justify-between text-xs text-white/50 mb-1">
               <span>Master Volume</span>
