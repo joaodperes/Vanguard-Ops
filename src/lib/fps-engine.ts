@@ -26,7 +26,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityClientTime, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -3973,7 +3973,6 @@ export class FPSEngine {
         this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity", radius);
         break;
       }
-        break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
         if (msg.ownerId === this.selfId && this.turretDeployPending) {
@@ -5668,17 +5667,17 @@ export class FPSEngine {
 
   // Spawn an explosion effect at a world position: an expanding emissive sphere
   // + a brief point light flash. The effect auto-fades and is removed after ~500ms.
-  private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion") {
+  private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS) {
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 16, 16),
       new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x7aea39 : 0xff6622, transparent: true, opacity: 0.85 }),
     );
     sphere.position.copy(pos);
     this.scene.add(sphere);
-    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : 0xff6622, wonderKind ? 7 : 4, wonderKind ? 20 : 12);
+    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
     light.position.copy(pos);
     this.scene.add(light);
-    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 950 : 500 });
+    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : 500, radius });
     // Explosion SFX.
     this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
   }
@@ -5738,7 +5737,7 @@ export class FPSEngine {
       if (now < well.activatesAt) continue;
       if (now >= well.expiresAt) {
         if (well.offline && !this.matchEnded) {
-          this.spawnExplosion(new THREE.Vector3(...well.pos), "singularity");
+          this.spawnExplosion(new THREE.Vector3(...well.pos), "singularity", well.radius);
           for (const enemy of this.combatants.values()) {
             if (!enemy.alive || enemy.id === well.ownerId ||
                 (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
@@ -6202,8 +6201,9 @@ export class FPSEngine {
         return false;
       }
       const t = age / e.life;
-      // Expand from 0.3 to ~2.5 radius.
-      const scale = 0.3 + t * (e.life > 500 ? 43 : 2.2);
+      // The singularity shockwave reaches EXACTLY the damage radius (not a
+      // fixed-size 13m visual on a 9.5m hit area).
+      const scale = e.life > 500 ? 0.3 + t * (e.radius / 0.3 - 0.3) : 0.3 + t * 2.2;
       e.mesh.scale.setScalar(scale);
       (e.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - t);
       // Light fades faster.
