@@ -11,6 +11,7 @@ export const PERKS = [
   { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Each restores 35% of your firearm magazines.", icon: "package", unlockLevel: 22 },
   { id: "explonando", name: "Explonando", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
+  { id: "silent_steps", name: "Silent Steps", description: "Move without making footstep sounds. Gunfire and other actions remain audible.", icon: "volume-x", unlockLevel: 31 },
 ] as const;
 export type PerkId = (typeof PERKS)[number]["id"];
 export const PERK_STORAGE_KEY = "vanguard_perk";
