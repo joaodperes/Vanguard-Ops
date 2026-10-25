@@ -20,7 +20,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -2564,11 +2564,13 @@ async function handle(socket: any, msg: C2S) {
             impactT >= coverImpact.distance - 1e-5) {
           damageEnvironmentWall(room, coverImpact.box.environmentId, eff.damage);
         }
-        const impact: Vec3 = [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
+        const impact: Vec3 = weapon.wonder?.kind === "singularity"
+          ? gravityImpact(msg.origin, dir, impactT)
+          : [msg.origin[0] + dir[0] * impactT, msg.origin[1] + dir[1] * impactT, msg.origin[2] + dir[2] * impactT];
         if (weapon.wonder?.kind === "singularity") {
-          // Event Horizon detonates only after the vortex has gathered targets.
+          // Resolve travel from the actual floor-safe point, not the unbounded ray distance.
           const id = genId("gravity");
-          const activatesAt = now + gravityTravelMs(impactT);
+          const activatesAt = now + gravityTravelMs(Math.hypot(impact[0] - msg.origin[0], impact[1] - msg.origin[1], impact[2] - msg.origin[2]));
           const radius = weapon.wonder.radius;
           const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS;
           room.gravityWells.set(id, {
