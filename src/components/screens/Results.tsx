@@ -3,9 +3,17 @@ import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
-import { weaponById } from "@/lib/game-data";
+import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS } from "@/lib/game-data";
+import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
+
+function unlockedGearLabel(id: string): string {
+  return WEAPONS.find(w => w.id === id)?.name
+    ?? WEAPON_SKINS.find(s => s.id === id)?.name
+    ?? ATTACHMENTS.find(a => a.id === id)?.name
+    ?? displayLabel(id);
+}
 
 export function Results() {
   const { matchResult, profile, setScreen, playConfig } = useGame();
@@ -160,7 +168,7 @@ export function Results() {
                         "text-cyan-200 border-cyan-500/30 bg-cyan-500/10";
                       return <div key={c.id} className={`rounded-lg border p-3 ${color}`}>
                         <div className="flex justify-between gap-2 text-[10px] uppercase tracking-wider font-semibold">
-                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : c.kind + " challenge"}</span>
+                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : `${displayLabel(c.kind)} challenge`}</span>
                           {c.completed ? <span className="text-emerald-300">Completed ✓</span> : <span>+{c.progress-c.before}</span>}
                         </div>
                         <div className="text-white font-semibold text-xs mt-1">{c.title}</div>
@@ -214,7 +222,7 @@ export function Results() {
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
                   <div className="flex flex-wrap gap-1.5">
                     {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments].map((id: string) => (
-                      <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{id}</span>
+                      <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{unlockedGearLabel(id)}</span>
                     ))}
                   </div>
                 </div>

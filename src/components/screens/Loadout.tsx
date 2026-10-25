@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
+import { weaponCategoryLabel } from "@/lib/display-labels";
 import { PERKS, PERK_STORAGE_KEY, DEFAULT_PERK_ID, perkSelection, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
 import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
 import {
@@ -292,7 +293,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         {/* weapon preview strip */}
         <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center`}
           style={{ background: `linear-gradient(135deg, ${skinColor}, #0a0a0a)` }}>
-          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weapon.category}</div>
+          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weaponCategoryLabel(weapon.category)}</div>
           <div className="w-24 h-2 rounded-sm" style={{ background: skinColor }} />
           <div className="absolute bottom-1.5 left-2 text-[10px] text-white/60 font-mono">
             DMG {weapon.stats.damage} · RoF {weapon.stats.fireRate}
@@ -301,7 +302,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         <div className="flex items-center justify-between mb-1">
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
-        <div className="text-white/40 text-[10px] uppercase mb-2">{weapon.category} · LVL {weapon.unlockLevel}</div>
+        <div className="text-white/40 text-[10px] uppercase mb-2">{weaponCategoryLabel(weapon.category)} · LVL {weapon.unlockLevel}</div>
         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3 h-[227px] overflow-y-auto">
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
@@ -338,7 +339,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
                 <span className="flex items-center gap-2 min-w-0">
                   {selected && <Check className="w-3 h-3 shrink-0" />}
                   <span className="font-semibold truncate">{w.name}</span>
-                  <span className="text-white/40 text-[10px] uppercase shrink-0">{w.category}</span>
+                  <span className="text-white/40 text-[10px] uppercase shrink-0">{weaponCategoryLabel(w.category)}</span>
                 </span>
                 {!isOwned && (
                   <span className="text-rose-400/70 text-[10px] shrink-0">LVL {w.unlockLevel}</span>

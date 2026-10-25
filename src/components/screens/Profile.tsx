@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
@@ -310,7 +311,7 @@ export function Profile() {
                               {a.earned && <Crown className="w-3 h-3 text-purple-300" />}
                             </div>
                             <div className="text-white/40 text-xs">{a.description}</div>
-                            <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                            <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                           </div>
                         </div>
                         {!a.earned && (
@@ -359,7 +360,7 @@ export function Profile() {
                             {a.earned && <Crown className="w-3 h-3 text-rose-400" />}
                           </div>
                           <div className="text-white/40 text-xs">{a.description}</div>
-                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
                       {!a.earned && (
@@ -408,7 +409,7 @@ export function Profile() {
                             {a.earned && <Crown className="w-3 h-3 text-emerald-400" />}
                           </div>
                           <div className="text-white/40 text-xs">{a.description}</div>
-                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
                       {!a.earned && (
@@ -461,7 +462,7 @@ export function Profile() {
                       const Icon = m.mode === "tdm" ? Shield : m.mode === "survival" ? Skull : m.mode === "gungame" ? Swords : Users;
                       const w = weaponById(m.weaponId);
                       const ago = formatAgo(new Date(m.playedAt));
-                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : "FFA";
+                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : m.mode === "killconfirmed" ? "KC" : m.mode === "ffa" ? "FFA" : displayLabel(m.mode);
                       return (
                         <tr key={m.id} className="border-t border-white/5 hover:bg-white/5">
                           <td className="px-4 py-2">

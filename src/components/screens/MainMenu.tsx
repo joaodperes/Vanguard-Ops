@@ -1,5 +1,6 @@
 "use client";
 import { useGame } from "@/lib/game-store";
+import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { WEAPONS, weaponById, attachmentById, RARITY_COLORS, rankForLevel, nextRank } from "@/lib/game-data";
 import {
   Crosshair, Users, Swords, Trophy, Backpack, Zap, ChevronRight, Target,
@@ -156,9 +157,9 @@ export function MainMenu() {
             <div className="relative h-24 rounded-xl mb-3 overflow-hidden border border-white/10 flex items-center justify-center"
               style={{ background: `linear-gradient(135deg, ${equipped?.weaponSkin.color ?? "#2b2f36"}, ${equipped?.weaponSkin.emissive ?? "#0a0a0a"})` }}>
               {equipped?.weaponSkin.emissive && <div className="absolute inset-0" style={{ boxShadow: `inset 0 0 30px ${equipped.weaponSkin.emissive}` }} />}
-              <div className="absolute left-2 top-2 text-[10px] uppercase tracking-wider text-white/50 font-mono">{equippedWeapon.category}</div>
+              <div className="absolute left-2 top-2 text-[10px] uppercase tracking-wider text-white/50 font-mono">{weaponCategoryLabel(equippedWeapon.category)}</div>
               <div className="absolute right-2 top-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: RARITY_COLORS[equipped?.weaponSkin.rarity ?? "common"] }}>
-                {equipped?.weaponSkin.rarity}
+                {displayLabel(equipped?.weaponSkin.rarity)}
               </div>
               {/* weapon silhouette */}
               <div className="w-32 h-2.5 rounded-sm" style={{ background: equipped?.weaponSkin.color ?? "#2b2f36", boxShadow: equipped?.weaponSkin.emissive ? `0 0 16px ${equipped.weaponSkin.emissive}` : "none" }} />
