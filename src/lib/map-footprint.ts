@@ -90,14 +90,23 @@ export function applyMapFootprint(base:MapDef):MapDef {
   // Detect flights before spatial overrides, so groups remain stable even when
   // a user modifies an individual tread's position or elevation.
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
-  const legacyCover=legacyCoverSource.map((c,i)=>overrideBox(c,plan.legacyCoverOverrides?.[String(i)]));
-  const legacyEnvironment=(scaledBase.environment??[]).map((e,i)=>
-    overrideBox(e,plan.legacyEnvironmentOverrides?.[String(i)]));
+  const hiddenCover=new Set(plan.legacyCoverDisabled??[]);
+  const legacyCover=legacyCoverSource
+    .map((c,i)=>({box:overrideBox(c,plan.legacyCoverOverrides?.[String(i)]),index:i}))
+    .filter(entry=>!hiddenCover.has(entry.index))
+    .map(entry=>entry.box);
+  const legacyEnvironmentSource=scaledBase.environment??[];
+  const hiddenEnvironment=new Set(plan.legacyEnvironmentDisabled??[]);
+  const legacyEnvironment=legacyEnvironmentSource
+    .map((e,i)=>({box:overrideBox(e,plan.legacyEnvironmentOverrides?.[String(i)]),index:i}))
+    .filter(entry=>!hiddenEnvironment.has(entry.index))
+    .map(entry=>entry.box);
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
     editorLegacyCoverSource:legacyCoverSource,
     editorLegacyStairFlights,
+    editorLegacyEnvironmentSource:legacyEnvironmentSource,
     editorLegacyEnvironmentCount:legacyEnvironment.length,
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
     regions,
