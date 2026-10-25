@@ -69,7 +69,7 @@ export interface WeaponStats {
 export interface WeaponDef {
   special?: WeaponSpecial;
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2; rechargeMs: number; killBonusMs: number; radius: number };
+  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
