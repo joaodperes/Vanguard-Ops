@@ -6068,7 +6068,8 @@ export class FPSEngine {
       const age = now - p.born;
       if (age >= p.travelMs) {
         // Projectile reached the impact point — spawn explosion + remove.
-        const explosionKind = weaponById(p.weaponId).wonder?.kind;
+        const rawExplosionKind = weaponById(p.weaponId).wonder?.kind;
+        const explosionKind = rawExplosionKind === "singularity" || rawExplosionKind === "corrosion" ? rawExplosionKind : undefined;
         if (explosionKind === "singularity") {
           if (p.applyLocalSplash) {
             const at = Date.now();
