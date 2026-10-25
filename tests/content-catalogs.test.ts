@@ -24,7 +24,7 @@ describe("JSON catalog contract", () => {
     expect(errors.some(e => e.includes("attachments [0.effects.recoil]"))).toBe(true);
   });
   test("unchanged JSON catalogs retain player-facing stable identifiers", () => {
-    expect(WEAPONS.length).toBe(39);
+    expect(WEAPONS.length).toBe(42);
     expect(ATTACHMENTS.length).toBe(33);
     expect(WEAPON_SKINS.length).toBe(10);
     expect(PLAYER_SKINS.length).toBe(8);
