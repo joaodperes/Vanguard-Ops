@@ -5,6 +5,7 @@
 // ============================================================================
 import * as THREE from "three";
 import { regionRectangles } from "./map-blueprints";
+import { cityInteriorFixtures } from "./map-visuals";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1020,10 +1021,13 @@ export class FPSEngine {
 
     this.camera = new THREE.PerspectiveCamera(this.baseFov, this.container.clientWidth / this.container.clientHeight, 0.05, Math.max(500, this.map.size * 3));
 
-    const hemi = new THREE.HemisphereLight(0x9db4c0, 0x202830, 0.9 * theme.ambient);
+    // The daylight edition reuses every building and collision surface but
+    // receives a warmer, stronger sun instead of nighttime city illumination.
+    const cityDay = this.map.biome === "city_day";
+    const hemi = new THREE.HemisphereLight(cityDay ? 0xe9f2ff : 0x9db4c0, cityDay ? 0x887b65 : 0x202830, (cityDay ? 1.05 : 0.9) * theme.ambient);
     this.hemiLight = hemi;
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+    const dir = new THREE.DirectionalLight(cityDay ? 0xffedcf : 0xffffff, cityDay ? 2.0 : 1.4);
     this.dirLight = dir;
     dir.position.set(30, 50, 20);
     dir.castShadow = true;
@@ -1033,7 +1037,7 @@ export class FPSEngine {
     dir.shadow.camera.top = shadowExtent; dir.shadow.camera.bottom = -shadowExtent;
     dir.shadow.camera.far = 120;
     this.scene.add(dir);
-    const fill = new THREE.DirectionalLight(0x4a6080, 0.4);
+    const fill = new THREE.DirectionalLight(cityDay ? 0xaad9ee : 0x4a6080, cityDay ? 0.65 : 0.4);
     fill.position.set(-20, 20, -20);
     this.scene.add(fill);
   }
@@ -1274,30 +1278,88 @@ export class FPSEngine {
         cube(group,stone,0,.22,0,w*.88,.45,d*.88);
         for(const z of [-d*.42,d*.42])cube(group,columns,0,h+5.05,z,w*.82,.35,.45);
       }else if(p.kind==="building"){
-        // Physical wall segments match map-visuals.propColliders, leaving
-        // an actual SOUTH doorway. Roof platform + outdoor stair flights let
-        // players flank snipers without teleporting or clipping through walls.
-        const wall=.9,door=6,side=(w-door)/2;
-        const brick=this.surfaceMaterials?.wall ?? new THREE.MeshStandardMaterial({color:palette.wall,roughness:.84});
-        cube(group,brick,0,h/2,-d/2,w,h,wall);
-        cube(group,brick,-w/2,h/2,0,wall,h,d);
-        cube(group,brick,w/2,h/2,0,wall,h,d);
-        cube(group,brick,-(w+door)/4,h/2,d/2,side,h,wall);
-        cube(group,brick,(w+door)/4,h/2,d/2,side,h,wall);
-        cube(group,brick,0,(h+2.4)/2,d/2,door,h-2.4,wall);
-        // Roof deck has a real hatch cutout; never draw a solid ornamental
-        // slab over the interior stair exit. Physical roof segments are
-        // already rendered by buildArena from shared collision geometry.
-        cube(group,trim,0,h+.22,-d/2,w,.35,.22);
-        // Floor markings and glass shopfront panels, leaving open doorway.
-        cube(group,asphalt,0,.045,0,w-.9,.09,d-.9);
-        for(let x=-w/2+3;x<=w/2-3;x+=6){
-          if(Math.abs(x)>door/2+2)cube(group,glass,x,h*.45,d/2+.53,3.3,h*.27,.15);
-          cube(group,glass,x,h*.45,-d/2-.53,3.3,h*.27,.15);
+        // The arena already renders cityBuildingBoxes via shared map.cover,
+        // including polygonal/rectangular walls, stair treads and roof hatches.
+        // Add architectural identity and themed, collision-matched furniture
+        // WITHOUT placing an unrelated solid box over an enterable doorway.
+        const daylight=biome==="city_day";
+        const use=p.use??"house";
+        const isRound=p.shape==="round";
+        const facadeColors:Record<string,number>={
+          house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
+          bakery:0xbf9569,apartments:0x8993a4,office:0x577b9c,
+          hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,
+        };
+        const tint=new THREE.MeshStandardMaterial({
+          color:facadeColors[use]??0x9f8f87,roughness:daylight?.8:.68,
+          metalness:use==="office"?.24:.04,
+        });
+        const wood=new THREE.MeshStandardMaterial({color:daylight?0xa77855:0x70513f,roughness:.86});
+        const seating=new THREE.MeshStandardMaterial({color:use==="cafe"?0x8b5347:0x54786f,roughness:.8});
+        const metal=new THREE.MeshStandardMaterial({color:0x859397,roughness:.45,metalness:.55});
+        const display=new THREE.MeshStandardMaterial({color:daylight?0xe1b887:0xf0a6b1,roughness:.45,emissive:daylight?0x161109:0x632638,emissiveIntensity:.24});
+        const furnitureMats={wood,seat:seating,metal,display,shelf:metal};
+        cube(group,asphalt,0,.03,0,w-.9,.06,d-.9);
+        // Store shelves, coffee tables, home seating and office desks are
+        // visible at EXACTLY the same positions as their physical hitboxes.
+        for(const item of cityInteriorFixtures(p))
+          cube(group,furnitureMats[item.style],item.x,item.h/2,item.z,
+            item.w+.025,item.h+.025,item.d+.025);
+        const faceZ=d/2+.48;
+        const doorWidth=Math.min(5,w*.31);
+        // Jambs keep the entrance conspicuous. All ornamentation is thin and
+        // the opening at ground level remains collision-free.
+        for(const side of [-1,1]){
+          cube(group,tint,side*(doorWidth/2+.12),1.26,faceZ,.19,2.52,.22);
+          cube(group,tint,side*Math.min(w*.35,doorWidth/2+2.1),h*.67,faceZ+.02,
+            Math.min(2.5,w*.13),h*.23,.11);
         }
-        for(let z=-d/2+3;z<=d/2-3;z+=7){
-          cube(group,glass,-w/2-.51,h*.49,z,.12,h*.26,3.4);
-          cube(group,glass,w/2+.51,h*.49,z,.12,h*.26,3.4);
+        cube(group,tint,0,2.58,faceZ,doorWidth+.45,.23,.38);
+        const windowZ=isRound?d/2-.02:d/2+.53;
+        for(const side of [-1,1]){
+          const x=side*(isRound?w*.18:w*.32);
+          cube(group,glass,x,h*.55,windowZ,Math.min(2.5,w*.16),Math.max(1.15,h*.19),.12);
+          cube(group,tint,x,h*.67,windowZ+.02,Math.min(2.8,w*.18),.12,.22);
+        }
+        if(!isRound){
+          for(const side of [-1,1])
+            cube(group,glass,side*(w/2+.48),h*.49,-d*.19,.13,Math.max(1.05,h*.18),Math.min(3.6,d*.19));
+        }
+        // Taller offices/hotels/apartments reveal their different storeys.
+        if(h>=8){
+          for(const level of [.45,.73]){
+            cube(group,tint,0,h*level,d/2+.51,w*.82,.19,.24);
+          }
+        }
+        if(p.shape==="narrow"){
+          cube(group,tint,0,h+.42,0,w+.65,.16,d*.86);
+        }else if(isRound){
+          // Stepped octagonal shell: this slender crown follows the smaller
+          // polygonal roof without making an invisible solid interior.
+          const ring=new THREE.Mesh(new THREE.TorusGeometry(Math.min(w,d)*.30,.14,6,12),tint);
+          ring.rotation.x=Math.PI/2;ring.position.y=h+.4;group.add(ring);
+        }else if(use==="house"){
+          // Residential porch and a low slatted overhang distinguish homes.
+          cube(group,wood,0,2.84,d/2+1.15,doorWidth+1.4,.15,1.7);
+        }else if(use==="supermarket"){
+          cube(group,tint,0,3.0,d/2+.95,w*.8,.17,1.9);
+        }
+        // Purpose-specific fascia: no misleading painted door on a solid wall.
+        if(p.text){
+          const canvas=document.createElement("canvas");
+          canvas.width=512;canvas.height=96;
+          const ctx=canvas.getContext("2d");
+          if(ctx){
+            ctx.fillStyle=daylight?"#f6ecdf":"#252638";
+            ctx.fillRect(0,0,512,96);
+            ctx.fillStyle=daylight?"#283845":"#fff0c1";
+            ctx.font="bold 42px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+            ctx.fillText(p.text.slice(0,18),256,48,488);
+            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+            const sign=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*.72,15),1.25),
+              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+            sign.position.set(0,Math.min(h-.7,3.65),d/2+.64);group.add(sign);
+          }
         }
       }else if(p.kind==="dock"){
         const timber=new THREE.MeshStandardMaterial({color:0xa87b52,roughness:.9});
