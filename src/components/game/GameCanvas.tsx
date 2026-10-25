@@ -60,6 +60,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       botDifficulty,
       survivalTier,
       masterVolume: settings.masterVolume,
+      musicVolume: settings.musicVolume,
+      footstepVolume: settings.footstepVolume,
+      fxVolume: settings.fxVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
       roomConnect: roomConnect ?? undefined,
@@ -111,6 +114,14 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       engine.dispose();
       engineRef.current = null;
     };
+  }, []);
+
+  // Settings are mutable during a match (e.g. via a future pause menu).
+  // Subscribe without rebuilding the engine or resetting the match.
+  useEffect(() => {
+    const apply = (s: typeof settings) => engineRef.current?.setAudioMix(s);
+    apply(useSettings.getState().settings);
+    return useSettings.subscribe((state) => apply(state.settings));
   }, []);
 
   const showStartOverlay = ready && isTouch && !touchStarted;
