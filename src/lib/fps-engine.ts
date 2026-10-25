@@ -6449,6 +6449,9 @@ export class FPSEngine {
     // (like a real thermal scope). Also brighten the scene for NVG.
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
     const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
+    for (const id of this.poisonBubbles.keys()) {
+      if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], false, now);
+    }
     for (const c of this.combatants.values()) {
       const poisoned = c.alive && (this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
         || c.alive && (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now;
