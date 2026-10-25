@@ -9,7 +9,7 @@ export interface GameSettings {
   showFps: boolean;
   showPing: boolean;
   damageNumbers: boolean;
-  masterVolume: number;    // 0 .. 100 (reserved for future audio)
+  masterVolume: number;    // 0 .. 100 (music, footsteps and combat SFX)
   autoAdsOnFire: boolean;  // automatically ADS when firing (great for mobile)
   invertY: boolean;        // invert vertical look (flight-sim style)
   botDifficulty: "easy" | "normal" | "hard" | "veteran";  // scales bot skill
