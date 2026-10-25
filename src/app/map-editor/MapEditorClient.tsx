@@ -12,6 +12,7 @@ import { getMap } from "@/lib/game-protocol";
 import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
+import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
@@ -516,6 +517,23 @@ export default function MapEditor() {
     selected.type==="feature"?map.features[selected.index]:
     selected.type==="hazard"?(map.hazards??[])[selected.index]:
     selected.type==="prop"?theme.props[selected.index]:map.spawns[selected.team!][selected.index]):null;
+  // Authored solids and props store Y at their base. Engine boxes and hazards
+  // store Y at their center. Expose both faces with consistent world elevation.
+  const selectedAnchor:ElevationAnchor=selected?.type==="feature"||selected?.type==="prop"?"bottom":
+    selected?.type==="spawn"?"point":"center";
+  const selectedDimensions=selected&&selectedObject&&selected.type!=="region"?
+    selected.type==="spawn"?{y:(selectedObject as number[])[1],h:0}:
+    {y:(selectedObject as {y?:number}).y??0,
+      h:(selectedObject as {h?:number}).h??(selected.type==="prop"?5:0)}:null;
+  const selectedSpan=selectedDimensions?
+    elevationSpan(selectedDimensions.y,selectedDimensions.h,selectedAnchor):null;
+  const setPreciseElevation=(face:"bottom"|"top",input:string)=>{
+    if(!selected||!selectedSpan||input.trim()==="")return;
+    const wanted=Number(input);
+    if(!Number.isFinite(wanted))return;
+    const y=yAtElevationFace(wanted,selectedSpan.height,selectedAnchor,face);
+    changeSelected(selected.type==="spawn"?"1":"y",y);
+  };
   const issues=useMemo(()=>{
     if(!map)return [];
     const problems=validateBlueprint(map);
@@ -652,7 +670,7 @@ export default function MapEditor() {
               {[1,2,5,10].map(step=><option key={step} value={step}>{step}u</option>)}
             </select>
           </label>
-          <p className="text-[11px] text-zinc-500 mt-2">Snap applies to X/Z placement. Platform stairs already match platform height automatically.</p>
+          <p className="text-[11px] text-zinc-500 mt-2">Snap only affects X/Z placement; Y moves freely. Use Exact vertical placement in the Inspector to enter precise bottom or top elevations.</p>
         </section>
         {editorTab==="theme"&&<section className="rounded-lg border border-white/10 p-3 space-y-2">
           <div className="text-xs font-bold text-amber-300">Visual theme — {mapId}</div>
@@ -884,8 +902,8 @@ export default function MapEditor() {
                   </p>}
                   <div className="grid grid-cols-2 gap-2">
                     {(["x","y","z","w","h","d"] as const).map(key=>
-                      <label key={key} className="text-xs text-zinc-400">{key==="y"&&selected.type==="feature"?"BASE ELEVATION (Y)":key.toUpperCase()}
-                        <input className={fieldClass} type="number" step=".25" min={["w","h","d"].includes(key)?0.1:undefined}
+                      <label key={key} className="text-xs text-zinc-400">{key==="y"?"CENTER Y":key==="h"?"HEIGHT":key.toUpperCase()}
+                        <input className={fieldClass} type="number" step="any" min={["w","h","d"].includes(key)?0.1:undefined}
                           value={(selectedObject as unknown as Record<string,number>)[key]}
                           onChange={e=>changeSelected(key,e.target.value)}/>
                       </label>)}
@@ -914,8 +932,10 @@ export default function MapEditor() {
                     </select></label>}
                   <div className="grid grid-cols-2 gap-2">
                     {(["x","z","w","d",...(["feature","hazard","prop"].includes(selected.type)?["h"]:[]),
-                      ...(["feature","hazard"].includes(selected.type)?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key.toUpperCase()}
-                      <input type="number" step=".5" className={fieldClass}
+                      ...(["feature","hazard","prop"].includes(selected.type)?["y"]:[])] as string[]).map(key=><label key={key} className="text-xs text-zinc-400">{key==="y"?
+                        (selected.type==="feature"||selected.type==="prop"?"BASE Y":"CENTER Y"):
+                        key==="h"?"HEIGHT":key.toUpperCase()}
+                      <input type="number" step="any" className={fieldClass}
                         value={(selectedObject as unknown as Record<string,number>)[key]??(key==="y"?0:"")}
                         onChange={e=>changeSelected(key,e.target.value)}/></label>)}
                   </div>
@@ -997,6 +1017,19 @@ export default function MapEditor() {
                   </>}
                 </>
               }
+              {selectedSpan&&<div className="rounded-lg border border-white/10 bg-zinc-900/50 p-2.5 space-y-2">
+                <p className="text-xs font-semibold text-amber-200">Exact vertical placement</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["bottom","top"] as const).map(face=><label key={face} className="text-xs text-zinc-400">
+                    {face==="bottom"?"Bottom Y":"Top Y"}
+                    <input aria-label={face==="bottom"?"Bottom elevation":"Top elevation"}
+                      className={fieldClass} type="number" step="any"
+                      value={Math.round(selectedSpan[face]*10000)/10000}
+                      onChange={e=>setPreciseElevation(face,e.target.value)}/>
+                  </label>)}
+                </div>
+                <p className="text-[11px] text-zinc-500">Moves the object without changing its height. Values accept decimals (for example, 5.25). Grid snapping affects X/Z only.</p>
+              </div>}
               <div className="flex gap-2">
                 <button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>
                 {(selected.type==="legacyCover"||selected.type==="legacyStairs"||selected.type==="legacyEnvironment")&&
