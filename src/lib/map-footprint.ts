@@ -57,7 +57,18 @@ export function applyMapFootprint(base:MapDef):MapDef {
   if(!plan)return scaledBase;
   const regions=plan.regions.map(r=>({...r}));
   const visuals=visualThemeForMap(base.id,plan.templateMapId);
-  const allSpawns=[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,
+  // Afterlight's predecessor was a small 128x128 arena with spawn points
+  // clustered immediately around the central plaza. Those inherited spawns
+  // forced every proposed park-edge house to disappear. The authored city
+  // already provides neighbourhood spawns; retain only its legacy OUTER
+  // fallbacks, not the obsolete central arena positions.
+  const isAfterlight=base.id==="arena_neon"||base.id==="terminal";
+  const activeLegacySpawns={
+    ffa:isAfterlight?scaledBase.spawns.ffa.slice(-6):scaledBase.spawns.ffa,
+    red:isAfterlight?scaledBase.spawns.red.slice(-3):scaledBase.spawns.red,
+    blue:isAfterlight?scaledBase.spawns.blue.slice(-3):scaledBase.spawns.blue,
+  };
+  const allSpawns=[...activeLegacySpawns.ffa,...activeLegacySpawns.red,...activeLegacySpawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
   const props=mapProps(base.id,plan,visuals,allSpawns);
   const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
@@ -74,6 +85,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const addSpawns=(team:"ffa"|"red"|"blue")=>{
     const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
     if(base.id==="skybridge")return plan.spawns[team].map(p=>[...p] as Vec3);
+    if(isAfterlight)return [...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
   const legacyCoverSource=scaledBase.cover.filter(c=>{
