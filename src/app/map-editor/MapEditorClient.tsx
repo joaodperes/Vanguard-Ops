@@ -1022,10 +1022,12 @@ export default function MapEditor() {
                 <div className="grid grid-cols-2 gap-2">
                   {(["bottom","top"] as const).map(face=><label key={face} className="text-xs text-zinc-400">
                     {face==="bottom"?"Bottom Y":"Top Y"}
-                    <input aria-label={face==="bottom"?"Bottom elevation":"Top elevation"}
+                    <input key={selected!.type+":"+selected!.index+":"+face+":"+selectedSpan[face]}
+                      aria-label={face==="bottom"?"Bottom elevation":"Top elevation"}
                       className={fieldClass} type="number" step="any"
-                      value={Math.round(selectedSpan[face]*10000)/10000}
-                      onChange={e=>setPreciseElevation(face,e.target.value)}/>
+                      defaultValue={Math.round(selectedSpan[face]*10000)/10000}
+                      onBlur={e=>setPreciseElevation(face,e.target.value)}
+                      onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/>
                   </label>)}
                 </div>
                 <p className="text-[11px] text-zinc-500">Moves the object without changing its height. Values accept decimals (for example, 5.25). Grid snapping affects X/Z only.</p>
