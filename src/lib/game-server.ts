@@ -2459,6 +2459,87 @@ async function handle(socket: any, msg: C2S) {
         placePlayerTurret(room, p, socket.id, now);
         break;
       }
+
+      // Each new Wonder kind is a dedicated authoritative action rather than rocket splash.
+      if(weapon.wonder?.kind==="smart"){
+        const locked=now-(room.adsStartedAt.get(socket.id)??now)>=250;
+        const candidates=allCombatants(room).filter(x=>x.id!==socket.id)
+          .map(x=>({id:x.id,pos:x.pos,alive:x.alive,team:x.team,protected:!!x.spawnProtectedUntil&&x.spawnProtectedUntil>now}));
+        const target=locked?selectSmartTarget(msg.origin,msg.dir,candidates,p.team,room.mode==="ffa"||room.mode==="gungame"||room.config.friendlyFire===true,eff.range,(point)=>hasLineOfSight(room,msg.origin,point)):null;
+        const victim=target?allCombatants(room).find(c=>c.id===target.id):null;
+        if(victim?.alive){
+          applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
+          io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],kind:"smart"} as S2C);
+        }else{
+          const hit=fireRay(room,socket.id,msg.origin,msg.dir,weapon.id,eff.range);
+          if(hit)applyDamage(room,socket.id,hit.victim,damageAtRange(eff.damage,hit.t,eff.range,eff),hit.head,weapon.id);
+        }
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        break;
+      }
+      if(weapon.wonder?.kind==="flame"){
+        const len=Math.hypot(...msg.dir)||1,dir:Vec3=[msg.dir[0]/len,msg.dir[1]/len,msg.dir[2]/len];
+        for(const victim of allCombatants(room)){
+          if(victim.id===socket.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
+          const target:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
+          if(inFlameCone(msg.origin,dir,target,eff.range)&&hasLineOfSight(room,msg.origin,target))
+            applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
+        }
+        for(const d of [4,8,12]){
+          const point:Vec3=[msg.origin[0]+dir[0]*d,p.pos[1]+.12,msg.origin[2]+dir[2]*d];
+          if(hasLineOfSight(room,msg.origin,[point[0],point[1]+1,point[2]]))
+            placeWonderField(room,p,weapon.id,"flame",point,1.85,now,4200);
+        }
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        break;
+      }
+      if(weapon.wonder?.kind==="sludge"){
+        const impact=serverBoltLanding(room,socket.id,msg.origin,msg.dir,eff.range);
+        const point:Vec3=[impact[0],p.pos[1]+.12,impact[2]];
+        placeWonderField(room,p,weapon.id,"sludge",point,weapon.wonder.radius,now,8500);
+        for(const victim of allCombatants(room)){
+          if(victim.id===socket.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
+          if(Math.hypot(victim.pos[0]-point[0],victim.pos[2]-point[2])<=weapon.wonder.radius&&
+            hasLineOfSight(room,[point[0],point[1]+.5,point[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))
+              applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
+        }
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        break;
+      }
+      if(weapon.wonder?.kind==="storm"){
+        const impact=serverBoltLanding(room,socket.id,msg.origin,msg.dir,eff.range);
+        const node:Vec3=[impact[0],p.pos[1]+1.1,impact[2]];
+        const old=room.stormAnchors.get(socket.id);
+        if(old&&old.expiresAt>now&&Math.hypot(old.pos[0]-node[0],old.pos[2]-node[2])<=24){
+          io.to(room.id).emit("message",{t:"wonderBeam",from:old.pos,to:node,kind:"storm"} as S2C);
+          for(const victim of allCombatants(room)){
+            if(victim.id===socket.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
+            if(nearStormLink(old.pos,node,victim.pos,1.7)&&hasLineOfSight(room,old.pos,[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))
+              applyDamage(room,socket.id,victim,eff.damage*.62,false,weapon.id);
+          }
+        }
+        room.stormAnchors.set(socket.id,{pos:node,expiresAt:now+10000});
+        const first=fireRay(room,socket.id,msg.origin,msg.dir,weapon.id,eff.range);
+        let from:Vec3=first?[first.victim.pos[0],first.victim.pos[1]+1,first.victim.pos[2]]:node;
+        const visited=new Set<string>();
+        if(first){visited.add(first.victim.id);applyDamage(room,socket.id,first.victim,eff.damage,false,weapon.id);}
+        else io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:node,kind:"storm"} as S2C);
+        for(let jump=1;jump<=4&&!room.ended;jump++){
+          const candidates=allCombatants(room)
+            .filter(v=>v.id!==socket.id&&!visited.has(v.id)&&v.alive&&(!v.spawnProtectedUntil||v.spawnProtectedUntil<=now)&&
+              (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||v.team!==p.team))
+            .filter(v=>Math.hypot(v.pos[0]-from[0],v.pos[2]-from[2])<=weapon.wonder!.radius&&
+              hasLineOfSight(room,from,[v.pos[0],v.pos[1]+1,v.pos[2]]))
+            .sort((a,b)=>Math.hypot(a.pos[0]-from[0],a.pos[2]-from[2])-Math.hypot(b.pos[0]-from[0],b.pos[2]-from[2]));
+          const next=candidates[0];if(!next)break;
+          const to:Vec3=[next.pos[0],next.pos[1]+1,next.pos[2]];
+          io.to(room.id).emit("message",{t:"wonderBeam",from,to,kind:"storm"} as S2C);
+          applyDamage(room,socket.id,next,eff.damage*Math.pow(.76,jump),false,weapon.id);
+          visited.add(next.id);from=to;
+        }
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        break;
+      }
       // Rocket launcher: SPLASH damage (AoE). Instead of a single hitscan ray,
       // compute the impact point (first cover or combatant hit along the ray)
       // and apply area-of-effect damage to all enemies within the splash radius.
