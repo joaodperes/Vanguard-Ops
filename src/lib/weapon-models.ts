@@ -25,6 +25,11 @@ interface Profile {
 /** All ranged weapons have their own silhouette recipe, even within a class. */
 export const WEAPON_VISUALS: Record<string, Profile> = {
   // Experimental platforms deliberately have different physical silhouettes, not just new colours.
+  // Wonder variants re-use existing gravity/corrosion combat mechanics but have
+  // unique procedural silhouettes so none renders as the generic rifle fallback.
+  wonder_rift_needle: { receiver: [.11,.16,.45], guardLength:.28, barrelLength:.5, bore:.07, stock:"precision", magazine:"none", body:"tapered", features:["scope","vent","muzzle"], signature:0xd89bff },
+  wonder_miasma_bloom: { receiver: [.24,.26,.36], guardLength:.33, barrelLength:.23, bore:.1, stock:"heavy", magazine:"drum", body:"ribbed", features:["shield","vent","dual"], signature:0x91d84f },
+  wonder_caustic_javelin: { receiver: [.095,.12,.62], guardLength:.42, barrelLength:.56, bore:.045, stock:"wire", magazine:"none", body:"slim", features:["scope","rail","muzzle"], signature:0xf7e25a },
   rifle_electron:   { receiver: [.180,.175,.48], guardLength:.32, barrelLength:.27, bore:.042, stock:"bullpup", magazine:"none", body:"ribbed", features:["vent","rail","muzzle"], signature:0x29d9fa },
   crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x8bd36a },
   pistol_arc:       { receiver: [.120,.135,.26], guardLength:.085, barrelLength:.11, bore:.027, stock:"none", magazine:"grip", body:"tapered", features:["muzzle","vent"], signature:0xac82ff },
