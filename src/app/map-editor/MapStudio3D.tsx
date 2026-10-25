@@ -303,7 +303,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     // step cannot accidentally split or reassign a flight.
     const stairIndices=new Set<number>();
     for(const flight of base.editorLegacyStairFlights??[]){
-      const steps=flight.indices.map(i=>{
+      if(flight.indices.every(i=>(map.legacyCoverDisabled??[]).includes(i)))continue;
+      const steps=flight.indices.filter(i=>!(map.legacyCoverDisabled??[]).includes(i)).map(i=>{
         stairIndices.add(i);
         const original=base.editorLegacyCoverSource?.[i]??base.cover[i];
         return original?overrideBox(original,map.legacyCoverOverrides?.[String(i)]):null;
@@ -320,8 +321,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       }else for(const b of steps)createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,palette.stair,.25);
     }
-    for(let i=0;i<(base.editorLegacyCoverCount??0);i++){
-      if(stairIndices.has(i))continue;
+    for(let i=0;i<(base.editorLegacyCoverSource?.length??base.editorLegacyCoverCount??0);i++){
+      if(stairIndices.has(i)||(map.legacyCoverDisabled??[]).includes(i))continue;
       const original=base.editorLegacyCoverSource?.[i]??base.cover[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyCoverOverrides?.[String(i)]);
@@ -333,8 +334,9 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#728399",.28);
     }
-    for(let i=0;i<(base.editorLegacyEnvironmentCount??0);i++){
-      const original=base.environment?.[i];
+    for(let i=0;i<(base.editorLegacyEnvironmentSource?.length??base.editorLegacyEnvironmentCount??0);i++){
+      if((map.legacyEnvironmentDisabled??[]).includes(i))continue;
+      const original=base.editorLegacyEnvironmentSource?.[i]??base.environment?.[i];
       if(!original)continue;
       const b=overrideBox(original,map.legacyEnvironmentOverrides?.[String(i)]);
       if(compiledForThisMap){
