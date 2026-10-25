@@ -42,14 +42,21 @@ describe("unmodified sight selection", () => {
   });
 });
 
-describe("interruptible incremental reload profiles", () => {
-  test("all shotguns and bolt-action snipers use per-round reloads", () => {
-    for (const weapon of WEAPONS.filter(w => !w.wonder && (w.category === "shotgun" || w.category === "sniper"))) {
+describe("incremental reload profiles", () => {
+  test("shotguns load shells and the heavy single-chamber sniper cycles its bolt", () => {
+    for (const weapon of WEAPONS.filter(w => !w.wonder && w.category === "shotgun")) {
       expect(weapon.stats.reloadStyle).toBe("incremental");
       expect(weapon.stats.reloadPerRound).toBeGreaterThan(0);
       expect(weapon.stats.reloadPerRound).toBeLessThan(weapon.stats.reloadTime);
     }
-    expect(weaponById("rifle_ar").stats.reloadStyle).toBeUndefined();
+    const heavy = weaponById("sniper_heavy");
+    expect(heavy.stats.magSize).toBe(1);
+    expect(heavy.stats.reloadStyle).toBe("incremental");
+    expect(heavy.stats.reloadPerRound).toBeGreaterThan(0);
+    expect(heavy.stats.reloadPerRound).toBeLessThan(heavy.stats.reloadTime);
+    for (const id of ["sniper_scout", "sniper_lr", "rifle_ar"]) {
+      expect(weaponById(id).stats.reloadStyle).toBeUndefined();
+    }
   });
 });
 
