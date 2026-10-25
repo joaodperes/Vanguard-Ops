@@ -93,7 +93,10 @@ export interface EngineOptions {
   invertY?: boolean;           // invert vertical look (default false)
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
-  masterVolume?: number;       // 0..100, default 80. Drives the SoundManager gain.
+  masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
+  musicVolume?: number;        // 0..100, relative to master
+  footstepVolume?: number;     // 0..100, relative to master
+  fxVolume?: number;           // 0..100, relative to master (including WeaponAudio)
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
   roomConnect?: {
     kind: "create" | "join";
@@ -921,10 +924,13 @@ export class FPSEngine {
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
     // ---- Sound manager ----
     this.sound = new SoundManager();
-    this.weaponAudio = new WeaponAudio(opts.masterVolume ?? 80);
-    if (typeof opts.masterVolume === "number") {
-      this.sound.setMasterVolume(opts.masterVolume / 100);
-    }
+    this.weaponAudio = new WeaponAudio(80);
+    this.setAudioMix({
+      masterVolume: opts.masterVolume ?? 80,
+      musicVolume: opts.musicVolume ?? 65,
+      footstepVolume: opts.footstepVolume ?? 85,
+      fxVolume: opts.fxVolume ?? 100,
+    });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
@@ -2604,6 +2610,19 @@ export class FPSEngine {
       this.keys[e.code] = false;
     });
     window.addEventListener("resize", this.onResize);
+  }
+
+  /** Apply settings without reconstructing the game/audio contexts.
+   * WeaponAudio has its own Web Audio output, so scale FX by master there too.
+   */
+  setAudioMix(mix: { masterVolume: number; musicVolume: number; footstepVolume: number; fxVolume: number }) {
+    const master = Math.max(0, Math.min(100, mix.masterVolume));
+    const fx = Math.max(0, Math.min(100, mix.fxVolume));
+    this.sound.setMasterVolume(master / 100);
+    this.sound.setMusicVolume(mix.musicVolume / 100);
+    this.sound.setFootstepVolume(mix.footstepVolume / 100);
+    this.sound.setFxVolume(fx / 100);
+    this.weaponAudio.setVolume(master * fx / 100);
   }
 
   // Unlock both audio systems from the same user gesture (autoplay-safe).
@@ -5839,7 +5858,7 @@ export class FPSEngine {
 
   private update(dt: number) {
     // The music scheduler runs only after audio was unlocked by a user gesture.
-    this.sound.tickAmbientMusic(!this.lobbyActive && !this.matchEnded && this.alive);
+    this.sound.tickAmbientMusic(!this.matchEnded, this.lobbyActive ? "lobby" : this.map.id);
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
