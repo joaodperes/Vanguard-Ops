@@ -169,6 +169,8 @@ export interface MapDef {
   editorLegacyCoverCount?: number;
   /** Pre-override collision boxes, indexed identically to editorLegacyStairFlights. */
   editorLegacyCoverSource?: CoverBox[];
+  /** Pre-override environment sources indexed for deletion, copy and restore. */
+  editorLegacyEnvironmentSource?: EnvironmentObject[];
   editorLegacyStairFlights?: import("./legacy-stair-flights").LegacyStairFlight[];
   editorLegacyEnvironmentCount?: number;
   environment?: EnvironmentObject[];
