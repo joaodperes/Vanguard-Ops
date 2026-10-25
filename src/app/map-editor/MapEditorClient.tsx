@@ -11,6 +11,7 @@ import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualT
 import { getMap } from "@/lib/game-protocol";
 import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
+import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
@@ -233,7 +234,7 @@ export default function MapEditor() {
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const overridesKey=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       const base=baseMap;
-      const source=sel.type==="legacyCover"?(base.editorLegacyCoverSource?.[sel.index]??base.cover[sel.index]):base.environment?.[sel.index];
+      const source=sel.type==="legacyCover"?(base.editorLegacyCoverSource?.[sel.index]??base.cover[sel.index]):(base.editorLegacyEnvironmentSource?.[sel.index]??base.environment?.[sel.index]);
       if(!source)return;
       const initial={x:source.pos[0],y:source.pos[1],z:source.pos[2],
         w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
@@ -263,54 +264,127 @@ export default function MapEditor() {
     });
   };
   const remove=()=>{
-    if(!selected)return;pushUndo();
-    const s=selected;
-    if(s.type==="legacyStairs"){
-      const flight=legacyFlight(s.index);
+    if(!selected)return;
+    const selectedItem=selected;
+    if(selectedItem.type==="legacyStairs"){
+      const flight=legacyFlight(selectedItem.index);
       if(!flight)return;
+      pushUndo();
+      update(m=>{
+        let disabled=m.legacyCoverDisabled??[];
+        for(const index of flight.indices)disabled=toggleOriginalIndex(disabled,index,true);
+        return {...m,legacyCoverDisabled:disabled};
+      });
+      setStatus(`Deleted built-in staircase (${flight.indices.length} treads). Restore it below, or Undo.`);
+      setSelected(null);return;
+    }
+    if(selectedItem.type==="legacyCover"||selectedItem.type==="legacyEnvironment"){
+      pushUndo();
+      const key=selectedItem.type==="legacyCover"?"legacyCoverDisabled":"legacyEnvironmentDisabled";
+      update(m=>({...m,[key]:toggleOriginalIndex(m[key],selectedItem.index,true)}));
+      setStatus("Deleted built-in object. Its gameplay collision is excluded after exporting and rebuilding.");
+      setSelected(null);return;
+    }
+    pushUndo();
+    if(selectedItem.type==="prop"){
+      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==selectedItem.index)}));
+      setSelected(null);return;
+    }
+    update(m=>selectedItem.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==selectedItem.index)}:
+      selectedItem.type==="feature"?{...m,features:m.features.filter((_,i)=>i!==selectedItem.index)}:
+      selectedItem.type==="hazard"?{...m,hazards:(m.hazards??[]).filter((_,i)=>i!==selectedItem.index)}:
+      {...m,spawns:{...m.spawns,[selectedItem.team!]:m.spawns[selectedItem.team!].filter((_,i)=>i!==selectedItem.index)}});
+    setSelected(null);
+  };
+  const resetLegacyEdits=()=>{
+    if(!selected)return;
+    const item=selected;
+    if(item.type==="legacyStairs"){
+      const flight=legacyFlight(item.index);
+      if(!flight)return;
+      pushUndo();
       update(m=>{
         const overrides={...(m.legacyCoverOverrides??{})};
         for(const i of flight.indices)delete overrides[String(i)];
         return {...m,legacyCoverOverrides:overrides};
       });
-      setStatus(`Reset overrides for all ${flight.indices.length} stair treads.`);
-      setSelected(null);return;
-    }
-    if(s.type==="legacyCover"||s.type==="legacyEnvironment"){
-      const overridesKey=s.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
+      setStatus("Reset all stair tread edits to the original dimensions.");
+    }else if(item.type==="legacyCover"||item.type==="legacyEnvironment"){
+      pushUndo();
+      const key=item.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       update(m=>{
-        const existing={...(m[overridesKey]??{})};
-        delete existing[String(s.index)];
-        return {...m,[overridesKey]:existing};
+        const overrides={...(m[key]??{})};
+        delete overrides[String(item.index)];
+        return {...m,[key]:overrides};
       });
-      setSelected(null);return;
+      setStatus("Reset object position and dimensions to their original values.");
     }
-    if(s.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==s.index)}));
-      setSelected(null);return;
-    }
-    update(m=>s.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==s.index)}:
-      s.type==="feature"?{...m,features:m.features.filter((_,i)=>i!==s.index)}:
-      s.type==="hazard"?{...m,hazards:(m.hazards??[]).filter((_,i)=>i!==s.index)}:
-      {...m,spawns:{...m.spawns,[s.team!]:m.spawns[s.team!].filter((_,i)=>i!==s.index)}});
-    setSelected(null);
   };
   const duplicate=()=>{
-    if(!selected||selected.type==="spawn"||selected.type==="legacyCover"||selected.type==="legacyStairs"||selected.type==="legacyEnvironment")return;pushUndo();
-    const s=selected;
-    if(s.type==="region"){const index=map.regions.length;
-      update(m=>({...m,regions:[...m.regions,{...m.regions[s.index],x:m.regions[s.index].x+12}]}));
-      setSelected({type:"region",index});
-    }else if(s.type==="hazard"){
+    if(!selected)return;
+    const item=selected;
+    const suffix=Date.now().toString(36);
+    if(item.type==="legacyStairs"){
+      const flight=legacyFlight(item.index);
+      if(!flight)return;
+      const boxes=effectiveLegacyCover();
+      const stair=legacyFlightToFeature(flight.indices.map(i=>boxes[i]),`copied_stairs_${suffix}_${map.features.length}`);
+      pushUndo();
+      const index=map.features.length;
+      update(m=>({...m,features:[...m.features,stair]}));
+      setSelected({type:"feature",index});setEditMode("move");
+      setStatus("Duplicated the original staircase as a single editable, auto-generated stair flight.");
+      return;
+    }
+    if(item.type==="legacyCover"){
+      const box=effectiveLegacyCover()[item.index];
+      if(!box)return;
+      const feature=legacyCoverToFeature(box,`copied_cover_${suffix}_${map.features.length}`);
+      pushUndo();
+      const index=map.features.length;
+      update(m=>({...m,features:[...m.features,feature]}));
+      setSelected({type:"feature",index});setEditMode("move");
+      setStatus("Duplicated the built-in object as editable map geometry.");
+      return;
+    }
+    if(item.type==="legacyEnvironment"){
+      const original=baseMap.editorLegacyEnvironmentSource?.[item.index]??baseMap.environment?.[item.index];
+      if(!original)return;
+      const box=overrideBox(original,map.legacyEnvironmentOverrides?.[String(item.index)]);
+      const hazard=legacyEnvironmentToHazard(box,`copied_hazard_${suffix}_${(map.hazards??[]).length}`);
+      pushUndo();
       const index=(map.hazards??[]).length;
-      update(m=>({...m,hazards:[...(m.hazards??[]),{...m.hazards![s.index],id:"copy_"+Date.now().toString(36),x:m.hazards![s.index].x+10}]}));
+      update(m=>({...m,hazards:[...(m.hazards??[]),hazard]}));
+      setSelected({type:"hazard",index});setEditMode("move");
+      setStatus("Duplicated the built-in hazard as an independently editable authored hazard.");
+      return;
+    }
+    if(item.type==="spawn"){
+      const spawn=map.spawns[item.team!][item.index];
+      if(!spawn)return;
+      pushUndo();
+      const index=map.spawns[item.team!].length;
+      update(m=>({...m,spawns:{...m.spawns,[item.team!]:[...m.spawns[item.team!],
+        [spawn[0]+10,spawn[1],spawn[2]] as [number,number,number]]}}));
+      setSelected({type:"spawn",team:item.team,index});
+      return;
+    }
+    pushUndo();
+    if(item.type==="region"){const index=map.regions.length;
+      update(m=>({...m,regions:[...m.regions,{...m.regions[item.index],x:m.regions[item.index].x+12}]}));
+      setSelected({type:"region",index});
+    }else if(item.type==="hazard"){
+      const index=(map.hazards??[]).length;
+      update(m=>({...m,hazards:[...(m.hazards??[]),{...m.hazards![item.index],id:"copy_"+suffix+"_"+index,x:m.hazards![item.index].x+10}]}));
       setSelected({type:"hazard",index});
-    }else if(s.type==="prop"){
+    }else if(item.type==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{...t.props[s.index],x:t.props[s.index].x+10}]}));
+      updateTheme(t=>({...t,props:[...t.props,{...t.props[item.index],x:t.props[item.index].x+10}]}));
       setSelected({type:"prop",index});
-    }else{const index=map.features.length;update(m=>({...m,features:[...m.features,
-      {...m.features[s.index],id:`copy-${Date.now().toString(36)}`,x:m.features[s.index].x+10}]}));
+    }else if(item.type==="feature"){
+      const index=map.features.length;
+      update(m=>({...m,features:[...m.features,
+        {...m.features[item.index],id:`copy_${suffix}_${index}`,x:m.features[item.index].x+10}]}));
       setSelected({type:"feature",index});
     }
   };
@@ -348,7 +422,7 @@ export default function MapEditor() {
     e.target.value="";
   };
   const legacyObject=(sel:Selection)=>{
-    const source=sel.type==="legacyCover"?(baseMap.editorLegacyCoverSource?.[sel.index]??baseMap.cover[sel.index]):baseMap.environment?.[sel.index];
+    const source=sel.type==="legacyCover"?(baseMap.editorLegacyCoverSource?.[sel.index]??baseMap.cover[sel.index]):(baseMap.editorLegacyEnvironmentSource?.[sel.index]??baseMap.environment?.[sel.index]);
     if(!source)return null;
     const original={x:source.pos[0],y:source.pos[1],z:source.pos[2],
       w:source.size[0]*2,h:source.size[1]*2,d:source.size[2]*2};
@@ -864,10 +938,12 @@ export default function MapEditor() {
                 </>
               }
               <div className="flex gap-2">
-                {selected.type!=="spawn"&&selected.type!=="legacyCover"&&selected.type!=="legacyStairs"&&selected.type!=="legacyEnvironment"&&
-                  <button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>}
-                <button className={btn+" text-rose-300"} onClick={remove}><Trash2 size={13}/>
-                  {selected.type==="legacyStairs"?"Reset flight":selected.type==="legacyCover"||selected.type==="legacyEnvironment"?"Reset override":"Delete"}</button>
+                <button className={btn} onClick={duplicate}><Copy size={13}/> Duplicate</button>
+                {(selected.type==="legacyCover"||selected.type==="legacyStairs"||selected.type==="legacyEnvironment")&&
+                  <button className={btn} onClick={resetLegacyEdits}><RotateCcw size={13}/> Reset edits</button>}
+                <button className={btn+" text-rose-300"} onClick={remove}>
+                  <Trash2 size={13}/> Delete
+                </button>
               </div>
             </div>:
             <p className="text-xs text-zinc-500">Select a region, existing staircase/cover, hazard, prop, or spawn in 3D to edit its properties.</p>}
