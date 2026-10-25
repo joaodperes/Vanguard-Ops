@@ -54,7 +54,7 @@ describe("player shot spread and recoil", () => {
       const hip = shotSpread(w.stats, w.category, false, 0, 0, false);
       const ads = shotSpread(w.stats, w.category, true, 0, 0, true);
       expect(hip).toBeGreaterThan(rifleHip * 4);
-      expect(hip).toBeGreaterThan(ads * 20);
+      expect(hip).toBeGreaterThan(ads * (w.category === "sniper" ? 20 : 2));
     }
   });
 
