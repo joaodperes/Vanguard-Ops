@@ -31,6 +31,17 @@ export function overrideBox<T extends {pos:Vec3;size:Vec3}>(box:T,edit?:MapBoxOv
   if(!edit)return box;
   return {...box,pos:[edit.x,edit.y,edit.z],size:[edit.w/2,edit.h/2,edit.d/2]} as T;
 }
+/** Compile inherited objects in their stable source order, excluding indices
+ * deleted by Map Studio. Spatial overrides are applied by original index
+ * BEFORE filtering so deleting an object never shifts another override. */
+export function compileVisibleLegacyBoxes<T extends {pos:Vec3;size:Vec3}>(
+  source:readonly T[],disabled:readonly number[]|undefined,
+  overrides:Record<string,MapBoxOverride>|undefined,
+):T[] {
+  const hidden=new Set(disabled??[]);
+  return source.flatMap((box,index)=>
+    hidden.has(index)?[]:[overrideBox(box,overrides?.[String(index)])]);
+}
 export interface MapHazard {
   id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
   x: number; z: number; y: number; w: number; d: number; h: number;
