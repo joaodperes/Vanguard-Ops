@@ -26,7 +26,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityClientTime, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityClientTime, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -5605,7 +5605,11 @@ export class FPSEngine {
       const hit = rayCapsule(origin, ndir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
       if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
-    const endX = origin[0] + ndir[0] * maxT, endY = origin[1] + ndir[1] * maxT, endZ = origin[2] + ndir[2] * maxT;
+    const isGravity = weaponById(weaponId).wonder?.kind === "singularity";
+    const safeImpact = isGravity ? gravityImpact(origin, ndir, maxT) : null;
+    const endX = safeImpact?.[0] ?? origin[0] + ndir[0] * maxT;
+    const endY = safeImpact?.[1] ?? origin[1] + ndir[1] * maxT;
+    const endZ = safeImpact?.[2] ?? origin[2] + ndir[2] * maxT;
     // Event Horizon is an unmistakable glowing PURPLE GRAVITY BALL, not a
     // generic missile. Other wonders and rockets keep the classic warhead.
     const rocketGroup = new THREE.Group();
@@ -5695,10 +5699,13 @@ export class FPSEngine {
       new THREE.MeshBasicMaterial({ color: 0x9a54ff, transparent: true, opacity: 0.19, depthWrite: false }));
     const orbit = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.10, 10, 70),
       new THREE.MeshBasicMaterial({ color: 0xb983ff, transparent: true, opacity: 0.67 }));
-    const boundary = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.06, 8, 96),
-      new THREE.MeshBasicMaterial({ color: 0x955dff, transparent: true, opacity: 0.35, depthWrite: false }));
-    boundary.rotation.x = Math.PI / 2;
-    mesh.add(core, inner, halo, orbit, boundary);
+    // The translucent spherical shell is the EXACT 3D pull/damage radius;
+    // a small decorative orbit remains inside it, not outside the hit range.
+    const boundary = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 20),
+      new THREE.MeshBasicMaterial({ color: 0x955dff, transparent: true, opacity: 0.19, depthWrite: false, wireframe: true }));
+    const fieldGlow = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16),
+      new THREE.MeshBasicMaterial({ color: 0x8f48ff, transparent: true, opacity: 0.065, depthWrite: false, side: THREE.BackSide }));
+    mesh.add(core, inner, halo, orbit, boundary, fieldGlow);
     mesh.visible = false;
     const light = new THREE.PointLight(0x8844ff, 8, radius * 1.6);
     light.position.set(...pos);
@@ -5753,7 +5760,7 @@ export class FPSEngine {
       halo.scale.setScalar(0.95 + Math.sin(phase * 2) * 0.18);
       orbit.rotation.z += dt * 2.2;
       orbit.rotation.y += dt;
-      boundary.rotation.z += dt * 0.23;
+      boundary.rotation.y += dt * 0.23;
       well.light.intensity = 4.6 + Math.sin(phase * 5) * 1.2;
       if (!well.offline || this.matchEnded) continue;
       for (const enemy of this.combatants.values()) {
