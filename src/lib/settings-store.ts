@@ -10,6 +10,9 @@ export interface GameSettings {
   showPing: boolean;
   damageNumbers: boolean;
   masterVolume: number;    // 0 .. 100 (music, footsteps and combat SFX)
+  musicVolume: number;     // 0 .. 100, relative to master
+  footstepVolume: number;  // 0 .. 100, relative to master
+  fxVolume: number;        // 0 .. 100, relative to master (weapons, UI, combat)
   autoAdsOnFire: boolean;  // automatically ADS when firing (great for mobile)
   invertY: boolean;        // invert vertical look (flight-sim style)
   botDifficulty: "easy" | "normal" | "hard" | "veteran";  // scales bot skill
@@ -25,6 +28,9 @@ const DEFAULTS: GameSettings = {
   showPing: true,
   damageNumbers: true,
   masterVolume: 80,
+  musicVolume: 65,
+  footstepVolume: 85,
+  fxVolume: 100,
   autoAdsOnFire: false,
   invertY: false,
   botDifficulty: "normal",
