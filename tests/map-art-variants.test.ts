@@ -16,7 +16,10 @@ describe("Afterlight architectural maps",()=>{
     const props=MAPS.arena_neon.props??[];
     const buildings=props.filter(p=>p.kind==="building");
     expect(buildings.length).toBeGreaterThanOrEqual(30);
-    expect(new Set(buildings.map(p=>p.use)).size).toBeGreaterThanOrEqual(7);
+    expect(new Set(buildings.map(p=>p.use)).size).toBeGreaterThanOrEqual(10);
+    expect(new Set(buildings.map(p=>p.facade)).size).toBeGreaterThanOrEqual(4);
+    expect(buildings.some(p=>p.roofAccess === false)).toBe(true);
+    expect(buildings.some(p=>p.roofAccess === true)).toBe(true);
     expect(new Set(buildings.map(p=>p.shape)).size).toBe(3);
     expect(new Set(buildings.map(p=>p.w+"x"+p.d)).size).toBeGreaterThanOrEqual(7);
     expect(new Set(buildings.map(p=>p.h)).size).toBeGreaterThanOrEqual(5);
@@ -40,9 +43,20 @@ describe("Afterlight architectural maps",()=>{
       const outer=boxes.filter(c=>c.kind==="stair"&&
         (p.stairSide==="east" ? c.pos[0]>p.x+w/2 : c.pos[0]<p.x-w/2));
       const inner=boxes.filter(c=>c.kind==="stair" && c.pos[0]>p.x && c.pos[0]<p.x+w/2);
-      expect(outer.length).toBeGreaterThanOrEqual(11);
-      expect(inner.length).toBe(p.shape==="round"?0:Math.ceil(h/.39));
-      expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:6);
+      if(p.roofAccess){
+        expect(outer.length).toBeGreaterThanOrEqual(11);
+        expect(inner.length).toBe(p.shape==="round"?0:Math.ceil(h/.39));
+        expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:6);
+        const crest=outer[outer.length-1];
+        expect(Math.abs(crest.pos[1]+crest.size[1]-h)).toBeLessThan(.1);
+      }else{
+        expect(outer).toHaveLength(0);
+        expect(inner).toHaveLength(0);
+        // The roof is still physically present and the player can enter
+        // the building, but no internal/external stairway grants roof access.
+        expect(boxes.filter(c=>c.kind==="platform"||c.kind==="cover")
+          .some(c=>Math.abs(c.pos[1]-h-.16)<.01)).toBe(true);
+      }
       const front:[number,number,number]=[p.x,0,p.z+d/2+2.5];
       const doorway:[number,number,number]=[p.x,0,p.z+d/2-2.5];
       expect(botMoveBlocked(boxes,front,doorway,0)).toBe(false);
@@ -50,15 +64,29 @@ describe("Afterlight architectural maps",()=>{
       const northInside:[number,number,number]=[p.x,0,p.z-d/2+3];
       expect(botMoveBlocked(boxes,northOutside,northInside,0)).toBe(true);
       const fixtures=cityInteriorFixtures(p);
-      expect(fixtures.length).toBeGreaterThan(0);
+      expect(fixtures.length).toBeGreaterThanOrEqual(3);
+      expect(fixtures.some(f=>f.style==="partition")).toBe(true);
+      expect(fixtures.some(f=>f.style!=="partition")).toBe(true);
       for(const item of fixtures){
         expect(boxes.some(c=>c.kind==="cover" &&
           Math.abs(c.pos[0]-(p.x+item.x))<.001 &&
           Math.abs(c.pos[2]-(p.z+item.z))<.001 &&
           Math.abs(c.size[1]-item.h/2)<.001)).toBe(true);
       }
-      const crest=outer[outer.length-1];
-      expect(Math.abs(crest.pos[1]+crest.size[1]-h)).toBeLessThan(.1);
+    }
+    // Interior styles actually distinguish the purposes rather than random crates.
+    const styleFor=(use:string)=>buildings.filter(p=>p.use===use)
+      .flatMap(p=>cityInteriorFixtures(p).map(f=>f.style));
+    expect(styleFor("house")).toContain("bed");
+    expect(styleFor("supermarket")).toContain("shelf");
+    expect(styleFor("office")).toContain("desk");
+    expect(styleFor("cafe")).toContain("counter");
+    // A clear 3.4m center opening connects the street entrance to rear rooms.
+    for(const p of buildings){
+      const d=p.d??20, boxes=cityBuildingBoxes(p);
+      const entry:[number,number,number]=[p.x,0,p.z+d/2-1.5];
+      const rear:[number,number,number]=[p.x,0,p.z-d*.30];
+      expect(botMoveBlocked(boxes,entry,rear,0)).toBe(false);
     }
     const bandstand=props.find(p=>p.kind==="bandstand")!;
     expect(cityBandstandBoxes(bandstand).filter(c=>c.kind==="cover").length).toBe(4);

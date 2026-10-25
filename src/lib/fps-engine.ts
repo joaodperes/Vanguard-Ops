@@ -28,6 +28,7 @@ import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
+import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -1010,8 +1011,9 @@ export class FPSEngine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = true;
-    // PCFShadowMap provides soft PCF shadows in modern Three.js.
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Nearest comparison avoids implementation-defined LINEAR depth texture
+    // filtering in WebGL browsers (and the resulting console warnings).
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     const theme = this.map.theme;
@@ -1289,22 +1291,84 @@ export class FPSEngine {
           house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
           bakery:0xbf9569,apartments:0x8993a4,office:0x577b9c,
           hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,
+          clinic:0x9abfc2,workshop:0x827d68,gallery:0xb0a3bb,
+          florist:0x82a979,gym:0x648d96,
         };
+        const facadeTints:Record<string,number>={
+          brick:0xa45b48,stucco:0xd1bba0,concrete:0x92949b,
+          glass:0x638aa2,timber:0x947556,industrial:0x777e86,
+        };
+        const facadeColor=new THREE.Color(facadeColors[use]??0x9f8f87);
+        facadeColor.lerp(new THREE.Color(facadeTints[p.facade??"brick"]),.39);
         const tint=new THREE.MeshStandardMaterial({
-          color:facadeColors[use]??0x9f8f87,roughness:daylight?.8:.68,
-          metalness:use==="office"?.24:.04,
+          color:facadeColor,roughness:daylight?.82:.7,
+          metalness:use==="office"||p.facade==="industrial"?.22:.04,
         });
         const wood=new THREE.MeshStandardMaterial({color:daylight?0xa77855:0x70513f,roughness:.86});
         const seating=new THREE.MeshStandardMaterial({color:use==="cafe"?0x8b5347:0x54786f,roughness:.8});
         const metal=new THREE.MeshStandardMaterial({color:0x859397,roughness:.45,metalness:.55});
         const display=new THREE.MeshStandardMaterial({color:daylight?0xe1b887:0xf0a6b1,roughness:.45,emissive:daylight?0x161109:0x632638,emissiveIntensity:.24});
-        const furnitureMats={wood,seat:seating,metal,display,shelf:metal};
+        const fabric=new THREE.MeshStandardMaterial({color:use==="clinic"?0xc9dbde:0xc2b5a4,roughness:.93});
+        const wallPaint=new THREE.MeshStandardMaterial({color:daylight?0xc6b8a2:0x86808e,roughness:.94});
+        // Continuous floor and room rugs connect the fixtures into purposeful
+        // interiors instead of freestanding featureless boxes.
         cube(group,asphalt,0,.03,0,w-.9,.06,d-.9);
-        // Store shelves, coffee tables, home seating and office desks are
-        // visible at EXACTLY the same positions as their physical hitboxes.
-        for(const item of cityInteriorFixtures(p))
-          cube(group,furnitureMats[item.style],item.x,item.h/2,item.z,
-            item.w+.025,item.h+.025,item.d+.025);
+        cube(group,fabric,-w*.22,.07,-d*.34,Math.min(5,w*.40),.045,Math.min(4,d*.30));
+        // All large pieces use the exact collision footprint from map-visuals.
+        // The decorative subdivisions remain inside the fixture's AABB.
+        for(const item of cityInteriorFixtures(p)){
+          const {x,z,w:fw,d:fd,h:fh,style}=item;
+          const part=(mat:THREE.Material,px:number,py:number,pz:number,pw:number,ph:number,pd:number)=>
+            cube(group,mat,x+px,py,z+pz,pw,ph,pd);
+          if(style==="partition"){
+            part(wallPaint,0,fh/2,0,fw,fh,fd);
+            part(wood,0,.09,0,fw,.16,fd+.09);
+            part(wood,0,fh-.09,0,fw,.16,fd+.09);
+          }else if(style==="bed"){
+            part(wood,0,.18,0,fw,.36,fd);
+            part(fabric,0,.44,0,fw*.92,.25,fd*.87);
+            part(display,0,.59,-fd*.31,fw*.72,.09,fd*.21);
+            part(wood,0,fh*.58,-fd*.45,fw,.70,.13);
+          }else if(style==="sofa"||style==="bench"){
+            part(seating,0,.41,0,fw,.39,fd*.73);
+            part(seating,0,fh*.52,-fd*.40,fw,fh*.9,fd*.20);
+            for(const side of [-1,1])
+              part(wood,side*(fw/2-.13),fh*.31,0,.25,fh*.5,fd*.9);
+            if(style==="sofa")
+              for(const side of [-1,1])part(fabric,side*fw*.21,.67,fd*.12,fw*.34,.13,fd*.40);
+          }else if(style==="table"||style==="desk"||style==="workbench"){
+            part(style==="workbench"?metal:wood,0,fh*.83,0,fw,.17,fd);
+            for(const side of [-1,1])
+              part(wood,side*fw*.40,fh*.40,0,.18,fh*.76,fd*.67);
+            if(style==="desk"){
+              part(metal,0,fh*.69,-fd*.18,fw*.30,.34,.13);
+              part(display,0,fh*.75,-fd*.10,fw*.29,.14,.08);
+            }else if(style==="workbench"){
+              part(metal,0,fh*.49,-fd*.18,fw*.65,.16,fd*.28);
+            }
+          }else if(style==="shelf"||style==="cabinet"||style==="locker"){
+            for(const side of [-1,1])
+              part(metal,side*(fw/2-.08),fh/2,0,.15,fh,fd);
+            for(let i=0;i<(style==="shelf"?4:3);i++){
+              const y=.16+i*(fh-.26)/(style==="shelf"?3:2);
+              part(style==="cabinet"?wood:metal,0,y,0,fw,.1,fd);
+            }
+            if(style==="locker")part(display,0,fh*.7,fd*.5,fw*.65,.04,.05);
+          }else if(style==="counter"||style==="reception"){
+            part(wood,0,fh*.41,0,fw,fh*.82,fd*.74);
+            part(style==="reception"?display:metal,0,fh*.89,0,fw,.14,fd);
+            part(display,-fw*.24,fh*.99,-fd*.13,fw*.20,.13,fd*.18);
+          }else if(style==="display"){
+            part(wood,0,fh*.27,0,fw,fh*.54,fd);
+            part(display,0,fh*.60,0,fw*.8,fh*.14,fd*.78);
+            part(metal,0,fh*.8,0,fw*.68,fh*.34,fd*.67);
+          }else if(style==="plant"){
+            part(wood,0,.3,0,fw*.65,.60,fd*.65);
+            const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
+            leaves.position.set(x,fh*.71,z);
+            leaves.scale.set(.8,1.1,.8);group.add(leaves);
+          }
+        }
         const faceZ=d/2+.48;
         const doorWidth=Math.min(5,w*.31);
         // Slim external cladding sits flush on the collision-backed masonry.
@@ -1363,7 +1427,28 @@ export class FPSEngine {
         }else if(use==="supermarket"){
           cube(group,tint,0,3.0,d/2+.95,w*.8,.17,1.9);
         }
-        // Purpose-specific fascia: no misleading painted door on a solid wall.
+        // Deliberately different street fronts: bay trims, slatted facades
+        // and awnings respond to material palette and building use.
+        if(p.facade==="timber"||p.facade==="industrial"){
+          for(const side of [-1,1])
+            cube(group,wood,side*(w*.41),h*.48,d/2+.54,.16,h*.63,.13);
+        }
+        if(p.facade==="glass"||p.facade==="stucco"){
+          const panes=p.facade==="glass"?3:2;
+          for(let i=0;i<panes;i++){
+            const px=(-.30+i*.30)*w;
+            if(Math.abs(px)<doorWidth/2+.2)continue;
+            cube(group,glass,px,h*.43,d/2+.58,Math.min(1.7,w*.12),h*.2,.10);
+          }
+        }
+        if(["cafe","bakery","diner","florist","clinic"].includes(use)){
+          const awning=new THREE.MeshStandardMaterial({color:
+            use==="florist"?0x518b69:use==="clinic"?0x6ca8c6:0xb85b52,roughness:.86});
+          cube(group,awning,0,3.2,d/2+1.02,doorWidth+1.9,.15,1.5);
+          for(const side of [-1,1])
+            cube(group,display,side*(doorWidth/2+.72),2.86,d/2+1.37,.20,.48,.11);
+        }
+                // Purpose-specific fascia: no misleading painted door on a solid wall.
         if(p.text){
           const canvas=document.createElement("canvas");
           canvas.width=512;canvas.height=96;
@@ -2795,16 +2880,8 @@ export class FPSEngine {
   // only sends an intent. The server validates the player's selection, charges,
   // cooldown, victim teams and spawn protection before applying damage.
   private useEquipment(): void {
-    return; // v9: equipment retired, all such actions replaced with passive perks
-    if (this.matchEnded || !this.alive || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
-    if (performance.now() < this.equipmentStunUntil || this.equipmentAction || this.reloading) return;
-    const def = equipmentById(this.opts.loadout.equipmentId);
-    const now = performance.now();
-    if (this.equipmentCharges <= 0 || now - this.equipmentLastAt < def.cooldownMs) return;
-    const kind = equipmentMotionFor(def.id);
-    this.manualAiming = false;
-    this.equipmentAction = {id:def.id,kind,startedAt:now,duration:deployDurationMs(kind),committed:false};
-    this.sound.play("swap", {volume:.25});
+    // Equipment actions were retired in v9; keep the input hook a no-op
+    // without unreachable legacy statements in the compiled bundle.
   }
 
   private updateEquipmentAction(now: number) {
@@ -6284,10 +6361,14 @@ export class FPSEngine {
               // closest point, apply full damage + 20% bonus (guaranteed kill on 100HP).
               const norm = d / p.splashRadius;
               const falloff = d <= 1.5 ? 1.2 : (1 - norm * norm) * 0.9 + 0.1;
-              const splashDmg = p.damage * falloff;
+              const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
+              const splashDmg = corrosion ? corrosionImpactDamage(p.damage, falloff) : p.damage * falloff;
               this.applyDamageLocal(c, splashDmg, false, p.weaponId);
-              if (weaponById(p.weaponId).wonder?.kind === "corrosion" && c.alive) {
-                this.poisonByVictim.set(c.id, { expiresAt: now + 6500, tickAt: now + 500, weaponId: p.weaponId });
+              if (corrosion && c.alive) {
+                // Repeated hits refresh the poison, never stack instant rocket damage.
+                this.poisonByVictim.set(c.id, { expiresAt: now + CORROSION_DURATION_MS,
+                  tickAt: now + CORROSION_TICK_MS, weaponId: p.weaponId,
+                  damagePerTick: corrosionTickDamage(p.damage) });
               }
             }
           }

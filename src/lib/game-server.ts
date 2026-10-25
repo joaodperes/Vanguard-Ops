@@ -1,5 +1,6 @@
 import { fullWonderCharges, spendWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
+import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
 // Authoritative match host: player sync, server-side hit detection, bot AI,
@@ -2625,11 +2626,14 @@ async function handle(socket: any, msg: C2S) {
             // Quadratic falloff + direct-hit bonus (matches the offline engine).
             const norm = d / splashRadius;
             const falloff = d <= 1.5 ? 1.2 : (1 - norm * norm) * 0.9 + 0.1;
-            const splashDmg = eff.damage * falloff;
+            const corrosion = weapon.wonder?.kind === "corrosion";
+            const splashDmg = corrosion ? corrosionImpactDamage(eff.damage, falloff) : eff.damage * falloff;
             applyDamage(room, socket.id, e, splashDmg, false, msg.weaponId);
-            if (weapon.wonder?.kind === "corrosion" && e.alive) {
+            if (corrosion && e.alive) {
+              // The impact is deliberately weak; poison does the meaningful work.
               room.poison.set(e.id, { attackerId: socket.id, weaponId: weapon.id,
-                expiresAt: now + 6500, tickAt: now + 500 });
+                expiresAt: now + CORROSION_DURATION_MS, tickAt: now + CORROSION_TICK_MS,
+                damagePerTick: corrosionTickDamage(eff.damage) });
             }
           }
         }

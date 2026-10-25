@@ -239,3 +239,7 @@ Each map's JSON visual theme now contains a `surfaces` recipe for ground, wall, 
 ## Secondary weapon families
 
 The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`), and Launchers (`launcher`). The existing `smg` category is Primary-only unless Well Prepared grants a second Primary. Each regular category contains a multiple of three guns. Preserve stable weapon IDs and do not mark Wonders as Secondary. Every regular launcher needs a positive `explosive.radius` in world meters; this drives both local and authoritative splash damage. Confirm the new weapon has a procedural 3D receiver and audio profile.
+
+## Plagueheart damage profile
+
+`wonder_corrosion` intentionally has a low immediate splash and a much stronger **6.5-second poison-over-time** effect. Server and offline simulation share `src/lib/corrosion-damage.ts` for both the impact damage and 500ms poison ticks, and new shots refresh the existing poison rather than stacking instant bursts. Other launchers keep their original direct splash. WebGL shadows use nearest-sampled basic shadow maps to avoid unsupported linear depth comparison warnings.

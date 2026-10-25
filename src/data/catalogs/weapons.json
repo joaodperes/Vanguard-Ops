@@ -35,7 +35,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: corrosive blast with lingering poison. Three charges; kills accelerate recharge.",
+    "description": "Wonder Weapon: weak impact splashes targets with lingering, lethal corrosion damage over time. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,

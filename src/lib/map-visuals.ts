@@ -20,9 +20,12 @@ export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
   w?: number; d?: number; h?: number; text?: string; color?: string;
   /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
-  use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner";
+  use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner" | "clinic" | "workshop" | "gallery" | "florist" | "gym";
   shape?: "rect" | "narrow" | "round";
   stairSide?: "east" | "west";
+  /** Buildings with no roof route have neither inner nor external stairs. */
+  roofAccess?: boolean;
+  facade?: "brick" | "stucco" | "concrete" | "glass" | "timber" | "industrial";
 }
 export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
 export type SurfacePattern = typeof SURFACE_PATTERNS[number];
@@ -85,14 +88,21 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       if(Math.hypot(x,z)<14||Math.abs(x)<5&&Math.abs(z)<26)continue;
       result.push({kind:(x+z)%24===0?"bench":"tree",x,z,h:6.8});
     }
-    const purposes=["house","cafe","supermarket","apartments","bakery","office","hotel","library","diner"] as const;
+    const purposes=["house","cafe","supermarket","apartments","bakery","office","hotel","library","diner","clinic","workshop","gallery","florist","gym"] as const;
+    const facades=["brick","stucco","concrete","glass","timber","industrial"] as const;
     const signs:Record<(typeof purposes)[number],string>={
       house:"RESIDENCE",cafe:"CAFÉ",supermarket:"SUPERMARKET",
       apartments:"APARTMENTS",bakery:"BAKERY",office:"OFFICES",
       hotel:"HOTEL",library:"LIBRARY",diner:"DINER",
+      clinic:"CLINIC",workshop:"WORKSHOP",gallery:"GALLERY",florist:"FLOWERS",gym:"FITNESS",
     };
     const buildings:MapProp[]=[];
-    const addBuilding=(prop:MapProp)=>{
+    const addBuilding=(draft:MapProp)=>{
+      const key=Math.round(draft.x)+":"+Math.round(draft.z);
+      const prop:MapProp={...draft,
+        facade:draft.facade??facades[Math.floor(hashed("facade:"+key)*facades.length)],
+        roofAccess:draft.roofAccess??hashed("roof:"+key)<(draft.use==="house"?.19:.39),
+      };
       const w=prop.w??20,d=prop.d??20;
       // Avoid the actual park square (not just a radial exclusion), allow
       // close-in infill without swallowing the public walking paths.
@@ -139,7 +149,9 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       const w=shape==="round"?20:shape==="narrow"?13:use==="supermarket"?26:use==="hotel"?23:18+Math.floor(hashed("width:"+x+":"+z)*4)*2;
       const d=shape==="round"?20:shape==="narrow"?23:use==="supermarket"?25:18+Math.floor(hashed("depth:"+x+":"+z)*4)*2;
       const baseHeight=use==="hotel"?10.4:use==="apartments"?9.1:use==="office"?8.2:
-        use==="house"?4.8:use==="supermarket"?6.1:use==="cafe"?5.4:6.5;
+        use==="house"?4.8:use==="supermarket"?6.1:use==="cafe"?5.4:
+        use==="clinic"?7.1:use==="workshop"?5.3:use==="gallery"?6.8:
+        use==="gym"?7.2:use==="florist"?4.9:6.5;
       const h=shape==="round"?Math.min(6.6,baseHeight):baseHeight;
       const jitterX=(hashed("offsetX:"+x+":"+z)-.5)*1.2;
       const jitterZ=(hashed("offsetZ:"+x+":"+z)-.5)*1.2;
@@ -198,47 +210,56 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
  * solid canopy. Shop fronts/ruins are solid exteriors, not fictitious entrances.
  */
 
-/** A fixture is specified once and used for both the visible interior and hitbox. */
-export interface CityFixture { x:number; z:number; w:number; d:number; h:number; style:"wood"|"seat"|"metal"|"display"|"shelf" }
+/** Purpose-built physical furniture and partition walls, mirrored in Three.js.
+ * The rear room is separated by a real wall with a 3.4m doorway. The main
+ * entrance and any interior flight aisle remain unobstructed.
+ */
+export type CityFixtureStyle = "partition"|"bed"|"sofa"|"table"|"counter"|
+  "shelf"|"desk"|"cabinet"|"workbench"|"plant"|"bench"|"display"|
+  "locker"|"reception";
+export interface CityFixture { x:number;z:number;w:number;d:number;h:number;style:CityFixtureStyle }
 export function cityInteriorFixtures(p:MapProp):CityFixture[]{
-  const w=p.w??20,d=p.d??20;
-  const x=-w*.24;
-  const rear=-d*.24;
-  switch(p.use){
-    case "house": return [
-      {x,z:0,w:3.8,d:1.35,h:.9,style:"seat"},
-      {x,z:3,w:2,d:1.3,h:.65,style:"wood"},
-      {x:-w*.3,z:rear,w:3.7,d:1.1,h:1.15,style:"wood"}];
-    case "cafe": return [
-      {x:-w*.24,z:rear,w:4.6,d:1.4,h:1.15,style:"wood"},
-      {x:-w*.29,z:2,w:1.75,d:1.75,h:.78,style:"seat"},
-      {x:0,z:-d*.02,w:1.75,d:1.75,h:.78,style:"seat"}];
-    case "supermarket": return [
-      {x:-w*.29,z:-d*.2,w:1.25,d:5.6,h:1.85,style:"shelf"},
-      {x:0,z:-d*.22,w:1.3,d:5.3,h:1.85,style:"shelf"},
-      {x:-w*.29,z:d*.27,w:3.6,d:1.1,h:1.05,style:"metal"}];
-    case "bakery": return [
-      {x:-w*.25,z:d*.19,w:4.4,d:1.15,h:1.25,style:"display"},
-      {x:-w*.3,z:rear,w:3.7,d:1.5,h:1.05,style:"wood"}];
-    case "library": return [
-      {x:-w*.3,z:-d*.19,w:1.05,d:5.5,h:2.1,style:"shelf"},
-      {x:0,z:-d*.24,w:1.05,d:4.1,h:2.1,style:"shelf"},
-      {x:-w*.26,z:d*.19,w:3.4,d:1.2,h:.9,style:"wood"}];
-    case "hotel": return [
-      {x:-w*.22,z:d*.19,w:4.2,d:1.2,h:1.18,style:"display"},
-      {x:-w*.31,z:rear,w:2.8,d:1.3,h:.9,style:"seat"}];
-    case "apartments": return [
-      {x:-w*.26,z:rear,w:3.8,d:1.1,h:1.08,style:"wood"},
-      {x:-w*.25,z:d*.17,w:3.2,d:1.4,h:.86,style:"seat"}];
-    case "office": return [
-      {x:-w*.3,z:rear,w:3.2,d:1.45,h:.9,style:"metal"},
-      {x:-w*.26,z:d*.2,w:3.4,d:1.4,h:.9,style:"metal"},
-      {x:0,z:rear,w:1.35,d:1.35,h:1.6,style:"shelf"}];
-    case "diner": return [
-      {x:-w*.31,z:-d*.2,w:3,d:1.4,h:1.1,style:"display"},
-      {x:-w*.3,z:d*.15,w:3.6,d:1.2,h:.8,style:"seat"}];
-    default: return [];
+  const w=p.w??20,d=p.d??20,access=p.roofAccess??true,round=p.shape==="round";
+  const out:CityFixture[]=[];
+  const wallZ=-d*.15,doorHalf=1.7,left=-w/2+.7,right=access&&!round?w/2-4.25:w/2-.7;
+  if(-doorHalf-left>.35)out.push({x:(left-doorHalf)/2,z:wallZ,w:-doorHalf-left,d:.24,h:2.85,style:"partition"});
+  if(right-doorHalf>.35)out.push({x:(doorHalf+right)/2,z:wallZ,w:right-doorHalf,d:.24,h:2.85,style:"partition"});
+  const dims:Record<CityFixtureStyle,[number,number,number]>={
+    partition:[1,.24,2.85],bed:[2.1,2.7,.9],sofa:[2.8,1.15,1.2],
+    table:[1.65,1.55,.8],counter:[2.8,1,1.2],shelf:[1.1,3.0,2.05],
+    desk:[2.5,1.15,1.15],cabinet:[1.4,.82,2],workbench:[2.6,1.1,1.2],
+    plant:[1,1,1.6],bench:[2.2,1,.96],display:[1.9,1.15,1.5],
+    locker:[1.4,.85,2.1],reception:[2.9,1,1.2],
+  };
+  const rooms:Record<NonNullable<MapProp["use"]>,readonly CityFixtureStyle[]>={
+    house:["bed","cabinet","sofa","table"],
+    apartments:["bed","cabinet","sofa","desk"],
+    cafe:["counter","shelf","table","table"],
+    supermarket:["shelf","cabinet","shelf","counter"],
+    bakery:["counter","shelf","table","display"],
+    office:["desk","cabinet","desk","plant"],
+    hotel:["bed","cabinet","reception","sofa"],
+    library:["shelf","shelf","desk","bench"],
+    diner:["counter","cabinet","bench","table"],
+    clinic:["bed","cabinet","reception","bench"],
+    workshop:["workbench","shelf","workbench","cabinet"],
+    gallery:["display","cabinet","display","bench"],
+    florist:["plant","shelf","counter","plant"],
+    gym:["bench","locker","workbench","locker"],
+  };
+  const layout=rooms[p.use??"house"];
+  const places:[number,number][]=[[-w*.27,-d*.33],[w*.22,-d*.33],[-w*.29,d*.10],[w*.27,d*.09]];
+  for(let i=0;i<4;i++){
+    if(access&&!round&&(i===1||i===3))continue;
+    const [fw,fd,fh]=dims[layout[i]];
+    const [x,z]=places[i];
+    if(Math.abs(x)+fw/2>w/2-.72||Math.abs(z)+fd/2>d/2-.74)continue;
+    if(access&&!round&&Math.abs(x-(w/2-2.8))<fw/2+1.5)continue;
+    if(z>-d*.15&&Math.abs(x)<fw/2+1.65)continue;
+    if(out.some(q=>Math.abs(q.x-x)<(q.w+fw)/2+.3&&Math.abs(q.z-z)<(q.d+fd)/2+.3))continue;
+    out.push({x,z,w:fw,d:fd,h:fh,style:layout[i]});
   }
+  return out;
 }
 /**
  * Shared physics and visual envelope. Rectangular and narrow buildings have
@@ -267,9 +288,10 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(0,(h+2.5)/2,Z,door,(h-2.5)/2,wall);
     // Walkable roof follows the smaller stepped footprint.
-    put(0,h+.16,0,X*.65,.16,Z,"platform");
-    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63,"platform");
-    put(X*.825,h+.16,0,X*.175,.16,Z*.63,"platform");
+    const roofKind=p.roofAccess??true?"platform":"cover";
+    put(0,h+.16,0,X*.65,.16,Z,roofKind);
+    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63,roofKind);
+    put(X*.825,h+.16,0,X*.175,.16,Z*.63,roofKind);
   }else{
     put(0,h/2,-d/2,w/2,h/2,wall);
     put(-w/2,h/2,0,wall,h/2,d/2);
@@ -277,6 +299,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     put(-(w+door)/4,h/2,d/2,front/2,h/2,wall);
     put((w+door)/4,h/2,d/2,front/2,h/2,wall);
     put(0,(h+2.5)/2,d/2,door/2,(h-2.5)/2,wall);
+    if(p.roofAccess??true){
     // Four real slab sections frame the working internal hatch.
     const hatchX=w/2-2.8,hatchZ=-d/2+3.4,hatchW=3.6,hatchD=5.2;
     const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
@@ -294,17 +317,22 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
       put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
     }
     put(hatchX,h+.16,crest,1.45,.16,1.2,"platform");
+    }else{
+      // Sealed roof: no hatch, hidden stairs or fake fire-escape access.
+      put(0,h+.16,0,w/2,.16,d/2,"platform");
+    }
   }
-  // Exterior fire escape direction varies by lot. The tread lengths adjust to
-  // each depth/height instead of creating staircases outside narrow houses.
-  const side=p.stairSide==="east"?1:-1;
-  const stairX=side*(w/2+1.65),count=Math.ceil(h/.39);
-  const tread=(d-5.2)/count,crest=-d/2+3.2;
-  for(let i=0;i<count;i++){
-    const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
-    put(stairX,height/2,z,1.25,height/2+.001,tread/2+.015,"stair");
+  if(p.roofAccess??true){
+    // Fire escapes only on designated climbable buildings.
+    const side=p.stairSide==="east"?1:-1;
+    const stairX=side*(w/2+1.65),count=Math.ceil(h/.39);
+    const tread=(d-5.2)/count,crest=-d/2+3.2;
+    for(let i=0;i<count;i++){
+      const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
+      put(stairX,height/2,z,1.25,height/2+.001,tread/2+.015,"stair");
+    }
+    put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
   }
-  put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
   for(const fixture of cityInteriorFixtures(p)){
     put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2);
   }
