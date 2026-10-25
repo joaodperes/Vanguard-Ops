@@ -2465,7 +2465,7 @@ async function handle(socket: any, msg: C2S) {
         const locked=now-(room.adsStartedAt.get(socket.id)??now)>=250;
         const candidates=allCombatants(room).filter(x=>x.id!==socket.id)
           .map(x=>({id:x.id,pos:x.pos,alive:x.alive,team:x.team,protected:!!x.spawnProtectedUntil&&x.spawnProtectedUntil>now}));
-        const target=locked?selectSmartTarget(msg.origin,msg.dir,candidates,p.team,room.mode==="ffa"||room.mode==="gungame"||room.config.friendlyFire===true,eff.range,(point)=>hasLineOfSight(room,msg.origin,point)):null;
+        const target=locked?selectSmartTarget(msg.origin,msg.dir,candidates,p.team,room.mode==="ffa"||room.mode==="gungame"||room.config.friendlyFire===true,eff.range,(point)=>hasLineOfSight(room,msg.origin,[...point] as Vec3)):null;
         const victim=target?allCombatants(room).find(c=>c.id===target.id):null;
         if(victim?.alive){
           applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
