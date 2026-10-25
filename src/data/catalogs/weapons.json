@@ -5,7 +5,7 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: launch a glowing purple gravity sphere that rapidly pulls enemies inward before a concentrated detonation. One charge.",
+    "description": "Wonder Weapon: a purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
@@ -22,7 +22,7 @@
       "spread": 0.003,
       "adsSpread": 0.0004,
       "recoil": 2.4,
-      "range": 95,
+      "range": 36,
       "adsTime": 0.36,
       "moveSpeed": 0.88,
       "auto": false,
@@ -35,12 +35,12 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: unstable bio-reactor seeds a corrosive blast and lingering poison. Two charges.",
+    "description": "Wonder Weapon: corrosive blast with lingering poison. Three charges; kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
-      "maxCharges": 2,
+      "maxCharges": 3,
       "rechargeMs": 38000,
-      "killBonusMs": 1800,
+      "killBonusMs": 5000,
       "radius": 9
     },
     "attachments": [],
