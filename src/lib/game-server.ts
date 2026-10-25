@@ -1,4 +1,5 @@
 import { fullWonderCharges, spendWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
 // Authoritative match host: player sync, server-side hit detection, bot AI,
@@ -163,6 +164,10 @@ interface Room {
   environmentCooldown: Map<string, number>;
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
+  adsStartedAt: Map<string, number>;
+  lastMotionAt: Map<string, number>;
+  stormAnchors: Map<string, { pos: Vec3; expiresAt: number }>;
+  wonderFields: Map<string, { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
   gravityWells: Map<string, { ownerId: string; ownerTeam: string; weaponId: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
@@ -384,7 +389,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -546,7 +551,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -592,6 +597,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
+  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormAnchors.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
@@ -692,6 +698,7 @@ function snapshot(room: Room): S2C {
     environmentWalls: Object.fromEntries(room.environmentWalls),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
+    wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1053,7 +1060,30 @@ function tickGravityWells(room: Room, now: number) {
   }
 }
 
+/** Server owns world-effect lifetimes and periodic damage. */
+function tickWonderFields(room:Room,now:number){
+ for(const [id,field] of room.wonderFields){
+  if(now>=field.expiresAt){room.wonderFields.delete(id);continue;}
+  if(now<field.tickAt)continue;
+  field.tickAt=now+500;
+  for(const victim of allCombatants(room)){
+   if(!victim.alive||victim.id===field.ownerId||(room.mode!=="ffa"&&room.mode!=="gungame"&&!room.config.friendlyFire&&victim.team===field.ownerTeam))continue;
+   if(Math.hypot(victim.pos[0]-field.pos[0],victim.pos[2]-field.pos[2])>field.radius)continue;
+   if(!hasLineOfSight(room,[field.pos[0],field.pos[1]+.35,field.pos[2]],[victim.pos[0],victim.pos[1]+.9,victim.pos[2]]))continue;
+   applyDamage(room,field.ownerId,victim,field.kind==="flame"?7:5,false,field.weaponId);
+   if(room.ended)return;
+  }
+ }
+ for(const [id,anchor] of room.stormAnchors)if(anchor.expiresAt<=now)room.stormAnchors.delete(id);
+}
+function placeWonderField(room:Room,owner:PlayerNet,weaponId:string,kind:"flame"|"sludge",pos:Vec3,radius:number,now:number,durationMs:number){
+ const id=genId("wonderfield");
+ const field={id,ownerId:owner.id,ownerTeam:owner.team,weaponId,kind,pos,radius,expiresAt:now+durationMs,tickAt:now+500};
+ room.wonderFields.set(id,field);
+ io.to(room.id).emit("message",{t:"wonderField",...field} as S2C);
+}
 function tickSpecialEffects(room: Room, now: number) {
+ tickWonderFields(room,now);
   tickBulletSpitters(room, now);
   if (room.ended) return;
   tickGravityWells(room, now);
@@ -1742,7 +1772,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
 
     ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
-    const moveSpeed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed;
+    const moveSpeed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
     const ideal = 14;
     let mvx = 0, mvz = 0;
     if (dist > ideal + 3) {
@@ -2248,7 +2278,20 @@ async function handle(socket: any, msg: C2S) {
       if (room.state !== "playing") return;
       const p = room.players.get(socket.id);
       if (!p || !p.alive) return;
-      if (!room.downed.has(socket.id) && (room.equipmentStun.get(socket.id) ?? 0) <= Date.now()) p.pos = clampToArena(room, msg.pos);
+      const moveNow=Date.now();
+      if(!room.downed.has(socket.id)&&(room.equipmentStun.get(socket.id)??0)<=moveNow){
+       let next=clampToArena(room,msg.pos);
+       const factor=sludgeMovementFactor(p.pos,p.team,moveNow,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
+       if(factor<1){
+        const elapsed=Math.min(250,Math.max(16,moveNow-(room.lastMotionAt.get(socket.id)??moveNow-50)));
+        const maxTravel=elapsed*.0035+.15;
+        const dx=next[0]-p.pos[0],dz=next[2]-p.pos[2],distance=Math.hypot(dx,dz);
+        if(distance>maxTravel){const t=maxTravel/distance;next=[p.pos[0]+dx*t,next[1],p.pos[2]+dz*t];}
+       }
+       p.pos=next;
+      }
+      room.lastMotionAt.set(socket.id,moveNow);
+      if(msg.aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
       room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
