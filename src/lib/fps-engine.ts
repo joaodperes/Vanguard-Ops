@@ -631,7 +631,7 @@ export class FPSEngine {
   // spawns an explosion at the impact point.
   private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
-  private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
+  private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number; radius: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
   private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; weaponId: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
@@ -3967,9 +3967,12 @@ export class FPSEngine {
       case "gravityWell":
         this.addGravityWell(msg.id, msg.ownerId, msg.ownerTeam, msg.pos, msg.radius, msg.activatesAt, msg.expiresAt, false, msg.serverNow);
         break;
-      case "gravityDetonate":
+      case "gravityDetonate": {
+        const radius = msg.radius ?? this.gravityWells.get(msg.id)?.radius ?? GRAVITY_WELL_RADIUS;
         this.removeGravityWell(msg.id);
-        this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity");
+        this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity", radius);
+        break;
+      }
         break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
