@@ -123,6 +123,12 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         if(buildings.length>before && ++placed===2)break;
       }
     }
+    // Additional residential lots in the wider districts (from dev). They
+    // follow the same footprint, overlap and spawn checks as park infill.
+    for(const side of [-1,1])for(const offset of [-40,-20,0,20,40])
+      for(const [x,z] of [[side*78,offset],[offset,side*78]])
+        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
     // 32m urban blocks, with narrow homes among bigger civic / retail
     // buildings. The old 40m grid left 25m+ dead zones around the park.
     for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
