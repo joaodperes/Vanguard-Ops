@@ -138,14 +138,25 @@ export function Settings() {
           </div>
         </Section>
 
-        {/* Music, footsteps and combat audio */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio" desc="Master volume for ambient music, footsteps and combat sounds">
-          <div>
-            <div className="flex justify-between text-xs text-white/50 mb-1">
-              <span>Master Volume</span>
-              <span className="tabular-nums text-amber-300 font-semibold">{settings.masterVolume}%</span>
-            </div>
-            <Slider value={[settings.masterVolume]} min={0} max={100} step={5} onValueChange={(v) => update({ masterVolume: v[0] })} />
+        {/* All audio sliders are stored independently; Master scales every channel. */}
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Adjust soundtrack, footsteps and combat effects separately. Master scales them all.">
+          <div className="space-y-5">
+            {([
+              { key: "masterVolume", label: "Master Volume", help: "Overall game volume" },
+              { key: "musicVolume", label: "Music", help: "Map, menu and lobby soundtracks" },
+              { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and nearby players" },
+              { key: "fxVolume", label: "Sound Effects", help: "Gunfire, explosions, hits and UI sounds" },
+            ] as const).map(({ key, label, help }) => (
+              <div key={key}>
+                <div className="flex justify-between gap-3 text-xs mb-1">
+                  <div><span className="text-white/75">{label}</span><span className="text-white/40 ml-2">{help}</span></div>
+                  <span className="tabular-nums text-amber-300 font-semibold">{settings[key]}%</span>
+                </div>
+                <Slider value={[settings[key]]} min={0} max={100} step={5}
+                  aria-label={label}
+                  onValueChange={(v) => update({ [key]: v[0] })} />
+              </div>
+            ))}
           </div>
         </Section>
 
