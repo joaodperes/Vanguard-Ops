@@ -1305,7 +1305,7 @@
     "id": "launcher_breach",
     "name": "Breach-2",
     "category": "launcher",
-    "unlockLevel": 27,
+    "unlockLevel": 30,
     "unlockCost": 2000,
     "description": "Twin-shot impact rocket launcher. Tight 3.5m blast, slow reload and heavy kick.",
     "explosive": {

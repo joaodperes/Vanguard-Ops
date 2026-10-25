@@ -62,7 +62,7 @@ These are **initial committed values for playtests**, subject to balance revisio
 
 Reference: `launcher_rocket` currently has **176** base damage, **0.7** shots/s, **1** round and **3.5 s** reload. Its blast radius is hard-coded to **8** in multiplayer. New launchers must not silently inherit that 8 m radius, and must **not** imply grenades with arcs, fuses, sticky effects or homing until those mechanics exist.
 
-Suggested progression after balance review, with normal in-game credit unlocks: Ghost-18 (level 6, 500 CR), Bastion .45 (level 18, 1100 CR), Mamba-9 (level 9, 650 CR), Sentinel-45 (level 25, 1400 CR), Breach-2 (level 27, 2000 CR), Swarm-3 (level 34, 3000 CR). The starter P-9 remains free and equipped by default. No real-money spending.
+Suggested progression after balance review, with normal in-game credit unlocks: Ghost-18 (level 6, 500 CR), Bastion .45 (level 18, 1100 CR), Mamba-9 (level 9, 650 CR), Sentinel-45 (level 25, 1400 CR), Breach-2 (level 30, 2000 CR), Swarm-3 (level 34, 3000 CR). The starter P-9 remains free and equipped by default. No real-money spending.
 
 ### Combat identity and fairness
 

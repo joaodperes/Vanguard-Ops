@@ -11,7 +11,12 @@ describe("ordinary firearm attachment catalogue", () => {
     expect(firearms.length).toBeGreaterThan(20);
     for (const weapon of firearms) {
       const slots = weaponAttachmentSlots(weapon);
-      expect(slots.length).toBeGreaterThan(0);
+      // New launchers intentionally have no conventional attachment slots.
+      if (weapon.category === "launcher" && weapon.id !== "launcher_rocket") {
+        expect(slots).toEqual([]);
+      } else {
+        expect(slots.length).toBeGreaterThan(0);
+      }
       for (const slot of ALL_ATTACHMENT_SLOTS) {
         // Weapon-authored slot restrictions are intentional (e.g. no heavy-sniper magazine).
         if (!slots.includes(slot)) {

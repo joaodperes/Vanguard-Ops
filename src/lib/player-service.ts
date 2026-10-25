@@ -30,6 +30,7 @@ import {
   type WeaponChallengeMetric,
   WEAPON_CHALLENGES,
   weaponById,
+  weaponSlot,
   SKIN_WILDCARD_WEAPON_ID,
 } from "@/lib/game-data";
 
@@ -439,8 +440,8 @@ function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
     // generic "kills" metric above). Treated like FFA for challenge tracking.
     case "gungame_kills": return m.mode === "gungame" ? m.kills : 0;
     // ---- Round 18-d: Secondary + Melee kill challenges ----
-    // Sum kills from ALL sidearm-category weapons (pistol_side, pistol_magnum,
-    // pistol_burst, pistol_machine, launcher_rocket) or ALL melee-category
+    // Sum kills from all Secondary categories (pistols, PDWs and launchers)
+    // by stable weapon ID, or ALL melee-category
     // weapons (knife_tactical, shiv, machete, hammer) via perWeaponKills.
     // If perWeaponKills is absent, fall back to checking the match-start weapon.
     case "kills_with_secondary": {
@@ -448,11 +449,11 @@ function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
       if (pw && Object.keys(pw).length > 0) {
         let sum = 0;
         for (const [wid, vals] of Object.entries(pw)) {
-          if (weaponById(wid).category === "sidearm") sum += vals.kills;
+          if (weaponSlot(weaponById(wid).category) === "secondary") sum += vals.kills;
         }
         return sum;
       }
-      return weaponById(m.weaponId ?? "rifle_ar").category === "sidearm" ? m.kills : 0;
+      return weaponSlot(weaponById(m.weaponId ?? "rifle_ar").category) === "secondary" ? m.kills : 0;
     }
     case "kills_with_melee": {
       const pw = m.perWeaponKills;
