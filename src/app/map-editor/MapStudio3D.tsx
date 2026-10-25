@@ -8,6 +8,7 @@ import { getMap, type CoverBox } from "@/lib/game-protocol";
 import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
 import type { MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
+import { horizontalSnap } from "@/lib/map-studio-elevation";
 
 export type StudioSelection={
   type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment";
@@ -98,6 +99,17 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       if(dragging)gizmoActive=true;
     };
     transform.addEventListener("dragging-changed",onDragging);
+    // TransformControls has one translationSnap shared by X, Y and Z. It
+    // would quantize elevation in 2-unit jumps when the drawing grid is on.
+    // Apply the horizontal grid ourselves while preserving sub-unit Y motion.
+    const onObjectChange=()=>{
+      if(callbacks.current.mode!=="move"||callbacks.current.snap<=0)return;
+      const object=transform.object;
+      if(!object)return;
+      object.position.x=horizontalSnap(object.position.x,callbacks.current.snap);
+      object.position.z=horizontalSnap(object.position.z,callbacks.current.snap);
+    };
+    transform.addEventListener("objectChange",onObjectChange);
     const onMouseUp=()=>{
       const group=transform.object as THREE.Group|undefined;
       const meta=group?.userData?.editor as ObjectMeta|undefined;
@@ -203,6 +215,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       renderer.domElement.removeEventListener("pointerenter",mouseEnter);
       renderer.domElement.removeEventListener("pointerleave",mouseLeave);
       transform.removeEventListener("dragging-changed",onDragging);
+      transform.removeEventListener("objectChange",onObjectChange);
       transform.removeEventListener("mouseUp",onMouseUp);
       transform.detach();transform.dispose();scene.remove(helper);
       orbit.dispose();
@@ -372,7 +385,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     if(mode==="rotate"&&(selected.type==="region"||selected.type==="spawn"))return;
     transform.attach(group);
     transform.setMode(mode==="move"?"translate":mode==="resize"?"scale":"rotate");
-    transform.translationSnap=snap>0?snap:null;
+    // Do not use built-in translationSnap: it also snaps Y.
+    transform.translationSnap=null;
     transform.setRotationSnap(Math.PI/2);
     transform.setSpace("world");
     // Existing game collision boxes are axis-aligned. Rotate only around Y,
