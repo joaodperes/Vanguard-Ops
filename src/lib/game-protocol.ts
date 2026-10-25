@@ -1291,6 +1291,7 @@ export interface SnapshotPlayer {
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
+  perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
   // shield aura while this is in the future. 0/undefined = no protection.
   spawnProtectedUntil?: number;
