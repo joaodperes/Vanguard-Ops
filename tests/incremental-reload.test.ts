@@ -44,10 +44,24 @@ describe("incremental shell and bolt reloads", () => {
     for (let i = 0; i < 3; i++) expect(recovery[i]).toBeCloseTo(pocket[i], 10);
   });
 
-  test("all shotguns and bolt-action snipers have readable per-round timings", () => {
-    for (const w of WEAPONS.filter(w=>!w.wonder&&(w.category==="shotgun" || w.category==="sniper"))) {
+  test("shotguns insert shells but Scout and Longshot swap complete magazines", () => {
+    for (const w of WEAPONS.filter(w => !w.wonder && w.category === "shotgun")) {
       expect(w.stats.reloadStyle).toBe("incremental");
       expect(w.stats.reloadPerRound!).toBeGreaterThanOrEqual(0.9);
     }
+    for (const id of ["sniper_scout", "sniper_lr"]) {
+      const w = WEAPONS.find(w => w.id === id)!;
+      expect(w.stats.reloadStyle).toBeUndefined();
+      expect(w.stats.magSize).toBeGreaterThan(1);
+      expect(w.stats.reloadTime).toBeGreaterThan(2);
+    }
+  });
+
+  test("Annihilator cycles one chambered round after every trigger pull", () => {
+    const w = WEAPONS.find(w => w.id === "sniper_heavy")!;
+    expect(w.stats.magSize).toBe(1);
+    expect(w.stats.reloadStyle).toBe("incremental");
+    expect(w.stats.reloadPerRound).toBeGreaterThan(1);
+    expect(sampleReloadMotion(0.5, "bolt").dip).toBeLessThan(0);
   });
 });
