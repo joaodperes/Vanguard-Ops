@@ -109,12 +109,13 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     };
     // Reserve small residential lots nearest the park FIRST, so the larger
     // outer grid cannot consume the only available park-to-district frontage.
-    for(const side of [-1,1])for(const offset of [-27,0,27]){
-      for(const [x,z] of [[side*55,offset],[offset,side*55]]){
-        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
-          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+    for(const side of [-1,1])for(const radius of [55,78])
+      for(const offset of [-40,-20,0,20,40]){
+        for(const [x,z] of [[side*radius,offset],[offset,side*radius]]){
+          addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+            shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+        }
       }
-    }
     // 32m urban blocks, with narrow homes among bigger civic / retail
     // buildings. The old 40m grid left 25m+ dead zones around the park.
     for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
