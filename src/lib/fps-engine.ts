@@ -4695,6 +4695,82 @@ export class FPSEngine {
     }
   }
 
+
+  /** Full local/offline equivalents of the server's four novel actions. */
+  private fireNovelWonderOffline(w:WeaponDef,origin:Vec3,dir:Vec3){
+    const kind=w.wonder?.kind;
+    const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
+      (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
+    if(kind==="smart"){
+      const target=this.aiming&&this.adsProgress>=.9?selectSmartTarget(origin,dir,
+        enemies().map(c=>({id:c.id,pos:c.pos,alive:c.alive,team:c.team,protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()})),
+        this.opts.team,this.opts.mode==="ffa"||this.opts.mode==="gungame",this.eff.range,
+        pos=>this.hasLineOfSight(origin,pos)):null;
+      const victim=target?this.combatants.get(target.id):null;
+      if(victim?.alive){
+        const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
+        this.spawnWonderBeam(origin,to,"smart");
+        this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+      }else{
+        this.localFireRay(origin,dir,w.stats.headshotMult);
+        this.spawnTracer(origin,dir,this.getCurrentSkinId());
+      }
+      return;
+    }
+    if(kind==="flame"){
+      for(const c of enemies()){
+        const target:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
+        if(inFlameCone(origin,dir,target,this.eff.range)&&this.hasLineOfSight(origin,target))
+          this.applyDamageLocal(c,this.eff.damage,false,w.id);
+      }
+      for(const dist of [4,8,12]){
+        const point:Vec3=[origin[0]+dir[0]*dist,this.pos.y+.12,origin[2]+dir[2]*dist];
+        if(this.hasLineOfSight(origin,[point[0],point[1]+1,point[2]]))
+          this.addWonderField("local_field_"+(++this.localWonderSequence),this.selfId,this.opts.team,w.id,"flame",point,1.85,Date.now()+4200,true);
+      }
+      return;
+    }
+    if(kind==="sludge"){
+      const impact=this.boltLanding(origin,dir);
+      const point:Vec3=[impact[0],this.pos.y+.12,impact[2]];
+      this.addWonderField("local_field_"+(++this.localWonderSequence),this.selfId,this.opts.team,w.id,"sludge",point,w.wonder!.radius,Date.now()+8500,true);
+      for(const c of enemies()){
+        if(Math.hypot(c.pos[0]-point[0],c.pos[2]-point[2])<=w.wonder!.radius&&
+          this.hasLineOfSight([point[0],point[1]+.5,point[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))
+          this.applyDamageLocal(c,this.eff.damage,false,w.id);
+      }
+      return;
+    }
+    if(kind==="storm"){
+      const impact=this.boltLanding(origin,dir);
+      const node:Vec3=[impact[0],this.pos.y+1.1,impact[2]];
+      const prev=this.offlineStormAnchor;
+      if(prev&&prev.expiresAt>Date.now()&&Math.hypot(prev.pos[0]-node[0],prev.pos[2]-node[2])<=24){
+        this.spawnWonderBeam(prev.pos,node,"storm");
+        for(const c of enemies()){
+          if(nearStormLink(prev.pos,node,c.pos,1.7)&&this.hasLineOfSight(prev.pos,[c.pos[0],c.pos[1]+1,c.pos[2]]))
+            this.applyDamageLocal(c,this.eff.damage*.62,false,w.id);
+        }
+      }
+      this.offlineStormAnchor={pos:node,expiresAt:Date.now()+10000};
+      const first=this.localFireRay(origin,dir,w.stats.headshotMult);
+      let from:Vec3=first?[first.pos[0],first.pos[1]+1,first.pos[2]]:node;
+      const visited=new Set<string>();if(first)visited.add(first.id);
+      else this.spawnWonderBeam(origin,node,"storm");
+      for(let j=1;j<=4;j++){
+        const next=enemies().filter(c=>!visited.has(c.id)&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=Date.now())&&
+          Math.hypot(c.pos[0]-from[0],c.pos[2]-from[2])<=w.wonder!.radius&&
+          this.hasLineOfSight(from,[c.pos[0],c.pos[1]+1,c.pos[2]]))
+          .sort((a,b)=>Math.hypot(a.pos[0]-from[0],a.pos[2]-from[2])-Math.hypot(b.pos[0]-from[0],b.pos[2]-from[2]))[0];
+        if(!next)break;
+        const to:Vec3=[next.pos[0],next.pos[1]+1,next.pos[2]];
+        this.spawnWonderBeam(from,to,"storm");
+        this.applyDamageLocal(next,this.eff.damage*Math.pow(.76,j),false,w.id);
+        visited.add(next.id);from=to;
+      }
+    }
+  }
+
   // ---- Shooting ----
   // fireOneShot is called from the main loop's firing block (above). It handles
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
@@ -4803,6 +4879,12 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
+    // These kinds implement new hitscan / area rules, never rocket splash.
+    if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:this.weaponId,skinId:this.getCurrentSkinId()});
+      else this.fireNovelWonderOffline(w,origin,dir);
+      return;
+    }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
     const isRocket = this.weaponId === "launcher_rocket" || !!w.wonder;
@@ -6588,7 +6670,7 @@ export class FPSEngine {
       }
 
       ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
-      const speed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed;
+      const speed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = 14;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
@@ -6786,7 +6868,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt;
+        const moveSpeed = ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
         const mvx = fx * moveSpeed;
         const mvz = fz * moveSpeed;
         const moveLen = Math.hypot(mvx, mvz);
