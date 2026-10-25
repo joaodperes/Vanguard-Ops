@@ -46,6 +46,7 @@ import {
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
+import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints } from "@/lib/weapon-models";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
@@ -928,10 +929,10 @@ export class FPSEngine {
     this.sound = new SoundManager();
     this.weaponAudio = new WeaponAudio(80);
     this.setAudioMix({
-      masterVolume: opts.masterVolume ?? 80,
-      musicVolume: opts.musicVolume ?? 65,
-      footstepVolume: opts.footstepVolume ?? 85,
-      fxVolume: opts.fxVolume ?? 100,
+      masterVolume: opts.masterVolume ?? DEFAULT_AUDIO_MIX.masterVolume,
+      musicVolume: opts.musicVolume ?? DEFAULT_AUDIO_MIX.musicVolume,
+      footstepVolume: opts.footstepVolume ?? DEFAULT_AUDIO_MIX.footstepVolume,
+      fxVolume: opts.fxVolume ?? DEFAULT_AUDIO_MIX.fxVolume,
     });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
@@ -2618,13 +2619,12 @@ export class FPSEngine {
    * WeaponAudio has its own Web Audio output, so scale FX by master there too.
    */
   setAudioMix(mix: { masterVolume: number; musicVolume: number; footstepVolume: number; fxVolume: number }) {
-    const master = Math.max(0, Math.min(100, mix.masterVolume));
-    const fx = Math.max(0, Math.min(100, mix.fxVolume));
-    this.sound.setMasterVolume(master / 100);
-    this.sound.setMusicVolume(mix.musicVolume / 100);
-    this.sound.setFootstepVolume(mix.footstepVolume / 100);
-    this.sound.setFxVolume(fx / 100);
-    this.weaponAudio.setVolume(master * fx / 100);
+    const levels = audioGainLevels(mix);
+    this.sound.setMasterVolume(levels.master);
+    this.sound.setMusicVolume(levels.music);
+    this.sound.setFootstepVolume(levels.footsteps);
+    this.sound.setFxVolume(levels.fx);
+    this.weaponAudio.setVolume(levels.weaponOutputPercent);
   }
 
   // Unlock both audio systems from the same user gesture (autoplay-safe).
