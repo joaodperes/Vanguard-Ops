@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { SoundManager } from "@/lib/sound";
+import { audioGainLevels } from "@/lib/audio-mix";
 import { useSettings, type GameSettings } from "@/lib/settings-store";
 
 /** The menu has no FPSEngine, so it owns a lightweight soundtrack instance.
@@ -16,10 +17,11 @@ export function MenuMusic({ active }: { active: boolean }) {
   useEffect(() => {
     const sound = new SoundManager();
     const applyMix = (s: GameSettings) => {
-      sound.setMasterVolume(s.masterVolume / 100);
-      sound.setMusicVolume(s.musicVolume / 100);
-      sound.setFootstepVolume(s.footstepVolume / 100);
-      sound.setFxVolume(s.fxVolume / 100);
+      const mix = audioGainLevels(s);
+      sound.setMasterVolume(mix.master);
+      sound.setMusicVolume(mix.music);
+      sound.setFootstepVolume(mix.footsteps);
+      sound.setFxVolume(mix.fx);
     };
     // Load persisted settings even if the player never opens Settings.
     if (!useSettings.getState().loaded) useSettings.getState().load();
