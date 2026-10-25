@@ -1,7 +1,7 @@
 # Proposal: split secondary weapons into Pistols, PDWs, and Launchers
 
 > **Status:** design recommendation only; no catalog, engine, server, or progression changes on this branch.  
-> **Baseline:** `dev` at `17c58fff6e3c63c5182cd9b89061ee636b795870` (2026-10-25).  
+> **Baseline:** `dev` at `5d20b08eef75f63f7d684af4206a22291702b0dc` (2026-10-25).  
 > **Decision requested:** approve category taxonomy and the six regular weapons before implementation.
 
 ## Recommendation

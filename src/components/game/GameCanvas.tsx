@@ -103,6 +103,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     setStartupError(null);
     engineRef.current = engine;
     setEngineInstance(engine);
+    // A user has already selected a match, so try unlocking lobby audio now.
+    // If autoplay policy defers it, the next lobby pointer gesture retries it.
+    engine.unlockAudio();
     setIsTouch(engine.isTouchMode());
     // Round 20a: Poll socket connection state for the lobby UI.
     const socketPoll = setInterval(() => {
@@ -152,7 +155,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className="fixed inset-0 z-50 bg-black"
+      onPointerDownCapture={() => engineRef.current?.unlockAudio()}
+      onTouchStartCapture={() => engineRef.current?.unlockAudio()}>
       <div ref={containerRef} className="absolute inset-0" />
       {startupError && (
         <div role="alert" className="absolute inset-0 z-[80] flex items-center justify-center bg-black p-6 text-white">

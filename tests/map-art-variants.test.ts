@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {MAPS} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
-import {mapProps,visualThemeForMap,cityBuildingBoxes,cityBandstandBoxes} from "../src/lib/map-visuals";
+import {mapProps,visualThemeForMap,cityBuildingBoxes,cityBandstandBoxes,cityInteriorFixtures} from "../src/lib/map-visuals";
 import {botMoveBlocked,botPositionEmbedded} from "../src/lib/bot-physics";
 
 describe("Afterlight architectural maps",()=>{
@@ -12,27 +12,52 @@ describe("Afterlight architectural maps",()=>{
     expect(MAPS.terminal.props).toEqual(MAPS.arena_neon.props);
     expect(MAPS.terminal.theme.sky).not.toBe(MAPS.arena_neon.theme.sky);
   });
-  test("block density, entry openings and interior roof stairs are real",()=>{
+  test("Afterlight lots have diverse purposes, footprints, heights and stairs",()=>{
     const props=MAPS.arena_neon.props??[];
     const buildings=props.filter(p=>p.kind==="building");
-    const shops=props.filter(p=>p.kind==="shop");
-    expect(buildings.length+shops.length).toBeGreaterThanOrEqual(23);
-    expect(buildings.length).toBeGreaterThanOrEqual(6);
-    for(const p of buildings.slice(0,8)){
+    expect(buildings.length).toBeGreaterThanOrEqual(30);
+    expect(new Set(buildings.map(p=>p.use)).size).toBeGreaterThanOrEqual(7);
+    expect(new Set(buildings.map(p=>p.shape)).size).toBe(3);
+    expect(new Set(buildings.map(p=>p.w+"x"+p.d)).size).toBeGreaterThanOrEqual(7);
+    expect(new Set(buildings.map(p=>p.h)).size).toBeGreaterThanOrEqual(5);
+    expect(buildings.some(p=>(p.h??0)>9)).toBe(true);
+    expect(buildings.some(p=>p.stairSide==="east")).toBe(true);
+    expect(buildings.some(p=>p.stairSide==="west")).toBe(true);
+    for(const use of ["house","cafe","supermarket","apartments","office"])
+      expect(buildings.some(p=>p.use===use)).toBe(true);
+    // Infill touches all four sides of the park with small residences, without
+    // placing solid footprints in the 80x80 grass square.
+    const infill=buildings.filter(p=>p.use==="house" && p.w===14 && p.d===15);
+    expect(infill.length).toBeGreaterThanOrEqual(6);
+    expect(infill.some(p=>p.x>45&&Math.abs(p.z)<30)).toBe(true);
+    expect(infill.some(p=>p.x< -45&&Math.abs(p.z)<30)).toBe(true);
+    expect(infill.some(p=>p.z>45&&Math.abs(p.x)<30)).toBe(true);
+    expect(infill.some(p=>p.z< -45&&Math.abs(p.x)<30)).toBe(true);
+    for(const p of buildings){
+      const w=p.w??20,d=p.d??20,h=p.h??6.4;
+      expect(Math.abs(p.x)>40+w/2 || Math.abs(p.z)>40+d/2).toBe(true);
       const boxes=cityBuildingBoxes(p);
-      const h=p.h??6.4;
-      const inside=boxes.filter(c=>c.kind==="stair"&&c.pos[0]>p.x);
-      const outside=boxes.filter(c=>c.kind==="stair"&&c.pos[0]<p.x-(p.w??26)/2);
-      expect(inside.length).toBeGreaterThanOrEqual(16);
-      expect(outside.length).toBeGreaterThanOrEqual(16);
-      expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(5);
-      const front:[number,number,number]=[p.x,0,p.z+(p.d??26)/2+3];
-      const doorway:[number,number,number]=[p.x,0,p.z+(p.d??26)/2-3];
+      const outer=boxes.filter(c=>c.kind==="stair"&&
+        (p.stairSide==="east" ? c.pos[0]>p.x+w/2 : c.pos[0]<p.x-w/2));
+      const inner=boxes.filter(c=>c.kind==="stair" && c.pos[0]>p.x && c.pos[0]<p.x+w/2);
+      expect(outer.length).toBeGreaterThanOrEqual(11);
+      expect(inner.length).toBe(p.shape==="round"?0:Math.ceil(h/.39));
+      expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:6);
+      const front:[number,number,number]=[p.x,0,p.z+d/2+2.5];
+      const doorway:[number,number,number]=[p.x,0,p.z+d/2-2.5];
       expect(botMoveBlocked(boxes,front,doorway,0)).toBe(false);
-      const northOutside:[number,number,number]=[p.x,0,p.z-(p.d??26)/2-4];
-      const northInside:[number,number,number]=[p.x,0,p.z-(p.d??26)/2+4];
+      const northOutside:[number,number,number]=[p.x,0,p.z-d/2-3];
+      const northInside:[number,number,number]=[p.x,0,p.z-d/2+3];
       expect(botMoveBlocked(boxes,northOutside,northInside,0)).toBe(true);
-      const crest=inside[inside.length-1];
+      const fixtures=cityInteriorFixtures(p);
+      expect(fixtures.length).toBeGreaterThan(0);
+      for(const item of fixtures){
+        expect(boxes.some(c=>c.kind==="cover" &&
+          Math.abs(c.pos[0]-(p.x+item.x))<.001 &&
+          Math.abs(c.pos[2]-(p.z+item.z))<.001 &&
+          Math.abs(c.size[1]-item.h/2)<.001)).toBe(true);
+      }
+      const crest=outer[outer.length-1];
       expect(Math.abs(crest.pos[1]+crest.size[1]-h)).toBeLessThan(.1);
     }
     const bandstand=props.find(p=>p.kind==="bandstand")!;
