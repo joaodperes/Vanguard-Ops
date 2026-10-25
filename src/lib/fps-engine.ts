@@ -26,7 +26,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
+import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -5611,6 +5611,13 @@ export class FPSEngine {
       if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
     const isGravity = weaponById(weaponId).wonder?.kind === "singularity";
+    if (isGravity) {
+      const candidates = [...this.combatants.values()].filter(c => c.alive && c.id !== this.selfId &&
+        (this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== this.opts.team))
+        .map(c => [c.pos[0], c.pos[1] + PLAYER_HEIGHT / 2, c.pos[2]] as Vec3);
+      const targetT = gravityTargetDistance(origin, ndir, candidates, maxT);
+      if (targetT !== null) maxT = Math.min(maxT, targetT);
+    }
     const safeImpact = isGravity ? gravityImpact(origin, ndir, maxT) : null;
     const endX = safeImpact?.[0] ?? origin[0] + ndir[0] * maxT;
     const endY = safeImpact?.[1] ?? origin[1] + ndir[1] * maxT;
