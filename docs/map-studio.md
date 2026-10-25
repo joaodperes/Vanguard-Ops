@@ -1,18 +1,18 @@
 # Map Studio — connected-district JSON maps
 
-Open **/map-editor** while running the Next.js development server. A link is also available from the main menu on desktop.
+Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
 
 ## Authoring
 
 Choose one of six maps or type a new unique ID and select **New** to clone the current template. The editor supports:
 
-- Draw **walkable region** rectangles; they overlap to form an irregular, connected footprint, including L/T/S-shaped layouts and side districts.
-- Regions may be **non-square rectangles**. Triangle, circular and arbitrary polygon regions are not currently supported by the game collision/footprint grammar.
+- Draw connected **walkable regions** using rectangles and supported circle/triangle approximations; overlapping regions form larger districts and irregular footprints.
+- Regions may be non-square rectangles or approximated circles/triangles. Arbitrary freehand polygons are not supported.
 - Use **Select / Move** and drag inside a region or on its outline to reposition it. Regions are combined at runtime into one footprint: interior shared edges are not physical walls. The minimap also draws their **union outline**, while the editing view still shows individual rectangles for selection.
 - Draw **hard cover**, **elevated platforms** with automatically generated physical stair flights, and place team/FFA **spawns**.
 - Select, drag, edit precise dimensions, duplicate, delete, zoom and undo.
 - Enable/disable **Snap drawing and movement to grid** in Placement precision. Select 1, 2, 5 or 10 world-unit X/Z increments. This controls horizontal placement, **not** platform height.
-- Selecting a platform shows its height in the inspector and the estimated automatically generated north/south stair count and horizontal run. Standalone staircases, stairs with arbitrary directions and snap-to-platform-height connections are **not** implemented yet.
+- Platforms expose height and generated stair geometry in the inspector. Independently authored stairs and elevation snapping are supported; see the object-authoring and 3D editing sections below.
 - Edit name, short name, description and pace; import/export all maps together as JSON.
 - Draft persistence to local browser storage, geometry and spawn validation.
 
@@ -62,7 +62,7 @@ The six shipped themes are:
 | Breakwater (`shipyard`) | compact | Sunlit dock containers, crane silhouettes, shipping machinery |
 | Verdant Ruins (`compound`) | medium | Jungle canopy, moss-covered stone, ruined temples and boulders |
 | Glassline (`terminal`) | medium | Bright city transit plaza, shops, windows and planters |
-| Ridgefall (`skybridge`) | enormous | Mountain ridges, snow-dusted rocks, conifers and antennas |
+| Ridgefall (`skybridge`) | large indoor | Enclosed industrial steelworks, foundries, gantries and maintenance bays |
 | Afterlight City (`arena_neon`) | enormous | Colorful downtown, shop signage, glowing windows and street lights |
 
 Example theme file (use hex CSS colors, not integer colors):
@@ -182,21 +182,21 @@ Test new hazards on both offline and authoritative-server matches; test stair tr
 
 ## Large-scale performance and gameplay
 
-`Ridgefall` and `Afterlight City` extend past 380 units across, with outer strongholds and multiple separated combat districts. Larger maps intentionally support slower first contact and stronger reconnaissance/sightline choices. Both still have the inherited core as a contested hub, but their main flanks now sit far outside it.
+Ridgefall's enclosed factory and Afterlight City's connected districts have substantial, distinct playable footprints. Validate travel time, sightlines, navigation and frame time against the **current exported blueprints**, not earlier map-size estimates.
 
 Recommended validation before merging from dev: `bun test`, `npx tsc --noEmit`, `bun run build`, followed by human/bot 3v3–7v7 playtests on all maps, especially distant spawn fairness, tunnel junctions, stair transitions, FPS and minimap readability. Manual gameplay tests are necessary; basic geometry validation is not sufficient.
 
 ## October 2026 map art update
 
-- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their existing physical region blueprints are still different.
+- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their current authored region and spawn arrays are identical; the visual themes differ.
 - Both city editions exclude hazards and legacy arena cover. New scenery prop types: `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`.
 - Enterable buildings have physically open doorways, exterior stairs, and climbable roof geometry. City centers feature an open park and bandstand.
-- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins and Ridgefall have more flora and rocks.
+- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins uses foliage and ruined masonry; Ridgefall is now an enclosed steelworks, not an outdoor snowfield.
 - The renderer creates procedural worn surface textures without third-party binary assets. [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) is used for visual guidance; redistribute its individual textures only after verifying the exact license and retaining appropriate credits/notice.
 
 ## Retro FPS material language
 
-Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio itself still edits geometry only.
+Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio also edits authored props, theme palettes and surface material settings; exported JSON remains authoritative.
 
 ## Afterlight interior and façade design
 

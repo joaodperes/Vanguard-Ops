@@ -99,7 +99,7 @@ The startup sync intentionally omits `--accept-data-loss`.
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
    mastered weapon, confirm token +2 camos, spend it once, check purchase
    rejection on replay and no free refill through swap, death or ammo cache.
-4. Verify all six Wonders in offline and online matches, including delayed gravity
+4. Verify all seven Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
 5. Verify Gun Game still uses 30 normal tiers and all legacy purchases remain.
 6. Export and reimport an account with a Prestige and Wonder purchase; ensure
@@ -110,8 +110,6 @@ The added tables are `WeaponPrestige` and `WonderUnlock` with unique keys
 `WeaponProgress.conditionStats` is the earlier contextual challenge schema
 change and also needs migration if not already applied.
 
-**Status:** The implementation and tests were authored on `dev`, but the
-test suite and build were **not executed** in the linked GitHub environment.
-Do not deploy before running them and applying the schema changes.
+**Status:** The implementation is on `dev`. Confirm green validation for the exact candidate commit, complete manual gameplay checks and apply reviewed database updates before deployment.
 
-For the three later additions (Rift Needle, Miasma Bloom and Caustic Javelin), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for design trade-offs and the playtest gate.
+For the four later additions (Deadlock, Hellfire, Stormweaver and Bogfather), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for their mechanics, limitations and playtest requirements.

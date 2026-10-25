@@ -1,16 +1,17 @@
-name: Vanguard Ops JSON content branch validation
+name: Vanguard Ops content and application validation
 
-# Validate content feature branches and pull requests targeting dev before merge.
+# Validate dev/main updates and pull requests before promotion.
 # Keep the manual workflow_dispatch entry for ad-hoc validation.
 on:
   workflow_dispatch:
   pull_request:
     branches:
       - dev
+      - main
   push:
     branches:
       - dev
-      - feature/json-content-catalogs
+      - main
       - feature/wonder-weapon-expansion
 
 permissions:

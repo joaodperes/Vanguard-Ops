@@ -1,6 +1,6 @@
 # Content authoring handbook (developers and AI agents)
 
-**Status:** feature/json-content-catalogs. This is the content pipeline, NOT an API for untrusted players to upload content. Changes to JSON must be reviewed and deployed as code.
+**Status:** implemented on `dev` and reviewed for promotion to `main`. This is the content pipeline, NOT an API for untrusted players to upload content. Changes to JSON must be reviewed and deployed as code.
 
 ## Source of truth
 
@@ -69,7 +69,7 @@ Append an object to `weapons.json`. Required top-level fields: `id`, `name`, `de
 
 `category` must be one of: `assault`, `smg`, `shotgun`, `dmr`, `sniper`, `lmg`, `pistol`, `pdw`, `launcher`, `melee`. Optional stats include `burst`, `pellets`, `reloadStyle` (only `incremental`), `reloadPerRound`, `falloffEndMultiplier`, `minDamageMultiplier`. Omit `attachments` to use all four slots; specify `[]` for no slots. `baseSightType` must refer to a key in `sight-definitions.json`.
 
-Special mechanics are **not** arbitrary JSON scripts. Only pre-coded `special.kind` (`heat`, `arc`, `bolt`) and `wonder.kind` (`singularity`, `corrosion`, `turret`) are recognized. Introducing a new special behavior needs coordinated changes to `src/lib/weapon-mechanics.ts`, `fps-engine.ts`, `game-server.ts`, client HUD/viewmodel, tests and any progression restrictions. Wonder weapons use Prestige unlock tokens, cannot equip ordinary attachments and do not use paid skin challenges. Regular `launcher` weapons require `explosive: { "radius": 3.5 }` (any positive radius) so offline and server damage agree. New launchers intentionally ship with `"attachments": []`; the RL-7 keeps its existing attachment support and an 8m blast. The currently supported `wonder.maxCharges` range is **1–3**; set `stats.magSize` to the same value and `stats.reloadTime` to 0.
+Special mechanics are **not** arbitrary JSON scripts. Only pre-coded `special.kind` (`heat`, `arc`, `bolt`) and `wonder.kind` (`singularity`, `corrosion`, `turret`, `smart`, `flame`, `storm`, `sludge`) are recognized. Introducing a new special behavior needs coordinated changes to `src/lib/weapon-mechanics.ts`, `fps-engine.ts`, `game-server.ts`, client HUD/viewmodel, tests and any progression restrictions. Wonder weapons use Prestige unlock tokens, cannot equip ordinary attachments and do not use paid skin challenges. Regular `launcher` weapons require `explosive: { "radius": 3.5 }` (any positive radius) so offline and server damage agree. New launchers intentionally ship with `"attachments": []`; the RL-7 keeps its existing attachment support and an 8m blast. The currently supported `wonder.maxCharges` range is **1–3**; set `stats.magSize` to the same value and `stats.reloadTime` to 0.
 
 **New weapon checklist:** add weapon JSON; choose existing category and appearance behavior; verify slot compatibility; check fallback contextual skin challenges (or author explicit weapon challenges); verify Gun Game inclusion/exclusions and bot selection if relevant; playtest offline and online; validate production build.
 
@@ -220,7 +220,7 @@ bun run typecheck
 bun run build
 ```
 
-CI on `feature/json-content-catalogs` checks all four commands. `tests/content-catalogs.test.ts` also includes **exact array-length assertions**: when adding an entry, review and intentionally update its expected count alongside the other contract tests. A failure in such an assertion may reflect test drift rather than malformed JSON; confirm the actual catalog before changing either. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. The structural validator does not prove that a new metric has a counter, a new cosmetic can be unlocked, a map has fair traversable paths, or an optic renders and behaves correctly. Standalone draft validators or JSON Schema checks are useful preflight only; they do not substitute for the commands above. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
+The `.github/workflows/dev-validation.yml` workflow runs these checks on pushes to `dev` / `main`, pull requests targeting either branch, and configured feature branches. `tests/content-catalogs.test.ts` also includes **exact array-length assertions**: when adding an entry, review and intentionally update its expected count alongside the other contract tests. A failure in such an assertion may reflect test drift rather than malformed JSON; confirm the actual catalog before changing either. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. The structural validator does not prove that a new metric has a counter, a new cosmetic can be unlocked, a map has fair traversable paths, or an optic renders and behaves correctly. Standalone draft validators or JSON Schema checks are useful preflight only; they do not substitute for the commands above. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
 
 **Compatibility:** preserve all existing IDs/prices unless an explicit balance/migration plan says otherwise. A JSON file is deployment-bundled configuration, not a live database migration. If adding saved profile fields, back up player data and plan a Prisma change independently. Review console/server logs, UI, real matches and FPS before merging.
 
@@ -228,7 +228,7 @@ CI on `feature/json-content-catalogs` checks all four commands. `tests/content-c
 
 Shotgun shell variants in `attachments.json` use the `shotgunAmmo` field: `slug`, `pellets`, `dragons_breath`, and `beanbag`. These override `EffectiveStats` for offline and server hit calculations. Incendiary hits apply a server-authored 5-second damage-over-time effect and delay ordinary health regeneration.
 
-Team assists are awarded from server-tracked damage: at least 15 damage within 10 seconds before another teammate kills the victim. Each assist grants one personal scoreboard point, 12 XP and 5 CR, as set in `rewards.json`, but does not count toward the team win condition. Single-player bots do not yet award teammate assists.
+Team assists are awarded from server-tracked damage: at least 15 damage within 10 seconds before another teammate kills the victim. Each assist grants one personal scoreboard point, 12 XP and 5 CR, as set in `rewards.json`, but does not count toward the team win condition. Offline team bot-assisted eliminations have their own contribution accounting; verify scoreboard and XP/credit rewards in both offline and online matches.
 
 Historic melee challenge IDs remain stable while authored headshot requirements become achievable close-range melee eliminations. Equipping melee grants a 19% movement speed multiplier.
 

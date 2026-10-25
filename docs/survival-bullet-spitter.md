@@ -1,4 +1,4 @@
-# Survival, vertical AI and Bullet Spitter — dev update
+# Survival, vertical AI and Bullet Spitter — implementation reference
 
 ## Survival
 
@@ -36,9 +36,9 @@ with secondary and melee weapons.
 - One deployment charge, 55-second recharge, minus 2 seconds per *ordinary*
   weapon kill (not kills earned by the turret/Wonder Weapons)
 - One deployed turret per player; deploying a replacement removes the previous
-- 25-second lifetime; 140-degree horizontal sector (±70 degrees around
+- 45-second lifetime; 140-degree horizontal sector (±70 degrees around
   placement orientation) and unrestricted vertical tracking
-- 30m acquisition range; 17 damage per hit every 360ms while an enemy remains
+- 54m acquisition range; 34 damage per hit every 135ms while an enemy remains
   visible, in range and in the sector
 - Cover and teams respected; multiplayer turret targeting/damage is
   authoritative on the game server, with placement, firing and removal

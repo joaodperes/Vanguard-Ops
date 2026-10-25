@@ -104,7 +104,7 @@ export function FAQ() {
               <p>Pump, automatic and combat shotguns, as well as the bolt-action sniper rifles, reload <strong>one shell or round at a time</strong>. You can interrupt a partial reload by firing once a round has been inserted. Rounds already loaded remain in the weapon if you sprint or swap away. Other weapons still reload their full magazines.</p>
             </FaqItem>
             <FaqItem q="How does Bullet Spitter work?">
-              <p>The Bullet Spitter is a <strong>deployable Wonder Weapon</strong>, not a one-round LMG. Equip it, then press Fire to plant an automated turret in front of you. It sits on the map for 25 seconds, scans a 140° horizontal arc, tracks enemies above and below it, and shoots targets in line of sight. Explosives and melee attacks can destroy it. You get one rechargeable deployment charge rather than conventional magazine ammo.</p>
+              <p>The Bullet Spitter is a <strong>deployable Wonder Weapon</strong>, not a one-round LMG. Equip it, then press Fire to plant an automated turret in front of you. It lasts 45 seconds, scans a 140° horizontal arc, tracks enemies above and below it, and shoots targets in line of sight. Explosives and melee attacks can destroy it. You get one rechargeable deployment charge rather than conventional magazine ammo.</p>
             </FaqItem>
             <FaqItem q="How do killstreaks work?">
               <p>Each elimination grants another <strong>five seconds to earn the next kill</strong>. The streak only ends when you go more than five seconds without a kill or you die. For example, a ten-kill streak can span nine successive five-second intervals rather than fitting all ten kills into five seconds.</p>

@@ -1,6 +1,6 @@
 # Wonder Weapon breakthrough pass
 
-**Feature branch:** `feature/wonder-weapon-expansion`, based on `dev`. The three previously proposed derivative gravity/corrosion variants have been removed **on this unmerged feature branch** and replaced with four uniquely coded mechanic families.
+**Status:** Four unique Wonder abilities have been implemented on `dev`; this is their mechanics reference. The three earlier derivative gravity/corrosion proposals were superseded. Validate the merge candidate before release.
 
 ## New playable prototypes
 

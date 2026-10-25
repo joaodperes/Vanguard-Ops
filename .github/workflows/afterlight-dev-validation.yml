@@ -1,4 +1,4 @@
-name: Afterlight City dev map verification
+name: Afterlight City map verification
 
 # Map-specific verification independent of other evolving content catalogs.
 on:
@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - dev
+      - main
     paths:
       - src/lib/map-visuals.ts
       - src/lib/map-footprint.ts
