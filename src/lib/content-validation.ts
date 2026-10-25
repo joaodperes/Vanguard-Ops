@@ -50,7 +50,7 @@ const weapon = z.object({
   stats, attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
-    kind: z.enum(["singularity", "corrosion", "turret"]),
+    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge"]),
     maxCharges: z.union([z.literal(1), z.literal(2)]),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),

@@ -25,6 +25,11 @@ interface Profile {
 /** All ranged weapons have their own silhouette recipe, even within a class. */
 export const WEAPON_VISUALS: Record<string, Profile> = {
   // Experimental platforms deliberately have different physical silhouettes, not just new colours.
+  // Different silhouette, powerplant and emitter for each mechanical family.
+  wonder_deadlock: { receiver:[.105,.13,.27],guardLength:.08,barrelLength:.18,bore:.02,stock:"none",magazine:"grip",body:"angular",features:["scope","muzzle","rail"],signature:0xff476f },
+  wonder_hellfire: { receiver:[.24,.24,.52],guardLength:.49,barrelLength:.45,bore:.15,stock:"heavy",magazine:"drum",body:"ribbed",features:["dual","vent","shield"],signature:0xff7424 },
+  wonder_stormweaver: { receiver:[.14,.18,.33],guardLength:.16,barrelLength:.23,bore:.075,stock:"none",magazine:"revolver",body:"tapered",features:["vent","muzzle","rail"],signature:0x48d6ff },
+  wonder_bogfather: { receiver:[.23,.19,.48],guardLength:.4,barrelLength:.29,bore:.12,stock:"heavy",magazine:"drum",body:"block",features:["shield","dual","vent"],signature:0x86e042 },
   rifle_electron:   { receiver: [.180,.175,.48], guardLength:.32, barrelLength:.27, bore:.042, stock:"bullpup", magazine:"none", body:"ribbed", features:["vent","rail","muzzle"], signature:0x29d9fa },
   crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x8bd36a },
   pistol_arc:       { receiver: [.120,.135,.26], guardLength:.085, barrelLength:.11, bore:.027, stock:"none", magazine:"grip", body:"tapered", features:["muzzle","vent"], signature:0xac82ff },
