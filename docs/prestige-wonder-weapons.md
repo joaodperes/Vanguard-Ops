@@ -26,15 +26,15 @@ Run the safe schema update **before starting the new app/server build**.
 | Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
 | Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
 | Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Rift Needle | Tight 6m gravity pull, heavier core damage | 1 | 37s | -1.5s |
-| Miasma Bloom | Wide 13m lower-impact corrosion and lingering toxin | 2 | 46s | -2.0s |
-| Caustic Javelin | Precise 4m high-impact corrosion and lingering toxin | 1 | 30s | -1.2s |
+| Deadlock | ADS-validated guided bullet; cover breaks tag | 2 | 29s | -1.6s |
+| Hellfire | Short-range cone and persistent burning trails | 2 | 28s | -1.7s |
+| Stormweaver | Chain lightning and linked conductive anchors | 2 | 31s | -1.8s |
+| Bogfather | Damaging and movement-slowing sludge pools | 2 | 35s | -1.7s |
 
 A Wonder Weapon costs **one token** and is permanently owned. It equips into
 the Primary slot, has no attachments or reserve ammo, and cannot manually
 reload. The recharge clock continues through death and while the gun is
-holstered, and it refills charges one at a time. Hits/kills from the Wonder
-Weapon **and its lingering poison** do not accelerate that same recharge.
+holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
 The server separately tracks and refuses premature online shots; the client
 tracks the clock for accurate firing, HUD and offline gameplay. Gun Game
 excludes all Wonders from its ordinary weapon ladder.
@@ -44,6 +44,8 @@ still uses client-reported match results and the separate socket game server
 does not validate a signed token-purchase entitlement; full anti-cheat and
 server-side user identity binding are future hardening work. The web loadout
 endpoint enforces token purchases before equipping.
+
+See [Wonder Weapon breakthrough pass](wonder-weapon-expansion.md) for the new ability details and implementation limitations.
 
 ## Other gameplay-variety changes
 
