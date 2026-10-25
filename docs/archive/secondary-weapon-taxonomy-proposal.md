@@ -1,3 +1,5 @@
+> **Archived — 25 October 2026.** This was the design proposal for splitting Secondary weapons into Pistols, PDWs and Launchers; its implementation is now present on `dev`. The baseline counts, branch notes and alternatives below are preserved for design history, not as the current authoritative catalog. See `src/data/catalogs/weapons.json`, `src/lib/game-data.ts`, [content authoring](../content-authoring.md) and [the QA checklist](../dev-test-checklist.md).
+
 # Proposal: split secondary weapons into Pistols, PDWs, and Launchers
 
 > **Status:** implemented directly on `dev`: catalog categories, six new guns, launcher projectiles, progression and equipment integration.  

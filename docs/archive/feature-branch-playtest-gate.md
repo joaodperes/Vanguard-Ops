@@ -1,3 +1,5 @@
+> **Archived — 25 October 2026.** This document captures the historical feature-branch gate for JSON content and map revisions. The work has since landed on `dev`; some map descriptions (notably outdoor Ridgefall) and branch status notes below are obsolete. Use [the current QA checklist](../dev-test-checklist.md), [Map Studio](../map-studio.md) and runtime sources for release decisions.
+
 # Feature-branch playtest gate and dev-merge checklist
 
 Branch: `feature/json-content-catalogs`. These changes have **not** been merged into `dev`. Map geometry and graphics remain game-renderer dependent; a green automated build alone is not a release sign-off.

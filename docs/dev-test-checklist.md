@@ -1,97 +1,90 @@
-# Vanguard Ops — Dev branch QA checklist
+# Vanguard Ops — QA and `dev` → `main` promotion checklist
 
-**Target branch:** `dev` (not `main`).  
-**Status:** changes committed; no live browser/gameplay test has been run by the assistant.
+**Status:** Canonical validation and manual playtest checklist. Use for integration work on `dev` and for reviewing the exact merge candidate before promoting to `main`. Automated checks are a gate, **not proof of gameplay balance, networking, or production database safety**. The archived feature plans are historical and do not replace this checklist.
 
-## 1. Pull, install, and run automated checks
+## 1. Prepare the candidate
+
+- Record the branch, head SHA, release scope and any schema/content changes. Check that the branch contains all intended feature merges.
+- Review `git diff main...dev` and investigate divergent commits and merge conflicts before release; test the **resulting merged tree**, not just the source branch independently.
+- Back up player data if `prisma/schema.prisma`, saved loadouts, progression counters or any persistence contracts changed. Check `DATABASE_URL` and resolve SQLite paths relative to `prisma/schema.prisma`. Never run `db:reset` on real accounts.
+- Include any required schema update/migration and deployment order in the release plan.
+
+## 2. Run automated validation
+
+From the repository root on the intended candidate (using the approved local/test database):
 
 ```bash
 git fetch origin
 git switch dev
 git pull --ff-only origin dev
 bun install --frozen-lockfile
+bun run db:generate
+bun run content:validate
 bun run test:smoke
 bun run typecheck
 bun run build
 ```
 
-The smoke suite contains:
-- `tests/movement-rules.test.ts`: ground acceleration, braking, reversal,
-  mobile sprint hysteresis, buffered jumps, and frame-rate response.
-- `tests/bot-routing.test.ts`: ground passage under overhead bridges,
-  steep-wall rejection, stairs/raised roofs, hazard avoidance.
-- `tests/map-layout.test.ts`: all six maps, outer-ring layouts, **all**
-  spawn points, destructible gates, safe hazards and all 75 staircase crests.
+`bun run test:smoke` runs the tests in `tests/`, including movement, bot navigation, collision/maps, gameplay mechanics, persistence, weapons and audio. Smaller entrypoints are `bun run test:movement`, `bun run test:maps` and `bun run test:bots`. Schema and reference validation is not a substitute for runtime integration.
 
-`bun run test:movement`, `bun run test:maps`, and `bun run test:bots`
-run the individual groups. `bun run typecheck` runs `tsc --noEmit`.
-A `dev`-only GitHub Actions workflow is also included; confirm it is enabled
-in repository Actions settings if no job appears.
+GitHub Actions:
+- `.github/workflows/dev-validation.yml` runs catalog validation, map tests, the complete Bun smoke suite, typecheck and build on pushes to `dev` or `main`, and PRs targeting those branches. It also supports manual dispatch and configured feature-branch pushes.
+- `.github/workflows/afterlight-dev-validation.yml` separately runs map-focused validation for selected map changes pushed to `dev` or `main`, and supports manual dispatch.
+- Inspect the status and logs of runs for the **candidate commit**, including failures and skipped jobs. Workflow availability on `main` begins once the workflow edits have been merged there.
+- GitHub-hosted runs consume Actions allowance; check repository/org billing settings if required.
 
-## 2. Movement feel
+## 3. Manual controls and combat
 
-Compare keyboard/mouse and touch:
-- WASD from idle: immediate, predictable acceleration. Release should stop
-  promptly without an icy drift; A↔D reversals should feel crisp.
-- While airborne: retain enough momentum but permit correction, with no
-  sudden change to maximum sprint speed.
-- Tap Space just before landing: one buffered jump. Tap just after stepping
-  off a ledge: ledge grace. Holding Space should **not** auto-bunny-hop.
-- Try platform/stair steps vs chest-high crates. Players and bots now share
-  0.55-unit automatic step height; higher cover should require jumping.
-- Sprint + ads-perk, reload interruption, stamina cooldown, jump pads,
-  moving platforms and respawn all still function.
-- Touch stick: sprint engages ~0.73 stick magnitude when moving forward;
-  remains active until ~0.62, without rapidly flickering at the threshold.
+Test desktop keyboard/mouse **and** touch/mobile:
+- WASD starts, stops and reverses responsively; sprint thresholds, stamina, ADS and inversion behave as configured.
+- Buffered and coyote-time jumps work without holding Space causing automatic bunny-hops. Stairs, raised platforms, lower cover, fall recovery and moving platforms do not clip or trap players.
+- Pointer lock, scoreboard, kill feed, scope/crosshair, HUD, reload interruption, swapping, quick melee, perks and audio behave correctly.
+- Shotguns and relevant snipers insert rounds incrementally; verify interruption, remaining ammo and online/server parity.
+- Confirm damage falloff, accuracy, weapon attachments, per-weapon skins, ownership, saved loadouts, challenges, achievement rewards, Wonder recharge and deaths/respawns across match boundaries.
+- Test weapon-specific behaviors: grenade/launcher splash, Bullet Spitter acquisition and destruction, Event Horizon, Plagueheart poison, Deadlock, Hellfire, Stormweaver and Bogfather. Cover and team rules must agree offline/online.
 
-## 3. Map combat / environment
+## 4. Map and bot acceptance
 
-Check **Compound, Skybridge, Bunker, Shipyard, Terminal, Neon Plaza** in
-FFA and team modes. At least one offline bot match and one online room should
-be tested per map.
+Check all six current map IDs and both Afterlight lighting editions:
 
-- Explore far outer edges: new spawn zones must be connected to the action
-  and have genuinely useful hard-cover routes (not isolated decorations).
-- Break a themed destructible door: the destroyed panel must open a
-  **real passage** between intact fixed side walls.
-- Compare central sightlines with outer flanks. No spawn should have only
-  one escape direction or face an unavoidable active hazard.
-- Fire should look purposeful (fuel/service/electrical locations); timed
-  spikes must be visible *before* they become dangerous.
-- Test jump-pad landing zones on Compound, Skybridge, Shipyard and Neon
-  Plaza; stairs must provide a non-jump route to elevated spaces.
-- Verify optional moving platforms in Shipyard/Terminal/Neon do not cause
-  player or bot clipping, jitter, teleporting, or client/server desync.
-- Neon Plaza: walk below and on the raised bridge, including the corner
-  platforms and their lower-level spawns.
-- Shipyard: test stacked container roofs and stair access; inspect crane
-  overlaps from the first-person camera.
+| Map ID | Current map / primary risk |
+| --- | --- |
+| `bunker` | Blacksite — tight paths, collision and tactical cover |
+| `shipyard` | Breakwater — container stacks, crane/dock routes and moving machinery |
+| `compound` | Verdant Ruins — destructible breach and safe hazard telegraphs |
+| `terminal` | Afterlight City (Day) — dense streets, interior rooms, roof access and park |
+| `arena_neon` | Afterlight City (Night) — same current regions/spawns as Day; different lighting |
+| `skybridge` | Ridgefall — **enclosed industrial steelworks factory**, gantries, freight gate and multi-height paths |
 
-## 4. Bot navigation (highest-risk area)
+For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
+- Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
+- Traverse stair/roof connections as a player and follow bots climbing up, crossing and descending. Look for unreachable targets, path loops, headbanging, clipping, false shortcuts and soft-stuck recovery.
+- Compare **the same map, difficulty and loadout** offline and in an online room. Test elevated targets, latency, reconnects, room creation/joining, player/team caps and authoritative damage.
+- In both Afterlight editions, check identical footprint/spawn layout, street interiors, actual door openings, roof hatch/exterior stairs and park pavilion geometry. Confirm day/night materials do not change gameplay collision.
+- On Ridgefall, inspect actual factory routes and freight/security gate. Old snowfield, rocky-outpost and outdoor-cliff checklists are historical, not release criteria.
+- For authored changes, export Map Studio content and validate `src/data/map-blueprints.json`, matching theme JSON and client/server geometry. See [Map Studio](map-studio.md).
 
-- Follow bots from the ground up every major staircase, across a bridge,
-  and back down. Confirm a genuine traversable route rather than
-  teleporting or walking through solid cargo/cover.
-- Test elevated player targets vs ground bots. Can bots find the stair
-  approach and advance toward the correct *height*?
-- Check that bots avoid active/visible hazards and can use new destructible
-  shortcuts after the panel disappears.
-- Watch for repeated route re-planning, standing still while aiming at
-  elevated enemies, headbanging against cover and occasional stuck recovery.
-- Compare offline and online bots using the **same map and difficulty**.
-  Routing is shared, but movement loops and environment timing are separate.
+## 5. Survival, rewards and persistence
 
-## 5. Performance
+- Verify Solo Survival ends on death and Co-op downed operatives can use their secondary only, with correct rescue/round transitions.
+- Confirm Survival wave length and rewards for each configured difficulty. Verify no unintended reinforcements, enemy spawn shields or bot-on-bot damage.
+- Check Gun Game progression and Kill Confirmed enemy/friendly tag scoring.
+- Validate guest and account login, profile persistence, credits, challenge counters, unlocks, purchase rejection, weapon-specific attachment/skin memory and import/export. Repeat after refresh, relogin and, where feasible, a second device.
+- On a test copy of real data, review additive Prisma updates and legacy IDs; never use `db:reset` as a migration shortcut.
 
-New cover and corrected stairs add collision checks. Record frame-time/FPS
-with high bot counts (prefer 3v3, 5v5 and 7v7) and compare to the prior
-`main` build. Also check server tick stability under online bots.
-The nav search has a hard expansion budget and broadphase pruning; this
-still needs measurement, especially in Skybridge and Bunker.
+## 6. Performance and sign-off
 
-## What to report back
+- Record client FPS/frame time and memory across low-end hardware and high-bot-count matches; check game-server tick latency and logs.
+- Record regressions with map/mode, bot count, build SHA, reproduction steps, expected vs observed behavior, console/server logs and a capture if useful.
+- Do not promote until the merge-result automated pipeline is green, meaningful manual playtests are signed off and any production data migration has an approved backup/rollback plan.
 
-Please send: map, game mode (offline/online), bot count, reproduction steps,
-expected vs observed behavior, and any browser console/server log error.
-A short video of a bot stuck near stairs or moving platforms is particularly
-helpful. Please keep `main` unchanged until these checks pass.
+### Release sign-off
+
+- [ ] `dev`/merge-candidate SHAs and conflicts reviewed
+- [ ] Content validation, Bun suite, TypeScript and production build pass on merge result
+- [ ] Desktop, mobile, offline and multiplayer checks pass
+- [ ] All current map layouts, bots, collisions and modes reviewed
+- [ ] Progression, purchases, loadouts and important Wonder behaviors verified
+- [ ] Performance and networking acceptable for intended release
+- [ ] Database backup/migration and rollback are approved, if applicable
+- [ ] `main` deployment/branch validation completed after merge
