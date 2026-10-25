@@ -1303,7 +1303,7 @@ export interface LobbyPlayer {
 
 export type S2C =
   | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
-  | { t: "gravityDetonate"; id: string; pos: Vec3 }
+  | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
   | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
   | { t: "turretRejected"; reason: string }
   | { t: "turretFired"; id: string; target: Vec3 }
