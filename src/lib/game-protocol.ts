@@ -1374,7 +1374,7 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
 // ---- Gun Game weapon progression ----
 // NEW DESIGN: The progression is now TYPE-based (weapon categories), not a
 // fixed list of specific weapon IDs. The STRUCTURE is always the same:
-//   sidearm → smg → shotgun → assault → dmr → sniper → lmg → launcher → melee
+//   pistol / pdw → smg → shotgun → assault → dmr → sniper → lmg → launcher → melee
 // But the SPECIFIC weapon in each slot is randomly chosen from the catalog when
 // a match starts. So even when a slot calls for "sniper", each match might
 // have a different sniper there. Only ONE melee slot exists — always the last
@@ -1388,17 +1388,17 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
 // automatically fill from other weapon categories when too few unique weapons
 // exist; they never repeat the same gun just to satisfy a category count.
 export const GUN_GAME_TYPE_PROGRESSION: string[] = [
-  "sidearm",
+  "pistol",
   "smg",
   "shotgun",
   "assault",
-  "sidearm",
+  "pdw",
   "smg",
   "shotgun",
   "assault",
   "dmr",
   "smg",
-  "sidearm",
+  "pistol",
   "assault",
   "dmr",
   "shotgun",
@@ -1406,12 +1406,12 @@ export const GUN_GAME_TYPE_PROGRESSION: string[] = [
   "sniper",
   "dmr",
   "lmg",
-  "sidearm",
+  "pdw",
   "assault",
   "dmr",
   "sniper",
   "lmg",
-  "sidearm",
+  "pistol",
   "assault",
   "dmr",
   "sniper",

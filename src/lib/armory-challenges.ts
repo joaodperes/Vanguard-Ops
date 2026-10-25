@@ -87,7 +87,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";
   const cqc = category === "shotgun" || category === "melee";
-  const mobile = category === "smg" || category === "sidearm";
+  const mobile = category === "smg" || category === "pistol" || category === "pdw";
   const choice: Record<string, WeaponConditionMetric> = {
     arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "comeback_kills",
     crimson: equipped ? "bare_kills" : "multikill_kills",
@@ -230,7 +230,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       goal = 12 + difficulty * 9;
       break;
     case "grip":
-      metric = weapon.category === "smg" || weapon.category === "sidearm" ? "airborne_kills" : "hipfire_kills";
+      metric = weapon.category === "smg" || weapon.category === "pistol" || weapon.category === "pdw" ? "airborne_kills" : "hipfire_kills";
       goal = 10 + difficulty * 8;
       break;
     case "magazine":

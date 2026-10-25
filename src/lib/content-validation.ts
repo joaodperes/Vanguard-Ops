@@ -22,7 +22,7 @@ const num = z.number().finite();
 const count = num.int().nonnegative();
 const pos = num.positive();
 const unit = num.min(0).max(1);
-const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "sidearm", "melee"]);
+const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw", "launcher", "melee"]);
 const slot = z.enum(["sight", "barrel", "grip", "magazine"]);
 const rarity = z.enum(["common", "rare", "epic", "legendary"]);
 const cssColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -48,6 +48,7 @@ const weapon = z.object({
   id, name: label, description: label, category,
   unlockLevel: pos.int(), unlockCost: count,
   stats, attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
+  explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
     kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge"]),
@@ -192,9 +193,14 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
 
   for (const [key, def] of Object.entries(SIGHT_DEFS))
     if (key !== def.type) issues.push("sight definition " + key + ": mismatched type " + def.type);
-  if (Array.isArray(w)) for (const item of w)
+  if (Array.isArray(w)) for (const item of w) {
     if (item?.baseSightType && !(item.baseSightType in SIGHT_DEFS))
       issues.push("weapon " + item.id + ": unknown baseSightType " + item.baseSightType);
+    if (item?.category === "launcher" && !(typeof item?.explosive?.radius === "number" && item.explosive.radius > 0))
+      issues.push("weapon " + item.id + ": launcher requires a positive explosive radius");
+    if (item?.category !== "launcher" && item?.explosive)
+      issues.push("weapon " + item.id + ": non-launcher cannot declare explosive radius");
+  }
   if (Array.isArray(a)) for (const item of a)
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);

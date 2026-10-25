@@ -39,7 +39,7 @@ import {
   roomCapacity, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
+  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -2213,7 +2213,9 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
   const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
   let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
   const w = WEAPONS.find(x => x.id === secondaryWeaponId);
-  if (!w || (isPrimaryWeaponCategory(w.category) &&
+  if (!w || w.category === "melee" ||
+      (!w.wonder && w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id)) ||
+      (isPrimaryWeaponCategory(w.category) &&
       (!canEquipSecondaryPrimary(perkId, level) || !!w.wonder ||
        secondaryWeaponId === requested.weaponId ||
        player?.loadout?.secondaryWeapon !== secondaryWeaponId ||
@@ -2546,7 +2548,7 @@ async function handle(socket: any, msg: C2S) {
       // and apply area-of-effect damage to all enemies within the splash radius.
       // Damage uses a quadratic falloff (full at center, ~10% at edge) + a direct-hit
       // bonus (within 1.5 units = full damage + 20% bonus).
-      if (msg.weaponId === "launcher_rocket" || weapon.wonder) {
+      if (weapon.explosive || weapon.wonder) {
         // Normalize the direction vector so the raycast math is stable.
         const dlen = Math.hypot(msg.dir[0], msg.dir[1], msg.dir[2]) || 1;
         const dir: Vec3 = [msg.dir[0] / dlen, msg.dir[1] / dlen, msg.dir[2] / dlen];
@@ -2592,8 +2594,8 @@ async function handle(socket: any, msg: C2S) {
             pos: impact, radius, activatesAt, expiresAt, serverNow:now,
           } as S2C);
         } else {
-        destroyTurretsNear(room, impact, weapon.wonder?.radius || 8);
-        const splashRadius = weapon.wonder?.radius ?? 8;
+        destroyTurretsNear(room, impact, projectileSplashRadius(weapon));
+        const splashRadius = projectileSplashRadius(weapon);
         // CRITICAL FIX: splash damage is computed against the rocket's FULL
         // TRAJECTORY LINE SEGMENT (origin → impact), NOT just the impact point.
         // A near-miss (rocket flies past an enemy and hits a far wall) still

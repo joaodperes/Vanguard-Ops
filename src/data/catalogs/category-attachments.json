@@ -147,7 +147,55 @@
       "mag_balanced"
     ]
   },
-  "sidearm": {
+  "pistol": {
+    "sight": [
+      "sight_red_dot",
+      "sight_laser",
+      "sight_holo"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_ported",
+      "barrel_lightweight"
+    ],
+    "grip": [
+      "grip_laser",
+      "grip_precision",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_balanced"
+    ]
+  },
+  "pdw": {
+    "sight": [
+      "sight_red_dot",
+      "sight_holo",
+      "sight_laser",
+      "sight_nvg"
+    ],
+    "barrel": [
+      "barrel_suppressor",
+      "barrel_compensator",
+      "barrel_ported",
+      "barrel_lightweight"
+    ],
+    "grip": [
+      "grip_vertical",
+      "grip_angled",
+      "grip_laser",
+      "grip_runner_ads"
+    ],
+    "magazine": [
+      "mag_extended",
+      "mag_quickdraw",
+      "mag_drum",
+      "mag_balanced"
+    ]
+  },
+  "launcher": {
     "sight": [
       "sight_red_dot",
       "sight_laser",

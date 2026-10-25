@@ -9,6 +9,7 @@ on:
       - dev
   push:
     branches:
+      - dev
       - feature/json-content-catalogs
       - feature/wonder-weapon-expansion
 

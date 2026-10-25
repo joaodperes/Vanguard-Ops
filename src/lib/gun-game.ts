@@ -9,7 +9,7 @@ export function normalizeGunGameConfig(preset?: string, multiplier?: number) {
     multiplier: Number.isInteger(multiplier) ? Math.max(1, Math.min(GUN_GAME_MAX_MULTIPLIER, multiplier!)) : 1,
   };
 }
-const CQC = new Set(["sidearm", "smg", "shotgun"]);
+const CQC = new Set(["pistol", "pdw", "smg", "shotgun"]);
 const LONG = new Set(["assault", "dmr", "sniper", "lmg"]);
 const sample = <T>(values: T[], random: () => number): T =>
   values[Math.min(values.length - 1, Math.floor(Math.max(0, Math.min(.999999,random())) * values.length))];
@@ -19,7 +19,7 @@ const sample = <T>(values: T[], random: () => number): T =>
  */
 export function buildGunGameWeapons(preset?: string, multiplier?: number, random: () => number = Math.random): string[] {
   const config = normalizeGunGameConfig(preset, multiplier);
-  const ranged = WEAPONS.filter(w => !w.wonder && w.category !== "melee" && w.id !== "launcher_rocket");
+  const ranged = WEAPONS.filter(w => !w.wonder && w.category !== "melee" && w.category !== "launcher");
   if (ranged.length < GUN_GAME_BASE_TIERS - 2) throw new Error("Gun Game needs at least 28 unique ranged weapons");
   const cycles: string[] = [];
   for (let cycle = 0; cycle < config.multiplier; cycle++) {

@@ -33,8 +33,10 @@
           "dmr",
           "sniper",
           "lmg",
-          "sidearm",
-          "melee"
+          "melee",
+          "pistol",
+          "pdw",
+          "launcher"
         ]
       },
       "unlockLevel": {
@@ -201,6 +203,19 @@
           },
           "reloadStyle": {
             "const": "incremental"
+          }
+        },
+        "additionalProperties": false
+      },
+      "explosive": {
+        "type": "object",
+        "required": [
+          "radius"
+        ],
+        "properties": {
+          "radius": {
+            "type": "number",
+            "exclusiveMinimum": 0
           }
         },
         "additionalProperties": false

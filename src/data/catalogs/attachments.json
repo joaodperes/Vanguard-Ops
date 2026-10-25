@@ -26,13 +26,17 @@
       "assault",
       "smg",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "adsSpread": -12,
@@ -50,12 +54,14 @@
     "recommendedFor": [
       "assault",
       "smg",
-      "lmg"
+      "lmg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
-      "lmg"
+      "lmg",
+      "pdw"
     ],
     "effects": {
       "adsTime": -10,
@@ -73,12 +79,16 @@
     "recommendedFor": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "spread": -30
@@ -144,13 +154,15 @@
       "assault",
       "smg",
       "dmr",
-      "sniper"
+      "sniper",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "dmr",
-      "sniper"
+      "sniper",
+      "pdw"
     ],
     "effects": {
       "adsSpread": -8,
@@ -190,13 +202,17 @@
       "assault",
       "smg",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "damage": -5,
@@ -214,12 +230,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "recoil": -22
@@ -279,12 +297,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "recoil": -15
@@ -300,12 +320,14 @@
     "recommendedFor": [
       "smg",
       "assault",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "weaponCategories": [
       "smg",
       "assault",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "effects": {
       "adsTime": -20,
@@ -322,12 +344,16 @@
     "recommendedFor": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "spread": -28
@@ -345,7 +371,9 @@
       "smg",
       "shotgun",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "adsTime": 12,
@@ -363,13 +391,15 @@
       "assault",
       "smg",
       "lmg",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "lmg",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "effects": {
       "magSize": 50
@@ -386,13 +416,15 @@
       "assault",
       "smg",
       "shotgun",
-      "dmr"
+      "dmr",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "shotgun",
-      "dmr"
+      "dmr",
+      "pdw"
     ],
     "effects": {
       "reloadTime": -25
@@ -408,12 +440,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "magSize": 100,
@@ -449,7 +483,9 @@
       "smg",
       "shotgun",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "recoil": -14,
@@ -466,7 +502,9 @@
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "moveSpeed": 6,

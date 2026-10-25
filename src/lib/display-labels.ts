@@ -14,7 +14,9 @@ const WEAPON_CATEGORY_LABELS: Record<string, string> = {
   dmr: "DMR",
   sniper: "Sniper Rifle",
   lmg: "LMG",
-  sidearm: "Sidearm",
+  pistol: "Pistol",
+  pdw: "PDW / Compact SMG",
+  launcher: "Launcher",
   melee: "Melee",
 };
 

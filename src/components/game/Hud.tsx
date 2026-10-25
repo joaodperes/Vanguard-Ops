@@ -22,7 +22,9 @@ const CATEGORY_ACCENT: Record<WeaponCategory, { color: string; label: string }> 
   dmr: { color: "#3b7bff", label: "DMR" },        // blue
   sniper: { color: "#9b3bff", label: "SNP" },     // purple
   lmg: { color: "#3bff7b", label: "LMG" },        // green
-  sidearm: { color: "#e0e0e0", label: "PST" },    // white
+  pistol: { color: "#e0e0e0", label: "PST" },    // white
+  pdw: { color: "#a6f060", label: "PDW" },       // lime
+  launcher: { color: "#fb923c", label: "RKT" },  // amber
   melee: { color: "#808080", label: "MLE" },      // grey
 };
 

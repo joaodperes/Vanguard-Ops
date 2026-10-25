@@ -40,7 +40,7 @@ import {
   type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
-  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
+  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
   SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
@@ -1794,6 +1794,8 @@ export class FPSEngine {
         sniper_lr: 0x0a1a2a,      // dark blue-black
         sniper_scout: 0x1a2a2a,   // grey-blue (lighter than Longshot)
         launcher_rocket: 0x2a3a1a,// olive green
+        launcher_breach: 0x4d4034, // steel brown
+        launcher_swarm: 0x364753,  // gunmetal blue
       };
       const tint = weaponTints[this.weaponId];
       if (tint !== undefined) {
@@ -1940,7 +1942,7 @@ export class FPSEngine {
     // front of the receiver. The colour identifies the weapon CATEGORY at a
     // glance — even if the player can't see the full silhouette, the coloured
     // band tells them "red = assault rifle, yellow = SMG, orange = shotgun,
-    // purple = sniper, green = LMG, blue = DMR, white = sidearm". This is the
+    // purple = sniper, green = LMG, blue = DMR, white = pistol, lime = PDW, amber = launcher". This is the
     // single most impactful visual cue for weapon identification.
     // The band is ONLY added for ranged weapons (not melee — melee weapons
     // already have distinct shapes: knife/shiv/machete/hammer).
@@ -1952,7 +1954,9 @@ export class FPSEngine {
         dmr: 0x3b7bff,        // blue
         sniper: 0x9b3bff,     // purple
         lmg: 0x3bff7b,        // green
-        sidearm: 0xe0e0e0,    // white
+        pistol: 0xe0e0e0,     // white
+        pdw: 0xa6f060,        // lime
+        launcher: 0xfb923c,   // amber
       };
       const accentColor = categoryAccentColors[category] ?? 0xffffff;
       const bandMat = fullLegendaryFinish
@@ -4246,7 +4250,7 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (msg.weaponId === "launcher_rocket" || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
+          if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else {
@@ -5031,7 +5035,7 @@ export class FPSEngine {
     }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
-    const isRocket = this.weaponId === "launcher_rocket" || !!w.wonder;
+    const isRocket = !!w.explosive || !!w.wonder;
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -5212,7 +5216,7 @@ export class FPSEngine {
 
   // Launchers have their own signature even if catalogued as a sidearm.
   private weaponSoundCategory(weaponId: string): WeaponSoundCategory {
-    if (weaponId === "launcher_rocket") return "launcher";
+    if (weaponById(weaponId).explosive) return "launcher";
     return weaponById(weaponId).category;
   }
 
@@ -5778,7 +5782,7 @@ export class FPSEngine {
       ? gravityTravelMs(dist) : Math.min(400, Math.max(120, dist * 3));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
-    const splashRadius = weaponById(weaponId).wonder?.radius ?? 8;
+    const splashRadius = projectileSplashRadius(weaponById(weaponId));
     this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash });
   }
 
@@ -6238,7 +6242,7 @@ export class FPSEngine {
               at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
           }
         } else {
-          this.spawnExplosion(p.end, explosionKind);
+          this.spawnExplosion(p.end, explosionKind, p.splashRadius);
         }
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).

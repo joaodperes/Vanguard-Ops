@@ -93,7 +93,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
     if (slot === "primary") return WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category));
     if (slot === "secondary") return WEAPONS.filter((w) =>
-      w.category === "sidearm" || (perkId === "well_prepared" &&
+      ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
         isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
     return WEAPONS.filter((w) => w.category === "melee");
   };

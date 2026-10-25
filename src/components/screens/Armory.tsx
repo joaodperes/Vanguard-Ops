@@ -85,7 +85,9 @@ const CATEGORY_LABELS: Record<WeaponCategory, string> = {
   dmr: "DMRs",
   sniper: "Sniper Rifles",
   lmg: "LMGs",
-  sidearm: "Sidearms",
+  pistol: "Pistols",
+  pdw: "PDWs / Compact SMGs",
+  launcher: "Launchers",
   melee: "Melee",
 };
 
@@ -360,7 +362,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="secondary"
               label="Secondary"
-              weapons={WEAPONS.filter((w) => w.category === "sidearm").sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.wonder && ["pistol", "pdw", "launcher"].includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
@@ -515,7 +517,7 @@ function WeaponSlotSection(props: WeaponSlotSectionProps) {
   const categoryOrder: WeaponCategory[] = slot === "primary"
     ? PRIMARY_CATEGORIES
     : slot === "secondary"
-      ? ["sidearm"]
+      ? ["pistol", "pdw", "launcher"]
       : ["melee"];
   const groups = categoryOrder
     .map((cat) => ({

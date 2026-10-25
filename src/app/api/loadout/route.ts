@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
     }
-    if (w.category === "sidearm" || w.category === "melee") {
+    if (!isPrimaryWeaponCategory(w.category)) {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
   }
@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
       return NextResponse.json({ error: "Second primary requires Well Prepared (LVL 28), must be different from your first, and cannot be a Wonder Weapon" }, { status: 403 });
     }
-    if (w.category !== "sidearm" && !anotherPrimary) {
-      return NextResponse.json({ error: "secondaryWeapon must be a sidearm or a permitted second primary" }, { status: 400 });
+    if (w.category === "melee") {
+      return NextResponse.json({ error: "secondaryWeapon must be a pistol, PDW, launcher or a permitted second primary" }, { status: 400 });
     }
     if (anotherPrimary && w.unlockCost > 0 &&
       !player.weaponUnlocks.some(u => u.weaponId === w.id)) {

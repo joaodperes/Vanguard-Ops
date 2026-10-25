@@ -7,7 +7,7 @@
  */
 
 export type WeaponSoundCategory =
-  | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "sidearm" | "melee" | "launcher";
+  | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "melee" | "launcher";
 
 interface SoundProfile {
   bodyHz: number;
@@ -30,7 +30,8 @@ const PROFILES: Record<WeaponSoundCategory, SoundProfile> = {
   dmr:     { bodyHz: 173, bodyEndHz: 66, bodySeconds: 0.175, noiseHz: 2650, noiseQ: 1.00, noiseSeconds: 0.245, bodyLevel: 0.86, noiseLevel: 0.75, bodyType: "sawtooth", filter: "bandpass" },
   sniper:  { bodyHz: 82, bodyEndHz: 28, bodySeconds: 0.425, noiseHz: 1200, noiseQ: 0.68, noiseSeconds: 0.590, bodyLevel: 1.08, noiseLevel: 0.98, bodyType: "triangle", filter: "bandpass" },
   lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 1080, noiseQ: 0.55, noiseSeconds: 0.270, bodyLevel: 0.97, noiseLevel: 0.83, bodyType: "sawtooth", filter: "lowpass" },
-  sidearm: { bodyHz: 325, bodyEndHz: 128, bodySeconds: 0.104, noiseHz: 4600, noiseQ: 0.75, noiseSeconds: 0.145, bodyLevel: 0.50, noiseLevel: 0.77, bodyType: "triangle", filter: "highpass" },
+  pistol: { bodyHz: 325, bodyEndHz: 128, bodySeconds: 0.104, noiseHz: 4600, noiseQ: 0.75, noiseSeconds: 0.145, bodyLevel: 0.50, noiseLevel: 0.77, bodyType: "triangle", filter: "highpass" },
+  pdw: { bodyHz: 295, bodyEndHz: 112, bodySeconds: 0.077, noiseHz: 4000, noiseQ: 0.68, noiseSeconds: 0.09, bodyLevel: 0.44, noiseLevel: 0.7, bodyType: "square", filter: "highpass" },
   melee:   { bodyHz: 780, bodyEndHz: 350, bodySeconds: 0.112, noiseHz: 1350, noiseQ: 0.80, noiseSeconds: 0.185, bodyLevel: 0.14, noiseLevel: 0.39, bodyType: "sine", filter: "bandpass" },
   launcher:{ bodyHz: 71, bodyEndHz: 26, bodySeconds: 0.350, noiseHz: 930, noiseQ: 0.65, noiseSeconds: 0.485, bodyLevel: 1.05, noiseLevel: 0.83, bodyType: "sawtooth", filter: "lowpass" },
 };

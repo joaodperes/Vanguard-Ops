@@ -23,23 +23,25 @@ import achievementColorsData from "../data/catalogs/achievement-colors.json";
 import matchModesData from "../data/catalogs/match-modes.json";
 import killstreakCalloutsData from "../data/catalogs/killstreak-callouts.json";
 
-export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "sidearm" | "melee";
+export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "launcher" | "melee";
 
 // Weapon slots are the three loadout positions a player can equip.
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
-// secondary -> sidearm
+// secondary -> pistol / pdw / launcher
 // melee    -> melee
 export type WeaponSlot = "primary" | "secondary" | "melee";
 
 // The secondary accepts a second primary only with Well Prepared.
 export function isPrimaryWeaponCategory(category: WeaponCategory): boolean {
-  return category !== "sidearm" && category !== "melee";
+  return ["assault", "smg", "shotgun", "dmr", "sniper", "lmg"].includes(category);
 }
 
 // Map a weapon category to its loadout slot.
 export function weaponSlot(category: WeaponCategory): WeaponSlot {
   switch (category) {
-    case "sidearm": return "secondary";
+    case "pistol":
+    case "pdw":
+    case "launcher": return "secondary";
     case "melee": return "melee";
     default: return "primary";
   }
@@ -68,6 +70,8 @@ export interface WeaponStats {
 
 export interface WeaponDef {
   special?: WeaponSpecial;
+  /** Unguided impact rocket profile. Applies to all conventional launchers. */
+  explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
   wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
@@ -89,6 +93,10 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+/** Single source for offline and authoritative server projectile blast radii. */
+export function projectileSplashRadius(weapon: WeaponDef): number {
+  return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
+}
 
 export type AttachmentSlot = "sight" | "barrel" | "grip" | "magazine";
 

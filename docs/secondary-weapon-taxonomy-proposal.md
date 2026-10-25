@@ -1,8 +1,8 @@
 # Proposal: split secondary weapons into Pistols, PDWs, and Launchers
 
-> **Status:** design recommendation only; no catalog, engine, server, or progression changes on this branch.  
+> **Status:** implemented directly on `dev`: catalog categories, six new guns, launcher projectiles, progression and equipment integration.  
 > **Baseline:** `dev` at `5d20b08eef75f63f7d684af4206a22291702b0dc` (2026-10-25).  
-> **Decision requested:** approve category taxonomy and the six regular weapons before implementation.
+> **Decision:** Pistols / PDWs / Launchers, with six new regular weapons; Wonder Weapon work remains separate.
 
 ## Recommendation
 
@@ -32,7 +32,7 @@ The current catalog contains **36 regular weapons** across Primary, Secondary, a
 | Melee | 6 | 6 | 0 |
 | **Total regular** | **36** | **42** | **6** |
 
-After adding the six proposed regular weapons, the regular roster would contain **42 weapons**, with each regular weapon family a multiple of three.
+After adding the six new regular weapons, the regular roster contains **42 weapons**, with each regular weapon family a multiple of three.
 
 ### Reclassify shipped IDs without renaming them
 
@@ -49,7 +49,7 @@ After adding the six proposed regular weapons, the regular roster would contain 
 
 ## Six new regular weapons
 
-These are **proposed starting values for playtests**, not committed JSON or guaranteed final balance. Rates are rounds/second (the existing `WeaponStats.fireRate` unit); damage is base per direct hit or central blast before falloff. New weapons should support familiar attachments where appropriate; launchers should begin with no attachments until restrictions are tested.
+These are **initial committed values for playtests**, subject to balance revisions. Rates are rounds/second (the existing `WeaponStats.fireRate` unit); damage is base per direct hit or central blast before falloff. New weapons should support familiar attachments where appropriate; launchers should begin with no attachments until restrictions are tested.
 
 | Family | Proposed ID / display name | Damage | Fire rate | Mag | Range | Role / trade-off |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
@@ -77,7 +77,7 @@ Suggested progression after balance review, with normal in-game credit unlocks: 
 2. **Handguns / Launchers:** keep `pistol_machine` with the other four handguns, add 1 new handgun (5 → 6), and add 2 launchers (1 → 3). Only **3** new guns and minimal engine work, but misses the distinct compact-auto fantasy. A viable smaller first release.
 3. **Pistols / Machine Pistols / Launchers:** same 6-new-weapon counts as the preferred option, with `machine_pistol` instead of `pdw` as the category key. More literal, less flexible for future compact carbines.
 
-## Integration implications — not yet implemented
+## Implementation checklist
 
 1. **Canonical data and schema.** Edit `src/data/catalogs/weapons.json` (retain every ID), `src/lib/game-data.ts` (`WeaponCategory`, `weaponSlot`, `isPrimaryWeaponCategory`), `src/lib/content-validation.ts`, and documented category enums. Make `isPrimaryWeaponCategory` an **explicit allowlist**, not “anything except sidearm and melee”, or both new secondary families become incorrectly primary. Consider a separate `defaultSlot`/allowed-slot model if more dual-slot families are likely later.
 2. **Attachments and mastery.** Split `src/data/catalogs/category-attachments.json` into `pistol`, `pdw`, and `launcher` entries; update specific overrides in `attachment-compatibility.json`, weapon-category restrictions in `attachments.json`, and `armory-challenges.ts` fallbacks. For launchers, start with `attachments: []`. Keep per-weapon unlocks and mastery IDs stable.
@@ -93,4 +93,4 @@ Suggested progression after balance review, with normal in-game credit unlocks: 
 
 **Phase B — launchers + full release:** add Breach-2 and Swarm-3, generalize rocket splash/profile logic and validate all 6/3/3 secondary counts. Hold for manual offline/online combat playtests.
 
-Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, and `bun run build` after implementing catalog/code changes, plus weapon-specific combat/play tests. **No tests were run for this documentation-only proposal; no gameplay changes are included.**
+Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, and `bun run build` after implementing catalog/code changes, plus weapon-specific combat/play tests. Automated tests are required before release. Manual offline/online balance and feel playtesting still needs to be performed.
