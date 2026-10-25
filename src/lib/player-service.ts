@@ -4,6 +4,7 @@ import { prestigeEligible, prestigeTokens, PRESTIGE_CAMO_IDS } from "./weapon-pr
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
+import { parseSavedLoadouts, type SavedLoadout } from "./saved-loadouts";
 import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
@@ -196,6 +197,7 @@ export interface PlayerProfileView {
     skinsByWeapon: Record<string, string[]>;
   };
   loadout: ResolvedLoadout;
+  savedLoadouts: SavedLoadout[];
   // Lifetime per-weapon kill/headshot progress, keyed by weaponId. Source of
   // truth for weapon challenge progress (Breacher "Close Quarters", Longshot
   // "Marksman", etc.). In gungame the player cycles through many weapons per
@@ -331,6 +333,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
       skinsByWeapon,
     },
     loadout,
+    savedLoadouts: parseSavedLoadouts(p.loadout?.savedLoadouts),
     weaponProgress,
     operatorContracts,
     prestige: { tokens: prestigeTokens(masteredWeapons.length, wonderWeapons.length), masteredWeapons, wonderWeapons },
