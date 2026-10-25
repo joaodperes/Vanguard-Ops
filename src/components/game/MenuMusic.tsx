@@ -12,7 +12,7 @@ import { useSettings, type GameSettings } from "@/lib/settings-store";
  */
 export function MenuMusic({ active }: { active: boolean }) {
   const activeRef = useRef(active);
-  activeRef.current = active;
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
     const sound = new SoundManager();
