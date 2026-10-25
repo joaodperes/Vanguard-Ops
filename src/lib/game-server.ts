@@ -1033,7 +1033,7 @@ function tickGravityWells(room: Room, now: number) {
     if (now < well.activatesAt) continue;
     if (now >= well.expiresAt) {
       room.gravityWells.delete(id);
-      io.to(room.id).emit("message", { t: "gravityDetonate", id, pos: well.pos } as S2C);
+      io.to(room.id).emit("message", { t: "gravityDetonate", id, pos: well.pos, radius: well.radius } as S2C);
       destroyTurretsNear(room, well.pos, well.radius);
       for (const target of allCombatants(room)) {
         if (!target.alive || target.id === well.ownerId ||
