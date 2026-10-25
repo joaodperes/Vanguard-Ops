@@ -113,11 +113,22 @@ Map Studio opens in **3D View** by default. Use the **2D View** button to return
 
 ### Editing pre-existing stairs, cover and hazards
 
-The 3D viewport can select the game's **original engine-authored collision boxes**, including individual stair steps, as well as authored JSON features, spawns, props and hazards. Engine-authored objects appear as semi-transparent gray or amber boxes, and the Inspector labels them **Existing game geometry**.
+The 3D viewport can select the game's **original engine-authored collision boxes**, including **complete stair flights**, as well as authored JSON features, spawns, props and hazards. Engine-authored objects appear as semi-transparent gray or amber boxes, and the Inspector labels them **Existing game geometry**.
 
 These are not ordinary JSON `features` entries. Editing an original cover box adds a `legacyCoverOverrides[index]` entry to `src/data/map-blueprints.json`; original engine hazards similarly use `legacyEnvironmentOverrides[index]`. Each override stores an exact world-space center (`x,y,z`) and **full** dimensions (`w,h,d`). The runtime applies those overrides to the stable engine-authored prefix before adding JSON features and generated perimeter walls. The original TypeScript map source is not mutated.
 
-**Original stair flights are selected as complete staircases**, not individual treads. In 3D, click *any* stair tread in a flight and the whole staircase highlights; choose Move, Rotate or Resize, or edit the flight's six dimensions in the Inspector. The 2D view also shows a selectable outline for each flight. Reset flight discards all its tread overrides together. One edit is expanded into a set of `legacyCoverOverrides` values for the original steps; the runtime still uses individual collision treads, so player/bot collision is unaffected by this editor grouping.
+**Original stair flights are selected as complete staircases**, not individual treads. In 3D, click *any* stair tread in a flight and the whole staircase highlights; choose Move, Rotate or Resize, or edit the flight's six dimensions in the Inspector. The 2D view also shows a selectable outline for each flight. **Reset edits** discards all its tread overrides together. One edit is expanded into a set of `legacyCoverOverrides` values for the original steps; the runtime still uses individual collision treads, so player/bot collision is unaffected by this editor grouping.
+
+### Copying and deleting built-in objects
+
+Select a built-in cover box, platform, hazard or entire staircase in **2D or 3D**, then use the Inspector's **Duplicate**, **Reset edits** or **Delete** buttons. These are deliberately separate operations:
+
+- **Duplicate** makes a new independently editable JSON object, offset in X to avoid exact overlap. Built-in walls and platforms become `features`, a built-in staircase becomes one authored `stairs` feature whose treads are automatically generated, and built-in hazards become authored `hazards` retaining their gameplay properties. The original remains untouched. Copies can be moved, resized or deleted just like other authored objects.
+- **Delete** removes the selected original from the **compiled game map**, including its collision/hazard behavior, by adding source indices to `legacyCoverDisabled` or `legacyEnvironmentDisabled` in the blueprint. Deleting a legacy staircase disables *every tread* in that flight together. IDs and original indices remain stable so deleting one object does not shift saved edits to another object.
+- **Reset edits** resets the selected original's position/dimensions (or a full staircase's tread overrides); it does **not** delete the original.
+- Deleted originals can be brought back individually in the Inspector's **Deleted built-in objects** section, or with **Undo**. This is more practical than permanently removing geometry from TypeScript templates.
+
+**Copy and Delete affect local drafts first.** Use **Export JSON**, replace `src/data/map-blueprints.json`, and rebuild/restart to publish the changes to offline and online gameplay. The 3D editor is a physics-proxy preview, so copied staircases may not be an exact mesh match to the original; test clearances, stairs and bot routes after deleting structural support.
 
 **Legacy stair flights keep their original number of steps.** The Inspector enforces a maximum safe total rise for that fixed number to avoid creating unclimbable stairs. For a taller structure or a different step count, create an **Independent stairs** feature; those are already one authored object and automatically generate the needed steps from their height and run. Check landing alignment and bot traversal after changing a flight; 90-degree rotation is supported, not arbitrary diagonal rotations. The 3D viewer uses lightweight collision/prop proxies, not an exact rendered game match.
 
