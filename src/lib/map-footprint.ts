@@ -5,7 +5,7 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, overrideBox } from "./map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
 
@@ -90,17 +90,11 @@ export function applyMapFootprint(base:MapDef):MapDef {
   // Detect flights before spatial overrides, so groups remain stable even when
   // a user modifies an individual tread's position or elevation.
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
-  const hiddenCover=new Set(plan.legacyCoverDisabled??[]);
-  const legacyCover=legacyCoverSource
-    .map((c,i)=>({box:overrideBox(c,plan.legacyCoverOverrides?.[String(i)]),index:i}))
-    .filter(entry=>!hiddenCover.has(entry.index))
-    .map(entry=>entry.box);
+  const legacyCover=compileVisibleLegacyBoxes(
+    legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides);
   const legacyEnvironmentSource=scaledBase.environment??[];
-  const hiddenEnvironment=new Set(plan.legacyEnvironmentDisabled??[]);
-  const legacyEnvironment=legacyEnvironmentSource
-    .map((e,i)=>({box:overrideBox(e,plan.legacyEnvironmentOverrides?.[String(i)]),index:i}))
-    .filter(entry=>!hiddenEnvironment.has(entry.index))
-    .map(entry=>entry.box);
+  const legacyEnvironment=compileVisibleLegacyBoxes(
+    legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
