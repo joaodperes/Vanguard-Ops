@@ -545,6 +545,8 @@ export class FPSEngine {
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
   private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number }>();
+  private onlinePoisoned = new Map<string, number>();
+  private poisonBubbles = new Map<string, THREE.Group>();
   private wonderFields = new Map<string, { mesh: THREE.Mesh; offline: boolean; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>();
   private offlineStormAnchor: { pos: Vec3; expiresAt: number } | null = null;
   private localWonderSequence = 0;
@@ -3755,6 +3757,14 @@ export class FPSEngine {
         for (const p of msg.players) this.ensureCombatant(p);
         break;
       case "snapshot":
+        // Authoritative poison status is sent to everyone, not just the
+        // attacker. Convert server timestamps so client clock skew is safe.
+        this.onlinePoisoned.clear();
+        for (const effect of msg.poisoned ?? []) {
+          this.onlinePoisoned.set(effect.id, msg.serverNow
+            ? gravityClientTime(effect.expiresAt, msg.serverNow, Date.now())
+            : effect.expiresAt);
+        }
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
@@ -6322,6 +6332,55 @@ export class FPSEngine {
     }
   }
 
+  private updatePoisonVisual(id: string, pos: Vec3, poisoned: boolean, now: number) {
+    let fx = this.poisonBubbles.get(id);
+    if (!poisoned) {
+      if (fx) {
+        this.scene.remove(fx);
+        const geometries = new Set<THREE.BufferGeometry>();
+        const materials = new Set<THREE.Material>();
+        fx.traverse(obj => { if (obj instanceof THREE.Mesh) {
+          geometries.add(obj.geometry);
+          for (const mat of Array.isArray(obj.material) ? obj.material : [obj.material]) materials.add(mat);
+        } });
+        geometries.forEach(geo => geo.dispose());
+        materials.forEach(mat => mat.dispose());
+        this.poisonBubbles.delete(id);
+      }
+      return;
+    }
+    if (!fx) {
+      fx = new THREE.Group();
+      const aura = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 10),
+        new THREE.MeshBasicMaterial({ color: 0x49ff68, transparent: true, opacity: 0.16, depthWrite: false }));
+      aura.position.y = 0.98;
+      fx.add(aura);
+      const geo = new THREE.SphereGeometry(0.105, 8, 6);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x80ff61, transparent: true, opacity: 0.78, depthWrite: false });
+      for (let i = 0; i < 9; i++) {
+        const bubble = new THREE.Mesh(geo, mat);
+        bubble.userData.poisonBubble = i;
+        fx.add(bubble);
+      }
+      this.scene.add(fx);
+      this.poisonBubbles.set(id, fx);
+    }
+    fx.position.set(...pos);
+    let index = 0;
+    for (const child of fx.children) {
+      if (index++ === 0) {
+        child.scale.setScalar(1 + Math.sin(now * 0.006) * 0.09);
+        continue;
+      }
+      const i = index - 2;
+      const t = (now * 0.00055 + i * 0.173) % 1;
+      const angle = i * 2.39996 + now * 0.0008;
+      child.position.set(Math.cos(angle) * (0.35 + i % 3 * 0.14), 0.18 + t * 1.7,
+        Math.sin(angle) * (0.35 + i % 3 * 0.14));
+      child.scale.setScalar(0.6 + 0.6 * (1 - t));
+    }
+  }
+
   private updateCombatantMeshes(dt: number, now: number) {
     // Round 20j: Thermal vision — when ADS with a thermal scope, make enemy
     // combatants emit a bright amber glow so they're visible through walls
@@ -6329,11 +6388,17 @@ export class FPSEngine {
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
     const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
     for (const c of this.combatants.values()) {
+      const poisoned = c.alive && (this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
+        || c.alive && (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now;
+      this.updatePoisonVisual(c.id, c.pos, poisoned, now);
       if (!c.group) continue;
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
-        if (isThermalAds && isEnemy && !c.isSelf) {
+        if (poisoned) {
+          c.skinMaterial.emissive.setHex(0x30ff56);
+          c.skinMaterial.emissiveIntensity = 1.05;
+        } else if (isThermalAds && isEnemy && !c.isSelf) {
           // Bright amber emissive — "thermal signature"
           c.skinMaterial.emissive.setHex(0xff6600);
           c.skinMaterial.emissiveIntensity = 1.2;
@@ -7490,6 +7555,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], false, 0);
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
