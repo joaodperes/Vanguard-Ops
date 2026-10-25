@@ -1099,7 +1099,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: launch a low-impact 13m spore cloud that contaminates groups with lingering toxin. Wide coverage rather than instant damage; two charges.",
+    "description": "Wonder Weapon: detonate a wide 13m spore payload that contaminates groups with lingering toxin. Broad coverage rather than instant damage; two charges.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 2,
