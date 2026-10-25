@@ -165,7 +165,7 @@ interface Room {
   wonderCharges: Map<string, WonderChargeState>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
-  gravityWells: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
+  gravityWells: Map<string, { ownerId: string; ownerTeam: string; weaponId: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
@@ -1036,7 +1036,7 @@ function tickGravityWells(room: Room, now: number) {
         const distance = Math.hypot(dx, dy, dz);
         const damage = gravityBlastDamage(distance, well.radius, well.damage);
         if (!damage || !hasLineOfSight(room, well.pos, [target.pos[0], target.pos[1] + PLAYER_HEIGHT / 2, target.pos[2]])) continue;
-        applyDamage(room, well.ownerId, target, damage, false, "wonder_singularity");
+        applyDamage(room, well.ownerId, target, damage, false, well.weaponId);
         if (room.ended) return;
       }
       continue;
@@ -2448,7 +2448,7 @@ async function handle(socket: any, msg: C2S) {
           const radius = weapon.wonder.radius;
           const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS;
           room.gravityWells.set(id, {
-            ownerId: socket.id, ownerTeam: p.team, pos: impact,
+            ownerId: socket.id, ownerTeam: p.team, weaponId: weapon.id, pos: impact,
             radius, damage: eff.damage, activatesAt, expiresAt,
           });
           io.to(room.id).emit("message", {
