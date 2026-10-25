@@ -19,6 +19,10 @@ export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "
 export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
   w?: number; d?: number; h?: number; text?: string; color?: string;
+  /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
+  use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner";
+  shape?: "rect" | "narrow" | "round";
+  stairSide?: "east" | "west";
 }
 export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
 export type SurfacePattern = typeof SURFACE_PATTERNS[number];
@@ -72,34 +76,66 @@ function hashed(seed:string):number {
 export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraSpawns:Vec3[]=[]):MapProp[] {
   const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...extraSpawns];
   const result=[...theme.props].filter(p=>insideRegions(p.x,p.z,plan.regions,2));
-  // Shared city layout generator for both daytime and nighttime Afterlight:
-  // wide streets, building blocks, real enterable facades and open central park.
-  // No procedural random wall/corridor pieces.
+  // Both Afterlight editions compile the EXACT same authored geometry. Vary the
+  // lot dimensions, floor heights, entrances and functions; keep roads walkable.
   if(theme.biome==="city"||theme.biome==="city_day"){
     result.push({kind:"garden",x:0,z:0,w:80,d:80});
     result.push({kind:"bandstand",x:0,z:0,w:16,d:16,h:5});
-    // Garden foliage stays off both stair approaches of the pavilion.
     for(let x=-30;x<=30;x+=12)for(let z=-30;z<=30;z+=12){
       if(Math.hypot(x,z)<14||Math.abs(x)<5&&Math.abs(z)<26)continue;
       result.push({kind:(x+z)%24===0?"bench":"tree",x,z,h:6.8});
     }
-    const labels=["CAFÉ","BAKERY","ARCADE","METRO","HOTEL","MARKET","DINER","LIBRARY"];
-    // 40m blocks with 14m streets: substantially denser than old 58m
-    // spacing. Both map editions use identical coordinate seeds and bounds.
-    for(let x=-180;x<=180;x+=40)for(let z=-180;z<=180;z+=40){
-      if(Math.hypot(x,z)<62)continue;
-      if(!insideRegions(x,z,plan.regions,17))continue;
-      const kind:PropKind=(Math.abs(x+z)%5===0)?"building":"shop";
-      const h=kind==="building"?6.4:7.8;
-      const prop:MapProp={kind,x,z,w:26,d:26,h,text:labels[Math.floor(hashed(x+":"+z)*labels.length)]};
-      if(kind==="building"){
-        const boxes=cityBuildingBoxes(prop);
-        if(boxes.some(b=>spawns.some(s=>Math.abs(s[0]-b.pos[0])<b.size[0]+2&&
-          Math.abs(s[2]-b.pos[2])<b.size[2]+2)))continue;
+    const purposes=["house","cafe","supermarket","apartments","bakery","office","hotel","library","diner"] as const;
+    const signs:Record<(typeof purposes)[number],string>={
+      house:"RESIDENCE",cafe:"CAFÉ",supermarket:"SUPERMARKET",
+      apartments:"APARTMENTS",bakery:"BAKERY",office:"OFFICES",
+      hotel:"HOTEL",library:"LIBRARY",diner:"DINER",
+    };
+    const buildings:MapProp[]=[];
+    const addBuilding=(prop:MapProp)=>{
+      const w=prop.w??20,d=prop.d??20;
+      // Avoid the actual park square (not just a radial exclusion), allow
+      // close-in infill without swallowing the public walking paths.
+      if(Math.abs(prop.x)<40+w/2+5 && Math.abs(prop.z)<40+d/2+5)return;
+      if(!insideRegions(prop.x,prop.z,plan.regions,Math.max(w,d)/2+3.5))return;
+      if(buildings.some(q=>Math.abs(prop.x-q.x)<(w+(q.w??20))/2+4 &&
+        Math.abs(prop.z-q.z)<(d+(q.d??20))/2+4))return;
+      const boxes=cityBuildingBoxes(prop);
+      if(boxes.some(c=>spawns.some(s=>s[1]<c.pos[1]+c.size[1]+.3 &&
+        s[1]+1.8>c.pos[1]-c.size[1] &&
+        Math.abs(s[0]-c.pos[0])<c.size[0]+2.6 &&
+        Math.abs(s[2]-c.pos[2])<c.size[2]+2.6)))return;
+      buildings.push(prop);result.push(prop);
+    };
+    // 32m urban blocks, with narrow homes among bigger civic / retail
+    // buildings. The old 40m grid left 25m+ dead zones around the park.
+    for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
+      const n=Math.floor(hashed("use:"+x+":"+z)*purposes.length);
+      const use=purposes[n];
+      const variant=hashed("shape:"+x+":"+z);
+      const shape:MapProp["shape"]=variant<.16?"round":variant<.43?"narrow":"rect";
+      const w=shape==="round"?20:shape==="narrow"?13:use==="supermarket"?26:use==="hotel"?23:18+Math.floor(hashed("width:"+x+":"+z)*4)*2;
+      const d=shape==="round"?20:shape==="narrow"?23:use==="supermarket"?25:18+Math.floor(hashed("depth:"+x+":"+z)*4)*2;
+      const baseHeight=use==="hotel"?10.4:use==="apartments"?9.1:use==="office"?8.2:
+        use==="house"?4.8:use==="supermarket"?6.1:use==="cafe"?5.4:6.5;
+      const h=shape==="round"?Math.min(6.6,baseHeight):baseHeight;
+      const jitterX=(hashed("offsetX:"+x+":"+z)-.5)*1.2;
+      const jitterZ=(hashed("offsetZ:"+x+":"+z)-.5)*1.2;
+      addBuilding({kind:"building",x:x+jitterX,z:z+jitterZ,w,d,h,use,shape,
+        stairSide:hashed("stairs:"+x+":"+z)<.5?"east":"west",text:signs[use]});
+    }
+    // Small residences close the remaining four park-to-district gaps. Keep
+    // these lots subordinate to the main block grid and out of walking routes.
+    for(const side of [-1,1])for(const offset of [-27,0,27]){
+      for(const [x,z] of [[side*55,offset],[offset,side*55]]){
+        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
       }
-      result.push(prop);
-      // Street lamps set OUTSIDE the structure, not above the stair entrance.
-      if(hashed("light"+x+":"+z)>.35)result.push({kind:"lamp",x:x+17,z:z+17});
+    }
+    for(const p of buildings){
+      // Lamps belong in the remaining pavements, never inside rooms.
+      if(hashed("light:"+Math.round(p.x)+":"+Math.round(p.z))>.7)
+        result.push({kind:"lamp",x:p.x+Math.min((p.w??20)/2+4,17),z:p.z+Math.min((p.d??20)/2+4,17)});
     }
   } else {
     const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?36:theme.biome==="jungle"?32:18));
@@ -144,59 +180,115 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
  * solid canopy. Shop fronts/ruins are solid exteriors, not fictitious entrances.
  */
 
+/** A fixture is specified once and used for both the visible interior and hitbox. */
+export interface CityFixture { x:number; z:number; w:number; d:number; h:number; style:"wood"|"seat"|"metal"|"display"|"shelf" }
+export function cityInteriorFixtures(p:MapProp):CityFixture[]{
+  const w=p.w??20,d=p.d??20;
+  const x=-w*.24;
+  const rear=-d*.24;
+  switch(p.use){
+    case "house": return [
+      {x,z:0,w:3.8,d:1.35,h:.9,style:"seat"},
+      {x,z:3,w:2,d:1.3,h:.65,style:"wood"},
+      {x:-w*.3,z:rear,w:3.7,d:1.1,h:1.15,style:"wood"}];
+    case "cafe": return [
+      {x:-w*.24,z:rear,w:4.6,d:1.4,h:1.15,style:"wood"},
+      {x:-w*.29,z:2,w:1.75,d:1.75,h:.78,style:"seat"},
+      {x:0,z:-d*.02,w:1.75,d:1.75,h:.78,style:"seat"}];
+    case "supermarket": return [
+      {x:-w*.29,z:-d*.2,w:1.25,d:5.6,h:1.85,style:"shelf"},
+      {x:0,z:-d*.22,w:1.3,d:5.3,h:1.85,style:"shelf"},
+      {x:-w*.29,z:d*.27,w:3.6,d:1.1,h:1.05,style:"metal"}];
+    case "bakery": return [
+      {x:-w*.25,z:d*.19,w:4.4,d:1.15,h:1.25,style:"display"},
+      {x:-w*.3,z:rear,w:3.7,d:1.5,h:1.05,style:"wood"}];
+    case "library": return [
+      {x:-w*.3,z:-d*.19,w:1.05,d:5.5,h:2.1,style:"shelf"},
+      {x:0,z:-d*.24,w:1.05,d:4.1,h:2.1,style:"shelf"},
+      {x:-w*.26,z:d*.19,w:3.4,d:1.2,h:.9,style:"wood"}];
+    case "hotel": return [
+      {x:-w*.22,z:d*.19,w:4.2,d:1.2,h:1.18,style:"display"},
+      {x:-w*.31,z:rear,w:2.8,d:1.3,h:.9,style:"seat"}];
+    case "apartments": return [
+      {x:-w*.26,z:rear,w:3.8,d:1.1,h:1.08,style:"wood"},
+      {x:-w*.25,z:d*.17,w:3.2,d:1.4,h:.86,style:"seat"}];
+    case "office": return [
+      {x:-w*.3,z:rear,w:3.2,d:1.45,h:.9,style:"metal"},
+      {x:-w*.26,z:d*.2,w:3.4,d:1.4,h:.9,style:"metal"},
+      {x:0,z:rear,w:1.35,d:1.35,h:1.6,style:"shelf"}];
+    case "diner": return [
+      {x:-w*.31,z:-d*.2,w:3,d:1.4,h:1.1,style:"display"},
+      {x:-w*.3,z:d*.15,w:3.6,d:1.2,h:.8,style:"seat"}];
+    default: return [];
+  }
+}
 /**
- * Identical physics and art plan for every enterable city block.
- * Outer stairs are mounted against the west flank; interior stairs rise from
- * the south doorway to an actual aperture in the upper floor.
- * Never silently drop collision while still displaying a building.
+ * Shared physics and visual envelope. Rectangular and narrow buildings have
+ * functional interior roof hatches; round buildings use a stepped octagonal
+ * shell and a roof accessed from a separate exterior stair.
  */
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
-  const w=p.w??26,d=p.d??26,h=p.h??6.4;
-  const wall=.45,door=6,front=(w-door)/2;
-  const a:CoverBox[]=[
-    {kind:"cover",pos:[p.x,h/2,p.z-d/2],size:[w/2,h/2,wall]},
-    {kind:"cover",pos:[p.x-w/2,h/2,p.z],size:[wall,h/2,d/2]},
-    {kind:"cover",pos:[p.x+w/2,h/2,p.z],size:[wall,h/2,d/2]},
-    {kind:"cover",pos:[p.x-(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
-    {kind:"cover",pos:[p.x+(w+door)/4,h/2,p.z+d/2],size:[front/2,h/2,wall]},
-    {kind:"cover",pos:[p.x,h-1.2,p.z+d/2],size:[door/2,Math.max(.4,(h-2.4)/2),wall]},
-  ];
-  const addRoof=(x:number,z:number,width:number,depth:number)=>{
-    if(width>.2&&depth>.2)a.push({kind:"platform",pos:[p.x+x,h+.16,p.z+z],size:[width/2,.16,depth/2]});
+  const w=p.w??20,d=p.d??20,h=p.h??6.4;
+  const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
+  const a:CoverBox[]=[];
+  const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover")=>{
+    if(hx>.01&&hy>.01&&hz>.01)a.push({kind,pos:[p.x+x,y,p.z+z],size:[hx,hy,hz]});
   };
-  // The roof hatch (about 4.4 × 6) sits over the crest of the inside stair.
-  const hatchX=w/2-4,hatchZ=-2,hatchW=4.4,hatchD=6;
-  const left=-w/2,right=w/2,bottom=-d/2,top=d/2;
-  const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
-  const az=hatchZ-hatchD/2,bz=hatchZ+hatchD/2;
-  addRoof((left+ax)/2,0,ax-left,d);
-  addRoof((bx+right)/2,0,right-bx,d);
-  addRoof((ax+bx)/2,(bottom+az)/2,bx-ax,az-bottom);
-  addRoof((ax+bx)/2,(bz+top)/2,bx-ax,top-bz);
-
-  const count=Math.ceil(h/.4),step=h/count,tread=.78;
-  // Interior flight: start by the doorway on the east, climb northwards.
-  const insideX=p.x+hatchX;
-  const endZ=p.z+hatchZ;
-  for(let i=0;i<count;i++){
-    const height=(i+1)*step;
-    const z=endZ+(count-i-.5)*tread;
-    a.push({kind:"stair",pos:[insideX,height/2,z],size:[1.45,height/2+.001,tread/2+.015]});
+  if(p.shape==="round"){
+    // Twelve connected orthogonal faces approximate an octagon without
+    // introducing rotated hitboxes (server/player physics uses AABBs).
+    const X=w/2,Z=d/2,shoulderX=X*.64,shoulderZ=Z*.64;
+    put(0,h/2,-Z,shoulderX,h/2,wall);
+    for(const side of [-1,1]){
+      put(side*shoulderX,h/2,-(Z+shoulderZ)/2,wall,h/2,(Z-shoulderZ)/2);
+      put(side*(X+shoulderX)/2,h/2,-shoulderZ,(X-shoulderX)/2,h/2,wall);
+      put(side*X,h/2,0,wall,h/2,shoulderZ);
+      put(side*(X+shoulderX)/2,h/2,shoulderZ,(X-shoulderX)/2,h/2,wall);
+      put(side*shoulderX,h/2,(Z+shoulderZ)/2,wall,h/2,(Z-shoulderZ)/2);
+      put(side*(shoulderX+door/2)/2,h/2,Z,(shoulderX-door/2)/2,h/2,wall);
+    }
+    put(0,(h+2.5)/2,Z,door,(h-2.5)/2,wall);
+    // Walkable roof follows the smaller stepped footprint.
+    put(0,h+.16,0,X*.65,.16,Z);
+    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63);
+    put(X*.825,h+.16,0,X*.175,.16,Z*.63);
+  }else{
+    put(0,h/2,-d/2,w/2,h/2,wall);
+    put(-w/2,h/2,0,wall,h/2,d/2);
+    put(w/2,h/2,0,wall,h/2,d/2);
+    put(-(w+door)/4,h/2,d/2,front/2,h/2,wall);
+    put((w+door)/4,h/2,d/2,front/2,h/2,wall);
+    put(0,(h+2.5)/2,d/2,door/2,(h-2.5)/2,wall);
+    // Four real slab sections frame the working internal hatch.
+    const hatchX=w/2-2.8,hatchZ=-d/2+3.4,hatchW=3.6,hatchD=5.2;
+    const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
+    const az=hatchZ-hatchD/2,bz=hatchZ+hatchD/2;
+    put((-w/2+ax)/2,h+.16,0,(ax+w/2)/2,.16,d/2,"platform");
+    put((bx+w/2)/2,h+.16,0,(w/2-bx)/2,.16,d/2,"platform");
+    put((ax+bx)/2,h+.16,(-d/2+az)/2,(bx-ax)/2,.16,(az+d/2)/2,"platform");
+    put((ax+bx)/2,h+.16,(bz+d/2)/2,(bx-ax)/2,.16,(d/2-bz)/2,"platform");
+    // Interior flight occupies its own east-side aisle, climbs toward
+    // the back and terminates INSIDE the roof aperture.
+    const count=Math.ceil(h/.39),tread=(d-5.2)/count;
+    const crest=-d/2+3.2;
+    for(let i=0;i<count;i++){
+      const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
+      put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
+    }
+    put(hatchX,h+.16,crest,1.45,.16,1.2,"platform");
   }
-  // Hatch landing joins the interior staircase to the surrounding roof deck.
-  a.push({kind:"platform",pos:[p.x+ax+1.3,h+.16,p.z+hatchZ],
-    size:[1.3,.16,1.55]});
-  // Small west roof landing connects the concealed outside stair to the roof
-  // without forcing the player to walk through the building's wall.
-  a.push({kind:"platform",pos:[p.x-w/2-1.35,h+.16,p.z-1.4],
-    size:[2.05,.16,1.75]});
-  // Concealed exterior staircase alongside the west wall, ascending towards
-  // the northern half of the facade, not directly in front of the doorway.
-  const outsideX=p.x-w/2-2.2;
-  const exitZ=p.z-1.4;
+  // Exterior fire escape direction varies by lot. The tread lengths adjust to
+  // each depth/height instead of creating staircases outside narrow houses.
+  const side=p.stairSide==="east"?1:-1;
+  const stairX=side*(w/2+1.65),count=Math.ceil(h/.39);
+  const tread=(d-5.2)/count,crest=-d/2+3.2;
   for(let i=0;i<count;i++){
-    const height=(i+1)*step,z=exitZ+(count-i-.5)*tread;
-    a.push({kind:"stair",pos:[outsideX,height/2,z],size:[1.5,height/2+.001,tread/2+.015]});
+    const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
+    put(stairX,height/2,z,1.25,height/2+.001,tread/2+.015,"stair");
+  }
+  put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
+  for(const fixture of cityInteriorFixtures(p)){
+    put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2);
   }
   return a;
 }
