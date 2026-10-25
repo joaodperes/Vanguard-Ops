@@ -16,6 +16,7 @@ import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando"
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -540,6 +541,9 @@ export class FPSEngine {
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
   private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number }>();
+  private wonderFields = new Map<string, { mesh: THREE.Mesh; offline: boolean; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>();
+  private offlineStormAnchor: { pos: Vec3; expiresAt: number } | null = null;
+  private localWonderSequence = 0;
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
   // set to the burst count; the update loop drains it one shot per intra-burst
@@ -3746,6 +3750,11 @@ export class FPSEngine {
           for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false, msg.serverNow);
           for (const [id, well] of this.gravityWells) if (!well.offline && !activeIds.has(id)) this.removeGravityWell(id);
         }
+        if (msg.wonderFields) {
+          const active=new Set(msg.wonderFields.map(f=>f.id));
+          for(const f of msg.wonderFields)this.addWonderField(f.id,f.ownerId,f.ownerTeam,f.weaponId,f.kind,f.pos,f.radius,f.expiresAt,false);
+          for(const [id,f] of this.wonderFields)if(!f.offline&&!active.has(id))this.removeWonderField(id);
+        }
         if (msg.turrets) {
           const activeIds = new Set(msg.turrets.map(t => t.id));
           for (const t of msg.turrets) {
@@ -4059,6 +4068,12 @@ export class FPSEngine {
       case "arcFx":
         this.spawnArcBeam(msg.from, msg.to);
         break;
+      case "wonderBeam":
+        this.spawnWonderBeam(msg.from, msg.to, msg.kind);
+        break;
+      case "wonderField":
+        this.addWonderField(msg.id,msg.ownerId,msg.ownerTeam,msg.weaponId,msg.kind,msg.pos,msg.radius,msg.expiresAt,false);
+        break;
       case "radarPing":
         // Server sends only pings audible to this client. Never infer from globally
         // broadcast shotFx (which would allow long-range or suppressed detection).
@@ -4091,7 +4106,7 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (msg.weaponId === "launcher_rocket" || (weaponById(msg.weaponId).wonder && weaponById(msg.weaponId).wonder?.kind !== "turret")) {
+          if (msg.weaponId === "launcher_rocket" || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else {
@@ -4493,6 +4508,20 @@ export class FPSEngine {
       const special = weaponById(id).special;
       if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
     }
+    const time=Date.now();
+    for(const [id,field] of this.wonderFields){
+      if(time>=field.expiresAt){this.removeWonderField(id);continue;}
+      const mat=field.mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity=(field.kind==="flame"?.30:.24)+(Math.sin(now*.008+field.radius)*.04);
+      if(!field.offline||this.opts.online||this.matchEnded||time<field.tickAt)continue;
+      field.tickAt=time+500;
+      for(const c of this.combatants.values()){
+        if(!c.alive||c.id===field.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===field.ownerTeam))continue;
+        if(Math.hypot(c.pos[0]-field.pos[0],c.pos[2]-field.pos[2])>field.radius)continue;
+        if(this.hasLineOfSight([field.pos[0],field.pos[1]+.35,field.pos[2]],[c.pos[0],c.pos[1]+.9,c.pos[2]]))
+          this.applyDamageLocal(c,field.kind==="flame"?7:5,false,field.weaponId);
+      }
+    }
     // Poison ticks only in offline simulation; online the server owns the status.
     if (!this.opts.online && !this.matchEnded) {
       for (const [id, poison] of this.poisonByVictim) {
@@ -4609,6 +4638,30 @@ export class FPSEngine {
     return [x, 0.4, z];
   }
 
+  /** Smart bullets arc around the muzzle; electricity renders as flickering bolts. */
+  private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"){
+    const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
+    const span=end.clone().sub(start), mid=start.clone().add(end).multiplyScalar(.5);
+    if(kind==="smart")mid.y+=Math.min(2.5,span.length()*.055);
+    else mid.add(new THREE.Vector3(.28,.2,-.3));
+    const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(kind==="smart"?24:8);
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:kind==="smart"?0xff527f:0x52dfff,transparent:true,opacity:.94}));
+    this.scene.add(line);
+    this.tracers.push({line,born:performance.now(),life:kind==="smart"?260:190});
+  }
+  private removeWonderField(id:string){
+    const field=this.wonderFields.get(id);if(!field)return;
+    this.scene.remove(field.mesh);field.mesh.geometry.dispose();
+    const mat=field.mesh.material;if(Array.isArray(mat))mat.forEach(m=>m.dispose());else mat.dispose();
+    this.wonderFields.delete(id);
+  }
+  private addWonderField(id:string,ownerId:string,ownerTeam:string,weaponId:string,kind:"flame"|"sludge",pos:Vec3,radius:number,expiresAt:number,offline:boolean){
+    if(this.wonderFields.has(id))return;
+    const mesh=new THREE.Mesh(new THREE.CircleGeometry(radius,40),new THREE.MeshBasicMaterial({color:kind==="flame"?0xff752c:0x78c932,transparent:true,opacity:kind==="flame"?.34:.28,depthWrite:false,side:THREE.DoubleSide}));
+    mesh.rotation.x=-Math.PI/2;mesh.position.set(pos[0],pos[1]+.05,pos[2]);
+    this.scene.add(mesh);
+    this.wonderFields.set(id,{mesh,offline,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt,tickAt:Date.now()+500});
+  }
   private spawnArcBeam(from: Vec3, to: Vec3) {
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...from), new THREE.Vector3(...to)]),
@@ -6299,7 +6352,7 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
-    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul;
+    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
       const stepInterval = this.sprinting ? 260 : 360;
