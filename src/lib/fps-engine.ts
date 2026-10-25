@@ -628,7 +628,7 @@ export class FPSEngine {
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number }[] = [];
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
-  private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
+  private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; weaponId: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
   // scoring
@@ -5514,7 +5514,7 @@ export class FPSEngine {
    * spawned when our locally simulated projectile reaches its impact.
    */
   private addGravityWell(id: string, ownerId: string, ownerTeam: string, pos: Vec3,
-    radius: number, activatesAt: number, expiresAt: number, offline: boolean, serverNow?: number) {
+    radius: number, activatesAt: number, expiresAt: number, offline: boolean, serverNow?: number, weaponId = "wonder_singularity") {
     if (!offline && Number.isFinite(serverNow)) {
       const receivedAt=Date.now();
       activatesAt=gravityClientTime(activatesAt,serverNow!,receivedAt);
@@ -5540,7 +5540,7 @@ export class FPSEngine {
     light.position.set(...pos);
     light.visible = false;
     this.scene.add(mesh, light);
-    this.gravityWells.set(id, { pos, ownerId, ownerTeam, radius, activatesAt, expiresAt, offline, mesh, light });
+    this.gravityWells.set(id, { pos, ownerId, ownerTeam, weaponId, radius, activatesAt, expiresAt, offline, mesh, light });
   }
 
   private removeGravityWell(id: string) {
@@ -5567,10 +5567,10 @@ export class FPSEngine {
                 (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
             const distance = Math.hypot(enemy.pos[0] - well.pos[0],
               enemy.pos[1] + PLAYER_HEIGHT / 2 - well.pos[1], enemy.pos[2] - well.pos[2]);
-            const damage = gravityBlastDamage(distance, well.radius, weaponById("wonder_singularity").stats.damage);
+            const damage = gravityBlastDamage(distance, well.radius, weaponById(well.weaponId).stats.damage);
             if (damage && this.hasLineOfSight(well.pos,
               [enemy.pos[0], enemy.pos[1] + PLAYER_HEIGHT / 2, enemy.pos[2]])) {
-              this.applyDamageLocal(enemy, damage, false, "wonder_singularity");
+              this.applyDamageLocal(enemy, damage, false, well.weaponId);
             }
           }
           this.hitMarkerAt = performance.now();
@@ -5939,7 +5939,7 @@ export class FPSEngine {
             const at = Date.now();
             this.addGravityWell(`offline_gravity_${at}_${Math.random()}`, this.selfId, this.opts.team,
               [p.end.x, p.end.y, p.end.z], p.splashRadius,
-              at, at + GRAVITY_WELL_DURATION_MS, true);
+              at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
           }
         } else {
           this.spawnExplosion(p.end, explosionKind === "turret" ? undefined : explosionKind);
@@ -6007,7 +6007,7 @@ export class FPSEngine {
       }
       const t = age / p.travelMs;
       p.mesh.position.lerpVectors(p.start, p.end, t);
-      if (p.weaponId === "wonder_singularity") p.mesh.rotation.z += dt * 5;
+      if (weaponById(p.weaponId).wonder?.kind === "singularity") p.mesh.rotation.z += dt * 5;
       return true;
     });
 
