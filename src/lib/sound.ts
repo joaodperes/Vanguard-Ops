@@ -137,6 +137,13 @@ const SHOT_PROFILES: Record<WeaponShotCategory, ShotProfile> = {
   launcher: { baseFreq: 50,  dur: 0.60, vol: 1.60, tail: 3.0, oscType: "sine",     noiseMix: 1.00, filterType: "lowpass",  filterFreq: 1200, subBass: { freq: 35,  dur: 0.60, vol: 1.2  } },
 };
 
+/** Expected loudness of a remote footstep at world-space distance. */
+export function footstepVolumeAtDistance(distance: number, sprinting = false): number {
+  if (!Number.isFinite(distance) || distance >= 38) return 0;
+  const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
+  return (sprinting ? 0.72 : 0.5) * attenuation;
+}
+
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -322,10 +329,9 @@ export class SoundManager {
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
   playFootstepAtDistance(distance: number, sprinting = false): void {
-    if (!Number.isFinite(distance) || distance >= 38) return;
-    const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
-    if (attenuation < 0.008) return;
-    this.play("footstep", { volume: (sprinting ? 0.72 : 0.5) * attenuation });
+    const volume = footstepVolumeAtDistance(distance, sprinting);
+    if (volume < 0.004) return;
+    this.play("footstep", { volume });
   }
 
   // ---- Distant / enemy fire ----
