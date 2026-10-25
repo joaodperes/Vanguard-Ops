@@ -1,43 +1,33 @@
-# Wonder Weapon expansion — design proposals and first playable batch
+# Wonder Weapon breakthrough pass
 
-**Branch:** `feature/wonder-weapon-expansion` (branched from `dev`).  
-**Intent:** Add meaningful Prestige Arsenal choices without breaking its one-token-per-Wonder economy. Preserve existing IDs, token ownership, map collision and client/server damage parity.
+**Feature branch:** `feature/wonder-weapon-expansion`, based on `dev`. The three previously proposed derivative gravity/corrosion variants have been removed **on this unmerged feature branch** and replaced with four uniquely coded mechanic families.
 
-## Implemented: three new choices
+## New playable prototypes
 
-These are **new weapon IDs using existing, already implemented Wonder mechanics**, not claims of brand-new projectile status effects. Every weapon costs one permanent Prestige token, uses the primary slot, has no attachments/reserve ammunition or manual reload, and is excluded from Gun Game's ordinary weapon ladder.
-
-| Weapon (catalog ID) | Fantasy and combat role | Effect kind | Base damage | Radius | Charges | Recharge | Bonus per ordinary kill |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| **Rift Needle** (`wonder_rift_needle`) | Needle-sized gravity pin: gather a small pack and annihilate targets close to the center | `singularity` | 305 | 6m | 1 | 37s | -1.5s |
-| **Miasma Bloom** (`wonder_miasma_bloom`) | Wide, low-damage spore cloud: tag dispersed groups and let the existing corrosion damage-over-time do the work | `corrosion` | 45 | 13m | 2 | 46s / charge | -2.0s |
-| **Caustic Javelin** (`wonder_caustic_javelin`) | Precision corrosive spear: hard initial impact, small splash, quick reset | `corrosion` | 118 | 4m | 1 | 30s | -1.2s |
-
-These are deliberate **trade-offs**, not straight upgrades: Rift Needle is tighter than Event Horizon; Miasma Bloom covers a larger area than Plagueheart but has much lower initial damage; Caustic Javelin deals a sharper close hit but demands precision. Singularity uses the existing pull/delayed-detonation behavior; corrosion uses the existing 6.5-second poison application to surviving splash targets. The same splash falloff, cover rules and ordinary-kill recharge acceleration are already used for these mechanic families.
-
-**Integration changes:** Gravity wells retain the weapon ID that created them so offline and online eliminations and per-weapon stats are credited correctly; client projectile spin follows the gravity kind rather than a single hard-coded ID. Each variant has its own procedural first-person/world model silhouette. Armory purchases and loadout selection are data-driven and already recognize `wonder` entries.
-
-## Backlog: truly new mechanic ideas (not implemented)
-
-| Concept | Player fantasy | Proposed primary mechanic | Balance / engineering questions |
+| Weapon | Wonder kind | Actual new behavior | Charge economy |
 | --- | --- | --- | --- |
-| **Chrono Anchor** | A time-folding grenade | Short-lived field slowing hostile movement and incoming projectiles, but not friendly fire | Server-authoritative movement/projectile effects, latency compensation and immunity on spawn |
-| **Prism Choir** | Crystal weapon that sings in ricochets | Beam forks into three reflected paths after striking cover, with diminishing damage | Deterministic bounce geometry, no shots through walls, visual projectile parity and cap on bounces |
-| **Thunder Vane** | Portable lightning conductor | Marks one target and arcs through two additional enemies in line of sight | Reuse `nextArcTarget` pattern while implementing a new Wonder-kind charge and damage protocol |
-| **Phase Loom** | Temporary hard-light geometry | Deploy cover shield that blocks bullets from both teams and expires after a short duration | Dynamic collision/line-of-sight updates, griefing, visibility and server ownership |
-| **Echo Reaper** | Sound-warped marksman rifle | Echo of the previous shot strikes the same area after a telegraphed delay | Pending attack lifetime on death/disconnect, duplicate-hit prevention and attribution |
-| **Gravimetric Relay** | Team crowd-control trap | Two linked nodes pull hostiles toward their shared midpoint until one is destroyed | Independent node placement, target prediction, shared cooldown and map exploit prevention |
+| **Deadlock** (`wonder_deadlock`) | `smart` | Aim down sights for at least 250ms to acquire an exposed enemy within a narrow 15° forward cone. A guided shot is redirected to that target; cover denies the lock. Hipfire falls back to normal ballistic firing. | 2 charges, 29s each |
+| **Hellfire** (`wonder_hellfire`) | `flame` | Close-range widening flame cone that damages enemies directly and lays three short-lived burning patches along the firing lane. | 2 fuel bursts, 28s each |
+| **Stormweaver** (`wonder_stormweaver`) | `storm` | Electrical discharge hits, then chains across up to four nearby visible enemies. Every shot plants a 10-second conductive anchor. A follow-up shot within 24m of the anchor energizes the route between them and shocks anyone intersecting it. | 2 shots, 31s each |
+| **Bogfather** (`wonder_bogfather`) | `sludge` | Launches a sticky shell that creates an 8.5-second, 5m-radius sludge pool. Hostiles inside take damage every half-second and move at 46% normal speed. | 2 shots, 35s each |
 
-Do not add these concepts to `weapons.json` until the indicated effects are implemented **in both** `fps-engine.ts` and `game-server.ts`, registered in the Wonder type/schema, validated for cooldowns and ownership, and tested in an actual match. Merely adding a new `wonder.kind` string would produce a nonfunctional item.
+These are not skins or clones of `singularity`/`corrosion`. Each type has new server-owned hit/status rules, offline combat equivalents, network FX, and a procedural weapon silhouette. All use one Prestige token, equip in the Primary slot, are attachment-free and cannot manually reload; the existing Wonder charge rules still apply. Gun Game excludes them.
 
-## Verification and playtest gate
+### Caveats and follow-up engineering
 
-1. Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck` and `bun run build` in a real checkout with dependencies. Confirm exact assertions for 42 total weapons and six Wonders.
-2. Earn one token by completing weapon mastery; verify a fresh player cannot equip a locked new Wonder, a purchase spends exactly one token, and the purchased weapon remains owned through restart/export/import.
-3. Test the three new weapons **offline and in an online room**, paying attention to matching splash radii/damage, friendly-fire rules, cover, poison, recharge after death/holster, and ordinary-kill bonus only.
-4. For Rift Needle, confirm a delayed gravity detonation attributes kills to `wonder_rift_needle` (not Event Horizon) in both server and offline stats; verify spectators and joining clients see the vortex.
-5. For Miasma Bloom, verify enemies at the far edge receive the lower splash and poison effect and that the wider radius does not cause unusual accidental kills through cover.
-6. For Caustic Javelin, verify its 4m radius feels sufficiently precise, quick recharge isn't dominant in PvP, and it still loses charges when missing.
-7. Check equipped silhouettes, skin colors, HUD charge timers, Armory token purchase cards, Survival wave balance, Gun Game exclusion and low-end mobile performance.
+Hellfire currently fires discrete recharge-limited **fuel bursts**, not an unrestricted hold-trigger stream; implementing continuously fueled flame would require a new server channeling protocol and separate heat/fuel economy. Deadlock uses a server-validated aim cone and continuous ADS timing rather than a persistent target-mark UI, so it can lock one valid target per trigger pull. Bogfather's online movement clamp limits clients crossing an active field; additional latency testing is required on high-ping networks. The network visual fields use simple translucent discs that can be improved with particles later.
 
-**Validation status:** Changes were authored with GitHub repository tools. The native Bun/Next test suite, typecheck, build and real gameplay checks have **not** been executed in this environment; review and test before merging into `dev`.
+## Bigger ideas — still not implemented
+
+1. **Riftmaker** — linked projectile-only portals; needs safe position/orientation transforms and trusted multi-hop hits.
+2. **Secondhand** — target rewind; needs authoritative per-player position history and collision-safe playback.
+3. **Payback** — kinetic collector; needs directional damage absorption and capped stored-energy accounting.
+4. **Polarity** — coupled magnetic darts; needs validated target pairs and anti-clipping physics.
+5. **Afterimage** — holographic shot-replay ghost; needs server-validated recording/playback of historical shots.
+6. **Resonance** — reflecting sonic waves; needs deterministic wall reflection and bounce budgeting.
+
+## Verification
+
+Mandatory CI: `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build`. Test offline and online separately, including teams, cover, death/respawn, overlapping fields, late-join snapshots, movement validation and charge persistence. Automated unit tests cover targeting, flame geometry, conductive segments, sludge movement/team rules and primary-slot catalog requirements. **Human gameplay testing is not replaced by green CI**.
+
+See also [Prestige and Wonder Weapons](prestige-wonder-weapons.md).
