@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
+import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
@@ -63,7 +64,18 @@ function sanitizeAttachments(
 // (like attachments) — weaponSkin applies to the primary, secondaryWeaponSkin to
 // the secondary, meleeWeaponSkin to the melee slot.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  // Equipping a saved preset flows through this same validation/ownership path
+  // as manual Armory changes. Preset content is always loaded from the DB.
+  const rawBody = await req.json().catch(() => ({}));
+  let body = rawBody;
+  if (typeof rawBody.presetId === "string") {
+    const { playerKey: ownerKey } = await resolvePlayerKey(req, rawBody.playerKey);
+    if (!ownerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
+    const owner = await getOrCreatePlayer(ownerKey);
+    const preset = parseSavedLoadouts(owner.loadout?.savedLoadouts).find(p => p.id === rawBody.presetId);
+    if (!preset) return NextResponse.json({ error: "Saved loadout not found" }, { status: 404 });
+    body = { ...preset, playerKey: rawBody.playerKey };
+  }
   const {
     playerKey: bodyKey,
     primaryWeapon,
