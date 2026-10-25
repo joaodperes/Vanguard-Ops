@@ -125,10 +125,10 @@ export default function Page() {
 
   // Show the auth screen until the user signs in or chooses guest.
   if (authState !== "authenticated" && authState !== "guest") {
-    return <Auth />;
+    return <><MenuMusic active /><Auth /></>;
   }
   if (screen === "auth") {
-    return <Auth />;
+    return <><MenuMusic active /><Auth /></>;
   }
 
   // Build loadout wire from profile
@@ -170,8 +170,9 @@ export default function Page() {
     : null;
 
   return (
-    <div className="dark min-h-screen bg-[#0a0a0a] text-white">
+    <>
       <MenuMusic active={screen !== "playing"} />
+      <div className="dark min-h-screen bg-[#0a0a0a] text-white">
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
@@ -204,6 +205,7 @@ export default function Page() {
         </div>
       )}
       <span className="hidden">{matchResult ? "" : ""}</span>
-    </div>
+      </div>
+    </>
   );
 }
