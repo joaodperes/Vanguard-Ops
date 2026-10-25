@@ -318,6 +318,7 @@ interface Combatant {
   team: string;
   isBot: boolean;
   isSelf: boolean;
+  perkId?: string;
   pos: Vec3;
   yaw: number;
   pitch: number;
@@ -733,6 +734,7 @@ export class FPSEngine {
   private currentSpread = 0;     // 0..1 dynamic spread factor (drives HUD crosshair)
   private shotBloom = 0; // additional inaccuracy from repeated fire; decays on pause
   private lastFootstepAt = 0;    // throttle footstep SFX
+  private remoteFootsteps = new Map<string, { pos: Vec3; at: number }>();
 
   // ---- Sound ----
   private sound: SoundManager;
@@ -1539,7 +1541,7 @@ export class FPSEngine {
         this.vel.z += o.launch[2];
         this.pos.y += 0.12;
         this.onGround = false;
-        this.sound.play("footstep", { volume: 0.7 });
+        if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.7 });
       }
       if (this.opts.online || (this.selfSpawnProtectedUntil > Date.now())) continue;
       if (o.type !== "fire" && o.type !== "spikes") continue;
@@ -4365,6 +4367,7 @@ export class FPSEngine {
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
+    c.perkId = p.perkId;
     return c;
   }
 
@@ -5826,6 +5829,8 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    // The music scheduler runs only after audio was unlocked by a user gesture.
+    this.sound.tickAmbientMusic(!this.lobbyActive && !this.matchEnded && this.alive);
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
@@ -6211,6 +6216,7 @@ export class FPSEngine {
         if (c.isBot && c.alive && c.ai) this.updateBotAI(c, dt, now);
       }
     }
+    this.updateRemoteFootsteps(now);
 
     if (!this.opts.online && this.opts.mode === "killconfirmed" && !this.matchEnded) {
       this.collectOfflineKillConfirmedTags();
@@ -6252,6 +6258,41 @@ export class FPSEngine {
   // culling, humanoid animation). Extracted from the main update loop so the
   // dead-player branch can call it independently (to keep rendering other
   // players' death animations while the local player is dead).
+  /** Generate opponent footfalls from observed world-space movement.
+   * Works for offline bots and online snapshots. Perks are server-synchronized,
+   * so Silent Steps players make no footfall sound to OTHER listeners either.
+   */
+  private updateRemoteFootsteps(now: number) {
+    if (!this.alive || this.matchEnded) return;
+    for (const c of this.combatants.values()) {
+      if (c.isSelf || c.id === this.selfId || !c.alive) {
+        this.remoteFootsteps.delete(c.id);
+        continue;
+      }
+      const prev = this.remoteFootsteps.get(c.id);
+      if (!prev || c.perkId === "silent_steps") {
+        this.remoteFootsteps.set(c.id, { pos: [...c.pos], at: now });
+        continue;
+      }
+      const distanceMoved = Math.hypot(c.pos[0] - prev.pos[0], c.pos[2] - prev.pos[2]);
+      const elapsed = now - prev.at;
+      if (distanceMoved < 0.9 && elapsed < 900) continue;
+      // Large jumps are respawns / lag correction, not audible steps.
+      if (distanceMoved > 10 || Math.abs(c.pos[1] - prev.pos[1]) > 0.55 || distanceMoved < 0.9) {
+        this.remoteFootsteps.set(c.id, { pos: [...c.pos], at: now });
+        continue;
+      }
+      const sprinting = distanceMoved / Math.max(0.1, elapsed / 1000) > 7.1;
+      if (elapsed < (sprinting ? 245 : 335)) continue;
+      this.remoteFootsteps.set(c.id, { pos: [...c.pos], at: now });
+      const listenerDistance = Math.hypot(c.pos[0] - this.pos.x, c.pos[1] - this.pos.y, c.pos[2] - this.pos.z);
+      this.sound.playFootstepAtDistance(listenerDistance, sprinting);
+    }
+    for (const id of this.remoteFootsteps.keys()) {
+      if (!this.combatants.has(id)) this.remoteFootsteps.delete(id);
+    }
+  }
+
   private updateCombatantMeshes(dt: number, now: number) {
     // Round 20j: Thermal vision — when ADS with a thermal scope, make enemy
     // combatants emit a bright amber glow so they're visible through walls
@@ -6477,7 +6518,7 @@ export class FPSEngine {
       const stepInterval = this.sprinting ? 260 : 360;
       if (performance.now() - this.lastFootstepAt > stepInterval) {
         this.lastFootstepAt = performance.now();
-        this.sound.play("footstep", { volume: this.sprinting ? 0.35 : 0.22 });
+        if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: this.sprinting ? 0.43 : 0.3 });
       }
     }
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
@@ -6510,7 +6551,7 @@ export class FPSEngine {
         this.vel.x += fwd.x * MOVEMENT.sprintJumpBoost;
         this.vel.z += fwd.z * MOVEMENT.sprintJumpBoost;
       }
-      this.sound.play("footstep", { volume: 0.4 });
+      if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
     this.vel.y -= MOVEMENT.gravity * dt;
@@ -7453,6 +7494,7 @@ export class FPSEngine {
     // Recoverable bolt meshes are owned by this engine instance.
     for (const id of [...this.boltPickups.keys()]) this.removeBoltPickup(id);
     // Dispose the sound system (closes the AudioContext).
+    this.remoteFootsteps.clear();
     this.clearFirstPersonRig();
     if (this.quickMeleeModel) {
       this.camera.remove(this.quickMeleeModel);
