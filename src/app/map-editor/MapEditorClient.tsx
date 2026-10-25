@@ -56,6 +56,7 @@ export default function MapEditor() {
   // export and rebuild; preview its chosen template rather than always compound.
   const compiledMap=getMap(mapId);
   const baseMap=compiledMap.id===mapId?compiledMap:getMap(map?.templateMapId);
+  const canEditBuiltIn=compiledMap.id===mapId;
   const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
   const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
     ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
@@ -730,6 +731,14 @@ export default function MapEditor() {
               className={btn+(editMode===m?" bg-amber-500 text-zinc-950":"")}
               onClick={()=>setEditMode(m)}>{m==="select"?"Camera / select":m==="move"?"Move object":m==="rotate"?"Rotate 90°":"Resize object"}</button>)}
           </div>}
+          {selected&&<div className="inline-flex items-center gap-1.5">
+            <button className={btn} title="Copy the selected object, including built-in map geometry" onClick={duplicate}>
+              <Copy size={14}/> Duplicate selected
+            </button>
+            <button className={btn+" text-rose-300"} title="Delete the selected object from the exported map" onClick={remove}>
+              <Trash2 size={14}/> Delete selected
+            </button>
+          </div>}
           <span className="text-xs text-zinc-500">3D: drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
         </div>
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
@@ -767,13 +776,13 @@ export default function MapEditor() {
             {/* Original template stairs: one selectable outline per complete
                 flight in 2D, rather than dozens of individual step rectangles. */}
             {(baseMap.editorLegacyStairFlights??[]).map(flight=>{
-              if(flight.indices.every(i=>(map.legacyCoverDisabled??[]).includes(i)))return null;
+              if(!canEditBuiltIn||flight.indices.every(i=>(map.legacyCoverDisabled??[]).includes(i)))return null;
               const bounds=legacyFlightBounds(flight.start);
               if(!bounds)return null;
               const active=selected?.type==="legacyStairs"&&selected.index===flight.start;
               return <g key={"flight-"+flight.start}
                 onPointerDown={e=>{
-                  if(tool!=="select")return;
+                  if(tool!=="select"||!canEditBuiltIn)return;
                   e.stopPropagation();
                   setSelected({type:"legacyStairs",index:flight.start});
                 }}
@@ -793,10 +802,10 @@ export default function MapEditor() {
               fill="#94a3b8" fillOpacity=".07"
               stroke={selected?.type==="legacyCover"&&selected.index===index?"#fde68a":"#94a3b8"}
               strokeWidth={selected?.type==="legacyCover"&&selected.index===index?1.1:.16}
-              pointerEvents={tool==="select"?"all":"none"}
-              style={{cursor:"pointer"}}
+              pointerEvents={tool==="select"&&canEditBuiltIn?"all":"none"}
+              style={{cursor:canEditBuiltIn?"pointer":"default"}}
               onPointerDown={e=>{
-                if(tool!=="select")return;e.stopPropagation();
+                if(tool!=="select"||!canEditBuiltIn)return;e.stopPropagation();
                 setSelected({type:"legacyCover",index});
               }}/>)}
             {map.features.map((f,i)=><g key={f.id||i} onPointerDown={e=>beginMove(e,{type:"feature",index:i})}
@@ -812,9 +821,9 @@ export default function MapEditor() {
                 <rect x={f.x-2} y={f.z-f.d/2-Math.ceil(f.h/.42)*.76} width="4" height={Math.ceil(f.h/.42)*.76} fill="#fbbf24" fillOpacity=".35" stroke="#f59e0b" strokeWidth=".25"/></>}
             </g>)}
             {inherited.map(({index,object:h})=><rect key={"inherited-"+index}
-              pointerEvents={tool==="select"?"all":"none"}
+              pointerEvents={tool==="select"&&canEditBuiltIn?"all":"none"}
               onPointerDown={e=>{
-                if(tool!=="select")return;e.stopPropagation();
+                if(tool!=="select"||!canEditBuiltIn)return;e.stopPropagation();
                 setSelected({type:"legacyEnvironment",index});
               }}
               style={{cursor:"pointer"}}
