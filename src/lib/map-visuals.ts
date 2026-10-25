@@ -107,15 +107,28 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         Math.abs(s[2]-c.pos[2])<c.size[2]+2.6)))return;
       buildings.push(prop);result.push(prop);
     };
-    // Reserve small residential lots nearest the park FIRST, so the larger
-    // outer grid cannot consume the only available park-to-district frontage.
-    for(const side of [-1,1])for(const radius of [55,78])
-      for(const offset of [-40,-20,0,20,40]){
-        for(const [x,z] of [[side*radius,offset],[offset,side*radius]]){
-          addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
-            shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
-        }
+    // Reserve small residential lots on all four park frontages FIRST.
+    // Legacy arena spawns crowd several obvious lots, so probe extra
+    // deterministic positions and keep at most two safe houses per frontage.
+    // addBuilding still rejects spawn collisions, overlapping lots and park
+    // intrusions; never bypass those constraints to meet the infill target.
+    const infillOffsets=[-27,0,27,-36,-18,-9,9,18,36];
+    for(const side of [-1,1])for(const onXAxis of [true,false]){
+      let placed=0;
+      for(const offset of infillOffsets){
+        const x=onXAxis?side*55:offset,z=onXAxis?offset:side*55;
+        const before=buildings.length;
+        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+        if(buildings.length>before && ++placed===2)break;
       }
+    }
+    // Additional residential lots in the wider districts (from dev). They
+    // follow the same footprint, overlap and spawn checks as park infill.
+    for(const side of [-1,1])for(const offset of [-40,-20,0,20,40])
+      for(const [x,z] of [[side*78,offset],[offset,side*78]])
+        addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
+          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
     // 32m urban blocks, with narrow homes among bigger civic / retail
     // buildings. The old 40m grid left 25m+ dead zones around the park.
     for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
@@ -254,9 +267,9 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(0,(h+2.5)/2,Z,door,(h-2.5)/2,wall);
     // Walkable roof follows the smaller stepped footprint.
-    put(0,h+.16,0,X*.65,.16,Z);
-    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63);
-    put(X*.825,h+.16,0,X*.175,.16,Z*.63);
+    put(0,h+.16,0,X*.65,.16,Z,"platform");
+    put(-(X*.825),h+.16,0,X*.175,.16,Z*.63,"platform");
+    put(X*.825,h+.16,0,X*.175,.16,Z*.63,"platform");
   }else{
     put(0,h/2,-d/2,w/2,h/2,wall);
     put(-w/2,h/2,0,wall,h/2,d/2);
