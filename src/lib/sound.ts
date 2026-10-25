@@ -151,6 +151,10 @@ export class SoundManager {
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private ambientStep = 0;
+  private nextAmbientAt = 0;
+  private ambientActive = false;
 
   constructor() {
     // Defer AudioContext creation until the first resume() call — browsers
@@ -173,6 +177,9 @@ export class SoundManager {
         this.convolver = this.ctx.createConvolver();
         this.convolver.buffer = this.makeImpulseResponse(0.18, 2.0);
         this.convolver.connect(this.masterGain);
+        this.ambientGain = this.ctx.createGain();
+        this.ambientGain.gain.value = 0;
+        this.ambientGain.connect(this.masterGain);
       } catch (e) {
         // Web Audio not available — silently degrade.
         this.ctx = null;
@@ -262,6 +269,63 @@ export class SoundManager {
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
     }
+  }
+
+  /** Procedural, looped ambient synth music. Browser autoplay rules are respected:
+   * the game calls this each frame, but the audio context exists only after a gesture.
+   * Notes are scheduled a little ahead with no timers, files, or extra network requests.
+   */
+  tickAmbientMusic(active: boolean): void {
+    const ctx = this.ctx, bus = this.ambientGain;
+    if (!ctx || !bus) return;
+    if (active !== this.ambientActive) {
+      this.ambientActive = active;
+      bus.gain.setTargetAtTime(active && !this.muted ? 0.19 : 0, ctx.currentTime, 0.3);
+      if (active) this.nextAmbientAt = Math.max(ctx.currentTime + 0.06, this.nextAmbientAt);
+    }
+    if (!active || this.muted || ctx.state !== "running") return;
+    if (this.nextAmbientAt < ctx.currentTime - 0.4) this.nextAmbientAt = ctx.currentTime + 0.06;
+    const interval = 60 / 96 / 2; // eighth-note pulse at 96 BPM
+    for (let count = 0; count < 5 && this.nextAmbientAt < ctx.currentTime + 0.42; count++) {
+      this.scheduleAmbientStep(this.nextAmbientAt, this.ambientStep);
+      this.ambientStep = (this.ambientStep + 1) % 32;
+      this.nextAmbientAt += interval;
+    }
+  }
+
+  private scheduleAmbientStep(time: number, step: number): void {
+    const ctx = this.ctx!, bus = this.ambientGain!;
+    // Am - F - C - G: a 32-step atmospheric minor-key loop.
+    const root = [45, 41, 48, 43][Math.floor(step / 8)];
+    const notes = [12, 19, 24, 15, 19, 24, 27, 19];
+    const midiFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+    const voice = (midi: number, volume: number, seconds: number, type: OscillatorType) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = midiFreq(midi);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(volume, time + Math.min(0.18, seconds / 4));
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + seconds);
+      osc.connect(gain).connect(bus);
+      osc.start(time);
+      osc.stop(time + seconds + 0.02);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    };
+    voice(root + notes[step % 8], 0.11, 0.43, "triangle");
+    if (step % 8 === 0) {
+      // Long chord and bass underneath the melody, mixed well below combat SFX.
+      for (const offset of [12, 15, 19]) voice(root + offset, 0.065, 2.48, "sine");
+      voice(root - 12, 0.15, 1.3, "sine");
+    }
+  }
+
+  /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
+  playFootstepAtDistance(distance: number, sprinting = false): void {
+    if (!Number.isFinite(distance) || distance >= 38) return;
+    const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
+    if (attenuation < 0.008) return;
+    this.play("footstep", { volume: (sprinting ? 0.72 : 0.5) * attenuation });
   }
 
   // ---- Distant / enemy fire ----
@@ -674,19 +738,29 @@ export class SoundManager {
     osc.start(t); osc.stop(t + 0.22);
   }
 
-  /** Footstep: a tiny soft click. */
+  /** Bootfall: soft gravel noise + short low-frequency heel thump. */
   private synthFootstep(vol: number) {
     const ctx = this.ctx!;
     const t = ctx.currentTime;
     const noise = ctx.createBufferSource();
     noise.buffer = this.noiseBuffer;
     const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass"; filt.frequency.value = 400;
+    filt.type = "lowpass"; filt.frequency.value = 680;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol * 0.15, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    g.gain.setValueAtTime(Math.max(0.0001, vol * 0.26), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
     noise.connect(filt).connect(g).connect(this.masterGain!);
-    noise.start(t); noise.stop(t + 0.07);
+    noise.start(t); noise.stop(t + 0.1);
+    noise.onended = () => { noise.disconnect(); filt.disconnect(); g.disconnect(); };
+    const thump = ctx.createOscillator(), tg = ctx.createGain();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(110, t);
+    thump.frequency.exponentialRampToValueAtTime(65, t + 0.085);
+    tg.gain.setValueAtTime(Math.max(0.0001, vol * 0.14), t);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+    thump.connect(tg).connect(this.masterGain!);
+    thump.start(t); thump.stop(t + 0.095);
+    thump.onended = () => { thump.disconnect(); tg.disconnect(); };
   }
 
   /** Weapon swap: a quick swoosh + click. */
@@ -761,6 +835,8 @@ export class SoundManager {
       this.masterGain = null;
       this.noiseBuffer = null;
       this.convolver = null;
+      this.ambientGain = null;
+      this.ambientActive = false;
     }
   }
 }
