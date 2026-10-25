@@ -1025,7 +1025,7 @@ export default function MapEditor() {
               <button className={btn} onClick={()=>restoreOriginal("environment",i)}><RotateCcw size={12}/> Restore</button>
             </div>)}
           </div>
-        </section>
+        </section>}
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Design checks</h2>
           {issues.length? <div className="space-y-2 max-h-64 overflow-auto">
