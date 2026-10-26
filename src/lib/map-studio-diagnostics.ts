@@ -95,3 +95,23 @@ export function studioMapIssues(
   if(colliderCount>5500)issues.push({code:"complexity",message:"Dense city collision geometry ("+colliderCount+" boxes) may affect performance",x:0,z:0,severity:"warning"});
   return issues;
 }
+
+/** Coarse connectivity overlay between intersecting playable regions.
+ * This is not a bot pathfinding trace; it visualizes district adjacency. */
+export interface StudioRegionLink {
+  from:number;to:number;ax:number;az:number;bx:number;bz:number;px:number;pz:number;
+}
+export function studioRegionLinks(plan:MapBlueprint):StudioRegionLink[]{
+  const links:StudioRegionLink[]=[];
+  for(let i=0;i<plan.regions.length;i++)for(let j=i+1;j<plan.regions.length;j++){
+    const a=plan.regions[i],b=plan.regions[j];
+    const left=Math.max(a.x-a.w/2,b.x-b.w/2);
+    const right=Math.min(a.x+a.w/2,b.x+b.w/2);
+    const top=Math.max(a.z-a.d/2,b.z-b.d/2);
+    const bottom=Math.min(a.z+a.d/2,b.z+b.d/2);
+    if(right-left<2||bottom-top<2)continue;
+    links.push({from:i,to:j,ax:a.x,az:a.z,bx:b.x,bz:b.z,
+      px:(left+right)/2,pz:(top+bottom)/2});
+  }
+  return links;
+}
