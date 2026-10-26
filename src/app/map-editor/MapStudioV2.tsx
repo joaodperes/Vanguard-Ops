@@ -261,7 +261,7 @@ export default function MapEditorClient(){
       s.type==="prop"?"prop":"hazard",
       {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key):null;
     if(s.type==="prop"&&(item as MapProp|undefined)?.kind==="building"&&snapped){
-      const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item.y??0,
+      const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item?.y??0,
         buildingKit,s.index,item as MapProp);
       if(problem){setMessage("Cannot move building: "+problem);return;}
     }
@@ -607,6 +607,7 @@ export default function MapEditorClient(){
         </div>
         {view==="3d"?
           <MapStudio3D mapId={id} map={plan} theme={theme} selected={selection} mode={mode} moveAxis={moveAxis} snap={grid}
+            surfacePlacement={surfaceSnap}
             tool={tool} legacySpawns={legacySpawns} showCollision={showCollision}
             placementProp={tool==="prop"?(propKind==="building"?studioBuildingPrefab(buildingKit,0,0):{kind:propKind,x:0,z:0,w:5,d:5,h:5}):undefined}
             placementKit={tool==="kit"?(()=>{const p=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structureKit);return p?{w:p.width,d:p.depth}:undefined;})():undefined}

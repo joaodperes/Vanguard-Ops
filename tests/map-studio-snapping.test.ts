@@ -33,6 +33,10 @@ describe("structure-aware studio snapping",()=>{
     expect(r.y).toBe(8);expect(r.surface).toBe("deck");
     expect(snapStudioFootprint(candidate(74,0,12,12),[deck],{surface:true,grid:0}).y).toBeUndefined();
   });
+  test("independent surface toggle places a prop on a deck with magnetic alignment disabled",()=>{
+    const r=snapStudioFootprint(candidate(60,0,8,8),[deck],{smart:false,surface:true,grid:2});
+    expect(r.x).toBe(60);expect(r.y).toBe(8);expect(r.snappedX).toBeUndefined();
+  });
   test("vertical snapping uses deck height and standardized floors",()=>{
     expect(snapStudioElevation(7.5,candidate(60,0,8,8),[deck])).toBe(8);
     expect(snapStudioElevation(9.7,candidate(80),[])).toBe(10);

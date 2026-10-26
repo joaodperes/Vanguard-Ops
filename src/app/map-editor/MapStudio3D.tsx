@@ -25,7 +25,7 @@ export interface StudioTransform {
 }
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
-  mode:StudioMode;moveAxis:StudioAxis;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
+  mode:StudioMode;moveAxis:StudioAxis;snap:number;tool:string;surfacePlacement?:boolean;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
   warnings?:StudioMapIssue[];regionLinks?:StudioRegionLink[];placementProblem?:(x:number,z:number,y?:number)=>string|null;
   onResolvePlacement?:(tool:string,point:{x:number;z:number},options?:{bypass?:boolean})=>
     {x:number;z:number;y?:number;hints:string[]};
@@ -51,7 +51,7 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap,tool,placementProp,legacySpawns=[],showCollision=false,
+export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap,tool,surfacePlacement=true,placementProp,legacySpawns=[],showCollision=false,
   warnings=[],regionLinks=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt,
   onResolvePlacement,onSnapTransform,onDropAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
@@ -59,9 +59,9 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
   const [hoverHint,setHoverHint]=useState("");
   const runtime=useRef<Context|null>(null);
   const callbacks=useRef({selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,
-    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt});
+    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt,surfacePlacement,map,theme});
   callbacks.current={selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,
-    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt};
+    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt,surfacePlacement,map,theme};
 
   useEffect(()=>{
     if(!host.current)return;
@@ -158,17 +158,35 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
     const pointer=new THREE.Vector2();
     const ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);
     const groundHit=new THREE.Vector3();
-    const groundFromPointer=(clientX:number,clientY:number)=>{
+    const groundFromPointer=(clientX:number,clientY:number,bypass=false)=>{
       const bounds=renderer.domElement.getBoundingClientRect();
       pointer.set((clientX-bounds.left)/bounds.width*2-1,
         -(clientY-bounds.top)/bounds.height*2+1);
       raycaster.setFromCamera(pointer,camera);
+      // Prefer the actual world-space top face below the pointer. Projecting
+      // everything onto Y=0 made rooftop drops drift away from the cursor.
+      if(callbacks.current.surfacePlacement&&!bypass&&callbacks.current.tool!=="select"){
+        const supports=[...ctx.objects.values()].filter(group=>{
+          const selected=(group.userData.editor as ObjectMeta|undefined)?.selection;
+          if(!selected)return false;
+          if(selected.type==="feature")
+            return callbacks.current.map.features[selected.index]?.kind==="platform";
+          if(selected.type==="prop")
+            return callbacks.current.theme.props[selected.index]?.kind==="building";
+          return selected.type==="generatedBuilding";
+        });
+        const hits=raycaster.intersectObjects(supports,true);
+        for(const hit of hits){
+          const normal=hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
+          if(normal&&normal.y>.65&&hit.point.y>.05)return hit.point;
+        }
+      }
       return raycaster.ray.intersectPlane(ground,groundHit)?groundHit:null;
     };
     // Placement preview, click stamping, and native palette drop all resolve
     // through the same shared world-space snap function.
     const resolveAtPointer=(clientX:number,clientY:number,bypass=false)=>{
-      const hit=groundFromPointer(clientX,clientY);
+      const hit=groundFromPointer(clientX,clientY,bypass);
       if(!hit)return null;
       const step=callbacks.current.snap;
       const x=step?horizontalSnap(hit.x,step):hit.x;
