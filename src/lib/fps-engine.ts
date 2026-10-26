@@ -27,7 +27,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { createFiringRangeMap, RANGE_TARGETS } from "./firing-range";
+import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
@@ -809,6 +809,7 @@ export class FPSEngine {
   // match timer starts ticking. This gives players time to orient themselves,
   // read the map/mode, and prepare before the action starts.
   private preMatchCountdown = 0;
+  private rangeTimeSec = 0;
   private static readonly PRE_MATCH_COUNTDOWN_SEC = 5;
 
   // ---- Per-kill difficulty tracking (for rewards scaling) ----
@@ -3354,8 +3355,8 @@ export class FPSEngine {
   };
 
   // ---- Offline bots ----
-  /** Range dummies are regular hit-detectable combatants, but never move,
-   * shoot or award profile progression. The normal weapon damage and FX remain.
+  /** Range dummies are regular hit-detectable combatants. Only scripted
+   * side-to-side targets move; none shoot or award profile progression.
    */
   private setupFiringRangeTargets() {
     RANGE_TARGETS.forEach((point, i) => {
@@ -3371,12 +3372,43 @@ export class FPSEngine {
       this.combatants.set(id, c);
       this.addCombatantMesh(c);
     });
-    // Mark the firing line and target distances without adding bullet-blocking cover.
+    RANGE_MOVING_TARGETS.forEach(target => {
+      const c: Combatant = {
+        id: "range_mover_" + target.id, name: target.name,
+        team: "red", isBot: true, isSelf: false,
+        pos: movingRangeTargetPosition(target, 0),
+        yaw: Math.PI, pitch: 0,
+        health: MAX_HEALTH, alive: true,
+        weaponId: "pistol_side", weaponSkinId: "default", playerSkinId: "blue",
+        kills: 0, deaths: 0, score: 0,
+      };
+      this.combatants.set(c.id, c);
+      this.addCombatantMesh(c);
+      // Cyan tracks identify moving lanes (visual geometry, not collision).
+      const track = new THREE.Mesh(
+        new THREE.BoxGeometry(target.halfTravel * 2 + 0.4, 0.03, 0.12),
+        new THREE.MeshBasicMaterial({ color: 0x24d4ec }),
+      );
+      track.position.set(target.center[0], 0.065, target.center[2]);
+      this.scene.add(track);
+    });
+    // Mark the firing line and fixed target distances without bullet-blocking cover.
     for (const z of [-28, -10, 1, 13, 25]) {
       const marker = new THREE.Mesh(new THREE.BoxGeometry(18, 0.025, 0.12),
         new THREE.MeshBasicMaterial({ color: z === -28 ? 0xffbb55 : 0x4b6172 }));
       marker.position.set(0, 0.055, z);
       this.scene.add(marker);
+    }
+  }
+
+  /** Advance target positions before projectile/hitscan resolution each frame.
+   * Dead dummies stay down briefly, then rejoin their lane at the current phase.
+   */
+  private tickFiringRangeTargets(dt: number) {
+    this.rangeTimeSec += Math.max(0, dt);
+    for (const target of RANGE_MOVING_TARGETS) {
+      const c = this.combatants.get("range_mover_" + target.id);
+      if (c?.alive) c.pos = movingRangeTargetPosition(target, this.rangeTimeSec);
     }
   }
 
@@ -5535,7 +5567,10 @@ export class FPSEngine {
     if (this.opts.mode === "survival") return;
     setTimeout(() => {
       if (this.disposed || this.matchEnded) return;
-      const sp = this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
+      const movingTarget = this.opts.firingRange
+        ? RANGE_MOVING_TARGETS.find(target => c.id === "range_mover_" + target.id) : undefined;
+      const sp = movingTarget ? movingRangeTargetPosition(movingTarget, this.rangeTimeSec)
+        : this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
@@ -6129,6 +6164,7 @@ export class FPSEngine {
       this.pulseMineBeacons(performance.now());
     }
     if (!this.matchEnded) this.updateEnvironment(dt);
+    if (this.opts.firingRange && !this.matchEnded) this.tickFiringRangeTargets(dt);
     this.tickGravityWells(dt);
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
