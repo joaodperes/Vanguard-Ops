@@ -42,7 +42,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
-import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
+import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -3379,7 +3379,7 @@ export class FPSEngine {
   // veteran = 0.80..0.95). "mixed" rolls a random difficulty per bot. Higher skill =
   // faster reaction, tighter aim, fewer misses. The resolved difficulty is stored on
   // the BotAI so per-kill rewards can scale with the victim's tier.
-  private makeBotAI(sp: Vec3): BotAI {
+  private makeBotAI(sp: Vec3, overrideDifficulty?: Exclude<BotDifficulty, "mixed">): BotAI {
     const skillRange: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
       easy: [0.28, 0.45],
       normal: [0.45, 0.65],
@@ -3388,7 +3388,9 @@ export class FPSEngine {
     };
     // Resolve "mixed" by rolling a random tier for this bot.
     let diff: Exclude<BotDifficulty, "mixed">;
-    if (this.botDifficulty === "mixed") {
+    if (overrideDifficulty) {
+      diff = overrideDifficulty;
+    } else if (this.botDifficulty === "mixed") {
       const opts: Exclude<BotDifficulty, "mixed">[] = ["easy", "normal", "hard", "veteran"];
       diff = opts[Math.floor(Math.random() * opts.length)];
     } else {
@@ -3475,7 +3477,7 @@ export class FPSEngine {
       const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
-      const ai=this.makeBotAI(sp);
+      const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
