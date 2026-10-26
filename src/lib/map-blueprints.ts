@@ -22,6 +22,8 @@ export interface MapBlueprint {
   /** Hide built-in collision/environment by original, stable source index. */
   legacyCoverDisabled?: number[];
   legacyEnvironmentDisabled?: number[];
+  /** Stable IDs of procedurally generated city lots converted into authored props. */
+  cityBuildingDisabled?: string[];
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
 }
 export interface MapBoxOverride {
