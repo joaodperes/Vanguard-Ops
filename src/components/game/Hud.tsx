@@ -917,16 +917,8 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
-          {/* A recognizable sight housing in ADS instead of an unmodified crosshair. */}
-          {hasReflex && adsP > .3 && (
-            <div className="absolute rounded-full border-2"
-              style={{width:sightType==="holo"?92:62,height:sightType==="holo"?80:62,
-                transform:"translate(-50%,-50%)",opacity:Math.min(1,(adsP-.3)*2),
-                borderColor:sightType==="holo"?"rgba(166,223,205,.58)":"rgba(169,182,185,.55)",
-                background:"radial-gradient(circle,rgba(80,150,130,.045),rgba(4,17,22,.14))",
-                boxShadow:"0 0 0 6px rgba(18,24,29,.75), inset 0 0 7px rgba(175,230,228,.2)"}}
-            />
-          )}
+          {/* Reflex-window frame is part of the physical weapon mesh.
+              HUD renders only the reticle, never a contradictory round housing. */}
           {hasReflex && sightType==="holo" && adsP>.3 && (
             <div className="absolute rounded-full border pointer-events-none"
               style={{width:29,height:29,transform:"translate(-50%,-50%)",
