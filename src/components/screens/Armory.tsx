@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X } from "lucide-react";
+import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2 } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
@@ -92,7 +92,8 @@ const CATEGORY_LABELS: Record<WeaponCategory, string> = {
 };
 
 export function Armory() {
-  const { profile, setScreen, refreshProfile, playerKey } = useGame();
+  const { profile, setScreen, refreshProfile, playerKey, setRangeWeaponId } = useGame();
+  const tryInRange = (id?: string) => { setRangeWeaponId(id ?? null); setScreen("range"); };
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<WeaponProgressMap>({});
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
@@ -290,6 +291,15 @@ export function Armory() {
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+        <div className="rounded-xl border border-amber-500/25 bg-gradient-to-r from-amber-500/10 to-zinc-900/70 p-4 mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-white font-bold tracking-wide flex items-center gap-2"><TestTube2 className="w-5 h-5 text-amber-300" /> Firing Range</h2>
+            <p className="text-white/55 text-xs mt-1">Try any weapon, attachment, or full saved loadout before buying. Free practice, no account changes.</p>
+          </div>
+          <Button onClick={() => tryInRange()} className="bg-amber-500 text-black hover:bg-amber-400 font-semibold">
+            <Crosshair className="w-4 h-4 mr-1.5" /> Enter Firing Range
+          </Button>
+        </div>
         {/* Current Loadout — top section (replaces the old Loadout tab) */}
         <div className="mb-6">
           <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
@@ -323,6 +333,9 @@ export function Armory() {
                     <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
                     <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
                   </div>
+                  <Button onClick={() => tryInRange(w.id)} variant="outline" className="w-full border-amber-400/40 text-amber-200 hover:bg-amber-500/10">
+                    <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free in Range
+                  </Button>
                   {owned
                     ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
                       onClick={() => equipWeapon(w, "primary")}
@@ -354,6 +367,7 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
+              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "primary" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.weapon.id ?? ""}
@@ -372,6 +386,7 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
+              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "secondary" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.secondary.id ?? ""}
@@ -389,6 +404,7 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
+              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "melee" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.melee.id ?? ""}
@@ -503,6 +519,7 @@ interface WeaponSlotSectionProps {
   busy: string | null;
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
+  onTry: (id: string) => void;
   onEquip: (w: WeaponDef, slot: WeaponSlot) => void;
   equippedId: string;
   defaultOpen?: boolean;
@@ -591,7 +608,7 @@ interface WeaponCardProps extends WeaponSlotSectionProps {
 }
 
 function WeaponCard(props: WeaponCardProps) {
-  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot, onEquip, equippedId } = props;
+  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, onTry, slot, onEquip, equippedId } = props;
   const isOwned = ownedWeaponIds.has(w.id);
   const lockedByLevel = level < w.unlockLevel;
   const canBuy = !isOwned && !lockedByLevel && credits >= w.unlockCost;
@@ -639,6 +656,9 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
+      <Button onClick={() => onTry(w.id)} variant="outline" className="w-full mb-2 border-amber-500/35 text-amber-200 hover:bg-amber-500/10">
+        <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free
+      </Button>
       {!isOwned && (
         <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
           {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
