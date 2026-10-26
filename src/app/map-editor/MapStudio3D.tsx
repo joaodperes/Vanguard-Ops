@@ -9,7 +9,7 @@ import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/
 import { cityBuildingBoxes, mapProps, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
-import type {StudioMapIssue} from "@/lib/map-studio-diagnostics";
+import type {StudioMapIssue,StudioRegionLink} from "@/lib/map-studio-diagnostics";
 
 export type StudioSelection={
   type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
@@ -24,7 +24,7 @@ export interface StudioTransform {
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
   mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
-  warnings?:StudioMapIssue[];placementProblem?:(x:number,z:number)=>string|null;
+  warnings?:StudioMapIssue[];regionLinks?:StudioRegionLink[];placementProblem?:(x:number,z:number)=>string|null;
   onInvalidPlacement?:(reason:string)=>void;placementKit?:{w:number;d:number};
   onAddAt:(tool:string,point:{x:number;z:number})=>void;
   onSelect:(selection:StudioSelection|null)=>void;
@@ -46,7 +46,7 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
 export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,legacySpawns=[],showCollision=false,
-  warnings=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt}:Props) {
+  warnings=[],regionLinks=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
@@ -291,6 +291,17 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       ctx.root.add(group);
       ctx.objects.set(idFor(selection),group);
     };
+    // Coarse playable-district links; these are planning guides, not AI traces.
+    for(const link of regionLinks){
+      const vertices=new Float32Array([link.ax,.55,link.az,link.px,.55,link.pz,
+        link.px,.55,link.pz,link.bx,.55,link.bz]);
+      const geometry=new THREE.BufferGeometry();
+      geometry.setAttribute("position",new THREE.BufferAttribute(vertices,3));
+      ctx.root.add(new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:"#5eead4"})));
+      const portal=new THREE.Mesh(new THREE.SphereGeometry(1.35,8,6),
+        new THREE.MeshBasicMaterial({color:"#2dd4bf"}));
+      portal.position.set(link.px,.7,link.pz);ctx.root.add(portal);
+    }
     // 3D error markers remain non-interactive and appear above the affected floor.
     for(const warning of warnings.slice(0,100)){
       const marker=new THREE.Mesh(new THREE.SphereGeometry(warning.severity==="error"?1.9:1.4,9,7),
@@ -450,7 +461,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
-  },[map,theme,mapId,showCollision,legacySpawns,warnings]);
+  },[map,theme,mapId,showCollision,legacySpawns,warnings,regionLinks]);
 
   // Ghost placement follows the pointer across the ground plane; one click
   // stamps a new object. The existing camera-focus button remains a fallback.
