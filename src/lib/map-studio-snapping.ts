@@ -23,10 +23,10 @@ export function snapStudioFootprint(
   const grid=options.grid??0,smart=options.smart!==false;
   const result:StudioSnapResult={...candidate,x:gridRound(candidate.x,grid),
     z:gridRound(candidate.z,grid),hints:[]};
-  if(!smart)return result;
+  if(!smart&&!options.surface)return result;
   const radius=options.radius??STUDIO_MAGNET_RADIUS,gap=options.gap??STUDIO_STRUCTURE_GAP;
   const nearby=targets.filter(t=>t.key!==options.ignoreKey&&finite(t.w)&&finite(t.d));
-  for(const axis of ["x","z"] as const){
+  if(smart)for(const axis of ["x","z"] as const){
     const cross=axis==="x"?"z":"x",size=axis==="x"?"w":"d",otherSize=axis==="x"?"d":"w";
     let best:{value:number;distance:number;priority:number;key:string}|undefined;
     for(const t of nearby){

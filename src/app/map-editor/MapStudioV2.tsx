@@ -205,7 +205,8 @@ export default function MapEditorClient(){
   const buildingIssue=(x:number,z:number,y=0,kit=buildingKit,excludeIndex=-1,source?:MapProp)=>{
     const house={...(source??studioBuildingPrefab(kit,x,z)),x,z,y};
     const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns];
-    return studioBuildingPlacementIssues(house,plan,theme.props.filter((_,i)=>i!==excludeIndex),
+    return studioBuildingPlacementIssues(house,plan,
+      [...theme.props.filter((_,i)=>i!==excludeIndex),...generated],
       spawns)[0]?.message??null;
   };
   const place=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,bypass=false)=>{
@@ -256,10 +257,10 @@ export default function MapEditorClient(){
       s.type==="hazard"?plan.hazards?.[s.index]:
       s.type==="prop"?theme.props[s.index]:null;
     const key=s.type+":"+s.index;
-    const snapped=item?resolveAt(s.type==="feature"?item.kind as Tool:
+    const snapped=item?resolveAt(s.type==="feature"?(item as MapFeature).kind as Tool:
       s.type==="prop"?"prop":"hazard",
       {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key):null;
-    if(s.type==="prop"&&item?.kind==="building"&&snapped){
+    if(s.type==="prop"&&(item as MapProp|undefined)?.kind==="building"&&snapped){
       const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item.y??0,
         buildingKit,s.index,item as MapProp);
       if(problem){setMessage("Cannot move building: "+problem);return;}
@@ -333,6 +334,14 @@ export default function MapEditorClient(){
       }
       const overrides=transformStairFlight(boxes,flight.indices,t);
       editPlan(bp=>{bp.legacyCoverOverrides={...(bp.legacyCoverOverrides??{}),...overrides};});return;
+    }
+    if(s.type==="prop"&&theme.props[s.index]?.kind==="building"){
+      const candidate={...theme.props[s.index],x:t.x,y:t.y,z:t.z,w:t.w,d:t.d,h:t.h,
+        turns:((t.turns%4+4)%4) as 0|1|2|3};
+      const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns];
+      const problems=studioBuildingPlacementIssues(candidate,plan,
+        [...theme.props.filter((_,i)=>i!==s.index),...generated],spawns);
+      if(problems.length){setMessage("Cannot transform building: "+problems[0].message);return;}
     }
     if(s.type==="legacyCover"||s.type==="legacyEnvironment"){
       const original=s.type==="legacyCover"?

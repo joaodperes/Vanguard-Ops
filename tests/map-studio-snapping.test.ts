@@ -16,7 +16,7 @@ describe("structure-aware studio snapping",()=>{
     expect(r.hints.length).toBeGreaterThan(0);
   });
   test("front/back edge and center alignment within radius only",()=>{
-    const r=snapStudioFootprint(candidate(50,1.8),[wall],{grid:0});
+    const r=snapStudioFootprint(candidate(22.2,1.8),[wall],{grid:0});
     expect(r.z).toBe(0);
     expect(snapStudioFootprint(candidate(80,10),[wall],{grid:0}).x).toBe(80);
   });
