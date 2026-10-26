@@ -1,11 +1,10 @@
-/** Camera-local ADS geometry. The body and its optic are one rigid assembly.
- * The reticle and camera-centred ballistic ray stay at the eye; no individual
- * sight translation is permitted during ADS animation.
+/** Camera-local first-person sight clearance.
+ * Optics belong to the receiver, not a detached screen-space scaffold.
+ * All adjustments move the entire weapon as a rigid object.
  */
 import type { WeaponDef, SightType } from "./game-data";
 export interface AdsClearance {
   bodyY:number;
-  /** Rest-model Y of the actual sight aperture (the support is built below it). */
   sightMountY:number;
   sightVisible:boolean;
   bodyCeiling:number;
@@ -18,16 +17,14 @@ export function adsClearance(
   const oversized=["crossbow_reclaimer","rifle_hydra","launcher_rocket",
     "launcher_swarm","launcher_breach"].includes(weapon.id) ||
     ["launcher","lmg"].includes(weapon.category);
-  // Tall receivers/carry handles require additional room, not a detached optic.
-  // The shallowest safe pose deliberately keeps more of each weapon visible.
-  const bodyY=-Math.max(oversized?.34:.255,receiverHeight*1.30+.105);
-  // Plagueheart is a shoulder weapon: its receiver should sit immediately
-  // below the reticle instead of disappearing beneath the bottom of the view.
-  const adjustedY=weapon.id==="wonder_corrosion"?-.265:bodyY;
-  const sightMountY=-adjustedY/1.2;
+  // Compact pistols sit close under the reticle, bulkier receivers move down
+  // just enough not to obstruct the camera's centre ray.
+  const bodyY=-Math.max(oversized?.29:.205,receiverHeight*1.15+.04);
+  // Normal low-profile mechanical sight on the receiver's existing top rail.
+  const sightMountY=receiverHeight*.47+.025;
   return {
-    bodyY:adjustedY,sightMountY,
+    bodyY,sightMountY,
     sightVisible:!magnified&&weapon.category!=="melee"&&!weapon.wonder,
-    bodyCeiling:adjustedY+receiverHeight*.65+.12,
+    bodyCeiling:bodyY+receiverHeight*.65+.06,
   };
 }
