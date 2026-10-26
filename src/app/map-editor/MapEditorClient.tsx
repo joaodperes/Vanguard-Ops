@@ -13,14 +13,16 @@ import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
-import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, type StudioBuildingPresetId } from "@/lib/map-studio-prefabs";
+import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, STUDIO_STRUCTURE_PRESETS, studioStructurePrefab,
+  type StudioBuildingPresetId, type StudioStructurePresetId } from "@/lib/map-studio-prefabs";
+import {studioBuildingPlacementIssues,studioMapIssues} from "@/lib/map-studio-diagnostics";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save, Play as PlayIcon } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
 type StudioSnapshot = {doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
 type Team="ffa"|"red"|"blue";
 type Selection=StudioSelection;
-type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
+type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
 type Drag =
   | {mode:"create";start:Point;tool:Tool}
@@ -39,6 +41,11 @@ export default function MapEditor() {
   const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
   const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
   const [buildingPreset,setBuildingPreset]=useState<StudioBuildingPresetId>("house");
+  const [structurePreset,setStructurePreset]=useState<StudioStructurePresetId>("room");
+  const [playtestBots,setPlaytestBots]=useState(0);
+  const [showCollision,setShowCollision]=useState(false);
+  const [showSafety,setShowSafety]=useState(true);
+  const [showGuide,setShowGuide]=useState(true);
   const [stampMode,setStampMode]=useState(false);
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
@@ -469,7 +476,7 @@ export default function MapEditor() {
       // Save a complete snapshot first: leaving the route never discards draft changes.
       localStorage.setItem("vanguard-map-studio-v1",JSON.stringify(doc));
       localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));
-      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId,blueprint:map,theme}));
+      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId,blueprint:map,theme,botCount:playtestBots}));
       window.location.assign("/map-editor/playtest");
     }catch(err){setStatus("Unable to launch local playtest: "+String(err));}
   };
@@ -544,9 +551,19 @@ export default function MapEditor() {
       return current;
     });
   };
+  const buildingProblem=(x:number,z:number)=>{
+    if(tool!=="prop"||propKind!=="building")return null;
+    const candidate=createThemeProp(x,z);
+    const allSpawns=[...map.spawns.ffa,...map.spawns.red,...map.spawns.blue,...runtimeSpawns];
+    return studioBuildingPlacementIssues(candidate,map,cityPreviewProps,allSpawns)[0]?.message??null;
+  };
   const add3DAt=(kind:string,point:{x:number;z:number})=>{
     const x=gridSnapEnabled?snap(point.x,gridSnapStep):Math.round(point.x*100)/100;
     const z=gridSnapEnabled?snap(point.z,gridSnapStep):Math.round(point.z*100)/100;
+    if(kind==="prop"&&propKind==="building"){
+      const problem=buildingProblem(x,z);
+      if(problem){setStatus("Cannot place building: "+problem);return;}
+    }
     pushUndo();
     if(["region","circle","triangle"].includes(kind)){
       const index=map.regions.length;
@@ -561,6 +578,12 @@ export default function MapEditor() {
         d:featureKind==="stairs"?8:12,h:featureKind==="cover"?2.8:4.2,
         ...(featureKind==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
       update(m=>({...m,features:[...m.features,feature]}));
+      setSelected({type:"feature",index});
+    }else if(kind==="kit"){
+      const index=map.features.length;
+      const suffix=Date.now().toString(36);
+      const pieces=studioStructurePrefab(structurePreset,x,z).map((p,i)=>({...p,id:"kit_"+suffix+"_"+i}));
+      update(m=>({...m,features:[...m.features,...pieces]}));
       setSelected({type:"feature",index});
     }else if(kind==="hazard"){
       const index=(map.hazards??[]).length;
@@ -636,6 +659,7 @@ export default function MapEditor() {
         problems.push(`Hazard ${h.id} intersects a ${team} spawn`);
     return problems;
   },[map]);
+  const visualIssues=useMemo(()=>studioMapIssues(map,cityPreviewProps,runtimeSpawns),[map,cityPreviewProps,runtimeSpawns]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
@@ -688,6 +712,10 @@ export default function MapEditor() {
           <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
         <button className={btn} onClick={redo} disabled={!redoHistory.current.length}>Redo</button>
+        <select aria-label="Playtest bots" title="AI opponents in the local draft test" className={fieldClass+" w-24"}
+          value={playtestBots} onChange={e=>setPlaytestBots(Number(e.target.value))}>
+          <option value={0}>No bots</option><option value={3}>3 bots</option><option value={6}>6 bots</option>
+        </select>
         <button className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 text-xs" onClick={launchPlaytest}>
           <PlayIcon size={14}/> Playtest draft
         </button>
@@ -718,7 +746,7 @@ export default function MapEditor() {
                 ["region","Rectangle",Grid2x2],["circle","Circle / ellipse",Grid2x2],
                 ["triangle","Triangle",Grid2x2],
                 ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
-                ["stairs","Independent stairs",Layers3],["hazard","Place hazard",AlertTriangle],
+                ["stairs","Independent stairs",Layers3],["kit","Room / route kit",Layers3],["hazard","Place hazard",AlertTriangle],
                 ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
               ] as const)
             ] as readonly (readonly [Tool,string,typeof MousePointer2])[]).map(([key,label,Icon])=>
@@ -726,6 +754,10 @@ export default function MapEditor() {
                 <Icon size={14}/>{label}
               </button>)}
           </div>
+          {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">Construction kit
+            <select className={fieldClass} value={structurePreset} onChange={e=>setStructurePreset(e.target.value as StudioStructurePresetId)}>
+              {STUDIO_STRUCTURE_PRESETS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+            </select></label>}
           {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">New hazard type
             <select value={hazardKind} className={fieldClass} onChange={e=>setHazardKind(e.target.value as MapHazard["type"])}>
               {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
@@ -848,6 +880,12 @@ export default function MapEditor() {
             </button>
           </div>}
           <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showCollision} onChange={e=>setShowCollision(e.target.checked)}/> Collision
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showSafety} onChange={e=>setShowSafety(e.target.checked)}/> Safety overlay
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
             <input type="checkbox" checked={stampMode} onChange={e=>setStampMode(e.target.checked)}/> Repeat placement
           </label>
           <span className="text-xs text-zinc-500">3D: click to place a selected piece · drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
@@ -858,7 +896,9 @@ export default function MapEditor() {
               mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
               placementProp={tool==="prop"?createThemeProp(0,0):undefined}
               onSelect={sel=>sel?.type==="generatedBuilding"?promoteGenerated(sel.index):setSelected(sel)}
-              onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}/>:
+              onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}
+              showCollision={showCollision} warnings={showSafety?visualIssues:[]}
+              placementProblem={buildingProblem} onInvalidPlacement={reason=>setStatus(reason)}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
             style={{touchAction:"none"}} onPointerDown={onPointerDown}
@@ -1180,6 +1220,10 @@ export default function MapEditor() {
         </section>}
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Design checks</h2>
+          {visualIssues.length>0&&<div className="text-xs text-amber-200 mb-2">
+            {visualIssues.length} positioned warnings — toggle Safety overlay to locate them.
+            {visualIssues.slice(0,12).map(issue=><p className="mt-1" key={issue.code}>({Math.round(issue.x)}, {Math.round(issue.z)}) {issue.message}</p>)}
+          </div>}
           {issues.length? <div className="space-y-2 max-h-64 overflow-auto">
             {issues.slice(0,30).map((err,i)=><div key={i} className="text-xs text-amber-200/80 border-l-2 border-amber-500/50 pl-2">{err}</div>)}
             {issues.length>30&&<div className="text-xs text-amber-300">+ {issues.length-30} more warnings</div>}</div>:
