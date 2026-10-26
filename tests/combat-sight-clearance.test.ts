@@ -18,7 +18,9 @@ describe("every weapon's physical ADS model vs camera eye and crosshair",()=>{
     const c=adsClearance(w,"iron",receiver);
     const apertureY=c.bodyY+c.sightMountY*1.2; // physical rigid optic
     expect(c.sightVisible).toBe(true);
-    expect(apertureY).toBeGreaterThan(-.19);\n    expect(apertureY).toBeLessThan(0);\n    expect(c.sightMountY).toBeLessThan(.15); // receiver-level notch, not a raised ladder
+    expect(apertureY).toBeGreaterThan(-.19);
+    expect(apertureY).toBeLessThan(0);
+    expect(c.sightMountY).toBeLessThan(.15); // receiver-level notch, not a raised ladder
     expect(c.bodyCeiling).toBeLessThan(0);
     expect(c.bodyY).toBeLessThan(apertureY-.06);
   }
