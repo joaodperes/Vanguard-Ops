@@ -230,7 +230,7 @@ export function buildFirstPersonWeapon(
   } else if (id === "crossbow_reclaimer") {
     // Wide compound-crossbow limbs and actual string, rather than a rifle barrel
     // with a new tint. All coordinates are local to the camera (-Z forward).
-    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xa8f26c });
+    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x7f8994 }); // bare metal fletching, no neon-green base
     const addRod = (a: [number,number,number], b: [number,number,number], radius: number, material: THREE.Material) => {
       const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
       const d = vb.clone().sub(va);
@@ -268,8 +268,8 @@ export function buildFirstPersonWeapon(
   // distinct and uses its own emissive colour on top of the animated body skin.
   if(id.startsWith("wonder_")){
     const colours:Record<string,number>={
-      wonder_singularity:0xae68ff,wonder_corrosion:0x7cff45,
-      wonder_turret:0xffd65c,wonder_deadlock:0xff4b9a,
+      wonder_singularity:0x546078,wonder_corrosion:0x46643f,
+      wonder_turret:0x687782,wonder_deadlock:0x695b65,
       wonder_hellfire:0xff6c1c,wonder_stormweaver:0x4defff,
       wonder_bogfather:0x8dcc31,
     };
@@ -277,24 +277,13 @@ export function buildFirstPersonWeapon(
     const orb=(x:number,y:number,z:number,r:number)=>{
       add(new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),energy),x,y,z);
     };
-    if(id==="wonder_singularity"){
-      orb(0,.09,c-.08,.095);
-      for(let n=0;n<3;n++){
-        const ring=new THREE.Mesh(new THREE.TorusGeometry(.13+n*.028,.009,8,30),energy);
-        ring.rotation.y=n*Math.PI/3;ring.rotation.x=Math.PI/2+n*.25;add(ring,0,.09,c-.08);
-      }
-      for(const side of [-1,1])box(side*.18,.07,c-.13,.04,.13,.21,energy);
+    if(id==="wonder_singularity" || id==="wonder_turret" || id==="wonder_deadlock"){
+      // These are normal pistol/remote silhouettes with their equipped skin,
+      // no orbiting crystals, pink antennae or forced glowing chassis.
     }else if(id==="wonder_corrosion"){
+      const olive=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0x4c6840});
       for(const side of [-1,1]){
-        tube(side*.095,.065,c-.11,.065,.35,energy,12);
-        orb(side*.095,.065,c-.36,.055);
-      }
-      box(0,.16,c-.12,.17,.035,.30,energy);
-    }else if(id==="wonder_deadlock"){
-      orb(0,.135,guardZ,.085);
-      for(const side of [-1,1]){
-        box(side*.16,.13,guardZ-.06,.035,.085,.32,energy);
-        orb(side*.165,.14,guardZ-.28,.045);
+        tube(side*.095,-.025,c-.11,.036,.26,olive,10);
       }
     }else if(id==="wonder_hellfire"){
       for(const side of [-1,1]){
@@ -309,10 +298,6 @@ export function buildFirstPersonWeapon(
       }
       for(const side of [-1,1])box(side*.175,.07,guardZ,.025,.14,.49,energy);
       orb(0,.09,muzzle,.10);
-    }else if(id==="wonder_turret"){
-      for(const side of [-1,1])box(side*.19,.1,c-.14,.09,.15,.46,energy);
-      orb(0,.19,c-.09,.12);
-      box(0,-.21,c+.01,.19,.15,.24,energy);
     }else if(id==="wonder_bogfather"){
       for(const side of [-1,1])orb(side*.11,.08,c-.1,.09);
     }

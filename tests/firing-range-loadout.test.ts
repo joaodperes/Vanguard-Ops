@@ -24,7 +24,7 @@ describe("Armory firing range loadout restrictions", () => {
     expect(rangePrimaryWeapons.length).toBeGreaterThan(0);
     expect(rangePrimaryWeapons.some(w => !!w.wonder)).toBe(true);
     for (const weapon of WEAPONS) {
-      const primary = !!weapon.wonder || isPrimaryWeaponCategory(weapon.category);
+      const primary = !weapon.disabled && (!!weapon.wonder || isPrimaryWeaponCategory(weapon.category));
       expect(rangePrimaryWeapons.some(w => w.id === weapon.id)).toBe(primary);
     }
     expect(rangeWeaponSlot("pistol_side")).toBe("secondary");
@@ -85,4 +85,16 @@ describe("Armory firing range loadout restrictions", () => {
     expect(preview.attachments).toEqual({ sight: null, barrel: null, grip: null, magazine: null });
     expect(preview.weaponSkinId).toBe("default");
   });
+});
+
+import { groupedRangeWeapons } from "../src/lib/firing-range-loadout";
+test("range weapon selectors hide disabled entries and group by type and unlock level",()=>{
+ const grouped=groupedRangeWeapons(rangePrimaryWeapons);
+ expect(grouped.some(g=>g.weapons.some(w=>w.id==="wonder_bogfather"))).toBe(false);
+ const wonder=grouped.find(g=>g.type==="wonder")!;
+ expect(wonder.weapons.map(w=>w.name)).toEqual(
+   wonder.weapons.map(w=>w.name).sort((a,b)=>a.localeCompare(b)));
+ for(const group of grouped.filter(g=>g.type!=="wonder"))
+   expect(group.weapons.map(w=>w.unlockLevel)).toEqual(
+     group.weapons.map(w=>w.unlockLevel).sort((a,b)=>a-b));
 });

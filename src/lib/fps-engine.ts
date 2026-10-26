@@ -21,6 +21,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
+import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
@@ -549,6 +550,8 @@ export class FPSEngine {
   private stormMineCooldown = new Map<string,number>();
   private smartTags = new Map<string,number>();
   private hellfireActiveUntil = 0;
+  private flamePlumes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
+  private stormArcMeshes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
   private localWonderSequence = 0;
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
@@ -1881,6 +1884,10 @@ export class FPSEngine {
         launcher_rocket: 0x2a3a1a,// olive green
         launcher_breach: 0x4d4034, // steel brown
         launcher_swarm: 0x364753,  // gunmetal blue
+        wonder_corrosion: 0x3b5535, // muted toxic olive, no cyan trim
+        wonder_deadlock: 0x4b4250,
+        wonder_singularity: 0x3b4655,
+        wonder_turret: 0x4d565c,
       };
       const tint = weaponTints[this.weaponId];
       if (tint !== undefined) {
@@ -1894,11 +1901,11 @@ export class FPSEngine {
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
-    if (skin.prestige || weaponById(this.weaponId).wonder) {
-      // Wonders ship with animated cosmic/toxic energy finishes by default.
-      // Owned prestige variants remain authoritative when selected.
+    if (skin.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(this.weaponId)) {
+      // Cosmetic exceptions: Event Horizon, Plagueheart, Deadlock and Bullet
+      // Spitter retain their SELECTED skin instead of bright default overlays.
       this.prestigeTexture = this.createPrestigeTexture(skin.prestige ??
-        (["wonder_corrosion","wonder_hellfire"].includes(this.weaponId)?"toxic":"cosmic"));
+        (this.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
       const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
       material.map = this.prestigeTexture;
       material.color.set(0xffffff);
@@ -2219,8 +2226,8 @@ export class FPSEngine {
     } else if (id === "vent") {
       add(new THREE.BoxGeometry(.095,.09,.16),cyan,[0,0,0]);
     } else if (id === "bolt") {
-      add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0]);
-      add(new THREE.ConeGeometry(.024,.065,7),amber,[0,.18,0]);
+      add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0],Math.PI/2);
+      add(new THREE.ConeGeometry(.024,.065,7),amber,[0,0,-.18],-Math.PI/2);
     } else if (id === "shell") {
       add(new THREE.CylinderGeometry(.029,.029,.11,10),new THREE.MeshBasicMaterial({color:0xc75d32}),[0,0,0]);
       add(new THREE.CylinderGeometry(.030,.030,.023,10),amber,[0,-.067,0]);
@@ -2296,11 +2303,12 @@ export class FPSEngine {
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
+    const clearance=adsClearance(wDef,this.sightDef.type);
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0.0, y: -0.27, z: -0.22 }  // scopes and heavy receivers kept clearly below reticle
-      : this.sightDef.type === "iron"
-        ? { x: 0, y: -0.08, z: -0.38 } // center the physical open-notch iron aperture
-        : { x: 0, y: -0.23, z: -0.38 }; // attached optics use HUD reticles
+      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.22 }
+      : { x: 0, y: clearance.bodyY, z: -.38 };
+    // Bullet rays remain camera-centered. Sights move independently of gun
+    // bodies: raising the whole gun caused blocked ADS on Hydra/Reclaimer.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
@@ -2459,7 +2467,7 @@ export class FPSEngine {
     //    replaces the old behavior where the sniper scope tube stayed visible
     //    but was positioned below the camera (appearing as a solid object at
     //    the bottom of the screen instead of something to look through).
-    const hideSightDuringADS = this.sightDef.type !== "iron" && this.adsProgress > 0.15;
+    const hideSightDuringADS = !clearance.sightVisible && this.adsProgress > 0.15;
     const hideEntireViewmodel = !this.reloading && !this.equipmentAction && (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
@@ -2478,7 +2486,8 @@ export class FPSEngine {
       p.obj.position.z -= pivotZ;
       p.obj.position.applyQuaternion(this._vmTotalQuat);
       p.obj.position.x += pivotX + ox;
-      p.obj.position.y += pivotY + oy;
+      p.obj.position.y += pivotY + oy +
+        (p.obj===this.sightMesh?clearance.sightLift*this.adsProgress:0);
       p.obj.position.z += pivotZ + oz;
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
@@ -3523,9 +3532,9 @@ export class FPSEngine {
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
     });
-    if (weaponFinish.prestige || weaponById(c.weaponId).wonder) {
+    if (weaponFinish.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(c.weaponId)) {
       weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ??
-        (["wonder_corrosion","wonder_hellfire"].includes(c.weaponId)?"toxic":"cosmic"));
+        (c.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
       weaponMat.color.set(0xffffff);
     }
 
@@ -4690,6 +4699,18 @@ export class FPSEngine {
 
   // ---- Special-weapon resources & ground pickups ----
   private updateSpecialResources(dt: number, now: number) {
+    const clearExpired=(items:{mesh:THREE.Mesh;born:number;life:number}[])=>items.filter(item=>{
+      const age=now-item.born;
+      if(age>=item.life){
+        this.scene.remove(item.mesh);item.mesh.geometry.dispose();
+        (item.mesh.material as THREE.Material).dispose();return false;
+      }
+      const material=item.mesh.material as THREE.MeshBasicMaterial;
+      material.opacity*=Math.max(.64,1-dt*2.3);
+      return true;
+    });
+    this.flamePlumes=clearExpired(this.flamePlumes);
+    this.stormArcMeshes=clearExpired(this.stormArcMeshes);
     for (const [id, state] of this.wonderStates) {
       const rules = weaponById(id).wonder;
       if (!rules) continue;
@@ -4788,6 +4809,8 @@ export class FPSEngine {
       if (Date.now() >= bolt.expiresAt) { this.removeBoltPickup(id); continue; }
       if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !this.touchMode) continue;
       if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > 2.0) continue;
+      if (this.getCurrentAttachments().magazine==="mag_bolt_quiver" &&
+          this.weaponId==="crossbow_reclaimer") continue;
       if (this.opts.online) {
         if (now >= bolt.retryAt) {
           bolt.retryAt = now + 600;
@@ -4803,6 +4826,13 @@ export class FPSEngine {
   private recoverBolt() {
     const special = weaponById("crossbow_reclaimer").special;
     if (special?.kind !== "bolt") return;
+    if(this.getCurrentAttachments().magazine==="mag_bolt_heavy" &&
+       this.weaponId==="crossbow_reclaimer"){
+      this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+1);
+      this.saveAmmoToSlot(this.currentSlot);
+      this.sound.play("reload",{volume:.28});
+      return;
+    }
     if (this.weaponId === "crossbow_reclaimer" && this.reloading) {
       this.reloadEndsAt = Math.min(this.reloadEndsAt, performance.now() + special.quickReloadSeconds * 1000);
     } else {
@@ -4859,39 +4889,52 @@ export class FPSEngine {
   /** Smart bullets arc around the muzzle; electricity renders as flickering bolts. */
   /** A moving short-range cone of orange filaments, not a ground hazard. */
   private spawnFlameSpray(origin:Vec3,dir:Vec3){
-    for(let i=0;i<4;i++){
-      const dist=4.5+i*1.55,jitter=(Math.random()-.5)*(.8+i*.38);
-      const start=new THREE.Vector3(...origin);
-      const end=start.clone().add(new THREE.Vector3(dir[0]*dist+jitter,
-        dir[1]*dist+(Math.random()-.5)*1.1,dir[2]*dist+jitter*.45));
-      const middle=start.clone().lerp(end,.54);middle.y+=.35+i*.12;
-      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([start,middle,end]),
-        new THREE.LineBasicMaterial({color:i%2?0xffad30:0xff481e,
-          transparent:true,opacity:.95,depthWrite:false}));
-      this.scene.add(line);this.tracers.push({line,born:performance.now(),life:165+i*19});
+    // Flare originates at the WEAPON muzzle, not a hitscan projectile leaving
+    // the camera. Overlapping translucent tongues form a continuous fire cone.
+    const near=this.camera.position.distanceTo(new THREE.Vector3(...origin))<1.5;
+    const start=near
+      ? this.camera.localToWorld(new THREE.Vector3(.14,-.18,-.65))
+      : new THREE.Vector3(origin[0]+dir[2]*.16+dir[0]*.65,
+          origin[1]-.16+dir[1]*.65,origin[2]-dir[0]*.16+dir[2]*.65);
+    const forward=new THREE.Vector3(...dir).normalize();
+    for(let i=0;i<3;i++){
+      const length=1.25+Math.random()*1.8;
+      const advance=.35+i*.70;
+      const centre=start.clone().addScaledVector(forward,advance+length*.35);
+      centre.x+=(Math.random()-.5)*.18;centre.y+=(Math.random()-.5)*.16;
+      const mesh=new THREE.Mesh(new THREE.ConeGeometry(.18+advance*.1,length,9,1),
+        new THREE.MeshBasicMaterial({color:i===0?0xffe69c:i===1?0xff991f:0xe94311,
+          transparent:true,opacity:i===0?.58:.39,depthWrite:false,
+          side:THREE.DoubleSide}));
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward);
+      mesh.position.copy(centre);this.scene.add(mesh);
+      this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
   }
   private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"){
     const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
-    const span=end.clone().sub(start), mid=start.clone().add(end).multiplyScalar(.5);
-    if(kind==="smart")mid.y+=Math.min(2.5,span.length()*.055);
-    else mid.add(new THREE.Vector3(.28,.2,-.3));
-    const strands=kind==="storm"?3:1;
-    for(let strand=0;strand<strands;strand++){
-      const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(kind==="smart"?24:22);
-      if(kind==="storm"){
-        for(let i=1;i<points.length-1;i++){
-          const magnitude=Math.sin(i*17.35+strand*2.7)*(.20+strand*.13);
-          points[i].x+=magnitude;
-          points[i].y+=Math.cos(i*7.3+strand)*(.2+strand*.12);
-        }
+    const mid=start.clone().lerp(end,.5);
+    if(kind==="storm"){
+      mid.x+=.24;mid.y+=.18;
+      // ONE thick, jagged electrical tube instead of three fine lines.
+      const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(19);
+      for(let i=1;i<points.length-1;i++){
+        points[i].x+=Math.sin(i*13.5)*.16;
+        points[i].y+=Math.cos(i*9.4)*.12;
       }
-      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({color:kind==="smart"?0xff527f:strand===0?0xe3ffff:0x46caff,
-          transparent:true,opacity:strand===0?.98:.7,depthWrite:false}));
-      this.scene.add(line);
-      this.tracers.push({line,born:performance.now(),life:kind==="smart"?340:470});
+      const mesh=new THREE.Mesh(new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(points),28,.042,5,false),
+        new THREE.MeshBasicMaterial({color:0x8deeff,transparent:true,
+          opacity:.97,depthWrite:false}));
+      this.scene.add(mesh);
+      this.stormArcMeshes.push({mesh,born:performance.now(),life:440});
+      return;
     }
+    mid.y+=Math.min(2.5,start.distanceTo(end)*.055);
+    const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(24);
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({color:0xff527f,transparent:true,opacity:.94}));
+    this.scene.add(line);this.tracers.push({line,born:performance.now(),life:340});
   }
   /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
   private stormVictims(ownerId:string,ownerTeam:string):StormVictim[]{
@@ -5030,16 +5073,21 @@ export class FPSEngine {
     const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
       (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
     if(kind==="smart"){
-      // A smart round uses an already tagged enemy even when hipfired.
-      const victim=[...this.smartTags].filter(([,expiry])=>expiry>performance.now())
+      // All valid acquired targets are struck by the same smart volley, not
+      // only the first marker. A single charge is still consumed per volley.
+      const tagged=[...this.smartTags].filter(([,expires])=>expires>performance.now())
         .map(([id])=>this.combatants.get(id))
-        .find(c=>c?.alive&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=Date.now())&&
+        .filter((c):c is Combatant=>!!c&&c.alive&&
+          (!c.spawnProtectedUntil||c.spawnProtectedUntil<=Date.now())&&
           Math.hypot(c.pos[0]-origin[0],c.pos[2]-origin[2])<=this.eff.range&&
-          this.hasLineOfSight(origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]));
-      if(victim?.alive){
-        const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
-        this.spawnWonderBeam(origin,to,"smart");
-        this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+          this.hasLineOfSight(origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]))
+        .slice(0,SMART_MAX_TAGS);
+      if(tagged.length){
+        for(const victim of tagged){
+          const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
+          this.spawnWonderBeam(origin,to,"smart");
+          this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+        }
       }else{
         this.localFireRay(origin,dir,w.stats.headshotMult);
         this.spawnTracer(origin,dir,this.getCurrentSkinId());
@@ -5179,11 +5227,12 @@ export class FPSEngine {
       this.sound.play("swap", { volume: 0.65 });
       return;
     }
-    this.triggerMuzzleFlash();
+    if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash();
+    // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
       suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
-      volume: 0.9,
+      volume: w.wonder?.kind==="flame" ? .47 : .9,
     });
     // ---- Auto-reload when the mag hits 0 ----
     // As soon as the magazine is emptied by this shot, kick off a reload
@@ -5210,7 +5259,7 @@ export class FPSEngine {
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
-    this.shotBloom = w.stats.auto
+    this.shotBloom = this.eff.auto
       ? automaticBloom(this.shotBloom,this.eff.fireRate,now-this.lastBloomShotAt)
       : Math.min(.28,this.shotBloom+shotBloomIncrease(this.eff.fireRate)*.32);
     this.lastBloomShotAt=now;
@@ -5262,8 +5311,10 @@ export class FPSEngine {
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
       }
       if (special?.kind === "bolt") {
-        const id = `local_bolt_${++this.localBoltSequence}`;
-        this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
+        if(this.getCurrentAttachments().magazine!=="mag_bolt_quiver"){
+          const id = `local_bolt_${++this.localBoltSequence}`;
+          this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
+        }
       } else this.spawnTracer(origin, dir, this.getCurrentSkinId());
     }
   }
@@ -5923,7 +5974,7 @@ export class FPSEngine {
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(wonder?.kind==="corrosion" ? 0.095 : isBreach ? 0.125 : 0.075,
         wonder?.kind==="corrosion" ? 0.095 : isBreach ? 0.125 : 0.075,isBreach ? 0.36 : wonder ? 0.34 : 0.24,12),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x80f23c:isBreach?0xffac33:isSwarm?0x48d6f5:0x888888 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x547743:isBreach?0xffac33:isSwarm?0x48d6f5:0x888888 }),
     );
     body.rotation.x = Math.PI / 2; // align with -Z (forward)
     rocketGroup.add(body);
@@ -5937,7 +5988,7 @@ export class FPSEngine {
     // Glowing trail (small sphere at the back)
     const trail = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x88ff33:isBreach?0xffd966:isSwarm?0x5fffea:0xff6600,transparent:true,opacity:.96 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x718b46:isBreach?0xffd966:isSwarm?0x5fffea:0xff6600,transparent:true,opacity:.96 }),
     );
     trail.position.z = 0.14;
     rocketGroup.add(trail);
@@ -5965,7 +6016,9 @@ export class FPSEngine {
     const dist = start.distanceTo(end);
     const travelMs = wonder?.kind === "singularity"
       ? gravityTravelMs(dist) : weaponId==="launcher_breach"
-      ? Math.min(700,Math.max(270,dist*9)) : Math.min(450,Math.max(140,dist*4));
+      ? Math.min(700,Math.max(270,dist*9))
+      : weaponId==="launcher_swarm" ? Math.min(750,Math.max(200,dist*7))
+      : Math.min(450,Math.max(140,dist*4));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
     const splashRadius = projectileSplashRadius(weaponById(weaponId));
@@ -5977,11 +6030,11 @@ export class FPSEngine {
   private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS, weaponId = "") {
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x7aea39 : weaponId === "launcher_swarm" ? 0x3df9ef : 0xff6622, transparent: true, opacity: 0.85 }),
+      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x597940 : weaponId === "launcher_swarm" ? 0x3df9ef : 0xff6622, transparent: true, opacity: 0.85 }),
     );
     sphere.position.copy(pos);
     this.scene.add(sphere);
-    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : weaponId === "launcher_swarm" ? 0x21f1db : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
+    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x557040 : weaponId === "launcher_swarm" ? 0x21f1db : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
     light.position.copy(pos);
     this.scene.add(light);
     this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : weaponId === "launcher_swarm" ? 750 : 500, radius });
@@ -6103,6 +6156,8 @@ export class FPSEngine {
       this.socket?.emit("message", { t: "reload" });
       return;
     }
+    if (this.weaponId==="crossbow_reclaimer" &&
+        this.getCurrentAttachments().magazine==="mag_bolt_heavy") return; // scavenged heavy arrows only
     if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive) return;
     if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
@@ -6352,7 +6407,7 @@ export class FPSEngine {
       }
       // ---- Decide whether to START a new shot / burst ----
       else if (now >= this.burstEndsAt) {
-        const isAuto = w.stats.auto;
+        const isAuto = this.eff.auto;
         const isBurst = (w.stats.burst ?? 1) > 1;
         const isSemi = !isAuto && !isBurst;
         if (isAuto) {

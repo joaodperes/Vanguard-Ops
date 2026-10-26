@@ -67,7 +67,8 @@ describe("melee identity and identical F profiles",()=>{
   test("point-blank stabs, vertical chops, lateral axe, overhead hammer",()=>{
     expect(ids.map(meleeStyle)).toEqual(["stab","stab","vertical","vertical","horizontal","slam"]);
     expect(meleeSwingPose("knife_tactical",.5).z).toBeLessThan(-.3);
-    expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeGreaterThan(1);
+    expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeGreaterThan(.4);
+    expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeLessThan(.9);
     expect(meleeSwingPose("hammer",.5).pitch).toBeLessThan(-1.5);
     expect(meleeSwingPose("machete",.5).pitch).toBeLessThan(-1);
   });

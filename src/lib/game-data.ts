@@ -74,7 +74,7 @@ export interface WeaponDef {
   explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
   disabled?: boolean;
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
+  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3 | 4 | 5; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -491,8 +491,9 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   return {
     ...base,
     shotgunAmmo: shell,
+    auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
-    fireRate: base.fireRate * (shellTuning?.rateMul ?? 1),
+    fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1),
     damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.

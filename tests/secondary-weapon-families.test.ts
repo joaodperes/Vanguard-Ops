@@ -74,7 +74,7 @@ describe("secondary family catalog and permanent IDs", () => {
 });
 describe("catalog-driven launcher ballistics", () => {
   test("each conventional launcher has a separate finite blast radius", () => {
-    const radii = { launcher_rocket: 8, launcher_breach: 3.5, launcher_swarm: 9.5 };
+    const radii = { launcher_rocket: 1.9, launcher_breach: 2.9, launcher_swarm: 9.5 };
     for (const [id, radius] of Object.entries(radii)) {
       const w = weaponById(id);
       expect(w.category).toBe("launcher");

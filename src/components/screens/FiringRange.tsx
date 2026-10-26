@@ -13,10 +13,10 @@ import {
 import { PERKS, perkSelection, perkById } from "@/lib/perks";
 import {
   emptyRangeAttachments, normalizeRangeLoadout, rangePrimaryWeapons,
-  rangeMeleeWeapons, rangeSecondaryWeapons, rangeWeaponSlot, selectRangeWeapon,
+  rangeMeleeWeapons, rangeSecondaryWeapons, rangeWeaponSlot, selectRangeWeapon, groupedRangeWeapons,
 } from "@/lib/firing-range-loadout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Crosshair, FlaskConical, Settings2, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Crosshair, FlaskConical, Settings2, RotateCcw, Play as PlayIcon } from "lucide-react";
 
 type AttachmentMap = LoadoutWire["attachments"];
 const slots: AttachmentSlot[] = ["sight", "barrel", "grip", "magazine"];
@@ -172,8 +172,14 @@ function RangeSession({ profile, requestedId, onExit }: {
               <div>
                 <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-widest text-lg"><Crosshair className="w-5 h-5" /> Firing Range</div>
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-300 text-xs border border-emerald-500/25 bg-emerald-500/10 rounded-lg px-3 py-2">
-                <ShieldCheck className="w-4 h-4" /> No purchases or profile changes
+              <div className="flex flex-wrap items-center gap-2">
+                {session > 0 && <Button size="sm" variant="outline" onClick={() => setEditing(false)}
+                  className="border-cyan-500/40 text-cyan-200">
+                  <PlayIcon className="w-4 h-4 mr-1" /> Resume
+                </Button>}
+                <Button size="sm" variant="outline" onClick={onExit} className="border-white/30 text-white">
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Leave
+                </Button>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-4">
@@ -201,7 +207,13 @@ function RangeSession({ profile, requestedId, onExit }: {
                 <div key={field}>
                   <label className={labelClass} htmlFor={field}>{label}</label>
                   <select id={field} className={selectClass} value={draft[field] ?? ""} onChange={e => changeWeapon(field, e.target.value)}>
-                    {weapons.map(w => <option key={w.id} value={w.id}>{w.name}{ownedIds.has(w.id) || (w.unlockCost === 0 && !w.wonder) ? "" : " · Locked"}</option>)}
+                    {groupedRangeWeapons(weapons).map(group=>(
+                      <optgroup key={group.type} label={group.label}>
+                        {group.weapons.map(w=><option key={w.id} value={w.id}>
+                          {w.name}{ownedIds.has(w.id) || (w.unlockCost === 0 && !w.wonder) ? "" : " · Locked"}
+                        </option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
               ))}

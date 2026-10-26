@@ -63,6 +63,12 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
     noiseHz: 6200, noiseQ: 1.8, noiseSeconds: .14,
     bodyLevel: .43, noiseLevel: .31, bodyType: "sawtooth", filter: "highpass",
   },
+  wonder_hellfire: {
+    // Pure pressurized combustion hiss, with no shot crack or bass blast.
+    bodyHz: 100, bodyEndHz: 100, bodySeconds:.12,noiseHz:900,
+    noiseQ:.58,noiseSeconds:.17,bodyLevel:0,noiseLevel:.46,
+    bodyType:"sine",filter:"lowpass",
+  },
 };
 
 
@@ -103,6 +109,7 @@ const SPECIAL_IMPACTS: Record<string, ImpactProfile> = {
   rifle_electron:     { crackHz: 3500, crackSeconds: .017, crackLevel: .32, punchHz: 115, punchSeconds: .080, punchLevel: .18 },
   crossbow_reclaimer: { crackHz: 2600, crackSeconds: .009, crackLevel: .12, punchHz: 105, punchSeconds: .045, punchLevel: .10 },
   pistol_arc:        { crackHz: 4100, crackSeconds: .016, crackLevel: .44, punchHz: 125, punchSeconds: .055, punchLevel: .15 },
+  wonder_hellfire:   { crackHz: 140, crackSeconds: .005, crackLevel: 0, punchHz: 80, punchSeconds: .005, punchLevel: 0 },
 };
 
 /** Open, broadband combustion blast that follows the first muzzle snap.

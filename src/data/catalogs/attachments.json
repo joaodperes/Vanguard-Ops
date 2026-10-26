@@ -679,5 +679,49 @@
     ],
     "shotgunAmmo": "beanbag",
     "effects": {}
+  },
+  {
+    "id": "mag_bolt_quiver",
+    "name": "Bolt Quiver",
+    "slot": "magazine",
+    "unlockLevel": 21,
+    "unlockCost": 700,
+    "description": "10 lighter automatic bolts. Fired bolts cannot be reclaimed.",
+    "recommendedFor": [
+      "dmr"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "magSize": 900,
+      "damage": -27,
+      "fireRate": 250
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "mag_bolt_heavy",
+    "name": "Heavy Arrows",
+    "slot": "magazine",
+    "unlockLevel": 25,
+    "unlockCost": 850,
+    "description": "Two massive high-damage arrows. No normal reload: retrieve your fired bolts to refill.",
+    "recommendedFor": [
+      "dmr"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "magSize": 100,
+      "damage": 190,
+      "fireRate": -12
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
   }
 ]

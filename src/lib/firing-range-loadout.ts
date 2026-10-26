@@ -12,7 +12,7 @@ export const emptyRangeAttachments = (): AttachmentMap => ({
 /** Wonders are primary-slot equipment even if their underlying weapon category differs. */
 export function rangeWeaponSlot(weaponId: string): WeaponSlot | null {
   const weapon = WEAPONS.find(w => w.id === weaponId);
-  if (!weapon) return null;
+  if (!weapon || weapon.disabled) return null;
   if (weapon.wonder || isPrimaryWeaponCategory(weapon.category)) return "primary";
   return weapon.category === "melee" ? "melee" : "secondary";
 }
@@ -22,7 +22,7 @@ export const rangeMeleeWeapons: WeaponDef[] = WEAPONS.filter(w => rangeWeaponSlo
 
 export function rangeSecondaryWeapons(perkId: string | undefined, primaryWeaponId: string): WeaponDef[] {
   return WEAPONS.filter(w =>
-    !w.wonder && (
+    !w.disabled && !w.wonder && (
       (rangeWeaponSlot(w.id) === "secondary") ||
       (perkId === "well_prepared" && isPrimaryWeaponCategory(w.category) && w.id !== primaryWeaponId)
     ),
@@ -78,4 +78,25 @@ export function selectRangeWeapon(loadout: LoadoutWire, weaponId: string): Loado
   return normalizeRangeLoadout({
     ...loadout, meleeWeaponId: weaponId, meleeAttachments: emptyRangeAttachments(),
   });
+}
+
+/** Stable, human-readable trial dropdown ordering (type, unlock, name).
+ * Wonder Weapons form their own alphabetical group after standard types.
+ */
+export const RANGE_TYPE_ORDER = [
+  "assault","smg","shotgun","dmr","sniper","lmg",
+  "pistol","pdw","launcher","melee","wonder",
+] as const;
+export function groupedRangeWeapons(weapons:readonly WeaponDef[]){
+  return RANGE_TYPE_ORDER.map(type=>({
+    type,label:type==="wonder"?"Wonder Weapons":({
+      assault:"Assault Rifles",smg:"SMGs",shotgun:"Shotguns",dmr:"DMRs",
+      sniper:"Sniper Rifles",lmg:"LMGs",pistol:"Pistols",pdw:"PDWs",
+      launcher:"Launchers",melee:"Melee",
+    } as Record<string,string>)[type],
+    weapons:weapons.filter(w=>!w.disabled&&(w.wonder?"wonder":w.category)===type)
+      .sort((a,b)=>type==="wonder"
+        ? a.name.localeCompare(b.name)
+        : a.unlockLevel-b.unlockLevel||a.name.localeCompare(b.name)),
+  })).filter(g=>g.weapons.length>0);
 }
