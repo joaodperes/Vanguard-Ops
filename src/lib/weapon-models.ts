@@ -28,7 +28,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   // Different silhouette, powerplant and emitter for each mechanical family.
   wonder_singularity: { receiver:[.115,.12,.26],guardLength:.075,barrelLength:.15,bore:.027,stock:"none",magazine:"grip",body:"tapered",features:["muzzle"],signature:0x748094 },
   wonder_corrosion: { receiver:[.18,.16,.38],guardLength:.29,barrelLength:.24,bore:.052,stock:"folding",magazine:"tube",body:"ribbed",features:["vent","muzzle"],signature:0x587047 },
-  wonder_deadlock: { receiver:[.105,.13,.27],guardLength:.08,barrelLength:.18,bore:.02,stock:"none",magazine:"grip",body:"angular",features:["muzzle"],signature:0x78707b },
+  wonder_deadlock: { receiver:[.135,.15,.32],guardLength:.15,barrelLength:.18,bore:.028,stock:"none",magazine:"grip",body:"tapered",features:["muzzle","vent"],signature:0xb154d4 },
   wonder_hellfire: { receiver:[.24,.24,.52],guardLength:.49,barrelLength:.45,bore:.15,stock:"heavy",magazine:"drum",body:"ribbed",features:["dual","vent","shield"],signature:0xff7424 },
   wonder_stormweaver: { receiver:[.14,.18,.33],guardLength:.16,barrelLength:.23,bore:.075,stock:"none",magazine:"revolver",body:"tapered",features:["vent","muzzle","rail"],signature:0x48d6ff },
   wonder_bogfather: { receiver:[.23,.19,.48],guardLength:.4,barrelLength:.29,bore:.12,stock:"heavy",magazine:"drum",body:"block",features:["shield","dual","vent"],signature:0x86e042 },
@@ -280,20 +280,46 @@ export function buildFirstPersonWeapon(
     const orb=(x:number,y:number,z:number,r:number)=>{
       add(new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),energy),x,y,z);
     };
-    if(id==="wonder_singularity" || id==="wonder_turret" || id==="wonder_deadlock"){
-      // These are normal pistol/remote silhouettes with their equipped skin,
-      // no orbiting crystals, pink antennae or forced glowing chassis.
+    if(id==="wonder_singularity"){
+      // Gravity generator: concentric offset field coils and a recessed core.
+      // Eventide still covers the whole receiver when it is actually equipped.
+      for(const z of [muzzle+.035,muzzle+.095,muzzle+.155]){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.06,.013,8,22),energy);
+        add(ring,0,.015,z);
+      }
+      for(const side of [-1,1]){
+        box(side*(w*.70),.012,c-.015,.025,.065,.15,energy);
+        box(side*(w*.53),.085,c-.07,.03,.022,.19,metal);
+      }
+      orb(0,.015,muzzle-.03,.046);
+    }else if(id==="wonder_deadlock"){
+      // Smart-targeting sidearm: paired asymmetric fins, three target-acquisition
+      // modules and a glowing vented barrel. Not a stock pistol silhouette.
+      for(const side of [-1,1]){
+        box(side*(w*.73),.055,c-.075,.032,.10,.24,energy);
+        box(side*(w*.85),.10,c-.16,.022,.045,.075,metal);
+      }
+      for(let n=0;n<3;n++)orb((n-1)*.053,.105,c-.065,.022);
+      const emitter=new THREE.Mesh(new THREE.TorusGeometry(.051,.016,7,18),energy);
+      add(emitter,0,.015,muzzle+.025);
+      box(0,-.13,c+.04,.087,.06,.14,energy);
+    }else if(id==="wonder_turret"){
+      // Bullet Spitter is built as a separate, grounded turret prop.
     }else if(id==="wonder_corrosion"){
       const olive=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0x4c6840});
       for(const side of [-1,1]){
         tube(side*.095,-.025,c-.11,.036,.26,olive,10);
       }
     }else if(id==="wonder_hellfire"){
+      const yellow=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0xffc12b});
+      const red=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0xc31e0c});
       for(const side of [-1,1]){
-        tube(side*.11,.03,barrelCenter,.065,barrelLength*.78,energy,14);
+        tube(side*.11,.03,barrelCenter,.065,barrelLength*.78,red,14);
         orb(side*.11,.03,muzzle,.075);
+        for(let k=0;k<4;k++)box(side*.12,.13,c-.25+k*.10,.045,.032,.06,yellow);
       }
       box(0,.14,c-.15,.19,.055,.31,energy);
+      box(0,-.09,c+.12,.18,.06,.11,red);
     }else if(id==="wonder_stormweaver"){
       for(let n=0;n<5;n++){
         const ring=new THREE.Mesh(new THREE.TorusGeometry(.076,.015,6,20),energy);
