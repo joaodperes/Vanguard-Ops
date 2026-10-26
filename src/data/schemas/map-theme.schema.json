@@ -189,6 +189,11 @@
           "lotId": {
             "type": "string",
             "pattern": "^city:-?[0-9]+:-?[0-9]+$"
+          },
+          "turns": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
           }
         },
         "additionalProperties": false
