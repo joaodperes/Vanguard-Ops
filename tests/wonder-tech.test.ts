@@ -29,7 +29,7 @@ describe("Novel Wonder families",()=>{
  });
 });
 
-describe("persistent smart tags and full fuel bursts",()=>{
+describe("persistent smart tags and held flame fuel",()=>{
  test("Deadlock acquires at most three visible hostiles with no friendly or wall hacks",()=>{
   const candidates=Array.from({length:6},(_,i)=>({id:"e"+i,pos:[i-2,0,20] as const,alive:true,team:"blue"}));
   const tags=selectSmartTargets([0,1.6,0],[0,0,1],candidates,"red",false,75,()=>true);
@@ -37,11 +37,11 @@ describe("persistent smart tags and full fuel bursts",()=>{
   expect(new Set(tags.map(x=>x.id)).size).toBe(SMART_MAX_TAGS);
   expect(selectSmartTargets([0,1.6,0],[0,0,1],candidates,"red",false,75,()=>false)).toEqual([]);
  });
- test("Hellfire consumes three seconds per ignition, never permits a partial burst",()=>{
-  expect(HELLFIRE_BURST_MS).toBe(5000);
+ test("Hellfire has an eight-second reserve rather than a five-second automatic burst",()=>{
+  expect(HELLFIRE_BURST_MS).toBe(8000);
   const fuel=WEAPONS.find(w=>w.id==="wonder_hellfire")!;
-  expect(fuel.wonder?.maxCharges).toBe(5);
-  expect(fuel.stats.magSize).toBe(5);
+  expect(fuel.wonder?.maxCharges).toBe(8);
+  expect(fuel.stats.magSize).toBe(8);
   expect(fuel.stats.range).toBe(11);
  });
  test("Bogfather remains in historical IDs but is unavailable",()=>{
@@ -49,16 +49,23 @@ describe("persistent smart tags and full fuel bursts",()=>{
  });
 });
 
-import { fullWonderCharges, spendFullWonderCharge, tickWonderCharges } from "../src/lib/wonder-charge";
+import { fullWonderCharges, spendHellfireFuelOnShot, tickWonderCharges } from "../src/lib/wonder-charge";
 import { SIGHT_DEFS, hasMountedSight, weaponById } from "../src/lib/game-data";
-describe("three-second fuel consumption and sight defaults",()=>{
- test("flame ignition spends all five seconds; partial fuel cannot restart",()=>{
+describe("pay-as-fired fuel and sight defaults",()=>{
+ test("flame shots spend just one second, stopping preserves remaining fuel",()=>{
   const rules=weaponById("wonder_hellfire").wonder!;
-  const empty=spendFullWonderCharge(fullWonderCharges(rules),rules,1000)!;
-  expect(empty.charges).toBe(0);
-  expect(spendFullWonderCharge(tickWonderCharges(empty,rules,10000),rules,10000)).toBeNull();
-  expect(tickWonderCharges(empty,rules,36000).charges).toBe(5);
-  expect(spendFullWonderCharge(empty,rules,36000)?.charges).toBe(0);
+  const start=fullWonderCharges(rules);
+  const first=spendHellfireFuelOnShot(start,rules,1000,0)!;
+  expect(first.state.charges).toBe(7);
+  expect(first.paidThrough).toBe(2000);
+  const sameSlice=spendHellfireFuelOnShot(first.state,rules,1180,first.paidThrough)!;
+  expect(sameSlice.state.charges).toBe(7);
+  // Releasing fire sends no shots; 7 seconds remain available.
+  const idle=tickWonderCharges(sameSlice.state,rules,1600);
+  expect(idle.charges).toBe(7);
+  const resumed=spendHellfireFuelOnShot(idle,rules,2100,sameSlice.paidThrough)!;
+  expect(resumed.state.charges).toBe(6);
+  expect(resumed.paidThrough).toBe(3100);
  });
  test("regular rifles and SMGs have unmagnified iron sight defaults",()=>{
   for(const id of ["rifle_ar","smg_kp","dmr_scout","lmg_light"]){
