@@ -2,6 +2,16 @@
 
 Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
 
+## Object movement and rotation
+
+3D editing saves every quarter-turn (0°, 90°, 180°, 270°) with the object instead of resetting it when moving or reselecting. For authored geometry, theme props, standalone hazards and overridden built-in objects, the saved extents remain axis-aligned for physics. City-building doorways, external/internal stairs and furniture rotate with the saved orientation. In Move mode, explicitly choose **Lock direction X / Y / Z**: the gizmo exposes only that direction, and commits reject movement along the other two axes, including accidental plane dragging.
+
+The two prominent authoring modes are **Construction kits** (regions, walls, stairs, grouped kits and spawns) and **Paint tools** (buildings and themed scenery). Use **Dismiss guide** to hide the tutorial between visits; **Show guide** reopens it.
+
+### Breakwater polish
+
+Containers now show stripes on **both long faces** whether they run along the X or Z axis. The floating moving cargo platform and independent authored crane platform have been removed, while the dock layout, normal cover, existing supported crane routes and container stacks remain.
+
 ## Quick Build — dev workflow
 
 Map Studio now includes a first-map guide, direct cursor placement, eight reusable city building kits, and seven geometry kits (alley, room, rooftop, market stalls, checkpoint, stairwell, courtyard).
