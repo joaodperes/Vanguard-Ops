@@ -9,7 +9,8 @@ export interface StudioMapIssue {
 }
 const overlap=(a:MapProp,b:MapProp,padding=2.5)=>
   Math.abs(a.x-b.x)<((a.w??20)+(b.w??20))/2+padding &&
-  Math.abs(a.z-b.z)<((a.d??20)+(b.d??20))/2+padding;
+  Math.abs(a.z-b.z)<((a.d??20)+(b.d??20))/2+padding &&
+  (a.y??0)<(b.y??0)+(b.h??6)-.05 && (b.y??0)<(a.y??0)+(a.h??6)-.05;
 const intersectsSpawn=(box:ReturnType<typeof cityBuildingBoxes>[number],spawn:Vec3)=>
   spawn[1]<box.pos[1]+box.size[1]+.3 && spawn[1]+1.8>box.pos[1]-box.size[1] &&
   Math.abs(spawn[0]-box.pos[0])<box.size[0]+1.3 &&
@@ -41,7 +42,8 @@ export function studioBuildingPlacementIssues(
   for(const f of plan.features){
     if(f.kind==="accent")continue;
     const clearance=f.kind==="stairs"?1.5:0.4;
-    if(Math.abs(candidate.x-f.x)<w/2+f.w/2+clearance&&
+    if((candidate.y??0)<(f.y??0)+f.h-.05 && (f.y??0)<(candidate.y??0)+(candidate.h??6)-.05 &&
+       Math.abs(candidate.x-f.x)<w/2+f.w/2+clearance&&
        Math.abs(candidate.z-f.z)<d/2+f.d/2+clearance)
       {add("feature","Building intersects authored cover, stairs or a platform.");break;}
   }
