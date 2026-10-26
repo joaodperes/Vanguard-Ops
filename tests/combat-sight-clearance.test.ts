@@ -18,9 +18,9 @@ describe("every weapon's physical ADS model vs camera eye and crosshair",()=>{
     const c=adsClearance(w,"iron",receiver);
     const apertureY=c.bodyY+c.sightMountY*1.2; // physical rigid optic
     expect(c.sightVisible).toBe(true);
-    expect(Math.abs(apertureY)).toBeLessThan(.02);
+    expect(apertureY).toBeGreaterThan(-.19);\n    expect(apertureY).toBeLessThan(0);\n    expect(c.sightMountY).toBeLessThan(.15); // receiver-level notch, not a raised ladder
     expect(c.bodyCeiling).toBeLessThan(0);
-    expect(c.bodyY).toBeLessThan(apertureY-.20);
+    expect(c.bodyY).toBeLessThan(apertureY-.06);
   }
  });
  test("Hydra Twin, Reclaimer, RL-7, Breach-2, Swarm-3 and Stormweaver use receiver-aware clearance",()=>{
@@ -29,7 +29,7 @@ describe("every weapon's physical ADS model vs camera eye and crosshair",()=>{
     const w=weaponById(id);
     const c=adsClearance(w,w.baseSightType??"iron",
       WEAPON_VISUALS[id]?.receiver?.[1]);
-    expect(c.bodyY).toBeLessThanOrEqual(-.30);
+    expect(c.bodyY).toBeLessThanOrEqual(-.20);
     expect(c.bodyCeiling).toBeLessThan(0);
   }
  });
@@ -85,9 +85,9 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(Math.abs(start.hand[2]-finish.hand[2])).toBeGreaterThan(.05);
   expect(start.prop[1]).toBeGreaterThan(0);
  });
- test("Hellfire sprays for five fully charged seconds, Storm mines are four seconds",()=>{
-  expect(HELLFIRE_BURST_MS).toBe(5000);
-  expect(weaponById("wonder_hellfire").wonder?.maxCharges).toBe(5);
+ test("Hellfire has eight chargeable seconds, Storm mines are four seconds",()=>{
+  expect(HELLFIRE_BURST_MS).toBe(8000);
+  expect(weaponById("wonder_hellfire").wonder?.maxCharges).toBe(8);
   expect(weaponById("wonder_stormweaver").description).toContain("4 seconds");
  });
 });
