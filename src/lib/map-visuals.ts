@@ -29,6 +29,18 @@ export interface MapProp {
   roofAccess?: boolean;
   facade?: "brick" | "stucco" | "concrete" | "glass" | "timber" | "industrial";
 }
+/** Shared runtime/editor façade recipes, blended by the renderer in linear color space. */
+export const CITY_USE_FACADE_COLORS:Record<string,number>={
+  house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
+  bakery:0xbf9569,apartments:0x8993a4,office:0x577b9c,
+  hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,
+  clinic:0x9abfc2,workshop:0x827d68,gallery:0xb0a3bb,
+  florist:0x82a979,gym:0x648d96,
+};
+export const CITY_FACADE_TINTS:Record<string,number>={
+  brick:0xa45b48,stucco:0xd1bba0,concrete:0x92949b,
+  glass:0x638aa2,timber:0x947556,industrial:0x777e86,
+};
 export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
 export type SurfacePattern = typeof SURFACE_PATTERNS[number];
 export type SurfaceSlot = "floor" | "wall" | "cover" | "stair" | "platform";
