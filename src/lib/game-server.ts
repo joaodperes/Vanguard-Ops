@@ -2680,9 +2680,8 @@ async function handle(socket: any, msg: C2S) {
         for(const pelletDir of stormPelletDirections(shotDir)){
           const contacts=stormCandidates(room,socket.id,p.team,now);
           const impact=traceStormPellet(msg.origin,pelletDir,eff.range,room.map.cover,contacts);
-          io.to(room.id).emit("message",{t:"wonderBeam",
-            from:msg.origin,to:impact.victim?stormTargetPoint(impact.victim):impact.point,
-            kind:"storm"} as S2C);
+          // Lightning is only emitted by serverStormChain from the impact victim
+          // to the next target, never as a bogus arc from the firing muzzle.
           if(impact.victim){
             const victim=allCombatants(room).find(c=>c.id===impact.victim!.id);
             if(victim?.alive){
@@ -2781,12 +2780,14 @@ async function handle(socket: any, msg: C2S) {
           const closestX = msg.origin[0] + segDx * tt;
           const closestY = msg.origin[1] + segDy * tt;
           const closestZ = msg.origin[2] + segDz * tt;
-          const dx = cx - closestX, dy = cy - closestY, dz = cz - closestZ;
-          const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const corrosion = weapon.wonder?.kind === "corrosion";
+          // Poison only enemies near Plagueheart's detonation. Other launchers
+          // deliberately preserve their flight-path splash mechanic.
+          const d = corrosion
+            ? Math.hypot(cx-impact[0],cy-impact[1],cz-impact[2])
+            : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
           if (d <= splashRadius) {
-            // Quadratic falloff + direct-hit bonus (matches the offline engine).
             const falloff = launcherSplashFactor(weapon.id,d,splashRadius);
-            const corrosion = weapon.wonder?.kind === "corrosion";
             const splashDmg = corrosion ? corrosionImpactDamage(eff.damage, falloff) : eff.damage * falloff;
             applyDamage(room, socket.id, e, splashDmg, false, msg.weaponId);
             if (corrosion && e.alive) {
