@@ -1,4 +1,4 @@
-import { fullWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -2547,15 +2547,11 @@ async function handle(socket: any, msg: C2S) {
         const key = socket.id + ":" + weapon.id;
         const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder);
         if(weapon.wonder.kind==="flame"){
-          const until=room.hellfireUntil.get(socket.id)??0;
-          if(until<=now){
-            // Charge by the second when legitimate firing packets arrive.
-            // Releasing the trigger sends no more shots and cannot drain fuel.
-            const next=spendWonderCharge(state,weapon.wonder,now);
-            if(!next)return;
-            room.wonderCharges.set(key,next);
-            room.hellfireUntil.set(socket.id,now+HELLFIRE_FUEL_STEP_MS);
-          }
+          const paid=spendHellfireFuelOnShot(state,weapon.wonder,now,
+            room.hellfireUntil.get(socket.id)??0,HELLFIRE_FUEL_STEP_MS);
+          if(!paid)return;
+          room.wonderCharges.set(key,paid.state);
+          room.hellfireUntil.set(socket.id,paid.paidThrough);
         }else{
           const next=spendWonderCharge(state,weapon.wonder,now);
           if(!next)return;
