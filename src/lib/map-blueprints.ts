@@ -239,6 +239,12 @@ export function validateBlueprint(b: MapBlueprint): string[] {
       seenIndices.add(index);
     }
   }
+  const cityIds=new Set<string>();
+  for(const id of b.cityBuildingDisabled??[]){
+    if(typeof id!=="string"||!/^city:-?[0-9]+:-?[0-9]+$/.test(id)||cityIds.has(id))
+      issues.push("cityBuildingDisabled: invalid or duplicate city lot "+id);
+    cityIds.add(id);
+  }
   for(const team of ["ffa","red","blue"] as const){
     if(!b.spawns?.[team]?.length)issues.push(`Missing ${team} spawns`);
     for(const p of b.spawns?.[team]??[])
