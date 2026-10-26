@@ -30,7 +30,7 @@ import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
-import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared } from "./survival";
+import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
@@ -1496,14 +1496,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
 }
 
 // ---- Survival wave spawning ----
-// Difficulty scales with wave: early waves are easy, late waves are veteran.
-// This affects both bot skill (via makeBotAI) and per-kill rewards.
-function survivalWaveDifficulty(wave: number): Exclude<BotDifficulty, "mixed"> {
-  if (wave <= 3) return "easy";
-  if (wave <= 6) return "normal";
-  if (wave <= 9) return "hard";
-  return "veteran";
-}
+// Survival mode tier fully determines bot aim and wave modifiers.
 
 function startSurvivalWave(room: Room) {
   room.wave += 1;
@@ -1529,7 +1522,7 @@ function startSurvivalWave(room: Room) {
     "pistol_side", "pistol_burst", "pistol_machine", "pistol_magnum", // sidearms
   ];
   const skins = ["red", "orange", "purple", "default", "red", "blue", "green", "phantom"];
-  const waveDiff = survivalWaveDifficulty(room.wave);
+  const waveDiff = survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
   for (let n = 0; n < count; n++) {
     const id = genId("svbot");
     // ---- Round 18-b: spread out spawns ----
@@ -1542,7 +1535,7 @@ function startSurvivalWave(room: Room) {
     loadout.playerSkinId = skins[n % skins.length];
     const boss = mutators.boss && n === count-1;
     if (boss) loadout.weaponId = "lmg_hv";
-    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, room.wave);
+    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0);
     ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
     ai.skill = Math.min(0.98,ai.skill + mutators.skillBoost);
     if (mutators.skillBoost > 0) ai.difficulty = "veteran";
