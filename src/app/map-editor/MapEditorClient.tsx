@@ -7,7 +7,7 @@ import {
   MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, snapCoverToPlatform, stairFeatureBoxes, regionRectangles,
   type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
 } from "@/lib/map-blueprints";
-import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
+import { MAP_VISUAL_THEMES, visualThemeForMap, mapProps, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
 import { getMap } from "@/lib/game-protocol";
 import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
@@ -64,7 +64,25 @@ export default function MapEditor() {
   const compiledMap=getMap(mapId);
   const baseMap=compiledMap.id===mapId?compiledMap:getMap(map?.templateMapId);
   const canEditBuiltIn=compiledMap.id===mapId;
-  const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
+  // Day and night share authored city objects; only their atmospheres differ.
+  const cityVariant=mapId==="arena_neon"||mapId==="terminal";
+  const propsOwner=mapId==="terminal"?"arena_neon":mapId;
+  const themeBase=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
+  const theme:MapVisualTheme=cityVariant?{...themeBase,props:themes.arena_neon?.props??[]}:themeBase;
+  const runtimeSpawns=useMemo(()=>{
+    if(!cityVariant)return [];
+    const compiled=getMap(mapId);
+    return [...compiled.spawns.ffa.slice(-6),...compiled.spawns.red.slice(-3),...compiled.spawns.blue.slice(-3)];
+  },[cityVariant,mapId]);
+  const cityPreviewProps=useMemo(()=>mapProps(mapId,map,theme,runtimeSpawns),[mapId,map,themeBase,themes.arena_neon,runtimeSpawns]);
+  const generatedBuildings=cityPreviewProps.filter(p=>p.kind==="building"&&!!p.lotId&&!theme.props.includes(p));
+  const updateProps=(fn:(props:MapProp[])=>MapProp[],record=true)=>{
+    if(record)pushUndo();
+    setThemes(prev=>{
+      const old=prev[propsOwner]??clone(visualThemeForMap(propsOwner));
+      return {...prev,[propsOwner]:{...old,props:fn(old.props)}};
+    });
+  };
   const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme,record=true)=>{
     if(record)pushUndo();
     setThemes(prev=>({...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))}));
@@ -118,7 +136,15 @@ export default function MapEditor() {
     redoHistory.current=[];setHistoryRevision(n=>n+1);
   };
   const update=(fn:(m:MapBlueprint)=>MapBlueprint)=>{
-    setDoc(prev=>({...prev,maps:{...prev.maps,[mapId]:fn(prev.maps[mapId])}}));
+    setDoc(prev=>{
+      const next=fn(prev.maps[mapId]);
+      if(!cityVariant)return {...prev,maps:{...prev.maps,[mapId]:next}};
+      const otherId=mapId==="arena_neon"?"terminal":"arena_neon";
+      const other=prev.maps[otherId];
+      return {...prev,maps:{...prev.maps,[mapId]:next,
+        [otherId]:other?{...next,name:other.name,shortName:other.shortName,
+          description:other.description,templateMapId:other.templateMapId}:next}};
+    });
   };
   const getPoint=(e:React.PointerEvent<SVGSVGElement>):Point=>{
     const s=svg.current; if(!s)return {x:0,z:0};
@@ -154,8 +180,8 @@ export default function MapEditor() {
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
     if(sel.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
-        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}),false);
+      updateProps(props=>props.map((item,i)=>i===sel.index?
+        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item),false);
       return;
     }
     update(m=>{
@@ -196,7 +222,7 @@ export default function MapEditor() {
         }else if(d.tool==="prop"){
           const index=theme.props.length;
           const p=createThemeProp(x,z,w,depth);
-          updateTheme(t=>({...t,props:[...t.props,p]}),false);
+          updateProps(props=>[...props,p],false);
           setSelected({type:"prop",index});setEditorTab("theme");
         }else{
           const index=map.features.length;
@@ -262,8 +288,8 @@ export default function MapEditor() {
       return;
     }
     if(sel.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
-        {...p,[key]:["kind","text","color","use","shape","stairSide","facade","roofAccess"].includes(key)?value:Number(value)}:p)}),false);
+      updateProps(props=>props.map((p,i)=>i===sel.index?
+        {...p,[key]:["kind","text","color","use","shape","stairSide","facade","roofAccess"].includes(key)?value:Number(value)}:p),false);
       return;
     }
     update(m=>{
@@ -306,7 +332,7 @@ export default function MapEditor() {
     }
     pushUndo();
     if(selectedItem.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==selectedItem.index)}),false);
+      updateProps(props=>props.filter((_,i)=>i!==selectedItem.index),false);
       setSelected(null);return;
     }
     update(m=>selectedItem.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==selectedItem.index)}:
@@ -398,7 +424,7 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(item.type==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{...t.props[item.index],x:t.props[item.index].x+10}]}),false);
+      updateProps(props=>[...props,{...props[item.index],x:props[item.index].x+10}],false);
       setSelected({type:"prop",index});
     }else if(item.type==="feature"){
       const index=map.features.length;
@@ -487,8 +513,8 @@ export default function MapEditor() {
       return;
     }
     if(sel.type==="prop"){
-      updateTheme(current=>({...current,props:current.props.map((p,i)=>i===sel.index?
-        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p)}),false);
+      updateProps(props=>props.map((p,i)=>i===sel.index?
+        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p),false);
       return;
     }
     update(current=>{
@@ -545,7 +571,7 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(kind==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,createThemeProp(x,z)]}),false);
+      updateProps(props=>[...props,createThemeProp(x,z)],false);
       setSelected({type:"prop",index});
     }else if(["ffa","red","blue"].includes(kind)){
       const team=kind as Team,index=map.spawns[team].length;
@@ -555,6 +581,16 @@ export default function MapEditor() {
     if(!stampMode)setTool("select");
     setEditMode("move");
     setStatus(stampMode?"Placed object. Click again to stamp another.":"Placed object. Move or resize it, then export JSON.");
+  };
+  const promoteGenerated=(index:number)=>{
+    const generated=generatedBuildings[index];
+    if(!generated?.lotId)return;
+    pushUndo();
+    update(m=>({...m,cityBuildingDisabled:[...new Set([...(m.cityBuildingDisabled??[]),generated.lotId!])]}));
+    const newIndex=theme.props.length;
+    updateProps(props=>[...props,{...generated}],false);
+    setSelected({type:"prop",index:newIndex});setEditorTab("theme");setEditMode("move");
+    setStatus("Converted city building to an editable object shared by Afterlight Day and Night.");
   };
   const selectedObject=selected?(selected.type==="legacyStairs"?legacyFlightBounds(selected.index):
     selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
@@ -821,7 +857,8 @@ export default function MapEditor() {
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
               mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
               placementProp={tool==="prop"?createThemeProp(0,0):undefined}
-              onSelect={setSelected} onTransform={apply3DTransform} onAddAt={add3DAt}/>:
+              onSelect={sel=>sel?.type==="generatedBuilding"?promoteGenerated(sel.index):setSelected(sel)}
+              onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
             style={{touchAction:"none"}} onPointerDown={onPointerDown}
@@ -844,6 +881,11 @@ export default function MapEditor() {
                 <polygon key={i} {...common} points={`${r.x},${r.z-r.d/2} ${r.x-r.w/2},${r.z+r.d/2} ${r.x+r.w/2},${r.z+r.d/2}`}/>:
                 <rect key={i} {...common} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}/>;
             })}
+            {generatedBuildings.map((p,i)=><rect key={"city-"+p.lotId}
+              x={p.x-(p.w??20)/2} y={p.z-(p.d??20)/2} width={p.w??20} height={p.d??20}
+              fill="#b7a08c" fillOpacity=".35" stroke="#fbbf24" strokeWidth=".4"
+              onPointerDown={e=>{if(tool!=="select")return;e.stopPropagation();promoteGenerated(i);}}
+              style={{cursor:tool==="select"?"pointer":"crosshair"}}/>)}
             {/* Pre-existing engine stairs are informative only: JSON export doesn't replace template geometry. */}
             {inheritedStairs.map((step,i)=><rect key={"legacy-stair-"+i} pointerEvents="none"
               x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
