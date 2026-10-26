@@ -24,7 +24,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
@@ -5231,14 +5231,12 @@ export class FPSEngine {
     if (w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
       if(w.wonder.kind==="flame"){
-        if(this.hellfireActiveUntil<=now){
-          // Pay for fuel only while the trigger is held; no eight-second
-          // commitment and no hidden drainage after release.
-          const next=spendWonderCharge(state,w.wonder,now);
-          if(!next){this.sound.play("empty_click",{volume:.4});return;}
-          this.wonderStates.set(w.id,next);
-          this.hellfireActiveUntil=now+HELLFIRE_FUEL_STEP_MS;
-        }
+        // Only accepted trigger-held shots call this function.
+        const spent=spendHellfireFuelOnShot(state,w.wonder,now,
+          this.hellfireActiveUntil,HELLFIRE_FUEL_STEP_MS);
+        if(!spent){this.sound.play("empty_click",{volume:.4});return;}
+        this.wonderStates.set(w.id,spent.state);
+        this.hellfireActiveUntil=spent.paidThrough;
       }else{
         const next=spendWonderCharge(state,w.wonder,now);
         if(!next){this.sound.play("empty_click",{volume:.4});return;}
