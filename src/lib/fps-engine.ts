@@ -1223,7 +1223,13 @@ export class FPSEngine {
     for(const p of this.map.props ?? []){
       const group=new THREE.Group();
       group.position.set(p.x,p.y??0,p.z);
-      const h=p.h??(p.kind==="shop"?8:4),w=p.w??8,d=p.d??7;
+      const quarter=(((p.turns??0)%4)+4)%4;
+      // Authored extents remain world-aligned for server collision, while
+      // local geometry and door orientation preserve the saved quarter-turn.
+      group.rotation.y=quarter*Math.PI/2;
+      const worldW=p.w??8,worldD=p.d??7;
+      const h=p.h??(p.kind==="shop"?8:4);
+      const w=quarter%2?worldD:worldW,d=quarter%2?worldW:worldD;
       if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
         bole.position.y=h*.21;bole.castShadow=true;group.add(bole);
