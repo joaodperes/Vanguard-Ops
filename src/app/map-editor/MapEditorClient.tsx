@@ -39,6 +39,7 @@ export default function MapEditor() {
   const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
   const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
   const [buildingPreset,setBuildingPreset]=useState<StudioBuildingPresetId>("house");
+  const [stampMode,setStampMode]=useState(false);
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
   const [selected,setSelected]=useState<Selection|null>(null);
@@ -208,7 +209,7 @@ export default function MapEditor() {
           setSelected({type:"feature",index});
         }
       }
-      setTool("select");
+      if(!stampMode)setTool("select");
     }
     drag.current=null;setPreview(null);
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
@@ -542,9 +543,9 @@ export default function MapEditor() {
       update(m=>({...m,spawns:{...m.spawns,[team]:[...m.spawns[team],[x,0,z]]}}));
       setSelected({type:"spawn",team,index});
     }
-    setTool("select");
+    if(!stampMode)setTool("select");
     setEditMode("move");
-    setStatus("Created object at the 3D camera focus. Move or resize it, then export JSON.");
+    setStatus(stampMode?"Placed object. Click again to stamp another.":"Placed object. Move or resize it, then export JSON.");
   };
   const selectedObject=selected?(selected.type==="legacyStairs"?legacyFlightBounds(selected.index):
     selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
@@ -798,12 +799,16 @@ export default function MapEditor() {
               <Trash2 size={14}/> Delete selected
             </button>
           </div>}
-          <span className="text-xs text-zinc-500">3D: drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={stampMode} onChange={e=>setStampMode(e.target.checked)}/> Repeat placement
+          </label>
+          <span className="text-xs text-zinc-500">3D: click to place a selected piece · drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
         </div>
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
           {viewport==="3d"?
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
               mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
+              placementProp={tool==="prop"?createThemeProp(0,0):undefined}
               onSelect={setSelected} onTransform={apply3DTransform} onAddAt={add3DAt}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
