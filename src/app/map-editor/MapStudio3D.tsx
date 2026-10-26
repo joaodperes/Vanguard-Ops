@@ -9,6 +9,7 @@ import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/
 import { cityBuildingBoxes, mapProps, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
+import {buildFactoryMachinery,isFactoryMachineKind} from "@/lib/factory-machinery";
 import {lockedPosition,normalizeTurns,rotatedExtents,type StudioAxis} from "@/lib/map-studio-transform";
 import type {StudioMapIssue,StudioRegionLink} from "@/lib/map-studio-diagnostics";
 
