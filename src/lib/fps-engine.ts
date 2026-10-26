@@ -1506,8 +1506,17 @@ export class FPSEngine {
       }else if(p.kind==="container"){
         const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
         cube(group,paint,0,h/2,0,w,h,d);
-        for(let x=-w/2+1;x<w/2;x+=1.5)
-          cube(group,trim,x,h/2,d/2+.045,.10,h*.75,.08);
+        // Corrugation/stripes on BOTH long faces, including containers
+        // whose length runs along Z rather than X.
+        const longAlongX=w>=d;
+        const length=longAlongX?w:d;
+        const shortHalf=(longAlongX?d:w)/2;
+        for(let distance=-length/2+0.75;distance<length/2-.3;distance+=1.25){
+          for(const side of [-1,1]){
+            if(longAlongX)cube(group,trim,distance,h/2,side*(shortHalf+.045),.10,h*.75,.08);
+            else cube(group,trim,side*(shortHalf+.045),h/2,distance,.08,h*.75,.10);
+          }
+        }
       }else if(p.kind==="crane"){
         cube(group,masonry,0,h*1.3,0,1.4,h*2.6,1.4);
         cube(group,trim,w*.15,h*2.55,0,w*.95,.65,.8);
