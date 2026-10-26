@@ -1,6 +1,6 @@
 import { fullWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
@@ -2784,7 +2784,7 @@ async function handle(socket: any, msg: C2S) {
           // Poison only enemies near Plagueheart's detonation. Other launchers
           // deliberately preserve their flight-path splash mechanic.
           const d = corrosion
-            ? Math.hypot(cx-impact[0],cy-impact[1],cz-impact[2])
+            ? corrosionImpactDistance(impact,[cx,cy,cz])
             : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
           if (d <= splashRadius) {
             const falloff = launcherSplashFactor(weapon.id,d,splashRadius);
