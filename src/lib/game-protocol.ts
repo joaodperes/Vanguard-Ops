@@ -6,7 +6,8 @@
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
-import { MAP_BLUEPRINTS } from "./map-blueprints";
+import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
+import type { MapVisualTheme } from "./map-visuals";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
@@ -1185,6 +1186,18 @@ export const MAP_LIST: MapDef[] = Object.values(MAPS);
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
   return MAPS.compound;
+}
+
+/** Client-side, offline-only compilation for unsaved Map Studio drafts.
+ * Never modifies MAPS or the server map catalog and cannot affect matchmaking. */
+export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme):MapDef {
+  const templateId=(blueprint.templateMapId||mapId) as MapId;
+  const template=BASE_MAPS[templateId]??BASE_MAPS.compound;
+  const base=templateId==="terminal"?{
+    ...BASE_MAPS.arena_neon,id:"terminal" as MapId,theme:BASE_MAPS.terminal.theme,
+    accentColor:BASE_MAPS.terminal.accentColor,lights:BASE_MAPS.terminal.lights,environment:[],
+  }:template;
+  return applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme});
 }
 
 // Legacy single-map exports (default to compound) for backward compat
