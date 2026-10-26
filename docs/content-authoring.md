@@ -17,10 +17,10 @@ Static data used by both the browser and multiplayer server is now read through 
 | Authored per-weapon challenge | `weapon-challenges.json` | `WEAPON_CHALLENGES` |
 | Daily/weekly goals | `daily-challenges.json`, `weekly-challenges.json` | `DAILY_CHALLENGE_POOL`, `WEEKLY_CHALLENGE_POOL` |
 | Lifetime achievements | `achievements.json` | `ACHIEVEMENTS` |
-| Map regions and objects | `src/data/map-blueprints.json` | `MAP_BLUEPRINTS` |
+| Map geometry and visual themes | `src/data/maps/<map_id>.json` | `MAP_DOCUMENTS` (with compatibility `MAP_BLUEPRINTS` and `MAP_VISUAL_THEMES`) |
 | Other declarative content | `ranks.json`, `rewards.json`, `elite-quests.json`, `achievement-colors.json`, `match-modes.json`, `killstreak-callouts.json` | Existing exports |
 
-**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Six underlying template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
+**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Six underlying template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors a unified v2 document with blueprint and theme, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
 ## Choose the correct edit shape
 
@@ -31,8 +31,8 @@ Not every JSON catalog is an array of objects. Check the existing top-level shap
 | Arrays of entries | `weapons.json`, `attachments.json`, `weapon-skins.json`, `operator-skins.json`, `weapon-challenges.json`, `daily-challenges.json`, `weekly-challenges.json`, `elite-quests.json`, `achievements.json`, `ranks.json`, `killstreak-callouts.json` | Append an entry without deleting or reordering shipped entries; keep thresholds/levels in ascending order where applicable. Ranks and callouts have no `id` field. |
 | Objects keyed by identity | `sight-definitions.json`, `attachment-compatibility.json`, `category-attachments.json`, `match-modes.json`, `achievement-colors.json` | Add or deliberately replace one *key* while preserving siblings; only add keys supported by the runtime. |
 | Numeric settings object | `rewards.json` | Change an existing named scalar only after balance review; this changes rewards globally, not an individual object. |
-| Versioned map dictionary | `src/data/map-blueprints.json` | Add an entry under `maps.<map_id>` without replacing `version`, `units` or other maps. |
-| Independent theme file | `src/data/map-themes/<map_id>.json` | Author a whole theme file, then register its static import in `src/lib/map-visuals.ts`. |
+| Unified map document | `src/data/maps/<map_id>.json` | Write a full version-2 map document with matching `id`, `blueprint`, and `theme`. Register new IDs in `src/lib/map-documents.ts`. |
+| Map visual theme | `src/data/maps/<map_id>.json` → `theme` | Author complete palettes, props and surfaces within the same file as gameplay geometry. |
 
 Before merging a fragment, compare the existing entry and check every outgoing reference, ownership/unlock path, client/server consumer and relevant test. A schema accepting a field does **not** imply the engine interprets it.
 
@@ -138,7 +138,7 @@ Existing operator contracts are authored/evaluated in `src/lib/armory-challenges
 
 ## Add a map
 
-Use `/map-editor` and export the JSON; replace `src/data/map-blueprints.json` in the repo. Each unique ID maps to a blueprint:
+Use `/map-editor` and export a single `<mapId>.json`; replace `src/data/maps/<mapId>.json` in the repo. Each unique ID maps to a version-2 document containing both `blueprint` and `theme`. The following is an example of the nested `blueprint` portion:
 
 ```json
 {
@@ -162,11 +162,11 @@ Use `/map-editor` and export the JSON; replace `src/data/map-blueprints.json` in
 }
 ```
 
-Put this object under `maps.frost_yard` (not a top-level array) in the existing version-1 blueprint file. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
+Put this object under `blueprint` in a version-2 `src/data/maps/frost_yard.json`, alongside `version: 2`, `id: "frost_yard"` and a valid `theme` object. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
 
 ## Map color palettes, biomes and prop authoring
 
-Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
+Every shipped map has one JSON file in `src/data/maps/`. Edit its `theme.palette`, `theme.props` and `theme.surfaces` alongside its physical `blueprint`. For a new map ID, add its static import to `src/lib/map-documents.ts`; the runtime adapters expose the theme to the existing renderer. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
 
 ## Fixed runtime registries and other catalog types
 
@@ -176,7 +176,7 @@ Some valid JSON entries are **not** deployable without TypeScript and gameplay w
 | --- | --- |
 | New optic type in `sight-definitions.json` | `SightType` and reticle/overlay unions in `src/lib/game-data.ts`, existing rendering support, a compatible sight attachment with `sightType`, attachment allowlists and offline/online ADS behavior. Reusing a known `reticle` is safer than inventing one. |
 | New mode key in `match-modes.json` | `GameMode` in `src/lib/game-protocol.ts`, lobby and game rules, client/server protocol and match rewards. Adjusting descriptions or existing mode settings is a separate balance/UI review. |
-| New map ID | The blueprint is dynamically included in `MAPS`/`MAP_LIST`, but `MapId` in `src/lib/game-protocol.ts` remains a fixed TypeScript union. Review typed consumers and protocol use for the new ID; add a static theme import if giving it a custom appearance. |
+| New map ID | Register the v2 JSON in `src/lib/map-documents.ts`; the map is then included through the compatibility blueprint registry in `MAPS`/`MAP_LIST`. `MapId` in `src/lib/game-protocol.ts` is still a fixed union; review typed consumers and protocol/server selection. |
 | New achievement or rotating-goal metric | Check the exact metric's tracking and evaluator for **that** pool. A string passing `content:validate` may never advance if the progress pipeline does not support it. |
 | New weapon skin ID | `skinChallengesForWeaponAndSkin()`, fallback rules and per-weapon ownership in `src/lib/armory-challenges.ts`. |
 | New operator skin ID | `OPERATOR_CONTRACTS` and `operatorContract()` in `src/lib/armory-challenges.ts`. |
