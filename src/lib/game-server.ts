@@ -1,6 +1,6 @@
 import { fullWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
@@ -2680,9 +2680,8 @@ async function handle(socket: any, msg: C2S) {
         for(const pelletDir of stormPelletDirections(shotDir)){
           const contacts=stormCandidates(room,socket.id,p.team,now);
           const impact=traceStormPellet(msg.origin,pelletDir,eff.range,room.map.cover,contacts);
-          io.to(room.id).emit("message",{t:"wonderBeam",
-            from:msg.origin,to:impact.victim?stormTargetPoint(impact.victim):impact.point,
-            kind:"storm"} as S2C);
+          // Lightning is only emitted by serverStormChain from the impact victim
+          // to the next target, never as a bogus arc from the firing muzzle.
           if(impact.victim){
             const victim=allCombatants(room).find(c=>c.id===impact.victim!.id);
             if(victim?.alive){
@@ -2781,12 +2780,14 @@ async function handle(socket: any, msg: C2S) {
           const closestX = msg.origin[0] + segDx * tt;
           const closestY = msg.origin[1] + segDy * tt;
           const closestZ = msg.origin[2] + segDz * tt;
-          const dx = cx - closestX, dy = cy - closestY, dz = cz - closestZ;
-          const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const corrosion = weapon.wonder?.kind === "corrosion";
+          // Poison only enemies near Plagueheart's detonation. Other launchers
+          // deliberately preserve their flight-path splash mechanic.
+          const d = corrosion
+            ? corrosionImpactDistance(impact,[cx,cy,cz])
+            : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
           if (d <= splashRadius) {
-            // Quadratic falloff + direct-hit bonus (matches the offline engine).
             const falloff = launcherSplashFactor(weapon.id,d,splashRadius);
-            const corrosion = weapon.wonder?.kind === "corrosion";
             const splashDmg = corrosion ? corrosionImpactDamage(eff.damage, falloff) : eff.damage * falloff;
             applyDamage(room, socket.id, e, splashDmg, false, msg.weaponId);
             if (corrosion && e.alive) {

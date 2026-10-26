@@ -25,7 +25,7 @@ export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:nu
     damage:stats.damage,
     cooldownMs,
     swingMs:Math.max(160,Math.round(cooldownMs*.68)),
-    reach:stats.range,
+    reach:Math.min(stats.range, 1.05),
   };
 }
 export function chooseQuickMeleeTarget(

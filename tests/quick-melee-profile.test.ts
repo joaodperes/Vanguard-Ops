@@ -20,11 +20,16 @@ describe("equipped quick melee F",()=>{
     expect(hammer.swingMs).toBeGreaterThan(shiv.swingMs);
     expect(hammer.damage).toBeGreaterThan(shiv.damage);
   });
-  test("uses equipped reach, not a fixed knife range",()=>{
-    const targets=[{id:"target",pos:[0,0,1.25] as const,alive:true}];
+  test("only visually adjacent enemies can be hit, with distinct melee reaches",()=>{
+    const targets=[{id:"target",pos:[0,0,.84] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
+    const far=[{id:"far",pos:[0,0,1.25] as const,alive:true}];
+    for(const id of ["knife_tactical","machete","shiv","baton","axe","hammer"]) {
+      const reach=quickMeleeProfile(weaponById(id).stats).reach;
+      expect(chooseQuickMeleeTarget(from,0,far,()=>true,reach)).toBeNull();
+    }
   });
 });
 

@@ -12,3 +12,12 @@ export function corrosionImpactDamage(baseDamage: number, trajectoryFalloff: num
 export function corrosionTickDamage(baseDamage: number): number {
   return Math.max(3, Math.round(Math.max(0, baseDamage) * 0.11));
 }
+
+/** Area around the actual Plagueheart detonation, not the projectile's
+ * entire flight segment. A far enemy along the travel path is unaffected.
+ * Shared by both authoritative and local gameplay for exact parity. */
+export function corrosionImpactDistance(
+  impact: readonly number[], target: readonly number[],
+): number {
+  return Math.hypot(target[0]-impact[0],target[1]-impact[1],target[2]-impact[2]);
+}

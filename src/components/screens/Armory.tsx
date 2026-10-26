@@ -10,7 +10,7 @@ import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
   weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats,
-  weaponSkinById,
+  weaponSkinById, weaponById,
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
@@ -20,9 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2 } from "lucide-react";
+import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { perkSelection, PERK_STORAGE_KEY } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
 // ----------------------------------------------------------------------------
@@ -94,6 +95,10 @@ const CATEGORY_LABELS: Record<WeaponCategory, string> = {
 export function Armory() {
   const { profile, setScreen, refreshProfile, playerKey, setRangeWeaponId } = useGame();
   const tryInRange = (id?: string) => { setRangeWeaponId(id ?? null); setScreen("range"); };
+  const [presetName, setPresetName] = useState("");
+  const [editingPreset, setEditingPreset] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [presetBusy, setPresetBusy] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<WeaponProgressMap>({});
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
@@ -266,6 +271,42 @@ export function Armory() {
     }
   };
 
+  const managePreset = async (action: "save" | "rename" | "delete", id?: string) => {
+    if (presetBusy) return;
+    const name = action === "save" ? presetName.trim() : editName.trim();
+    if (action !== "delete" && !name) { toast.error("Enter a loadout name"); return; }
+    setPresetBusy(true);
+    try {
+      const response = await fetch("/api/loadout/presets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, action, id, name, perkId: perkSelection(profile?.level ?? 1) }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save loadout");
+      await refreshProfile();
+      setPresetName("");
+      setEditingPreset(null);
+      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : "Loadout deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update loadout"); }
+    finally { setPresetBusy(false); }
+  };
+
+  const equipPreset = async (id: string, perkId: string) => {
+    if (presetBusy) return;
+    setPresetBusy(true);
+    try {
+      const response = await fetch("/api/loadout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, presetId: id }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not equip loadout");
+      // The Armory and match setup read the selected passive perk from here.
+      localStorage.setItem(PERK_STORAGE_KEY, perkId);
+      await refreshProfile();
+      toast.success("Saved loadout equipped");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not equip loadout"); }
+    finally { setPresetBusy(false); }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
@@ -304,6 +345,70 @@ export function Armory() {
           <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
         </div>
 
+        {/* Saved loadouts are persistent, named snapshots of the equipped kit. */}
+        <section className="mb-6 rounded-2xl border border-amber-500/25 bg-zinc-900/60 p-5" aria-label="Saved loadouts">
+          <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
+            <div>
+              <h2 className="text-white font-bold uppercase tracking-wider flex items-center gap-2">
+                <Save className="w-4 h-4 text-amber-400" /> Saved Loadouts
+                <span className="text-xs text-white/40 font-normal normal-case">{(profile?.savedLoadouts ?? []).length} / 5</span>
+              </h2>
+              <p className="text-xs text-white/50 mt-1">Save your current Armory setup, name it, and equip it before a match.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => document.getElementById("armory-weapons")?.scrollIntoView({ behavior: "smooth" })} className="border-white/20 text-white">Customize Weapons</Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <input
+              value={presetName}
+              onChange={e => setPresetName(e.target.value)}
+              placeholder="Name this loadout"
+              maxLength={24}
+              aria-label="New loadout name"
+              className="flex-1 min-w-40 rounded-lg bg-black/40 border border-white/20 text-white px-3 py-2 text-sm outline-none focus:border-amber-400"
+            />
+            <Button
+              disabled={presetBusy || !presetName.trim() || (profile?.savedLoadouts ?? []).length >= 5}
+              onClick={() => managePreset("save")}
+              className="bg-amber-500 hover:bg-amber-400 text-black"
+            ><Save className="w-4 h-4 mr-1.5" /> Save Current</Button>
+          </div>
+          {(profile?.savedLoadouts ?? []).length === 0 ? (
+            <div className="text-sm text-white/40 py-3">No saved loadouts yet. Equip your preferred kit in the Armory, then save it here.</div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {(profile?.savedLoadouts ?? []).map(preset => (
+                <div key={preset.id} className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-2">
+                  {editingPreset === preset.id ? (
+                    <div className="flex gap-2">
+                      <input value={editName} maxLength={24} onChange={e => setEditName(e.target.value)}
+                        aria-label="Rename saved loadout"
+                        className="min-w-0 flex-1 rounded bg-zinc-800 border border-white/20 text-white px-2 py-1 text-sm" />
+                      <Button size="sm" disabled={presetBusy || !editName.trim()} onClick={() => managePreset("rename", preset.id)}><Check className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingPreset(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-amber-200 font-semibold text-sm truncate">{preset.name}</h3>
+                      <div className="flex gap-1">
+                        <button aria-label={`Rename ${preset.name}`} title="Rename" className="p-1.5 text-white/60 hover:text-white"
+                          onClick={() => { setEditingPreset(preset.id); setEditName(preset.name); }}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button aria-label={`Delete ${preset.name}`} title="Delete" disabled={presetBusy}
+                          className="p-1.5 text-white/60 hover:text-rose-400" onClick={() => managePreset("delete", preset.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name}</div>
+                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id, preset.perkId)}
+                    className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div id="armory-weapons" />
         <Tabs defaultValue="weapons">
           <TabsList className="bg-zinc-900/60 border border-white/10">
             <TabsTrigger value="weapons" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Zap className="w-4 h-4 mr-1.5" /> Weapons</TabsTrigger>

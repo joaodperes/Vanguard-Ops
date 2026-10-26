@@ -42,6 +42,11 @@ Test desktop keyboard/mouse **and** touch/mobile:
 - Shotguns and relevant snipers insert rounds incrementally; verify interruption, remaining ammo and online/server parity.
 - Confirm damage falloff, accuracy, weapon attachments, per-weapon skins, ownership, saved loadouts, challenges, achievement rewards, Wonder recharge and deaths/respawns across match boundaries.
 - Test weapon-specific behaviors: grenade/launcher splash, Bullet Spitter acquisition and destruction, Event Horizon, Plagueheart poison, Deadlock, Hellfire, Stormweaver and Bogfather. Cover and team rules must agree offline/online.
+- At the Firing Range, inspect iron, red-dot and holographic ADS on the burst pistol, Hydra, Reclaimer, Plagueheart and LMGs: optics must stay attached to the receiver, the physical housing must agree with the HUD reticle, and the aim point must remain unobstructed. Confirm all gun bodies rise just below the crosshair without hiding targets.
+- Fire Plagueheart at the furthest practice bot. Only targets within 2.75m of the *impact* should be poisoned; targets merely close to the flight path must remain unaffected. Repeat on an online room with latency.
+- Confirm Stormweaver identifies as Shotgun in HUD/loadouts; seven pellets group tightly at short range, lightning arcs begin at a struck victim and jump between actual targets (never from the muzzle), and missed pellets become floor mines. Verify server/local hit parity.
+- Inspect Event Horizon default Eventide-inspired finish and explicit skin overrides, Deadlock's targeting modules, Hellfire red/orange/yellow chassis and forward-directed muzzle flames. Check axe blade silhouette and melee reach visually, then compare LMG vertical recoil while hipfiring and ADS.
+- Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface.
 
 ## 4. Map and bot acceptance
 

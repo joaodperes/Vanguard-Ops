@@ -37,7 +37,7 @@ import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, T
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
@@ -59,7 +59,7 @@ import {
 import { SoundManager } from "@/lib/sound";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
   withinEnvironment, spikesActive, closestCoverHit,
@@ -1885,8 +1885,9 @@ export class FPSEngine {
         launcher_breach: 0x4d4034, // steel brown
         launcher_swarm: 0x364753,  // gunmetal blue
         wonder_corrosion: 0x3b5535, // muted toxic olive, no cyan trim
-        wonder_deadlock: 0x4b4250,
-        wonder_singularity: 0x3b4655,
+        wonder_deadlock: 0x603076,
+        wonder_hellfire: 0xe54512,
+        wonder_singularity: 0x302164,
         wonder_turret: 0x4d565c,
       };
       const tint = weaponTints[this.weaponId];
@@ -1901,11 +1902,11 @@ export class FPSEngine {
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
-    if (skin.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(this.weaponId)) {
-      // Cosmetic exceptions: Event Horizon, Plagueheart, Deadlock and Bullet
-      // Spitter retain their SELECTED skin instead of bright default overlays.
-      this.prestigeTexture = this.createPrestigeTexture(skin.prestige ??
-        (this.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
+    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
+      // Only explicitly selected Prestige skins override an existing cosmetic.
+      // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
+      // take precedence. Hellfire stays red/orange instead of toxic green.
+      this.prestigeTexture = this.createPrestigeTexture(skin.prestige ?? "cosmic");
       const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
       material.map = this.prestigeTexture;
       material.color.set(0xffffff);
@@ -2078,7 +2079,23 @@ export class FPSEngine {
         const bead=new THREE.Mesh(new THREE.BoxGeometry(.006,.015,.006),accentMat);
         bead.position.set(0,-.043,-.012);scopeGroup.add(bead);
       }
-      addPart(scopeGroup, 0, 0.08, -0.1);
+      // Bridge the eye-height optic to the receiver with visible support legs.
+      // Unlike the old independent Y lift, this geometry stays rigid in hipfire,
+      // ADS, recoil and reload. Aperture sits at the ballistic reticle at full ADS.
+      const mountHeight = adsClearance(
+        wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
+      ).sightMountY;
+      const riser = Math.max(.04, mountHeight - .04);
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(
+          new THREE.BoxGeometry(.013, riser, .038), accentMat);
+        leg.position.set(side*.033, -riser/2-.022, 0);
+        scopeGroup.add(leg);
+      }
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(.094,.018,.09),accentMat);
+      foot.position.y=-riser-.02;
+      scopeGroup.add(foot);
+      addPart(scopeGroup, 0, mountHeight, -0.1);
       this.sightMesh = scopeGroup;
     }
     // Poison tips are part of the BOLT, not a muzzle suppressor.
@@ -2297,18 +2314,17 @@ export class FPSEngine {
     // The HUD reticle and ballistic aim stay at the exact camera center.
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.
-    // Scoped weapons dip farther because the HUD provides their actual scope
-    // image and the 3D scope mesh is suppressed while aiming.
+    // Magnified scopes use a HUD reticle; 1x sights remain part of the gun.
     const wDef = weaponById(this.weaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
-    const clearance=adsClearance(wDef,this.sightDef.type);
+    const receiverHeight = WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18;
+    const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.22 }
-      : { x: 0, y: clearance.bodyY, z: -.38 };
-    // Bullet rays remain camera-centered. Sights move independently of gun
-    // bodies: raising the whole gun caused blocked ADS on Hydra/Reclaimer.
+      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
+      : { x: 0, y: clearance.bodyY, z: -.43 };
+    // Rigid ADS: the optic has a real mount, not a screen-space sight lift.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
@@ -2486,16 +2502,15 @@ export class FPSEngine {
       p.obj.position.z -= pivotZ;
       p.obj.position.applyQuaternion(this._vmTotalQuat);
       p.obj.position.x += pivotX + ox;
-      p.obj.position.y += pivotY + oy +
-        (p.obj===this.sightMesh?clearance.sightLift*this.adsProgress:0);
+      p.obj.position.y += pivotY + oy;
       p.obj.position.z += pivotZ + oz;
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
       p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }
-    // Sight mesh visibility: hidden during ADS (for ALL sight types) so it
-    // never blocks the camera. The HUD reticle/scope overlay handles aiming.
+    // Open iron and reflex frames remain physically visible in ADS.
+    // Only magnified HUD optics are hidden to prevent the solid tube blocking view.
     if (this.sightMesh) {
       this.sightMesh.visible = !quickMeleeActive && !hideEntireViewmodel && !hideSightDuringADS;
     }
@@ -3526,15 +3541,19 @@ export class FPSEngine {
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
     const fullWorldLegendary = weaponFinish.rarity === "legendary";
+    const worldDefaultTint = weaponFinish.id === "default"
+      ? c.weaponId === "wonder_hellfire" ? "#db3a14"
+        : c.weaponId === "wonder_deadlock" ? "#51246e"
+        : weaponFinish.color
+      : weaponFinish.color;
     const weaponMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(weaponFinish.color),
+      color: new THREE.Color(worldDefaultTint),
       roughness: weaponFinish.roughness, metalness: weaponFinish.metalness,
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
     });
-    if (weaponFinish.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(c.weaponId)) {
-      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ??
-        (c.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
+    if (weaponFinish.prestige || (["wonder_singularity","wonder_stormweaver"].includes(c.weaponId) && weaponFinish.id==="default")) {
+      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ?? "cosmic");
       weaponMat.color.set(0xffffff);
     }
 
@@ -4901,22 +4920,27 @@ export class FPSEngine {
   private spawnFlameSpray(origin:Vec3,dir:Vec3){
     // Flare originates at the WEAPON muzzle, not a hitscan projectile leaving
     // the camera. Overlapping translucent tongues form a continuous fire cone.
-    const near=this.camera.position.distanceTo(new THREE.Vector3(...origin))<1.5;
-    const start=near
-      ? this.camera.localToWorld(new THREE.Vector3(.14,-.18,-.65))
-      : new THREE.Vector3(origin[0]+dir[2]*.16+dir[0]*.65,
-          origin[1]-.16+dir[1]*.65,origin[2]-dir[0]*.16+dir[2]*.65);
     const forward=new THREE.Vector3(...dir).normalize();
+    // The true animated muzzle for our own weapon; remote players start just
+    // ahead of their networked eye instead of incorrectly using our gun.
+    const ownShot=this.weaponId==="wonder_hellfire" &&
+      this.camera.position.distanceTo(new THREE.Vector3(...origin))<.2;
+    this.camera.updateMatrixWorld(true);
+    const start=ownShot
+      ? this.muzzleFlash.getWorldPosition(new THREE.Vector3())
+      : new THREE.Vector3(...origin).addScaledVector(forward,.48);
     for(let i=0;i<3;i++){
-      const length=1.25+Math.random()*1.8;
-      const advance=.35+i*.70;
-      const centre=start.clone().addScaledVector(forward,advance+length*.35);
-      centre.x+=(Math.random()-.5)*.18;centre.y+=(Math.random()-.5)*.16;
-      const mesh=new THREE.Mesh(new THREE.ConeGeometry(.18+advance*.1,length,9,1),
-        new THREE.MeshBasicMaterial({color:i===0?0xffe69c:i===1?0xff991f:0xe94311,
-          transparent:true,opacity:i===0?.58:.39,depthWrite:false,
+      const length=1.15+Math.random()*1.25;
+      const advance=i*.40;
+      const centre=start.clone().addScaledVector(forward,advance+length*.5);
+      centre.x+=(Math.random()-.5)*.07;centre.y+=(Math.random()-.5)*.07;
+      const mesh=new THREE.Mesh(new THREE.ConeGeometry(.14+advance*.19,length,9,1),
+        new THREE.MeshBasicMaterial({color:i===0?0xfff0a3:i===1?0xff981f:0xf03b13,
+          transparent:true,opacity:i===0?.65:.46,depthWrite:false,
           side:THREE.DoubleSide}));
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward);
+      // Three.js cones widen toward -Y. Point -Y toward the enemy so the
+      // flames expand AWAY from the player, with the narrow end at the muzzle.
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward.clone().negate());
       mesh.position.copy(centre);this.scene.add(mesh);
       this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
@@ -5128,7 +5152,8 @@ export class FPSEngine {
       for(const pelletDir of stormPelletDirections(dir)){
         const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.map.cover,
           this.stormVictims(this.selfId,this.opts.team));
-        this.spawnWonderBeam(origin,impact.victim?stormTargetPoint(impact.victim):impact.point,"storm");
+        // Pellet travel is not chain lightning: arcs begin only on impact,
+        // between struck targets (or between a triggered mine and its victim).
         if(impact.victim){
           const victim=this.combatants.get(impact.victim.id);
           if(!victim?.alive)continue;
@@ -6533,8 +6558,12 @@ export class FPSEngine {
             const closestX = p.start.x + segDx * t;
             const closestY = p.start.y + segDy * t;
             const closestZ = p.start.z + segDz * t;
-            const dx = cx - closestX, dy = cy - closestY, dz = cz - closestZ;
-            const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
+            // Plagueheart poisons an area around the actual impact only.
+            // Rockets alone retain proximity damage along their flight path.
+            const d = corrosion
+              ? corrosionImpactDistance([p.end.x,p.end.y,p.end.z],[cx,cy,cz])
+              : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
             if (d <= p.splashRadius) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
               // ~10% at edge. This rewards direct hits much more than near-misses,
@@ -6542,7 +6571,6 @@ export class FPSEngine {
               // Plus a direct-hit bonus: if the combatant is within 1.5 units of the
               // closest point, apply full damage + 20% bonus (guaranteed kill on 100HP).
               const falloff = launcherSplashFactor(p.weaponId,d,p.splashRadius);
-              const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
               const splashDmg = corrosion ? corrosionImpactDamage(p.damage, falloff) : p.damage * falloff;
               this.applyDamageLocal(c, splashDmg, false, p.weaponId);
               if (corrosion && c.alive) {

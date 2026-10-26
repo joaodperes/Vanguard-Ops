@@ -1,8 +1,15 @@
 import { describe, test, expect } from "bun:test";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "../src/lib/corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "../src/lib/corrosion-damage";
 import { weaponById } from "../src/lib/game-data";
 
 describe("Plagueheart poison-first damage", () => {
+  test("poison radius applies at detonation, not along a 60m projectile path", () => {
+    const radius = weaponById("wonder_corrosion").wonder!.radius;
+    expect(radius).toBeCloseTo(2.75);
+    expect(corrosionImpactDistance([0,1,60],[0,1,59])).toBeLessThan(radius);
+    expect(corrosionImpactDistance([0,1,60],[0,1,30])).toBeGreaterThan(radius);
+    expect(corrosionImpactDistance([0,1,60],[0,1,0])).toBeGreaterThan(radius);
+  });
   test("full-health targets survive a direct splash and even three immediate hits", () => {
     const damage = weaponById("wonder_corrosion").stats.damage;
     const direct = corrosionImpactDamage(damage, 1.2);
