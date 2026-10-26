@@ -21,6 +21,8 @@ export interface MapProp {
   /** Stable identifier for a generated lot; survives moving a promoted building. */
   lotId?: string;
   w?: number; d?: number; h?: number; text?: string; color?: string;
+  /** Saved editor orientation; extent dimensions already reflect the rotation. */
+  turns?: 0 | 1 | 2 | 3;
   /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
   use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner" | "clinic" | "workshop" | "gallery" | "florist" | "gym";
   shape?: "rect" | "narrow" | "round";
