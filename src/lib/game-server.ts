@@ -1,6 +1,7 @@
 import { fullWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
 // Authoritative match host: player sync, server-side hit detection, bot AI,
@@ -170,7 +171,9 @@ interface Room {
   wonderCharges: Map<string, WonderChargeState>;
   adsStartedAt: Map<string, number>;
   lastMotionAt: Map<string, number>;
-  stormAnchors: Map<string, { pos: Vec3; expiresAt: number }>;
+  /** Persistent energy mines created only by missed Stormweaver pellets. */
+  stormMines: Map<string, {id:string; ownerId:string; ownerTeam:string; pos:Vec3; armedAt:number; expiresAt:number}>;
+  stormMineCooldown: Map<string, number>;
   smartTags: Map<string, { id:string; expiresAt:number }[]>;
   hellfireUntil: Map<string, number>;
   wonderFields: Map<string, { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>;
@@ -398,7 +401,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -560,7 +563,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -606,7 +609,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
-  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormAnchors.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
+  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
@@ -709,6 +712,7 @@ function snapshot(room: Room): S2C {
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
+    stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1099,7 +1103,7 @@ function tickWonderFields(room:Room,now:number){
    if(room.ended)return;
   }
  }
- for(const [id,anchor] of room.stormAnchors)if(anchor.expiresAt<=now)room.stormAnchors.delete(id);
+ // Stormweaver mines are proximity-triggered separately from old field DoTs.
 }
 function placeWonderField(room:Room,owner:PlayerNet,weaponId:string,kind:"flame"|"sludge",pos:Vec3,radius:number,now:number,durationMs:number){
  const id=genId("wonderfield");
@@ -1107,8 +1111,85 @@ function placeWonderField(room:Room,owner:PlayerNet,weaponId:string,kind:"flame"
  room.wonderFields.set(id,field);
  io.to(room.id).emit("message",{t:"wonderField",...field} as S2C);
 }
+/** Independent Stormweaver pellet chains and floor mines.
+ * Damage and targeting always resolve on the authoritative match server.
+ */
+function stormCandidates(room:Room,ownerId:string,ownerTeam:string,now:number):StormVictim[]{
+  const allowFriendly=room.config.friendlyFire===true||room.mode==="ffa"||room.mode==="gungame";
+  return allCombatants(room).map(c=>({
+    id:c.id,pos:c.pos,alive:c.alive,team:c.team,
+    protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>now,
+  })).filter(c=>stormEnemy(c,ownerId,ownerTeam,allowFriendly));
+}
+function serverStormChain(room:Room,ownerId:string,ownerTeam:string,first:PlayerNet,
+  baseDamage:number,maxJumps:number,now:number,hitCounts?:Map<string,number>){
+  const allowFriendly=room.config.friendlyFire===true||room.mode==="ffa"||room.mode==="gungame";
+  const visited=new Set([first.id]);
+  let from:Vec3=[first.pos[0],first.pos[1]+1.05,first.pos[2]];
+  for(let jump=1;jump<=maxJumps&&!room.ended;jump++){
+    const target=nextStormChainTarget(from,stormCandidates(room,ownerId,ownerTeam,now),
+      visited,ownerId,ownerTeam,allowFriendly,STORM_MINE_CHAIN_RADIUS,
+      (a,b)=>hasLineOfSight(room,a,b));
+    if(!target)break;
+    visited.add(target.id);
+    const to=stormTargetPoint(target);
+    io.to(room.id).emit("message",{t:"wonderBeam",from,to,kind:"storm"} as S2C);
+    const victim=allCombatants(room).find(c=>c.id===target.id);
+    if(victim?.alive){
+      const previous=hitCounts?.get(victim.id)??0;
+      if(previous<2){
+        applyDamage(room,ownerId,victim,baseDamage*Math.pow(STORM_CHAIN_DECAY,jump),false,"wonder_stormweaver");
+        hitCounts?.set(victim.id,previous+1);
+      }
+    }
+    from=to;
+  }
+}
+function serverPlaceStormMine(room:Room,ownerId:string,ownerTeam:string,pos:Vec3,now:number){
+  // Per-owner bound keeps multiplayer snapshots/particles under control.
+  const own=[...room.stormMines.values()].filter(m=>m.ownerId===ownerId);
+  if(own.length>=STORM_MAX_MINES_PER_OWNER){
+    const oldest=own[0];
+    room.stormMines.delete(oldest.id);
+    io.to(room.id).emit("message",{t:"stormMineRemoved",id:oldest.id,triggered:false,pos:oldest.pos} as S2C);
+  }
+  const mine={id:genId("stormmine"),ownerId,ownerTeam,pos,
+    armedAt:now+STORM_MINE_ARM_MS,expiresAt:now+STORM_MINE_LIFETIME_MS};
+  room.stormMines.set(mine.id,mine);
+  io.to(room.id).emit("message",{t:"stormMinePlaced",id:mine.id,pos,expiresAt:mine.expiresAt} as S2C);
+}
+function tickStormMines(room:Room,now:number){
+  const allowFriendly=room.config.friendlyFire===true||room.mode==="ffa"||room.mode==="gungame";
+  for(const [id,mine] of room.stormMines){
+    if(now>=mine.expiresAt){
+      room.stormMines.delete(id);
+      io.to(room.id).emit("message",{t:"stormMineRemoved",id,triggered:false,pos:mine.pos} as S2C);
+      continue;
+    }
+    if(now<mine.armedAt)continue;
+    const target=stormCandidates(room,mine.ownerId,mine.ownerTeam,now).find(c=>{
+      const nextAt=room.stormMineCooldown.get(mine.ownerId+":"+c.id)??0;
+      return nextAt<=now&&stormMineInReach(mine.pos,c.pos)&&
+        hasLineOfSight(room,mine.pos,stormTargetPoint(c));
+    });
+    if(!target)continue;
+    room.stormMines.delete(id); // consumed once and never ticks damage again
+    room.stormMineCooldown.set(mine.ownerId+":"+target.id,now+STORM_MINE_TARGET_COOLDOWN_MS);
+    io.to(room.id).emit("message",{t:"stormMineRemoved",id,triggered:true,pos:mine.pos} as S2C);
+    const victim=allCombatants(room).find(c=>c.id===target.id);
+    if(!victim?.alive)continue;
+    io.to(room.id).emit("message",{t:"wonderBeam",from:mine.pos,
+      to:stormTargetPoint(target),kind:"storm"} as S2C);
+    applyDamage(room,mine.ownerId,victim,STORM_MINE_DAMAGE,false,"wonder_stormweaver");
+    if(room.ended)return;
+    serverStormChain(room,mine.ownerId,mine.ownerTeam,victim,STORM_MINE_DAMAGE,
+      STORM_MINE_JUMPS,now);
+    if(room.ended)return;
+  }
+}
 function tickSpecialEffects(room: Room, now: number) {
  tickWonderFields(room,now);
+ tickStormMines(room,now);
   tickBulletSpitters(room, now);
   if (room.ended) return;
   tickGravityWells(room, now);
@@ -2568,37 +2649,35 @@ async function handle(socket: any, msg: C2S) {
         break;
       }
       if(weapon.wonder?.kind==="storm"){
-        const impact=serverBoltLanding(room,socket.id,msg.origin,shotDir,eff.range);
-        const node:Vec3=[impact[0],p.pos[1]+1.1,impact[2]];
-        const old=room.stormAnchors.get(socket.id);
-        if(old&&old.expiresAt>now&&Math.hypot(old.pos[0]-node[0],old.pos[2]-node[2])<=24){
-          io.to(room.id).emit("message",{t:"wonderBeam",from:old.pos,to:node,kind:"storm"} as S2C);
-          for(const victim of allCombatants(room)){
-            if(victim.id===socket.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
-            if(nearStormLink(old.pos,node,victim.pos,1.7)&&hasLineOfSight(room,old.pos,[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))
-              applyDamage(room,socket.id,victim,eff.damage*.62,false,weapon.id);
+        // One shot, seven independent electrical pellets. Every hit starts
+        // its own two-jump chain; every true miss leaves a proximity mine.
+        const hits=new Map<string,number>(),chains=new Map<string,number>();
+        for(const pelletDir of stormPelletDirections(shotDir)){
+          const contacts=stormCandidates(room,socket.id,p.team,now);
+          const impact=traceStormPellet(msg.origin,pelletDir,eff.range,room.map.cover,contacts);
+          io.to(room.id).emit("message",{t:"wonderBeam",
+            from:msg.origin,to:impact.victim?stormTargetPoint(impact.victim):impact.point,
+            kind:"storm"} as S2C);
+          if(impact.victim){
+            const victim=allCombatants(room).find(c=>c.id===impact.victim!.id);
+            if(victim?.alive){
+              const count=hits.get(victim.id)??0;
+              if(count<STORM_MAX_DIRECT_HITS_PER_TARGET){
+                applyDamage(room,socket.id,victim,STORM_DIRECT_DAMAGE,false,weapon.id);
+                hits.set(victim.id,count+1);
+              }
+              if(!room.ended)serverStormChain(room,socket.id,p.team,victim,
+                STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,now,chains);
+            }
+          }else{
+            serverPlaceStormMine(room,socket.id,p.team,
+              stormMinePosition(impact.point,room.map.cover),now);
           }
+          if(room.ended)break;
         }
-        room.stormAnchors.set(socket.id,{pos:node,expiresAt:now+10000});
-        const first=fireRay(room,socket.id,msg.origin,shotDir,weapon.id,eff.range);
-        let from:Vec3=first?[first.victim.pos[0],first.victim.pos[1]+1,first.victim.pos[2]]:node;
-        const visited=new Set<string>();
-        if(first){visited.add(first.victim.id);applyDamage(room,socket.id,first.victim,eff.damage,false,weapon.id);}
-        else io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:node,kind:"storm"} as S2C);
-        for(let jump=1;jump<=4&&!room.ended;jump++){
-          const candidates=allCombatants(room)
-            .filter(v=>v.id!==socket.id&&!visited.has(v.id)&&v.alive&&(!v.spawnProtectedUntil||v.spawnProtectedUntil<=now)&&
-              (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||v.team!==p.team))
-            .filter(v=>Math.hypot(v.pos[0]-from[0],v.pos[2]-from[2])<=weapon.wonder!.radius&&
-              hasLineOfSight(room,from,[v.pos[0],v.pos[1]+1,v.pos[2]]))
-            .sort((a,b)=>Math.hypot(a.pos[0]-from[0],a.pos[2]-from[2])-Math.hypot(b.pos[0]-from[0],b.pos[2]-from[2]));
-          const next=candidates[0];if(!next)break;
-          const to:Vec3=[next.pos[0],next.pos[1]+1,next.pos[2]];
-          io.to(room.id).emit("message",{t:"wonderBeam",from,to,kind:"storm"} as S2C);
-          applyDamage(room,socket.id,next,eff.damage*Math.pow(.76,jump),false,weapon.id);
-          visited.add(next.id);from=to;
-        }
-        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,
+          weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,
+          suppressed:false} as S2C);
         break;
       }
       // Rocket launcher: SPLASH damage (AoE). Instead of a single hitscan ray,
