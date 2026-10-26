@@ -15,7 +15,7 @@ import { insideRegions, featureBoxes } from "./map-blueprints";
 
 export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "lamp" |
   "container" | "crane" | "terminal" | "sign" | "antenna" |
-  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand";
+  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand" |\n  "furnace" | "conveyor" | "hydraulic_press" | "generator" | "storage_rack" |\n  "vent_stack" | "industrial_pipe" | "steel_coil" | "cargo_pallet";
 export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
   /** Stable identifier for a generated lot; survives moving a promoted building. */
