@@ -215,7 +215,7 @@ export class WeaponAudio {
 
     const spatialPan = options.pan === undefined ? null : ctx.createStereoPanner();
     if (spatialPan) {
-      spatialPan.pan.value = Math.max(-1, Math.min(1, options.pan));
+      spatialPan.pan.value = Math.max(-1, Math.min(1, options.pan!));
       spatialPan.connect(out);
     }
     const tonalFilter = acoustics.cutoffHz === null ? null : ctx.createBiquadFilter();
