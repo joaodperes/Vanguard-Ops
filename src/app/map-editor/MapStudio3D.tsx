@@ -9,6 +9,7 @@ import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/
 import { cityBuildingBoxes, mapProps, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
+import type {StudioMapIssue} from "@/lib/map-studio-diagnostics";
 
 export type StudioSelection={
   type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
@@ -23,6 +24,8 @@ export interface StudioTransform {
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
   mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
+  warnings?:StudioMapIssue[];placementProblem?:(x:number,z:number)=>string|null;
+  onInvalidPlacement?:(reason:string)=>void;placementKit?:{w:number;d:number};
   onAddAt:(tool:string,point:{x:number;z:number})=>void;
   onSelect:(selection:StudioSelection|null)=>void;
   onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
@@ -42,12 +45,13 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,legacySpawns=[],showCollision=false,onSelect,onTransform,onAddAt}:Props) {
+export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,legacySpawns=[],showCollision=false,
+  warnings=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
-  const callbacks=useRef({selected,mode,snap,tool,onSelect,onTransform,onAddAt});
-  callbacks.current={selected,mode,snap,tool,onSelect,onTransform,onAddAt};
+  const callbacks=useRef({selected,mode,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement});
+  callbacks.current={selected,mode,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement};
 
   useEffect(()=>{
     if(!host.current)return;
@@ -149,7 +153,17 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       const hit=groundFromPointer(event.clientX,event.clientY);
       preview.visible=!!hit;
       if(hit){const step=callbacks.current.snap;
-        preview.position.set(step?horizontalSnap(hit.x,step):hit.x,0,step?horizontalSnap(hit.z,step):hit.z);}
+        const x=step?horizontalSnap(hit.x,step):hit.x;
+        const z=step?horizontalSnap(hit.z,step):hit.z;
+        preview.position.set(x,0,z);
+        const problem=callbacks.current.placementProblem?.(x,z);
+        preview.traverse(obj=>{
+          if(obj instanceof THREE.Mesh&&obj.material instanceof THREE.MeshStandardMaterial)
+            obj.material.color.set(problem?"#ef4444":"#34d399");
+          if(obj instanceof THREE.LineSegments&&obj.material instanceof THREE.LineBasicMaterial)
+            obj.material.color.set(problem?"#fca5a5":"#a7f3d0");
+        });
+      }
     };
     let down:{x:number;y:number}|null=null;
     const downHandler=(event:PointerEvent)=>{if(event.button===0)down={x:event.clientX,y:event.clientY};};
@@ -164,8 +178,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       const hit=groundFromPointer(event.clientX,event.clientY);
       if(callbacks.current.tool!=="select"){
         if(hit){const step=callbacks.current.snap;
-          callbacks.current.onAddAt(callbacks.current.tool,{x:step?horizontalSnap(hit.x,step):hit.x,
-            z:step?horizontalSnap(hit.z,step):hit.z});}
+          const x=step?horizontalSnap(hit.x,step):hit.x;
+          const z=step?horizontalSnap(hit.z,step):hit.z;
+          const problem=callbacks.current.placementProblem?.(x,z);
+          if(problem)callbacks.current.onInvalidPlacement?.("Cannot place here: "+problem);
+          else callbacks.current.onAddAt(callbacks.current.tool,{x,z});}
         return;
       }
       const hits=raycaster.intersectObjects([...ctx.objects.values()],true);
@@ -274,6 +291,14 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       ctx.root.add(group);
       ctx.objects.set(idFor(selection),group);
     };
+    // 3D error markers remain non-interactive and appear above the affected floor.
+    for(const warning of warnings.slice(0,100)){
+      const marker=new THREE.Mesh(new THREE.SphereGeometry(warning.severity==="error"?1.9:1.4,9,7),
+        new THREE.MeshStandardMaterial({color:warning.severity==="error"?"#f87171":"#fbbf24",
+          emissive:warning.severity==="error"?"#681818":"#4b3100"}));
+      marker.position.set(warning.x,2.3,warning.z);
+      ctx.root.add(marker);
+    }
     for(let i=0;i<map.regions.length;i++){
       const r=map.regions[i];
       add({type:"region",index:i},{x:r.x,y:0,z:r.z,w:r.w,h:.2,d:r.d},g=>{
@@ -439,7 +464,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
-  },[map,theme,mapId,showCollision,legacySpawns]);
+  },[map,theme,mapId,showCollision,legacySpawns,warnings]);
 
   // Ghost placement follows the pointer across the ground plane; one click
   // stamps a new object. The existing camera-focus button remains a fallback.
@@ -447,8 +472,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
     const ctx=runtime.current;if(!ctx)return;
     const preview=ctx.preview;disposeGroup(preview);preview.visible=tool!=="select";
     if(tool==="select")return;
-    const w=tool==="prop"?(placementProp?.w??5):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?4:12;
-    const d=tool==="prop"?(placementProp?.d??5):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?8:12;
+    const w=tool==="prop"?(placementProp?.w??5):tool==="kit"?(placementKit?.w??24):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?4:12;
+    const d=tool==="prop"?(placementProp?.d??5):tool==="kit"?(placementKit?.d??22):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?8:12;
     const h=tool==="prop"?(placementProp?.h??5):["region","circle","triangle"].includes(tool)?0.2:tool==="stairs"||tool==="platform"?4.2:2.8;
     const material=new THREE.MeshStandardMaterial({color:"#fbbf24",transparent:true,opacity:.36,depthWrite:false});
     const geometry=tool==="circle"?new THREE.CylinderGeometry(w/2,w/2,Math.max(.2,h),32):
@@ -457,7 +482,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
     const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geometry),new THREE.LineBasicMaterial({color:"#fde68a"}));
     edges.position.y=h/2;preview.add(edges);
     return ()=>{disposeGroup(preview);preview.visible=false;};
-  },[tool,placementProp?.kind,placementProp?.use,placementProp?.shape,placementProp?.w,placementProp?.d,placementProp?.h]);
+  },[tool,placementProp?.kind,placementProp?.use,placementProp?.shape,placementProp?.w,placementProp?.d,placementProp?.h,placementKit?.w,placementKit?.d]);
 
   useEffect(()=>{
     const ctx=runtime.current;
@@ -516,7 +541,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
 function disposeGroup(root:THREE.Group){
   const resources=new Set<THREE.Material>();
   root.traverse(object=>{
-    if(object instanceof THREE.Mesh){
+    if(object instanceof THREE.Mesh || object instanceof THREE.LineSegments){
       object.geometry.dispose();
       if(Array.isArray(object.material))object.material.forEach(m=>resources.add(m));
       else resources.add(object.material);
