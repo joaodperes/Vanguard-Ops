@@ -14,7 +14,7 @@ import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
 import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, type StudioBuildingPresetId } from "@/lib/map-studio-prefabs";
-import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
+import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save, Play as PlayIcon } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
 type StudioSnapshot = {doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
@@ -438,6 +438,15 @@ export default function MapEditor() {
     window.addEventListener("keydown",onKey);
     return ()=>window.removeEventListener("keydown",onKey);
   });
+  const launchPlaytest=()=>{
+    try{
+      // Save a complete snapshot first: leaving the route never discards draft changes.
+      localStorage.setItem("vanguard-map-studio-v1",JSON.stringify(doc));
+      localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));
+      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId,blueprint:map,theme}));
+      window.location.assign("/map-editor/playtest");
+    }catch(err){setStatus("Unable to launch local playtest: "+String(err));}
+  };
   const exportFile=()=>{
     const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -643,6 +652,9 @@ export default function MapEditor() {
           <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
         <button className={btn} onClick={redo} disabled={!redoHistory.current.length}>Redo</button>
+        <button className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 text-xs" onClick={launchPlaytest}>
+          <PlayIcon size={14}/> Playtest draft
+        </button>
         <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
         <button className={btn} onClick={async()=>{await navigator.clipboard.writeText(JSON.stringify(doc,null,2));setStatus("JSON copied to clipboard.");}}><Copy size={14}/> Copy JSON</button>
@@ -1135,7 +1147,7 @@ export default function MapEditor() {
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-2">Publishing</h2>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Drafts auto-save only in this browser. <strong className="text-zinc-300">Export JSON</strong>,
+            Use <strong className="text-zinc-300">Playtest draft</strong> to try unsaved changes in a local offline session. Drafts auto-save only in this browser. To publish, <strong className="text-zinc-300">Export JSON</strong>,
             replace <code className="text-amber-300">src/data/map-blueprints.json</code> in the repo,
             then restart or rebuild Next.js. Both offline and online sessions use the same compiled map definitions.
           </p>
