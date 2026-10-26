@@ -5,8 +5,8 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes } from "./map-blueprints";
-import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, type MapBlueprint } from "./map-blueprints";
+import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type MapVisualTheme } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
 
 export type MapPace = "compact" | "balanced" | "tactical";
@@ -25,10 +25,10 @@ function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
   if(o.type==="jump_pad")return {...o,pos,size,launch:scaled(o.launch,s)};
   return {...o,pos,size};
 }
-export function applyMapFootprint(base:MapDef):MapDef {
+export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;theme:MapVisualTheme}):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
-  const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
+  const plan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,size:Math.round(base.size*factor*1000)/1000,
@@ -56,7 +56,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
   };
   if(!plan)return scaledBase;
   const regions=plan.regions.map(r=>({...r}));
-  const visuals=visualThemeForMap(base.id,plan.templateMapId);
+  const visuals=draft?.theme??visualThemeForMap(base.id,plan.templateMapId);
   // Afterlight's predecessor was a small 128x128 arena with spawn points
   // clustered immediately around the central plaza. Those inherited spawns
   // forced every proposed park-edge house to disappear. The authored city
