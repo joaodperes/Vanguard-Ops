@@ -393,6 +393,14 @@
                 "type": "integer",
                 "minimum": 0
               }
+            },
+            "cityBuildingDisabled": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^city:-?[0-9]+:-?[0-9]+$"
+              }
             }
           },
           "additionalProperties": false
