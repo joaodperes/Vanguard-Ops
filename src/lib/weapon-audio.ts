@@ -24,14 +24,14 @@ interface SoundProfile {
 
 // Spectral shape and duration, not just volume/pitch, distinguish each class.
 const PROFILES: Record<WeaponSoundCategory, SoundProfile> = {
-  assault: { bodyHz: 155, bodyEndHz: 63, bodySeconds: 0.135, noiseHz: 1900, noiseQ: 0.85, noiseSeconds: 0.165, bodyLevel: 0.75, noiseLevel: 0.65, bodyType: "triangle", filter: "bandpass" },
-  smg:     { bodyHz: 280, bodyEndHz: 125, bodySeconds: 0.073, noiseHz: 3900, noiseQ: 0.65, noiseSeconds: 0.090, bodyLevel: 0.42, noiseLevel: 0.67, bodyType: "square", filter: "highpass" },
-  shotgun: { bodyHz: 96, bodyEndHz: 37, bodySeconds: 0.320, noiseHz: 680, noiseQ: 0.55, noiseSeconds: 0.375, bodyLevel: 1.04, noiseLevel: 1.00, bodyType: "triangle", filter: "lowpass" },
+  assault: { bodyHz: 155, bodyEndHz: 63, bodySeconds: 0.135, noiseHz: 2450, noiseQ: 0.65, noiseSeconds: 0.120, bodyLevel: 0.75, noiseLevel: 0.65, bodyType: "triangle", filter: "bandpass" },
+  smg:     { bodyHz: 280, bodyEndHz: 125, bodySeconds: 0.073, noiseHz: 3600, noiseQ: 0.65, noiseSeconds: 0.075, bodyLevel: 0.42, noiseLevel: 0.67, bodyType: "square", filter: "highpass" },
+  shotgun: { bodyHz: 96, bodyEndHz: 37, bodySeconds: 0.320, noiseHz: 1550, noiseQ: 0.55, noiseSeconds: 0.270, bodyLevel: 1.04, noiseLevel: 1.00, bodyType: "triangle", filter: "lowpass" },
   dmr:     { bodyHz: 173, bodyEndHz: 66, bodySeconds: 0.175, noiseHz: 2650, noiseQ: 1.00, noiseSeconds: 0.245, bodyLevel: 0.86, noiseLevel: 0.75, bodyType: "sawtooth", filter: "bandpass" },
-  sniper:  { bodyHz: 82, bodyEndHz: 28, bodySeconds: 0.425, noiseHz: 1200, noiseQ: 0.68, noiseSeconds: 0.590, bodyLevel: 1.08, noiseLevel: 0.98, bodyType: "triangle", filter: "bandpass" },
-  lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 1080, noiseQ: 0.55, noiseSeconds: 0.270, bodyLevel: 0.97, noiseLevel: 0.83, bodyType: "sawtooth", filter: "lowpass" },
-  pistol: { bodyHz: 325, bodyEndHz: 128, bodySeconds: 0.104, noiseHz: 4600, noiseQ: 0.75, noiseSeconds: 0.145, bodyLevel: 0.50, noiseLevel: 0.77, bodyType: "triangle", filter: "highpass" },
-  pdw: { bodyHz: 295, bodyEndHz: 112, bodySeconds: 0.077, noiseHz: 4000, noiseQ: 0.68, noiseSeconds: 0.09, bodyLevel: 0.44, noiseLevel: 0.7, bodyType: "square", filter: "highpass" },
+  sniper:  { bodyHz: 82, bodyEndHz: 28, bodySeconds: 0.425, noiseHz: 1850, noiseQ: 0.68, noiseSeconds: 0.380, bodyLevel: 1.08, noiseLevel: 0.98, bodyType: "triangle", filter: "bandpass" },
+  lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 2150, noiseQ: 0.65, noiseSeconds: 0.190, bodyLevel: 0.97, noiseLevel: 0.83, bodyType: "sawtooth", filter: "bandpass" },
+  pistol: { bodyHz: 325, bodyEndHz: 128, bodySeconds: 0.104, noiseHz: 3900, noiseQ: 0.75, noiseSeconds: 0.090, bodyLevel: 0.50, noiseLevel: 0.77, bodyType: "triangle", filter: "highpass" },
+  pdw: { bodyHz: 295, bodyEndHz: 112, bodySeconds: 0.077, noiseHz: 4100, noiseQ: 0.68, noiseSeconds: 0.075, bodyLevel: 0.44, noiseLevel: 0.7, bodyType: "square", filter: "highpass" },
   melee:   { bodyHz: 780, bodyEndHz: 350, bodySeconds: 0.112, noiseHz: 1350, noiseQ: 0.80, noiseSeconds: 0.185, bodyLevel: 0.14, noiseLevel: 0.39, bodyType: "sine", filter: "bandpass" },
   launcher:{ bodyHz: 71, bodyEndHz: 26, bodySeconds: 0.350, noiseHz: 930, noiseQ: 0.65, noiseSeconds: 0.485, bodyLevel: 1.05, noiseLevel: 0.83, bodyType: "sawtooth", filter: "lowpass" },
 };
@@ -56,6 +56,72 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
     bodyLevel: .43, noiseLevel: .31, bodyType: "sawtooth", filter: "highpass",
   },
 };
+
+
+/**
+ * An unsuppressed gun needs a separate, very fast broadband muzzle crack and
+ * a short low-frequency pressure pulse. The older band-limited noise/body
+ * pair alone made even bare muzzles resemble suppressed shots.
+ *
+ * Keep these separate from the tonal signatures: the impact is quick and dry,
+ * while the existing profile controls the caliber / mechanical tail.
+ */
+interface ImpactProfile {
+  crackHz: number;
+  crackSeconds: number;
+  crackLevel: number;
+  punchHz: number;
+  punchSeconds: number;
+  punchLevel: number;
+}
+
+const IMPACTS: Record<WeaponSoundCategory, ImpactProfile> = {
+  assault:  { crackHz: 1650, crackSeconds: .019, crackLevel: 1.00, punchHz: 76, punchSeconds: .095, punchLevel: .52 },
+  smg:      { crackHz: 2300, crackSeconds: .013, crackLevel: .94, punchHz: 106, punchSeconds: .055, punchLevel: .32 },
+  shotgun:  { crackHz: 1250, crackSeconds: .031, crackLevel: 1.14, punchHz: 58, punchSeconds: .195, punchLevel: .95 },
+  dmr:      { crackHz: 1700, crackSeconds: .025, crackLevel: 1.16, punchHz: 72, punchSeconds: .125, punchLevel: .66 },
+  sniper:   { crackHz: 1150, crackSeconds: .039, crackLevel: 1.36, punchHz: 54, punchSeconds: .240, punchLevel: 1.00 },
+  lmg:      { crackHz: 1550, crackSeconds: .019, crackLevel: 1.04, punchHz: 70, punchSeconds: .115, punchLevel: .68 },
+  pistol:   { crackHz: 2150, crackSeconds: .017, crackLevel: 1.00, punchHz: 94, punchSeconds: .065, punchLevel: .35 },
+  pdw:      { crackHz: 2550, crackSeconds: .012, crackLevel: .98, punchHz: 108, punchSeconds: .052, punchLevel: .30 },
+  melee:    { crackHz: 1900, crackSeconds: .010, crackLevel: 0, punchHz: 120, punchSeconds: .050, punchLevel: 0 },
+  launcher: { crackHz: 950, crackSeconds: .028, crackLevel: .60, punchHz: 46, punchSeconds: .245, punchLevel: 1.00 },
+};
+
+// Preserve the synthetic identity of sci-fi weapons and the quiet crossbow;
+// they should not inherit a conventional firearm's sharp muzzle report.
+const SPECIAL_IMPACTS: Record<string, ImpactProfile> = {
+  rifle_electron:     { crackHz: 3500, crackSeconds: .017, crackLevel: .32, punchHz: 115, punchSeconds: .080, punchLevel: .18 },
+  crossbow_reclaimer: { crackHz: 2600, crackSeconds: .009, crackLevel: .12, punchHz: 105, punchSeconds: .045, punchLevel: .10 },
+  pistol_arc:        { crackHz: 4100, crackSeconds: .016, crackLevel: .44, punchHz: 125, punchSeconds: .055, punchLevel: .15 },
+};
+
+/** Pure acoustic calculations, also used by regression tests. */
+export function resolveShotAcoustics(
+  category: WeaponSoundCategory,
+  options: { weaponId?: string; suppressed?: boolean; distance?: number; volume?: number } = {},
+) {
+  const impact = SPECIAL_IMPACTS[options.weaponId ?? ""] ?? IMPACTS[category];
+  const suppressed = !!options.suppressed && category !== "melee";
+  const distance = Math.max(0, options.distance ?? 0);
+  const attenuation = distance >= 90 ? 0 : Math.pow(1 / (1 + distance * .046), 1.35)
+    * Math.max(0, 1 - Math.pow(distance / 90, 3));
+  const level = (suppressed ? .48 : 1) * attenuation
+    * Math.min(1.2, Math.max(0, options.volume ?? 1));
+  return {
+    level,
+    suppressed,
+    // Close unsuppressed shots stay OPEN; only suppressors and distance roll off highs.
+    cutoffHz: suppressed ? Math.max(650, 1400 - distance * 9)
+      : distance > 7 ? Math.max(1700, 8500 - distance * 85) : null,
+    crackHz: impact.crackHz,
+    crackSeconds: impact.crackSeconds,
+    crackLevel: impact.crackLevel * level * (suppressed ? .06 : 1),
+    punchHz: impact.punchHz,
+    punchSeconds: impact.punchSeconds,
+    punchLevel: impact.punchLevel * level * (suppressed ? .55 : 1),
+  };
+}
 
 // Small stable offset means individual weapons in the same class still have
 // slightly different timbres without randomising their identity each shot.
@@ -84,7 +150,7 @@ export class WeaponAudio {
   setVolume(masterVolume: number): void {
     this.volume = Math.min(100, Math.max(0, masterVolume));
     if (this.ctx && this.output) {
-      this.output.gain.setTargetAtTime((this.volume / 100) * 0.27, this.ctx.currentTime, 0.012);
+      this.output.gain.setTargetAtTime((this.volume / 100) * 0.32, this.ctx.currentTime, 0.012);
     }
   }
 
@@ -95,14 +161,14 @@ export class WeaponAudio {
       try {
         this.ctx = new AudioContext();
         const compressor = this.ctx.createDynamicsCompressor();
-        compressor.threshold.value = -19;
-        compressor.knee.value = 8;
-        compressor.ratio.value = 5;
-        compressor.attack.value = 0.003;
-        compressor.release.value = 0.120;
+        compressor.threshold.value = -14;
+        compressor.knee.value = 6;
+        compressor.ratio.value = 3;
+        compressor.attack.value = 0.0015;
+        compressor.release.value = 0.090;
         compressor.connect(this.ctx.destination);
         this.output = this.ctx.createGain();
-        this.output.gain.value = (this.volume / 100) * 0.27;
+        this.output.gain.value = (this.volume / 100) * 0.32;
         this.output.connect(compressor);
 
         // Shared white-noise buffer is created once, not for every shot.
@@ -140,85 +206,112 @@ export class WeaponAudio {
     const profile = SPECIAL_PROFILES[options.weaponId ?? ""] ?? PROFILES[category];
     if (!profile) return;
 
+    if (ctx.state === "closed") return;
+    const acoustics = resolveShotAcoustics(category, options);
+    if (acoustics.level < .006) return;
     const now = ctx.currentTime;
-    const suppressed = !!options.suppressed && category !== "melee";
     const pitch = weaponPitch(options.weaponId ?? category);
-    const distance = Math.max(0, options.distance ?? 0);
-    if (distance >= 90) return;
-    // Low/mid bands carry further than the muzzle crack. Attenuate both volume
-    // and high-frequency energy, leaving far-off shots recognizable but unobtrusive.
-    const attenuation = Math.pow(1 / (1 + distance * 0.046), 1.35)
-      * Math.max(0, 1 - Math.pow(distance / 90, 3));
-    const level = (suppressed ? 0.48 : 1)
-      * attenuation * Math.min(1.2, Math.max(0, options.volume ?? 1));
-    if (level < 0.006) return;
+    const { level, suppressed } = acoustics;
+
     const spatialPan = options.pan === undefined ? null : ctx.createStereoPanner();
     if (spatialPan) {
-      spatialPan.pan.value = Math.max(-1, Math.min(1, options.pan!));
+      spatialPan.pan.value = Math.max(-1, Math.min(1, options.pan));
       spatialPan.connect(out);
     }
-    const tonalFilter = suppressed || distance > 7 ? ctx.createBiquadFilter() : null;
+    const tonalFilter = acoustics.cutoffHz === null ? null : ctx.createBiquadFilter();
     if (tonalFilter) {
       tonalFilter.type = "lowpass";
-      tonalFilter.frequency.value = suppressed ? Math.max(320, 680 - distance * 4)
-        : Math.max(1150, 7500 - distance * 88);
-      tonalFilter.Q.value = 0.55;
+      tonalFilter.frequency.value = acoustics.cutoffHz!;
+      tonalFilter.Q.value = .55;
       tonalFilter.connect(spatialPan ?? out);
     }
     const destination = tonalFilter ?? spatialPan ?? out;
-    const bodyTime = profile.bodySeconds * (suppressed ? 0.72 : 1);
-    const noiseTime = profile.noiseSeconds * (suppressed ? 0.55 : 1);
+    const bodyTime = profile.bodySeconds * (suppressed ? .72 : 1);
+    const noiseTime = profile.noiseSeconds * (suppressed ? .55 : 1);
     this.activeVoices++;
 
-    // Weight / boom: a short, diving pitch envelope. Shotguns and snipers have
-    // a much longer bass tail; SMGs and pistols are tight and high-frequency.
+    // A shot counts as ONE voice even though it uses several short layers.
+    // Track every ended node so high-rate automatic fire cannot leak graphs.
+    let remaining = 0;
+    const track = (source: AudioScheduledSourceNode, nodes: AudioNode[]) => {
+      remaining++;
+      source.onended = () => {
+        for (const node of nodes) node.disconnect();
+        remaining--;
+        if (remaining === 0) {
+          this.activeVoices = Math.max(0, this.activeVoices - 1);
+          tonalFilter?.disconnect();
+          spatialPan?.disconnect();
+        }
+      };
+    };
+    const shape = (gain: GainNode, peak: number, attack: number, length: number) => {
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, peak), now + attack);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + length);
+    };
+
+    // Caliber body: audible mid/low sweep rather than just a sine-like bass tone.
     const body = ctx.createOscillator();
     const bodyGain = ctx.createGain();
     body.type = profile.bodyType;
     body.frequency.setValueAtTime(profile.bodyHz * pitch, now);
     body.frequency.exponentialRampToValueAtTime(Math.max(22, profile.bodyEndHz * pitch), now + bodyTime);
-    bodyGain.gain.setValueAtTime(0.0001, now);
-    bodyGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, profile.bodyLevel * level), now + 0.0025);
-    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + bodyTime);
+    shape(bodyGain, profile.bodyLevel * level * .80, .0015, bodyTime);
     body.connect(bodyGain).connect(destination);
+    track(body, [body, bodyGain]);
     body.start(now);
-    body.stop(now + bodyTime + 0.008);
+    body.stop(now + bodyTime + .008);
 
-    // Muzzle crack / mechanical swish. Filter choice distinguishes the short
-    // SMG snap, broad shotgun blast, metallic DMR crack and long sniper report.
+    // Textured midrange report, separate from the initial muzzle transient.
     const burst = ctx.createBufferSource();
     burst.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
     filter.type = profile.filter;
     filter.Q.value = profile.noiseQ;
     filter.frequency.setValueAtTime(profile.noiseHz * pitch, now);
-    if (category === "melee") {
-      filter.frequency.exponentialRampToValueAtTime(440 * pitch, now + noiseTime);
-    } else if (category === "sniper") {
-      filter.frequency.exponentialRampToValueAtTime(300 * pitch, now + noiseTime);
-    }
+    if (category === "melee") filter.frequency.exponentialRampToValueAtTime(440 * pitch, now + noiseTime);
+    else if (category === "sniper") filter.frequency.exponentialRampToValueAtTime(650 * pitch, now + noiseTime);
     const burstGain = ctx.createGain();
-    burstGain.gain.setValueAtTime(0.0001, now);
-    burstGain.gain.exponentialRampToValueAtTime(profile.noiseLevel * level, now + (category === "melee" ? 0.037 : 0.0018));
-    burstGain.gain.exponentialRampToValueAtTime(0.0001, now + noiseTime);
+    shape(burstGain, profile.noiseLevel * level * .75, category === "melee" ? .037 : .0013, noiseTime);
     burst.connect(filter).connect(burstGain).connect(destination);
-    burst.start(now, Math.random() * 0.09);
-    burst.stop(now + noiseTime + 0.008);
+    track(burst, [burst, filter, burstGain]);
+    burst.start(now, Math.random() * .09);
+    burst.stop(now + noiseTime + .008);
 
-    // Disconnect nodes only after both branches finish to prevent graph leaks.
-    let finished = 0;
-    const finish = () => {
-      finished++;
-      if (finished === 2) {
-        this.activeVoices = Math.max(0, this.activeVoices - 1);
-        tonalFilter?.disconnect();
-        spatialPan?.disconnect();
-      }
-    };
-    body.onended = () => { body.disconnect(); bodyGain.disconnect(); finish(); };
-    burst.onended = () => {
-      burst.disconnect(); filter.disconnect(); burstGain.disconnect(); finish();
-    };
+    // Dry muzzle crack: broadband 1.2–9k transient lasting only 10–40ms.
+    // This is intentionally absent from a genuinely suppressed shot.
+    if (acoustics.crackLevel > .02) {
+      const crack = ctx.createBufferSource();
+      crack.buffer = this.noiseBuffer;
+      const crackHigh = ctx.createBiquadFilter();
+      crackHigh.type = "highpass";
+      crackHigh.frequency.value = acoustics.crackHz * pitch;
+      const crackLow = ctx.createBiquadFilter();
+      crackLow.type = "lowpass";
+      crackLow.frequency.value = Math.min(9500, ctx.sampleRate * .43);
+      const crackGain = ctx.createGain();
+      shape(crackGain, acoustics.crackLevel * .85, .0007, acoustics.crackSeconds);
+      crack.connect(crackHigh).connect(crackLow).connect(crackGain).connect(destination);
+      track(crack, [crack, crackHigh, crackLow, crackGain]);
+      crack.start(now, Math.random() * .07);
+      crack.stop(now + acoustics.crackSeconds + .006);
+    }
+
+    // Pressure pulse: fast, pitched-down low-frequency impact instead of
+    // prolonged muffled rumble. Heavy guns get a lower, longer thump.
+    if (acoustics.punchLevel > .01) {
+      const punch = ctx.createOscillator();
+      punch.type = "sine";
+      const punchGain = ctx.createGain();
+      punch.frequency.setValueAtTime(acoustics.punchHz * pitch * 1.30, now);
+      punch.frequency.exponentialRampToValueAtTime(acoustics.punchHz * pitch * .72, now + acoustics.punchSeconds);
+      shape(punchGain, acoustics.punchLevel * .72, .002, acoustics.punchSeconds);
+      punch.connect(punchGain).connect(destination);
+      track(punch, [punch, punchGain]);
+      punch.start(now);
+      punch.stop(now + acoustics.punchSeconds + .008);
+    }
   }
 
   /** Distinct two-note elimination chime. Invoked only for a confirmed local kill. */
