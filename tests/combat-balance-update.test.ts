@@ -51,9 +51,10 @@ describe("limb-inclusive combat hit tests (bots and players)",()=>{
 });
 describe("sustained automatic fire",()=>{
   test("bursts progressively enlarge spread, with recovery after release",()=>{
-    let bloom=0;
+    let bloom=automaticBloom(0,14,1000);
+    expect(bloom).toBe(0); // releasing the trigger restores first-shot accuracy
     for(let i=0;i<5;i++){
-      const next=automaticBloom(bloom,14,i===0?1000:70);
+      const next=automaticBloom(bloom,14,70);
       expect(next).toBeGreaterThan(bloom);
       bloom=next;
     }
