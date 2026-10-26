@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { resolveShotAcoustics } from "../src/lib/weapon-audio";
+import weapons from "../src/data/catalogs/weapons.json";
 
 describe("Weapon audio — gunshot dynamics", () => {
   test("unsuppressed shots retain a bright, immediate muzzle crack", () => {
@@ -10,6 +11,33 @@ describe("Weapon audio — gunshot dynamics", () => {
       expect(shot.crackSeconds).toBeLessThan(.045);
       expect(shot.punchLevel).toBeGreaterThan(0);
     }
+  });
+
+  test("Mauler CS has an unfiltered, short, punchy shotgun blast", () => {
+    const maulerCatalog = weapons.find((weapon) => weapon.id === "shotgun_combat");
+    expect(maulerCatalog?.name).toBe("Mauler CS");
+    expect(maulerCatalog?.category).toBe("shotgun");
+
+    const mauler = resolveShotAcoustics("shotgun", { weaponId: "shotgun_combat" });
+    const breacher = resolveShotAcoustics("shotgun", { weaponId: "shotgun_br" });
+    expect(mauler.suppressed).toBe(false);
+    expect(mauler.cutoffHz).toBeNull();
+    expect(mauler.crackLevel).toBeGreaterThan(breacher.crackLevel);
+    expect(mauler.crackSeconds).toBeLessThan(breacher.crackSeconds);
+    expect(mauler.blastLevel).toBeGreaterThan(breacher.blastLevel);
+    expect(mauler.blastHighpassHz).toBeLessThan(350);
+    expect(mauler.blastLowpassHz).toBeGreaterThanOrEqual(11000);
+    expect(mauler.blastSeconds).toBeLessThan(.12);
+    expect(breacher.blastLevel).toBeGreaterThan(.75);
+  });
+
+  test("shotgun blast stays quiet when genuinely suppressed", () => {
+    const bare = resolveShotAcoustics("shotgun", { weaponId: "shotgun_combat" });
+    const suppressed = resolveShotAcoustics("shotgun", { weaponId: "shotgun_combat", suppressed: true });
+    expect(suppressed.cutoffHz).toBeLessThan(1500);
+    expect(suppressed.blastLevel).toBeLessThan(bare.blastLevel * .05);
+    expect(suppressed.crackLevel).toBeLessThan(bare.crackLevel * .04);
+    expect(resolveShotAcoustics("shotgun", { weaponId: "wonder_corrosion" }).blastLevel).toBe(0);
   });
 
   test("a real suppressor strongly reduces and filters the crack", () => {
@@ -55,5 +83,6 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(muted.level).toBe(0);
     expect(muted.crackLevel).toBe(0);
     expect(muted.punchLevel).toBe(0);
+    expect(muted.blastLevel).toBe(0);
   });
 });
