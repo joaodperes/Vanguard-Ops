@@ -26,7 +26,9 @@ interface SoundProfile {
 const PROFILES: Record<WeaponSoundCategory, SoundProfile> = {
   assault: { bodyHz: 155, bodyEndHz: 63, bodySeconds: 0.135, noiseHz: 2450, noiseQ: 0.65, noiseSeconds: 0.120, bodyLevel: 0.75, noiseLevel: 0.65, bodyType: "triangle", filter: "bandpass" },
   smg:     { bodyHz: 280, bodyEndHz: 125, bodySeconds: 0.073, noiseHz: 3600, noiseQ: 0.65, noiseSeconds: 0.075, bodyLevel: 0.42, noiseLevel: 0.67, bodyType: "square", filter: "highpass" },
-  shotgun: { bodyHz: 96, bodyEndHz: 37, bodySeconds: 0.320, noiseHz: 1550, noiseQ: 0.55, noiseSeconds: 0.270, bodyLevel: 1.04, noiseLevel: 1.00, bodyType: "triangle", filter: "lowpass" },
+  // Keep the primary shotgun blast open and brief. A long 1.5 kHz lowpass
+  // used to bury the muzzle report under a soft, suppressed-sounding boom.
+  shotgun: { bodyHz: 116, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 480, noiseQ: 0.50, noiseSeconds: 0.155, bodyLevel: 0.78, noiseLevel: 0.95, bodyType: "sawtooth", filter: "highpass" },
   dmr:     { bodyHz: 173, bodyEndHz: 66, bodySeconds: 0.175, noiseHz: 2650, noiseQ: 1.00, noiseSeconds: 0.245, bodyLevel: 0.86, noiseLevel: 0.75, bodyType: "sawtooth", filter: "bandpass" },
   sniper:  { bodyHz: 82, bodyEndHz: 28, bodySeconds: 0.425, noiseHz: 1850, noiseQ: 0.68, noiseSeconds: 0.380, bodyLevel: 1.08, noiseLevel: 0.98, bodyType: "triangle", filter: "bandpass" },
   lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 2150, noiseQ: 0.65, noiseSeconds: 0.190, bodyLevel: 0.97, noiseLevel: 0.83, bodyType: "sawtooth", filter: "bandpass" },
@@ -40,6 +42,12 @@ const PROFILES: Record<WeaponSoundCategory, SoundProfile> = {
 // receives weaponId for local, remote player and bot shots, so no new events are
 // needed. These profiles deliberately differ from their conventional classes.
 const SPECIAL_PROFILES: Record<string, SoundProfile> = {
+  // Mauler CS: fast, hard semi-auto action rather than the longer pump blast.
+  shotgun_combat: {
+    bodyHz: 148, bodyEndHz: 62, bodySeconds: .155,
+    noiseHz: 570, noiseQ: .48, noiseSeconds: .125,
+    bodyLevel: .68, noiseLevel: 1.08, bodyType: "sawtooth", filter: "highpass",
+  },
   rifle_electron: {
     bodyHz: 1070, bodyEndHz: 215, bodySeconds: .165,
     noiseHz: 4500, noiseQ: 1.8, noiseSeconds: .105,
@@ -78,7 +86,7 @@ interface ImpactProfile {
 const IMPACTS: Record<WeaponSoundCategory, ImpactProfile> = {
   assault:  { crackHz: 1650, crackSeconds: .019, crackLevel: 1.00, punchHz: 76, punchSeconds: .095, punchLevel: .52 },
   smg:      { crackHz: 2300, crackSeconds: .013, crackLevel: .94, punchHz: 106, punchSeconds: .055, punchLevel: .32 },
-  shotgun:  { crackHz: 1250, crackSeconds: .031, crackLevel: 1.14, punchHz: 58, punchSeconds: .195, punchLevel: .95 },
+  shotgun:  { crackHz: 1580, crackSeconds: .020, crackLevel: 1.38, punchHz: 63, punchSeconds: .145, punchLevel: .72 },
   dmr:      { crackHz: 1700, crackSeconds: .025, crackLevel: 1.16, punchHz: 72, punchSeconds: .125, punchLevel: .66 },
   sniper:   { crackHz: 1150, crackSeconds: .039, crackLevel: 1.36, punchHz: 54, punchSeconds: .240, punchLevel: 1.00 },
   lmg:      { crackHz: 1550, crackSeconds: .019, crackLevel: 1.04, punchHz: 70, punchSeconds: .115, punchLevel: .68 },
@@ -91,10 +99,24 @@ const IMPACTS: Record<WeaponSoundCategory, ImpactProfile> = {
 // Preserve the synthetic identity of sci-fi weapons and the quiet crossbow;
 // they should not inherit a conventional firearm's sharp muzzle report.
 const SPECIAL_IMPACTS: Record<string, ImpactProfile> = {
+  shotgun_combat:    { crackHz: 1800, crackSeconds: .014, crackLevel: 1.78, punchHz: 82, punchSeconds: .098, punchLevel: .62 },
   rifle_electron:     { crackHz: 3500, crackSeconds: .017, crackLevel: .32, punchHz: 115, punchSeconds: .080, punchLevel: .18 },
   crossbow_reclaimer: { crackHz: 2600, crackSeconds: .009, crackLevel: .12, punchHz: 105, punchSeconds: .045, punchLevel: .10 },
   pistol_arc:        { crackHz: 4100, crackSeconds: .016, crackLevel: .44, punchHz: 125, punchSeconds: .055, punchLevel: .15 },
 };
+
+/** Open, broadband combustion blast that follows the first muzzle snap.
+ * A separate short report is necessary: tonal bass and band-limited hiss alone
+ * still sound like an oversized suppressor, particularly on the Mauler CS.
+ */
+interface BlastProfile {
+  highpassHz: number;
+  lowpassHz: number;
+  seconds: number;
+  level: number;
+}
+const SHOTGUN_BLAST: BlastProfile = { highpassHz: 255, lowpassHz: 10500, seconds: .128, level: .94 };
+const MAULER_BLAST: BlastProfile = { highpassHz: 310, lowpassHz: 11500, seconds: .094, level: 1.32 };
 
 /** Pure acoustic calculations, also used by regression tests. */
 export function resolveShotAcoustics(
@@ -102,6 +124,8 @@ export function resolveShotAcoustics(
   options: { weaponId?: string; suppressed?: boolean; distance?: number; volume?: number } = {},
 ) {
   const impact = SPECIAL_IMPACTS[options.weaponId ?? ""] ?? IMPACTS[category];
+  const blast = options.weaponId === "shotgun_combat" ? MAULER_BLAST
+    : category === "shotgun" && !options.weaponId?.startsWith("wonder_") ? SHOTGUN_BLAST : null;
   const suppressed = !!options.suppressed && category !== "melee";
   const distance = Math.max(0, options.distance ?? 0);
   const attenuation = distance >= 90 ? 0 : Math.pow(1 / (1 + distance * .046), 1.35)
@@ -120,6 +144,10 @@ export function resolveShotAcoustics(
     punchHz: impact.punchHz,
     punchSeconds: impact.punchSeconds,
     punchLevel: impact.punchLevel * level * (suppressed ? .55 : 1),
+    blastHighpassHz: blast?.highpassHz ?? 0,
+    blastLowpassHz: blast?.lowpassHz ?? 0,
+    blastSeconds: blast?.seconds ?? 0,
+    blastLevel: (blast?.level ?? 0) * level * (suppressed ? .09 : 1),
   };
 }
 
@@ -161,11 +189,13 @@ export class WeaponAudio {
       try {
         this.ctx = new AudioContext();
         const compressor = this.ctx.createDynamicsCompressor();
-        compressor.threshold.value = -14;
-        compressor.knee.value = 6;
-        compressor.ratio.value = 3;
-        compressor.attack.value = 0.0015;
-        compressor.release.value = 0.090;
+        // Let the first 8 ms of the muzzle snap through before controlling
+        // the louder blast/tail. Fast 1.5 ms compression erased the impact.
+        compressor.threshold.value = -12;
+        compressor.knee.value = 8;
+        compressor.ratio.value = 2.2;
+        compressor.attack.value = 0.008;
+        compressor.release.value = 0.085;
         compressor.connect(this.ctx.destination);
         this.output = this.ctx.createGain();
         this.output.gain.value = (this.volume / 100) * 0.32;
@@ -278,6 +308,28 @@ export class WeaponAudio {
     track(burst, [burst, filter, burstGain]);
     burst.start(now, Math.random() * .09);
     burst.stop(now + noiseTime + .008);
+
+    // Open shotgun report: a short, wide-spectrum pressure burst. It is NOT
+    // routed through the legacy lowpass noise filter; the Mauler's main noise
+    // already sounds like a sharp bang rather than a suppressed "whump".
+    if (acoustics.blastLevel > .01) {
+      const blast = ctx.createBufferSource();
+      blast.buffer = this.noiseBuffer;
+      const blastHigh = ctx.createBiquadFilter();
+      blastHigh.type = "highpass";
+      blastHigh.frequency.value = acoustics.blastHighpassHz * pitch;
+      blastHigh.Q.value = .55;
+      const blastLow = ctx.createBiquadFilter();
+      blastLow.type = "lowpass";
+      blastLow.frequency.value = Math.min(acoustics.blastLowpassHz, ctx.sampleRate * .43);
+      blastLow.Q.value = .55;
+      const blastGain = ctx.createGain();
+      shape(blastGain, acoustics.blastLevel * .72, .00035, acoustics.blastSeconds);
+      blast.connect(blastHigh).connect(blastLow).connect(blastGain).connect(destination);
+      track(blast, [blast, blastHigh, blastLow, blastGain]);
+      blast.start(now, Math.random() * .11);
+      blast.stop(now + acoustics.blastSeconds + .006);
+    }
 
     // Dry muzzle crack: broadband 1.2–9k transient lasting only 10–40ms.
     // This is intentionally absent from a genuinely suppressed shot.
