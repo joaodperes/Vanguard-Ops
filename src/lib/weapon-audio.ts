@@ -246,7 +246,7 @@ export class WeaponAudio {
     if (isFlame) {
       // Continuous flamethrower sound: one overlapping wash every ~430ms,
       // never eight distinct gunshot transients per second.
-      const at = this.ctx.currentTime;
+      const at = ctx.currentTime;
       if (at - this.lastFlameHissAt < .43) return;
       this.lastFlameHissAt = at;
     }
