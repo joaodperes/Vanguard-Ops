@@ -16,12 +16,12 @@ export interface MapDocument {
   theme: MapVisualTheme;
 }
 export const MAP_DOCUMENTS: Record<string, MapDocument> = {
-  bunker: bunker as MapDocument,
-  shipyard: shipyard as MapDocument,
-  compound: compound as MapDocument,
-  terminal: terminal as MapDocument,
-  skybridge: skybridge as MapDocument,
-  arena_neon: arena_neon as MapDocument,
+  bunker: bunker as unknown as MapDocument,
+  shipyard: shipyard as unknown as MapDocument,
+  compound: compound as unknown as MapDocument,
+  terminal: terminal as unknown as MapDocument,
+  skybridge: skybridge as unknown as MapDocument,
+  arena_neon: arena_neon as unknown as MapDocument,
 };
 
 /** Lightweight import validation; gameplay validation runs as a second pass. */
