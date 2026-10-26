@@ -709,7 +709,7 @@
   },
   "theme": {
     "biome": "factory_interior",
-    "label": "Ridgefall steelworks — enclosed industrial assembly hall, foundries, gantries and maintenance bays",
+    "label": "Ridgefall steelworks — furnished industrial production hall with blast furnace, transfer belts, presses, gantries and maintenance bays",
     "palette": {
       "floor": "#424a4f",
       "wall": "#5b6870",
@@ -955,6 +955,230 @@
         "h": 3,
         "color": "#fca44a",
         "text": "LOADING ZONE"
+      },
+      {
+        "kind": "furnace",
+        "x": -83,
+        "z": -8,
+        "w": 12,
+        "d": 16,
+        "h": 7.8,
+        "text": "BLAST FURNACE 01"
+      },
+      {
+        "kind": "conveyor",
+        "x": -21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "text": "WEST TRANSFER LINE"
+      },
+      {
+        "kind": "conveyor",
+        "x": 21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "text": "EAST TRANSFER LINE"
+      },
+      {
+        "kind": "hydraulic_press",
+        "x": -43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "text": "PRESS LINE W"
+      },
+      {
+        "kind": "hydraulic_press",
+        "x": 43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "text": "PRESS LINE E"
+      },
+      {
+        "kind": "vent_stack",
+        "x": -110,
+        "z": 27,
+        "w": 8,
+        "d": 10,
+        "h": 5,
+        "text": "EXHAUST DUCT"
+      },
+      {
+        "kind": "storage_rack",
+        "x": 83,
+        "z": -33,
+        "w": 14,
+        "d": 8,
+        "h": 5.5
+      },
+      {
+        "kind": "storage_rack",
+        "x": 101,
+        "z": 12,
+        "w": 14,
+        "d": 8,
+        "h": 5.5
+      },
+      {
+        "kind": "storage_rack",
+        "x": 119,
+        "z": -5,
+        "w": 9,
+        "d": 15,
+        "h": 4.2
+      },
+      {
+        "kind": "conveyor",
+        "x": -37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "text": "NORTH SORTER W"
+      },
+      {
+        "kind": "conveyor",
+        "x": 37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "text": "NORTH SORTER E"
+      },
+      {
+        "kind": "generator",
+        "x": -32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "text": "BACKUP GENERATOR"
+      },
+      {
+        "kind": "generator",
+        "x": 32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "text": "COOLING SKID"
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -104,
+        "z": -34,
+        "w": 10,
+        "d": 8,
+        "h": 2.8
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -89,
+        "z": 34,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": 92,
+        "z": 28,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": -20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": 20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": -19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": 19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -62,
+        "z": -5,
+        "w": 28,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.4
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 60,
+        "z": 7,
+        "w": 29,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.4
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": -43,
+        "w": 44,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": 72,
+        "w": 34,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -105,
+        "z": -16,
+        "w": 2,
+        "d": 35,
+        "h": 1.2,
+        "y": 13
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 105,
+        "z": 14,
+        "w": 2,
+        "d": 35,
+        "h": 1.2,
+        "y": 13
       }
     ],
     "surfaces": {

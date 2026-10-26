@@ -29,7 +29,9 @@ const tools:{heading:string;items:[Tool,string][]}[]=[
   {heading:"Objects",items:[["prop","Prop / building"],["hazard","Hazard"]]},
   {heading:"Player starts",items:[["ffa","FFA"],["red","Red team"],["blue","Blue team"]]},
 ];
-const kinds:PropKind[]=["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"];
+const kinds:PropKind[]=["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
+"furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack",
+"industrial_pipe","steel_coil","cargo_pallet"];
 const hazardKinds:MapHazard["type"][]=["fire","spikes","jump_pad","moving_platform","destructible_wall"];
 const paletteKeys=["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const;
 const clone=<T,>(value:T):T=>JSON.parse(JSON.stringify(value));
