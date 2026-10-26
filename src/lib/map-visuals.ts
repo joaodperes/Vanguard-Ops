@@ -18,6 +18,8 @@ export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "
   "building" | "boat" | "dock" | "garden" | "bench" | "bandstand";
 export interface MapProp {
   kind: PropKind; x: number; z: number; y?: number;
+  /** Stable identifier for a generated lot; survives moving a promoted building. */
+  lotId?: string;
   w?: number; d?: number; h?: number; text?: string; color?: string;
   /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
   use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner" | "clinic" | "workshop" | "gallery" | "florist" | "gym";
@@ -79,6 +81,7 @@ function hashed(seed:string):number {
 export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraSpawns:Vec3[]=[]):MapProp[] {
   const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...extraSpawns];
   const result=[...theme.props].filter(p=>insideRegions(p.x,p.z,plan.regions,2));
+  const authoredBuildings=result.filter(p=>p.kind==="building");
   // Both Afterlight editions compile the EXACT same authored geometry. Vary the
   // lot dimensions, floor heights, entrances and functions; keep roads walkable.
   if(theme.biome==="city"||theme.biome==="city_day"){
@@ -99,7 +102,9 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     const buildings:MapProp[]=[];
     const addBuilding=(draft:MapProp)=>{
       const key=Math.round(draft.x)+":"+Math.round(draft.z);
-      const prop:MapProp={...draft,
+      const lotId=draft.lotId??("city:"+Math.round(draft.x*100)+":"+Math.round(draft.z*100));
+      if(plan.cityBuildingDisabled?.includes(lotId))return;
+      const prop:MapProp={...draft,lotId,
         facade:draft.facade??facades[Math.floor(hashed("facade:"+key)*facades.length)],
         roofAccess:draft.roofAccess??hashed("roof:"+key)<(draft.use==="house"?.19:.39),
       };
@@ -108,7 +113,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       // close-in infill without swallowing the public walking paths.
       if(Math.abs(prop.x)<40+w/2+5 && Math.abs(prop.z)<40+d/2+5)return;
       if(!insideRegions(prop.x,prop.z,plan.regions,Math.max(w,d)/2+3.5))return;
-      if(buildings.some(q=>Math.abs(prop.x-q.x)<(w+(q.w??20))/2+4 &&
+      if([...authoredBuildings,...buildings].some(q=>Math.abs(prop.x-q.x)<(w+(q.w??20))/2+4 &&
         Math.abs(prop.z-q.z)<(d+(q.d??20))/2+4))return;
       const boxes=cityBuildingBoxes(prop);
       if(boxes.some(c=>spawns.some(s=>s[1]<c.pos[1]+c.size[1]+.3 &&
