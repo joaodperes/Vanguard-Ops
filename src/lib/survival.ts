@@ -2,6 +2,15 @@
 export const SURVIVAL_TIERS = ["default", "hard", "elite", "nightmare"] as const;
 export type SurvivalTier = typeof SURVIVAL_TIERS[number];
 export const DEFAULT_SURVIVAL_GOAL = 30;
+/** The Survival tier is the ONLY difficulty control. Standard ramps much more
+ * gradually, rather than reaching veteran aim accuracy on wave 10. */
+export function survivalBotDifficulty(tier: SurvivalTier, wave: number): "easy" | "normal" | "hard" | "veteran" {
+  if(tier==="default") return wave<=9?"easy":wave<=19?"normal":wave<=27?"hard":"veteran";
+  if(tier==="hard") return wave<=3?"normal":wave<=9?"hard":"veteran";
+  if(tier==="elite") return wave<=4?"hard":"veteran";
+  return "veteran";
+}
+
 export type SurvivalModifier = "swarm" | "frenzy" | "tactics" | "lethal" | "armored";
 export const SURVIVAL_MODIFIERS: {id: SurvivalModifier; label: string; description: string}[] = [
   { id: "swarm", label: "Swarm", description: "Additional enemies enter every wave" },
@@ -45,11 +54,11 @@ export function survivalWaveMutators(tier: SurvivalTier, wave: number) {
     levels,
     names: SURVIVAL_MODIFIERS.filter(m=>levels[m.id]>0).map(m=>
       m.label+(levels[m.id]>1?" ×"+levels[m.id]:"")),
-    spawnMul: Math.min(2.8, 1+levels.swarm*0.45),
+    spawnMul: tier === "default" ? .85 : Math.min(2.8, 1+levels.swarm*0.45),
     speedMul: Math.min(2.2, 1+levels.frenzy*0.3),
     skillBoost: Math.min(0.30,levels.tactics*0.10),
-    damageMul: Math.min(3.0, 1+levels.lethal*0.35),
-    healthMul: Math.min(3.0, 1+levels.armored*0.4),
+    damageMul: tier === "default" ? .87 : Math.min(3.0, 1+levels.lethal*0.35),
+    healthMul: tier === "default" ? .92 : Math.min(3.0, 1+levels.armored*0.4),
     boss: survivalIsBossWave(tier,wave),
   };
 }
