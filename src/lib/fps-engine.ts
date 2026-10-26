@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
 import { containerSideStripes } from "./container-details";
+import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1233,7 +1234,11 @@ export class FPSEngine {
       const worldW=p.w??8,worldD=p.d??7;
       const h=p.h??(p.kind==="shop"?8:4);
       const w=quarter%2?worldD:worldW,d=quarter%2?worldW:worldD;
-      if(p.kind==="tree"){
+      if(isFactoryMachineKind(p.kind)){
+        // Machine meshes dress pre-existing blueprint solids; collision remains
+        // authoritative in those features instead of being duplicated here.
+        buildFactoryMachinery(group,p.kind,w,d,h);
+      }else if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
         bole.position.y=h*.21;bole.castShadow=true;group.add(bole);
         for(let i=0;i<3;i++){
