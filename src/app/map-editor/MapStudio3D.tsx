@@ -6,7 +6,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { getMap, type CoverBox } from "@/lib/game-protocol";
 import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
-import { cityBuildingBoxes, mapProps, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
+import { cityBuildingBoxes, mapProps, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
 import type {StudioMapIssue} from "@/lib/map-studio-diagnostics";
@@ -353,36 +353,22 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
     }
     const drawBuilding=(g:THREE.Group,p:MapProp,opacity:number)=>{
       const w=p.w??20,h=p.h??6.4,d=p.d??20;
-      const shades:Record<string,string>={brick:"#a76f5f",stucco:"#e1c5a0",concrete:"#8c9398",
-        glass:"#547e99",timber:"#916b4b",industrial:"#848d90"};
-      const facade=p.color??shades[p.facade??"brick"]??palette.cover;
+      // Match the live FPS renderer's exact linear-space façade blending.
+      const facade=p.color??("#"+new THREE.Color(CITY_USE_FACADE_COLORS[p.use??"house"]??0x9f8f87)
+        .lerp(new THREE.Color(CITY_FACADE_TINTS[p.facade??"brick"]??0xa45b48),.39).getHexString());
       const localY=p.y??0;
-      if(showCollision){
-        for(const c of cityBuildingBoxes(p))createBox(g,c.pos[0]-p.x,c.pos[1]-localY,c.pos[2]-p.z,
+      // Both views derive roofs, doors, hatch gaps and stairs from the same
+      // authoritative collision grammar. Visual mode hides only dense furniture
+      // and non-exterior solids to remain responsive on large city maps.
+      const boxes=cityBuildingBoxes(p);
+      for(const c of boxes){
+        const dx=Math.abs(c.pos[0]-p.x),dz=Math.abs(c.pos[2]-p.z);
+        const exterior=dx>w*.31||dz>d*.31;
+        if(!showCollision&&c.kind==="cover"&&(!exterior||c.size[1]<Math.min(1.25,h*.20)))continue;
+        createBox(g,c.pos[0]-p.x,c.pos[1]-localY,c.pos[2]-p.z,
           c.size[0]*2,c.size[1]*2,c.size[2]*2,
-          c.kind==="stair"?palette.stair:c.kind==="platform"?palette.platform:facade,opacity);
-      }else{
-        // Exterior previews use the same opening dimensions as cityBuildingBoxes;
-        // collision mode reveals every authoritative wall, roof and stair tread.
-        const door=Math.min(5,w*.31),wing=(w-door)/2,wall=.42;
-        if(p.shape==="round"){
-          const shell=new THREE.Mesh(new THREE.CylinderGeometry(w*.48,w*.48,h,12),
-            new THREE.MeshStandardMaterial({color:facade,transparent:true,opacity,roughness:.78}));
-          shell.scale.z=d/w;shell.position.y=h/2;g.add(shell);
-        }else{
-          createBox(g,0,h/2,-d/2,w,h,wall,facade,opacity);
-          createBox(g,-w/2,h/2,0,wall,h,d,facade,opacity);
-          createBox(g,w/2,h/2,0,wall,h,d,facade,opacity);
-          createBox(g,-(w+door)/4,h/2,d/2,wing,h,wall,facade,opacity);
-          createBox(g,(w+door)/4,h/2,d/2,wing,h,wall,facade,opacity);
-          createBox(g,0,(h+2.5)/2,d/2,door,h-2.5,wall,facade,opacity);
-        }
-        createBox(g,0,h+.17,0,w,.30,d,palette.platform,opacity);
-        if(p.roofAccess){
-          for(const c of cityBuildingBoxes(p).filter(c=>c.kind==="stair"))
-            createBox(g,c.pos[0]-p.x,c.pos[1]-localY,c.pos[2]-p.z,
-              c.size[0]*2,c.size[1]*2,c.size[2]*2,palette.stair,.68);
-        }
+          c.kind==="stair"?palette.stair:c.kind==="platform"?palette.platform:facade,
+          showCollision?opacity:Math.min(1,opacity+.12));
       }
       const rows=h>8?2:1;
       for(let row=0;row<rows;row++){
