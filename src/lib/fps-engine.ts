@@ -59,7 +59,7 @@ import {
 import { SoundManager } from "@/lib/sound";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
   withinEnvironment, spikesActive, closestCoverHit,
