@@ -24,7 +24,7 @@ describe("Armory firing range loadout restrictions", () => {
     expect(rangePrimaryWeapons.length).toBeGreaterThan(0);
     expect(rangePrimaryWeapons.some(w => !!w.wonder)).toBe(true);
     for (const weapon of WEAPONS) {
-      const primary = !!weapon.wonder || isPrimaryWeaponCategory(weapon.category);
+      const primary = !weapon.disabled && (!!weapon.wonder || isPrimaryWeaponCategory(weapon.category));
       expect(rangePrimaryWeapons.some(w => w.id === weapon.id)).toBe(primary);
     }
     expect(rangeWeaponSlot("pistol_side")).toBe("secondary");

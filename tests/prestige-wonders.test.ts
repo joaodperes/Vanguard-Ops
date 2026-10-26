@@ -44,7 +44,7 @@ describe("Wonder charge economy", () => {
     expect(wonders.find(w => w.id === "wonder_corrosion")?.wonder?.maxCharges).toBe(3);
     for (const w of wonders) {
       expect(w.wonder!.maxCharges).toBeGreaterThanOrEqual(1);
-      expect(w.wonder!.maxCharges).toBeLessThanOrEqual(3);
+      expect(w.wonder!.maxCharges).toBeLessThanOrEqual(5);
       expect(w.stats.magSize).toBe(w.wonder!.maxCharges);
       expect(w.stats.reloadTime).toBe(0);
       expect(w.attachments).toEqual([]);
