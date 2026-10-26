@@ -294,7 +294,6 @@ export function Armory() {
         <div className="rounded-xl border border-amber-500/25 bg-gradient-to-r from-amber-500/10 to-zinc-900/70 p-4 mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-white font-bold tracking-wide flex items-center gap-2"><TestTube2 className="w-5 h-5 text-amber-300" /> Firing Range</h2>
-            <p className="text-white/55 text-xs mt-1">Try any weapon, attachment, or full saved loadout before buying. Free practice, no account changes.</p>
           </div>
           <Button onClick={() => tryInRange()} className="bg-amber-500 text-black hover:bg-amber-400 font-semibold">
             <Crosshair className="w-4 h-4 mr-1.5" /> Enter Firing Range
@@ -333,9 +332,11 @@ export function Armory() {
                     <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
                     <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
                   </div>
-                  <Button onClick={() => tryInRange(w.id)} variant="outline" className="w-full border-amber-400/40 text-amber-200 hover:bg-amber-500/10">
-                    <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free in Range
-                  </Button>
+                  {!owned && (
+                    <Button onClick={() => tryInRange(w.id)} variant="outline" className="w-full border-amber-400/40 text-amber-200 hover:bg-amber-500/10">
+                      <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free in Range
+                    </Button>
+                  )}
                   {owned
                     ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
                       onClick={() => equipWeapon(w, "primary")}
@@ -656,9 +657,11 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
-      <Button onClick={() => onTry(w.id)} variant="outline" className="w-full mb-2 border-amber-500/35 text-amber-200 hover:bg-amber-500/10">
-        <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free
-      </Button>
+      {!isOwned && (
+        <Button onClick={() => onTry(w.id)} variant="outline" className="w-full mb-2 border-amber-500/35 text-amber-200 hover:bg-amber-500/10">
+          <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free
+        </Button>
+      )}
       {!isOwned && (
         <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
           {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
