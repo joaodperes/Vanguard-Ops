@@ -5,7 +5,7 @@
 // ============================================================================
 import * as THREE from "three";
 import { regionRectangles } from "./map-blueprints";
-import { cityInteriorFixtures } from "./map-visuals";
+import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1294,19 +1294,8 @@ export class FPSEngine {
         const daylight=biome==="city_day";
         const use=p.use??"house";
         const isRound=p.shape==="round";
-        const facadeColors:Record<string,number>={
-          house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
-          bakery:0xbf9569,apartments:0x8993a4,office:0x577b9c,
-          hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,
-          clinic:0x9abfc2,workshop:0x827d68,gallery:0xb0a3bb,
-          florist:0x82a979,gym:0x648d96,
-        };
-        const facadeTints:Record<string,number>={
-          brick:0xa45b48,stucco:0xd1bba0,concrete:0x92949b,
-          glass:0x638aa2,timber:0x947556,industrial:0x777e86,
-        };
-        const facadeColor=new THREE.Color(facadeColors[use]??0x9f8f87);
-        facadeColor.lerp(new THREE.Color(facadeTints[p.facade??"brick"]),.39);
+        const facadeColor=new THREE.Color(CITY_USE_FACADE_COLORS[use]??0x9f8f87);
+        facadeColor.lerp(new THREE.Color(CITY_FACADE_TINTS[p.facade??"brick"]),.39);
         const tint=new THREE.MeshStandardMaterial({
           color:facadeColor,roughness:daylight?.82:.7,
           metalness:use==="office"||p.facade==="industrial"?.22:.04,
