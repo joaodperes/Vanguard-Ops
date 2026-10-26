@@ -37,7 +37,7 @@ import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, T
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
@@ -6556,7 +6556,7 @@ export class FPSEngine {
             // Plagueheart poisons an area around the actual impact only.
             // Rockets alone retain proximity damage along their flight path.
             const d = corrosion
-              ? Math.hypot(cx-p.end.x,cy-p.end.y,cz-p.end.z)
+              ? corrosionImpactDistance([p.end.x,p.end.y,p.end.z],[cx,cy,cz])
               : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
             if (d <= p.splashRadius) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
