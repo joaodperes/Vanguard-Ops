@@ -11,7 +11,7 @@ import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
 
 export type StudioSelection={
-  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment";
+  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
   index:number;team?:"ffa"|"red"|"blue";
 };
 export type StudioMode="select"|"move"|"rotate"|"resize";
@@ -22,7 +22,7 @@ export interface StudioTransform {
 }
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
-  mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;
+  mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
   onAddAt:(tool:string,point:{x:number;z:number})=>void;
   onSelect:(selection:StudioSelection|null)=>void;
   onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
@@ -42,7 +42,7 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,onSelect,onTransform,onAddAt}:Props) {
+export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,legacySpawns=[],showCollision=false,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
@@ -326,23 +326,67 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
         });
       }
     }
+    const drawBuilding=(g:THREE.Group,p:MapProp,opacity:number)=>{
+      const w=p.w??20,h=p.h??6.4,d=p.d??20;
+      const shades:Record<string,string>={brick:"#a76f5f",stucco:"#e1c5a0",concrete:"#8c9398",
+        glass:"#547e99",timber:"#916b4b",industrial:"#848d90"};
+      const facade=p.color??shades[p.facade??"brick"]??palette.cover;
+      const localY=p.y??0;
+      if(showCollision){
+        for(const c of cityBuildingBoxes(p))createBox(g,c.pos[0]-p.x,c.pos[1]-localY,c.pos[2]-p.z,
+          c.size[0]*2,c.size[1]*2,c.size[2]*2,
+          c.kind==="stair"?palette.stair:c.kind==="platform"?palette.platform:facade,opacity);
+      }else{
+        // Exterior previews use the same opening dimensions as cityBuildingBoxes;
+        // collision mode reveals every authoritative wall, roof and stair tread.
+        const door=Math.min(5,w*.31),wing=(w-door)/2,wall=.42;
+        if(p.shape==="round"){
+          const shell=new THREE.Mesh(new THREE.CylinderGeometry(w*.48,w*.48,h,12),
+            new THREE.MeshStandardMaterial({color:facade,transparent:true,opacity,roughness:.78}));
+          shell.scale.z=d/w;shell.position.y=h/2;g.add(shell);
+        }else{
+          createBox(g,0,h/2,-d/2,w,h,wall,facade,opacity);
+          createBox(g,-w/2,h/2,0,wall,h,d,facade,opacity);
+          createBox(g,w/2,h/2,0,wall,h,d,facade,opacity);
+          createBox(g,-(w+door)/4,h/2,d/2,wing,h,wall,facade,opacity);
+          createBox(g,(w+door)/4,h/2,d/2,wing,h,wall,facade,opacity);
+          createBox(g,0,(h+2.5)/2,d/2,door,h-2.5,wall,facade,opacity);
+        }
+        createBox(g,0,h+.17,0,w,.30,d,palette.platform,opacity);
+        if(p.roofAccess){
+          for(const c of cityBuildingBoxes(p).filter(c=>c.kind==="stair"))
+            createBox(g,c.pos[0]-p.x,c.pos[1]-localY,c.pos[2]-p.z,
+              c.size[0]*2,c.size[1]*2,c.size[2]*2,palette.stair,.68);
+        }
+      }
+      const rows=h>8?2:1;
+      for(let row=0;row<rows;row++){
+        const y=Math.min(h-1.1,2.8+row*2.9);
+        for(const side of [-1,1]){
+          createBox(g,side*w*.29,y,-d/2-.25,Math.min(2.4,w*.19),1.15,.16,"#415e70",.94);
+        }
+      }
+      if(["cafe","supermarket","bakery","diner","florist"].includes(p.use??"")){
+        createBox(g,0,2.9,d/2+.7,Math.min(w*.78,18),.24,1.5,palette.accent,.95);
+      }
+    };
     for(let i=0;i<theme.props.length;i++){
       const p=theme.props[i];
       const w=p.w??4,h=p.h??5,d=p.d??4;
       add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>{
-        if(p.kind==="building"){
-          // Use the same architecture/collider grammar as the live game.
-          for(const b of cityBuildingBoxes(p))createBox(g,b.pos[0]-p.x,b.pos[1]-(p.y??0),b.pos[2]-p.z,
-            b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:p.color??palette.cover,.76);
-        }else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
+        if(p.kind==="building")drawBuilding(g,p,.92);
+        else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
       });
     }
-    // Procedural city structures are visible but not falsely presented as
-    // editable theme props. Authored buildings above remain selectable.
-    if(theme.biome==="city"||theme.biome==="city_day")for(const p of mapProps(mapId,map,theme)){
-      if(p.kind!=="building"||theme.props.includes(p))continue;
-      for(const b of cityBuildingBoxes(p))createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
-        b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:p.color??palette.cover,.45);
+    // Generated city lots are selectable: picking one promotes it into an
+    // authored prop and masks its original lot in both game variants.
+    if(theme.biome==="city"||theme.biome==="city_day"){
+      const generated=mapProps(mapId,map,theme,legacySpawns).filter(
+        p=>p.kind==="building"&&!!p.lotId&&!theme.props.includes(p));
+      generated.forEach((p,i)=>{
+        add({type:"generatedBuilding",index:i},{x:p.x,y:p.y??0,z:p.z,w:p.w??20,h:p.h??6,d:p.d??20},
+          g=>drawBuilding(g,p,.8));
+      });
     }
     const compiled=getMap(mapId);
     const compiledForThisMap=compiled.id===mapId;
@@ -395,7 +439,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
-  },[map,theme,mapId]);
+  },[map,theme,mapId,showCollision,legacySpawns]);
 
   // Ghost placement follows the pointer across the ground plane; one click
   // stamps a new object. The existing camera-focus button remains a fallback.
