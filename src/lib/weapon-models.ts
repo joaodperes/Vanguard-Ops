@@ -37,7 +37,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   rifle_hydra:     { receiver: [.17,.145,.32], guardLength:.27, barrelLength:.18, bore:.025, stock:"bullpup", magazine:"curved", body:"ribbed", features:["dual","vent"], signature:0x4d99b1 },
   dmr_cyclone:     { receiver: [.135,.15,.50], guardLength:.40, barrelLength:.38, bore:.030, stock:"fixed", magazine:"box", body:"angular", features:["brake","rail"], signature:0xb78bdd },
   dmr_whisper:     { receiver: [.092,.10,.55], guardLength:.48, barrelLength:.47, bore:.019, stock:"precision", magazine:"straight", body:"tapered", features:["scope","muzzle"], signature:0x9abe8e },
-  rifle_ar:        { receiver: [.115,.128,.42], guardLength:.35, barrelLength:.24, bore:.023, stock:"fixed",     magazine:"curved",   body:"angular", features:["carry","rail"], signature:0x5378aa },
+  rifle_ar:        { receiver: [.115,.128,.42], guardLength:.35, barrelLength:.24, bore:.023, stock:"fixed",     magazine:"curved",   body:"angular", features:["guard"], signature:0x5378aa },
   rifle_burst:     { receiver: [.145,.15,.38],  guardLength:.23, barrelLength:.17, bore:.026, stock:"bullpup",   magazine:"straight", body:"tapered", features:["guard","brake"],signature:0x12b7a4 },
   rifle_heavy:     { receiver: [.17,.175,.57],  guardLength:.42, barrelLength:.30, bore:.037, stock:"heavy",     magazine:"box",      body:"block",   features:["brake","vent","rail"],signature:0xb66a55 },
   smg_kp:          { receiver: [.102,.112,.29],guardLength:.19, barrelLength:.13, bore:.018, stock:"folding",   magazine:"curved",   body:"angular", features:["rail","muzzle"],signature:0x2ac0b4 },
@@ -263,6 +263,59 @@ export function buildFirstPersonWeapon(
     box(w*.62,.010,c,.025,.050,.145,violet);
     const cell = new THREE.Mesh(new THREE.SphereGeometry(.046,10,8), violet);
     add(cell, 0,-.125,c+.055);
+  }
+  // Wonder-only reactor architecture. Each emitter silhouette is physically
+  // distinct and uses its own emissive colour on top of the animated body skin.
+  if(id.startsWith("wonder_")){
+    const colours:Record<string,number>={
+      wonder_singularity:0xae68ff,wonder_corrosion:0x7cff45,
+      wonder_turret:0xffd65c,wonder_deadlock:0xff4b9a,
+      wonder_hellfire:0xff6c1c,wonder_stormweaver:0x4defff,
+      wonder_bogfather:0x8dcc31,
+    };
+    const energy=fullSkinMaterial??new THREE.MeshBasicMaterial({color:colours[id]??0xb9f3ff});
+    const orb=(x:number,y:number,z:number,r:number)=>{
+      add(new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),energy),x,y,z);
+    };
+    if(id==="wonder_singularity"){
+      orb(0,.09,c-.08,.095);
+      for(let n=0;n<3;n++){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.13+n*.028,.009,8,30),energy);
+        ring.rotation.y=n*Math.PI/3;ring.rotation.x=Math.PI/2+n*.25;add(ring,0,.09,c-.08);
+      }
+      for(const side of [-1,1])box(side*.18,.07,c-.13,.04,.13,.21,energy);
+    }else if(id==="wonder_corrosion"){
+      for(const side of [-1,1]){
+        tube(side*.095,.065,c-.11,.065,.35,energy,12);
+        orb(side*.095,.065,c-.36,.055);
+      }
+      box(0,.16,c-.12,.17,.035,.30,energy);
+    }else if(id==="wonder_deadlock"){
+      orb(0,.135,guardZ,.085);
+      for(const side of [-1,1]){
+        box(side*.16,.13,guardZ-.06,.035,.085,.32,energy);
+        orb(side*.165,.14,guardZ-.28,.045);
+      }
+    }else if(id==="wonder_hellfire"){
+      for(const side of [-1,1]){
+        tube(side*.11,.03,barrelCenter,.065,barrelLength*.78,energy,14);
+        orb(side*.11,.03,muzzle,.075);
+      }
+      box(0,.14,c-.15,.19,.055,.31,energy);
+    }else if(id==="wonder_stormweaver"){
+      for(let n=0;n<5;n++){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.076,.015,6,20),energy);
+        add(ring,0,.055,c-.08-n*.085);
+      }
+      for(const side of [-1,1])box(side*.175,.07,guardZ,.025,.14,.49,energy);
+      orb(0,.09,muzzle,.10);
+    }else if(id==="wonder_turret"){
+      for(const side of [-1,1])box(side*.19,.1,c-.14,.09,.15,.46,energy);
+      orb(0,.19,c-.09,.12);
+      box(0,-.21,c+.01,.19,.15,.24,energy);
+    }else if(id==="wonder_bogfather"){
+      for(const side of [-1,1])orb(side*.11,.08,c-.1,.09);
+    }
   }
   if (p.features.includes("dual")) {
     tube(-.050,-.035,barrelCenter,p.bore*.80,barrelLength,metal,12);

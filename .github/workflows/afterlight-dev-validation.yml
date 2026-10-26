@@ -10,6 +10,9 @@ on:
     paths:
       - src/app/map-editor/**
       - src/lib/map-studio-prefabs.ts
+      - src/lib/map-studio-transform.ts
+      - src/lib/container-details.ts
+      - src/data/map-themes/shipyard.json
       - tests/map-studio-*.test.ts
       - src/lib/map-visuals.ts
       - src/lib/map-footprint.ts
@@ -36,7 +39,7 @@ jobs:
       - name: Generate Prisma client
         run: bun run db:generate
       - name: Afterlight and navigation regression tests
-        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts tests/map-studio-object-authoring.test.ts tests/map-studio-elevation.test.ts tests/map-studio-legacy-actions.test.ts tests/map-studio-prefabs.test.ts tests/map-studio-playtest.test.ts tests/map-studio-creator-workflow.test.ts
+        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts tests/map-studio-object-authoring.test.ts tests/map-studio-elevation.test.ts tests/map-studio-legacy-actions.test.ts tests/map-studio-prefabs.test.ts tests/map-studio-playtest.test.ts tests/map-studio-creator-workflow.test.ts tests/map-studio-transform-and-breakwater.test.ts
       - name: TypeScript validation
         run: bun run typecheck
       - name: Production build

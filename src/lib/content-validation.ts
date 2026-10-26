@@ -48,7 +48,7 @@ const bolt = z.object({
 const weapon = z.object({
   id, name: label, description: label, category,
   unlockLevel: pos.int(), unlockCost: count,
-  stats, attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
+  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
@@ -206,7 +206,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
 
-  // Each shipped biome lives in a single versioned JSON map document.
+  // Shipped biome palettes and props live in unified map documents.
   // Validate those files as well as walkable geometry, not just map metadata.
   const themeSchema=z.object({
     biome:label,label,ambient:pos,vegetation:unit,

@@ -318,7 +318,7 @@ export function Armory() {
               <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              {WEAPONS.filter(w => !!w.wonder).map(w => {
+              {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
                 const owned = profile?.prestige?.wonderWeapons.includes(w.id) ?? false;
                 const ready = (profile?.prestige?.tokens ?? 0) > 0;
                 return <div key={w.id} className="rounded-xl border border-violet-500/25 bg-black/40 p-5 space-y-3">
@@ -328,8 +328,8 @@ export function Armory() {
                   </div>
                   <p className="text-white/60 text-sm">{w.description}</p>
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
-                    <span>{w.wonder!.maxCharges} max shots</span>
-                    <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
+                    <span>{w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
+                    <span>{w.wonder!.rechargeMs / 1000}s per {w.wonder!.kind === "flame" ? "fuel-second" : "charge"}</span>
                     <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
                   </div>
                   {!owned && (

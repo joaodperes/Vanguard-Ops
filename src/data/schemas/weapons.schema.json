@@ -219,6 +219,9 @@
           }
         },
         "additionalProperties": false
+      },
+      "disabled": {
+        "type": "boolean"
       }
     },
     "additionalProperties": false

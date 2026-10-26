@@ -278,11 +278,19 @@ export function cityInteriorFixtures(p:MapProp):CityFixture[]{
  * shell and a roof accessed from a separate exterior stair.
  */
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
-  const w=p.w??20,d=p.d??20,h=p.h??6.4;
+  const quarter=(((p.turns??0)%4)+4)%4;
+  const odd=quarter%2===1;
+  // Width/depth in authored JSON are always WORLD extents. Building layout
+  // is constructed in its own coordinates, then quarter-turned as a whole.
+  const w=odd?(p.d??20):(p.w??20),d=odd?(p.w??20):(p.d??20),h=p.h??6.4;
+  const cosine=[1,0,-1,0][quarter],sine=[0,1,0,-1][quarter];
   const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
   const a:CoverBox[]=[];
   const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover")=>{
-    if(hx>.01&&hy>.01&&hz>.01)a.push({kind,pos:[p.x+x,(p.y??0)+y,p.z+z],size:[hx,hy,hz]});
+    if(hx>.01&&hy>.01&&hz>.01)a.push({
+      kind,pos:[p.x+cosine*x+sine*z,(p.y??0)+y,p.z-sine*x+cosine*z],
+      size:[odd?hz:hx,hy,odd?hx:hz],
+    });
   };
   if(p.shape==="round"){
     // Twelve connected orthogonal faces approximate an octagon without
@@ -344,7 +352,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
   }
-  for(const fixture of cityInteriorFixtures(p)){
+  for(const fixture of cityInteriorFixtures({...p,w,d})){
     put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2);
   }
   return a;

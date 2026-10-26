@@ -36,3 +36,29 @@ export function nearStormLink(a:V3,b:V3,pos:V3,radius=1.4):boolean{
 export function sludgeMovementFactor(pos:V3,team:string,now:number,pools:readonly {pos:V3;radius:number;ownerTeam:string;expiresAt:number;kind:string}[],ffa=false){
  return pools.some(p=>p.kind==="sludge"&&p.expiresAt>now&&(ffa||p.ownerTeam!==team)&&Math.hypot(pos[0]-p.pos[0],pos[2]-p.pos[2])<=p.radius)?0.46:1;
 }
+
+/** Deadlock stores up to three persistent exposed target tags per owner. */
+export const SMART_MAX_TAGS = 3;
+export const SMART_TAG_MS = 4500;
+export function selectSmartTargets(
+  origin:V3,dir:V3,candidates:WonderCandidate[],team:string,ffa:boolean,
+  range:number,canSee:(p:V3)=>boolean,limit=SMART_MAX_TAGS,
+):WonderCandidate[]{
+  return candidates.filter(c=>{
+    if(!c.alive||c.protected||(!ffa&&c.team===team))return false;
+    const target:V3=[c.pos[0],c.pos[1]+1.05,c.pos[2]];
+    const aim=aimProjection(origin,dir,target);
+    return aim.forward>0&&distance(origin,target)<=range&&aim.cosine>=.952&&canSee(target);
+  }).sort((a,b)=>{
+    const aa=aimProjection(origin,dir,[a.pos[0],a.pos[1]+1.05,a.pos[2]]);
+    const bb=aimProjection(origin,dir,[b.pos[0],b.pos[1]+1.05,b.pos[2]]);
+    return (1-aa.cosine)*50+distance(origin,a.pos)*.003-
+      ((1-bb.cosine)*50+distance(origin,b.pos)*.003);
+  }).slice(0,Math.max(0,limit));
+}
+export const HELLFIRE_BURST_MS = 3000;
+export const HELLFIRE_TICK_MS = 125;
+export const HELLFIRE_RANGE = 11;
+export function hellfireRemainingMs(until:number,now:number):number {
+  return Math.max(0,until-now);
+}

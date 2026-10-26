@@ -73,6 +73,7 @@ export interface WeaponDef {
   /** Unguided impact rocket profile. Applies to all conventional launchers. */
   explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
+  disabled?: boolean;
   wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
@@ -409,26 +410,29 @@ export function resolveLoadout(input: {
       magazine: o.magazine ?? null,
     };
   };
-  const weapon = weaponById(input.primaryWeapon);
+  const requestedPrimary = weaponById(input.primaryWeapon);
+  const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
+  const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
+  const secondary = requestedSecondary.disabled ? weaponById("pistol_side") : requestedSecondary;
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {
     if (unlocked && !unlocked.includes(skinId)) return weaponSkinById("default");
     return weaponSkinById(skinId);
   };
-  const skinId = validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
+  const skinId = requestedPrimary.disabled ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
   const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
     weapon,
-    secondary: weaponById(input.secondaryWeapon ?? "pistol_side"),
+    secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
     weaponSkin: skinId,
     secondaryWeaponSkin: secondarySkin,
     meleeWeaponSkin: meleeSkin,
     playerSkin: playerSkinById(input.playerSkin),
-    attachments: parseAtts(input.attachments),
-    secondaryAttachments: parseAtts(input.secondaryAttachments),
+    attachments: requestedPrimary.disabled ? parseAtts(undefined) : parseAtts(input.attachments),
+    secondaryAttachments: requestedSecondary.disabled ? parseAtts(undefined) : parseAtts(input.secondaryAttachments),
     meleeAttachments: parseAtts(input.meleeAttachments),
   };
 }

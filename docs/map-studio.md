@@ -82,7 +82,7 @@ Regions overlap to form a union. Rectangle regions are exact; ellipse/triangle e
 
 Authored hazards are `fire`, `spikes`, `jump_pad`, `moving_platform` and `destructible_wall`. Authored building prop collision is derived deterministically and shared between the editor, offline play and authoritative gameplay. Procedural city lots can be converted into editable authored buildings. The two Afterlight editions (`terminal`, `arena_neon`) share authored geometry/buildings while retaining different visual themes.
 
-Existing built-in boxes and stair flights are backed by stable `legacyCoverOverrides`, `legacyEnvironmentOverrides`, `legacyCoverDisabled` and `legacyEnvironmentDisabled` source indices in each blueprint; these override their inherited geometry without editing the TypeScript originals. Rotation is quarter-turn only; arbitrary-angle collision is not supported. The 3D editor uses physics proxies, so it is not a pixel-perfect preview of game materials.
+Existing built-in boxes and stair flights are backed by stable `legacyCoverOverrides`, `legacyEnvironmentOverrides`, `legacyCoverDisabled` and `legacyEnvironmentDisabled` source indices in each blueprint; these override their inherited geometry without editing the TypeScript originals. Rotation is quarter-turn only (0°, 90°, 180°, 270°). City building fixtures, openings and stairs follow their saved orientation; arbitrary-angle collision is not supported. Move mode exposes X/Y/Z locks and rejects unwanted plane motion. The 3D editor uses physics proxies, so it is not a pixel-perfect preview of game materials.
 
 Design multiple flanks around high positions, keep line-of-sight interruptions, leave stairs clear, and distribute spawns across the footprint. Test across compact and larger player counts to catch unreachable platforms, spawn traps, cover collision discrepancies and overloaded scenery.
 
@@ -98,3 +98,8 @@ bun run build
 ```
 
 Review `tests/map-documents.test.ts`, `tests/map-document-io.test.ts`, `tests/map-studio-playtest.test.ts` and existing map physics, bot and layout tests. Finally conduct manual browser playtests in both map editor and actual FPS sessions, and compare client and server collision and bot navigation. Publishing remains a Git-controlled build operation. No player-upload endpoint accepts mutable shared multiplayer maps.
+
+
+## Current environment notes
+
+Breakwater's floating moving cargo and independent crane platform have been removed; dock collision, supported crane routes and cover remain. Long-face container stripes appear on either X- or Z-oriented containers.

@@ -1,5 +1,5 @@
-import { fullWonderCharges, spendWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
+import { fullWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 // ============================================================================
 // VANGUARD OPS — Game Server (socket.io) on port 3003
@@ -171,6 +171,8 @@ interface Room {
   adsStartedAt: Map<string, number>;
   lastMotionAt: Map<string, number>;
   stormAnchors: Map<string, { pos: Vec3; expiresAt: number }>;
+  smartTags: Map<string, { id:string; expiresAt:number }[]>;
+  hellfireUntil: Map<string, number>;
   wonderFields: Map<string, { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
@@ -396,7 +398,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -558,7 +560,7 @@ function createLobbyRoom(
     environmentTime: 0,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormAnchors: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -604,7 +606,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.wonderCharges.clear(); // fresh match only; never clear on respawn
-  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormAnchors.clear(); room.wonderFields.clear();
+  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormAnchors.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.deathBombs.clear();
   room.turrets.clear();
@@ -2235,7 +2237,7 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
   const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
   let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
   const w = WEAPONS.find(x => x.id === secondaryWeaponId);
-  if (!w || w.category === "melee" ||
+  if (!w || w.disabled || w.category === "melee" ||
       (!w.wonder && w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id)) ||
       (isPrimaryWeaponCategory(w.category) &&
       (!canEquipSecondaryPrimary(perkId, level) || !!w.wonder ||
@@ -2244,7 +2246,9 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
        (w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id))))) {
     secondaryWeaponId = "pistol_side";
   }
-  return { ...requested, perkId, secondaryWeaponId };
+  const selectedPrimary=WEAPONS.find(x=>x.id===requested.weaponId);
+  const weaponId=!selectedPrimary || selectedPrimary.disabled ? "rifle_ar" : requested.weaponId;
+  return { ...requested, weaponId, perkId, secondaryWeaponId };
 }
 
 async function handle(socket: any, msg: C2S) {
@@ -2320,6 +2324,28 @@ async function handle(socket: any, msg: C2S) {
       room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
+      // Server-owned Deadlock tags: ADS continuously acquires up to three
+      // exposed opponents; markers survive releasing ADS for 4.5 seconds.
+      if(p.weaponId==="wonder_deadlock"){
+        const prev=(room.smartTags.get(socket.id)??[]).filter(t=>t.expiresAt>moveNow);
+        if(msg.aiming && moveNow-(room.adsStartedAt.get(socket.id)??moveNow)>=250){
+          const cp=Math.cos(p.pitch);
+          const dir:Vec3=[Math.sin(p.yaw)*cp,Math.sin(p.pitch),Math.cos(p.yaw)*cp];
+          const origin:Vec3=[p.pos[0],p.pos[1]+EYE_HEIGHT,p.pos[2]];
+          const options=allCombatants(room).filter(x=>x.id!==socket.id)
+            .map(x=>({id:x.id,pos:x.pos,alive:x.alive,team:x.team,
+              protected:!!x.spawnProtectedUntil&&x.spawnProtectedUntil>moveNow}));
+          for(const target of selectSmartTargets(origin,dir,options,p.team,
+            room.mode==="ffa"||room.mode==="gungame"||room.config.friendlyFire===true,
+            weaponById(p.weaponId).stats.range,
+            point=>hasLineOfSight(room,origin,[...point] as Vec3))){
+            const existing=prev.findIndex(t=>t.id===target.id);
+            if(existing>=0)prev[existing].expiresAt=moveNow+SMART_TAG_MS;
+            else if(prev.length<SMART_MAX_TAGS)prev.push({id:target.id,expiresAt:moveNow+SMART_TAG_MS});
+          }
+        }
+        room.smartTags.set(socket.id,prev);
+      }else room.smartTags.delete(socket.id);
       break;
     }
     case "collectScavenger": {
@@ -2399,7 +2425,7 @@ async function handle(socket: any, msg: C2S) {
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
-      if (weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
+      if (weapon.disabled || weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       // Melee collision is resolved by the shared server-owned frontal arc.
       const now = Date.now();
       const interval = 1000 / Math.max(.1, weapon.stats.fireRate);
@@ -2434,9 +2460,19 @@ async function handle(socket: any, msg: C2S) {
       if (weapon.wonder) {
         const key = socket.id + ":" + weapon.id;
         const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder);
-        const next = spendWonderCharge(state, weapon.wonder, now);
-        if (!next) return; // Never accept extra shots, even after respawn/reload.
-        room.wonderCharges.set(key, next);
+        if(weapon.wonder.kind==="flame"){
+          const until=room.hellfireUntil.get(socket.id)??0;
+          if(until<=now){
+            const full=spendFullWonderCharge(state,weapon.wonder,now);
+            if(!full)return; // all 3 fuel seconds required; no partial bursts
+            room.wonderCharges.set(key,full);
+            room.hellfireUntil.set(socket.id,now+HELLFIRE_BURST_MS);
+          }
+        }else{
+          const next=spendWonderCharge(state,weapon.wonder,now);
+          if(!next)return;
+          room.wonderCharges.set(key,next);
+        }
       }
       if (weapon.special?.kind === "heat" && !allowHeatShot(room, socket.id, weapon.special, now)) return;
       if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
@@ -2487,19 +2523,23 @@ async function handle(socket: any, msg: C2S) {
 
       // Each new Wonder kind is a dedicated authoritative action rather than rocket splash.
       if(weapon.wonder?.kind==="smart"){
-        const locked=now-(room.adsStartedAt.get(socket.id)??now)>=250;
-        const candidates=allCombatants(room).filter(x=>x.id!==socket.id)
-          .map(x=>({id:x.id,pos:x.pos,alive:x.alive,team:x.team,protected:!!x.spawnProtectedUntil&&x.spawnProtectedUntil>now}));
-        const target=locked?selectSmartTarget(msg.origin,shotDir,candidates,p.team,room.mode==="ffa"||room.mode==="gungame"||room.config.friendlyFire===true,eff.range,(point)=>hasLineOfSight(room,msg.origin,[...point] as Vec3)):null;
-        const victim=target?allCombatants(room).find(c=>c.id===target.id):null;
-        if(victim?.alive){
+        const tags=(room.smartTags.get(socket.id)??[]).filter(t=>t.expiresAt>now);
+        const victim=tags.map(t=>allCombatants(room).find(c=>c.id===t.id))
+          .find(c=>c?.alive&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=now)&&
+            (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||c.team!==p.team)&&
+            Math.hypot(c.pos[0]-msg.origin[0],c.pos[2]-msg.origin[2])<=eff.range&&
+            hasLineOfSight(room,msg.origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]));
+        if(victim){
           applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
-          io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],kind:"smart"} as S2C);
+          io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,
+            to:[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],kind:"smart"} as S2C);
         }else{
+          // Without an acquired live tag, the round remains a regular shot.
           const hit=fireRay(room,socket.id,msg.origin,shotDir,weapon.id,eff.range);
           if(hit)applyDamage(room,socket.id,hit.victim,damageAtRange(eff.damage,hit.t,eff.range,eff),hit.head,weapon.id);
         }
-        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
+        io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,
+          weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
         break;
       }
       if(weapon.wonder?.kind==="flame"){
@@ -2510,11 +2550,7 @@ async function handle(socket: any, msg: C2S) {
           if(inFlameCone(msg.origin,dir,target,eff.range)&&hasLineOfSight(room,msg.origin,target))
             applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
         }
-        for(const d of [4,8,12]){
-          const point:Vec3=[msg.origin[0]+dir[0]*d,p.pos[1]+.12,msg.origin[2]+dir[2]*d];
-          if(hasLineOfSight(room,msg.origin,[point[0],point[1]+1,point[2]]))
-            placeWonderField(room,p,weapon.id,"flame",point,1.85,now,4200);
-        }
+        // Flames remain airborne: no persistent ground fire or floor damage.
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:socket.id,skinId:msg.skinId,suppressed:false} as S2C);
         break;
       }
@@ -2766,6 +2802,8 @@ async function handle(socket: any, msg: C2S) {
       const w = weaponById(newWeaponId);
       if (!w) return;
       p.weaponId = newWeaponId;
+      room.smartTags.delete(socket.id);
+      room.hellfireUntil.delete(socket.id);
       // No broadcast here — the next snapshot (20Hz) carries the new weaponId.
       break;
     }

@@ -5,7 +5,7 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: a purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
+    "description": "a purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
@@ -35,7 +35,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: weak impact splashes targets with lingering, lethal corrosion damage over time. Three regenerating charges; ordinary kills accelerate recharge.",
+    "description": "weak impact splashes targets with lingering, lethal corrosion damage over time. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but an explosive or melee strike still destroys it immediately.",
+    "description": "deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but an explosive or melee strike still destroys it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -1067,7 +1067,7 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: ADS for 250ms to acquire exposed targets in a narrow lock cone, then shoot a redirected bullet. Cover blocks acquisition; hipfire is a normal shot.",
+    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 4.5s; even hipfire smart bullets seek one tagged enemy per shot if still exposed.",
     "wonder": {
       "kind": "smart",
       "maxCharges": 2,
@@ -1097,27 +1097,27 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: Flamethrower: paint ground in a wide fire cone with two regenerating fuel bursts. Burning ground damages enemies who cross it.",
+    "description": "Hold the trigger to spray a short-range cone of flame for up to three seconds. Ignition requires all three fuel-seconds fully charged; no ground fires or partial bursts.",
     "wonder": {
       "kind": "flame",
-      "maxCharges": 2,
-      "rechargeMs": 28000,
+      "maxCharges": 3,
+      "rechargeMs": 9000,
       "killBonusMs": 1700,
-      "radius": 2
+      "radius": 0
     },
     "attachments": [],
     "stats": {
-      "damage": 34,
-      "fireRate": 2.1,
-      "magSize": 2,
+      "damage": 6,
+      "fireRate": 8,
+      "magSize": 3,
       "reloadTime": 0,
       "spread": 0.05,
       "adsSpread": 0.012,
       "recoil": 1.2,
-      "range": 14,
+      "range": 11,
       "adsTime": 0.25,
       "moveSpeed": 0.87,
-      "auto": false,
+      "auto": true,
       "headshotMult": 1
     }
   },
@@ -1127,13 +1127,13 @@
     "category": "assault",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: Chain lightning leaps between exposed enemies. Shots plant conductive anchors; two linked nodes electrify targets along their route.",
+    "description": "Fires chain lightning up to 82m. An initial hit can jump to four nearby exposed enemies (five total), with each jump reaching up to 19m. Shots also leave 10-second electrical anchors; a second shot near the first briefly shocks enemies between them.",
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
       "rechargeMs": 31000,
       "killBonusMs": 1800,
-      "radius": 13
+      "radius": 19
     },
     "attachments": [],
     "stats": {
@@ -1144,7 +1144,7 @@
       "spread": 0.009,
       "adsSpread": 0.002,
       "recoil": 1.2,
-      "range": 64,
+      "range": 82,
       "adsTime": 0.2,
       "moveSpeed": 0.93,
       "auto": false,
@@ -1157,7 +1157,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Wonder Weapon: Sludge cannon: lob sticky persistent pools that deal damage over time and slow hostile movement.",
+    "description": "Disabled prototype: sludge-pool cannon. Unavailable for loadouts and multiplayer while its mechanics are redesigned.",
     "wonder": {
       "kind": "sludge",
       "maxCharges": 2,
@@ -1179,7 +1179,8 @@
       "moveSpeed": 0.81,
       "auto": false,
       "headshotMult": 1
-    }
+    },
+    "disabled": true
   },
   {
     "id": "pistol_ghost",
