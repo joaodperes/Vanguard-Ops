@@ -143,7 +143,8 @@ describe("SoundManager browser audio graph", () => {
     const menuNote = ctx.oscillators.find(o => o.type === "sine" && o.startedAt !== null);
     expect(menuNote).toBeDefined();
     expect(a.ambientTheme).toBe("menu");
-    expect(a.ambientGain.gain.value).toBeCloseTo(0.65 * 0.19);
+    // Music is intentionally a quiet bed under gunfire and footsteps.
+    expect(a.ambientGain.gain.value).toBeCloseTo(0.65 * 0.115);
     const afterMenu = ctx.oscillators.length;
 
     ctx.currentTime = 1.7;
