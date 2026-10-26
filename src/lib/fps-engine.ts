@@ -75,6 +75,8 @@ export interface EngineOptions {
   online: boolean;
   /** Offline-only, non-rewarding equipment preview with stationary targets. */
   firingRange?: boolean;
+  /** Unsaved offline Map Studio scene. Never accepted for online matches. */
+  previewMap?: MapDef;
   loadout: LoadoutWire;
   playerName: string;
   playerKey: string;
@@ -865,7 +867,7 @@ export class FPSEngine {
   constructor(container: HTMLElement, opts: EngineOptions) {
     this.container = container;
     this.opts = opts;
-    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : getMap(opts.mapId));
+    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
