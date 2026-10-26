@@ -276,7 +276,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
   const a:CoverBox[]=[];
   const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover")=>{
-    if(hx>.01&&hy>.01&&hz>.01)a.push({kind,pos:[p.x+x,y,p.z+z],size:[hx,hy,hz]});
+    if(hx>.01&&hy>.01&&hz>.01)a.push({kind,pos:[p.x+x,(p.y??0)+y,p.z+z],size:[hx,hy,hz]});
   };
   if(p.shape==="round"){
     // Twelve connected orthogonal faces approximate an octagon without
