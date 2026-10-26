@@ -11,6 +11,8 @@ export interface MapFeature extends MapRegion {
   id: string; h: number; /** Bottom elevation in world units (default ground y=0). */ y?: number;
   kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
   axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
+  /** Saved quarter-turn orientation for Map Studio (collision extents remain axis-aligned). */
+  turns?: 0 | 1 | 2 | 3;
 }
 export interface MapBlueprint {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
@@ -28,6 +30,7 @@ export interface MapBlueprint {
 }
 export interface MapBoxOverride {
   x:number; y:number; z:number; w:number; h:number; d:number;
+  turns?: 0 | 1 | 2 | 3;
 }
 export function overrideBox<T extends {pos:Vec3;size:Vec3}>(box:T,edit?:MapBoxOverride):T {
   if(!edit)return box;
