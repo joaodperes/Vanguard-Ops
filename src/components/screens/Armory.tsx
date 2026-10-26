@@ -351,7 +351,7 @@ export function Armory() {
             <div>
               <h2 className="text-white font-bold uppercase tracking-wider flex items-center gap-2">
                 <Save className="w-4 h-4 text-amber-400" /> Saved Loadouts
-                <span className="text-xs text-white/40 font-normal normal-case">{(profile.savedLoadouts ?? []).length} / 5</span>
+                <span className="text-xs text-white/40 font-normal normal-case">{(profile?.savedLoadouts ?? []).length} / 5</span>
               </h2>
               <p className="text-xs text-white/50 mt-1">Save your current Armory setup, name it, and equip it before a match.</p>
             </div>
@@ -367,16 +367,16 @@ export function Armory() {
               className="flex-1 min-w-40 rounded-lg bg-black/40 border border-white/20 text-white px-3 py-2 text-sm outline-none focus:border-amber-400"
             />
             <Button
-              disabled={presetBusy || !presetName.trim() || (profile.savedLoadouts ?? []).length >= 5}
+              disabled={presetBusy || !presetName.trim() || (profile?.savedLoadouts ?? []).length >= 5}
               onClick={() => managePreset("save")}
               className="bg-amber-500 hover:bg-amber-400 text-black"
             ><Save className="w-4 h-4 mr-1.5" /> Save Current</Button>
           </div>
-          {(profile.savedLoadouts ?? []).length === 0 ? (
+          {(profile?.savedLoadouts ?? []).length === 0 ? (
             <div className="text-sm text-white/40 py-3">No saved loadouts yet. Equip your preferred kit in the Armory, then save it here.</div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
-              {(profile.savedLoadouts ?? []).map(preset => (
+              {(profile?.savedLoadouts ?? []).map(preset => (
                 <div key={preset.id} className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-2">
                   {editingPreset === preset.id ? (
                     <div className="flex gap-2">
