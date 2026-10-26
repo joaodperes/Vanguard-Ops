@@ -11,13 +11,13 @@ describe("Plagueheart three-charge recharge", () => {
     expect(plagueheart.stats.magSize).toBe(3);
     expect(fullWonderCharges(rules).charges).toBe(3);
   });
-  test("ordinary kills accelerate the next charge by three seconds", () => {
+  test("ordinary kills accelerate the next charge by 8.5 seconds", () => {
     const spent = spendWonderCharge(fullWonderCharges(rules), rules, 10000)!;
     expect(spent.charges).toBe(2);
     expect(spent.nextAt).toBe(48000);
     const afterKill = accelerateWonderCharge(spent, rules, 12000);
     expect(afterKill.charges).toBe(2);
-    expect(afterKill.nextAt).toBe(45000);
+    expect(afterKill.nextAt).toBe(39500);
   });
   test("recharges one missing charge per recharge cycle", () => {
     let state = fullWonderCharges(rules);
