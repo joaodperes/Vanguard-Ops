@@ -377,7 +377,13 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       }
     }
     const drawBuilding=(g:THREE.Group,p:MapProp,opacity:number)=>{
-      const w=p.w??20,h=p.h??6.4,d=p.d??20;
+      const quarter=normalizeTurns(p.turns??0),odd=quarter%2===1;
+      const w=odd?(p.d??20):(p.w??20),h=p.h??6.4,d=odd?(p.w??20):(p.d??20);
+      const cosine=[1,0,-1,0][quarter],sine=[0,1,0,-1][quarter];
+      const localBox=(x:number,y:number,z:number,bw:number,bh:number,bd:number,color:string,alpha:number)=>{
+        createBox(g,cosine*x+sine*z,y,-sine*x+cosine*z,
+          odd?bd:bw,bh,odd?bw:bd,color,alpha);
+      };
       // Match the live FPS renderer's exact linear-space façade blending.
       const facade=p.color??("#"+new THREE.Color(CITY_USE_FACADE_COLORS[p.use??"house"]??0x9f8f87)
         .lerp(new THREE.Color(CITY_FACADE_TINTS[p.facade??"brick"]??0xa45b48),.39).getHexString());
@@ -399,11 +405,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       for(let row=0;row<rows;row++){
         const y=Math.min(h-1.1,2.8+row*2.9);
         for(const side of [-1,1]){
-          createBox(g,side*w*.29,y,-d/2-.25,Math.min(2.4,w*.19),1.15,.16,"#415e70",.94);
+          localBox(side*w*.29,y,-d/2-.25,Math.min(2.4,w*.19),1.15,.16,"#415e70",.94);
         }
       }
       if(["cafe","supermarket","bakery","diner","florist"].includes(p.use??"")){
-        createBox(g,0,2.9,d/2+.7,Math.min(w*.78,18),.24,1.5,palette.accent,.95);
+        localBox(0,2.9,d/2+.7,Math.min(w*.78,18),.24,1.5,palette.accent,.95);
       }
     };
     for(let i=0;i<theme.props.length;i++){
