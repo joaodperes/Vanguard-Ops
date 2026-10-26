@@ -5126,8 +5126,10 @@ export class FPSEngine {
     // Online: notify server of melee swing so other clients see the swing anim
     // and the server validates the hit. The server treats melee as a 0-range shot.
     if (this.opts.online && this.socket?.connected) {
-      const dir: Vec3 = [Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp];
-      this.socket.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
+      const cp=Math.cos(this.pitch);
+      const origin: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
+      const dir: Vec3=[Math.sin(this.yaw)*cp,Math.sin(this.pitch),Math.cos(this.yaw)*cp];
+      this.socket.emit("message",{t:"shot",origin,dir,weaponId:this.weaponId,skinId:this.getCurrentSkinId()});
     }
   }
 
