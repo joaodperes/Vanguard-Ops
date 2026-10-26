@@ -6,7 +6,7 @@ import {MAP_DOCUMENTS,validateMapDocument,type MapDocument} from "@/lib/map-docu
 import {importMapDocuments,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
 import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
   type MapRegion,type MapFeature,type MapHazard} from "@/lib/map-blueprints";
-import {mapProps,visualThemeForMap,type MapProp,type MapVisualTheme,type PropKind} from "@/lib/map-visuals";
+import {mapProps,visualThemeForMap,type MapProp,type MapVisualTheme,type PropKind,type SurfacePattern} from "@/lib/map-visuals";
 import {getMap} from "@/lib/game-protocol";
 import {studioMapIssues,studioRegionLinks,studioBuildingPlacementIssues} from "@/lib/map-studio-diagnostics";
 import {STUDIO_BUILDING_PRESETS,STUDIO_STRUCTURE_PRESETS,studioBuildingPrefab,studioStructurePrefab,
@@ -65,6 +65,7 @@ export default function MapEditorClient(){
   const [tool,setTool]=useState<Tool>("select");
   const [view,setView]=useState<"3d"|"2d">("3d"),[mode,setMode]=useState<StudioMode>("select");
   const [grid,setGrid]=useState(2),[zoom,setZoom]=useState(1);
+  const [moveAxis,setMoveAxis]=useState<"x"|"y"|"z">("x");
   const [stamp,setStamp]=useState(false),[showCollision,setShowCollision]=useState(false);
   const [showIssues,setShowIssues]=useState(true),[showRoutes,setShowRoutes]=useState(false);
   const [propKind,setPropKind]=useState<PropKind>("building");
@@ -447,6 +448,7 @@ export default function MapEditorClient(){
           {(["3d","2d"] as const).map(v=><button key={v} className={btn+(view===v?" border-amber-400 text-amber-300":"")} onClick={()=>setView(v)}>{v.toUpperCase()}</button>)}
           {view==="3d"&&(["select","move","rotate","resize"] as StudioMode[]).map(v=>
             <button key={v} className={btn+(mode===v?" border-amber-400 text-amber-300":"")} onClick={()=>{setMode(v);setTool("select");}}>{v}</button>)}
+          {view==="3d"&&mode==="move"&&(["x","y","z"] as const).map(axis=><button key={axis} className={btn+(moveAxis===axis?" border-cyan-400 text-cyan-300":"")} onClick={()=>setMoveAxis(axis)}>{axis.toUpperCase()}</button>)}
         </div>
         <div className="absolute right-2 top-2 z-10 flex items-center gap-2 rounded-lg bg-black/80 p-2 text-xs">
           <span>Snap</span>
@@ -456,7 +458,7 @@ export default function MapEditorClient(){
           {view==="2d"&&<input aria-label="2D zoom" type="range" min=".5" max="2" step=".1" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>}
         </div>
         {view==="3d"?
-          <MapStudio3D mapId={id} map={plan} theme={theme} selected={selection} mode={mode} snap={grid}
+          <MapStudio3D mapId={id} map={plan} theme={theme} selected={selection} mode={mode} moveAxis={moveAxis} snap={grid}
             tool={tool} legacySpawns={legacySpawns} showCollision={showCollision}
             placementProp={tool==="prop"?(propKind==="building"?studioBuildingPrefab(buildingKit,0,0):{kind:propKind,x:0,z:0,w:5,d:5,h:5}):undefined}
             placementKit={tool==="kit"?(()=>{const p=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structureKit);return p?{w:p.width,d:p.depth}:undefined;})():undefined}
@@ -593,10 +595,10 @@ export default function MapEditorClient(){
             {(["floor","wall","cover","stair","platform"] as const).map(slot=><div key={slot} className="mt-2">
               <Picker label={slot+" pattern"} value={current.theme.surfaces![slot].pattern}
                 options={["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]}
-                save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].pattern=v as typeof t.surfaces[typeof slot]["pattern"];})}/>
+                save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].pattern=v as SurfacePattern;})}/>
               <div className="grid grid-cols-2 gap-2">
-                <NumberInput label="Tile units" value={current.theme.surfaces[slot].tileSize} save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].tileSize=v;})}/>
-                <NumberInput label="Roughness" value={current.theme.surfaces[slot].roughness} save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].roughness=Math.max(0,Math.min(1,v));})}/>
+                <NumberInput label="Tile units" value={current.theme.surfaces![slot].tileSize} save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].tileSize=v;})}/>
+                <NumberInput label="Roughness" value={current.theme.surfaces![slot].roughness} save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].roughness=Math.max(0,Math.min(1,v));})}/>
               </div>
             </div>)}
           </details>}
