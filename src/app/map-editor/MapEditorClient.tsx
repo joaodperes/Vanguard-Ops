@@ -15,7 +15,7 @@ import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard,
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
 import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, STUDIO_STRUCTURE_PRESETS, studioStructurePrefab,
   type StudioBuildingPresetId, type StudioStructurePresetId } from "@/lib/map-studio-prefabs";
-import {studioBuildingPlacementIssues,studioMapIssues} from "@/lib/map-studio-diagnostics";
+import {studioBuildingPlacementIssues,studioMapIssues,studioRegionLinks} from "@/lib/map-studio-diagnostics";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save, Play as PlayIcon } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
@@ -45,6 +45,7 @@ export default function MapEditor() {
   const [playtestBots,setPlaytestBots]=useState(0);
   const [showCollision,setShowCollision]=useState(false);
   const [showSafety,setShowSafety]=useState(true);
+  const [showRoutes,setShowRoutes]=useState(false);
   const [showGuide,setShowGuide]=useState(true);
   const [stampMode,setStampMode]=useState(false);
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
@@ -687,6 +688,7 @@ export default function MapEditor() {
     return problems;
   },[map]);
   const visualIssues=useMemo(()=>studioMapIssues(map,cityPreviewProps,runtimeSpawns),[map,cityPreviewProps,runtimeSpawns]);
+  const navLinks=useMemo(()=>studioRegionLinks(map),[map]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
@@ -932,6 +934,9 @@ export default function MapEditor() {
             <input type="checkbox" checked={showSafety} onChange={e=>setShowSafety(e.target.checked)}/> Safety overlay
           </label>
           <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showRoutes} onChange={e=>setShowRoutes(e.target.checked)}/> District links
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
             <input type="checkbox" checked={stampMode} onChange={e=>setStampMode(e.target.checked)}/> Repeat placement
           </label>
           <span className="text-xs text-zinc-500">3D: click to place a selected piece · drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
@@ -948,6 +953,7 @@ export default function MapEditor() {
               onSelect={sel=>sel?.type==="generatedBuilding"?promoteGenerated(sel.index):setSelected(sel)}
               onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}
               showCollision={showCollision} warnings={showSafety?visualIssues:[]}
+              regionLinks={showRoutes?navLinks:[]}
               placementProblem={buildingProblem} onInvalidPlacement={reason=>setStatus(reason)}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
@@ -976,6 +982,11 @@ export default function MapEditor() {
               fill="#b7a08c" fillOpacity=".35" stroke="#fbbf24" strokeWidth=".4"
               onPointerDown={e=>{if(tool!=="select")return;e.stopPropagation();promoteGenerated(i);}}
               style={{cursor:tool==="select"?"pointer":"crosshair"}}/>)}
+            {showRoutes&&navLinks.map(link=><g key={"route-"+link.from+"-"+link.to} pointerEvents="none">
+              <path d={`M${link.ax} ${link.az} L${link.px} ${link.pz} L${link.bx} ${link.bz}`}
+                stroke="#5eead4" fill="none" strokeWidth=".75" strokeDasharray="2 1"/>
+              <circle cx={link.px} cy={link.pz} r="2.2" fill="#2dd4bf"/>
+            </g>)}
             {/* Pre-existing engine stairs are informative only: JSON export doesn't replace template geometry. */}
             {inheritedStairs.map((step,i)=><rect key={"legacy-stair-"+i} pointerEvents="none"
               x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
