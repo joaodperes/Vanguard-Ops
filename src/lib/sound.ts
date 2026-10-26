@@ -20,7 +20,22 @@
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
 
-import { MUSIC_THEMES, type MusicThemeId } from "./music-themes";
+import { MUSIC_THEMES, musicNotesForStep, type MusicInstrument, type MusicThemeId } from "./music-themes";
+
+// Music should simply fill quiet moments, never fight with footsteps, gunfire,
+// or callouts. This is independent of the user-facing music slider.
+const BACKGROUND_MUSIC_GAIN = 0.115;
+const MUSIC_TIMBRES: Record<MusicInstrument, {
+  wave: OscillatorType; attack: number; lowpass: number; harmonic: number; overtone: number;
+}> = {
+  keys:    { wave: "triangle", attack: .012, lowpass: 2600, harmonic: 2, overtone: .17 },
+  bell:    { wave: "sine",     attack: .006, lowpass: 4300, harmonic: 3, overtone: .12 },
+  flute:   { wave: "sine",     attack: .065, lowpass: 1900, harmonic: 2, overtone: .045 },
+  guitar:  { wave: "triangle", attack: .007, lowpass: 1850, harmonic: 2, overtone: .085 },
+  organ:   { wave: "sine",     attack: .055, lowpass: 1700, harmonic: 2, overtone: .13 },
+  marimba: { wave: "sine",     attack: .006, lowpass: 3300, harmonic: 3, overtone: .11 },
+  bass:    { wave: "sine",     attack: .024, lowpass: 450,  harmonic: 2, overtone: .045 },
+};
 
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
@@ -228,7 +243,7 @@ export class SoundManager {
   setMusicVolume(v: number) {
     this.musicVolume = Math.max(0, Math.min(1, v));
     if (this.ambientGain && this.ctx) {
-      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * 0.19 : 0, this.ctx.currentTime, 0.08);
+      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * BACKGROUND_MUSIC_GAIN : 0, this.ctx.currentTime, 0.08);
     }
   }
 
@@ -348,7 +363,7 @@ export class SoundManager {
     });
     if (active !== this.ambientActive) {
       this.ambientActive = active;
-      bus.gain.setTargetAtTime(active ? this.musicVolume * 0.19 : 0, ctx.currentTime, 0.25);
+      bus.gain.setTargetAtTime(active ? this.musicVolume * BACKGROUND_MUSIC_GAIN : 0, ctx.currentTime, 0.25);
       if (active) this.nextAmbientAt = ctx.currentTime + 0.06;
     }
     if (!active || this.muted || this.musicVolume === 0 || ctx.state !== "running") return;
@@ -362,28 +377,61 @@ export class SoundManager {
   }
 
   private scheduleAmbientStep(time: number, step: number, themeId: MusicThemeId, interval: number): void {
-    const ctx = this.ctx!, bus = this.musicLayer!;
-    const theme = MUSIC_THEMES[themeId];
-    const root = theme.roots[Math.floor(step / 8)];
-    const note = theme.melody[step % theme.melody.length];
-    const freq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
-    const voice = (midi: number, level: number, seconds: number, type: OscillatorType) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq(midi);
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(level, time + Math.min(0.11, seconds * 0.25));
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + seconds);
-      osc.connect(gain).connect(bus);
-      osc.start(time); osc.stop(time + seconds + 0.02);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-    };
-    if (note !== null) voice(root + note, theme.leadLevel, interval * theme.noteLength, theme.wave);
-    if (step % 8 === 0) {
-      const padDuration = interval * 7.2;
-      for (const offset of theme.chord) voice(root + offset, theme.padLevel, padDuration, "sine");
-      voice(root - 12, theme.bassLevel, interval * 4, "sine");
+    const bus = this.musicLayer;
+    if (!bus) return;
+    for (const note of musicNotesForStep(themeId, step)) {
+      this.scheduleMusicNote(time, note.midi, note.level, interval * note.durationSteps, note.instrument, bus);
     }
+  }
+
+  /** Soft, two-harmonic instrument voices with a gentle top-end rolloff.
+   * All nodes end/disconnect on their own; the scheduler stays asset-free and
+   * never touches the combat FX or weapon audio buses.
+   */
+  private scheduleMusicNote(
+    time: number, midi: number, level: number, duration: number,
+    instrument: MusicInstrument, bus: GainNode,
+  ): void {
+    const ctx = this.ctx;
+    if (!ctx || level <= 0) return;
+    const timbre = MUSIC_TIMBRES[instrument];
+    const seconds = Math.max(.08, duration);
+    const hz = 440 * Math.pow(2, (midi - 69) / 12);
+    const tone = ctx.createOscillator();
+    tone.type = timbre.wave;
+    tone.frequency.value = hz;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = Math.min(timbre.lowpass, ctx.sampleRate * .43);
+    filter.Q.value = .55;
+    const amp = ctx.createGain();
+    const attack = Math.min(timbre.attack, seconds * .2);
+    amp.gain.setValueAtTime(.0001, time);
+    amp.gain.linearRampToValueAtTime(level, time + attack);
+    if (instrument === "organ" || instrument === "flute") {
+      amp.gain.setValueAtTime(level * .7, time + seconds * .6);
+    }
+    amp.gain.exponentialRampToValueAtTime(.0001, time + seconds);
+    tone.connect(filter).connect(amp).connect(bus);
+
+    const overtone = ctx.createOscillator();
+    overtone.type = "sine";
+    overtone.frequency.value = hz * timbre.harmonic;
+    const overtoneGain = ctx.createGain();
+    overtoneGain.gain.value = timbre.overtone;
+    overtone.connect(overtoneGain).connect(filter);
+    tone.start(time);
+    overtone.start(time);
+    const stopAt = time + seconds + .012;
+    tone.stop(stopAt);
+    overtone.stop(stopAt);
+    tone.onended = () => {
+      tone.disconnect();
+      overtone.disconnect();
+      overtoneGain.disconnect();
+      filter.disconnect();
+      amp.disconnect();
+    };
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
