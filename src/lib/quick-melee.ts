@@ -7,9 +7,9 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 0.75;
+export const QUICK_MELEE_REACH = 0.75; // maximum centre-to-centre reach: near-touching targets only
 /** Narrow forward hitbox: a target to the side is NOT in a melee swing. */
-export const MELEE_MIN_FORWARD_DOT = 0.91;
+export const MELEE_MIN_FORWARD_DOT = 0.94;
 export function meleeForwardHit(dx:number,dz:number,yaw:number):boolean {
   const distance=Math.hypot(dx,dz);
   if(distance<0.001)return false;
@@ -25,7 +25,7 @@ export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:nu
     damage:stats.damage,
     cooldownMs,
     swingMs:Math.max(160,Math.round(cooldownMs*.68)),
-    reach:Math.min(stats.range, 1.05),
+    reach:Math.min(stats.range, QUICK_MELEE_REACH),
   };
 }
 export function chooseQuickMeleeTarget(
@@ -40,8 +40,9 @@ export function chooseQuickMeleeTarget(
     if (!target.alive || target.protected || target.friendly) continue;
     const dx = target.pos[0] - origin[0], dz = target.pos[2] - origin[2];
     const dist = Math.hypot(dx, dz);
-    if (dist > reach || dist < 0.001) continue;
-    if (Math.abs(target.pos[1] - origin[1]) > 2.4) continue;
+    // Hard clamp even if a caller passes stale/modified effective range.
+    if (dist > Math.min(reach, QUICK_MELEE_REACH) || dist < 0.001) continue;
+    if (Math.abs(target.pos[1] - origin[1]) > 1.15) continue;
     if (!meleeForwardHit(dx,dz,yaw)) continue;
     if (!clearPath(target, dist)) continue;
     if (dist < bestDist) { best = target; bestDist = dist; }
