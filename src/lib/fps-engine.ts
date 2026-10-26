@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
+import { containerSideStripes } from "./container-details";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1506,17 +1507,8 @@ export class FPSEngine {
       }else if(p.kind==="container"){
         const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
         cube(group,paint,0,h/2,0,w,h,d);
-        // Corrugation/stripes on BOTH long faces, including containers
-        // whose length runs along Z rather than X.
-        const longAlongX=w>=d;
-        const length=longAlongX?w:d;
-        const shortHalf=(longAlongX?d:w)/2;
-        for(let distance=-length/2+0.75;distance<length/2-.3;distance+=1.25){
-          for(const side of [-1,1]){
-            if(longAlongX)cube(group,trim,distance,h/2,side*(shortHalf+.045),.10,h*.75,.08);
-            else cube(group,trim,side*(shortHalf+.045),h/2,distance,.08,h*.75,.10);
-          }
-        }
+        for(const rib of containerSideStripes(w,d,h))
+          cube(group,trim,rib.x,rib.y,rib.z,rib.w,rib.h,rib.d);
       }else if(p.kind==="crane"){
         cube(group,masonry,0,h*1.3,0,1.4,h*2.6,1.4);
         cube(group,trim,w*.15,h*2.55,0,w*.95,.65,.8);
