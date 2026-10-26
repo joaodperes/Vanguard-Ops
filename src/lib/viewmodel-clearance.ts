@@ -1,22 +1,33 @@
-/** Camera-local first-person ADS geometry: the eye and bullet direction stay
- * fixed at (0,0,-Z); only art moves. Shared by renderer and regression tests.
+/** Camera-local ADS geometry. The body and its optic are one rigid assembly.
+ * The reticle and camera-centred ballistic ray stay at the eye; no individual
+ * sight translation is permitted during ADS animation.
  */
 import type { WeaponDef, SightType } from "./game-data";
 export interface AdsClearance {
-  bodyY:number; sightLift:number; sightVisible:boolean; bodyCeiling:number;
+  bodyY:number;
+  /** Rest-model Y of the actual sight aperture (the support is built below it). */
+  sightMountY:number;
+  sightVisible:boolean;
+  bodyCeiling:number;
 }
-export function adsClearance(weapon:Pick<WeaponDef,"id"|"category"|"wonder">,
- sight:SightType,receiverHeight=.18):AdsClearance {
- const iron=sight==="iron"&&!weapon.wonder&&weapon.category!=="melee";
- const oversized=["crossbow_reclaimer","rifle_hydra","launcher_rocket",
-  "launcher_swarm","launcher_breach"].includes(weapon.id) ||
-  ["launcher","lmg"].includes(weapon.category);
- const special=["wonder_deadlock","wonder_stormweaver","wonder_singularity",
-  "wonder_corrosion","wonder_turret"].includes(weapon.id);
- // The top of the receiver must be below the crosshair in camera space.
- // Keep optic aperture at y~=0 while lowering the rest of the weapon.
- const bodyY=oversized||special?-.46:-.32;
- const sightLift=iron? -bodyY-.104:0; // mount base is y=.08, vmScale ~=1.3
- const ceiling=bodyY+(receiverHeight*.65+.12);
- return {bodyY,sightLift,sightVisible:iron,bodyCeiling:ceiling};
+export function adsClearance(
+  weapon:Pick<WeaponDef,"id"|"category"|"wonder">,
+  sight:SightType,receiverHeight=.18,
+):AdsClearance {
+  const magnified=["acog","hunter","thermal","nvg","sniper_scope"].includes(sight);
+  const oversized=["crossbow_reclaimer","rifle_hydra","launcher_rocket",
+    "launcher_swarm","launcher_breach"].includes(weapon.id) ||
+    ["launcher","lmg"].includes(weapon.category);
+  // Tall receivers/carry handles require additional room, not a detached optic.
+  // The shallowest safe pose deliberately keeps more of each weapon visible.
+  const bodyY=-Math.max(oversized?.34:.255,receiverHeight*1.30+.105);
+  // Plagueheart is a shoulder weapon: its receiver should sit immediately
+  // below the reticle instead of disappearing beneath the bottom of the view.
+  const adjustedY=weapon.id==="wonder_corrosion"?-.265:bodyY;
+  const sightMountY=-adjustedY/1.2;
+  return {
+    bodyY:adjustedY,sightMountY,
+    sightVisible:!magnified&&weapon.category!=="melee"&&!weapon.wonder,
+    bodyCeiling:adjustedY+receiverHeight*.65+.12,
+  };
 }
