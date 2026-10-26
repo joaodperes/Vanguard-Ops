@@ -21,7 +21,7 @@ describe("equipped quick melee F",()=>{
     expect(hammer.damage).toBeGreaterThan(shiv.damage);
   });
   test("only visually adjacent enemies can be hit, with distinct melee reaches",()=>{
-    const targets=[{id:"target",pos:[0,0,.69] as const,alive:true}];
+    const targets=[{id:"target",pos:[0,0,.935] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
@@ -41,6 +41,6 @@ test("melee rejects side/rear enemies even when they are inside radial reach",()
  ];
  expect(chooseQuickMeleeTarget(from,0,[enemies[0]],()=>true,1.5)).toBeNull();
  expect(chooseQuickMeleeTarget(from,0,enemies,()=>true,1.5)?.id).toBe("ahead");
- expect(chooseQuickMeleeTarget(from,0,[{id:"near",pos:[0,0,.85] as const,alive:true}],()=>true,
+ expect(chooseQuickMeleeTarget(from,0,[{id:"near",pos:[0,0,1.08] as const,alive:true}],()=>true,
    weaponById("knife_tactical").stats.range)).toBeNull();
 });
