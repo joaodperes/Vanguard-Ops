@@ -150,6 +150,11 @@
                   },
                   "y": {
                     "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
                   }
                 },
                 "additionalProperties": false
@@ -291,6 +296,11 @@
                   },
                   "toZ": {
                     "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
                   }
                 },
                 "additionalProperties": false
@@ -330,6 +340,11 @@
                     "d": {
                       "type": "number",
                       "exclusiveMinimum": 0
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
                     }
                   },
                   "additionalProperties": false
@@ -371,6 +386,11 @@
                     "d": {
                       "type": "number",
                       "exclusiveMinimum": 0
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
                     }
                   },
                   "additionalProperties": false
