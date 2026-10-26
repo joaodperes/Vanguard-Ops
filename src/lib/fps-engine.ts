@@ -4744,9 +4744,9 @@ export class FPSEngine {
       if (!rules) continue;
       const next = tickWonderCharges(state, rules, now);
       this.wonderStates.set(id, next);
-      const ammo=id==="wonder_hellfire"
-        ? Math.min(rules.maxCharges,next.charges+(this.hellfireActiveUntil>now?1:0))
-        : next.charges;
+      // Show stored reserve only. Including the current prepaid slice caused
+      // the HUD to drop by one AFTER trigger release when that slice expired.
+      const ammo=next.charges;
       if (this.primaryWeaponId === id) this.primaryAmmoInMag = ammo;
       if (this.weaponId === id) this.ammoInMag = ammo;
     }
@@ -5250,10 +5250,7 @@ export class FPSEngine {
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (w.wonder) this.ammoInMag = w.wonder.kind==="flame"
-      ? Math.min(w.wonder.maxCharges,
-          this.wonderStates.get(w.id)!.charges+(this.hellfireActiveUntil>now?1:0))
-      : this.wonderStates.get(w.id)!.charges;
+    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
