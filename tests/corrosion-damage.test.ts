@@ -3,6 +3,11 @@ import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CO
 import { weaponById } from "../src/lib/game-data";
 
 describe("Plagueheart poison-first damage", () => {
+  test("ordinary kills accelerate Plagueheart recharge more strongly",()=>{
+    const rules=weaponById("wonder_corrosion").wonder!;
+    expect(rules.killBonusMs).toBe(8500);
+    expect(rules.killBonusMs).toBeGreaterThan(3000);
+  });
   test("poison radius applies at detonation, not along a 60m projectile path", () => {
     const radius = weaponById("wonder_corrosion").wonder!.radius;
     expect(radius).toBeCloseTo(2.75);
