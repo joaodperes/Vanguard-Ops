@@ -27,6 +27,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
+import { createFiringRangeMap, RANGE_TARGETS } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
@@ -72,6 +73,8 @@ export interface EngineOptions {
   gungameMultiplier?: number;
   botCount: number;
   online: boolean;
+  /** Offline-only, non-rewarding equipment preview with stationary targets. */
+  firingRange?: boolean;
   loadout: LoadoutWire;
   playerName: string;
   playerKey: string;
@@ -861,7 +864,7 @@ export class FPSEngine {
   constructor(container: HTMLElement, opts: EngineOptions) {
     this.container = container;
     this.opts = opts;
-    this.map = makeEnvironmentMap(getMap(opts.mapId));
+    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : getMap(opts.mapId));
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
@@ -972,6 +975,7 @@ export class FPSEngine {
     this.setupInput();
     if (opts.online) this.connectSocket();
     else if (opts.mode === "survival") this.setupSurvival();
+    else if (opts.firingRange) this.setupFiringRangeTargets();
     else this.setupOfflineBots();
     this.respawnSelf();
     // ---- Start the pre-match countdown for offline matches ----
@@ -982,7 +986,7 @@ export class FPSEngine {
     // player has a few seconds to read the map/mode and get oriented before
     // the bots start shooting.
     if (!opts.online) {
-      this.preMatchCountdown = FPSEngine.PRE_MATCH_COUNTDOWN_SEC;
+      this.preMatchCountdown = opts.firingRange ? 0 : FPSEngine.PRE_MATCH_COUNTDOWN_SEC;
       this.matchStartedAt = performance.now() + this.preMatchCountdown * 1000;
       // 19a+19b: Explicit per-match reset for offline matches. The engine is
       // freshly constructed per offline match so the field defaults are already
@@ -3350,6 +3354,32 @@ export class FPSEngine {
   };
 
   // ---- Offline bots ----
+  /** Range dummies are regular hit-detectable combatants, but never move,
+   * shoot or award profile progression. The normal weapon damage and FX remain.
+   */
+  private setupFiringRangeTargets() {
+    RANGE_TARGETS.forEach((point, i) => {
+      const id = "range_target_" + i;
+      const c: Combatant = {
+        id, name: ["Near Target", "Mid Target", "Far Target", "Long Target"][i],
+        team: "red", isBot: true, isSelf: false,
+        pos: [...point], yaw: Math.PI, pitch: 0,
+        health: MAX_HEALTH, alive: true, weaponId: "pistol_side",
+        weaponSkinId: "default", playerSkinId: "red",
+        kills: 0, deaths: 0, score: 0,
+      };
+      this.combatants.set(id, c);
+      this.addCombatantMesh(c);
+    });
+    // Mark the firing line and target distances without adding bullet-blocking cover.
+    for (const z of [-28, -10, 1, 13, 25]) {
+      const marker = new THREE.Mesh(new THREE.BoxGeometry(18, 0.025, 0.12),
+        new THREE.MeshBasicMaterial({ color: z === -28 ? 0xffbb55 : 0x4b6172 }));
+      marker.position.set(0, 0.055, z);
+      this.scene.add(marker);
+    }
+  }
+
   private setupOfflineBots() {
     let i = 0;
     const botWeapons = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
@@ -5347,7 +5377,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      if (sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -5505,12 +5535,12 @@ export class FPSEngine {
     if (this.opts.mode === "survival") return;
     setTimeout(() => {
       if (this.disposed || this.matchEnded) return;
-      const sp = this.pickSpawn(c.team);
+      const sp = this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
-      c.spawnProtectedUntil = Date.now() + 2500;
+      c.spawnProtectedUntil = this.opts.firingRange ? 0 : Date.now() + 2500;
       // Clear the death animation so the mesh renders normally after respawn.
       c.deathAnimAt = 0;
       c.deathAnimDur = 0;
@@ -5525,7 +5555,7 @@ export class FPSEngine {
       // Bug 3 fix: name sprite + health bar visible immediately too.
       if (c.nameSprite) c.nameSprite.visible = true;
       if (c.healthBar) c.healthBar.visible = true;
-    }, RESPAWN_DELAY_MS);
+    }, this.opts.firingRange ? 900 : RESPAWN_DELAY_MS);
   }
 
   // --- Kill Confirmed dogtags (server-synced online, simulated offline) ---
@@ -5611,7 +5641,7 @@ export class FPSEngine {
   }
 
   private checkWin() {
-    if (this.matchEnded) return;
+    if (this.opts.firingRange || this.matchEnded) return;
     if (this.opts.mode === "survival") return; // endless — game over handled on reinforcement depletion
     if (this.scoreLimit <= 0) return; // time-only match
     // Round 20: Gun Game win condition is handled by advanceLocalGungameTier()
@@ -6084,7 +6114,7 @@ export class FPSEngine {
       }
       return;
     }
-    if (!this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
+    if (!this.opts.firingRange && !this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
       // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
       // timeLeft = 0 means "no limit" — the match runs until the kill target
       // is reached. Previously, a 0 timeLimit caused the match to end instantly
@@ -6418,7 +6448,7 @@ export class FPSEngine {
 
     if (!this.opts.online && !this.matchEnded) {
       for (const c of this.combatants.values()) {
-        if (c.isBot && c.alive && c.ai) this.updateBotAI(c, dt, now);
+        if (!this.opts.firingRange && c.isBot && c.alive && c.ai) this.updateBotAI(c, dt, now);
       }
     }
     this.updateRemoteFootsteps(now);
