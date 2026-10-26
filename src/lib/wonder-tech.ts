@@ -56,7 +56,8 @@ export function selectSmartTargets(
       ((1-bb.cosine)*50+distance(origin,b.pos)*.003);
   }).slice(0,Math.max(0,limit));
 }
-export const HELLFIRE_BURST_MS = 5000;
+export const HELLFIRE_BURST_MS = 8000; // fully charged fuel reserve (8 seconds)
+export const HELLFIRE_FUEL_STEP_MS = 1000; // each held second spends ONE charge
 export const HELLFIRE_TICK_MS = 125;
 export const HELLFIRE_RANGE = 11;
 export function hellfireRemainingMs(until:number,now:number):number {
