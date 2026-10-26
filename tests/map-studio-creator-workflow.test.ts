@@ -3,7 +3,9 @@ import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {mapProps,visualThemeForMap,cityBuildingBoxes} from "../src/lib/map-visuals";
 import {getMap,compileMapStudioDraft} from "../src/lib/game-protocol";
 import {STUDIO_STRUCTURE_PRESETS,studioStructurePrefab,studioBuildingPrefab} from "../src/lib/map-studio-prefabs";
-import {studioBuildingPlacementIssues,studioMapIssues} from "../src/lib/map-studio-diagnostics";
+import {studioBuildingPlacementIssues,studioMapIssues,studioRegionLinks} from "../src/lib/map-studio-diagnostics";
+import blueprintSchema from "../src/data/schemas/map-blueprints.schema.json";
+import themeSchema from "../src/data/schemas/map-theme.schema.json";
 
 describe("Map Studio creator workflow",()=>{
   test("every construction kit creates individually editable, physics-backed features",()=>{
@@ -50,6 +52,30 @@ describe("Map Studio creator workflow",()=>{
     expect(studioBuildingPlacementIssues({...house,x:195,z:195},plan,[],[]).some(x=>x.code==="bounds")).toBe(true);
     expect(studioBuildingPlacementIssues(house,plan,[{...house,x:91}],[]).some(x=>x.code==="overlap")).toBe(true);
     expect(studioBuildingPlacementIssues(house,plan,[],[[90,0,90]]).some(x=>x.code==="spawn")).toBe(true);
+  });
+  test("published JSON schemas accept new authored buildings and masked procedural lots",()=>{
+    const mapProperties=blueprintSchema.properties.maps.patternProperties["^[a-z][a-z0-9_:-]*$"].properties;
+    expect(mapProperties.cityBuildingDisabled.items.pattern).toContain("city:");
+    const propProperties=themeSchema.properties.props.items.properties;
+    for(const key of ["lotId","shape","facade","stairSide","use","roofAccess"])
+      expect(Object.keys(propProperties)).toContain(key);
+  });
+  test("relocating a house changes gameplay collider elevations with its visual prop",()=>{
+    const home=studioBuildingPrefab("house",100,-100);
+    const ground=cityBuildingBoxes(home);
+    const raised=cityBuildingBoxes({...home,y:7.25});
+    expect(raised).toHaveLength(ground.length);
+    for(let i=0;i<raised.length;i++){
+      expect(raised[i].pos[1]-ground[i].pos[1]).toBeCloseTo(7.25);
+    }
+  });
+  test("district connectivity overlay highlights overlapping playable regions",()=>{
+    const links=studioRegionLinks(MAP_BLUEPRINTS.maps.arena_neon);
+    expect(links.length).toBeGreaterThan(2);
+    expect(links.every(l=>l.from<l.to&&Number.isFinite(l.px)&&Number.isFinite(l.pz))).toBe(true);
+    const broken=structuredClone(MAP_BLUEPRINTS.maps.arena_neon);
+    broken.regions.push({x:2000,z:2000,w:40,d:40});
+    expect(studioRegionLinks(broken).every(l=>l.from!==broken.regions.length-1&&l.to!==broken.regions.length-1)).toBe(true);
   });
   test("safety overlays locate authored map errors before export",()=>{
     const plan=structuredClone(MAP_BLUEPRINTS.maps.compound);
