@@ -995,8 +995,7 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
     { id: "shipyard_spikes", type: "spikes", pos: [-34, 0, -12], size: [1.8, 0.4, 1.8], damage: 32, period: 4.8, activeFor: 1.6 },
     // Launch towards the south container roofs; stairs provide backup access.
     { id: "shipyard_spikes_conveyor", type: "spikes", pos: [16, 0, 20], size: [1.8, .4, 1.8], damage: 24, period: 5.4, activeFor: 1.6 },
-    // Cargo transfer cart, deliberately not essential to navigation.
-    { id: "shipyard_platform", type: "moving_platform", pos: [-9, 0.85, 40], size: [2.5, 0.25, 2.5], to: [9, 0.85, 40], period: 7 },
+    // Removed the floating cargo platform; normal dock routes remain walkable.
     // Container-checkpoint gate with static wall wings.
     { id: "shipyard_wall", type: "destructible_wall", pos: [0, 1.5, -38], size: [2.8, 1.5, 0.45], hp: 200 },
   ],
