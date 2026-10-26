@@ -31,8 +31,12 @@ export function studioBuildingPlacementIssues(
     add("park","Building obstructs the central park and its paths.");
   if(allProps.some(p=>p!==candidate&&p.kind==="building"&&overlap(candidate,p)))
     add("overlap","Building overlaps another building or its access space.");
-  if(cityBuildingBoxes(candidate).some(c=>spawns.some(s=>intersectsSpawn(c,s))))
-    add("spawn","Building walls or stairs obstruct a spawn point.");
+  if(spawns.some(s=>s[1]<((candidate.y??0)+(candidate.h??6))+1.5 &&
+      s[1]+1.8>(candidate.y??0)-.3 &&
+      Math.abs(s[0]-candidate.x)<w/2+2 &&
+      Math.abs(s[2]-candidate.z)<d/2+2) ||
+      cityBuildingBoxes(candidate).some(c=>spawns.some(s=>intersectsSpawn(c,s))))
+    add("spawn","Building footprint, walls or stairs obstruct a spawn point.");
   const colliders=cityBuildingBoxes(candidate);
   for(const f of plan.features){
     if(f.kind==="accent")continue;
