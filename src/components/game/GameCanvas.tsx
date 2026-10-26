@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "@/lib/fps-engine";
-import type { LoadoutWire, GameMode, MapId, BotDifficulty } from "@/lib/game-protocol";
+import type { LoadoutWire, GameMode, MapId, MapDef, BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
 import { Hud } from "./Hud";
@@ -19,6 +19,7 @@ interface Props {
   survivalTier?: SurvivalTier;
   online: boolean;
   firingRange?: boolean;
+  previewMap?: MapDef;
   playerName: string;
   playerKey: string;
   scoreLimit: number;
@@ -30,7 +31,7 @@ interface Props {
   onExitWithStats?: (r: MatchEndResult) => void;  // called when user leaves mid-match (saves progression)
 }
 
-export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, firingRange = false, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
+export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, firingRange = false, previewMap, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<FPSEngine | null>(null);
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
@@ -51,7 +52,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     let engine: FPSEngine;
     try {
       engine = new FPSEngine(containerRef.current, {
-      mode, botCount, online, firingRange, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
+      mode, botCount, online, firingRange, previewMap, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
       gungameMultiplier: roomConnect?.config?.gungameMultiplier,
