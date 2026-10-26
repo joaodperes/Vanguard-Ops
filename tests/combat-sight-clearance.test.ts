@@ -85,3 +85,23 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(weaponById("wonder_stormweaver").description).toContain("4 seconds");
  });
 });
+
+describe("Wonder skins and silhouettes stay readable in ADS",()=>{
+ test("Event Horizon uses a compact pistol frame instead of a large rifle",()=>{
+  const p=WEAPON_VISUALS.wonder_singularity;
+  expect(p.stock).toBe("none");
+  expect(p.magazine).toBe("grip");
+  expect(p.receiver[0]).toBeLessThan(.14);
+ });
+ test("Deadlock no longer has colored scope/rail spires",()=>{
+  const p=WEAPON_VISUALS.wonder_deadlock;
+  expect(p.features).not.toContain("scope");
+  expect(p.features).not.toContain("rail");
+ });
+ test("Plagueheart and base Reclaimer have muted nonblue trims",()=>{
+  const plague=WEAPON_VISUALS.wonder_corrosion.signature;
+  const reclaimer=WEAPON_VISUALS.crossbow_reclaimer.signature;
+  expect((plague>>8)&255).toBeGreaterThan((plague)&255);
+  expect((reclaimer&255) - ((reclaimer>>8)&255)).toBeLessThan(20);
+ });
+});

@@ -1838,7 +1838,7 @@ export class FPSEngine {
     // camera's local coordinate system and lifetime with the weapon model.
     this.clearFirstPersonRig();
 
-    const skin = weaponSkinById(this.getCurrentSkinId());
+    const skin = weaponSkinById(this.weaponId==="wonder_turret"?"default":this.getCurrentSkinId());
     // Viewmodel uses MeshBasicMaterial (unlit, always full-bright) so the weapon is
     // guaranteed visible against any background — MeshStandardMaterial rendered too
     // dark without an environment map. We fake shading by using a lighter main colour
@@ -1977,7 +1977,7 @@ export class FPSEngine {
     // single most impactful visual cue for weapon identification.
     // The band is ONLY added for ranged weapons (not melee — melee weapons
     // already have distinct shapes: knife/shiv/machete/hammer).
-    if (category !== "melee") {
+    if (category !== "melee" && !weaponById(this.weaponId).wonder) {
       const categoryAccentColors: Record<string, number> = {
         assault: 0xff3b3b,    // red
         smg: 0xffd93b,        // yellow
@@ -3524,7 +3524,7 @@ export class FPSEngine {
       emissiveIntensity: 0.3,
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
-    const weaponFinish = weaponSkinById(c.weaponSkinId);
+    const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
     const fullWorldLegendary = weaponFinish.rarity === "legendary";
     const weaponMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(weaponFinish.color),

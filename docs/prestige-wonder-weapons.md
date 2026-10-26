@@ -26,10 +26,10 @@ Run the safe schema update **before starting the new app/server build**.
 | Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
 | Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
 | Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Deadlock | ADS-validated guided bullet; cover breaks tag | 2 | 29s | -1.6s |
-| Hellfire | Short-range cone and persistent burning trails | 2 | 28s | -1.7s |
+| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
+| Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
 | Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
-| Bogfather | Damaging and movement-slowing sludge pools | 2 | 35s | -1.7s |
+| Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
 A Wonder Weapon costs **one token** and is permanently owned. It equips into
 the Primary slot, has no attachments or reserve ammo, and cannot manually

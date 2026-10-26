@@ -5,7 +5,7 @@ The following Wonder abilities use their existing permanent Prestige-token unloc
 | Weapon | Behavior | Resource |
 | --- | --- | --- |
 | **Deadlock** (`wonder_deadlock`) | Aim down sights 250ms to tag up to three visible targets. Pink markers remain for 4.5s; hipfire smart bullets still seek tagged enemies if exposed. | Two charges; 29s per charge |
-| **Hellfire** (`wonder_hellfire`) | Hold fire to spray a moving 11m cone of flame. No lingering ground patches. A new burst requires all three fuel-seconds recharged. | Three seconds per full burst; recharge 9s per fuel-second |
+| **Hellfire** (`wonder_hellfire`) | Hold fire to spray a moving 11m cone of flame. No lingering ground patches. A new burst requires all five fuel-seconds recharged. | Five seconds per full burst; recharge 6.5s per fuel-second |
 | **Stormweaver** (`wonder_stormweaver`) | Fires **seven individual electrical pellets** in a lightning shotgun fan. Each enemy hit causes 16 direct damage and can jump to **two additional** exposed enemies within 9m. Pellets that hit no enemy, whether they hit a wall or reach max distance, fall to the floor as visible **energy mines**. Mines arm after 450ms, last 4s, and on enemy proximity within 2.65m deliver a 24-damage lightning burst followed by up to two 9m chain jumps. Mines cannot detect through solid cover. A limit of 12 active mines per owner and per-target repeat/cumulative shot-damage caps prevent unbounded stacking. **No paired-anchor/line mechanic remains.** | Two shots; 31s per recharge |
 | **Bogfather** (`wonder_bogfather`) | Disabled prototype. ID and historical progression preserved, but purchasing, equipping and shooting are unavailable. | Retired |
 
