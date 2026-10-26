@@ -16,6 +16,11 @@ import { quickSwapTarget } from "./quick-swap";
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
+import { rayCombatantHit } from "./combat-hitboxes";
+import { launcherSplashFactor } from "./launcher-effects";
+import { meleeSwingPose } from "./melee-styles";
+import { buildMeleeWeaponParts } from "./melee-model";
+import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
@@ -440,26 +445,7 @@ function poseBotArm(
   forearm.quaternion.setFromUnitVectors(boneDown, lowerDir);
 }
 
-// ---- Headshot collision -----------------------------------------------------
-// Keep this in sync with the humanoid built by addCombatantMesh:
-// the visible 0.26 × 0.28 × 0.26 head is centered 1.62 units above the feet.
-// A little padding compensates for animation/network interpolation and makes
-// accurately aimed shots reliable. We still use the existing capsule for the
-// rest of the body, but NEVER its coarse headshot classification.
-const HEAD_CENTER_Y = 1.62;
-const HEAD_HALF_EXTENTS: Vec3 = [0.19, 0.18, 0.19];
-
-function rayCombatantHit(origin: Vec3, dir: Vec3, feet: Vec3): { t: number; head: boolean } | null {
-  const headCenter: Vec3 = [feet[0], feet[1] + HEAD_CENTER_Y, feet[2]];
-  const headT = rayBox(origin, dir, headCenter, HEAD_HALF_EXTENTS);
-  // Prefer the actual head intersection instead of an overlapping torso capsule.
-  // Using headT (not the capsule's earlier entry) also respects cover occlusion.
-  if (headT !== null && headT >= 0) return { t: headT, head: true };
-
-  const bodyCenter: Vec3 = [feet[0], feet[1] + PLAYER_HEIGHT / 2, feet[2]];
-  const bodyHit = rayCapsule(origin, dir, bodyCenter, PLAYER_RADIUS, PLAYER_HEIGHT);
-  return bodyHit && bodyHit.t >= 0 ? { t: bodyHit.t, head: false } : null;
-}
+// Shared limb-inclusive humanoid ray collision (see combat-hitboxes.ts).
 
 // ---- Vertical collision helpers -------------------------------------------
 // Returns the highest walkable surface at (x,z) that is at or below feetY + stepTolerance.
@@ -746,6 +732,7 @@ export class FPSEngine {
   private sprintPhase = 0;       // accumulator for the sway sine
   private currentSpread = 0;     // 0..1 dynamic spread factor (drives HUD crosshair)
   private shotBloom = 0; // additional inaccuracy from repeated fire; decays on pause
+  private lastBloomShotAt = -10000;
   private lastFootstepAt = 0;    // throttle footstep SFX
   private remoteFootsteps = new Map<string, { pos: Vec3; at: number }>();
 
@@ -1946,71 +1933,7 @@ export class FPSEngine {
     let muzzleZ = -0.7;  // default (assault); overridden per-category
 
     if (category === "melee") {
-      // ---- Melee weapons: blade or shaft, no barrel/mag/grip/stock ----
-      if (wid === "hammer" || wid === "axe") {
-        // Long haft sits in the fist; enlarged head remains visible above it.
-        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.029, 0.69, 10), accentMat);
-        handle.rotation.x = Math.PI / 2;
-        addPart(handle, 0, -0.045, -0.17);
-        if (wid === "hammer") {
-          const head = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.14, 0.16), this.weaponMat);
-          addPart(head, 0, -0.045, -0.48);
-          const strikingFace = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.155, 0.18), accentMat);
-          addPart(strikingFace, 0.14, -0.045, -0.48);
-        } else {
-          const blade = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.075, 0.24), this.weaponMat);
-          addPart(blade, 0, -0.045, -0.48);
-          const edge = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.09, 0.25), accentMat);
-          addPart(edge, -0.15, -0.045, -0.48);
-        }
-        muzzleZ = -0.55;
-      } else if (wid === "baton") {
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.026, 0.63, 12), this.weaponMat);
-        shaft.rotation.x = Math.PI / 2;
-        addPart(shaft, 0, -0.05, -0.16);
-        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.035, 0.045), accentMat);
-        addPart(guard, 0, -0.05, 0.08);
-        muzzleZ = -0.47;
-      } else if (wid === "machete") {
-        // Machete: long broad blade + small handle
-        const handle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.04, 0.04, 0.10),
-          accentMat,
-        );
-        addPart(handle, 0, -0.05, 0.10);
-        const blade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.03, 0.06, 0.45),
-          this.weaponMat,
-        );
-        addPart(blade, 0, -0.05, -0.22);
-        muzzleZ = -0.45;
-      } else if (wid === "shiv") {
-        // Shiv: small improvised blade
-        const handle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.035, 0.035, 0.08),
-          accentMat,
-        );
-        addPart(handle, 0, -0.05, 0.08);
-        const blade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.02, 0.035, 0.22),
-          this.weaponMat,
-        );
-        addPart(blade, 0, -0.05, -0.13);
-        muzzleZ = -0.25;
-      } else {
-        // knife_tactical (default melee): standard combat knife
-        const handle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.04, 0.04, 0.10),
-          accentMat,
-        );
-        addPart(handle, 0, -0.05, 0.08);
-        const blade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.025, 0.05, 0.32),
-          this.weaponMat,
-        );
-        addPart(blade, 0, -0.05, -0.18);
-        muzzleZ = -0.35;
-      }
+      muzzleZ = buildMeleeWeaponParts(wid,this.weaponMat,accentMat,addPart);
     } else {
       // Every ranged weapon is now built from its OWN substantial 3D silhouette,
       // rather than a common category receiver with tiny extra details.
@@ -2454,30 +2377,24 @@ export class FPSEngine {
       hideFixedMagazine=pose.hideFixedMagazine;
     }
 
-    // ---- Melee swing animation ----
-    // The weapon sweeps from upper-right to lower-left across the swing duration
-    // (a "slashing" motion). Progress 0..1: first half swings forward + down
-    // (the strike), second half recovers back to ready position.
-    let meleeSwingPitch = 0, meleeSwingRoll = 0, meleeSwingY = 0;
-    if (this.meleeSwingAt) {
-      const age = performance.now() - this.meleeSwingAt;
-      if (age < this.meleeSwingDur) {
-        const p = age / this.meleeSwingDur;
-        // Sharp forward slice: peak at p=0.35 (strike point), then recover.
-        const strike = Math.sin(p * Math.PI);  // 0..1..0 bell
-        meleeSwingPitch = -1.4 * strike;        // muzzle sweeps DOWN hard
-        meleeSwingRoll = 0.9 * strike;          // weapon cants right (forehand slash)
-        meleeSwingY = -0.08 * strike;           // small dip to sell the weight
-      } else {
-        this.meleeSwingAt = 0;  // animation complete
-      }
+    // Weapon-specific strike: stabbing, vertical chopping, horizontal axe,
+    // or overhead hammer. The same pose and timer are used by F quick melee.
+    let meleeSwingPitch=0,meleeSwingRoll=0,meleeSwingYaw=0;
+    let meleeSwingX=0,meleeSwingY=0,meleeSwingZ=0;
+    if(this.meleeSwingAt){
+      const age=performance.now()-this.meleeSwingAt;
+      if(age<this.meleeSwingDur){
+        const pose=meleeSwingPose(this.weaponId,age/this.meleeSwingDur);
+        meleeSwingPitch=pose.pitch;meleeSwingRoll=pose.roll;meleeSwingYaw=pose.yaw;
+        meleeSwingX=pose.x;meleeSwingY=pose.y;meleeSwingZ=pose.z;
+      }else this.meleeSwingAt=0;
     }
 
     // Apply the offset (+ recoil kick-back + reload dip + sprint sway) to each viewmodel part.
     // Parts are direct children of the camera, so their local position is camera-local.
-    const ox = this.vmOffset.x;
+    const ox = this.vmOffset.x + meleeSwingX;
     const oy = this.vmOffset.y + reloadDipY + meleeSwingY;
-    const oz = this.vmOffset.z + this.vmRecoilZ;
+    const oz = this.vmOffset.z + this.vmRecoilZ + meleeSwingZ;
     // ---- Rigid pivot rotation ----
     // The weapon should rotate as a single rigid body around the grip (the player's
     // right hand). Previously each part rotated around its OWN local origin, which
@@ -2502,7 +2419,7 @@ export class FPSEngine {
     // rotate both each part's centre (around the grip) AND its orientation.
     // Euler XYZ composes X*Z; the old hand-written coordinates composed Z*X,
     // so parts diverged whenever reload pitch and roll were both non-zero.
-    this._vmTotalQuat.setFromEuler(this._vmTotalEuler.set(totalRotX, 0, totalRotZ, "XYZ"));
+    this._vmTotalQuat.setFromEuler(this._vmTotalEuler.set(totalRotX, meleeSwingYaw, totalRotZ, "XYZ"));
     // ---- Issue d fix: Sights get in the way ----
     // The sight meshes (scope tube, iron sight ring/post, red dot window) are
     // SOLID 3D objects. If visible during ADS, they block the camera's center
@@ -2649,46 +2566,19 @@ export class FPSEngine {
   /** Independent first-person quick-melee prop. Does not change the weapon slot,
    * active ammunition, attachment state, or multiplayer weapon identity. */
   private createQuickMeleeModel() {
-    // Same weapon-specific geometry/dimensions as the selected slot-3 melee.
-    // Unlike the old vertical generic dagger, these silhouettes extend forward.
+    // Exactly the same weapon-specific meshes as slot 3; F only overlays
+    // this independent model during the attack, without swapping loadouts.
     const group=new THREE.Group();
-    // Mirror the equipped melee slot's weapon finish, not the held firearm's skin.
-    const meleeSkin = weaponSkinById(this.opts.loadout.meleeWeaponSkinId ?? "default");
+    const skin=weaponSkinById(this.opts.loadout.meleeWeaponSkinId??"default");
     const metal=new THREE.MeshStandardMaterial({
-      color: meleeSkin.id === "default" ? 0xb5c6d2 : meleeSkin.color,
-      emissive: meleeSkin.emissive ?? 0x000000,
-      emissiveIntensity: meleeSkin.emissive ? 0.25 : 0,
-      metalness:.76,roughness:.32,
+      color:skin.id==="default"?0xb5c6d2:skin.color,
+      emissive:skin.emissive??0x000000,
+      emissiveIntensity:skin.emissive?.25:0,metalness:.76,roughness:.32,
     });
     const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
-    const place=(mesh:THREE.Mesh,x:number,y:number,z:number)=>{
-      mesh.position.set(x,y,z);group.add(mesh);
-    };
-    const box=(w:number,h:number,d:number,material:THREE.Material,x:number,y:number,z:number)=>{
-      place(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material),x,y,z);
-    };
-    const id=this.meleeWeaponId;
-    if(id==="hammer"||id==="axe"){
-      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.023,.029,.69,10),grip);
-      shaft.rotation.x=Math.PI/2;place(shaft,0,-.045,-.17);
-      if(id==="hammer"){
-        box(.27,.14,.16,metal,0,-.045,-.48);
-        box(.045,.155,.18,grip,.14,-.045,-.48);
-      }else{
-        box(.29,.075,.24,metal,0,-.045,-.48);
-        box(.028,.09,.25,grip,-.15,-.045,-.48);
-      }
-    } else if(id==="baton"){
-      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.027,.026,.63,12),metal);
-      shaft.rotation.x=Math.PI/2;place(shaft,0,-.05,-.16);
-      box(.095,.035,.045,grip,0,-.05,.08);
-    } else {
-      const isMachete=id==="machete",isShiv=id==="shiv";
-      box(isShiv?.035:.04,isShiv?.035:.04,isShiv?.08:.10,grip,0,-.05,.08);
-      box(isShiv?.02:isMachete?.03:.025,isShiv?.035:isMachete?.06:.05,
-        isShiv?.22:isMachete?.45:.32,metal,0,-.05,
-        isShiv?-.13:isMachete?-.22:-.18);
-    }
+    buildMeleeWeaponParts(this.meleeWeaponId,metal,grip,(part,x,y,z)=>{
+      part.position.set(x,y,z);group.add(part);
+    });
     group.visible=false;
     this.camera.add(group);
     this.quickMeleeModel=group;
@@ -2699,9 +2589,9 @@ export class FPSEngine {
     const active = this.quickMeleeFeedbackAt > 0 && progress >= 0 && progress < 1;
     this.quickMeleeModel.visible = active && this.alive;
     if (active) {
-      const slice = Math.sin(Math.PI * progress);
-      this.quickMeleeModel.position.set(0.37 - 0.20 * slice, -0.30 + 0.18 * slice, -0.56 - 0.19 * slice);
-      this.quickMeleeModel.rotation.set(-0.34 - 1.25 * slice, -0.35, -0.55 + 1.3 * slice);
+      const pose=meleeSwingPose(this.meleeWeaponId,progress);
+      this.quickMeleeModel.position.set(.37+pose.x,-.3+pose.y,-.56+pose.z);
+      this.quickMeleeModel.rotation.set(.95+pose.pitch,pose.yaw,-.55+pose.roll);
     }
     return active;
   }
@@ -2862,12 +2752,16 @@ export class FPSEngine {
         const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
         return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
       }, melee.reach);
-    if (candidate) {
-      const target = this.combatants.get(candidate.id);
-      if (target) {
-        this.applyDamageLocal(target, melee.damage, false, this.meleeWeaponId);
-        this.hitMarkerAt = now;
-        this.sound.play("melee_hit", { volume: 0.7 });
+    if(candidate){
+      const target=this.combatants.get(candidate.id);
+      if(target){
+        this.applyDamageLocal(target,melee.damage,false,this.meleeWeaponId);
+        if(this.meleeWeaponId==="baton"&&target.ai&&target.ai.reloadingUntil>now){
+          target.ai.reloadingUntil=now+1100;
+          target.ai.nextShotAt=Math.max(target.ai.nextShotAt,now+1100);
+        }
+        this.hitMarkerAt=now;
+        this.sound.play("melee_hit",{volume:.7});
       }
     }
   }
@@ -3706,45 +3600,17 @@ export class FPSEngine {
     const wcat = weaponById(c.weaponId).category;
     const wid = c.weaponId;
     if (wcat === "melee") {
-      // Melee blades are held upright in the right hand instead of pointing
-      // horizontally out of the model's stomach.
-      weaponStub.rotation.x = -Math.PI / 2.7;
-      if (wid === "hammer" || wid === "axe") {
-        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.4, 10), weaponMat);
-        handle.rotation.x = Math.PI / 2;
-        handle.position.set(0, 0, 0.15);
-        weaponStub.add(handle);
-        const head = new THREE.Mesh(new THREE.BoxGeometry(wid === "axe" ? 0.30 : 0.22, 0.10, 0.15), weaponMat);
-        head.position.set(0, 0.02, 0.38);
-        weaponStub.add(head);
-      } else if (wid === "baton") {
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.027,0.029,.54,10), weaponMat);
-        shaft.rotation.x = Math.PI/2;
-        shaft.position.z = .20;
-        weaponStub.add(shaft);
-      } else if (wid === "machete") {
-        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.05, 0.38), weaponMat);
-        blade.position.set(0, 0, 0.22);
-        weaponStub.add(blade);
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.09), weaponMat);
-        handle.position.set(0, 0, 0.0);
-        weaponStub.add(handle);
-      } else if (wid === "shiv") {
-        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.03, 0.20), weaponMat);
-        blade.position.set(0, 0, 0.14);
-        weaponStub.add(blade);
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.07), weaponMat);
-        handle.position.set(0, 0, 0.0);
-        weaponStub.add(handle);
-      } else {
-        // knife_tactical (default)
-        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.04, 0.28), weaponMat);
-        blade.position.set(0, 0, 0.18);
-        weaponStub.add(blade);
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.09), weaponMat);
-        handle.position.set(0, 0, 0.0);
-        weaponStub.add(handle);
-      }
+      // World-space opponents carry the same identifiable blade/haft
+      // profiles as first-person and F quick melee, rotated toward +Z.
+      weaponStub.rotation.x=-Math.PI/2.7;
+      const visual=new THREE.Group();
+      visual.rotation.y=Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
+      buildMeleeWeaponParts(wid,weaponMat,grip,(part,x,y,z)=>{
+        part.position.set(x,y,z);visual.add(part);
+      });
+      weaponStub.add(visual);
     } else {
       // Other players/bots carry the SAME distinctive weapon silhouettes as the
       // local player. The first-person builder points toward camera -Z; rotate
@@ -5152,7 +5018,10 @@ export class FPSEngine {
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
-    this.shotBloom = Math.min(1.4, this.shotBloom + shotBloomIncrease(this.eff.fireRate));
+    this.shotBloom = w.stats.auto
+      ? automaticBloom(this.shotBloom,this.eff.fireRate,now-this.lastBloomShotAt)
+      : Math.min(.28,this.shotBloom+shotBloomIncrease(this.eff.fireRate)*.32);
+    this.lastBloomShotAt=now;
     const pellets = this.eff.pellets ?? 1;
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
@@ -5220,64 +5089,37 @@ export class FPSEngine {
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0;
     this.meleeSwingAt = now;
+    this.meleeSwingDur = quickMeleeProfile(w.stats).swingMs;
     // Actual swing event, not button press (respects melee cooldown).
     this.weaponAudio.play("melee", { weaponId: this.weaponId, volume: 0.85 });
 
-    // Melee is a short-range frontal arc: hit the closest enemy within range
-    // and within ±60° of the player's view direction.
-    const origin: Vec3 = [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z];
-    const cp = Math.cos(this.pitch);
-    const fwd: Vec3 = [Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp];
-    let nearest: { c: Combatant; dist: number; head: boolean } | null = null;
-    const meleeRange = this.eff.range;
-    const arcCos = Math.cos(Math.PI / 3);  // ±60° arc
-    for (const c of this.combatants.values()) {
-      if (!c.alive) continue;
-      if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
-      const dx = c.pos[0] - origin[0];
-      const dy = (c.pos[1] + PLAYER_HEIGHT / 2) - origin[1];
-      const dz = c.pos[2] - origin[2];
-      const dist = Math.hypot(dx, dy, dz);
-      if (dist > meleeRange) continue;
-      // Normalized direction to enemy
-      const nx = dx / (dist || 1), ny = dy / (dist || 1), nz = dz / (dist || 1);
-      // Dot product with forward — must be > arcCos (within arc).
-      const dot = nx * fwd[0] + ny * fwd[1] + nz * fwd[2];
-      if (dot < arcCos) continue;
-      if (!nearest || dist < nearest.dist) {
-        // Award melee headshots only when the actual forward aim ray crosses
-        // the head, not simply because the target's head is above eye height.
-        const head = rayCombatantHit(origin, fwd, c.pos)?.head ?? false;
-        nearest = { c, dist, head };
-      }
-    }
-    const wallHit = closestCoverHit(this.map.cover, origin, fwd, meleeRange, rayBox);
-    if (!this.opts.online && wallHit?.box.environmentId && this.environmentWalls.has(wallHit.box.environmentId) &&
-        (!nearest || wallHit.distance < nearest.dist)) {
-      this.damageEnvironmentWall(wallHit.box.environmentId, this.eff.damage);
-    }
-    // Cover blocking: if a wall is between player and the enemy, no hit.
-    if (nearest) {
-      let blocked = false;
-      const dirToEnemy: Vec3 = [
-        (nearest.c.pos[0] - origin[0]) / (nearest.dist || 1),
-        ((nearest.c.pos[1] + PLAYER_HEIGHT / 2) - origin[1]) / (nearest.dist || 1),
-        (nearest.c.pos[2] - origin[2]) / (nearest.dist || 1),
-      ];
-      for (const cov of this.map.cover) {
-        const t = rayBox(origin, dirToEnemy, cov.pos, cov.size);
-        if (t !== null && t < nearest.dist) { blocked = true; break; }
-      }
-      if (!blocked) {
-        const dmg = this.eff.damage * (nearest.head ? w.stats.headshotMult : 1);
-        const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
-        this.applyDamageLocal(nearest.c, dmg, nearest.head);
-        this.hitMarkerAt = performance.now();
-        // Melee hit SFX (meaty thwack).
-        this.sound.play("melee_hit", { volume: 0.7 });
-        if (willKill) {
-          // Kill chime already played by applyDamageLocal path; nothing extra here.
+    // Use exactly the same grounded reach, facing cone and cover checks as F.
+    // Never multiply melee hits for headshots; knife is already a point-blank KO.
+    const from:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+    const nearest=chooseQuickMeleeTarget(from,this.yaw,
+      [...this.combatants.values()].map(c=>({
+        id:c.id,pos:c.pos,alive:c.alive,
+        protected:(c.spawnProtectedUntil??0)>Date.now(),
+        friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===this.opts.team,
+      })),
+      (c,dist)=>{
+        const eye:Vec3=[from[0],from[1]+1.1,from[2]];
+        const dir:Vec3=[(c.pos[0]-from[0])/dist,0,(c.pos[2]-from[2])/dist];
+        return !this.map.cover.some(box=>{
+          const t=rayBox(eye,dir,box.pos,box.size);
+          return t!==null&&t>.08&&t<dist-.15;
+        });
+      },this.eff.range);
+    if(nearest&&!this.opts.online){
+      const victim=this.combatants.get(nearest.id);
+      if(victim){
+        this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+        if(w.id==="baton"&&victim.ai&&victim.ai.reloadingUntil>now){
+          victim.ai.reloadingUntil=now+1100;
+          victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,now+1100);
         }
+        this.hitMarkerAt=now;
+        this.sound.play("melee_hit",{volume:.7});
       }
     }
 
@@ -5873,6 +5715,7 @@ export class FPSEngine {
     // generic missile. Other wonders and rockets keep the classic warhead.
     const rocketGroup = new THREE.Group();
     const wonder = weaponById(weaponId).wonder;
+    const isBreach=weaponId==="launcher_breach",isSwarm=weaponId==="launcher_swarm";
     if (wonder?.kind === "singularity") {
       const core = new THREE.Mesh(new THREE.SphereGeometry(0.38, 22, 18),
         new THREE.MeshBasicMaterial({ color: 0x9b57ff }));
@@ -5883,8 +5726,9 @@ export class FPSEngine {
       rocketGroup.add(core, halo, ring);
     } else {
     const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(wonder ? 0.095 : 0.06, wonder ? 0.095 : 0.06, wonder ? 0.34 : 0.22, 10),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind === "corrosion" ? 0x80f23c : 0x888888 }),
+      new THREE.CylinderGeometry(wonder?.kind==="corrosion" ? 0.095 : isBreach ? 0.125 : 0.075,
+        wonder?.kind==="corrosion" ? 0.095 : isBreach ? 0.125 : 0.075,isBreach ? 0.36 : wonder ? 0.34 : 0.24,12),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x80f23c:isBreach?0xffac33:isSwarm?0x48d6f5:0x888888 }),
     );
     body.rotation.x = Math.PI / 2; // align with -Z (forward)
     rocketGroup.add(body);
@@ -5898,10 +5742,23 @@ export class FPSEngine {
     // Glowing trail (small sphere at the back)
     const trail = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({ color: wonder?.kind === "corrosion" ? 0x88ff33 : 0xff6600, transparent: true, opacity: 0.7 }),
+      new THREE.MeshBasicMaterial({ color: wonder?.kind==="corrosion"?0x88ff33:isBreach?0xffd966:isSwarm?0x5fffea:0xff6600,transparent:true,opacity:.96 }),
     );
     trail.position.z = 0.14;
     rocketGroup.add(trail);
+    if(isBreach||isSwarm){
+      // Oversized emissive halo and pulsing light make both small rockets
+      // readable against urban masonry and daylight sky.
+      const glow=new THREE.Mesh(new THREE.SphereGeometry(isBreach ? 0.25 : 0.17,14,10),
+        new THREE.MeshBasicMaterial({color:isBreach?0xffbe42:0x32f6dd,transparent:true,opacity:.41,depthWrite:false}));
+      glow.position.z=-.04;rocketGroup.add(glow);
+      for(let i=0;i<(isSwarm?4:3);i++){
+        const bead=new THREE.Mesh(new THREE.SphereGeometry(isBreach ? 0.05 : 0.035,8,6),
+          new THREE.MeshBasicMaterial({color:isBreach?0xffec99:0xa4fff6}));
+        bead.position.set(Math.sin(i*Math.PI*.5)*.14,Math.cos(i*Math.PI*.5)*.14,.16+i*.09);
+        rocketGroup.add(bead);
+      }
+    }
     }
     // Orient the rocket group to face the travel direction.
     const start = new THREE.Vector3(origin[0], origin[1], origin[2]);
@@ -5912,7 +5769,8 @@ export class FPSEngine {
     // Travel time scales with distance but caps at 400ms (feels responsive).
     const dist = start.distanceTo(end);
     const travelMs = wonder?.kind === "singularity"
-      ? gravityTravelMs(dist) : Math.min(400, Math.max(120, dist * 3));
+      ? gravityTravelMs(dist) : weaponId==="launcher_breach"
+      ? Math.min(700,Math.max(270,dist*9)) : Math.min(450,Math.max(140,dist*4));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
     const splashRadius = projectileSplashRadius(weaponById(weaponId));
@@ -5921,17 +5779,17 @@ export class FPSEngine {
 
   // Spawn an explosion effect at a world position: an expanding emissive sphere
   // + a brief point light flash. The effect auto-fades and is removed after ~500ms.
-  private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS) {
+  private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS, weaponId = "") {
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x7aea39 : 0xff6622, transparent: true, opacity: 0.85 }),
+      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x7aea39 : weaponId === "launcher_swarm" ? 0x3df9ef : 0xff6622, transparent: true, opacity: 0.85 }),
     );
     sphere.position.copy(pos);
     this.scene.add(sphere);
-    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
+    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x66ff22 : weaponId === "launcher_swarm" ? 0x21f1db : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
     light.position.copy(pos);
     this.scene.add(light);
-    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : 500, radius });
+    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : weaponId === "launcher_swarm" ? 750 : 500, radius });
     // Explosion SFX.
     this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
   }
@@ -6376,7 +6234,7 @@ export class FPSEngine {
               at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
           }
         } else {
-          this.spawnExplosion(p.end, explosionKind, p.splashRadius);
+          this.spawnExplosion(p.end, explosionKind, p.splashRadius,p.weaponId);
         }
         // Apply SPLASH DAMAGE to all combatants within radius (offline only —
         // online damage is applied authoritatively by the server).
@@ -6416,8 +6274,7 @@ export class FPSEngine {
               // making the rocket feel powerful when it connects but not OP when it whiffs.
               // Plus a direct-hit bonus: if the combatant is within 1.5 units of the
               // closest point, apply full damage + 20% bonus (guaranteed kill on 100HP).
-              const norm = d / p.splashRadius;
-              const falloff = d <= 1.5 ? 1.2 : (1 - norm * norm) * 0.9 + 0.1;
+              const falloff = launcherSplashFactor(p.weaponId,d,p.splashRadius);
               const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
               const splashDmg = corrosion ? corrosionImpactDamage(p.damage, falloff) : p.damage * falloff;
               this.applyDamageLocal(c, splashDmg, false, p.weaponId);

@@ -243,3 +243,11 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 ## Plagueheart damage profile
 
 `wonder_corrosion` intentionally has a low immediate splash and a much stronger **6.5-second poison-over-time** effect. Server and offline simulation share `src/lib/corrosion-damage.ts` for both the impact damage and 500ms poison ticks, and new shots refresh the existing poison rather than stacking instant bursts. Other launchers keep their original direct splash. WebGL shadows use nearest-sampled basic shadow maps to avoid unsupported linear depth comparison warnings.
+
+## October 2026 weapon behavior and combat parity
+
+- Pistols: Magnum .50 and Bastion .45 now trade reduced damage, headshot lethality and range for weight; Ghost-18 reloads faster, reaches farther and has no raised top rail. Sentinel-45 rewards precision more than Machine Pistol.
+- Launchers: Breach-2 has a brighter, longer-lived illuminated projectile. Swarm-3 is the area-coverage option (9.5m fragment shockwave with a flatter shared blast falloff), distinct from RL-7's high-damage 8m direct-impact rocket. Use `launcherSplashFactor` in both offline and server damage; do not independently hardcode splash or visuals.
+- Hit detection: `src/lib/combat-hitboxes.ts` defines shared head, torso, arm and leg volumes for bots and human player avatars, matching humanoid geometry rather than only a head and chest block.
+- Automatic fire: prolonged trigger holds accumulate aim bloom offline and server-side; releasing the trigger resets the firing cone. The server owns its own independent variation and does not trust client spread values.
+- Melee: Use `src/lib/melee-model.ts` and `src/lib/melee-styles.ts` for all first-person, third-person and F quick-melee views. Knife and shiv have nearly touching range; machete and baton have medium reach, axe and hammer reach farther but have very different power and cadence. Both equipped swings and F use the same grounded, obstacle-aware, server-authoritative hit logic and the equipped weapon's cooldown. Batons briefly interrupt opponents caught reloading. New melee archetypes must be integrated in these shared helpers and their regression tests.

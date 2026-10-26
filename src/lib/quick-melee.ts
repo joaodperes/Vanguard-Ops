@@ -7,7 +7,7 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 3.15;
+export const QUICK_MELEE_REACH = 0.95;
 /** A quick swing is a temporary use of the equipped melee weapon.
  * Its damage, attack interval and reach must match the weapon catalog. */
 export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:number}) {

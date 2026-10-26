@@ -21,7 +21,7 @@ describe("equipped quick melee F",()=>{
     expect(hammer.damage).toBeGreaterThan(shiv.damage);
   });
   test("uses equipped reach, not a fixed knife range",()=>{
-    const targets=[{id:"target",pos:[0,0,2.9] as const,alive:true}];
+    const targets=[{id:"target",pos:[0,0,1.25] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
