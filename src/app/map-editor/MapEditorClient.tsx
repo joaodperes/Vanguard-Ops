@@ -825,7 +825,8 @@ export default function MapEditor() {
             </select></label>}
           {editorTab==="theme"&&<label className="block text-xs text-zinc-400 mt-3">New prop type
             <select value={propKind} className={fieldClass} onChange={e=>setPropKind(e.target.value as MapProp["kind"])}>
-              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const)
+              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
+                "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet"] as const)
                 .map(kind=><option key={kind} value={kind}>{kind}</option>)}
             </select></label>}
           {editorTab==="theme"&&propKind==="building"&&<label className="block text-xs text-zinc-400 mt-3">Building kit
