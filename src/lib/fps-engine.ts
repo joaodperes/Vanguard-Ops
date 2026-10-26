@@ -1904,7 +1904,8 @@ export class FPSEngine {
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
     if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
       // Only explicitly selected Prestige skins override an existing cosmetic.
-      // Event Horizon defaults to the Eventide cosmic pattern; explicit skins\n      // take precedence. Hellfire stays red/orange instead of toxic green.
+      // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
+      // take precedence. Hellfire stays red/orange instead of toxic green.
       this.prestigeTexture = this.createPrestigeTexture(skin.prestige ?? "cosmic");
       const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
       material.map = this.prestigeTexture;
@@ -3540,8 +3541,13 @@ export class FPSEngine {
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
     const fullWorldLegendary = weaponFinish.rarity === "legendary";
+    const worldDefaultTint = weaponFinish.id === "default"
+      ? c.weaponId === "wonder_hellfire" ? "#db3a14"
+        : c.weaponId === "wonder_deadlock" ? "#51246e"
+        : weaponFinish.color
+      : weaponFinish.color;
     const weaponMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(weaponFinish.color),
+      color: new THREE.Color(worldDefaultTint),
       roughness: weaponFinish.roughness, metalness: weaponFinish.metalness,
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
