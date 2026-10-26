@@ -2512,7 +2512,9 @@ async function handle(socket: any, msg: C2S) {
       // Quiver mode truly fires automatically; server honours its faster
       // cadence rather than retaining the single-bolt recovery interval.
       const equippedLoadout=room.loadouts.get(socket.id);
-      const crossbowMag=equippedLoadout?.attachments?.magazine;
+      const crossbowMag=equippedLoadout?.secondaryWeaponId===p.weaponId
+        ? equippedLoadout?.secondaryAttachments?.magazine
+        : equippedLoadout?.attachments?.magazine;
       const quiver=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_quiver";
       const heavy=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_heavy";
       const interval = 1000 / Math.max(.1,quiver?weapon.stats.fireRate*3.5:weapon.stats.fireRate);
@@ -2575,7 +2577,8 @@ async function handle(socket: any, msg: C2S) {
         }else{
           if(charges>0)room.boltCharges.set(socket.id,charges-1);
           room.boltReadyAt.set(socket.id,now+(charges>0?
-            weapon.special.quickReloadSeconds:weapon.stats.reloadTime)*1000);
+            weapon.special.quickReloadSeconds*1000:
+            crossbowMag==="mag_extended"?interval:weapon.stats.reloadTime*1000));
         }
       }
       p.lastShotAt = now;
@@ -2867,7 +2870,10 @@ async function handle(socket: any, msg: C2S) {
       if (!player?.alive || !bolt || bolt.ownerId !== socket.id || Date.now() >= bolt.expiresAt) return;
       const special = weaponById("crossbow_reclaimer").special;
       if (special?.kind !== "bolt") return;
-      const arrowMag=room.loadouts.get(socket.id)?.attachments?.magazine;
+      const equipped=room.loadouts.get(socket.id);
+      const arrowMag=equipped?.secondaryWeaponId==="crossbow_reclaimer"
+        ? equipped?.secondaryAttachments?.magazine
+        : equipped?.attachments?.magazine;
       if(arrowMag==="mag_bolt_quiver")return;
       if (Math.hypot(player.pos[0] - bolt.pos[0], player.pos[2] - bolt.pos[2]) > special.pickupRadius) return;
       room.droppedBolts.delete(bolt.id);

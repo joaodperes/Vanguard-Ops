@@ -4826,10 +4826,20 @@ export class FPSEngine {
   private recoverBolt() {
     const special = weaponById("crossbow_reclaimer").special;
     if (special?.kind !== "bolt") return;
-    if(this.getCurrentAttachments().magazine==="mag_bolt_heavy" &&
-       this.weaponId==="crossbow_reclaimer"){
-      this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+1);
-      this.saveAmmoToSlot(this.currentSlot);
+    // Heavy ammo belongs to the CROSSBOW SLOT, not the currently held gun.
+    // Pickups while holding a sidearm must still replenish collected arrows.
+    const heavyPrimary=this.primaryWeaponId==="crossbow_reclaimer" &&
+      this.opts.loadout.attachments?.magazine==="mag_bolt_heavy";
+    const heavySecondary=this.secondaryWeaponId==="crossbow_reclaimer" &&
+      this.opts.loadout.secondaryAttachments?.magazine==="mag_bolt_heavy";
+    if(heavyPrimary||heavySecondary){
+      if(heavyPrimary){
+        this.primaryAmmoInMag=Math.min(this.primaryEff.magSize,this.primaryAmmoInMag+1);
+        if(this.currentSlot==="primary")this.ammoInMag=this.primaryAmmoInMag;
+      }else{
+        this.secondaryAmmoInMag=Math.min(this.secondaryEff.magSize,this.secondaryAmmoInMag+1);
+        if(this.currentSlot==="secondary")this.ammoInMag=this.secondaryAmmoInMag;
+      }
       this.sound.play("reload",{volume:.28});
       return;
     }
@@ -6017,7 +6027,7 @@ export class FPSEngine {
     const travelMs = wonder?.kind === "singularity"
       ? gravityTravelMs(dist) : weaponId==="launcher_breach"
       ? Math.min(700,Math.max(270,dist*9))
-      : weaponId==="launcher_swarm" ? Math.min(750,Math.max(200,dist*7))
+      : weaponId==="launcher_swarm" ? Math.min(600,Math.max(170,dist*5.25))
       : Math.min(450,Math.max(140,dist*4));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
