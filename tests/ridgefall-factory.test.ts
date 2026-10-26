@@ -1,7 +1,9 @@
 import { describe,expect,test } from "bun:test";
 import { MAPS } from "../src/lib/game-protocol";
 import { MAP_BLUEPRINTS,insideRegions } from "../src/lib/map-blueprints";
-import { visualThemeForMap } from "../src/lib/map-visuals";
+import { visualThemeForMap, propColliders } from "../src/lib/map-visuals";
+import { FACTORY_MACHINE_KINDS, buildFactoryMachinery, isFactoryMachineKind } from "../src/lib/factory-machinery";
+import * as THREE from "three";
 
 describe("Ridgefall factory redesign",()=>{
   const blueprint=MAP_BLUEPRINTS.maps.skybridge;
@@ -34,5 +36,46 @@ describe("Ridgefall factory redesign",()=>{
   test("keeps authored combat spawns inside factory collision boundaries",()=>{
     for(const p of Object.values(blueprint.spawns).flat())
       expect(insideRegions(p[0],p[2],blueprint.regions,1.1)).toBe(true);
+  });
+  test("fills the production halls with themed factory machinery rather than bare cover",()=>{
+    const machines=theme.props.filter(p=>isFactoryMachineKind(p.kind));
+    expect(machines.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(machines.map(p=>p.kind))).toEqual(new Set(FACTORY_MACHINE_KINDS));
+    expect(compiled.props?.filter(p=>isFactoryMachineKind(p.kind)).length).toBe(machines.length);
+    for(const p of machines){
+      expect(insideRegions(p.x,p.z,blueprint.regions,1)).toBe(true);
+      if(p.kind==="industrial_pipe"){
+        expect(p.y).toBeGreaterThanOrEqual(11);
+        expect((p.y??0)+(p.h??0)).toBeLessThan(17.9);
+      }else{
+        // Dressing overlays are fitted to existing solid blueprint machinery.
+        // They must not create new impassable corridors or ghost collision.
+        const base=blueprint.features.find(f=>f.kind==="cover"&&
+          Math.abs(f.x-p.x)<.01&&Math.abs(f.z-p.z)<.01&&
+          Math.abs(f.w-(p.w??0))<.01&&Math.abs(f.d-(p.d??0))<.01&&
+          Math.abs(f.h-(p.h??0))<.01);
+        expect(base?.kind).toBe("cover");
+      }
+    }
+    expect(propColliders(machines,compiled.spawns.ffa)).toEqual([]);
+  });
+  test("shared FPS and editor factory asset builder makes identifiable real meshes",()=>{
+    for(const kind of FACTORY_MACHINE_KINDS){
+      const g=new THREE.Group();
+      buildFactoryMachinery(g,kind,12,8,5);
+      let count=0;
+      g.traverse(o=>{if(o instanceof THREE.Mesh)count++;});
+      expect(count).toBeGreaterThanOrEqual(3);
+      if(kind==="furnace"){
+        let hot=false,hasLight=false;
+        g.traverse(o=>{
+          if(o instanceof THREE.Mesh &&
+            o.material instanceof THREE.MeshStandardMaterial &&
+            o.material.emissiveIntensity>1.8)hot=true;
+          if(o instanceof THREE.PointLight)hasLight=true;
+        });
+        expect(hot).toBe(true);expect(hasLight).toBe(true);
+      }
+    }
   });
 });
