@@ -25,9 +25,13 @@ export interface StudioTransform {
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
   mode:StudioMode;moveAxis:StudioAxis;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
-  warnings?:StudioMapIssue[];regionLinks?:StudioRegionLink[];placementProblem?:(x:number,z:number)=>string|null;
+  warnings?:StudioMapIssue[];regionLinks?:StudioRegionLink[];placementProblem?:(x:number,z:number,y?:number)=>string|null;
+  onResolvePlacement?:(tool:string,point:{x:number;z:number},options?:{bypass?:boolean})=>
+    {x:number;z:number;y?:number;hints:string[]};
+  onSnapTransform?:(selection:StudioSelection,transform:StudioTransform)=>StudioTransform;
+  onDropAt?:(data:string,point:{x:number;z:number},bypass?:boolean)=>void;
   onInvalidPlacement?:(reason:string)=>void;placementKit?:{w:number;d:number};
-  onAddAt:(tool:string,point:{x:number;z:number})=>void;
+  onAddAt:(tool:string,point:{x:number;z:number},bypass?:boolean)=>void;
   onSelect:(selection:StudioSelection|null)=>void;
   onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
 }
@@ -47,12 +51,16 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
 export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap,tool,placementProp,legacySpawns=[],showCollision=false,
-  warnings=[],regionLinks=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt}:Props) {
+  warnings=[],regionLinks=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt,
+  onResolvePlacement,onSnapTransform,onDropAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
+  const [hoverHint,setHoverHint]=useState("");
   const runtime=useRef<Context|null>(null);
-  const callbacks=useRef({selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement});
-  callbacks.current={selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement};
+  const callbacks=useRef({selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,
+    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt});
+  callbacks.current={selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,
+    placementProblem,onInvalidPlacement,onResolvePlacement,onSnapTransform,onDropAt};
 
   useEffect(()=>{
     if(!host.current)return;
@@ -111,12 +119,15 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
     const onObjectChange=()=>{
       if(callbacks.current.mode!=="move")return;
       const object=transform.object as THREE.Group|undefined;
-      const initial=(object?.userData.editor as ObjectMeta|undefined)?.initial;
-      if(!object||!initial)return;
-      // Keep the other coordinates locked even if a plane or centre gizmo is hit.
-      const position=lockedPosition(initial,object.position,callbacks.current.moveAxis);
+      const meta=(object?.userData.editor as ObjectMeta|undefined);
+      if(!object||!meta)return;
+      // Lock every other axis before resolving intelligent alignment.
+      const position=lockedPosition(meta.initial,object.position,callbacks.current.moveAxis);
       const axis=callbacks.current.moveAxis;
-      if(callbacks.current.snap>0&&axis!=="y")
+      const candidate=callbacks.current.onSnapTransform?.(meta.selection,
+        {...meta.initial,x:position.x,y:position.y,z:position.z});
+      if(candidate)position[axis]=candidate[axis];
+      else if(callbacks.current.snap>0&&axis!=="y")
         position[axis]=horizontalSnap(position[axis],callbacks.current.snap);
       object.position.set(position.x,position.y,position.z);
     };
@@ -153,22 +164,49 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       raycaster.setFromCamera(pointer,camera);
       return raycaster.ray.intersectPlane(ground,groundHit)?groundHit:null;
     };
-    const movePreview=(event:PointerEvent)=>{
-      if(callbacks.current.tool==="select"){preview.visible=false;return;}
-      const hit=groundFromPointer(event.clientX,event.clientY);
-      preview.visible=!!hit;
-      if(hit){const step=callbacks.current.snap;
-        const x=step?horizontalSnap(hit.x,step):hit.x;
-        const z=step?horizontalSnap(hit.z,step):hit.z;
-        preview.position.set(x,0,z);
-        const problem=callbacks.current.placementProblem?.(x,z);
-        preview.traverse(obj=>{
-          if(obj instanceof THREE.Mesh&&obj.material instanceof THREE.MeshStandardMaterial)
-            obj.material.color.set(problem?"#ef4444":"#34d399");
-          if(obj instanceof THREE.LineSegments&&obj.material instanceof THREE.LineBasicMaterial)
-            obj.material.color.set(problem?"#fca5a5":"#a7f3d0");
-        });
-      }
+    // Placement preview, click stamping, and native palette drop all resolve
+    // through the same shared world-space snap function.
+    const resolveAtPointer=(clientX:number,clientY:number,bypass=false)=>{
+      const hit=groundFromPointer(clientX,clientY);
+      if(!hit)return null;
+      const step=callbacks.current.snap;
+      const x=step?horizontalSnap(hit.x,step):hit.x;
+      const z=step?horizontalSnap(hit.z,step):hit.z;
+      const placed=callbacks.current.onResolvePlacement?.(callbacks.current.tool,{x,z},{bypass})??
+        {x,z,y:0,hints:[]};
+      return {point:{x:placed.x,z:placed.z},raw:{x:hit.x,z:hit.z},
+        height:placed.y??0,hints:placed.hints,
+        problem:callbacks.current.placementProblem?.(placed.x,placed.z,placed.y??0)??null};
+    };
+    const previewAt=(clientX:number,clientY:number,bypass=false)=>{
+      if(callbacks.current.tool==="select"){preview.visible=false;setHoverHint("");return;}
+      const placed=resolveAtPointer(clientX,clientY,bypass);
+      preview.visible=!!placed;
+      if(!placed){setHoverHint("");return;}
+      preview.position.set(placed.point.x,placed.height,placed.point.z);
+      preview.traverse(obj=>{
+        if(obj instanceof THREE.Mesh&&obj.material instanceof THREE.MeshStandardMaterial)
+          obj.material.color.set(placed.problem?"#ef4444":"#34d399");
+        if(obj instanceof THREE.LineSegments&&obj.material instanceof THREE.LineBasicMaterial)
+          obj.material.color.set(placed.problem?"#fca5a5":"#a7f3d0");
+      });
+      const hint=placed.problem?"Placement blocked: "+placed.problem:
+        placed.hints.length?placed.hints.join(" · "):"Grid placement · Alt bypasses magnet";
+      setHoverHint(old=>old===hint?old:hint);
+    };
+    const movePreview=(event:PointerEvent)=>previewAt(event.clientX,event.clientY,event.altKey);
+    const overHandler=(event:DragEvent)=>{
+      if(!event.dataTransfer||!Array.from(event.dataTransfer.types)
+        .includes("application/x-vanguard-map-prefab"))return;
+      event.preventDefault();event.dataTransfer.dropEffect="copy";
+      previewAt(event.clientX,event.clientY,event.altKey);
+    };
+    const dropHandler=(event:DragEvent)=>{
+      const data=event.dataTransfer?.getData("application/x-vanguard-map-prefab");
+      if(!data)return;
+      event.preventDefault();preview.visible=false;setHoverHint("");
+      const placed=resolveAtPointer(event.clientX,event.clientY,event.altKey);
+      if(placed)callbacks.current.onDropAt?.(data,placed.raw,event.altKey);
     };
     let down:{x:number;y:number}|null=null;
     const downHandler=(event:PointerEvent)=>{if(event.button===0)down={x:event.clientX,y:event.clientY};};
@@ -180,14 +218,12 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       // TransformControls handler has already set dragging=false.
       if(gizmoActive){gizmoActive=false;return;}
       if(moved>5||transform.dragging)return;
-      const hit=groundFromPointer(event.clientX,event.clientY);
+      const placed=resolveAtPointer(event.clientX,event.clientY,event.altKey);
       if(callbacks.current.tool!=="select"){
-        if(hit){const step=callbacks.current.snap;
-          const x=step?horizontalSnap(hit.x,step):hit.x;
-          const z=step?horizontalSnap(hit.z,step):hit.z;
-          const problem=callbacks.current.placementProblem?.(x,z);
-          if(problem)callbacks.current.onInvalidPlacement?.("Cannot place here: "+problem);
-          else callbacks.current.onAddAt(callbacks.current.tool,{x,z});}
+        if(placed){
+          if(placed.problem)callbacks.current.onInvalidPlacement?.("Cannot place here: "+placed.problem);
+          else callbacks.current.onAddAt(callbacks.current.tool,placed.raw,event.altKey);
+        }
         return;
       }
       const hits=raycaster.intersectObjects([...ctx.objects.values()],true);
@@ -202,6 +238,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       callbacks.current.onSelect(null);
     };
     renderer.domElement.addEventListener("pointermove",movePreview);
+    renderer.domElement.addEventListener("dragover",overHandler);
+    renderer.domElement.addEventListener("drop",dropHandler);
     renderer.domElement.addEventListener("pointerdown",downHandler);
     renderer.domElement.addEventListener("pointerup",upHandler);
     let active=false;
@@ -256,6 +294,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       observer.disconnect();
       window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);
       renderer.domElement.removeEventListener("pointermove",movePreview);
+      renderer.domElement.removeEventListener("dragover",overHandler);
+      renderer.domElement.removeEventListener("drop",dropHandler);
       renderer.domElement.removeEventListener("pointerdown",downHandler);
       renderer.domElement.removeEventListener("pointerup",upHandler);
       renderer.domElement.removeEventListener("pointerenter",mouseEnter);
@@ -542,6 +582,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
     <div ref={host} className="absolute inset-0"
       aria-label="Interactive 3D map editor. Drag to orbit, right-drag to pan, scroll to zoom, WASD to fly and Q/E to change elevation."/>
     {rendererError&&<p role="alert" className="absolute inset-0 flex items-center justify-center bg-zinc-950 p-6 text-sm text-amber-200">{rendererError}</p>}
+    {hoverHint&&<p className="pointer-events-none absolute bottom-16 left-4 z-10 max-w-sm rounded border border-emerald-400/20 bg-black/85 px-3 py-2 text-xs text-emerald-200">{hoverHint}</p>}
     {tool!=="select"&&!rendererError&&<button className="absolute bottom-4 left-4 z-10 rounded-md bg-amber-500 px-4 py-2 text-sm font-bold text-black shadow-lg hover:bg-amber-400"
       onClick={()=>{
         const point=runtime.current?.orbit.target;
