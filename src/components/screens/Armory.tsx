@@ -328,8 +328,8 @@ export function Armory() {
                   </div>
                   <p className="text-white/60 text-sm">{w.description}</p>
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
-                    <span>{w.wonder!.maxCharges} max shots</span>
-                    <span>{w.wonder!.rechargeMs / 1000}s per charge</span>
+                    <span>{w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
+                    <span>{w.wonder!.rechargeMs / 1000}s per {w.wonder!.kind === "flame" ? "fuel-second" : "charge"}</span>
                     <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
                   </div>
                   {!owned && (

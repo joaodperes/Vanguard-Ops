@@ -79,3 +79,12 @@ describe("three-second fuel consumption and sight defaults",()=>{
   expect(storm.wonder!.radius).toBe(19);
  });
 });
+
+import { resolveLoadout } from "../src/lib/game-data";
+test("retired Wonder IDs fall back to valid profile weapons without erasing IDs",()=>{
+  const kit=resolveLoadout({primaryWeapon:"wonder_bogfather",secondaryWeapon:"pistol_side",
+    meleeWeapon:"knife_tactical",weaponSkin:"default",playerSkin:"default",
+    attachments:{sight:null,barrel:null,grip:null,magazine:null}});
+  expect(kit.weapon.id).toBe("rifle_ar");
+  expect(WEAPONS.some(w=>w.id==="wonder_bogfather")).toBe(true);
+});

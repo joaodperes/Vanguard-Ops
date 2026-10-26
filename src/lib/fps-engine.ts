@@ -863,8 +863,9 @@ export class FPSEngine {
     }
     // ---- Weapon slot setup ----
     // Primary comes from loadout.weaponId. Secondary/melee fall back to defaults.
-    this.primaryWeaponId = opts.loadout.weaponId;
-    this.secondaryWeaponId = opts.loadout.secondaryWeaponId ?? "pistol_side";
+    this.primaryWeaponId = weaponById(opts.loadout.weaponId).disabled ? "rifle_ar" : opts.loadout.weaponId;
+    this.secondaryWeaponId = weaponById(opts.loadout.secondaryWeaponId ?? "pistol_side").disabled
+      ? "pistol_side" : (opts.loadout.secondaryWeaponId ?? "pistol_side");
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
     this.weaponId = this.primaryWeaponId;
     // Gun Game: the local player starts on the FIRST progression weapon,

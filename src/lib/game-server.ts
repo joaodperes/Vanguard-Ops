@@ -2246,7 +2246,9 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
        (w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id))))) {
     secondaryWeaponId = "pistol_side";
   }
-  return { ...requested, perkId, secondaryWeaponId };
+  const selectedPrimary=WEAPONS.find(x=>x.id===requested.weaponId);
+  const weaponId=!selectedPrimary || selectedPrimary.disabled ? "rifle_ar" : requested.weaponId;
+  return { ...requested, weaponId, perkId, secondaryWeaponId };
 }
 
 async function handle(socket: any, msg: C2S) {
