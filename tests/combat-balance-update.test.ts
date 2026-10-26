@@ -85,10 +85,13 @@ describe("melee identity and identical F profiles",()=>{
     expect(hammer.range).toBeGreaterThan(axe.range);
     expect(hammer.damage).toBeGreaterThan(axe.damage);
     expect(hammer.fireRate).toBeLessThan(axe.fireRate);
-    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats).reach).toBeLessThan(2.5);
-    const candidates=[{id:"enemy",pos:[0,0,1.2] as const,alive:true}];
+    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats).reach).toBeLessThanOrEqual(1.05);
+    const candidates=[{id:"enemy",pos:[0,0,.82] as const,alive:true}];
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,knife.range)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,machete.range)?.id).toBe("enemy");
+    const distant=[{id:"distant",pos:[0,0,1.2] as const,alive:true}];
+    for(const id of ids)
+      expect(chooseQuickMeleeTarget([0,0,0],0,distant,()=>true,quickMeleeProfile(weaponById(id).stats).reach)).toBeNull();
   });
   test("axe has curved cutting geometry that hammer does not",()=>{
     const build=(id:string)=>{
