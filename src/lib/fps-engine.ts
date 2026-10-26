@@ -25,7 +25,7 @@ import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -549,7 +549,11 @@ export class FPSEngine {
   private stormMines = new Map<string,{mesh:THREE.Group; pos:Vec3;expiresAt:number;armedAt:number;offline:boolean;ownerId:string;ownerTeam:string}>();
   private stormMineCooldown = new Map<string,number>();
   private smartTags = new Map<string,number>();
+  // End of the current ONE-second fuel slice. A released trigger never burns
+  // another charge, and unused fuel remains in wonderStates.
   private hellfireActiveUntil = 0;
+  private localBurning = new Map<string, number>();
+  private onlineBurning = new Map<string, number>();
   private flamePlumes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
   private stormArcMeshes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
   private localWonderSequence = 0;
@@ -2071,31 +2075,28 @@ export class FPSEngine {
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
       } else {
-        // Open-top iron notch: brackets surround the reticle, never occlude it.
-        // The physical aperture lines up with the centered HUD aiming point in ADS.
-        const rim=new THREE.Mesh(new THREE.TorusGeometry(.043,.005,5,24,Math.PI*1.25),accentMat);
-        rim.rotation.z=Math.PI*.875;
-        scopeGroup.add(rim);
-        const bead=new THREE.Mesh(new THREE.BoxGeometry(.006,.015,.006),accentMat);
-        bead.position.set(0,-.043,-.012);scopeGroup.add(bead);
+        // Low-profile rear notch pressed directly onto the existing receiver.
+        // No elevated scope riser, tower, floating aperture or 'ladder'.
+        for (const side of [-1,1]) {
+          const ear = new THREE.Mesh(new THREE.BoxGeometry(.014,.036,.026),accentMat);
+          ear.position.set(side*.029,.013,0);
+          scopeGroup.add(ear);
+        }
+        const rearBase = new THREE.Mesh(new THREE.BoxGeometry(.075,.012,.040),accentMat);
+        rearBase.position.y=-.009;
+        scopeGroup.add(rearBase);
       }
-      // Bridge the eye-height optic to the receiver with visible support legs.
-      // Unlike the old independent Y lift, this geometry stays rigid in hipfire,
-      // ADS, recoil and reload. Aperture sits at the ballistic reticle at full ADS.
       const mountHeight = adsClearance(
         wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
       ).sightMountY;
-      const riser = Math.max(.04, mountHeight - .04);
-      for (const side of [-1, 1]) {
-        const leg = new THREE.Mesh(
-          new THREE.BoxGeometry(.013, riser, .038), accentMat);
-        leg.position.set(side*.033, -riser/2-.022, 0);
-        scopeGroup.add(leg);
-      }
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(.094,.018,.09),accentMat);
-      foot.position.y=-riser-.02;
-      scopeGroup.add(foot);
+      // Scope bodies and low rear notches are part of the same rigid gun pose.
       addPart(scopeGroup, 0, mountHeight, -0.1);
+      if (st === "iron") {
+        // Matching front blade: mounted on the actual barrel toward the muzzle,
+        // not raised on stilts above the player's weapon.
+        const front = new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
+        addPart(front, 0, mountHeight+.01, muzzleZ+.08);
+      }
       this.sightMesh = scopeGroup;
     }
     // Poison tips are part of the BOLT, not a muzzle suppressor.
@@ -3907,6 +3908,12 @@ export class FPSEngine {
             ? gravityClientTime(effect.expiresAt, msg.serverNow, Date.now())
             : effect.expiresAt);
         }
+        this.onlineBurning.clear();
+        for (const effect of msg.burning ?? []) {
+          this.onlineBurning.set(effect.id, msg.serverNow
+            ? gravityClientTime(effect.expiresAt, msg.serverNow, Date.now())
+            : effect.expiresAt);
+        }
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
@@ -4735,8 +4742,9 @@ export class FPSEngine {
       if (!rules) continue;
       const next = tickWonderCharges(state, rules, now);
       this.wonderStates.set(id, next);
-      const ammo=id==="wonder_hellfire"&&this.hellfireActiveUntil>now
-        ? Math.ceil((this.hellfireActiveUntil-now)/1000) : next.charges;
+      const ammo=id==="wonder_hellfire"
+        ? Math.min(rules.maxCharges,next.charges+(this.hellfireActiveUntil>now?1:0))
+        : next.charges;
       if (this.primaryWeaponId === id) this.primaryAmmoInMag = ammo;
       if (this.weaponId === id) this.ammoInMag = ammo;
     }
@@ -5131,8 +5139,10 @@ export class FPSEngine {
     if(kind==="flame"){
       for(const c of enemies()){
         const target:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
-        if(inFlameCone(origin,dir,target,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,target))
+        if(inFlameCone(origin,dir,target,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,target)){
           this.applyDamageLocal(c,this.eff.damage,false,w.id);
+          if(c.alive)this.localBurning.set(c.id,performance.now()+1100);
+        }
       }
       return; // Burning spray never paints persistent damaging floors.
     }
@@ -5220,10 +5230,12 @@ export class FPSEngine {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
       if(w.wonder.kind==="flame"){
         if(this.hellfireActiveUntil<=now){
-          const charged=spendFullWonderCharge(state,w.wonder,now);
-          if(!charged){this.sound.play("empty_click",{volume:.4});return;}
-          this.wonderStates.set(w.id,charged);
-          this.hellfireActiveUntil=now+HELLFIRE_BURST_MS;
+          // Pay for fuel only while the trigger is held; no eight-second
+          // commitment and no hidden drainage after release.
+          const next=spendWonderCharge(state,w.wonder,now);
+          if(!next){this.sound.play("empty_click",{volume:.4});return;}
+          this.wonderStates.set(w.id,next);
+          this.hellfireActiveUntil=now+HELLFIRE_FUEL_STEP_MS;
         }
       }else{
         const next=spendWonderCharge(state,w.wonder,now);
@@ -5239,7 +5251,8 @@ export class FPSEngine {
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
     if (w.wonder) this.ammoInMag = w.wonder.kind==="flame"
-      ? Math.ceil(Math.max(0,this.hellfireActiveUntil-now)/1000)
+      ? Math.min(w.wonder.maxCharges,
+          this.wonderStates.get(w.id)!.charges+(this.hellfireActiveUntil>now?1:0))
       : this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
