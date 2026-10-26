@@ -13,9 +13,11 @@ import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
+import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, type StudioBuildingPresetId } from "@/lib/map-studio-prefabs";
 import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
+type StudioSnapshot = {doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
 type Team="ffa"|"red"|"blue";
 type Selection=StudioSelection;
 type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
@@ -36,6 +38,7 @@ export default function MapEditor() {
   const [editorTab,setEditorTab]=useState<"blueprint"|"theme">("blueprint");
   const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
   const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
+  const [buildingPreset,setBuildingPreset]=useState<StudioBuildingPresetId>("house");
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
   const [selected,setSelected]=useState<Selection|null>(null);
@@ -51,7 +54,9 @@ export default function MapEditor() {
   const fileRef=useRef<HTMLInputElement>(null);
   const themeFileRef=useRef<HTMLInputElement>(null);
   const drag=useRef<Drag|null>(null);
-  const history=useRef<BlueprintDoc[]>([]);
+  const history=useRef<StudioSnapshot[]>([]);
+  const redoHistory=useRef<StudioSnapshot[]>([]);
+  const [,setHistoryRevision]=useState(0);
   const map=doc.maps[mapId];
   // A newly authored map does not enter the compiled runtime registry until
   // export and rebuild; preview its chosen template rather than always compound.
@@ -59,9 +64,17 @@ export default function MapEditor() {
   const baseMap=compiledMap.id===mapId?compiledMap:getMap(map?.templateMapId);
   const canEditBuiltIn=compiledMap.id===mapId;
   const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
-  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
-    ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
-  }));
+  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme,record=true)=>{
+    if(record)pushUndo();
+    setThemes(prev=>({...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))}));
+  };
+  const createThemeProp=(x:number,z:number,w?:number,d?:number):MapProp=>{
+    if(propKind==="building"){
+      const preset=studioBuildingPrefab(buildingPreset,x,z);
+      return {...preset,w:w&&w>=6?w:preset.w,d:d&&d>=6?d:preset.d};
+    }
+    return {kind:propKind,x,z,w:w??5,d:d??5,h:5};
+  };
   const downloadJSON=(name:string,value:unknown)=>{
     const blob=new Blob([JSON.stringify(value,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -76,7 +89,7 @@ export default function MapEditor() {
         throw Error("Expected a map theme with biome, palette, ambient, vegetation and props.");
       for(const key of ["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const)
         if(!/^#[a-fA-F0-9]{6}$/.test(t.palette[key]))throw Error("Invalid palette color "+key);
-      setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
+      pushUndo();setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
     }catch(err){setStatus("Theme import failed: "+String(err));}
     e.target.value="";
   };
@@ -99,7 +112,10 @@ export default function MapEditor() {
     }catch{}
   },[]);
   useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));}catch{}},[themes]);
-  const pushUndo=()=>{history.current=[...history.current.slice(-24),clone(doc)];};
+  const pushUndo=()=>{
+    history.current=[...history.current.slice(-39),{doc:clone(doc),themes:clone(themes)}];
+    redoHistory.current=[];setHistoryRevision(n=>n+1);
+  };
   const update=(fn:(m:MapBlueprint)=>MapBlueprint)=>{
     setDoc(prev=>({...prev,maps:{...prev.maps,[mapId]:fn(prev.maps[mapId])}}));
   };
@@ -138,7 +154,7 @@ export default function MapEditor() {
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
     if(sel.type==="prop"){
       updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
-        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
+        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}),false);
       return;
     }
     update(m=>{
@@ -178,8 +194,8 @@ export default function MapEditor() {
           setSelected({type:"hazard",index});
         }else if(d.tool==="prop"){
           const index=theme.props.length;
-          const p:MapProp={kind:propKind,x,z,w,d:depth,h:Math.max(2,w)};
-          updateTheme(t=>({...t,props:[...t.props,p]}));
+          const p=createThemeProp(x,z,w,depth);
+          updateTheme(t=>({...t,props:[...t.props,p]}),false);
           setSelected({type:"prop",index});setEditorTab("theme");
         }else{
           const index=map.features.length;
@@ -246,7 +262,7 @@ export default function MapEditor() {
     }
     if(sel.type==="prop"){
       updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
-        {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
+        {...p,[key]:["kind","text","color","use","shape","stairSide","facade","roofAccess"].includes(key)?value:Number(value)}:p)}),false);
       return;
     }
     update(m=>{
@@ -289,7 +305,7 @@ export default function MapEditor() {
     }
     pushUndo();
     if(selectedItem.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==selectedItem.index)}));
+      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==selectedItem.index)}),false);
       setSelected(null);return;
     }
     update(m=>selectedItem.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==selectedItem.index)}:
@@ -381,7 +397,7 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(item.type==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{...t.props[item.index],x:t.props[item.index].x+10}]}));
+      updateTheme(t=>({...t,props:[...t.props,{...t.props[item.index],x:t.props[item.index].x+10}]}),false);
       setSelected({type:"prop",index});
     }else if(item.type==="feature"){
       const index=map.features.length;
@@ -400,8 +416,27 @@ export default function MapEditor() {
     setMapId(id);setSelected(null);setNewId("");setStatus(`Created ${id}. Export JSON and restart the game dev server to make it playable.`);
   };
   const undo=()=>{
-    const previous=history.current.pop();if(previous){setDoc(previous);setSelected(null);setStatus("Undid last edit.");}
+    const previous=history.current.pop();if(!previous)return;
+    redoHistory.current.push({doc:clone(doc),themes:clone(themes)});
+    setDoc(previous.doc);setThemes(previous.themes);setSelected(null);
+    setHistoryRevision(n=>n+1);setStatus("Undid last edit.");
   };
+  const redo=()=>{
+    const next=redoHistory.current.pop();if(!next)return;
+    history.current.push({doc:clone(doc),themes:clone(themes)});
+    setDoc(next.doc);setThemes(next.themes);setSelected(null);
+    setHistoryRevision(n=>n+1);setStatus("Redid last edit.");
+  };
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{
+      if(!(event.metaKey||event.ctrlKey)||event.key.toLowerCase()!=="z")return;
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)))return;
+      event.preventDefault();if(event.shiftKey)redo();else undo();
+    };
+    window.addEventListener("keydown",onKey);
+    return ()=>window.removeEventListener("keydown",onKey);
+  });
   const exportFile=()=>{
     const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -443,7 +478,7 @@ export default function MapEditor() {
     }
     if(sel.type==="prop"){
       updateTheme(current=>({...current,props:current.props.map((p,i)=>i===sel.index?
-        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p)}));
+        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p)}),false);
       return;
     }
     update(current=>{
@@ -500,7 +535,7 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(kind==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{kind:propKind,x,z,w:5,d:5,h:5}]}));
+      updateTheme(t=>({...t,props:[...t.props,createThemeProp(x,z)]}),false);
       setSelected({type:"prop",index});
     }else if(["ffa","red","blue"].includes(kind)){
       const team=kind as Team,index=map.spawns[team].length;
@@ -606,6 +641,7 @@ export default function MapEditor() {
           <input ref={themeFileRef} type="file" accept=".json,application/json" className="hidden" onChange={importTheme}/>
           <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
+        <button className={btn} onClick={redo} disabled={!redoHistory.current.length}>Redo</button>
         <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
         <button className={btn} onClick={async()=>{await navigator.clipboard.writeText(JSON.stringify(doc,null,2));setStatus("JSON copied to clipboard.");}}><Copy size={14}/> Copy JSON</button>
@@ -651,6 +687,11 @@ export default function MapEditor() {
               {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const)
                 .map(kind=><option key={kind} value={kind}>{kind}</option>)}
             </select></label>}
+          {editorTab==="theme"&&propKind==="building"&&<label className="block text-xs text-zinc-400 mt-3">Building kit
+            <select className={fieldClass} value={buildingPreset} onChange={e=>setBuildingPreset(e.target.value as StudioBuildingPresetId)}>
+              {STUDIO_BUILDING_PRESETS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>}
           <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
             Drag on the grid to draw regions or structures. Click to place a spawn.
             Use Select to drag and reposition. Adjust exact dimensions in the inspector.
@@ -1008,6 +1049,23 @@ export default function MapEditor() {
                         {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const).map(kind=>
                           <option key={kind} value={kind}>{kind}</option>)}
                       </select></label>
+                    {(selectedObject as MapProp).kind==="building"&&<>
+                      <label className="block text-xs">Building purpose
+                        <select className={fieldClass} value={(selectedObject as MapProp).use??"house"} onChange={e=>changeSelected("use",e.target.value)}>
+                          {STUDIO_BUILDING_PRESETS.map(p=><option key={p.id} value={p.use}>{p.label}</option>)}
+                        </select></label>
+                      <label className="block text-xs">Building shape
+                        <select className={fieldClass} value={(selectedObject as MapProp).shape??"rect"} onChange={e=>changeSelected("shape",e.target.value)}>
+                          <option value="rect">Rectangular</option><option value="narrow">Narrow</option><option value="round">Round</option>
+                        </select></label>
+                      <label className="block text-xs">Stair position
+                        <select className={fieldClass} value={(selectedObject as MapProp).stairSide??"east"} onChange={e=>changeSelected("stairSide",e.target.value)}>
+                          <option value="east">East</option><option value="west">West</option>
+                        </select></label>
+                      <label className="flex gap-2 items-center text-xs">Roof access
+                        <input type="checkbox" checked={(selectedObject as MapProp).roofAccess!==false} onChange={e=>changeSelected("roofAccess",e.target.checked)}/>
+                      </label>
+                    </>}
                     <label className="block text-xs">Text (optional)
                       <input className={fieldClass} value={(selectedObject as MapProp).text??""}
                         onChange={e=>changeSelected("text",e.target.value)}/></label>
