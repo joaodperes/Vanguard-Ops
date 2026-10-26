@@ -9,6 +9,7 @@ import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/
 import { cityBuildingBoxes, mapProps, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
+import {lockedPosition,normalizeTurns,rotatedExtents,type StudioAxis} from "@/lib/map-studio-transform";
 import type {StudioMapIssue,StudioRegionLink} from "@/lib/map-studio-diagnostics";
 
 export type StudioSelection={
@@ -23,7 +24,7 @@ export interface StudioTransform {
 }
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
-  mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
+  mode:StudioMode;moveAxis:StudioAxis;snap:number;tool:string;placementProp?:MapProp;legacySpawns?:[number,number,number][];showCollision?:boolean;
   warnings?:StudioMapIssue[];regionLinks?:StudioRegionLink[];placementProblem?:(x:number,z:number)=>string|null;
   onInvalidPlacement?:(reason:string)=>void;placementKit?:{w:number;d:number};
   onAddAt:(tool:string,point:{x:number;z:number})=>void;
@@ -45,13 +46,13 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,legacySpawns=[],showCollision=false,
+export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap,tool,placementProp,legacySpawns=[],showCollision=false,
   warnings=[],regionLinks=[],placementProblem,onInvalidPlacement,placementKit,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
-  const callbacks=useRef({selected,mode,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement});
-  callbacks.current={selected,mode,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement};
+  const callbacks=useRef({selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement});
+  callbacks.current={selected,mode,moveAxis,snap,tool,onSelect,onTransform,onAddAt,placementProblem,onInvalidPlacement};
 
   useEffect(()=>{
     if(!host.current)return;
@@ -108,13 +109,16 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
     // would quantize elevation in 2-unit jumps when the drawing grid is on.
     // Apply the horizontal grid ourselves while preserving sub-unit Y motion.
     const onObjectChange=()=>{
-      if(callbacks.current.mode!=="move"||callbacks.current.snap<=0)return;
-      const object=transform.object;
-      const axis=transform.axis;
-      if(!object||!axis)return;
-      // Dragging only Y must not unexpectedly shift an off-grid X/Z position.
-      if(axis.includes("X"))object.position.x=horizontalSnap(object.position.x,callbacks.current.snap);
-      if(axis.includes("Z"))object.position.z=horizontalSnap(object.position.z,callbacks.current.snap);
+      if(callbacks.current.mode!=="move")return;
+      const object=transform.object as THREE.Group|undefined;
+      const initial=(object?.userData.editor as ObjectMeta|undefined)?.initial;
+      if(!object||!initial)return;
+      // Keep the other coordinates locked even if a plane or centre gizmo is hit.
+      const position=lockedPosition(initial,object.position,callbacks.current.moveAxis);
+      const axis=callbacks.current.moveAxis;
+      if(callbacks.current.snap>0&&axis!=="y")
+        position[axis]=horizontalSnap(position[axis],callbacks.current.snap);
+      object.position.set(position.x,position.y,position.z);
     };
     transform.addEventListener("objectChange",onObjectChange);
     const onMouseUp=()=>{
@@ -122,19 +126,20 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       const meta=group?.userData?.editor as ObjectMeta|undefined;
       if(!group||!meta)return;
       const d=meta.initial;
-      const turns=Math.round(group.rotation.y/(Math.PI/2));
-      const swapped=Math.abs(turns)%2===1;
+      const angle=Math.round(group.rotation.y/(Math.PI/2));
+      const dimensions=rotatedExtents(d,angle,group.scale);
+      const position=callbacks.current.mode==="move"
+        ?lockedPosition(d,group.position,callbacks.current.moveAxis):group.position;
       const transformData:StudioTransform={
-        x:group.position.x,y:group.position.y,z:group.position.z,
-        w:Math.max(minSize,(swapped?d.d:d.w)*Math.abs(group.scale.x)),
-        h:Math.max(minSize,d.h*Math.abs(group.scale.y)),
-        d:Math.max(minSize,(swapped?d.w:d.d)*Math.abs(group.scale.z)),
-        turns
+        x:position.x,y:position.y,z:position.z,
+        w:Math.max(minSize,dimensions.w),h:Math.max(minSize,dimensions.h),
+        d:Math.max(minSize,dimensions.d),turns:dimensions.turns
       };
       if(Math.abs(transformData.x-d.x)+Math.abs(transformData.y-d.y)+
         Math.abs(transformData.z-d.z)+Math.abs(transformData.w-d.w)+
         Math.abs(transformData.h-d.h)+Math.abs(transformData.d-d.d)+
-        Math.abs(turns)>.005)callbacks.current.onTransform(meta.selection,transformData);
+        (dimensions.turns!==normalizeTurns(d.turns)?1:0)>.005)
+        callbacks.current.onTransform(meta.selection,transformData);
     };
     transform.addEventListener("mouseUp",onMouseUp);
     const raycaster=new THREE.Raycaster();
@@ -282,12 +287,21 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       mesh.position.set(x,y,z);group.add(mesh);
       return mesh;
     };
-    const add=(selection:StudioSelection,p:{x:number;y:number;z:number;w:number;h:number;d:number},draw:(g:THREE.Group)=>void)=>{
+    const add=(selection:StudioSelection,p:{x:number;y:number;z:number;w:number;h:number;d:number},
+      draw:(g:THREE.Group)=>void,storedTurns=0)=>{
       const group=new THREE.Group();
       group.position.set(p.x,p.y,p.z);
-      const meta:ObjectMeta={selection,initial:{...p,turns:0}};
+      const turns=normalizeTurns(storedTurns);
+      const meta:ObjectMeta={selection,initial:{...p,turns}};
       group.userData.editor=meta;
-      draw(group);
+      // The persisted W/D and physics are already in world space. A visual
+      // counter-rotation preserves those world boxes while keeping the real
+      // quarter-turn on the transform pivot for future selections.
+      group.rotation.y=turns*Math.PI/2;
+      const content=new THREE.Group();
+      content.rotation.y=-turns*Math.PI/2;
+      group.add(content);
+      draw(content);
       ctx.root.add(group);
       ctx.objects.set(idFor(selection),group);
     };
@@ -343,13 +357,13 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
             b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:
               f.kind==="platform"?palette.platform:palette.cover,.86);
         }
-      });
+      },f.turns);
     }
     for(let i=0;i<(map.hazards??[]).length;i++){
       const h=map.hazards![i];
       add({type:"hazard",index:i},{x:h.x,y:h.y,z:h.z,w:h.w,h:h.h,d:h.d},g=>
         createBox(g,0,0,0,h.w,h.h,h.d,h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":
-          h.type==="jump_pad"?"#38bdf8":"#f97316",.55));
+          h.type==="jump_pad"?"#38bdf8":"#f97316",.55),h.turns);
     }
     for(const team of ["ffa","red","blue"] as const){
       const arr=map.spawns[team];
@@ -398,7 +412,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>{
         if(p.kind==="building")drawBuilding(g,p,.92);
         else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
-      });
+      },p.turns);
     }
     // Generated city lots are selectable: picking one promotes it into an
     // authored prop and masks its original lot in both game variants.
@@ -407,7 +421,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
         p=>p.kind==="building"&&!!p.lotId&&!theme.props.includes(p));
       generated.forEach((p,i)=>{
         add({type:"generatedBuilding",index:i},{x:p.x,y:p.y??0,z:p.z,w:p.w??20,h:p.h??6,d:p.d??20},
-          g=>drawBuilding(g,p,.8));
+          g=>drawBuilding(g,p,.8),p.turns);
       });
     }
     const compiled=getMap(mapId);
@@ -432,7 +446,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
             createBox(g,b.pos[0]-bounds.x,b.pos[1]-bounds.y,b.pos[2]-bounds.z,
               b.size[0]*2,b.size[1]*2,b.size[2]*2,palette.stair,.8);
           }
-        });
+        },map.legacyCoverOverrides?.[String(flight.start)]?.turns);
       }else for(const b of steps)createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,palette.stair,.25);
     }
@@ -445,7 +459,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
         add({type:"legacyCover",index:i},{
           x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
           createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,
-            b.kind==="stair"?palette.stair:"#728399",.64));
+            b.kind==="stair"?palette.stair:"#728399",.64),map.legacyCoverOverrides?.[String(i)]?.turns);
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#728399",.28);
     }
@@ -457,7 +471,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
       if(compiledForThisMap){
         add({type:"legacyEnvironment",index:i},{
           x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2},g=>
-          createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.45));
+          createBox(g,0,0,0,b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.45),
+          map.legacyEnvironmentOverrides?.[String(i)]?.turns);
       }else createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
@@ -511,10 +526,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,pla
     transform.setSpace("world");
     // Existing game collision boxes are axis-aligned. Rotate only around Y,
     // with quarter-turn snapping so the exported dimensions match physics.
-    transform.showX=mode!=="rotate";
-    transform.showZ=mode!=="rotate";
-    transform.showY=mode==="rotate" || (selected.type!=="region"&&selected.type!=="spawn");
-  },[selected,mode,snap,map,theme,mapId]);
+    transform.showX=mode==="move"?moveAxis==="x":mode!=="rotate";
+    transform.showZ=mode==="move"?moveAxis==="z":mode!=="rotate";
+    transform.showY=mode==="rotate" || (mode==="move"?moveAxis==="y":
+      selected.type!=="region"&&selected.type!=="spawn");
+  },[selected,mode,moveAxis,snap,map,theme,mapId]);
 
   return <div className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950">
     <div ref={host} className="absolute inset-0"
