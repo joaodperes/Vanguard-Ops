@@ -6,7 +6,7 @@ export const RANGE_TARGETS: readonly Vec3[] = [
   [-2, 0, 1],
   [2, 0, 13],
   [5.5, 0, 25],
-] as const;
+];
 
 export const RANGE_SPAWN: Vec3 = [0, 0, -32];
 
