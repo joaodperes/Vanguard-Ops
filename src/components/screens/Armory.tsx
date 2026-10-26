@@ -318,7 +318,7 @@ export function Armory() {
               <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              {WEAPONS.filter(w => !!w.wonder).map(w => {
+              {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
                 const owned = profile?.prestige?.wonderWeapons.includes(w.id) ?? false;
                 const ready = (profile?.prestige?.tokens ?? 0) > 0;
                 return <div key={w.id} className="rounded-xl border border-violet-500/25 bg-black/40 p-5 space-y-3">

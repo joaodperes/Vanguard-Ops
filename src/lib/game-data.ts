@@ -73,6 +73,7 @@ export interface WeaponDef {
   /** Unguided impact rocket profile. Applies to all conventional launchers. */
   explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
+  disabled?: boolean;
   wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;

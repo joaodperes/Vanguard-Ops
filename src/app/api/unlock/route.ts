@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   const level = levelForXp(player.xp);
 
   if (kind === "wonderWeapon") {
-    const def = WEAPONS.find(w => w.id === itemId && !!w.wonder);
+    const def = WEAPONS.find(w => w.id === itemId && !!w.wonder && !w.disabled);
     if (!def) return NextResponse.json({ error: "Unknown Wonder Weapon" }, { status: 404 });
     // Legitimately earned legacy progress can be claimed on the first purchase.
     await grantWeaponPrestiges(player.id);

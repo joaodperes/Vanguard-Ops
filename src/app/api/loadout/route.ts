@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
   if (primaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === primaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown primaryWeapon" }, { status: 400 });
+    if (w.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (w.wonder) {
       const owned = await db.wonderUnlock.findUnique({ where: {
         playerId_weaponId: { playerId: player.id, weaponId: w.id },
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
   }
   if (secondaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === secondaryWeapon);
+    if (w?.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (!w) return NextResponse.json({ error: "unknown secondaryWeapon" }, { status: 400 });
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });

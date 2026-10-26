@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {WEAPONS} from "../src/lib/game-data";
 import {WEAPON_VISUALS} from "../src/lib/weapon-models";
-import {selectSmartTarget,inFlameCone,nearStormLink,sludgeMovementFactor} from "../src/lib/wonder-tech";
+import {selectSmartTarget,selectSmartTargets,SMART_MAX_TAGS,HELLFIRE_BURST_MS,inFlameCone,nearStormLink,sludgeMovementFactor} from "../src/lib/wonder-tech";
 const ids=["wonder_deadlock","wonder_hellfire","wonder_stormweaver","wonder_bogfather"];
 describe("Novel Wonder families",()=>{
  test("four genuinely distinct kinds with token-only ownership and their own first-person silhouettes",()=>{
@@ -30,5 +30,52 @@ describe("Novel Wonder families",()=>{
   expect(sludgeMovementFactor([1,0,1],"blue",500,pools)).toBe(.46);
   expect(sludgeMovementFactor([1,0,1],"red",500,pools)).toBe(1);
   expect(sludgeMovementFactor([1,0,1],"blue",1100,pools)).toBe(1);
+ });
+});
+
+describe("persistent smart tags and full fuel bursts",()=>{
+ test("Deadlock acquires at most three visible hostiles with no friendly or wall hacks",()=>{
+  const candidates=Array.from({length:6},(_,i)=>({id:"e"+i,pos:[i-2,0,20] as const,alive:true,team:"blue"}));
+  const tags=selectSmartTargets([0,1.6,0],[0,0,1],candidates,"red",false,75,()=>true);
+  expect(tags).toHaveLength(SMART_MAX_TAGS);
+  expect(new Set(tags.map(x=>x.id)).size).toBe(SMART_MAX_TAGS);
+  expect(selectSmartTargets([0,1.6,0],[0,0,1],candidates,"red",false,75,()=>false)).toEqual([]);
+ });
+ test("Hellfire consumes three seconds per ignition, never permits a partial burst",()=>{
+  expect(HELLFIRE_BURST_MS).toBe(3000);
+  const fuel=WEAPONS.find(w=>w.id==="wonder_hellfire")!;
+  expect(fuel.wonder?.maxCharges).toBe(3);
+  expect(fuel.stats.magSize).toBe(3);
+  expect(fuel.stats.range).toBe(11);
+ });
+ test("Bogfather remains in historical IDs but is unavailable",()=>{
+  expect(WEAPONS.find(w=>w.id==="wonder_bogfather")?.disabled).toBe(true);
+ });
+});
+
+import { fullWonderCharges, spendFullWonderCharge, tickWonderCharges } from "../src/lib/wonder-charge";
+import { SIGHT_DEFS, hasMountedSight, weaponById } from "../src/lib/game-data";
+describe("three-second fuel consumption and sight defaults",()=>{
+ test("flame ignition spends all three seconds; partial fuel cannot restart",()=>{
+  const rules=weaponById("wonder_hellfire").wonder!;
+  const empty=spendFullWonderCharge(fullWonderCharges(rules),rules,1000)!;
+  expect(empty.charges).toBe(0);
+  expect(spendFullWonderCharge(tickWonderCharges(empty,rules,10000),rules,10000)).toBeNull();
+  expect(tickWonderCharges(empty,rules,28000).charges).toBe(3);
+  expect(spendFullWonderCharge(empty,rules,28000)?.charges).toBe(0);
+ });
+ test("regular rifles and SMGs have unmagnified iron sight defaults",()=>{
+  for(const id of ["rifle_ar","smg_kp","dmr_scout","lmg_light"]){
+    const w=weaponById(id);
+    expect(w.baseSightType??"iron").toBe("iron");
+    expect(SIGHT_DEFS.iron.zoom).toBe(1);
+    expect(hasMountedSight(w,{sight:null})).toBe(false);
+  }
+ });
+ test("wonder descriptions avoid redundant prefix and storm is longer ranged",()=>{
+  for(const w of WEAPONS.filter(w=>w.wonder))expect(w.description.startsWith("Wonder Weapon:")).toBe(false);
+  const storm=weaponById("wonder_stormweaver");
+  expect(storm.stats.range).toBe(82);
+  expect(storm.wonder!.radius).toBe(19);
  });
 });

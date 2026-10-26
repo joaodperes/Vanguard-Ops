@@ -22,8 +22,8 @@ import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, tickWonderCharges, spendWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
+import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, HELLFIRE_RANGE, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -544,6 +544,8 @@ export class FPSEngine {
   private poisonBubbles = new Map<string, THREE.Group>();
   private wonderFields = new Map<string, { mesh: THREE.Mesh; offline: boolean; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>();
   private offlineStormAnchor: { pos: Vec3; expiresAt: number } | null = null;
+  private smartTags = new Map<string,number>();
+  private hellfireActiveUntil = 0;
   private localWonderSequence = 0;
   private lastShotAt = 0;
   // Burst-fire state: when a burst weapon's trigger is pulled, burstShotsLeft is
@@ -1884,8 +1886,11 @@ export class FPSEngine {
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
-    if (skin.prestige) {
-      this.prestigeTexture = this.createPrestigeTexture(skin.prestige);
+    if (skin.prestige || weaponById(this.weaponId).wonder) {
+      // Wonders ship with animated cosmic/toxic energy finishes by default.
+      // Owned prestige variants remain authoritative when selected.
+      this.prestigeTexture = this.createPrestigeTexture(skin.prestige ??
+        (["wonder_corrosion","wonder_hellfire"].includes(this.weaponId)?"toxic":"cosmic"));
       const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
       material.map = this.prestigeTexture;
       material.color.set(0xffffff);
@@ -1997,7 +2002,8 @@ export class FPSEngine {
     // attachment or its own built-in scope — never another weapon's old slot
     // value or an incompatible/stale attachment identifier.
     const wDef = weaponById(this.weaponId);
-    if (category !== "melee" && hasMountedSight(wDef, currentAtts)) {
+    if (category !== "melee" && (hasMountedSight(wDef, currentAtts) ||
+        (!wDef.wonder && this.sightDef.type === "iron"))) {
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
@@ -2049,12 +2055,13 @@ export class FPSEngine {
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
       } else {
-        // Iron sight: simple post + ring
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.04, 0.005), accentMat);
-        post.position.y = 0.02;
-        scopeGroup.add(post);
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.004, 6, 14), accentMat);
-        scopeGroup.add(ring);
+        // Open-top iron notch: brackets surround the reticle, never occlude it.
+        // The physical aperture lines up with the centered HUD aiming point in ADS.
+        const rim=new THREE.Mesh(new THREE.TorusGeometry(.043,.005,5,24,Math.PI*1.25),accentMat);
+        rim.rotation.z=Math.PI*.875;
+        scopeGroup.add(rim);
+        const bead=new THREE.Mesh(new THREE.BoxGeometry(.006,.015,.006),accentMat);
+        bead.position.set(0,-.043,-.012);scopeGroup.add(bead);
       }
       addPart(scopeGroup, 0, 0.08, -0.1);
       this.sightMesh = scopeGroup;
@@ -2283,7 +2290,9 @@ export class FPSEngine {
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
     const adsTarget = isMagnifiedSight || isSniperScoped
       ? { x: 0.0, y: -0.27, z: -0.22 }  // scopes and heavy receivers kept clearly below reticle
-      : { x: 0.0, y: -0.23, z: -0.38 }; // iron/red-dot/holo: 8cm lower than before
+      : this.sightDef.type === "iron"
+        ? { x: 0, y: -0.08, z: -0.38 } // center the physical open-notch iron aperture
+        : { x: 0, y: -0.23, z: -0.38 }; // attached optics use HUD reticles
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
@@ -2442,7 +2451,7 @@ export class FPSEngine {
     //    replaces the old behavior where the sniper scope tube stayed visible
     //    but was positioned below the camera (appearing as a solid object at
     //    the bottom of the screen instead of something to look through).
-    const hideSightDuringADS = this.adsProgress > 0.15;
+    const hideSightDuringADS = this.sightDef.type !== "iron" && this.adsProgress > 0.15;
     const hideEntireViewmodel = !this.reloading && !this.equipmentAction && (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
@@ -3506,8 +3515,9 @@ export class FPSEngine {
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
     });
-    if (weaponFinish.prestige) {
-      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige);
+    if (weaponFinish.prestige || weaponById(c.weaponId).wonder) {
+      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ??
+        (["wonder_corrosion","wonder_hellfire"].includes(c.weaponId)?"toxic":"cosmic"));
       weaponMat.color.set(0xffffff);
     }
 
@@ -3698,6 +3708,14 @@ export class FPSEngine {
     chevron.visible = false; // toggled per-frame in updateCombatantMeshes
     root.add(chevron);
     c.friendlyMarker = chevron;
+    // Magenta lock diamonds mark Deadlock's acquired enemies in-world;
+    // normal depth testing means cover still hides the marker.
+    const tag=new THREE.Mesh(new THREE.TorusGeometry(.22,.036,8,4),
+      new THREE.MeshBasicMaterial({color:0xff4fb4,transparent:true,opacity:.98,depthTest:true}));
+    tag.name="deadlock_tag";
+    tag.position.y=PLAYER_HEIGHT+.47;
+    tag.visible=false;
+    root.add(tag);
 
     // ---- Round 19e: Spawn protection shield ----
     // A translucent cyan sphere around the combatant that pulses while spawn
@@ -4256,6 +4274,8 @@ export class FPSEngine {
           if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
+          } else if (msg.weaponId==="wonder_hellfire") {
+            this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
             this.spawnTracer(msg.origin, msg.dir, msg.skinId);
           }
@@ -4649,8 +4669,31 @@ export class FPSEngine {
       if (!rules) continue;
       const next = tickWonderCharges(state, rules, now);
       this.wonderStates.set(id, next);
-      if (this.primaryWeaponId === id) this.primaryAmmoInMag = next.charges;
-      if (this.weaponId === id) this.ammoInMag = next.charges;
+      const ammo=id==="wonder_hellfire"&&this.hellfireActiveUntil>now
+        ? Math.ceil((this.hellfireActiveUntil-now)/1000) : next.charges;
+      if (this.primaryWeaponId === id) this.primaryAmmoInMag = ammo;
+      if (this.weaponId === id) this.ammoInMag = ammo;
+    }
+    // Local tags are visible, persistent and never reveal enemies through cover.
+    for(const [id,expires] of this.smartTags)
+      if(expires<=now||!this.combatants.get(id)?.alive)this.smartTags.delete(id);
+    if(this.weaponId==="wonder_deadlock"&&this.alive&&this.aiming&&this.adsProgress>=.9){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      const targets=selectSmartTargets(origin,this.aimDir(0),
+        [...this.combatants.values()].filter(c=>c.id!==this.selfId).map(c=>({
+          id:c.id,pos:c.pos,alive:c.alive,team:c.team,
+          protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now(),
+        })),this.opts.team,this.opts.mode==="ffa"||this.opts.mode==="gungame",
+        this.eff.range,p=>this.hasLineOfSight(origin,[...p] as Vec3));
+      for(const target of targets)if(this.smartTags.size<SMART_MAX_TAGS||this.smartTags.has(target.id))
+        this.smartTags.set(target.id,now+SMART_TAG_MS);
+    }
+    for(const c of this.combatants.values()){
+      const marker=c.group?.getObjectByName("deadlock_tag");
+      if(marker){
+        marker.visible=this.weaponId==="wonder_deadlock"&&c.alive&&this.smartTags.has(c.id);
+        if(marker.visible)marker.rotation.z=now*.002;
+      }
     }
     for (const [id, state] of this.heatStates) {
       const special = weaponById(id).special;
@@ -4787,15 +4830,41 @@ export class FPSEngine {
   }
 
   /** Smart bullets arc around the muzzle; electricity renders as flickering bolts. */
+  /** A moving short-range cone of orange filaments, not a ground hazard. */
+  private spawnFlameSpray(origin:Vec3,dir:Vec3){
+    for(let i=0;i<4;i++){
+      const dist=4.5+i*1.55,jitter=(Math.random()-.5)*(.8+i*.38);
+      const start=new THREE.Vector3(...origin);
+      const end=start.clone().add(new THREE.Vector3(dir[0]*dist+jitter,
+        dir[1]*dist+(Math.random()-.5)*1.1,dir[2]*dist+jitter*.45));
+      const middle=start.clone().lerp(end,.54);middle.y+=.35+i*.12;
+      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([start,middle,end]),
+        new THREE.LineBasicMaterial({color:i%2?0xffad30:0xff481e,
+          transparent:true,opacity:.95,depthWrite:false}));
+      this.scene.add(line);this.tracers.push({line,born:performance.now(),life:165+i*19});
+    }
+  }
   private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"){
     const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
     const span=end.clone().sub(start), mid=start.clone().add(end).multiplyScalar(.5);
     if(kind==="smart")mid.y+=Math.min(2.5,span.length()*.055);
     else mid.add(new THREE.Vector3(.28,.2,-.3));
-    const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(kind==="smart"?24:8);
-    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:kind==="smart"?0xff527f:0x52dfff,transparent:true,opacity:.94}));
-    this.scene.add(line);
-    this.tracers.push({line,born:performance.now(),life:kind==="smart"?260:190});
+    const strands=kind==="storm"?3:1;
+    for(let strand=0;strand<strands;strand++){
+      const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(kind==="smart"?24:22);
+      if(kind==="storm"){
+        for(let i=1;i<points.length-1;i++){
+          const magnitude=Math.sin(i*17.35+strand*2.7)*(.20+strand*.13);
+          points[i].x+=magnitude;
+          points[i].y+=Math.cos(i*7.3+strand)*(.2+strand*.12);
+        }
+      }
+      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({color:kind==="smart"?0xff527f:strand===0?0xe3ffff:0x46caff,
+          transparent:true,opacity:strand===0?.98:.7,depthWrite:false}));
+      this.scene.add(line);
+      this.tracers.push({line,born:performance.now(),life:kind==="smart"?340:470});
+    }
   }
   private removeWonderField(id:string){
     const field=this.wonderFields.get(id);if(!field)return;
@@ -4850,11 +4919,12 @@ export class FPSEngine {
     const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
       (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
     if(kind==="smart"){
-      const target=this.aiming&&this.adsProgress>=.9?selectSmartTarget(origin,dir,
-        enemies().map(c=>({id:c.id,pos:c.pos,alive:c.alive,team:c.team,protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()})),
-        this.opts.team,this.opts.mode==="ffa"||this.opts.mode==="gungame",this.eff.range,
-        pos=>this.hasLineOfSight(origin,[...pos] as Vec3)):null;
-      const victim=target?this.combatants.get(target.id):null;
+      // A smart round uses an already tagged enemy even when hipfired.
+      const victim=[...this.smartTags].filter(([,expiry])=>expiry>performance.now())
+        .map(([id])=>this.combatants.get(id))
+        .find(c=>c?.alive&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=Date.now())&&
+          Math.hypot(c.pos[0]-origin[0],c.pos[2]-origin[2])<=this.eff.range&&
+          this.hasLineOfSight(origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]));
       if(victim?.alive){
         const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
         this.spawnWonderBeam(origin,to,"smart");
@@ -4868,15 +4938,10 @@ export class FPSEngine {
     if(kind==="flame"){
       for(const c of enemies()){
         const target:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
-        if(inFlameCone(origin,dir,target,this.eff.range)&&this.hasLineOfSight(origin,target))
+        if(inFlameCone(origin,dir,target,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,target))
           this.applyDamageLocal(c,this.eff.damage,false,w.id);
       }
-      for(const dist of [4,8,12]){
-        const point:Vec3=[origin[0]+dir[0]*dist,this.pos.y+.12,origin[2]+dir[2]*dist];
-        if(this.hasLineOfSight(origin,[point[0],point[1]+1,point[2]]))
-          this.addWonderField("local_field_"+(++this.localWonderSequence),this.selfId,this.opts.team,w.id,"flame",point,1.85,Date.now()+4200,true);
-      }
-      return;
+      return; // Burning spray never paints persistent damaging floors.
     }
     if(kind==="sludge"){
       const impact=this.boltLanding(origin,dir);
@@ -4926,6 +4991,7 @@ export class FPSEngine {
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
+    if (w.disabled) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
@@ -4961,9 +5027,18 @@ export class FPSEngine {
     }
     if (w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
-      const next = spendWonderCharge(state, w.wonder, now);
-      if (!next) { this.sound.play("empty_click", { volume: 0.4 }); return; }
-      this.wonderStates.set(w.id, next);
+      if(w.wonder.kind==="flame"){
+        if(this.hellfireActiveUntil<=now){
+          const charged=spendFullWonderCharge(state,w.wonder,now);
+          if(!charged){this.sound.play("empty_click",{volume:.4});return;}
+          this.wonderStates.set(w.id,charged);
+          this.hellfireActiveUntil=now+HELLFIRE_BURST_MS;
+        }
+      }else{
+        const next=spendWonderCharge(state,w.wonder,now);
+        if(!next){this.sound.play("empty_click",{volume:.4});return;}
+        this.wonderStates.set(w.id,next);
+      }
     }
     if (special?.kind !== "heat" && !w.wonder && this.ammoInMag <= 0) {
       this.sound.play("empty_click", { volume: 0.4 });
@@ -4972,7 +5047,9 @@ export class FPSEngine {
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
+    if (w.wonder) this.ammoInMag = w.wonder.kind==="flame"
+      ? Math.ceil(Math.max(0,this.hellfireActiveUntil-now)/1000)
+      : this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
@@ -5035,6 +5112,7 @@ export class FPSEngine {
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
     // These kinds implement new hitscan / area rules, never rocket splash.
     if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
+      if(w.wonder.kind==="flame")this.spawnFlameSpray(origin,dir);
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:this.weaponId,skinId:this.getCurrentSkinId()});
       else this.fireNovelWonderOffline(w,origin,dir);
       return;
@@ -6144,6 +6222,13 @@ export class FPSEngine {
     if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
+      // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
+      if(wantFire && (this.mousePressedThisFrame || this.touchPressedThisFrame) &&
+         this.ammoInMag<=0 && !this.reloading && !w.wonder &&
+         w.category!=="melee" && w.special?.kind!=="heat"){
+        this.sound.play("empty_click",{volume:.36});
+        this.startReload();
+      }
       // ---- Burst-fire in progress: continue the burst even after trigger release ----
       if (this.burstShotsLeft > 0 && now >= this.burstNextAt && this.ammoInMag > 0) {
         this.fireOneShot(w);

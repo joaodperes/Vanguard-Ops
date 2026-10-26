@@ -251,3 +251,12 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 - Hit detection: `src/lib/combat-hitboxes.ts` defines shared head, torso, arm and leg volumes for bots and human player avatars, matching humanoid geometry rather than only a head and chest block.
 - Automatic fire: prolonged trigger holds accumulate aim bloom offline and server-side; releasing the trigger resets the firing cone. The server owns its own independent variation and does not trust client spread values.
 - Melee: Use `src/lib/melee-model.ts` and `src/lib/melee-styles.ts` for all first-person, third-person and F quick-melee views. Knife and shiv have nearly touching range; machete and baton have medium reach, axe and hammer reach farther but have very different power and cadence. Both equipped swings and F use the same grounded, obstacle-aware, server-authoritative hit logic and the equipped weapon's cooldown. Batons briefly interrupt opponents caught reloading. New melee archetypes must be integrated in these shared helpers and their regression tests.
+
+## Wonder Weapon refresh
+
+- Deadlock: ADS acquires up to three exposed enemies after 250ms, with visible magenta overhead target diamonds; tags persist for 4.5 seconds after releasing ADS. Hipfire bullets continue seeking exposed tagged enemies. Normal direct shots remain possible with no live tags. Multiplayer tags are acquired authoritatively from server-observed direction.
+- Hellfire: all three fuel-seconds must recharge before ignition. For a three-second active window, holding the trigger sends a continuous 11m damage cone (8 ticks per second). Releasing early forfeits remaining burst time; shots cannot be started at partial charge. No persistent ground fire.
+- Stormweaver: 82m initial reach, up to four 19m chain jumps after the first victim (five opponents per chain). The previous electrical node lasts 10 seconds; a second nearby shot also damages opponents caught between the nodes.
+- Bogfather is temporarily disabled in loadouts, Armory and server combat, retaining its catalog ID for existing saves.
+- Default Wonder bodies use animated cosmic/toxic patterns with extra energy emitters; physical iron sight notches appear at crosshair height in ADS for unsighted conventional guns.
+- Triggering an empty conventional magazine, including semi-auto/burst guns, initiates reload.

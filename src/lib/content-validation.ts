@@ -47,7 +47,7 @@ const bolt = z.object({
 const weapon = z.object({
   id, name: label, description: label, category,
   unlockLevel: pos.int(), unlockCost: count,
-  stats, attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
+  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({

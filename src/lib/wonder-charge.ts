@@ -40,3 +40,14 @@ export function wonderCooldownMs(state: WonderChargeState, rules: WonderChargeRu
   const current = tickWonderCharges(state, rules, now);
   return current.charges === rules.maxCharges ? 0 : Math.max(0, current.nextAt - now);
 }
+
+/** Hellfire's three fuel-seconds must be available together before ignition.
+ * On ignition, all fuel is committed; each second recharges sequentially.
+ */
+export function spendFullWonderCharge(
+ state:WonderChargeState,rules:WonderChargeRules,now:number,
+):WonderChargeState|null {
+ const current=tickWonderCharges(state,rules,now);
+ if(current.charges!==rules.maxCharges)return null;
+ return {charges:0,nextAt:now+rules.rechargeMs};
+}
