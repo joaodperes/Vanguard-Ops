@@ -13,6 +13,7 @@ import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
+import {normalizeTurns,type StudioAxis} from "@/lib/map-studio-transform";
 import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, STUDIO_STRUCTURE_PRESETS, studioStructurePrefab,
   type StudioBuildingPresetId, type StudioStructurePresetId } from "@/lib/map-studio-prefabs";
 import {studioBuildingPlacementIssues,studioMapIssues,studioRegionLinks} from "@/lib/map-studio-diagnostics";
@@ -47,6 +48,8 @@ export default function MapEditor() {
   const [showSafety,setShowSafety]=useState(true);
   const [showRoutes,setShowRoutes]=useState(false);
   const [showGuide,setShowGuide]=useState(true);
+  useEffect(()=>{try{if(localStorage.getItem("vanguard-map-studio-guide-dismissed")==="yes")setShowGuide(false);}catch{}},[]);
+  const dismissGuide=()=>{setShowGuide(false);try{localStorage.setItem("vanguard-map-studio-guide-dismissed","yes");}catch{}};
   const [stampMode,setStampMode]=useState(false);
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
@@ -56,6 +59,7 @@ export default function MapEditor() {
   const [zoom,setZoom]=useState(100);
   const [viewport,setViewport]=useState<"3d"|"2d">("3d");
   const [editMode,setEditMode]=useState<StudioMode>("select");
+  const [moveAxis,setMoveAxis]=useState<StudioAxis>("x");
   const [gridSnapEnabled,setGridSnapEnabled]=useState(true);
   const [gridSnapStep,setGridSnapStep]=useState(2);
   const [status,setStatus]=useState("Export the JSON into src/data/map-blueprints.json to publish changes.");
@@ -282,9 +286,12 @@ export default function MapEditor() {
       setStatus(`This original flight has ${flight.indices.length} steps. Maximum safe rise: ${maximum.toFixed(2)}u. For taller stairs add a new authored flight, which generates more steps.`);
       return;
     }
-    const changes=transformStairFlight(effective,flight.indices,t);
+    const prior=normalizeTurns(map.legacyCoverOverrides?.[String(flight.start)]?.turns??0);
+    const delta=normalizeTurns(t.turns-prior);
+    const changes=transformStairFlight(effective,flight.indices,{...t,turns:delta});
     pushUndo();
-    update(m=>({...m,legacyCoverOverrides:{...(m.legacyCoverOverrides??{}),...changes}}));
+    update(m=>({...m,legacyCoverOverrides:{...(m.legacyCoverOverrides??{}),
+      ...Object.fromEntries(Object.entries(changes).map(([key,v])=>[key,{...v,turns:normalizeTurns(t.turns)}]))}}));
     setStatus(`Updated the entire staircase (${flight.indices.length} treads) in one edit.`);
   };
   const changeSelected=(key:string,value:string|number|boolean)=>{
@@ -544,12 +551,12 @@ export default function MapEditor() {
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const key=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       update(m=>({...m,[key]:{...(m[key]??{}),
-        [sel.index]:{x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}}}));
+        [sel.index]:{x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}}}));
       return;
     }
     if(sel.type==="prop"){
       updateProps(props=>props.map((p,i)=>i===sel.index?
-        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p),false);
+        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}:p),false);
       return;
     }
     update(current=>{
@@ -557,20 +564,19 @@ export default function MapEditor() {
         {...r,x:t.x,z:t.z,w:t.w,d:t.d}:r)};
       if(sel.type==="feature")return {...current,features:current.features.map((f,i)=>{
         if(i!==sel.index)return f;
-        const quarter=((t.turns%4)+4)%4;
+        const quarter=normalizeTurns(t.turns-(f.turns??0));
         const rotate=quarter*Math.PI/2;
         const axis=f.axis??"z",sign=f.sign??1;
         const dx=axis==="x"?sign:0,dz=axis==="z"?sign:0;
         const rotatedX=Math.round(Math.cos(rotate)*dx+Math.sin(rotate)*dz);
         const rotatedZ=Math.round(-Math.sin(rotate)*dx+Math.cos(rotate)*dz);
         return {...f,x:t.x,y:t.y,z:t.z,h:Math.max(.3,t.h),
-          w:f.kind==="stairs"&&quarter%2?t.d:t.w,
-          d:f.kind==="stairs"&&quarter%2?t.w:t.d,
+          w:t.w,d:t.d,turns:normalizeTurns(t.turns),
           ...(f.kind==="stairs"?{axis:rotatedX!==0?"x" as const:"z" as const,
             sign:(rotatedX!==0?rotatedX:rotatedZ) as 1|-1}:{})};
       })};
       if(sel.type==="hazard")return {...current,hazards:(current.hazards??[]).map((h,i)=>i===sel.index?
-        {...h,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:h)};
+        {...h,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}:h)};
       if(sel.type==="spawn"){
         const team=sel.team!;
         return {...current,spawns:{...current.spawns,[team]:current.spawns[team].map((p,i)=>i===sel.index?
@@ -734,8 +740,10 @@ export default function MapEditor() {
       <div><div className="text-sm font-black tracking-[.22em]">VANGUARD / MAP STUDIO</div>
         <div className="text-[11px] text-zinc-500">Visual authoring • JSON source of truth • local drafts</div></div>
       <div className="ml-auto flex gap-2 flex-wrap">
-        <button className={btn} onClick={()=>{setEditorTab("blueprint");setSelected(null);}}>Geometry</button>
-        <button className={btn} onClick={()=>{setEditorTab("theme");setSelected(null);}}>Theme & props</button>
+        <button aria-pressed={editorTab==="blueprint"} className={btn+(editorTab==="blueprint"?" bg-amber-500 text-zinc-950":"")}
+          onClick={()=>{setEditorTab("blueprint");setSelected(null);setTool("select");}}>Construction kits</button>
+        <button aria-pressed={editorTab==="theme"} className={btn+(editorTab==="theme"?" bg-amber-500 text-zinc-950":"")}
+          onClick={()=>{setEditorTab("theme");setSelected(null);setTool("select");}}>Paint tools</button>
         {editorTab==="theme"&&<><button className={btn} onClick={()=>themeFileRef.current?.click()}><FileUp size={14}/> Import theme</button>
           <input ref={themeFileRef} type="file" accept=".json,application/json" className="hidden" onChange={importTheme}/>
           <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
@@ -770,12 +778,16 @@ export default function MapEditor() {
           </div>
         </section>
         <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-          <button className="text-xs font-bold text-amber-200 w-full text-left" onClick={()=>setShowGuide(v=>!v)}>
-            First map guide {showGuide?"−":"+"}
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-200">First map guide</span>
+            {showGuide?<button className={btn+" text-amber-200"} onClick={dismissGuide}
+              aria-label="Dismiss first map guide">Dismiss guide ×</button>:
+              <button className={btn} onClick={()=>{setShowGuide(true);try{localStorage.removeItem("vanguard-map-studio-guide-dismissed");}catch{}}}
+                aria-label="Show first map guide">Show guide</button>}
+          </div>
           {showGuide&&<div className="text-xs leading-relaxed text-zinc-300 mt-2 space-y-2">
             <p><b>1.</b> Pick a map or choose New to duplicate its layout.</p>
-            <p><b>2.</b> Choose Theme & props → Building kit, or Geometry → Room / route kit.</p>
+            <p><b>2.</b> Use Paint tools → Building kit, or Construction kits → Room / route kit.</p>
             <p><b>3.</b> In 3D, move over the ground. Green is a valid building position; click to place.</p>
             <p><b>4.</b> Select objects to move or resize. Toggle Collision and Safety overlay to diagnose problems.</p>
             <p><b>5.</b> Choose 0/3/6 bots and Playtest draft. Return without losing your local draft.</p>
@@ -786,7 +798,7 @@ export default function MapEditor() {
           </div>}
         </section>
         <section>
-          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{editorTab==="theme"?"Theme props":"Paint tools"}</div>
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Tools · {editorTab==="theme"?"Paint tools":"Construction kits"}</div>
           <div className="grid grid-cols-2 gap-2">
             {([
               ["select","Select / Move",MousePointer2],
@@ -919,6 +931,14 @@ export default function MapEditor() {
               className={btn+(editMode===m?" bg-amber-500 text-zinc-950":"")}
               onClick={()=>setEditMode(m)}>{m==="select"?"Camera / select":m==="move"?"Move object":m==="rotate"?"Rotate 90°":"Resize object"}</button>)}
           </div>}
+          {viewport==="3d"&&editMode==="move"&&
+            <div className="inline-flex items-center rounded-md border border-emerald-400/40" aria-label="Move axis">
+              <span className="px-2 text-xs text-emerald-200">Lock direction</span>
+              {(["x","y","z"] as StudioAxis[]).map(axis=><button key={axis}
+                title={"Move along "+axis.toUpperCase()+" only"}
+                aria-pressed={moveAxis===axis} className={btn+(moveAxis===axis?" bg-emerald-500 text-zinc-950":"")}
+                onClick={()=>setMoveAxis(axis)}>{axis.toUpperCase()}</button>)}
+            </div>}
           {selected&&<div className="inline-flex items-center gap-1.5">
             <button className={btn} title="Copy the selected object, including built-in map geometry" onClick={duplicate}>
               <Copy size={14}/> Duplicate selected
@@ -944,7 +964,7 @@ export default function MapEditor() {
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
           {viewport==="3d"?
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
-              mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
+              mode={editMode} moveAxis={moveAxis} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
               placementProp={tool==="prop"?createThemeProp(0,0):undefined}
               placementKit={tool==="kit"?(()=>{
                 const preset=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structurePreset);
