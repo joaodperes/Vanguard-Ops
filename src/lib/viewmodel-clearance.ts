@@ -19,7 +19,7 @@ export function adsClearance(
     ["launcher","lmg"].includes(weapon.category);
   // Compact pistols sit close under the reticle, bulkier receivers move down
   // just enough not to obstruct the camera's centre ray.
-  const bodyY=-Math.max(oversized?.29:.205,receiverHeight*1.15+.04);
+  const bodyY=-Math.max(weapon.id==="lmg_heavy"?.355:oversized?.29:.205,receiverHeight*1.15+.04);
   // Normal low-profile mechanical sight on the receiver's existing top rail.
   const sightMountY=receiverHeight*.47+.025;
   return {
