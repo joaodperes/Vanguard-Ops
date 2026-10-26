@@ -484,6 +484,7 @@ export default function MapEditorClient(){
     if(kind==="move"&&sel)move(sel,to.x-from.x,to.z-from.z,e.altKey);
     if(kind==="place"){
       if(teams.includes(tool as Team))place(tool,to,undefined,undefined,e.altKey);
+      else if(tool==="prop"||tool==="kit")place(tool,to,undefined,undefined,e.altKey);
       else place(tool,{x:(from.x+to.x)/2,z:(from.z+to.z)/2},
         {w:Math.max(12,Math.abs(to.x-from.x)),d:Math.max(12,Math.abs(to.z-from.z))},undefined,e.altKey);
     }
@@ -503,11 +504,32 @@ export default function MapEditorClient(){
   const item=feature??hazard??prop??region;
   const spawn=selection?.type==="spawn"&&selection.team?plan.spawns[selection.team][selection.index]:undefined;
   const libraryDirty=dirty?"Unsaved export":"Shipped source";
-  const ghostSnap=ghost&&tool!=="select"?resolveAt(tool,{
-    x:(ghost.from.x+ghost.to.x)/2,z:(ghost.from.z+ghost.to.z)/2},
-    paletteDragging?undefined:{w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
-      d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))},
+  // The selected object's real footprint follows the cursor while dragging.
+  // Commit only on pointer-up, so undo always represents a whole gesture.
+  const movingSel=ghost&&gesture.current?.kind==="move"?gesture.current.sel:null;
+  const movingItem=movingSel?.type==="region"?plan.regions[movingSel.index]:
+    movingSel?.type==="feature"?plan.features[movingSel.index]:
+    movingSel?.type==="hazard"?plan.hazards?.[movingSel.index]:
+    movingSel?.type==="prop"?theme.props[movingSel.index]:null;
+  const moveGhost=ghost&&movingSel&&movingItem?resolveAt(
+    movingSel.type==="feature"?(movingItem as MapFeature).kind as Tool:
+      movingSel.type==="prop"?"prop":movingSel.type==="hazard"?"hazard":"region",
+    {x:movingItem.x+ghost.to.x-ghost.from.x,z:movingItem.z+ghost.to.z-ghost.from.z},
+    {w:movingItem.w??5,d:movingItem.d??5},undefined,false,movingSel.type+":"+movingSel.index):null;
+  const ghostSnap=ghost&&tool!=="select"?resolveAt(tool,
+    tool==="prop"||tool==="kit"?ghost.to:
+      {x:(ghost.from.x+ghost.to.x)/2,z:(ghost.from.z+ghost.to.z)/2},
+    tool==="prop"||tool==="kit"?undefined:
+      {w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
+        d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))},
     paletteDragging??undefined):null;
+  const liveGhost=moveGhost??ghostSnap;
+  const previewIssue=ghostSnap&&tool==="prop"&&(paletteDragging?.buildingKit||propKind==="building")?
+    buildingIssue(ghostSnap.x,ghostSnap.z,ghostSnap.y??0,paletteDragging?.buildingKit??buildingKit):
+    moveGhost&&movingSel?.type==="prop"&&(movingItem as MapProp|undefined)?.kind==="building"?
+      buildingIssue(moveGhost.x,moveGhost.z,moveGhost.y??movingItem?.y??0,
+        buildingKit,movingSel.index,movingItem as MapProp):null;
+  const previewColor=previewIssue?"#fb7185":"#34d399";
 
   return <main className="flex h-screen min-h-[540px] flex-col overflow-hidden bg-[#080b10] text-zinc-100">
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#10151c] px-3 py-2">
@@ -661,18 +683,23 @@ export default function MapEditorClient(){
             onPointerDown={e=>objectDown(e,{type:"spawn",index:i,team})}/>))}
           {showIssues&&issues.map((p,i)=><circle key={i} cx={p.x} cy={p.z} r={2.5}
             fill="none" stroke={p.severity==="error"?"#ef4444":"#fbbf24"} strokeWidth=".8" pointerEvents="none"/>)}
-          {ghost&&<rect x={ghostSnap?ghostSnap.x-ghostSnap.w/2:Math.min(ghost.from.x,ghost.to.x)}
-            y={ghostSnap?ghostSnap.z-ghostSnap.d/2:Math.min(ghost.from.z,ghost.to.z)}
-            width={ghostSnap?ghostSnap.w:Math.max(2,Math.abs(ghost.to.x-ghost.from.x))}
-            height={ghostSnap?ghostSnap.d:Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
-            fill="#34d399" fillOpacity=".2" stroke="#34d399" strokeDasharray="2 2" pointerEvents="none"/>}
-          {ghostSnap?.snappedX!==undefined&&<line x1={ghostSnap.snappedX} x2={ghostSnap.snappedX}
-            y1={bounds.z} y2={bounds.z+bounds.d} stroke="#34d399" strokeDasharray="3 3"
+          {ghost&&<rect x={liveGhost?liveGhost.x-liveGhost.w/2:Math.min(ghost.from.x,ghost.to.x)}
+            y={liveGhost?liveGhost.z-liveGhost.d/2:Math.min(ghost.from.z,ghost.to.z)}
+            width={liveGhost?liveGhost.w:Math.max(2,Math.abs(ghost.to.x-ghost.from.x))}
+            height={liveGhost?liveGhost.d:Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
+            fill={previewColor} fillOpacity=".2" stroke={previewColor} strokeDasharray="2 2" pointerEvents="none"/>}
+          {liveGhost?.snappedX!==undefined&&<line x1={liveGhost.snappedX} x2={liveGhost.snappedX}
+            y1={bounds.z} y2={bounds.z+bounds.d} stroke={previewColor} strokeDasharray="3 3"
             strokeWidth=".6" pointerEvents="none"/>}
-          {ghostSnap?.snappedZ!==undefined&&<line y1={ghostSnap.snappedZ} y2={ghostSnap.snappedZ}
-            x1={bounds.x} x2={bounds.x+bounds.w} stroke="#34d399" strokeDasharray="3 3"
+          {liveGhost?.snappedZ!==undefined&&<line y1={liveGhost.snappedZ} y2={liveGhost.snappedZ}
+            x1={bounds.x} x2={bounds.x+bounds.w} stroke={previewColor} strokeDasharray="3 3"
             strokeWidth=".6" pointerEvents="none"/>}
         </svg>}
+        {view==="2d"&&liveGhost&&(previewIssue||liveGhost.hints.length>0)&&
+          <p className={"pointer-events-none absolute bottom-11 left-2 z-10 max-w-[75%] rounded border bg-black/90 px-3 py-2 text-xs "+
+            (previewIssue?"border-rose-400/40 text-rose-300":"border-emerald-400/30 text-emerald-200")}>
+            {previewIssue?"Blocked: "+previewIssue:liveGhost.hints.join(" · ")}
+          </p>}
         <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/75 px-3 py-1.5 text-[11px] text-zinc-300">
           {view==="3d"?"Left drag orbit · Right drag pan · Wheel zoom · WASD/QE fly · Click to place or select":
             tool==="select"?"Click an object, then drag to move.":"Drag to draw or drop a prefab."} · Magnetic alignment · Alt to bypass
