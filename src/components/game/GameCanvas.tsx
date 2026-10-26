@@ -191,7 +191,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
             <div className="text-sm text-white/60">WASD move · Mouse aim · L-Click fire · R-Click ADS · R reload · Shift sprint · Space jump</div>
             <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard</div>
-            <div className="text-xs text-amber-300/70 mt-2">{firingRange ? "Stationary targets · No purchases, unlocks or rewards · Escape releases the mouse" : "A 5-second countdown will start once you enter the match."}</div>
+            <div className="text-xs text-amber-300/70 mt-2">{firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
         </div>
       )}
