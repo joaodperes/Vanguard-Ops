@@ -21,7 +21,9 @@ describe("Map Studio creator workflow",()=>{
   test("promoting an Afterlight lot masks its generated copy without losing gameplay collision",()=>{
     const blueprint=structuredClone(MAP_BLUEPRINTS.maps.arena_neon);
     const theme=structuredClone(visualThemeForMap("arena_neon"));
-    const initial=mapProps("arena_neon",blueprint,theme);
+    // Choose a lot from the real compiled map, which also considers legacy
+    // outer-ring spawns, not just blueprint-authored spawns.
+    const initial=getMap("arena_neon").props??[];
     const lot=initial.find(p=>p.kind==="building"&&p.lotId);
     expect(lot?.lotId).toBeTruthy();
     blueprint.cityBuildingDisabled=[lot!.lotId!];
