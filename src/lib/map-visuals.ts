@@ -3,12 +3,7 @@
  * one JSON file per map; the 3D builder only knows reusable prop primitives.
  * Never use Math.random here: browser and server share collision silhouettes.
  */
-import bunker from "../data/map-themes/bunker.json";
-import shipyard from "../data/map-themes/shipyard.json";
-import compound from "../data/map-themes/compound.json";
-import terminal from "../data/map-themes/terminal.json";
-import skybridge from "../data/map-themes/skybridge.json";
-import arenaNeon from "../data/map-themes/arena_neon.json";
+import { MAP_DOCUMENTS } from "./map-documents";
 import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
 import { insideRegions, featureBoxes } from "./map-blueprints";
@@ -60,11 +55,8 @@ export interface MapVisualTheme {
   vegetation:number;
   props:MapProp[];
 }
-export const MAP_VISUAL_THEMES: Record<string,MapVisualTheme> = {
-  bunker:bunker as MapVisualTheme,shipyard:shipyard as MapVisualTheme,
-  compound:compound as MapVisualTheme,terminal:terminal as MapVisualTheme,
-  skybridge:skybridge as MapVisualTheme,arena_neon:arenaNeon as MapVisualTheme,
-};
+export const MAP_VISUAL_THEMES: Record<string,MapVisualTheme> =
+  Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,doc])=>[id,doc.theme]));
 
 export function visualThemeForMap(id:string,templateMapId?:string):MapVisualTheme {
   const own=MAP_VISUAL_THEMES[id] ?? MAP_VISUAL_THEMES[templateMapId ?? ""] ?? MAP_VISUAL_THEMES.compound;

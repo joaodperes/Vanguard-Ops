@@ -3,7 +3,7 @@
  * server read these blueprints. Coordinates are world-space X/Z; box width/depth
  * are FULL extents in JSON (unlike CoverBox's half-extents).
  */
-import source from "../data/map-blueprints.json";
+import { MAP_DOCUMENTS } from "./map-documents";
 import type { CoverBox, Vec3 } from "./game-protocol";
 
 export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
@@ -56,7 +56,12 @@ export interface MapHazard {
   turns?: 0 | 1 | 2 | 3;
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
-export const MAP_BLUEPRINTS = source as unknown as MapBlueprintFile;
+/** Compatibility contract for the existing deterministic map compiler. */
+export const MAP_BLUEPRINTS: MapBlueprintFile = {
+  version: 1,
+  units: "world units; X east/west, Z north/south, Y elevation; widths/depths are FULL extents",
+  maps: Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,doc])=>[id,doc.blueprint])),
+};
 
 export function insideRegion(x:number,z:number,r:MapRegion,padding=0):boolean {
   const rx=r.w/2-padding,rz=r.d/2-padding;

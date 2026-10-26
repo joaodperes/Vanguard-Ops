@@ -14,6 +14,7 @@ import {
   ACHIEVEMENT_TIER_COLORS,
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
+import { MAP_DOCUMENTS, validateMapDocument } from "./map-documents";
 import { MAP_VISUAL_THEMES } from "./map-visuals";
 
 const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
@@ -205,7 +206,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
 
-  // Every shipped biome has a separate JSON palette and prop library.
+  // Each shipped biome lives in a single versioned JSON map document.
   // Validate those files as well as walkable geometry, not just map metadata.
   const themeSchema=z.object({
     biome:label,label,ambient:pos,vegetation:unit,
@@ -226,6 +227,10 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),
     })),
   });
+  for(const [mapId,doc] of Object.entries(MAP_DOCUMENTS)) {
+    for(const problem of validateMapDocument(doc)) issues.push("map document "+mapId+": "+problem);
+    if(doc.id!==mapId) issues.push("map document "+mapId+": mismatched ID");
+  }
   for(const [mapId,theme] of Object.entries(MAP_VISUAL_THEMES))
     check("visual theme "+mapId,theme,themeSchema);
     if (MAP_BLUEPRINTS.version !== 1) issues.push("map blueprints: unsupported version");

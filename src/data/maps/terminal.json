@@ -1,0 +1,230 @@
+{
+  "version": 2,
+  "id": "terminal",
+  "blueprint": {
+    "name": "Afterlight City (Day)",
+    "shortName": "DAY",
+    "description": "The identical Afterlight neighborhood and spawns in natural daylight; day and night are lighting variants.",
+    "pace": "tactical",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 150,
+        "d": 150
+      },
+      {
+        "x": -132,
+        "z": -14,
+        "w": 156,
+        "d": 112
+      },
+      {
+        "x": 131,
+        "z": 35,
+        "w": 141,
+        "d": 111
+      },
+      {
+        "x": -25,
+        "z": -126,
+        "w": 132,
+        "d": 120
+      },
+      {
+        "x": 51,
+        "z": 125,
+        "w": 138,
+        "d": 119
+      },
+      {
+        "x": -126,
+        "z": -104,
+        "w": 100,
+        "d": 92
+      },
+      {
+        "x": -111,
+        "z": 74,
+        "w": 112,
+        "d": 103
+      }
+    ],
+    "features": [],
+    "spawns": {
+      "ffa": [
+        [
+          -184,
+          0,
+          -52
+        ],
+        [
+          -184,
+          0,
+          22
+        ],
+        [
+          -148,
+          0,
+          -129
+        ],
+        [
+          -102,
+          0,
+          -131
+        ],
+        [
+          -47,
+          0,
+          -169
+        ],
+        [
+          16,
+          0,
+          -169
+        ],
+        [
+          182,
+          0,
+          -1
+        ],
+        [
+          182,
+          0,
+          79
+        ],
+        [
+          110,
+          0,
+          73
+        ],
+        [
+          99,
+          0,
+          163
+        ],
+        [
+          26,
+          0,
+          167
+        ],
+        [
+          -152,
+          0,
+          106
+        ]
+      ],
+      "red": [
+        [
+          -181,
+          0,
+          -47
+        ],
+        [
+          -182,
+          0,
+          20
+        ],
+        [
+          -150,
+          0,
+          -131
+        ],
+        [
+          -98,
+          0,
+          -131
+        ],
+        [
+          -45,
+          0,
+          -167
+        ],
+        [
+          -156,
+          0,
+          101
+        ]
+      ],
+      "blue": [
+        [
+          183,
+          0,
+          0
+        ],
+        [
+          183,
+          0,
+          78
+        ],
+        [
+          116,
+          0,
+          70
+        ],
+        [
+          101,
+          0,
+          165
+        ],
+        [
+          27,
+          0,
+          163
+        ],
+        [
+          16,
+          0,
+          -168
+        ]
+      ]
+    },
+    "templateMapId": "terminal"
+  },
+  "theme": {
+    "biome": "city_day",
+    "label": "Afterlight day: the same urban building grammar under bright sunlight",
+    "palette": {
+      "floor": "#c5c7b3",
+      "wall": "#d6c7a9",
+      "cover": "#a8bcba",
+      "accent": "#32a6a0",
+      "platform": "#afbdac",
+      "stair": "#e2d5b6",
+      "sky": "#abd6ec",
+      "fog": "#cbe0e6",
+      "grid": "#b7c8b5"
+    },
+    "ambient": 1.85,
+    "vegetation": 0,
+    "props": [],
+    "inheritPropsFrom": "arena_neon",
+    "surfaces": {
+      "floor": {
+        "pattern": "pavers",
+        "tileSize": 8,
+        "roughness": 0.78
+      },
+      "wall": {
+        "pattern": "brick",
+        "tileSize": 5,
+        "roughness": 0.73
+      },
+      "cover": {
+        "pattern": "concrete",
+        "tileSize": 4,
+        "roughness": 0.81
+      },
+      "stair": {
+        "pattern": "pavers",
+        "tileSize": 3.2,
+        "roughness": 0.75
+      },
+      "platform": {
+        "pattern": "concrete",
+        "tileSize": 5,
+        "roughness": 0.83
+      }
+    }
+  }
+}
