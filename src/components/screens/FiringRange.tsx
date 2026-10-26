@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GameCanvas } from "@/components/game/GameCanvas";
+import { RANGE_MOVING_TARGETS, RANGE_SPAWN } from "@/lib/firing-range";
 import { useGame } from "@/lib/game-store";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { LoadoutWire } from "@/lib/game-protocol";
@@ -133,10 +134,19 @@ function RangeSession({ profile, requestedId, onExit }: {
               <div>
                 <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-widest text-lg"><Crosshair className="w-5 h-5" /> Firing Range</div>
                 <p className="text-white/60 text-sm mt-1">Try any weapon, skin or compatible attachment—even locked equipment—before purchasing.</p>
+                <p className="text-cyan-200/80 text-xs mt-2">4 stationary dummies + 3 moving dummies. Blue targets strafe along the cyan rails.</p>
               </div>
               <div className="flex items-center gap-1.5 text-emerald-300 text-xs border border-emerald-500/25 bg-emerald-500/10 rounded-lg px-3 py-2">
                 <ShieldCheck className="w-4 h-4" /> No purchases or profile changes
               </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {RANGE_MOVING_TARGETS.map(target => (
+                <div key={target.id} className="rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2 text-center">
+                  <div className="text-[11px] font-semibold text-cyan-200">{target.id.toUpperCase()} · {target.center[2] - RANGE_SPAWN[2]}m</div>
+                  <div className="text-[10px] text-white/55">{target.speed.toFixed(1)} m/s sideways</div>
+                </div>
+              ))}
             </div>
             <div className="mb-4">
               <label className={labelClass} htmlFor="trial-preset">Start from saved equipment</label>
@@ -205,7 +215,7 @@ function RangeSession({ profile, requestedId, onExit }: {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 items-center justify-between border-t border-white/10 pt-4">
-              <div className="text-xs text-white/50 max-w-sm">Four stationary targets respawn automatically. Use WASD and mouse to move and shoot, 1/2/3 to swap guns, and Escape to release the cursor. Nothing is saved.</div>
+              <div className="text-xs text-white/50 max-w-sm">Four fixed and three moving targets respawn automatically. Track strafing dummies at increasing distances and speeds. Use WASD + mouse, 1/2/3 to swap, and Escape to release the cursor. Nothing is saved.</div>
               <div className="flex gap-2">
                 <Button variant="outline" className="border-white/20 text-white" onClick={() => setDraft(initialTrial(profile, requestedId))}>
                   <RotateCcw className="w-4 h-4 mr-1.5" /> Reset
