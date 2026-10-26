@@ -5,6 +5,7 @@ import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
 import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
+import { FiringRange } from "@/components/screens/FiringRange";
 import { Profile } from "@/components/screens/Profile";
 import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
@@ -171,11 +172,12 @@ export default function Page() {
 
   return (
     <>
-      <MenuMusic active={screen !== "playing"} />
+      <MenuMusic active={screen !== "playing" && screen !== "range"} />
       <div className="dark min-h-screen bg-[#0a0a0a] text-white">
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
+      {screen === "range" && <FiringRange />}
       {screen === "profile" && <Profile />}
       {screen === "settings" && <Settings />}
       {screen === "faq" && <FAQ />}
