@@ -16,22 +16,28 @@ describe("every weapon's physical ADS model vs camera eye and crosshair",()=>{
   for(const w of standard){
     const receiver=(WEAPON_VISUALS[w.id]?.receiver?.[1]??.18);
     const c=adsClearance(w,"iron",receiver);
-    const apertureY=c.bodyY+c.sightLift+.08*1.3;
+    const apertureY=c.bodyY+c.sightMountY*1.2; // physical rigid optic
     expect(c.sightVisible).toBe(true);
     expect(Math.abs(apertureY)).toBeLessThan(.02);
     expect(c.bodyCeiling).toBeLessThan(0);
     expect(c.bodyY).toBeLessThan(apertureY-.20);
   }
  });
- test("Hydra Twin, Reclaimer, RL-7, Breach-2, Swarm-3 and Stormweaver use deep clearance",()=>{
+ test("Hydra Twin, Reclaimer, RL-7, Breach-2, Swarm-3 and Stormweaver use receiver-aware clearance",()=>{
   for(const id of ["rifle_hydra","crossbow_reclaimer","launcher_rocket","launcher_breach",
     "launcher_swarm","wonder_stormweaver","wonder_deadlock"]){
     const w=weaponById(id);
     const c=adsClearance(w,w.baseSightType??"iron",
       WEAPON_VISUALS[id]?.receiver?.[1]);
-    expect(c.bodyY).toBeLessThanOrEqual(-.4);
+    expect(c.bodyY).toBeLessThanOrEqual(-.30);
     expect(c.bodyCeiling).toBeLessThan(0);
   }
+ });
+ test("Plagueheart rests just below the crosshair rather than at the screen bottom",()=>{
+   const w=weaponById("wonder_corrosion");
+   const c=adsClearance(w,"iron",WEAPON_VISUALS[w.id].receiver[1]);
+   expect(c.bodyY).toBeGreaterThan(-.30);
+   expect(c.bodyCeiling).toBeLessThan(0);
  });
  test("weapon art never changes the direction of camera-centre ballistic rays",()=>{
   // Rendering offsets are independent of yaw/pitch. ADS therefore retains
