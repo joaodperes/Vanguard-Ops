@@ -2533,7 +2533,7 @@ export class FPSEngine {
     ).applyMatrix4(this.camera.matrixWorld);
     // Aim direction: same as aimDir but with zero spread (laser shows where you'd actually hit)
     const cp = Math.cos(this.pitch);
-    const dir: Vec3 = [Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp];
+    const dir: Vec3 = [Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch)];
     // Find impact distance: nearest cover box or weapon range, whichever is closer
     let maxT = this.eff.range;
     for (const cov of this.map.cover) {
