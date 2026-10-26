@@ -6720,9 +6720,15 @@ export class FPSEngine {
     }
   }
 
-  private updatePoisonVisual(id: string, pos: Vec3, poisoned: boolean, now: number) {
+  private updatePoisonVisual(id: string, pos: Vec3, status: "poison" | "burn" | null, now: number) {
     let fx = this.poisonBubbles.get(id);
-    if (!poisoned) {
+    // One pool of procedural effects; when the damage type changes, replace
+    // its geometry so acid green never disguises orange flame damage.
+    if (fx && status && fx.userData.status !== status) {
+      this.updatePoisonVisual(id,pos,null,now);
+      fx = undefined;
+    }
+    if (!status) {
       if (fx) {
         this.scene.remove(fx);
         const geometries = new Set<THREE.BufferGeometry>();
@@ -6739,12 +6745,16 @@ export class FPSEngine {
     }
     if (!fx) {
       fx = new THREE.Group();
+      fx.userData.status = status;
+      const burning=status==="burn";
       const aura = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 10),
-        new THREE.MeshBasicMaterial({ color: 0x49ff68, transparent: true, opacity: 0.16, depthWrite: false }));
+        new THREE.MeshBasicMaterial({ color: burning?0xff4715:0x49ff68,
+          transparent: true, opacity: burning?.21:.16, depthWrite: false }));
       aura.position.y = 0.98;
       fx.add(aura);
-      const geo = new THREE.SphereGeometry(0.105, 8, 6);
-      const mat = new THREE.MeshBasicMaterial({ color: 0x80ff61, transparent: true, opacity: 0.78, depthWrite: false });
+      const geo = burning ? new THREE.ConeGeometry(.065,.21,6) : new THREE.SphereGeometry(0.105, 8, 6);
+      const mat = new THREE.MeshBasicMaterial({ color: burning?0xffad2d:0x80ff61,
+        transparent: true, opacity: burning?.9:.78, depthWrite: false });
       for (let i = 0; i < 9; i++) {
         const bubble = new THREE.Mesh(geo, mat);
         bubble.userData.poisonBubble = i;
@@ -6761,11 +6771,12 @@ export class FPSEngine {
         continue;
       }
       const i = index - 2;
-      const t = (now * 0.00055 + i * 0.173) % 1;
+      const burning=status==="burn";
+      const t = (now * (burning?0.0013:0.00055) + i * 0.173) % 1;
       const angle = i * 2.39996 + now * 0.0008;
       child.position.set(Math.cos(angle) * (0.35 + i % 3 * 0.14), 0.18 + t * 1.7,
         Math.sin(angle) * (0.35 + i % 3 * 0.14));
-      child.scale.setScalar(0.6 + 0.6 * (1 - t));
+      child.scale.setScalar((burning?.42:.6) + .6 * (1 - t));
     }
   }
 
@@ -6776,17 +6787,22 @@ export class FPSEngine {
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
     const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
     for (const id of this.poisonBubbles.keys()) {
-      if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], false, now);
+      if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], null, now);
     }
     for (const c of this.combatants.values()) {
-      const poisoned = c.alive && (this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
-        || c.alive && (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now;
-      this.updatePoisonVisual(c.id, c.pos, poisoned, now);
+      const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
+        || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
+      const burning = c.alive && ((this.onlineBurning.get(c.id) ?? 0) > Date.now()
+        || (this.localBurning.get(c.id) ?? 0) > now);
+      this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
-        if (poisoned) {
+        if (burning) {
+          c.skinMaterial.emissive.setHex(0xff4b12);
+          c.skinMaterial.emissiveIntensity = 1.1;
+        } else if (poisoned) {
           c.skinMaterial.emissive.setHex(0x30ff56);
           c.skinMaterial.emissiveIntensity = 1.05;
         } else if (isThermalAds && isEnemy && !c.isSelf) {
