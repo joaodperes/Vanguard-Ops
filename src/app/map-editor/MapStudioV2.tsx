@@ -14,10 +14,14 @@ import {STUDIO_BUILDING_PRESETS,STUDIO_STRUCTURE_PRESETS,studioBuildingPrefab,st
 import {legacyCoverToFeature,legacyFlightToFeature,legacyEnvironmentToHazard,toggleOriginalIndex} from "@/lib/map-object-actions";
 import {stairFlightBounds,transformStairFlight,maxLegacyFlightRise} from "@/lib/legacy-stair-flights";
 import {Undo2,Redo2,Download,Upload,Play,Copy,Trash2,RotateCcw,Plus} from "lucide-react";
+import {snapStudioFootprint,snapStudioElevation,STUDIO_STOREY_HEIGHT,
+  type StudioSnapTarget,type StudioSnapResult} from "@/lib/map-studio-snapping";
 
 type Team="ffa"|"red"|"blue";
 type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
+type PaletteStamp={tool:"prop"|"kit";buildingKit?:StudioBuildingPresetId;structureKit?:StudioStructurePresetId};
+const PALETTE_MIME="application/x-vanguard-map-prefab";
 const teams:Team[]=["ffa","red","blue"];
 const tools:{heading:string;items:[Tool,string][]}[]=[
   {heading:"Floor and districts",items:[["region","Rectangle"],["circle","Ellipse"],["triangle","Triangle"]]},
@@ -65,6 +69,7 @@ export default function MapEditorClient(){
   const [tool,setTool]=useState<Tool>("select");
   const [view,setView]=useState<"3d"|"2d">("3d"),[mode,setMode]=useState<StudioMode>("select");
   const [grid,setGrid]=useState(2),[zoom,setZoom]=useState(1);
+  const [smartSnap,setSmartSnap]=useState(true),[surfaceSnap,setSurfaceSnap]=useState(true);
   const [moveAxis,setMoveAxis]=useState<"x"|"y"|"z">("x");
   const [stamp,setStamp]=useState(false),[showCollision,setShowCollision]=useState(false);
   const [showIssues,setShowIssues]=useState(true),[showRoutes,setShowRoutes]=useState(false);
@@ -90,6 +95,32 @@ export default function MapEditorClient(){
   ]:[],[base,afterlight]);
   const allProps=useMemo(()=>mapProps(id,plan,theme,legacySpawns),[id,plan,theme,legacySpawns]);
   const generated=useMemo(()=>allProps.filter(p=>p.kind==="building"&&!!p.lotId&&!theme.props.includes(p)),[allProps,theme.props]);
+  // Include inherited engine blocks: snapped placements must match the real map,
+  // not just newly authored geometry. Override positions preserve stable indices.
+  const snapTargets=useMemo<StudioSnapTarget[]>(()=>{
+    const features:StudioSnapTarget[]=plan.features.map((f,i)=>({
+      key:"feature:"+i,kind:f.kind==="platform"?"platform":f.kind==="stairs"?"stairs":"cover",
+      x:f.x,z:f.z,w:f.w,d:f.d,y:f.y??0,h:f.h,
+    }));
+    const authored:StudioSnapTarget[]=theme.props.filter(p=>p.kind==="building").map(p=>{
+      const i=theme.props.indexOf(p);
+      return {key:"prop:"+i,kind:"building" as const,x:p.x,z:p.z,w:p.w??20,d:p.d??20,y:p.y??0,h:p.h??5};
+    });
+    const inherited:StudioSnapTarget[]=generated.map(p=>({
+      key:"city:"+p.lotId,kind:"building",x:p.x,z:p.z,w:p.w??20,d:p.d??20,y:p.y??0,h:p.h??5,
+    }));
+    const originals=base.editorLegacyCoverSource??base.cover;
+    const hidden=new Set(plan.legacyCoverDisabled??[]);
+    const legacy:StudioSnapTarget[]=originals.flatMap((b,i)=>{
+      if(hidden.has(i))return [];
+      const box=overrideBox(b,plan.legacyCoverOverrides?.[String(i)]);
+      if(box.size[0]*2<2||box.size[2]*2<2)return [];
+      return [{key:"legacy:"+i,kind:box.kind==="platform"?"platform" as const:"cover" as const,
+        x:box.pos[0],z:box.pos[2],w:box.size[0]*2,d:box.size[2]*2,
+        y:box.pos[1]-box.size[1],h:box.size[1]*2}];
+    });
+    return [...features,...authored,...inherited,...legacy];
+  },[plan,theme.props,generated,base]);
   const issues=useMemo(()=>studioMapIssues(plan,theme.props,legacySpawns),[plan,theme.props,legacySpawns]);
   const routes=useMemo(()=>studioRegionLinks(plan),[plan]);
   const faults=useMemo(()=>[...validateMapDocument(current),...validateBlueprint(plan)],[current,plan]);
@@ -143,16 +174,45 @@ export default function MapEditorClient(){
     };
     window.addEventListener("keydown",fn);return ()=>window.removeEventListener("keydown",fn);
   });
-  const buildingIssue=(x:number,z:number)=>{
-    const house=studioBuildingPrefab(buildingKit,x,z);
-    const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns];
-    return studioBuildingPlacementIssues(house,plan,theme.props,spawns)[0]?.message??null;
+  const getStampSize=(kind:Tool,rect?:{w:number;d:number},choice?:PaletteStamp)=>{
+    if(rect)return rect;
+    if(kind==="prop"){
+      const k=choice?.buildingKit??buildingKit;
+      if(propKind==="building"||choice?.buildingKit){
+        const p=STUDIO_BUILDING_PRESETS.find(p=>p.id===k);
+        return {w:p?.w??20,d:p?.d??20};
+      }
+      return {w:5,d:5};
+    }
+    if(kind==="kit"){
+      const p=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===(choice?.structureKit??structureKit));
+      return {w:p?.width??24,d:p?.depth??22};
+    }
+    return {w:kind==="stairs"?4:kind==="hazard"?6:12,d:kind==="stairs"?10:kind==="hazard"?6:12};
   };
-  const place=(kind:Tool,p:Point,rect?:{w:number;d:number})=>{
-    const snap=(x:number)=>grid?Math.round(x/grid)*grid:x;
-    const x=snap(p.x),z=snap(p.z),w=rect?.w,d=rect?.d;
-    if(kind==="prop"&&propKind==="building"){
-      const problem=buildingIssue(x,z);if(problem){setMessage(problem);return;}
+  const resolveAt=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,
+    bypass=false,ignoreKey?:string):StudioSnapResult=>{
+    const size=getStampSize(kind,rect,choice);
+    const magnetic=["prop","cover","platform","stairs","kit","hazard"].includes(kind);
+    return snapStudioFootprint({...p,...size},snapTargets,{
+      grid,smart:magnetic&&smartSnap&&!bypass,ignoreKey,
+      surface:surfaceSnap&&magnetic&&!bypass,
+    });
+  };
+  const buildingIssue=(x:number,z:number,y=0,kit=buildingKit,excludeIndex=-1)=>{
+    const house={...studioBuildingPrefab(kit,x,z),y};
+    const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns];
+    return studioBuildingPlacementIssues(house,plan,theme.props.filter((_,i)=>i!==excludeIndex),
+      spawns)[0]?.message??null;
+  };
+  const place=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,bypass=false)=>{
+    const placed=resolveAt(kind,p,rect,choice,bypass);
+    const {x,z}=placed,y=placed.y??0,w=rect?.w,d=rect?.d;
+    const selectedKind=choice?.buildingKit?"building":propKind;
+    const chosenKit=choice?.buildingKit??buildingKit;
+    if(kind==="prop"&&selectedKind==="building"){
+      const problem=buildingIssue(x,z,y,chosenKit);
+      if(problem){setMessage("Cannot place building: "+problem);return;}
     }
     let chosen:StudioSelection|null=null;
     edit(all=>{
@@ -164,37 +224,81 @@ export default function MapEditorClient(){
       }else if(["cover","platform","stairs"].includes(kind)){
         chosen={type:"feature",index:bp.features.length};
         const type=kind as MapFeature["kind"];
-        bp.features.push({id:unique("feature"),kind:type,x,z,w:w??(type==="stairs"?4:12),
-          d:d??(type==="stairs"?10:12),h:type==="cover"?2.8:4.2,
+        bp.features.push({id:unique("feature"),kind:type,x,z,y,w:w??(type==="stairs"?4:12),
+          d:d??(type==="stairs"?10:12),h:type==="cover"?2.8:STUDIO_STOREY_HEIGHT,
           label:"New "+type,...(type==="stairs"?{axis:"z" as const,sign:1 as const}:{})});
       }else if(kind==="kit"){
         chosen={type:"feature",index:bp.features.length};
-        bp.features.push(...studioStructurePrefab(structureKit,x,z).map(f=>({...f,id:unique("kit")})));
+        bp.features.push(...studioStructurePrefab(choice?.structureKit??structureKit,x,z).map(f=>
+          ({...f,id:unique("kit"),y:(f.y??0)+y})));
       }else if(kind==="hazard"){
         bp.hazards??=[];chosen={type:"hazard",index:bp.hazards.length};
-        bp.hazards.push({id:unique("hazard"),type:hazardKind,x,z,y:1,w:w??6,d:d??6,h:2,
-          dps:7,damage:25,period:5,activeFor:2,hp:120,launchY:18,toX:x+12,toY:1,toZ:z});
+        bp.hazards.push({id:unique("hazard"),type:hazardKind,x,z,y:y+1,w:w??6,d:d??6,h:2,
+          dps:7,damage:25,period:5,activeFor:2,hp:120,launchY:18,toX:x+12,toY:y+1,toZ:z});
       }else if(kind==="prop"){
         const list=all[afterlight?"arena_neon":id].theme.props;
         chosen={type:"prop",index:list.length};
-        list.push(propKind==="building"?studioBuildingPrefab(buildingKit,x,z):{kind:propKind,x,z,w:w??5,d:d??5,h:5});
+        list.push(selectedKind==="building"?{...studioBuildingPrefab(chosenKit,x,z),y}:
+          {kind:selectedKind,x,z,y,w:w??5,d:d??5,h:5});
       }else if(kind==="ffa"||kind==="red"||kind==="blue"){
         chosen={type:"spawn",team:kind,index:bp.spawns[kind].length};
-        bp.spawns[kind].push([x,0,z]);
+        bp.spawns[kind].push([x,y,z]);
       }
-    },"Placed "+kind);
+    },"Placed "+kind+(placed.hints.length?" · "+placed.hints.join(" · "):""));
     setSelection(chosen);if(!stamp)setTool("select");setMode("move");
   };
-  const move=(s:StudioSelection,dx:number,dz:number)=>{
+  const move=(s:StudioSelection,dx:number,dz:number,bypass=false)=>{
     if(!dx&&!dz)return;
+    const item=s.type==="feature"?plan.features[s.index]:
+      s.type==="hazard"?plan.hazards?.[s.index]:
+      s.type==="prop"?theme.props[s.index]:null;
+    const key=s.type+":"+s.index;
+    const snapped=item?resolveAt(s.type==="feature"?item.kind as Tool:
+      s.type==="prop"?"prop":"hazard",
+      {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key):null;
+    if(s.type==="prop"&&item?.kind==="building"&&snapped){
+      const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item.y??0,
+        buildingKit,s.index);
+      if(problem){setMessage("Cannot move building: "+problem);return;}
+    }
     edit(d=>{
       const bp=d[id].blueprint;
-      const item=s.type==="region"?bp.regions[s.index]:s.type==="feature"?bp.features[s.index]:
+      const target=s.type==="region"?bp.regions[s.index]:s.type==="feature"?bp.features[s.index]:
         s.type==="hazard"?bp.hazards?.[s.index]:
         s.type==="prop"?d[afterlight?"arena_neon":id].theme.props[s.index]:null;
-      if(item){item.x+=dx;item.z+=dz;}
-      if(s.type==="spawn"&&s.team){const p=bp.spawns[s.team][s.index];if(p){p[0]+=dx;p[2]+=dz;}}
-    },"Moved "+caption(s));
+      if(target){
+        target.x=snapped?.x??target.x+dx;target.z=snapped?.z??target.z+dz;
+        if(snapped?.surface&&"y" in target)target.y=snapped.y;
+      }
+      if(s.type==="spawn"&&s.team){const spawn=bp.spawns[s.team][s.index];
+        if(spawn){spawn[0]+=dx;spawn[2]+=dz;}}
+    },"Moved "+caption(s)+(snapped?.hints.length?" · "+snapped.hints.join(" · "):""));
+  };
+  const snapTransform=(s:StudioSelection,t:StudioTransform):StudioTransform=>{
+    if(s.type!=="prop"&&s.type!=="feature"&&s.type!=="hazard")return t;
+    const snapped=snapStudioFootprint(t,snapTargets,{grid,smart:smartSnap,ignoreKey:s.type+":"+s.index});
+    if(moveAxis==="y")return {...t,y:smartSnap?
+      snapStudioElevation(t.y,t,snapTargets.filter(a=>a.key!==s.type+":"+s.index)):t.y};
+    return {...t,x:moveAxis==="x"?snapped.x:t.x,z:moveAxis==="z"?snapped.z:t.z};
+  };
+  const startPaletteDrag=(e:React.DragEvent,choice:PaletteStamp)=>{
+    e.dataTransfer.effectAllowed="copy";
+    e.dataTransfer.setData(PALETTE_MIME,JSON.stringify(choice));
+    setTool(choice.tool);
+    if(choice.buildingKit){setPropKind("building");setBuildingKit(choice.buildingKit);}
+    if(choice.structureKit)setStructureKit(choice.structureKit);
+  };
+  const dropPalette=(data:string,p:Point,bypass=false)=>{
+    try{
+      const parsed=JSON.parse(data) as PaletteStamp;
+      if(parsed.tool==="prop"&&parsed.buildingKit&&STUDIO_BUILDING_PRESETS.some(k=>k.id===parsed.buildingKit)){
+        setPropKind("building");setBuildingKit(parsed.buildingKit);
+        place("prop",p,undefined,parsed,bypass);
+      }else if(parsed.tool==="kit"&&parsed.structureKit&&STUDIO_STRUCTURE_PRESETS.some(k=>k.id===parsed.structureKit)){
+        setStructureKit(parsed.structureKit);
+        place("kit",p,undefined,parsed,bypass);
+      }else setMessage("This prefab cannot be dropped.");
+    }catch{setMessage("Invalid prefab drag data.");}
   };
   const editSelected=(key:string,value:string|number|boolean)=>{
     if(!selection)return;
@@ -363,11 +467,11 @@ export default function MapEditorClient(){
   const canvasUp=(e:React.PointerEvent<SVGSVGElement>)=>{
     if(!gesture.current)return;
     const {from,kind,sel}=gesture.current,to=fromPointer(e);
-    if(kind==="move"&&sel)move(sel,to.x-from.x,to.z-from.z);
+    if(kind==="move"&&sel)move(sel,to.x-from.x,to.z-from.z,e.altKey);
     if(kind==="place"){
-      if(teams.includes(tool as Team))place(tool,to);
+      if(teams.includes(tool as Team))place(tool,to,undefined,undefined,e.altKey);
       else place(tool,{x:(from.x+to.x)/2,z:(from.z+to.z)/2},
-        {w:Math.max(12,Math.abs(to.x-from.x)),d:Math.max(12,Math.abs(to.z-from.z))});
+        {w:Math.max(12,Math.abs(to.x-from.x)),d:Math.max(12,Math.abs(to.z-from.z))},undefined,e.altKey);
     }
     gesture.current=null;setGhost(null);
     try{svgRef.current?.releasePointerCapture(e.pointerId);}catch{}
@@ -385,6 +489,10 @@ export default function MapEditorClient(){
   const item=feature??hazard??prop??region;
   const spawn=selection?.type==="spawn"&&selection.team?plan.spawns[selection.team][selection.index]:undefined;
   const libraryDirty=dirty?"Unsaved export":"Shipped source";
+  const ghostSnap=ghost&&tool!=="select"?resolveAt(tool,{
+    x:(ghost.from.x+ghost.to.x)/2,z:(ghost.from.z+ghost.to.z)/2},
+    {w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
+      d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))}):null;
 
   return <main className="flex h-screen min-h-[540px] flex-col overflow-hidden bg-[#080b10] text-zinc-100">
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#10151c] px-3 py-2">
@@ -424,6 +532,25 @@ export default function MapEditorClient(){
         {tool==="kit"&&<Picker label="Kit" value={structureKit} options={STUDIO_STRUCTURE_PRESETS.map(p=>p.id)}
           save={v=>setStructureKit(v as StudioStructurePresetId)}/>}
         <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400"><input type="checkbox" checked={stamp} onChange={e=>setStamp(e.target.checked)}/> Repeat placement</label>
+        <div className="mt-3 rounded-md border border-emerald-400/25 bg-emerald-950/20 p-2">
+          <div className="mb-1 text-xs font-semibold text-emerald-300">Drag a prefab onto the map</div>
+          <p className="mb-2 text-[10px] text-zinc-400">Or click a building kit and click the viewport. Alt bypasses magnetic snapping.</p>
+          <div className="grid grid-cols-2 gap-1">
+            {STUDIO_BUILDING_PRESETS.map(p=><button key={p.id} draggable
+              onDragStart={e=>startPaletteDrag(e,{tool:"prop",buildingKit:p.id})}
+              onClick={()=>{setTool("prop");setPropKind("building");setBuildingKit(p.id);}}
+              className={btn+" cursor-grab text-left text-[10px] "+(buildingKit===p.id&&tool==="prop"?"border-emerald-400":"")}>
+              {p.label} · {p.h}u
+            </button>)}
+          </div>
+          <p className="mb-1 mt-2 text-[10px] uppercase text-zinc-400">Structure assemblies</p>
+          <div className="grid grid-cols-2 gap-1">
+            {STUDIO_STRUCTURE_PRESETS.map(p=><button key={p.id} draggable
+              onDragStart={e=>startPaletteDrag(e,{tool:"kit",structureKit:p.id})}
+              onClick={()=>{setTool("kit");setStructureKit(p.id);}}
+              className={btn+" cursor-grab text-left text-[10px] "+(structureKit===p.id&&tool==="kit"?"border-emerald-400":"")}>{p.label}</button>)}
+          </div>
+        </div>
         <h3 className="mt-5 border-t border-white/10 pt-3 text-xs font-semibold uppercase text-zinc-400">Object layers</h3>
         {([
           ["Regions",plan.regions.map((_,index)=>({type:"region",index}))],
@@ -451,7 +578,11 @@ export default function MapEditorClient(){
           {view==="3d"&&mode==="move"&&(["x","y","z"] as const).map(axis=><button key={axis} className={btn+(moveAxis===axis?" border-cyan-400 text-cyan-300":"")} onClick={()=>setMoveAxis(axis)}>{axis.toUpperCase()}</button>)}
         </div>
         <div className="absolute right-2 top-2 z-10 flex items-center gap-2 rounded-lg bg-black/80 p-2 text-xs">
-          <span>Snap</span>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={smartSnap}
+            onChange={e=>setSmartSnap(e.target.checked)}/> Magnetic</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={surfaceSnap}
+            onChange={e=>setSurfaceSnap(e.target.checked)}/> Surfaces</label>
+          <span>Grid</span>
           <select value={grid} onChange={e=>setGrid(Number(e.target.value))} className="bg-zinc-900">
             {[0,1,2,5,10].map(n=><option key={n} value={n}>{n===0?"off":n+"u"}</option>)}
           </select>
@@ -463,13 +594,23 @@ export default function MapEditorClient(){
             placementProp={tool==="prop"?(propKind==="building"?studioBuildingPrefab(buildingKit,0,0):{kind:propKind,x:0,z:0,w:5,d:5,h:5}):undefined}
             placementKit={tool==="kit"?(()=>{const p=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structureKit);return p?{w:p.width,d:p.depth}:undefined;})():undefined}
             warnings={showIssues?issues:[]} regionLinks={showRoutes?routes:[]}
-            placementProblem={tool==="prop"&&propKind==="building"?buildingIssue:undefined}
+            placementProblem={tool==="prop"&&propKind==="building"?
+              (x,z,y)=>buildingIssue(x,z,y):undefined}
+            onResolvePlacement={(name,p,options)=>resolveAt(name as Tool,p,undefined,undefined,options?.bypass)}
+            onSnapTransform={snapTransform} onDropAt={dropPalette}
             onInvalidPlacement={setMessage} onSelect={setSelection} onTransform={transform}
-            onAddAt={(name,p)=>place(name as Tool,p)}/>
+            onAddAt={(name,p,bypass)=>place(name as Tool,p,undefined,undefined,bypass)}/>
         :<svg ref={svgRef} viewBox={[bounds.x,bounds.z,bounds.w,bounds.d].join(" ")}
           preserveAspectRatio="xMidYMid meet" className="h-full w-full touch-none"
           onPointerDown={canvasDown} onPointerMove={e=>{if(gesture.current)setGhost({from:gesture.current.from,to:fromPointer(e)});}}
-          onPointerUp={canvasUp} onPointerCancel={()=>{gesture.current=null;setGhost(null);}}>
+          onPointerUp={canvasUp} onPointerCancel={()=>{gesture.current=null;setGhost(null);}}
+          onDragOver={e=>{if(Array.from(e.dataTransfer.types).includes(PALETTE_MIME)){
+            e.preventDefault();e.dataTransfer.dropEffect="copy";const p=fromPointer(e);
+            setGhost({from:p,to:p});
+          }}}
+          onDragLeave={()=>{if(!gesture.current)setGhost(null);}}
+          onDrop={e=>{e.preventDefault();const data=e.dataTransfer.getData(PALETTE_MIME);
+            if(data)dropPalette(data,fromPointer(e),e.altKey);setGhost(null);}}>
           <rect x={bounds.x} y={bounds.z} width={bounds.w} height={bounds.d} fill="#131b25"/>
           {Array.from({length:Math.min(150,Math.ceil(bounds.w/20)+2)},(_,i)=>{
             const x=Math.floor(bounds.x/20)*20+i*20;return <line key={"x"+i} x1={x} x2={x} y1={bounds.z} y2={bounds.z+bounds.d} stroke="#475569" strokeWidth=".25"/>;
@@ -502,13 +643,21 @@ export default function MapEditorClient(){
             onPointerDown={e=>objectDown(e,{type:"spawn",index:i,team})}/>))}
           {showIssues&&issues.map((p,i)=><circle key={i} cx={p.x} cy={p.z} r={2.5}
             fill="none" stroke={p.severity==="error"?"#ef4444":"#fbbf24"} strokeWidth=".8" pointerEvents="none"/>)}
-          {ghost&&<rect x={Math.min(ghost.from.x,ghost.to.x)} y={Math.min(ghost.from.z,ghost.to.z)}
-            width={Math.max(2,Math.abs(ghost.to.x-ghost.from.x))} height={Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
-            fill="#fbbf24" fillOpacity=".2" stroke="#fbbf24" strokeDasharray="2 2" pointerEvents="none"/>}
+          {ghost&&<rect x={ghostSnap?ghostSnap.x-ghostSnap.w/2:Math.min(ghost.from.x,ghost.to.x)}
+            y={ghostSnap?ghostSnap.z-ghostSnap.d/2:Math.min(ghost.from.z,ghost.to.z)}
+            width={ghostSnap?ghostSnap.w:Math.max(2,Math.abs(ghost.to.x-ghost.from.x))}
+            height={ghostSnap?ghostSnap.d:Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
+            fill="#34d399" fillOpacity=".2" stroke="#34d399" strokeDasharray="2 2" pointerEvents="none"/>}
+          {ghostSnap?.snappedX!==undefined&&<line x1={ghostSnap.snappedX} x2={ghostSnap.snappedX}
+            y1={bounds.z} y2={bounds.z+bounds.d} stroke="#34d399" strokeDasharray="3 3"
+            strokeWidth=".6" pointerEvents="none"/>}
+          {ghostSnap?.snappedZ!==undefined&&<line y1={ghostSnap.snappedZ} y2={ghostSnap.snappedZ}
+            x1={bounds.x} x2={bounds.x+bounds.w} stroke="#34d399" strokeDasharray="3 3"
+            strokeWidth=".6" pointerEvents="none"/>}
         </svg>}
         <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/75 px-3 py-1.5 text-[11px] text-zinc-300">
           {view==="3d"?"Left drag orbit · Right drag pan · Wheel zoom · WASD/QE fly · Click to place or select":
-            tool==="select"?"Click an object, then drag to move.":"Drag to draw an object."}
+            tool==="select"?"Click an object, then drag to move.":"Drag to draw or drop a prefab."} · Magnetic alignment · Alt to bypass
         </p>
       </section>
       <aside className="w-full shrink-0 overflow-auto border-t border-white/10 bg-[#10151c] p-4 lg:w-72 lg:border-l lg:border-t-0">
