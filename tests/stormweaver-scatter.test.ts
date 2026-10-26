@@ -7,7 +7,7 @@ import {
   STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_MINE_ARM_MS,
   STORM_MINE_LIFETIME_MS, STORM_MINE_TRIGGER_RADIUS,
   STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET,
-  STORM_MINE_DAMAGE, STORM_MINE_CHAIN_RADIUS,
+  STORM_MINE_DAMAGE, STORM_MINE_CHAIN_RADIUS, STORM_DIRECT_DAMAGE, STORM_SPREAD,
 } from "../src/lib/stormweaver";
 
 const enemy=(id:string,pos:Vec3) => ({
@@ -76,6 +76,10 @@ describe("Stormweaver scattershot + deployable energy mines",()=>{
    expect(stormTargetPoint(enemy("a",[0,2,0]))).toEqual([0,3.05,0]);
    const w=weaponById("wonder_stormweaver");
    expect(w.wonder?.radius).toBe(STORM_MINE_CHAIN_RADIUS);
-   expect(w.description).toContain("missed pellets");
+   expect(w.description).toContain("mines");
+   expect(w.category).toBe("shotgun");
+   expect(STORM_SPREAD).toBeLessThan(.08);
+   expect(STORM_DIRECT_DAMAGE).toBeGreaterThan(16);
+   expect(w.stats.damage).toBe(STORM_DIRECT_DAMAGE);
  });
 });
