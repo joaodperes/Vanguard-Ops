@@ -90,8 +90,8 @@ function RangeSession({ profile, requestedId, onExit }: {
     setApplied({
       ...draft,
       attachments: { ...draft.attachments },
-      secondaryAttachments: { ...draft.secondaryAttachments },
-      meleeAttachments: { ...draft.meleeAttachments },
+      secondaryAttachments: normalize(draft.secondaryAttachments),
+      meleeAttachments: normalize(draft.meleeAttachments),
     });
     setSession(value => value + 1);
     setEditing(false);
