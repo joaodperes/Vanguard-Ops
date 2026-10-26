@@ -5,7 +5,7 @@ import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from 
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
-export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "faq" | "playing" | "results";
+export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "faq" | "playing" | "results" | "range";
 
 export interface PlayConfig {
   mode: GameMode;
@@ -77,6 +77,8 @@ interface GameStore {
   playerKey: string;
   profile: PlayerProfileView | null;
   screen: Screen;
+  rangeWeaponId: string | null;
+  setRangeWeaponId: (id: string | null) => void;
   playConfig: PlayConfig;
   matchResult: MatchResultView | null;
   // room lobby (Play screen)
@@ -117,6 +119,8 @@ export const useGame = create<GameStore>((set, get) => ({
   playerKey: typeof window !== "undefined" ? loadPlayerKey() : "p_init",
   profile: null,
   screen: "auth",
+  rangeWeaponId: null,
+  setRangeWeaponId: (id) => set({ rangeWeaponId: id }),
   playConfig: { mode: "ffa", botCount: 5, online: false, scoreLimit: 30, timeLimit: 8, mapId: "compound", botDifficulty: "normal" },
   matchResult: null,
   roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, tagLifetimeMs: 25000, denialScoreEnabled: false, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2, survivalTier: "default" },
