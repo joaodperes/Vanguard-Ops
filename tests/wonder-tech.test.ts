@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {WEAPONS} from "../src/lib/game-data";
 import {WEAPON_VISUALS} from "../src/lib/weapon-models";
-import {selectSmartTarget,selectSmartTargets,SMART_MAX_TAGS,HELLFIRE_BURST_MS,inFlameCone,nearStormLink,sludgeMovementFactor} from "../src/lib/wonder-tech";
+import {selectSmartTarget,selectSmartTargets,SMART_MAX_TAGS,HELLFIRE_BURST_MS,inFlameCone,sludgeMovementFactor} from "../src/lib/wonder-tech";
 const ids=["wonder_deadlock","wonder_hellfire","wonder_stormweaver","wonder_bogfather"];
 describe("Novel Wonder families",()=>{
  test("four genuinely distinct kinds with token-only ownership and their own first-person silhouettes",()=>{
@@ -20,10 +20,6 @@ describe("Novel Wonder families",()=>{
   expect(inFlameCone([0,1,0],[0,0,1],[2,1,11])).toBe(true);
   expect(inFlameCone([0,1,0],[0,0,1],[8,1,11])).toBe(false);
   expect(inFlameCone([0,1,0],[0,0,1],[0,1,-3])).toBe(false);
- });
- test("storm link uses finite-width, clamped segment",()=>{
-  expect(nearStormLink([0,0,0],[10,0,0],[5,0,1])).toBe(true);
-  expect(nearStormLink([0,0,0],[10,0,0],[5,0,5])).toBe(false);
  });
  test("sludge slows only hostile players in unexpired puddles",()=>{
   const pools=[{kind:"sludge",pos:[0,0,0] as const,radius:4,ownerTeam:"red",expiresAt:1000}];
@@ -76,7 +72,8 @@ describe("three-second fuel consumption and sight defaults",()=>{
   for(const w of WEAPONS.filter(w=>w.wonder))expect(w.description.startsWith("Wonder Weapon:")).toBe(false);
   const storm=weaponById("wonder_stormweaver");
   expect(storm.stats.range).toBe(82);
-  expect(storm.wonder!.radius).toBe(19);
+  expect(storm.wonder!.radius).toBe(9);
+  expect(storm.stats.pellets).toBe(7);
  });
 });
 

@@ -28,7 +28,7 @@ Run the safe schema update **before starting the new app/server build**.
 | Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
 | Deadlock | ADS-validated guided bullet; cover breaks tag | 2 | 29s | -1.6s |
 | Hellfire | Short-range cone and persistent burning trails | 2 | 28s | -1.7s |
-| Stormweaver | Chain lightning and linked conductive anchors | 2 | 31s | -1.8s |
+| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
 | Bogfather | Damaging and movement-slowing sludge pools | 2 | 35s | -1.7s |
 
 A Wonder Weapon costs **one token** and is permanently owned. It equips into

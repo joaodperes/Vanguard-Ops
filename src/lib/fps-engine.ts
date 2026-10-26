@@ -24,7 +24,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, HELLFIRE_RANGE, inFlameCone, nearStormLink, sludgeMovementFactor } from "./wonder-tech";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -37,6 +37,7 @@ import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
@@ -544,7 +545,8 @@ export class FPSEngine {
   private onlinePoisoned = new Map<string, number>();
   private poisonBubbles = new Map<string, THREE.Group>();
   private wonderFields = new Map<string, { mesh: THREE.Mesh; offline: boolean; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>();
-  private offlineStormAnchor: { pos: Vec3; expiresAt: number } | null = null;
+  private stormMines = new Map<string,{mesh:THREE.Group; pos:Vec3;expiresAt:number;armedAt:number;offline:boolean;ownerId:string;ownerTeam:string}>();
+  private stormMineCooldown = new Map<string,number>();
   private smartTags = new Map<string,number>();
   private hellfireActiveUntil = 0;
   private localWonderSequence = 0;
@@ -3924,6 +3926,15 @@ export class FPSEngine {
           for(const f of msg.wonderFields)this.addWonderField(f.id,f.ownerId,f.ownerTeam,f.weaponId,f.kind,f.pos,f.radius,f.expiresAt,false);
           for(const [id,f] of this.wonderFields)if(!f.offline&&!active.has(id))this.removeWonderField(id);
         }
+        if(msg.stormMines){
+          const active=new Set(msg.stormMines.map(m=>m.id));
+          for(const mine of msg.stormMines)
+            this.addStormMine(mine.id,mine.pos,msg.serverNow
+              ? gravityClientTime(mine.expiresAt,msg.serverNow,Date.now())
+              : mine.expiresAt,false,"","");
+          for(const [id,mine] of this.stormMines)
+            if(!mine.offline&&!active.has(id))this.removeStormMine(id);
+        }
         if (msg.turrets) {
           const activeIds = new Set(msg.turrets.map(t => t.id));
           for (const t of msg.turrets) {
@@ -4242,6 +4253,13 @@ export class FPSEngine {
       case "wonderBeam":
         this.spawnWonderBeam(msg.from, msg.to, msg.kind);
         break;
+      case "stormMinePlaced":
+        this.addStormMine(msg.id,msg.pos,msg.expiresAt,false,"","");
+        break;
+      case "stormMineRemoved":
+        this.removeStormMine(msg.id);
+        if(msg.triggered)this.spawnStormMineBurst(msg.pos);
+        break;
       case "wonderField":
         this.addWonderField(msg.id,msg.ownerId,msg.ownerTeam,msg.weaponId,msg.kind,msg.pos,msg.radius,msg.expiresAt,false);
         break;
@@ -4280,6 +4298,8 @@ export class FPSEngine {
           if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
+          } else if (msg.weaponId==="wonder_stormweaver") {
+            // Server broadcasts the seven pellet paths and their chain arcs.
           } else if (msg.weaponId==="wonder_hellfire") {
             this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
@@ -4706,6 +4726,7 @@ export class FPSEngine {
       if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
     }
     const time=Date.now();
+    this.updateStormMines(time);
     for(const [id,field] of this.wonderFields){
       if(time>=field.expiresAt){this.removeWonderField(id);continue;}
       const mat=field.mesh.material as THREE.MeshBasicMaterial;
@@ -4872,6 +4893,90 @@ export class FPSEngine {
       this.tracers.push({line,born:performance.now(),life:kind==="smart"?340:470});
     }
   }
+  /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
+  private stormVictims(ownerId:string,ownerTeam:string):StormVictim[]{
+    return [...this.combatants.values()].map(c=>({
+      id:c.id,pos:c.pos,alive:c.alive,team:c.team,
+      protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now(),
+    })).filter(c=>stormEnemy(c,ownerId,ownerTeam,
+      this.opts.mode==="ffa"||this.opts.mode==="gungame"));
+  }
+  private chainStormOffline(first:Combatant,baseDamage:number,jumps:number,counts?:Map<string,number>){
+    const visited=new Set([first.id]);
+    let from:Vec3=[first.pos[0],first.pos[1]+1.05,first.pos[2]];
+    for(let jump=1;jump<=jumps;jump++){
+      const next=nextStormChainTarget(from,this.stormVictims(this.selfId,this.opts.team),
+        visited,this.selfId,this.opts.team,
+        this.opts.mode==="ffa"||this.opts.mode==="gungame",
+        STORM_MINE_CHAIN_RADIUS,(a,b)=>this.hasLineOfSight(a,b));
+      if(!next)break;
+      visited.add(next.id);
+      const to=stormTargetPoint(next);
+      this.spawnWonderBeam(from,to,"storm");
+      const victim=this.combatants.get(next.id);
+      if(victim?.alive){
+        const count=counts?.get(victim.id)??0;
+        if(count<2){
+          this.applyDamageLocal(victim,baseDamage*Math.pow(STORM_CHAIN_DECAY,jump),
+            false,"wonder_stormweaver");
+          counts?.set(victim.id,count+1);
+        }
+      }
+      from=to;
+    }
+  }
+  private addStormMine(id:string,pos:Vec3,expiresAt:number,offline:boolean,
+    ownerId:string,ownerTeam:string){
+    if(this.stormMines.has(id))return;
+    const group=new THREE.Group();
+    const bright=new THREE.MeshBasicMaterial({color:0x81f7ff,depthWrite:false});
+    const dim=new THREE.MeshBasicMaterial({color:0x2779ff,transparent:true,opacity:.75,depthWrite:false});
+    const core=new THREE.Mesh(new THREE.OctahedronGeometry(.20,0),bright);
+    core.position.y=.13;group.add(core);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.37,.048,7,24),dim);
+    ring.rotation.x=-Math.PI/2;group.add(ring);
+    const cross=new THREE.Mesh(new THREE.TorusGeometry(.23,.029,6,18),bright);
+    cross.rotation.y=Math.PI/2;cross.position.y=.14;group.add(cross);
+    group.position.set(...pos);
+    this.scene.add(group);
+    this.stormMines.set(id,{mesh:group,pos,expiresAt,armedAt:Date.now()+STORM_MINE_ARM_MS,
+      offline,ownerId,ownerTeam});
+  }
+  private removeStormMine(id:string){
+    const mine=this.stormMines.get(id);if(!mine)return;
+    this.scene.remove(mine.mesh);
+    mine.mesh.traverse(obj=>{if(obj instanceof THREE.Mesh){
+      obj.geometry.dispose();
+      for(const mat of Array.isArray(obj.material)?obj.material:[obj.material])mat.dispose();
+    }});
+    this.stormMines.delete(id);
+  }
+  private spawnStormMineBurst(pos:Vec3){
+    const a:Vec3=[pos[0],pos[1]+.15,pos[2]],b:Vec3=[pos[0],pos[1]+1.3,pos[2]];
+    this.spawnWonderBeam(a,b,"storm");
+  }
+  private updateStormMines(now:number){
+    for(const [id,mine] of this.stormMines){
+      if(now>=mine.expiresAt){this.removeStormMine(id);continue;}
+      mine.mesh.rotation.y+=.035;
+      mine.mesh.scale.setScalar(.92+Math.sin(now*.007+mine.pos[0])*.12);
+      if(!mine.offline||this.opts.online||this.matchEnded||now<mine.armedAt)continue;
+      const target=this.stormVictims(mine.ownerId,mine.ownerTeam).find(c=>
+        (this.stormMineCooldown.get(mine.ownerId+":"+c.id)??0)<=now&&
+        stormMineInReach(mine.pos,c.pos)&&
+        this.hasLineOfSight(mine.pos,stormTargetPoint(c)));
+      if(!target)continue;
+      this.removeStormMine(id);
+      this.stormMineCooldown.set(mine.ownerId+":"+target.id,now+STORM_MINE_TARGET_COOLDOWN_MS);
+      this.spawnStormMineBurst(mine.pos);
+      this.spawnWonderBeam(mine.pos,stormTargetPoint(target),"storm");
+      const victim=this.combatants.get(target.id);
+      if(victim?.alive){
+        this.applyDamageLocal(victim,STORM_MINE_DAMAGE,false,"wonder_stormweaver");
+        this.chainStormOffline(victim,STORM_MINE_DAMAGE,STORM_MINE_JUMPS);
+      }
+    }
+  }
   private removeWonderField(id:string){
     const field=this.wonderFields.get(id);if(!field)return;
     this.scene.remove(field.mesh);field.mesh.geometry.dispose();
@@ -4961,32 +5066,29 @@ export class FPSEngine {
       return;
     }
     if(kind==="storm"){
-      const impact=this.boltLanding(origin,dir);
-      const node:Vec3=[impact[0],this.pos.y+1.1,impact[2]];
-      const prev=this.offlineStormAnchor;
-      if(prev&&prev.expiresAt>Date.now()&&Math.hypot(prev.pos[0]-node[0],prev.pos[2]-node[2])<=24){
-        this.spawnWonderBeam(prev.pos,node,"storm");
-        for(const c of enemies()){
-          if(nearStormLink(prev.pos,node,c.pos,1.7)&&this.hasLineOfSight(prev.pos,[c.pos[0],c.pos[1]+1,c.pos[2]]))
-            this.applyDamageLocal(c,this.eff.damage*.62,false,w.id);
+      const hits=new Map<string,number>(),chains=new Map<string,number>();
+      for(const pelletDir of stormPelletDirections(dir)){
+        const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.map.cover,
+          this.stormVictims(this.selfId,this.opts.team));
+        this.spawnWonderBeam(origin,impact.victim?stormTargetPoint(impact.victim):impact.point,"storm");
+        if(impact.victim){
+          const victim=this.combatants.get(impact.victim.id);
+          if(!victim?.alive)continue;
+          const amount=hits.get(victim.id)??0;
+          if(amount<STORM_MAX_DIRECT_HITS_PER_TARGET){
+            this.applyDamageLocal(victim,STORM_DIRECT_DAMAGE,false,w.id);
+            hits.set(victim.id,amount+1);
+          }
+          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,chains);
+        }else{
+          const place=stormMinePosition(impact.point,this.map.cover);
+          const owned=[...this.stormMines].filter(([,m])=>m.offline&&m.ownerId===this.selfId);
+          if(owned.length>=STORM_MAX_MINES_PER_OWNER)this.removeStormMine(owned[0][0]);
+          const id="offline_storm_"+(++this.localWonderSequence);
+          this.addStormMine(id,place,Date.now()+STORM_MINE_LIFETIME_MS,true,this.selfId,this.opts.team);
         }
       }
-      this.offlineStormAnchor={pos:node,expiresAt:Date.now()+10000};
-      const first=this.localFireRay(origin,dir,w.stats.headshotMult);
-      let from:Vec3=first?[first.pos[0],first.pos[1]+1,first.pos[2]]:node;
-      const visited=new Set<string>();if(first)visited.add(first.id);
-      else this.spawnWonderBeam(origin,node,"storm");
-      for(let j=1;j<=4;j++){
-        const next=enemies().filter(c=>!visited.has(c.id)&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=Date.now())&&
-          Math.hypot(c.pos[0]-from[0],c.pos[2]-from[2])<=w.wonder!.radius&&
-          this.hasLineOfSight(from,[c.pos[0],c.pos[1]+1,c.pos[2]]))
-          .sort((a,b)=>Math.hypot(a.pos[0]-from[0],a.pos[2]-from[2])-Math.hypot(b.pos[0]-from[0],b.pos[2]-from[2]))[0];
-        if(!next)break;
-        const to:Vec3=[next.pos[0],next.pos[1]+1,next.pos[2]];
-        this.spawnWonderBeam(from,to,"storm");
-        this.applyDamageLocal(next,this.eff.damage*Math.pow(.76,j),false,w.id);
-        visited.add(next.id);from=to;
-      }
+      return;
     }
   }
 
