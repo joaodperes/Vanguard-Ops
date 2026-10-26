@@ -10,9 +10,9 @@ const deck:StudioSnapTarget={key:"deck",kind:"platform",x:60,z:0,w:32,d:32,y:2,h
 const candidate=(x:number,z=0,w=20,d=20)=>({x,z,w,d});
 describe("structure-aware studio snapping",()=>{
   test("configurable grid and direct face magnetism",()=>{
-    const r=snapStudioFootprint(candidate(42.2),[wall],{grid:2});
-    expect(r.x).toBe(43); // 10 + 10 + 3 clearance
-    expect(r.snappedX).toBe(43);
+    const r=snapStudioFootprint(candidate(22.2),[wall],{grid:2});
+    expect(r.x).toBe(23); // 10 + 10 + 3 clearance
+    expect(r.snappedX).toBe(23);
     expect(r.hints.length).toBeGreaterThan(0);
   });
   test("front/back edge and center alignment within radius only",()=>{
@@ -31,7 +31,7 @@ describe("structure-aware studio snapping",()=>{
   test("supports fully contained objects on highest elevated surface",()=>{
     const r=snapStudioFootprint(candidate(60,0,8,8),[deck,wall],{surface:true,grid:0});
     expect(r.y).toBe(8);expect(r.surface).toBe("deck");
-    expect(snapStudioFootprint(candidate(72,0,12,12),[deck],{surface:true,grid:0}).y).toBeUndefined();
+    expect(snapStudioFootprint(candidate(74,0,12,12),[deck],{surface:true,grid:0}).y).toBeUndefined();
   });
   test("vertical snapping uses deck height and standardized floors",()=>{
     expect(snapStudioElevation(7.5,candidate(60,0,8,8),[deck])).toBe(8);

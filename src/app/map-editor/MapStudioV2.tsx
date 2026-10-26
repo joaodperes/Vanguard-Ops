@@ -70,6 +70,7 @@ export default function MapEditorClient(){
   const [view,setView]=useState<"3d"|"2d">("3d"),[mode,setMode]=useState<StudioMode>("select");
   const [grid,setGrid]=useState(2),[zoom,setZoom]=useState(1);
   const [smartSnap,setSmartSnap]=useState(true),[surfaceSnap,setSurfaceSnap]=useState(true);
+  const [paletteDragging,setPaletteDragging]=useState<PaletteStamp|null>(null);
   const [moveAxis,setMoveAxis]=useState<"x"|"y"|"z">("x");
   const [stamp,setStamp]=useState(false),[showCollision,setShowCollision]=useState(false);
   const [showIssues,setShowIssues]=useState(true),[showRoutes,setShowRoutes]=useState(false);
@@ -199,8 +200,8 @@ export default function MapEditorClient(){
       surface:surfaceSnap&&magnetic&&!bypass,
     });
   };
-  const buildingIssue=(x:number,z:number,y=0,kit=buildingKit,excludeIndex=-1)=>{
-    const house={...studioBuildingPrefab(kit,x,z),y};
+  const buildingIssue=(x:number,z:number,y=0,kit=buildingKit,excludeIndex=-1,source?:MapProp)=>{
+    const house={...(source??studioBuildingPrefab(kit,x,z)),x,z,y};
     const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns];
     return studioBuildingPlacementIssues(house,plan,theme.props.filter((_,i)=>i!==excludeIndex),
       spawns)[0]?.message??null;
@@ -258,7 +259,7 @@ export default function MapEditorClient(){
       {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key):null;
     if(s.type==="prop"&&item?.kind==="building"&&snapped){
       const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item.y??0,
-        buildingKit,s.index);
+        buildingKit,s.index,item as MapProp);
       if(problem){setMessage("Cannot move building: "+problem);return;}
     }
     edit(d=>{
@@ -282,6 +283,7 @@ export default function MapEditorClient(){
     return {...t,x:moveAxis==="x"?snapped.x:t.x,z:moveAxis==="z"?snapped.z:t.z};
   };
   const startPaletteDrag=(e:React.DragEvent,choice:PaletteStamp)=>{
+    setPaletteDragging(choice);
     e.dataTransfer.effectAllowed="copy";
     e.dataTransfer.setData(PALETTE_MIME,JSON.stringify(choice));
     setTool(choice.tool);
@@ -289,6 +291,7 @@ export default function MapEditorClient(){
     if(choice.structureKit)setStructureKit(choice.structureKit);
   };
   const dropPalette=(data:string,p:Point,bypass=false)=>{
+    setPaletteDragging(null);
     try{
       const parsed=JSON.parse(data) as PaletteStamp;
       if(parsed.tool==="prop"&&parsed.buildingKit&&STUDIO_BUILDING_PRESETS.some(k=>k.id===parsed.buildingKit)){
@@ -443,7 +446,7 @@ export default function MapEditorClient(){
       window.location.assign("/map-editor/playtest");
     }catch(error){setMessage("Playtest failed: "+String(error));}
   };
-  const fromPointer=(e:React.PointerEvent<SVGElement>):Point=>{
+  const fromPointer=(e:{clientX:number;clientY:number}):Point=>{
     const svg=svgRef.current;
     if(!svg)return {x:0,z:0};
     const point=svg.createSVGPoint();point.x=e.clientX;point.y=e.clientY;
@@ -491,8 +494,9 @@ export default function MapEditorClient(){
   const libraryDirty=dirty?"Unsaved export":"Shipped source";
   const ghostSnap=ghost&&tool!=="select"?resolveAt(tool,{
     x:(ghost.from.x+ghost.to.x)/2,z:(ghost.from.z+ghost.to.z)/2},
-    {w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
-      d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))}):null;
+    paletteDragging?undefined:{w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
+      d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))},
+    paletteDragging??undefined):null;
 
   return <main className="flex h-screen min-h-[540px] flex-col overflow-hidden bg-[#080b10] text-zinc-100">
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#10151c] px-3 py-2">
@@ -538,6 +542,7 @@ export default function MapEditorClient(){
           <div className="grid grid-cols-2 gap-1">
             {STUDIO_BUILDING_PRESETS.map(p=><button key={p.id} draggable
               onDragStart={e=>startPaletteDrag(e,{tool:"prop",buildingKit:p.id})}
+              onDragEnd={()=>{setPaletteDragging(null);setGhost(null);}}
               onClick={()=>{setTool("prop");setPropKind("building");setBuildingKit(p.id);}}
               className={btn+" cursor-grab text-left text-[10px] "+(buildingKit===p.id&&tool==="prop"?"border-emerald-400":"")}>
               {p.label} · {p.h}u
@@ -547,6 +552,7 @@ export default function MapEditorClient(){
           <div className="grid grid-cols-2 gap-1">
             {STUDIO_STRUCTURE_PRESETS.map(p=><button key={p.id} draggable
               onDragStart={e=>startPaletteDrag(e,{tool:"kit",structureKit:p.id})}
+              onDragEnd={()=>{setPaletteDragging(null);setGhost(null);}}
               onClick={()=>{setTool("kit");setStructureKit(p.id);}}
               className={btn+" cursor-grab text-left text-[10px] "+(structureKit===p.id&&tool==="kit"?"border-emerald-400":"")}>{p.label}</button>)}
           </div>
@@ -610,7 +616,7 @@ export default function MapEditorClient(){
           }}}
           onDragLeave={()=>{if(!gesture.current)setGhost(null);}}
           onDrop={e=>{e.preventDefault();const data=e.dataTransfer.getData(PALETTE_MIME);
-            if(data)dropPalette(data,fromPointer(e),e.altKey);setGhost(null);}}>
+            if(data)dropPalette(data,fromPointer(e),e.altKey);setGhost(null);setPaletteDragging(null);}}>
           <rect x={bounds.x} y={bounds.z} width={bounds.w} height={bounds.d} fill="#131b25"/>
           {Array.from({length:Math.min(150,Math.ceil(bounds.w/20)+2)},(_,i)=>{
             const x=Math.floor(bounds.x/20)*20+i*20;return <line key={"x"+i} x1={x} x2={x} y1={bounds.z} y2={bounds.z+bounds.d} stroke="#475569" strokeWidth=".25"/>;
