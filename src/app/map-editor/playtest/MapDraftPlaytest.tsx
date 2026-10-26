@@ -8,11 +8,11 @@ import type {MapBlueprint} from "@/lib/map-blueprints";
 import type {MapVisualTheme} from "@/lib/map-visuals";
 import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS,isPrimaryWeaponCategory} from "@/lib/game-data";
 
-type Draft={mapId:string;blueprint:MapBlueprint;theme:MapVisualTheme};
+type Draft={mapId:string;blueprint:MapBlueprint;theme:MapVisualTheme;botCount?:number};
 const STORAGE_KEY="vanguard-map-studio-playtest-v1";
 
 export default function MapDraftPlaytest(){
-  const [preview,setPreview]=useState<{map:MapDef;mapId:MapId}|null>(null);
+  const [preview,setPreview]=useState<{map:MapDef;mapId:MapId;botCount:number}|null>(null);
   const [error,setError]=useState<string|null>(null);
   useEffect(()=>{
     try{
@@ -22,7 +22,7 @@ export default function MapDraftPlaytest(){
       if(!draft.mapId||!draft.blueprint?.regions?.length||!draft.blueprint.spawns||
           !draft.theme?.palette)throw Error("The draft is missing a map, regions, spawns or visual theme.");
       const map=compileMapStudioDraft(draft.mapId,draft.blueprint,draft.theme);
-      setPreview({map,mapId:draft.mapId as MapId});
+      setPreview({map,mapId:draft.mapId as MapId,botCount:[0,3,6].includes(draft.botCount??0)?draft.botCount??0:0});
     }catch(e){setError(e instanceof Error?e.message:String(e));}
   },[]);
   const primary=WEAPONS.find(w=>isPrimaryWeaponCategory(w.category))??WEAPONS[0];
@@ -40,9 +40,9 @@ export default function MapDraftPlaytest(){
   if(!preview)return <main className="min-h-screen bg-zinc-950 p-8 text-white">Preparing local map preview…</main>;
   return <div className="fixed inset-0 bg-black">
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none bg-amber-500/85 text-black text-xs font-bold rounded px-3 py-1">
-      LOCAL DRAFT PLAYTEST · Offline · No rewards or publishing
+      LOCAL DRAFT PLAYTEST · Offline · {preview.botCount} bots · No rewards or publishing
     </div>
-    <GameCanvas key={preview.mapId} loadout={loadout} mode="ffa" botCount={0} botDifficulty="normal"
+    <GameCanvas key={preview.mapId} loadout={loadout} mode="ffa" botCount={preview.botCount} botDifficulty="normal"
       online={false} previewMap={preview.map} mapId={preview.mapId} playerName="Map Creator"
       playerKey="map-studio-preview" scoreLimit={999} timeLimitMin={30}
       onMatchEnd={exit} onExit={exit}/>
