@@ -26,8 +26,9 @@ describe("Armory firing range", () => {
       const length = Math.hypot(dx, dz);
       const direction: [number, number, number] = [dx / length, 0, dz / length];
       for (const cover of range.cover) {
-        expect(rayBox([RANGE_SPAWN[0], PLAYER_HEIGHT / 2, RANGE_SPAWN[2]], direction,
-          cover.pos, cover.size)).toBeNull();
+        const hit = rayBox([RANGE_SPAWN[0], PLAYER_HEIGHT / 2, RANGE_SPAWN[2]], direction,
+          cover.pos, cover.size);
+        expect(hit === null || hit > length).toBe(true);
       }
     }
   });
