@@ -110,7 +110,16 @@
               "dock",
               "garden",
               "bench",
-              "bandstand"
+              "bandstand",
+              "furnace",
+              "conveyor",
+              "hydraulic_press",
+              "generator",
+              "storage_rack",
+              "vent_stack",
+              "industrial_pipe",
+              "steel_coil",
+              "cargo_pallet"
             ]
           },
           "x": {
