@@ -27,3 +27,15 @@ describe("equipped quick melee F",()=>{
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
   });
 });
+
+test("melee rejects side/rear enemies even when they are inside radial reach",()=>{
+ const from=[0,0,0] as const;
+ const enemies=[
+   {id:"side",pos:[.8,0,.45] as const,alive:true},
+   {id:"ahead",pos:[.03,0,.7] as const,alive:true},
+ ];
+ expect(chooseQuickMeleeTarget(from,0,[enemies[0]],()=>true,1.5)).toBeNull();
+ expect(chooseQuickMeleeTarget(from,0,enemies,()=>true,1.5)?.id).toBe("ahead");
+ expect(chooseQuickMeleeTarget(from,0,[{id:"near",pos:[0,0,.85] as const,alive:true}],()=>true,
+   weaponById("knife_tactical").stats.range)).toBeNull();
+});

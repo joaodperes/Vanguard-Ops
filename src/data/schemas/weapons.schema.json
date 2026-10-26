@@ -85,13 +85,20 @@
             "enum": [
               "singularity",
               "corrosion",
-              "turret"
+              "turret",
+              "smart",
+              "flame",
+              "storm",
+              "sludge"
             ]
           },
           "maxCharges": {
             "enum": [
               1,
-              2
+              2,
+              3,
+              4,
+              5
             ]
           },
           "rechargeMs": {

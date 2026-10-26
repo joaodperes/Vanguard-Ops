@@ -86,3 +86,15 @@ describe("Armory firing range loadout restrictions", () => {
     expect(preview.weaponSkinId).toBe("default");
   });
 });
+
+import { groupedRangeWeapons } from "../src/lib/firing-range-loadout";
+test("range weapon selectors hide disabled entries and group by type and unlock level",()=>{
+ const grouped=groupedRangeWeapons(rangePrimaryWeapons);
+ expect(grouped.some(g=>g.weapons.some(w=>w.id==="wonder_bogfather"))).toBe(false);
+ const wonder=grouped.find(g=>g.type==="wonder")!;
+ expect(wonder.weapons.map(w=>w.name)).toEqual(
+   wonder.weapons.map(w=>w.name).sort((a,b)=>a.localeCompare(b)));
+ for(const group of grouped.filter(g=>g.type!=="wonder"))
+   expect(group.weapons.map(w=>w.unlockLevel)).toEqual(
+     group.weapons.map(w=>w.unlockLevel).sort((a,b)=>a-b));
+});

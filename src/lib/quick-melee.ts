@@ -7,7 +7,16 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 0.95;
+export const QUICK_MELEE_REACH = 0.75;
+/** Narrow forward hitbox: a target to the side is NOT in a melee swing. */
+export const MELEE_MIN_FORWARD_DOT = 0.91;
+export function meleeForwardHit(dx:number,dz:number,yaw:number):boolean {
+  const distance=Math.hypot(dx,dz);
+  if(distance<0.001)return false;
+  const forward=dx*Math.sin(yaw)+dz*Math.cos(yaw);
+  const lateral=Math.abs(dx*Math.cos(yaw)-dz*Math.sin(yaw));
+  return forward/distance>=MELEE_MIN_FORWARD_DOT && lateral<=0.24+forward*.075;
+}
 /** A quick swing is a temporary use of the equipped melee weapon.
  * Its damage, attack interval and reach must match the weapon catalog. */
 export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:number}) {
@@ -33,7 +42,7 @@ export function chooseQuickMeleeTarget(
     const dist = Math.hypot(dx, dz);
     if (dist > reach || dist < 0.001) continue;
     if (Math.abs(target.pos[1] - origin[1]) > 2.4) continue;
-    if ((dx * Math.sin(yaw) + dz * Math.cos(yaw)) / dist < 0.35) continue;
+    if (!meleeForwardHit(dx,dz,yaw)) continue;
     if (!clearPath(target, dist)) continue;
     if (dist < bestDist) { best = target; bestDist = dist; }
   }

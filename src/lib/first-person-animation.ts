@@ -64,12 +64,15 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
       hand, prop:hand,handRoll:-.30*weight,propVisible:false };
   }
   if (kind === "bolt") {
-    const draw: [number,number,number] = [-.05,.035,-.34];
-    const pull: [number,number,number] = [-.05,.035,.02];
+    // The offhand slides an arrow horizontally ALONG the crossbow's upper
+    // flight rail, not vertically through its underside.
+    const draw: [number,number,number] = [0,.075,-.38];
+    const pull: [number,number,number] = [0,.075,.06];
     const hand = p < .30 ? mix(home,draw,ease(p/.30)) : p < .61 ? mix(draw,pull,ease((p-.30)/.31))
       : p < .82 ? mix(pull,draw,ease((p-.61)/.21)) : mix(draw,home,ease((p-.82)/.18));
-    return { ...empty,dip:-.09*weight,pitch:.22*weight,roll:-.08*weight,hand,prop:hand,
-      handRoll:-.20*weight,propVisible:p>.29&&p<.75 };
+    return { ...empty,dip:-.035*weight,pitch:.045*weight,roll:0,hand,
+      prop:[hand[0],hand[1]+.025,hand[2]-.02],
+      handRoll:0,propVisible:p>.29&&p<.75 };
   }
   if (kind === "shell") {
     // ONE visible shell insertion per gameplay reload cycle. The previous

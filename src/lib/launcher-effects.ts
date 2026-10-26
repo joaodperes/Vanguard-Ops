@@ -9,5 +9,7 @@ export function launcherSplashFactor(weaponId:string,distance:number,radius:numb
     // Wide shockwave: 48% at the edge, good against groups, low point damage.
     return 1-.52*n*n;
   }
+  if(weaponId==="launcher_breach")return .90*(1-n*n)+.05;
+  if(weaponId==="launcher_rocket")return distance<=.55?1.32:1.05*(1-n*n);
   return distance<=1.5?1.2:(1-n*n)*.9+.1;
 }

@@ -2509,7 +2509,13 @@ async function handle(socket: any, msg: C2S) {
       if (weapon.disabled || weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       // Melee collision is resolved by the shared server-owned frontal arc.
       const now = Date.now();
-      const interval = 1000 / Math.max(.1, weapon.stats.fireRate);
+      // Quiver mode truly fires automatically; server honours its faster
+      // cadence rather than retaining the single-bolt recovery interval.
+      const equippedLoadout=room.loadouts.get(socket.id);
+      const crossbowMag=equippedLoadout?.attachments?.magazine;
+      const quiver=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_quiver";
+      const heavy=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_heavy";
+      const interval = 1000 / Math.max(.1,quiver?weapon.stats.fireRate*3.5:weapon.stats.fireRate);
       if(weapon.category==="melee" &&
         now-(room.quickMeleeAt.get(socket.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
@@ -2557,10 +2563,20 @@ async function handle(socket: any, msg: C2S) {
       }
       if (weapon.special?.kind === "heat" && !allowHeatShot(room, socket.id, weapon.special, now)) return;
       if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
+      if(heavy && (room.boltCharges.get(socket.id)??2)<=0) return;
       if (weapon.special?.kind === "bolt") {
-        const charges = room.boltCharges.get(socket.id) ?? 0;
-        if (charges > 0) room.boltCharges.set(socket.id, charges - 1);
-        room.boltReadyAt.set(socket.id, now + (charges > 0 ? weapon.special.quickReloadSeconds : weapon.stats.reloadTime) * 1000);
+        const charges = room.boltCharges.get(socket.id) ?? (heavy?2:0);
+        if(heavy){
+          room.boltCharges.set(socket.id,charges-1);
+          room.boltReadyAt.set(socket.id,now+Math.max(interval,200));
+        }else if(quiver){
+          // No retrieval window and no collectible bolt drops.
+          room.boltReadyAt.set(socket.id,now+interval*.85);
+        }else{
+          if(charges>0)room.boltCharges.set(socket.id,charges-1);
+          room.boltReadyAt.set(socket.id,now+(charges>0?
+            weapon.special.quickReloadSeconds:weapon.stats.reloadTime)*1000);
+        }
       }
       p.lastShotAt = now;
       clearSpawnProtection(room, p); // accepted shot immediately removes visual shield + immunity
@@ -2604,18 +2620,24 @@ async function handle(socket: any, msg: C2S) {
 
       // Each new Wonder kind is a dedicated authoritative action rather than rocket splash.
       if(weapon.wonder?.kind==="smart"){
-        const tags=(room.smartTags.get(socket.id)??[]).filter(t=>t.expiresAt>now);
-        const victim=tags.map(t=>allCombatants(room).find(c=>c.id===t.id))
-          .find(c=>c?.alive&&(!c.spawnProtectedUntil||c.spawnProtectedUntil<=now)&&
+        // One smart shot strikes every marked exposed target (up to three).
+        // Cover, teams and spawn protection are checked authoritatively.
+        const marks=(room.smartTags.get(socket.id)??[]).filter(t=>t.expiresAt>now);
+        const victims=marks.map(t=>allCombatants(room).find(c=>c.id===t.id))
+          .filter((c):c is PlayerNet=>!!c&&c.alive&&
+            (!c.spawnProtectedUntil||c.spawnProtectedUntil<=now)&&
             (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||c.team!==p.team)&&
             Math.hypot(c.pos[0]-msg.origin[0],c.pos[2]-msg.origin[2])<=eff.range&&
-            hasLineOfSight(room,msg.origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]));
-        if(victim){
-          applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
-          io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,
-            to:[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],kind:"smart"} as S2C);
+            hasLineOfSight(room,msg.origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]))
+          .slice(0,SMART_MAX_TAGS);
+        if(victims.length){
+          for(const victim of victims){
+            io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,
+              to:[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],kind:"smart"} as S2C);
+            applyDamage(room,socket.id,victim,eff.damage,false,weapon.id);
+            if(room.ended)break;
+          }
         }else{
-          // Without an acquired live tag, the round remains a regular shot.
           const hit=fireRay(room,socket.id,msg.origin,shotDir,weapon.id,eff.range);
           if(hit)applyDamage(room,socket.id,hit.victim,damageAtRange(eff.damage,hit.t,eff.range,eff),hit.head,weapon.id);
         }
@@ -2801,7 +2823,7 @@ async function handle(socket: any, msg: C2S) {
           }
         }
       }
-      if (weapon.special?.kind === "bolt") {
+      if (weapon.special?.kind === "bolt" && !quiver) {
         const pos = boltImpact!;
         const id = genId("bolt");
         const expiresAt = now + weapon.special.lifetimeMs;
@@ -2823,6 +2845,8 @@ async function handle(socket: any, msg: C2S) {
         ? loadout.secondaryAttachments?.magazine : loadout?.attachments?.magazine;
       if (room.sprintState.get(socket.id) && loadout?.perkId !== "field_loader") return;
       if (weaponById(player.weaponId).wonder) return; // Wonder ammo recharges only with time/kills.
+      if(player.weaponId==="crossbow_reclaimer"&&magazine==="mag_bolt_heavy")
+        return; // heavy bolts are never replenished by standard reload
       const special = weaponById(player.weaponId).special;
       if (special?.kind === "heat") {
         const now = Date.now();
@@ -2843,13 +2867,18 @@ async function handle(socket: any, msg: C2S) {
       if (!player?.alive || !bolt || bolt.ownerId !== socket.id || Date.now() >= bolt.expiresAt) return;
       const special = weaponById("crossbow_reclaimer").special;
       if (special?.kind !== "bolt") return;
+      const arrowMag=room.loadouts.get(socket.id)?.attachments?.magazine;
+      if(arrowMag==="mag_bolt_quiver")return;
       if (Math.hypot(player.pos[0] - bolt.pos[0], player.pos[2] - bolt.pos[2]) > special.pickupRadius) return;
       room.droppedBolts.delete(bolt.id);
       const now = Date.now();
-      if (now < (room.boltReadyAt.get(socket.id) ?? 0)) {
-        room.boltReadyAt.set(socket.id, Math.min(room.boltReadyAt.get(socket.id)!, now + special.quickReloadSeconds * 1000));
-      } else {
-        room.boltCharges.set(socket.id, Math.min(3, (room.boltCharges.get(socket.id) ?? 0) + 1));
+      if(arrowMag==="mag_bolt_heavy"){
+        // The only source of additional heavy arrows is a retrieved arrow.
+        room.boltCharges.set(socket.id,Math.min(2,(room.boltCharges.get(socket.id)??0)+1));
+      }else if(now<(room.boltReadyAt.get(socket.id)??0)){
+        room.boltReadyAt.set(socket.id,Math.min(room.boltReadyAt.get(socket.id)!,now+special.quickReloadSeconds*1000));
+      }else{
+        room.boltCharges.set(socket.id,Math.min(3,(room.boltCharges.get(socket.id)??0)+1));
       }
       io.to(room.id).emit("message", { t: "boltRecovered", id: bolt.id, ownerId: socket.id } as S2C);
       break;

@@ -38,10 +38,10 @@ describe("persistent smart tags and full fuel bursts",()=>{
   expect(selectSmartTargets([0,1.6,0],[0,0,1],candidates,"red",false,75,()=>false)).toEqual([]);
  });
  test("Hellfire consumes three seconds per ignition, never permits a partial burst",()=>{
-  expect(HELLFIRE_BURST_MS).toBe(3000);
+  expect(HELLFIRE_BURST_MS).toBe(5000);
   const fuel=WEAPONS.find(w=>w.id==="wonder_hellfire")!;
-  expect(fuel.wonder?.maxCharges).toBe(3);
-  expect(fuel.stats.magSize).toBe(3);
+  expect(fuel.wonder?.maxCharges).toBe(5);
+  expect(fuel.stats.magSize).toBe(5);
   expect(fuel.stats.range).toBe(11);
  });
  test("Bogfather remains in historical IDs but is unavailable",()=>{
@@ -52,13 +52,13 @@ describe("persistent smart tags and full fuel bursts",()=>{
 import { fullWonderCharges, spendFullWonderCharge, tickWonderCharges } from "../src/lib/wonder-charge";
 import { SIGHT_DEFS, hasMountedSight, weaponById } from "../src/lib/game-data";
 describe("three-second fuel consumption and sight defaults",()=>{
- test("flame ignition spends all three seconds; partial fuel cannot restart",()=>{
+ test("flame ignition spends all five seconds; partial fuel cannot restart",()=>{
   const rules=weaponById("wonder_hellfire").wonder!;
   const empty=spendFullWonderCharge(fullWonderCharges(rules),rules,1000)!;
   expect(empty.charges).toBe(0);
   expect(spendFullWonderCharge(tickWonderCharges(empty,rules,10000),rules,10000)).toBeNull();
-  expect(tickWonderCharges(empty,rules,28000).charges).toBe(3);
-  expect(spendFullWonderCharge(empty,rules,28000)?.charges).toBe(0);
+  expect(tickWonderCharges(empty,rules,36000).charges).toBe(5);
+  expect(spendFullWonderCharge(empty,rules,36000)?.charges).toBe(0);
  });
  test("regular rifles and SMGs have unmagnified iron sight defaults",()=>{
   for(const id of ["rifle_ar","smg_kp","dmr_scout","lmg_light"]){

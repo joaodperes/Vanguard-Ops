@@ -56,7 +56,7 @@ export function selectSmartTargets(
       ((1-bb.cosine)*50+distance(origin,b.pos)*.003);
   }).slice(0,Math.max(0,limit));
 }
-export const HELLFIRE_BURST_MS = 3000;
+export const HELLFIRE_BURST_MS = 5000;
 export const HELLFIRE_TICK_MS = 125;
 export const HELLFIRE_RANGE = 11;
 export function hellfireRemainingMs(until:number,now:number):number {
