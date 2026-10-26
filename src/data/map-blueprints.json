@@ -167,16 +167,6 @@
           "label": "Container stack"
         },
         {
-          "id": "crane-platform",
-          "x": 14,
-          "z": 60,
-          "w": 12,
-          "d": 10,
-          "h": 3.6,
-          "kind": "platform",
-          "label": "Accessible crane platform"
-        },
-        {
           "id": "forklift",
           "x": 33,
           "z": -62,
