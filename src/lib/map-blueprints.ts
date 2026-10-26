@@ -53,6 +53,7 @@ export interface MapHazard {
   dps?: number; damage?: number; period?: number; activeFor?: number; offset?: number;
   hp?: number; launchX?: number; launchY?: number; launchZ?: number;
   toX?: number; toY?: number; toZ?: number;
+  turns?: 0 | 1 | 2 | 3;
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
 export const MAP_BLUEPRINTS = source as unknown as MapBlueprintFile;
