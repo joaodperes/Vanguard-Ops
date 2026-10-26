@@ -6,7 +6,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { getMap, type CoverBox } from "@/lib/game-protocol";
 import { featureBoxes, regionBoundary, overrideBox, type MapBlueprint } from "@/lib/map-blueprints";
-import type { MapVisualTheme } from "@/lib/map-visuals";
+import { cityBuildingBoxes, mapProps, type MapProp, type MapVisualTheme } from "@/lib/map-visuals";
 import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
 
@@ -22,7 +22,7 @@ export interface StudioTransform {
 }
 interface Props {
   mapId:string;map:MapBlueprint;theme:MapVisualTheme;selected:StudioSelection|null;
-  mode:StudioMode;snap:number;tool:string;
+  mode:StudioMode;snap:number;tool:string;placementProp?:MapProp;
   onAddAt:(tool:string,point:{x:number;z:number})=>void;
   onSelect:(selection:StudioSelection|null)=>void;
   onTransform:(selection:StudioSelection,transform:StudioTransform)=>void;
@@ -34,7 +34,7 @@ interface ObjectMeta {
 type Context={
   renderer:THREE.WebGLRenderer;scene:THREE.Scene;camera:THREE.PerspectiveCamera;
   orbit:OrbitControls;transform:TransformControls;root:THREE.Group;
-  objects:Map<string,THREE.Group>; keys:Set<string>;
+  objects:Map<string,THREE.Group>; keys:Set<string>;preview:THREE.Group;
 };
 const idFor=(s:StudioSelection)=>s.type+":"+s.index+":"+(s.team??"");
 const minSize=.2;
@@ -42,12 +42,12 @@ const editableHex=(hex:string)=>/^#[0-9a-f]{6}$/i.test(hex)?hex:"#a3e635";
 
 /** Three.js geometry preview. Map Studio exports data, not an executable map.
  * Physics uses the same box dimensions in src/lib/map-blueprints.ts. */
-export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onSelect,onTransform,onAddAt}:Props) {
+export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,placementProp,onSelect,onTransform,onAddAt}:Props) {
   const host=useRef<HTMLDivElement>(null);
   const [rendererError,setRendererError]=useState<string|null>(null);
   const runtime=useRef<Context|null>(null);
-  const callbacks=useRef({selected,mode,snap,onSelect,onTransform});
-  callbacks.current={selected,mode,snap,onSelect,onTransform};
+  const callbacks=useRef({selected,mode,snap,tool,onSelect,onTransform,onAddAt});
+  callbacks.current={selected,mode,snap,tool,onSelect,onTransform,onAddAt};
 
   useEffect(()=>{
     if(!host.current)return;
@@ -79,6 +79,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     const helper=transform.getHelper();
     scene.add(helper);
     const root=new THREE.Group();
+    const preview=new THREE.Group();preview.visible=false;scene.add(preview);
     scene.add(root);
     scene.add(new THREE.HemisphereLight("#e9f5ff","#5a626b",2));
     const light=new THREE.DirectionalLight("#fff0d9",2.4);
@@ -90,7 +91,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     const floor=new THREE.GridHelper(700,140,"#607185","#303a46");
     floor.position.y=-.20;
     scene.add(floor);
-    const ctx:Context={renderer,scene,camera,orbit,transform,root,objects:new Map(),keys:new Set()};
+    const ctx:Context={renderer,scene,camera,orbit,transform,root,objects:new Map(),keys:new Set(),preview};
     runtime.current=ctx;
     let gizmoActive=false;
     const onDragging=(event:unknown)=>{
@@ -134,6 +135,22 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     transform.addEventListener("mouseUp",onMouseUp);
     const raycaster=new THREE.Raycaster();
     const pointer=new THREE.Vector2();
+    const ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+    const groundHit=new THREE.Vector3();
+    const groundFromPointer=(clientX:number,clientY:number)=>{
+      const bounds=renderer.domElement.getBoundingClientRect();
+      pointer.set((clientX-bounds.left)/bounds.width*2-1,
+        -(clientY-bounds.top)/bounds.height*2+1);
+      raycaster.setFromCamera(pointer,camera);
+      return raycaster.ray.intersectPlane(ground,groundHit)?groundHit:null;
+    };
+    const movePreview=(event:PointerEvent)=>{
+      if(callbacks.current.tool==="select"){preview.visible=false;return;}
+      const hit=groundFromPointer(event.clientX,event.clientY);
+      preview.visible=!!hit;
+      if(hit){const step=callbacks.current.snap;
+        preview.position.set(step?horizontalSnap(hit.x,step):hit.x,0,step?horizontalSnap(hit.z,step):hit.z);}
+    };
     let down:{x:number;y:number}|null=null;
     const downHandler=(event:PointerEvent)=>{if(event.button===0)down={x:event.clientX,y:event.clientY};};
     const upHandler=(event:PointerEvent)=>{
@@ -144,10 +161,13 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       // TransformControls handler has already set dragging=false.
       if(gizmoActive){gizmoActive=false;return;}
       if(moved>5||transform.dragging)return;
-      const bounds=renderer.domElement.getBoundingClientRect();
-      pointer.set((event.clientX-bounds.left)/bounds.width*2-1,
-        -(event.clientY-bounds.top)/bounds.height*2+1);
-      raycaster.setFromCamera(pointer,camera);
+      const hit=groundFromPointer(event.clientX,event.clientY);
+      if(callbacks.current.tool!=="select"){
+        if(hit){const step=callbacks.current.snap;
+          callbacks.current.onAddAt(callbacks.current.tool,{x:step?horizontalSnap(hit.x,step):hit.x,
+            z:step?horizontalSnap(hit.z,step):hit.z});}
+        return;
+      }
       const hits=raycaster.intersectObjects([...ctx.objects.values()],true);
       for(const hit of hits){
         let item:THREE.Object3D|null=hit.object;
@@ -159,11 +179,12 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       }
       callbacks.current.onSelect(null);
     };
+    renderer.domElement.addEventListener("pointermove",movePreview);
     renderer.domElement.addEventListener("pointerdown",downHandler);
     renderer.domElement.addEventListener("pointerup",upHandler);
     let active=false;
     const mouseEnter=()=>{active=true;};
-    const mouseLeave=()=>{active=false;ctx.keys.clear();};
+    const mouseLeave=()=>{active=false;ctx.keys.clear();preview.visible=false;};
     renderer.domElement.addEventListener("pointerenter",mouseEnter);
     renderer.domElement.addEventListener("pointerleave",mouseLeave);
     const keyDown=(e:KeyboardEvent)=>{
@@ -212,6 +233,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       cancelAnimationFrame(request);
       observer.disconnect();
       window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);
+      renderer.domElement.removeEventListener("pointermove",movePreview);
       renderer.domElement.removeEventListener("pointerdown",downHandler);
       renderer.domElement.removeEventListener("pointerup",upHandler);
       renderer.domElement.removeEventListener("pointerenter",mouseEnter);
@@ -221,7 +243,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
       transform.removeEventListener("mouseUp",onMouseUp);
       transform.detach();transform.dispose();scene.remove(helper);
       orbit.dispose();
-      disposeGroup(root);
+      disposeGroup(root);disposeGroup(preview);scene.remove(preview);
       renderer.dispose();renderer.domElement.remove();
       runtime.current=null;
     };
@@ -307,8 +329,20 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
     for(let i=0;i<theme.props.length;i++){
       const p=theme.props[i];
       const w=p.w??4,h=p.h??5,d=p.d??4;
-      add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>
-        createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62));
+      add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>{
+        if(p.kind==="building"){
+          // Use the same architecture/collider grammar as the live game.
+          for(const b of cityBuildingBoxes(p))createBox(g,b.pos[0]-p.x,b.pos[1]-(p.y??0),b.pos[2]-p.z,
+            b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:p.color??palette.cover,.76);
+        }else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
+      });
+    }
+    // Procedural city structures are visible but not falsely presented as
+    // editable theme props. Authored buildings above remain selectable.
+    if(theme.biome==="city"||theme.biome==="city_day")for(const p of mapProps(mapId,map,theme)){
+      if(p.kind!=="building"||theme.props.includes(p))continue;
+      for(const b of cityBuildingBoxes(p))createBox(ctx.root,b.pos[0],b.pos[1],b.pos[2],
+        b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:p.color??palette.cover,.45);
     }
     const compiled=getMap(mapId);
     const compiledForThisMap=compiled.id===mapId;
@@ -362,6 +396,24 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,snap,tool,onS
         b.size[0]*2,b.size[1]*2,b.size[2]*2,"#d946ef",.25);
     }
   },[map,theme,mapId]);
+
+  // Ghost placement follows the pointer across the ground plane; one click
+  // stamps a new object. The existing camera-focus button remains a fallback.
+  useEffect(()=>{
+    const ctx=runtime.current;if(!ctx)return;
+    const preview=ctx.preview;disposeGroup(preview);preview.visible=tool!=="select";
+    if(tool==="select")return;
+    const w=tool==="prop"?(placementProp?.w??5):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?4:12;
+    const d=tool==="prop"?(placementProp?.d??5):["region","circle","triangle"].includes(tool)?32:tool==="stairs"?8:12;
+    const h=tool==="prop"?(placementProp?.h??5):["region","circle","triangle"].includes(tool)?0.2:tool==="stairs"||tool==="platform"?4.2:2.8;
+    const material=new THREE.MeshStandardMaterial({color:"#fbbf24",transparent:true,opacity:.36,depthWrite:false});
+    const geometry=tool==="circle"?new THREE.CylinderGeometry(w/2,w/2,Math.max(.2,h),32):
+      new THREE.BoxGeometry(w,Math.max(.2,h),d);
+    const mesh=new THREE.Mesh(geometry,material);mesh.position.y=h/2;preview.add(mesh);
+    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geometry),new THREE.LineBasicMaterial({color:"#fde68a"}));
+    edges.position.y=h/2;preview.add(edges);
+    return ()=>{disposeGroup(preview);preview.visible=false;};
+  },[tool,placementProp?.kind,placementProp?.use,placementProp?.shape,placementProp?.w,placementProp?.d,placementProp?.h]);
 
   useEffect(()=>{
     const ctx=runtime.current;
