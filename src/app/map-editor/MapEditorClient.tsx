@@ -220,6 +220,12 @@ export default function MapEditor() {
           const index=map.regions.length;
           update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth,shape:d.tool==="region"?"rect":d.tool as "circle"|"triangle"}]}));
           setSelected({type:"region",index});
+        }else if(d.tool==="kit"){
+          const index=map.features.length;
+          const suffix=Date.now().toString(36);
+          const pieces=studioStructurePrefab(structurePreset,x,z).map((piece,i)=>({...piece,id:"kit_"+suffix+"_"+i}));
+          update(m=>({...m,features:[...m.features,...pieces]}));
+          setSelected({type:"feature",index});
         }else if(d.tool==="hazard"){
           const index=(map.hazards??[]).length;
           const base:MapHazard={id:"hazard_"+Date.now().toString(36),type:hazardKind,x,z,y:1,w,d:depth,h:2,
@@ -229,8 +235,12 @@ export default function MapEditor() {
         }else if(d.tool==="prop"){
           const index=theme.props.length;
           const p=createThemeProp(x,z,w,depth);
-          updateProps(props=>[...props,p],false);
-          setSelected({type:"prop",index});setEditorTab("theme");
+          const problem=p.kind==="building"?buildingProblem(x,z):null;
+          if(problem)setStatus("Cannot place building: "+problem);
+          else {
+            updateProps(props=>[...props,p],false);
+            setSelected({type:"prop",index});setEditorTab("theme");
+          }
         }else{
           const index=map.features.length;
           const kind=d.tool as "cover"|"platform"|"stairs";
@@ -895,6 +905,10 @@ export default function MapEditor() {
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
               mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
               placementProp={tool==="prop"?createThemeProp(0,0):undefined}
+              placementKit={tool==="kit"?(()=>{
+                const preset=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structurePreset);
+                return preset?{w:preset.width,d:preset.depth}:undefined;
+              })():undefined}
               onSelect={sel=>sel?.type==="generatedBuilding"?promoteGenerated(sel.index):setSelected(sel)}
               onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}
               showCollision={showCollision} warnings={showSafety?visualIssues:[]}
@@ -1011,6 +1025,12 @@ export default function MapEditor() {
                 <circle r="1.7" fill={color[team]} stroke="#fff" strokeWidth=".35"/>
                 {selected?.type==="spawn"&&selected.team===team&&selected.index===i&&<circle r="5" fill="none" stroke="#fef08a" strokeWidth=".8"/>}
               </g>))}
+            {showSafety&&visualIssues.slice(0,90).map(issue=><g key={issue.code} pointerEvents="none">
+              <circle cx={issue.x} cy={issue.z} r={4} fill={issue.severity==="error"?"#ef4444":"#f59e0b"}
+                fillOpacity=".26" stroke={issue.severity==="error"?"#fca5a5":"#fde68a"} strokeWidth=".65"/>
+              <text x={issue.x} y={issue.z+1.4} fontSize="4" textAnchor="middle" fill="#ffffff">!</text>
+              <title>{issue.message}</title>
+            </g>)}
             {shape&&tool!=="select"&&!["ffa","blue","red"].includes(tool)&&
               (tool==="circle"?<ellipse cx={shape.x} cy={shape.z} rx={shape.w/2} ry={shape.d/2}
                 fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
