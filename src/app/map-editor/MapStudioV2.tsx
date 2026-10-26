@@ -527,7 +527,7 @@ export default function MapEditorClient(){
   const previewIssue=ghostSnap&&tool==="prop"&&(paletteDragging?.buildingKit||propKind==="building")?
     buildingIssue(ghostSnap.x,ghostSnap.z,ghostSnap.y??0,paletteDragging?.buildingKit??buildingKit):
     moveGhost&&movingSel?.type==="prop"&&(movingItem as MapProp|undefined)?.kind==="building"?
-      buildingIssue(moveGhost.x,moveGhost.z,moveGhost.y??movingItem?.y??0,
+      buildingIssue(moveGhost.x,moveGhost.z,moveGhost.y??(movingItem as MapProp|undefined)?.y??0,
         buildingKit,movingSel.index,movingItem as MapProp):null;
   const previewColor=previewIssue?"#fb7185":"#34d399";
 
