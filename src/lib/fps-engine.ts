@@ -1306,7 +1306,7 @@ export class FPSEngine {
         cube(group,fabric,-w*.22,.07,-d*.34,Math.min(5,w*.40),.045,Math.min(4,d*.30));
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
-        for(const item of cityInteriorFixtures(p)){
+        for(const item of cityInteriorFixtures({...p,w,d})){
           const {x,z,w:fw,d:fd,h:fh,style}=item;
           const part=(mat:THREE.Material,px:number,py:number,pz:number,pw:number,ph:number,pd:number)=>
             cube(group,mat,x+px,py,z+pz,pw,ph,pd);
