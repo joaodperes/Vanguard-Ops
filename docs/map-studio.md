@@ -2,6 +2,18 @@
 
 Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
 
+## Quick Build — dev workflow
+
+Map Studio now includes a first-map guide, direct cursor placement, eight reusable city building kits, and seven geometry kits (alley, room, rooftop, market stalls, checkpoint, stairwell, courtyard).
+
+In 3D, choose a building or kit and click the ground to stamp it. The building preview is green for a valid placement and red for a detected overlap, map-boundary or spawn problem. Repeat placement can stay enabled for bulk decoration. Existing procedural Afterlight buildings can be selected and converted into independently editable authored objects, suppressing their generated duplicates. The Day and Night variants share city geometry changes and authored props while retaining separate lighting palettes.
+
+The Collision toggle displays the real shared collider geometry. Safety overlay highlights positioned map problems. District links shows a coarse overlap/portal network, not actual bot pathfinding. 2D and 3D author the same draft.
+
+Playtest draft sends unsaved geometry directly into a non-rewarding offline FPS session with 0, 3 or 6 bots. Exit back to Map Studio to restore browser-local work. Save bundle exports one portable JSON containing both the complete blueprint document and visual themes; Import map / bundle restores either that bundle or a blueprint-only JSON.
+
+Publishing still requires exporting the blueprint and theme JSON source files, reviewing and committing them in the repository, and rebuilding. This is deliberate: browser drafts do not mutate live multiplayer maps. Automated tests cover map schemas, city physics, editing primitives, playtest compilation and build checks; final rendering, FPS performance, sightlines and bot quality still require an actual browser/in-game playtest.
+
 ## Authoring
 
 Choose one of six maps or type a new unique ID and select **New** to clone the current template. The editor supports:
