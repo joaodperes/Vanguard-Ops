@@ -63,10 +63,8 @@ export function studioMapIssues(
   for(const p of authored){
     // These are the actual authored props, including promoted city buildings.
     // Generated structures are already filtered by the city's safe-lot grammar.
-    if(p.lotId===undefined || props.indexOf(p)<props.length){
-      const problems=studioBuildingPlacementIssues(p,plan,authored.filter(q=>q!==p),allSpawns);
-      for(const error of problems)issues.push({...error,code:error.code+":"+p.x+":"+p.z});
-    }
+    const problems=studioBuildingPlacementIssues(p,plan,authored.filter(q=>q!==p),allSpawns);
+    for(const error of problems)issues.push({...error,code:error.code+":"+p.x+":"+p.z});
   }
   for(const [team,points] of Object.entries(plan.spawns) as [string,Vec3[]][]){
     for(const [index,point] of points.entries()){
