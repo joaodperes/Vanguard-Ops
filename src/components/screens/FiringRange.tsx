@@ -1,21 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import { RANGE_MOVING_TARGETS, RANGE_SPAWN } from "@/lib/firing-range";
 import { useGame } from "@/lib/game-store";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import {
-  WEAPONS, WEAPON_SKINS, PLAYER_SKINS, ATTACHMENTS,
+  WEAPONS, ATTACHMENTS,
   weaponById, weaponAttachmentSlots, compatibleAttachments, type AttachmentSlot,
 } from "@/lib/game-data";
 import { PERKS, perkSelection, perkById } from "@/lib/perks";
+import {
+  emptyRangeAttachments, normalizeRangeLoadout, rangePrimaryWeapons,
+  rangeMeleeWeapons, rangeSecondaryWeapons, rangeWeaponSlot, selectRangeWeapon,
+} from "@/lib/firing-range-loadout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Crosshair, FlaskConical, Settings2, RotateCcw, ShieldCheck } from "lucide-react";
 
 type AttachmentMap = LoadoutWire["attachments"];
-const blank = (): AttachmentMap => ({ sight: null, barrel: null, grip: null, magazine: null });
 const slots: AttachmentSlot[] = ["sight", "barrel", "grip", "magazine"];
 const normalize = (value?: Record<string, string | null>): AttachmentMap => ({
   sight: value?.sight ?? null, barrel: value?.barrel ?? null,
@@ -24,20 +27,20 @@ const normalize = (value?: Record<string, string | null>): AttachmentMap => ({
 
 function initialTrial(profile: PlayerProfileView, requestedId: string | null): LoadoutWire {
   const saved = profile.loadout;
-  const sameWeapon = !requestedId || requestedId === saved.weapon.id;
-  return {
-    weaponId: requestedId ?? saved.weapon.id,
+  const equipped: LoadoutWire = {
+    weaponId: saved.weapon.id,
     secondaryWeaponId: saved.secondary.id,
     meleeWeaponId: saved.melee.id,
     perkId: perkSelection(profile.level),
-    weaponSkinId: sameWeapon ? saved.weaponSkin.id : "default",
-    secondaryWeaponSkinId: saved.secondaryWeaponSkin.id,
-    meleeWeaponSkinId: saved.meleeWeaponSkin.id,
-    playerSkinId: saved.playerSkin.id,
-    attachments: sameWeapon ? normalize(saved.attachments) : blank(),
+    weaponSkinId: "default",
+    secondaryWeaponSkinId: "default",
+    meleeWeaponSkinId: "default",
+    playerSkinId: "default",
+    attachments: normalize(saved.attachments),
     secondaryAttachments: normalize(saved.secondaryAttachments),
     meleeAttachments: normalize(saved.meleeAttachments),
   };
+  return requestedId ? selectRangeWeapon(equipped, requestedId) : normalizeRangeLoadout(equipped);
 }
 
 export function FiringRange() {
@@ -56,43 +59,78 @@ function RangeSession({ profile, requestedId, onExit }: {
   const [applied, setApplied] = useState<LoadoutWire>(() => initialTrial(profile, requestedId));
   const [session, setSession] = useState(0);
   const [editing, setEditing] = useState(true);
-  const ownedIds = useMemo(() => new Set(profile.unlocks.weapons), [profile.unlocks.weapons]);
+  const ownedIds = useMemo(() => new Set([
+    ...profile.unlocks.weapons,
+    ...profile.prestige.wonderWeapons,
+    ...WEAPONS.filter(w => !w.wonder && w.unlockCost === 0 && w.unlockLevel <= profile.level).map(w => w.id),
+  ]), [profile.unlocks.weapons, profile.prestige.wonderWeapons, profile.level]);
+
+  // Browsers may consume Escape while pointer lock is active. Handle both
+  // the key and the ensuing pointer-lock release so the editor reliably opens.
+  const editingRef = useRef(editing);
   useEffect(() => {
-    if (editing && typeof document !== "undefined" && document.pointerLockElement) document.exitPointerLock();
+    let wasLocked = !!document.pointerLockElement;
+    const onPointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (wasLocked && !locked && !editingRef.current) {
+        editingRef.current = true;
+        setEditing(true);
+      }
+      wasLocked = locked;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || editingRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      editingRef.current = true;
+      setEditing(true);
+      if (document.pointerLockElement) document.exitPointerLock();
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerlockchange", onPointerLockChange);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, []);
+  useEffect(() => {
+    editingRef.current = editing;
+    if (editing && document.pointerLockElement) document.exitPointerLock();
   }, [editing]);
 
   function changeWeapon(field: "weaponId" | "secondaryWeaponId" | "meleeWeaponId", id: string) {
-    const attField = field === "weaponId" ? "attachments" : field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
-    const skinField = field === "weaponId" ? "weaponSkinId" : field === "secondaryWeaponId" ? "secondaryWeaponSkinId" : "meleeWeaponSkinId";
-    setDraft(prev => ({ ...prev, [field]: id, [attField]: blank(), [skinField]: "default" }));
+    setDraft(prev => {
+      const valid = field === "weaponId" ? rangeWeaponSlot(id) === "primary"
+        : field === "secondaryWeaponId" ? rangeSecondaryWeapons(prev.perkId, prev.weaponId).some(w => w.id === id)
+        : rangeWeaponSlot(id) === "melee";
+      if (!valid) return prev;
+      const attachmentField = field === "weaponId" ? "attachments"
+        : field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
+      return normalizeRangeLoadout({ ...prev, [field]: id, [attachmentField]: emptyRangeAttachments() });
+    });
   }
 
   function loadPreset(id: string) {
     if (id === "current") { setDraft(initialTrial(profile, null)); return; }
     const preset = profile.savedLoadouts.find(p => p.id === id);
     if (!preset) return;
-    setDraft({
+    setDraft(normalizeRangeLoadout({
       weaponId: preset.primaryWeapon,
       secondaryWeaponId: preset.secondaryWeapon,
       meleeWeaponId: preset.meleeWeapon,
-      weaponSkinId: preset.weaponSkin,
-      secondaryWeaponSkinId: preset.secondaryWeaponSkin,
-      meleeWeaponSkinId: preset.meleeWeaponSkin,
-      playerSkinId: preset.playerSkin,
+      weaponSkinId: "default",
+      secondaryWeaponSkinId: "default",
+      meleeWeaponSkinId: "default",
+      playerSkinId: "default",
       perkId: perkById(preset.perkId).id,
       attachments: normalize(preset.attachments),
       secondaryAttachments: normalize(preset.secondaryAttachments),
       meleeAttachments: normalize(preset.meleeAttachments),
-    });
+    }));
   }
 
   function launch() {
-    setApplied({
-      ...draft,
-      attachments: { ...draft.attachments },
-      secondaryAttachments: normalize(draft.secondaryAttachments),
-      meleeAttachments: normalize(draft.meleeAttachments),
-    });
+    setApplied(normalizeRangeLoadout(draft));
     setSession(value => value + 1);
     setEditing(false);
   }
@@ -133,8 +171,6 @@ function RangeSession({ profile, requestedId, onExit }: {
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
                 <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-widest text-lg"><Crosshair className="w-5 h-5" /> Firing Range</div>
-                <p className="text-white/60 text-sm mt-1">Try any weapon, skin or compatible attachment—even locked equipment—before purchasing.</p>
-                <p className="text-cyan-200/80 text-xs mt-2">4 stationary dummies + 3 moving dummies. Blue targets strafe along the cyan rails.</p>
               </div>
               <div className="flex items-center gap-1.5 text-emerald-300 text-xs border border-emerald-500/25 bg-emerald-500/10 rounded-lg px-3 py-2">
                 <ShieldCheck className="w-4 h-4" /> No purchases or profile changes
@@ -158,9 +194,9 @@ function RangeSession({ profile, requestedId, onExit }: {
             </div>
             <div className="grid sm:grid-cols-3 gap-3 mb-4">
               {([
-                ["weaponId", "Trial weapon", WEAPONS],
-                ["secondaryWeaponId", "Secondary (2)", WEAPONS.filter(w => w.category !== "melee" && !w.wonder)],
-                ["meleeWeaponId", "Melee (3)", WEAPONS.filter(w => w.category === "melee")],
+                ["weaponId", "Primary (1)", rangePrimaryWeapons],
+                ["secondaryWeaponId", "Secondary (2)", rangeSecondaryWeapons(draft.perkId, draft.weaponId)],
+                ["meleeWeaponId", "Melee (3)", rangeMeleeWeapons],
               ] as const).map(([field, label, weapons]) => (
                 <div key={field}>
                   <label className={labelClass} htmlFor={field}>{label}</label>
@@ -172,18 +208,12 @@ function RangeSession({ profile, requestedId, onExit }: {
             </div>
             <div className="grid sm:grid-cols-2 gap-4 mb-4">
               {([
-                ["weaponId", "attachments", "weaponSkinId", "Trial weapon"],
-                ["secondaryWeaponId", "secondaryAttachments", "secondaryWeaponSkinId", "Secondary"],
-              ] as const).map(([weaponField, attField, skinField, label]) => {
+                ["weaponId", "attachments", "Primary"],
+                ["secondaryWeaponId", "secondaryAttachments", "Secondary"],
+              ] as const).map(([weaponField, attField, label]) => {
                 const weapon = weaponById(draft[weaponField] ?? "");
                 return <div key={weaponField} className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
                   <div className="font-bold text-sm text-white">{label}: <span className="text-amber-200">{weapon.name}</span></div>
-                  <div>
-                    <label className={labelClass}>Weapon finish (preview only)</label>
-                    <select className={selectClass} value={draft[skinField] ?? "default"} onChange={e => setDraft(prev => ({ ...prev, [skinField]: e.target.value }))}>
-                      {WEAPON_SKINS.map(skin => <option key={skin.id} value={skin.id}>{skin.name}</option>)}
-                    </select>
-                  </div>
                   {slots.filter(slot => weaponAttachmentSlots(weapon).includes(slot)).map(slot => (
                     <div key={slot}>
                       <label className={labelClass}>{slot}</label>
@@ -200,22 +230,19 @@ function RangeSession({ profile, requestedId, onExit }: {
                 </div>;
               })}
             </div>
-            <div className="grid sm:grid-cols-2 gap-3 mb-5">
-              <div>
-                <label className={labelClass}>Operator appearance</label>
-                <select className={selectClass} value={draft.playerSkinId} onChange={e => setDraft(prev => ({ ...prev, playerSkinId: e.target.value }))}>
-                  {PLAYER_SKINS.map(skin => <option key={skin.id} value={skin.id}>{skin.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Passive perk</label>
-                <select className={selectClass} value={draft.perkId ?? "battle_hardened"} onChange={e => setDraft(prev => ({ ...prev, perkId: perkById(e.target.value).id }))}>
+            <div className="mb-5">
+              <label className={labelClass} htmlFor="trial-perk">Passive perk</label>
+              <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 items-center">
+                <select id="trial-perk" className={selectClass} value={draft.perkId ?? "battle_hardened"}
+                  onChange={e => setDraft(prev => normalizeRangeLoadout({ ...prev, perkId: perkById(e.target.value).id }))}>
                   {PERKS.map(perk => <option key={perk.id} value={perk.id}>{perk.name}</option>)}
                 </select>
+                <p aria-live="polite" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/85 leading-relaxed">
+                  {perkById(draft.perkId).description}
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 items-center justify-between border-t border-white/10 pt-4">
-              <div className="text-xs text-white/50 max-w-sm">Four fixed and three moving targets respawn automatically. Track strafing dummies at increasing distances and speeds. Use WASD + mouse, 1/2/3 to swap, and Escape to release the cursor. Nothing is saved.</div>
               <div className="flex gap-2">
                 <Button variant="outline" className="border-white/20 text-white" onClick={() => setDraft(initialTrial(profile, requestedId))}>
                   <RotateCcw className="w-4 h-4 mr-1.5" /> Reset
