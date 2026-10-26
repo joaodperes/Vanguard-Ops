@@ -106,7 +106,10 @@ export default function MapEditor() {
     const url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
-  const exportTheme=()=>{downloadJSON(mapId+".json",theme);setStatus("Exported "+mapId+".json. Register new themes in src/lib/map-visuals.ts.");};
+  const exportTheme=()=>{
+    downloadJSON(mapId+".json",themes[mapId]??theme);
+    setStatus("Exported "+mapId+".json. Install under src/data/map-themes before rebuilding.");
+  };
   const importTheme=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     try{
@@ -490,6 +493,11 @@ export default function MapEditor() {
       window.location.assign("/map-editor/playtest");
     }catch(err){setStatus("Unable to launch local playtest: "+String(err));}
   };
+  const exportBundle=()=>{
+    downloadJSON("vanguard-map-studio-bundle.json",
+      {format:"vanguard-map-studio-bundle",version:1,doc,themes});
+    setStatus("Saved a portable bundle with all map blueprints and visual themes.");
+  };
   const exportFile=()=>{
     const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -500,14 +508,23 @@ export default function MapEditor() {
   const importFile=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     try {
-      const parsed=JSON.parse(await file.text()) as BlueprintDoc;
+      const uploaded=JSON.parse(await file.text()) as BlueprintDoc | {
+        format:string;version:number;doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
+      const bundle="format" in uploaded&&uploaded.format==="vanguard-map-studio-bundle";
+      const parsed=bundle?uploaded.doc:uploaded as BlueprintDoc;
       if(parsed.version!==1||!parsed.maps||!Object.keys(parsed.maps).length)throw new Error("Expected version 1 and a maps dictionary");
+      if(bundle){
+        if(!uploaded.themes||typeof uploaded.themes!=="object")throw Error("Bundle is missing visual themes.");
+        for(const [id,t] of Object.entries(uploaded.themes))
+          if(!t.palette||!Array.isArray(t.props))throw Error("Invalid theme "+id);
+      }
       for(const [id,b] of Object.entries(parsed.maps)){
         if(!/^[a-z0-9_-]+$/.test(id))throw new Error("Invalid map ID "+id);
         if(!b.regions||!b.features||!b.spawns)throw new Error("Missing fields on "+id);
       }
       pushUndo();setDoc(parsed);setMapId(Object.keys(parsed.maps)[0]);setSelected(null);
-      setStatus("JSON imported. Review validation warnings before publishing.");
+      if(bundle)setThemes({...uploaded.themes});
+      setStatus(bundle?"Restored blueprints and themes from bundle.":"Blueprint JSON imported. Review warnings before publishing.");
     }catch(err){setStatus("Import failed: "+(err instanceof Error?err.message:String(err)));}
     e.target.value="";
   };
@@ -729,10 +746,13 @@ export default function MapEditor() {
         <button className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 text-xs" onClick={launchPlaytest}>
           <PlayIcon size={14}/> Playtest draft
         </button>
-        <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
+        <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import map / bundle</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
         <button className={btn} onClick={async()=>{await navigator.clipboard.writeText(JSON.stringify(doc,null,2));setStatus("JSON copied to clipboard.");}}><Copy size={14}/> Copy JSON</button>
-        <button className="inline-flex gap-2 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 text-xs" onClick={exportFile}><Download size={14}/> Export JSON</button>
+        <button className="inline-flex gap-2 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 text-xs" onClick={exportBundle}>
+          <Save size={14}/> Save bundle
+        </button>
+        <button className={btn} onClick={exportFile}><Download size={14}/> Blueprint JSON</button>
       </div>
     </header>
     <div className="grid grid-cols-1 xl:grid-cols-[275px_minmax(0,1fr)_285px] min-h-[calc(100vh-70px)]">
@@ -746,6 +766,22 @@ export default function MapEditor() {
             <input className={fieldClass} value={newId} onChange={e=>setNewId(e.target.value)} placeholder="new_map_id"/>
             <button className={btn} onClick={createMap}><Plus size={14}/> New</button>
           </div>
+        </section>
+        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <button className="text-xs font-bold text-amber-200 w-full text-left" onClick={()=>setShowGuide(v=>!v)}>
+            First map guide {showGuide?"−":"+"}
+          </button>
+          {showGuide&&<div className="text-xs leading-relaxed text-zinc-300 mt-2 space-y-2">
+            <p><b>1.</b> Pick a map or choose New to duplicate its layout.</p>
+            <p><b>2.</b> Choose Theme & props → Building kit, or Geometry → Room / route kit.</p>
+            <p><b>3.</b> In 3D, move over the ground. Green is a valid building position; click to place.</p>
+            <p><b>4.</b> Select objects to move or resize. Toggle Collision and Safety overlay to diagnose problems.</p>
+            <p><b>5.</b> Choose 0/3/6 bots and Playtest draft. Return without losing your local draft.</p>
+            <p><b>6.</b> Save bundle to back up or share maps and themes as one file.</p>
+            <button className={btn+" w-full mt-2"} onClick={()=>{setEditorTab("theme");setPropKind("building");setTool("prop");}}>
+              Start with a building
+            </button>
+          </div>}
         </section>
         <section>
           <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{editorTab==="theme"?"Theme props":"Paint tools"}</div>
@@ -1253,9 +1289,10 @@ export default function MapEditor() {
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-2">Publishing</h2>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Use <strong className="text-zinc-300">Playtest draft</strong> to try unsaved changes in a local offline session. Drafts auto-save only in this browser. To publish, <strong className="text-zinc-300">Export JSON</strong>,
-            replace <code className="text-amber-300">src/data/map-blueprints.json</code> in the repo,
-            then restart or rebuild Next.js. Both offline and online sessions use the same compiled map definitions.
+            Use <strong className="text-zinc-300">Playtest draft</strong> for offline testing with optional bots.
+            Drafts auto-save locally. <strong className="text-zinc-300">Save bundle</strong> backs up blueprints
+            and visual themes together. To publish in the game, export the blueprint and theme JSON files,
+            commit them under <code className="text-amber-300">src/data/</code>, and rebuild. Publishing is never automatic.
           </p>
           <button className={btn+" mt-3 w-full"} onClick={()=>{if(confirm("Discard local edits and restore committed blueprints?")){
             pushUndo();setDoc(clone(STARTER));setSelected(null);setStatus("Restored committed definitions.");}}}>
