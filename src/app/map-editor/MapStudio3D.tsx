@@ -11,6 +11,7 @@ import { stairFlightBounds } from "@/lib/legacy-stair-flights";
 import { horizontalSnap } from "@/lib/map-studio-elevation";
 import {lockedPosition,normalizeTurns,rotatedExtents,type StudioAxis} from "@/lib/map-studio-transform";
 import type {StudioMapIssue,StudioRegionLink} from "@/lib/map-studio-diagnostics";
+import {buildFactoryMachinery,isFactoryMachineKind} from "@/lib/factory-machinery";
 
 export type StudioSelection={
   type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
@@ -417,7 +418,15 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       const w=p.w??4,h=p.h??5,d=p.d??4;
       add({type:"prop",index:i},{x:p.x,y:p.y??0,z:p.z,w,h,d},g=>{
         if(p.kind==="building")drawBuilding(g,p,.92);
-        else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
+        else if(isFactoryMachineKind(p.kind)){
+          const quarter=normalizeTurns(p.turns??0);
+          const orientedW=quarter%2?d:w,orientedD=quarter%2?w:d;
+          // Draw the exact same machine geometry used during FPS playtesting.
+          const localGroup=new THREE.Group();
+          localGroup.rotation.y=quarter*Math.PI/2;
+          buildFactoryMachinery(localGroup,p.kind,orientedW,orientedD,h);
+          g.add(localGroup);
+        }else createBox(g,0,h/2,0,w,h,d,p.color??palette.accent,.62);
       },p.turns);
     }
     // Generated city lots are selectable: picking one promotes it into an
