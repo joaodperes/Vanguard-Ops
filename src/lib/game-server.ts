@@ -1,3 +1,4 @@
+import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -1690,6 +1691,10 @@ function tickRoom(room: Room) {
     }
   }
   if (room.ended) return;
+  // All modes (including endless Survival and Gun Game) advance the same
+  // match clock once the pre-match countdown ends. Previously this lived
+  // below the Survival early return, freezing its online HUD at 00:00.
+  room.elapsedSeconds = advanceMatchElapsed(room.elapsedSeconds, 1 / 20, room.preMatchCountdown <= 0);
   if (room.mode === "survival") {
     // Survival: no time limit. Run wave state machine.
     // Only tick the wave prep/wave-active logic once the pre-match countdown
@@ -1732,7 +1737,6 @@ function tickRoom(room: Room) {
   // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
   // timeLeft = 0 means "no limit" — the match runs until the kill target
   // is reached. Previously, a 0 timeLimit caused the match to end instantly.
-  if (room.preMatchCountdown <= 0) room.elapsedSeconds = (room.elapsedSeconds ?? 0) + 1 / 20;
   if (room.preMatchCountdown <= 0 && room.timeLeft > 0) {
     room.timeLeft -= 1 / 20;
     if (room.timeLeft <= 0) {
