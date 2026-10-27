@@ -18,7 +18,7 @@ describe("lean HUD leaderboard rank", () => {
     const rows = Array.from({length: 32}, (_, i) => ({ kills: 32 - i, isSelf: i === 31 }));
     expect(killRank(rows, 99)).toEqual({ rank: 32, players: 32 });
     expect(killRank([], 3)).toEqual({ rank: 1, players: 1 });
-    expect(killRank([{ kills: 4, isSelf: false }], 3)).toEqual({ rank: 2, players: 1 });
+    expect(killRank([{ kills: 4, isSelf: false }], 3)).toEqual({ rank: 2, players: 2 });
   });
 });
 
