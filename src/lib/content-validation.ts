@@ -93,7 +93,8 @@ const achievement = z.object({
   id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
   title: label, description: label, icon: label,
   tier: z.enum(["bronze", "silver", "gold", "platinum"]),
-  category: z.enum(["pvp", "pve"]),
+  category: z.enum(["pvp", "pve", "career", "mastery"]),
+  rewardTitle: label.optional(),
 });
 const sight = z.object({
   type: label, name: label, zoom: pos, reticle: label,
