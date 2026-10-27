@@ -44,9 +44,18 @@ describe("Orbital Nexus CTF map",()=>{
   });
 });
 
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,ORBITAL_RULES_VERSION,orbitalServerWarning,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
 import {WEAPONS,weaponById} from "../src/lib/game-data";
 describe("Orbital Nexus reactor",()=>{
+ test("stale multiplayer server protocol is unmistakable, never silently 0/5",()=>{
+  expect(ORBITAL_RULES_VERSION).toBeGreaterThan(0);
+  expect(orbitalServerWarning("orbital_nexus",true,undefined)).toContain("outdated");
+  expect(orbitalServerWarning("orbital_nexus",true,ORBITAL_RULES_VERSION-1)).toContain("outdated");
+  expect(orbitalServerWarning("orbital_nexus",true,ORBITAL_RULES_VERSION)).toBeUndefined();
+  expect(orbitalServerWarning("orbital_nexus",false,undefined)).toBeUndefined();
+  expect(orbitalServerWarning("forest_warfare",true,undefined)).toBeUndefined();
+ });
+
  test("enemy kills charge if either combatant is inside the 55-unit radius",()=>{
   expect(ORBITAL_CHARGE_RADIUS).toBe(55);
   // The victim can be outside the zone as long as the killer is on the deck.
