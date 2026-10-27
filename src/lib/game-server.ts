@@ -131,6 +131,7 @@ interface Room {
   flags: CtfFlags;
   overtime: boolean;
   orbitalCharge:number;
+  orbitalActivations:number;
   orbitalHolders:Set<string>;
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   tagConfirmations: Map<string, number>; // individual enemy tag pickups
@@ -401,7 +402,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalActivations:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -560,7 +561,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalActivations:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -625,7 +626,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.teamScores = { red: 0, blue: 0 };
   room.flags = createCtfFlags(room.map.id);
   room.overtime = false;
-  room.orbitalCharge=0;room.orbitalHolders.clear();
+  room.orbitalCharge=0;room.orbitalActivations=0;room.orbitalHolders.clear();
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
@@ -739,7 +740,10 @@ function snapshot(room: Room): S2C {
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
       ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
-    ...(room.map.id==="orbital_nexus"?{orbitalCharge:room.orbitalCharge,orbitalHolders:[...room.orbitalHolders]}:{}),
+    ...(room.map.id==="orbital_nexus"?{
+      orbitalCharge:room.orbitalCharge,orbitalActivations:room.orbitalActivations,
+      orbitalHolders:[...room.orbitalHolders],
+    }:{}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1732,6 +1736,7 @@ function tickRoom(room: Room) {
       const winner=contenders[0];
       if(winner){
         room.orbitalHolders.add(winner.id);
+        room.orbitalActivations++;
         room.orbitalCharge=0;
         const bot=room.bots.get(winner.id);
         if(bot){
