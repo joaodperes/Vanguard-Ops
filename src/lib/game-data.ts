@@ -362,6 +362,7 @@ export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === 
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];
 
 export interface ResolvedLoadout {
+  perkId: string;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
@@ -380,6 +381,7 @@ export interface ResolvedLoadout {
 }
 
 export function resolveLoadout(input: {
+  perkId?: string;
   primaryWeapon: string;
   secondaryWeapon?: string;
   meleeWeapon?: string;
@@ -424,6 +426,7 @@ export function resolveLoadout(input: {
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
   const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
+    perkId: input.perkId ?? "battle_hardened",
     weapon,
     secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
