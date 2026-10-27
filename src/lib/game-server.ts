@@ -123,6 +123,7 @@ interface Room {
   tagDenials: Map<string, number>;       // individual friendly tag pickups
   startTime: number;
   timeLeft: number;
+  elapsedSeconds?: number;
   ended: boolean;
   // Lobby state machine: "lobby" = host waiting to start (no tick, no bots);
   // "playing" = match in progress (tick running, bots active); "ended" = cleaned up.
@@ -604,6 +605,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.environmentTime = 0;
   room.environmentCooldown.clear();
   room.timeLeft = room.config.timeLimit;
+  room.elapsedSeconds = 0;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
   room.tags.clear();
@@ -707,6 +709,7 @@ function snapshot(room: Room): S2C {
   const base: S2C = {
     t: "snapshot", serverNow:Date.now(), players, scores, teamScores: room.teamScores,
     timeLeft: Math.max(0, Math.ceil(room.timeLeft)),
+    elapsedSeconds: Math.floor(room.elapsedSeconds ?? 0),
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
@@ -1698,6 +1701,7 @@ function tickRoom(room: Room) {
   // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
   // timeLeft = 0 means "no limit" — the match runs until the kill target
   // is reached. Previously, a 0 timeLimit caused the match to end instantly.
+  if (room.preMatchCountdown <= 0) room.elapsedSeconds = (room.elapsedSeconds ?? 0) + 1 / 20;
   if (room.preMatchCountdown <= 0 && room.timeLeft > 0) {
     room.timeLeft -= 1 / 20;
     if (room.timeLeft <= 0) return endMatch(room);
