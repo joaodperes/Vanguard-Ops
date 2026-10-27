@@ -108,8 +108,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
-  const mins = Math.floor(hud.timeLeft / 60);
-  const secs = hud.timeLeft % 60;
+  const clockSeconds = hud.unlimitedTime ? hud.elapsedSeconds : hud.timeLeft;
+  const mins = Math.floor(clockSeconds / 60);
+  const secs = clockSeconds % 60;
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -249,7 +250,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         <div className={`backdrop-blur rounded-lg border flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "bg-rose-950/70 border-rose-500/50" : "bg-black/55 border-white/10"}`}
              style={(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? { animation: "countdownPulse 1s ease-in-out infinite" } : {}}>
           <Clock className={isTouch ? "w-3 h-3 text-white/70" : "w-4 h-4 text-white/70"} />
-          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{hud.timeLeft <= 0 ? "∞" : `${mins}:${secs.toString().padStart(2, "0")}`}</span>
+          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{`${mins}:${secs.toString().padStart(2, "0")}`}</span>
           {(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 && (
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
