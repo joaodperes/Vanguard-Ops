@@ -53,7 +53,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("each nonstandard operator appearance has a separate contract", () => {
-    const skins = PLAYER_SKINS.filter(s => s.id !== "default");
+    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency);
     expect(OPERATOR_CONTRACTS).toHaveLength(skins.length);
     expect(new Set(OPERATOR_CONTRACTS.map(ch => ch.rewardId)).size).toBe(skins.length);
     for (const skin of skins) {
@@ -69,7 +69,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   test("every paid weapon skin has a weapon-specific challenge", () => {
     // Wonder weapons use their own prestige progression and have no paid skins.
     for (const weapon of WEAPONS.filter(w => !w.wonder)) {
-      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige)) {
+      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)) {
         const challenges = skinChallengesForWeaponAndSkin(weapon.id, skin.id);
         expect(challenges.length).toBeGreaterThanOrEqual(1);
         expect(skin.unlockCost).toBeGreaterThan(0);

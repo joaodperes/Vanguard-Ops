@@ -439,7 +439,7 @@ export function autoUnlockedItems(level: number) {
     weapons: WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     attachments: [] as string[],
     weaponSkins: [] as string[],
-    playerSkins: PLAYER_SKINS.filter((s) => s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
+    playerSkins: PLAYER_SKINS.filter((s) => !s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
   };
 }
 

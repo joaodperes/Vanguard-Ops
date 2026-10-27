@@ -56,7 +56,7 @@ describe("One-time Prestige mastery", () => {
   test("all ordinary skin trials must complete, not merely Gold", () => {
     const weapon = WEAPONS.find(w => !w.wonder && w.category === "assault")!;
     const all = allSkinChallengesForWeapon(weapon.id);
-    const allowedSkins = WEAPON_SKINS.filter(s => !s.prestige && s.id !== "default");
+    const allowedSkins = WEAPON_SKINS.filter(s => !s.prestige && !s.shopCurrency && s.id !== "default");
     expect(all).toHaveLength(allowedSkins.length);
     const owned = new Set(all.map(ch => ch.skinId));
     expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, owned)).toBe(true);

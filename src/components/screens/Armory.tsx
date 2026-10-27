@@ -157,7 +157,7 @@ export function Armory() {
       if (!res.ok) {
         toast.error(data.error || "Purchase failed");
       } else {
-        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "-1 Prestige Token" : `-${cost} CR` });
+        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "1 Wonder entitlement redeemed" : `-${cost} CR` });
         await refreshProfile();
         // Re-fetch weapon progress to refresh challenge completion tiles.
         try {
@@ -422,8 +422,8 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
-              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Token-qualified: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
+              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Wonder-qualified weapons: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
@@ -452,7 +452,7 @@ export function Armory() {
                       {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
                     </Button>
                     : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
-                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Unlock · 1 Prestige Token" : "Requires 1 Prestige Token"}
+                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Redeem · 1 Wonder unlock" : "Requires 1 Wonder unlock"}
                       </Button>}
                 </div>;
               })}
@@ -525,10 +525,10 @@ export function Armory() {
             <div className="text-white/40 text-xs mb-3 flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Operative skins change your in-game appearance.</div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
-                const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (s.unlockLevel <= level && s.unlockCost === 0);
+                const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (!s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0);
                 const contract = profile?.operatorContracts.find(c => c.rewardId === s.id);
                 const challengeReady = s.id === "default" || !!contract?.completed;
-                const canBuy = !isOwned && challengeReady && credits >= s.unlockCost;
+                const canBuy = !s.shopCurrency && !isOwned && challengeReady && credits >= s.unlockCost;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const equipped = profile?.loadout.playerSkin.id === s.id;
                 return (
@@ -570,7 +570,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
@@ -1088,7 +1088,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />{s.prestige === "cosmic" ? "Reach Weapon Mastery 5/5 to earn" : s.prestige === "toxic" ? "Complete Weapon Prestige to earn" : "No unlock path"}
+                          <Lock className="w-2.5 h-2.5" />{s.shopCurrency ? `Exclusive · ${s.shopCurrency === "career" ? "Career Token" : "Credit"} Shop` : s.prestige === "cosmic" ? "Reach Weapon Mastery 5/5 to earn" : s.prestige === "toxic" ? "Complete Weapon Prestige to earn" : "No unlock path"}
                         </div>
                       ) : null}
                     </div>
