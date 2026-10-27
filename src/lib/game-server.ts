@@ -2332,7 +2332,7 @@ function collideBots(room: Room, pos: Vec3, currentY: number): Vec3 {
 // collision handles their side; the server echoes the player's authoritative
 // pos in snapshots).
 function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: number): void {
-  const minDist = 2 * PLAYER_RADIUS + 0.2;
+  const minDist = room.mode === "ctf" ? 3.1 : 2 * PLAYER_RADIUS + 0.2;
   const minDistSq = minDist * minDist;
   const yTol = PLAYER_HEIGHT * 0.8;
   const others: { pos: Vec3; alive: boolean }[] = [];
