@@ -502,6 +502,23 @@ export class FPSEngine {
   // Decorative interior detail is distance-culled; collision never is.
   private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
   private nextCityDetailUpdate=0;
+  private cityFrameMs=16.7;
+  private nextCityQualityCheck=0;
+  private cityResolutionScale=1.35;
+  private updateCityRenderBudget(now:number,elapsedMs:number){
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return;
+    // Exclude parked tabs and abnormal tab-switch catch-up times.
+    if(elapsedMs<=0||elapsedMs>=120)return;
+    this.cityFrameMs=this.cityFrameMs*.94+elapsedMs*.06;
+    if(now<this.nextCityQualityCheck)return;
+    this.nextCityQualityCheck=now+1800;
+    const next=this.cityFrameMs>28?Math.max(.75,this.cityResolutionScale-.15):
+      this.cityFrameMs<18?Math.min(1.35,this.cityResolutionScale+.10):this.cityResolutionScale;
+    if(Math.abs(next-this.cityResolutionScale)>.005){
+      this.cityResolutionScale=next;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,next));
+    }
+  }
   private updateCityDetailVisibility(now:number){
     if(now<this.nextCityDetailUpdate)return;
     this.nextCityDetailUpdate=now+350;
@@ -6626,9 +6643,11 @@ export class FPSEngine {
     this.raf = requestAnimationFrame(this.loop);
     this.timer.update();
     const dt = Math.min(0.05, this.timer.getDelta());
+    const frameStart=performance.now();
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.renderer.render(this.scene, this.camera);
+    this.updateCityRenderBudget(frameStart,performance.now()-frameStart);
   };
 
   private update(dt: number) {
