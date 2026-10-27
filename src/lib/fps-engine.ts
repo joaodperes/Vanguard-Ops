@@ -156,6 +156,8 @@ export interface HudState {
   denialScoreEnabled?: boolean;
   tagNotice?: { action: "confirm" | "deny"; at: number };
   timeLeft: number;
+  unlimitedTime: boolean;
+  elapsedSeconds: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
   lastDeath?: { killer:string; weaponId:string; attachments:string[] };
@@ -662,6 +664,8 @@ export class FPSEngine {
   private denialScoreEnabled = false;
   private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
+  private hasTimeLimit = true;
+  private elapsedSeconds = 0;
   private matchEnded = false;
   private matchFinishingLabel: string | null = null;
   private quickMeleeLastAt = -10000;
@@ -946,6 +950,7 @@ export class FPSEngine {
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
+    this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
     this.invertY = opts.invertY ?? false;
@@ -3995,6 +4000,7 @@ export class FPSEngine {
           for (const id of [...this.scavengerPickups.keys()]) this.removeScavengerPickup(id);
         }
         this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.timeLeft;
+        if (typeof msg.elapsedSeconds === "number") this.elapsedSeconds = msg.elapsedSeconds;
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
@@ -4401,6 +4407,8 @@ export class FPSEngine {
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
+          this.hasTimeLimit = msg.config.timeLimit > 0 && this.opts.mode !== "gungame" && this.opts.mode !== "survival";
+          this.elapsedSeconds = 0;
         }
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
@@ -6291,6 +6299,7 @@ export class FPSEngine {
       }
       return;
     }
+    if (!this.matchEnded && !this.opts.online) this.elapsedSeconds += dt;
     if (!this.opts.firingRange && !this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
       // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
       // timeLeft = 0 means "no limit" — the match runs until the kill target
@@ -7747,6 +7756,8 @@ export class FPSEngine {
       denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
+      unlimitedTime: !this.hasTimeLimit,
+      elapsedSeconds: Math.max(0,Math.floor(this.elapsedSeconds)),
       scoreboard,
       killFeed: this.killFeed,
       lastDeath: this.lastDeath,
