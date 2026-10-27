@@ -13,14 +13,20 @@ export const ORBITAL_REAPER:WeaponDef={
   stats:{damage:120,fireRate:1.55,magSize:1,reloadTime:0,spread:0,adsSpread:0,
     recoil:0,range:1.9,adsTime:.15,moveSpeed:1.02,auto:false,headshotMult:1},
 };
-/** The defeated combatant must DIE within the central charge radius.
- * The killer's position is deliberately irrelevant (ranged kills count).
- * Height does not restrict charging: ground and raised walkway deaths count.
- * Multiplayer/offline callers separately validate an actual enemy elimination.
+/** A legitimate enemy elimination charges when EITHER fighter is in the
+ * central zone. Standing on the raised reactor deck and shooting opponents
+ * near a flag base counts, as does sniping enemies who are inside the zone.
+ * The radius is measured horizontally; elevation is not restricted.
+ *
+ * Kill attribution / team checks are enforced by offline and server callers.
  */
-export function orbitalRecordKill(charge:number,pos:readonly number[],mapId:string):number {
-  return mapId==="orbital_nexus"&&pos.length===3&&pos.every(Number.isFinite)&&
-    Math.hypot(pos[0],pos[2])<=ORBITAL_CHARGE_RADIUS
+export function orbitalRecordKill(
+  charge:number,victimPos:readonly number[],mapId:string,killerPos?:readonly number[],
+):number {
+  if(mapId!=="orbital_nexus"||victimPos.length!==3||!victimPos.every(Number.isFinite))return charge;
+  const within=(pos:readonly number[])=>pos.length===3&&pos.every(Number.isFinite)&&
+    Math.hypot(pos[0],pos[2])<=ORBITAL_CHARGE_RADIUS;
+  return within(victimPos)||(killerPos!==undefined&&within(killerPos))
     ?Math.min(ORBITAL_KILLS_REQUIRED,charge+1):charge;
 }
 export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolean):boolean {
