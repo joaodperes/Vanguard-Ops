@@ -131,7 +131,6 @@ interface Room {
   flags: CtfFlags;
   overtime: boolean;
   orbitalCharge:number;
-  orbitalActivations:number;
   orbitalHolders:Set<string>;
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   tagConfirmations: Map<string, number>; // individual enemy tag pickups
@@ -402,7 +401,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalActivations:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -561,7 +560,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalActivations:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -626,7 +625,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.teamScores = { red: 0, blue: 0 };
   room.flags = createCtfFlags(room.map.id);
   room.overtime = false;
-  room.orbitalCharge=0;room.orbitalActivations=0;room.orbitalHolders.clear();
+  room.orbitalCharge=0;room.orbitalHolders.clear();
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
@@ -741,7 +740,7 @@ function snapshot(room: Room): S2C {
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
       ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
     ...(room.map.id==="orbital_nexus"?{
-      orbitalCharge:room.orbitalCharge,orbitalActivations:room.orbitalActivations,
+      orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
     }:{}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
@@ -1380,10 +1379,6 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       // Either the attacker OR the defeated combatant can be in the central
       // charge zone; the server validates opponent ownership before counting.
       const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id,attacker.pos);
-      // Explicit per-kill result prevents silent no-op debugging in live CTF.
-      // Only the killer sees rejected out-of-zone eliminations.
-      if(!attacker.isBot)io.to(attacker.id).emit("message",
-        {t:"orbitalKillResult",counted:charge>room.orbitalCharge,charge} as S2C);
       if(charge!==room.orbitalCharge){
         room.orbitalCharge=charge;
         io.to(room.id).emit("message",{t:"orbitalAbsorb",pos:[...victim.pos] as Vec3} as S2C);
@@ -1764,7 +1759,6 @@ function tickRoom(room: Room) {
       const winner=contenders[0];
       if(winner){
         room.orbitalHolders.add(winner.id);
-        room.orbitalActivations++;
         room.orbitalCharge=0;
         const bot=room.bots.get(winner.id);
         if(bot){
