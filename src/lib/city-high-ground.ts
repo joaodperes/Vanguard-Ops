@@ -45,3 +45,26 @@ export function chooseCityHighGroundGoal(
   // Different bots get a chance to explore more than the same closest roof.
   return options[Math.abs(Math.floor(variation))%Math.min(options.length,3)];
 }
+
+/** Next physically staged climbing target. The bot still runs ordinary
+ * collision and gravity after selecting the waypoint. */
+export function cityHighGroundStep(
+  from:Vec3,goal:HighGroundGoal,cover:readonly import("./game-protocol").CoverBox[],
+):Vec3{
+  const dist=Math.hypot(from[0]-goal.entry[0],from[2]-goal.entry[2]);
+  if(dist>3.2&&from[1]<goal.entry[1]+.6)return goal.entry;
+  if(from[1]>=goal.roof[1]-.8)return goal.roof;
+  const steps=cover.filter(c=>c.kind==="stair"&&
+    c.pos[1]+c.size[1]>from[1]+.1&&
+    c.pos[1]+c.size[1]<=from[1]+.7&&
+    Math.hypot(c.pos[0]-goal.entry[0],c.pos[2]-goal.entry[2])<29&&
+    Math.hypot(c.pos[0]-from[0],c.pos[2]-from[2])<5);
+  if(!steps.length)return goal.entry;
+  const chosen=steps.reduce((a,b)=>{
+    const cost=(c:typeof a)=>
+      Math.hypot(c.pos[0]-from[0],c.pos[2]-from[2])+
+      Math.hypot(c.pos[0]-goal.roof[0],c.pos[2]-goal.roof[2])*.02;
+    return cost(a)<cost(b)?a:b;
+  });
+  return [chosen.pos[0],chosen.pos[1]+chosen.size[1],chosen.pos[2]];
+}
