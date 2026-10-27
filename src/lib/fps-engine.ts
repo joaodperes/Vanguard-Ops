@@ -1322,9 +1322,9 @@ export class FPSEngine {
     for(const [team,sign] of [["red",-1],["blue",1]] as const){
       const x=94*sign;
       place(new THREE.Mesh(new THREE.CylinderGeometry(2.65,3.1,11.8,16),bark),x,5.9,0);
-      const deck=new THREE.Mesh(new THREE.CylinderGeometry(12,12,.48,40),barkLight);
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(13,13,.48,48),barkLight);
       place(deck,x,11.76,0); // top face exactly y=12, same as shared collision
-      const ring=new THREE.Mesh(new THREE.TorusGeometry(11.7,.25,8,48),bark);
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(12.7,.25,8,48),bark);
       ring.rotation.x=Math.PI/2;place(ring,x,12.08,0);
       // Large high boughs frame the platform but never occlude a
       // standing defender's view across the treetop.
