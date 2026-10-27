@@ -7,8 +7,8 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all seven maps have dedicated tactical cover and playable outer spawns", () => {
-    expect(MAP_LIST).toHaveLength(7);
+  test("all eight maps have dedicated tactical cover and playable outer spawns", () => {
+    expect(MAP_LIST).toHaveLength(8);
     for (const map of MAP_LIST) {
       expect(TACTICAL_COVER[map.id].length).toBeGreaterThanOrEqual(16);
       expect(OUTER_SPAWNS[map.id].ffa.length).toBeGreaterThanOrEqual(6);

@@ -182,7 +182,7 @@ export function Play() {
       toast.error("Capture the Flag requires a capture target or a time limit.");
       return;
     }
-    const selectedMap = mode === "ctf" ? "forest_warfare" : roomConfig.mapId === "forest_warfare" ? "compound" : roomConfig.mapId;
+    const selectedMap = mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound";
     if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
       toast.error("This Survival tier is locked. Clear the previous milestone first.");
       return;
@@ -310,7 +310,7 @@ export function Play() {
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mode === "ctf" ? "forest_warfare" : roomConfig.mapId === "forest_warfare" ? "compound" : roomConfig.mapId, scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
                 </Section>

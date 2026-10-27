@@ -945,6 +945,8 @@ export class FPSEngine {
     this.container = container;
     this.opts = opts;
     this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
+    this.ctfFlags = createCtfFlags(this.map.id);
+    this.ctfBases = {red:ctfBase("red",this.map.id),blue:ctfBase("blue",this.map.id)};
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
@@ -1052,7 +1054,7 @@ export class FPSEngine {
     }
     this.buildArena();
     this.buildMapProps();
-    if (this.map.id === "forest_warfare") this.buildCtfFlagModels();
+    if (this.opts.mode === "ctf") this.buildCtfFlagModels();
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
@@ -1403,7 +1405,7 @@ export class FPSEngine {
       place(crown,x,28.5,0);
       // Nonblocking colored base objective ring; wide approaches from both
       // directions give the return carrier a clear, recognizable destination.
-      const base=ctfBase(team);
+      const base=ctfBase(team,this.map.id);
       const marker=new THREE.Mesh(new THREE.RingGeometry(3.0,4.25,40),
         new THREE.MeshBasicMaterial({
           color:team==="red"?0xff5959:0x55c8ff,
@@ -1413,6 +1415,51 @@ export class FPSEngine {
       marker.position.set(base[0],.07,base[2]);
       this.scene.add(marker);
       this.ctfMarkers[team] = marker;
+    }
+  }
+
+
+  /** Orbital Nexus spectacle, separate from server-authoritative collision. */
+  private buildOrbitalScenery() {
+    const luminous=(color:number,opacity=1)=>new THREE.MeshBasicMaterial({
+      color,transparent:opacity<1,opacity,depthWrite:false,side:THREE.DoubleSide,
+    });
+    // Gas giant looming behind the station and a deterministic star field.
+    const planet=new THREE.Mesh(new THREE.SphereGeometry(57,36,24),
+      new THREE.MeshBasicMaterial({color:0x59418e,fog:false}));
+    planet.position.set(8,69,-205);this.scene.add(planet);
+    const atmosphere=new THREE.Mesh(new THREE.TorusGeometry(67,1.2,8,84),luminous(0xab7dfb,.58));
+    atmosphere.position.copy(planet.position);atmosphere.rotation.set(.24,.35,.2);this.scene.add(atmosphere);
+    const vertices:number[]=[];
+    for(let i=0;i<150;i++){const a=i*2.3999632,r=135+(i%17)*5;
+      vertices.push(Math.cos(a)*r,45+(i*37%115),Math.sin(a)*r);}
+    const sky=new THREE.BufferGeometry();
+    sky.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
+    this.scene.add(new THREE.Points(sky,new THREE.PointsMaterial({color:0xc6ddff,size:.85,fog:false})));
+    // Containment rings float safely above the open command deck.
+    const coreMat=new THREE.MeshStandardMaterial({
+      color:0x7859cd,emissive:0x9654e9,emissiveIntensity:1.2,metalness:.45,roughness:.24,
+    });
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),coreMat);
+    core.position.set(0,11,0);this.scene.add(core);
+    for(const [radius,height,rotation,color] of [
+      [6,11,.27,0x61e7ff],[8,11,1.13,0xd484ff],[5,13,.72,0x4ee9e5]
+    ] as const){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,.17,10,64),luminous(color,.9));
+      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);
+    }
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.85,10,14),luminous(0x5ac5ff,.22));
+    beam.position.y=8;this.scene.add(beam);
+    for(const team of ["red","blue"] as const){
+      const sign=team==="red"?-1:1,color=team==="red"?0xff5479:0x52ddff;
+      const base=ctfBase(team,this.map.id);
+      const marker=new THREE.Mesh(new THREE.RingGeometry(3,4.2,48),luminous(color,.9));
+      marker.rotation.x=-Math.PI/2;marker.position.set(base[0],.07,base[2]);
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+      const vaultHalo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),luminous(color,.72));
+      vaultHalo.position.set(sign*76,4,0);vaultHalo.rotation.x=Math.PI/2;this.scene.add(vaultHalo);
+      const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),luminous(color,.68));
+      beacon.position.set(sign*76,6.6,0);this.scene.add(beacon);
     }
   }
 
@@ -1471,7 +1518,7 @@ export class FPSEngine {
 
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
-    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs))
+    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map.id))
       this.announceCtfEvent("auto_return", flag, "server");
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
@@ -1480,7 +1527,7 @@ export class FPSEngine {
       if(bot.alive&&(bot.team==="red"||bot.team==="blue"))
         actors.push({id:bot.id,team:bot.team,pos:bot.pos,self:false,bot});
     for(const actor of actors){
-      const event=ctfTouch(this.ctfFlags,actor);
+      const event=ctfTouch(this.ctfFlags,actor,this.map.id);
       if(!event)continue;
       this.announceCtfEvent(event.kind, event.flag, actor.id);
       if(event.kind==="capture"){
@@ -1497,6 +1544,7 @@ export class FPSEngine {
   private buildMapProps() {
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
+    if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -4847,7 +4895,7 @@ export class FPSEngine {
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
-        this.ctfFlags = createCtfFlags(); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
+        this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -7650,7 +7698,7 @@ export class FPSEngine {
         ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[]))).goal,c.pos)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id).goal,c.pos,this.map.id)
         : null;
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated

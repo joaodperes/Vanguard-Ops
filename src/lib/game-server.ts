@@ -386,7 +386,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
 function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const id = genId("match");
   const config = DEFAULT_CONFIG(mode, botCount);
-  const map = makeEnvironmentMap(getMap(mode === "ctf" ? "forest_warfare" : mapId === "forest_warfare" ? "compound" : mapId));
+  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,mapId)?mapId:mode==="ctf"?"forest_warfare":"compound"));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
   // Gun Game: the score limit IS the progression length — first player to
@@ -398,7 +398,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -535,7 +535,7 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
-  const map = makeEnvironmentMap(getMap(mode === "ctf" ? "forest_warfare" : cfg.mapId));
+  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,cfg.mapId)?cfg.mapId:mode==="ctf"?"forest_warfare":"compound"));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 1 ? 1 : 2);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
@@ -557,7 +557,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -620,7 +620,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.elapsedSeconds = 0;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
-  room.flags = createCtfFlags();
+  room.flags = createCtfFlags(room.map.id);
   room.overtime = false;
   room.tags.clear();
   room.tagConfirmations.clear();
@@ -734,7 +734,7 @@ function snapshot(room: Room): S2C {
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
-      ctfBases: {red:ctfBase("red"),blue:ctfBase("blue")}, ctfRulesVersion: 2 } : {}),
+      ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1481,13 +1481,13 @@ function dropCarriedFlag(room: Room, carrierId: string, pos: Vec3): void {
 
 // Flag contacts are resolved once by the server on its 20 Hz simulation tick.
 function tickCaptureTheFlag(room: Room, now = Date.now()): void {
-  for (const flag of ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs)) {
+  for (const flag of ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs, room.map.id)) {
     io.to(room.id).emit("message",
       { t: "ctfEvent", action: "auto_return", flag, playerId: "server" } as S2C);
   }
   for (const player of allCombatants(room)) {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
-    const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
+    const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos },room.map.id);
     if (!event) continue;
     io.to(room.id).emit("message", {t:"ctfEvent",action:event.kind,flag:event.flag,playerId:player.id} as S2C);
     if (event.kind === "capture") {
@@ -1918,7 +1918,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const ctfObjective = room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
       ? ctfStairWaypoint(ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
           [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
-          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos]))).goal,bot.pos)
+          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map.id).goal,bot.pos,room.map.id)
       : null;
     const prevTarget = ai.targetId;
     ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);

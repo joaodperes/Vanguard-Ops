@@ -6,8 +6,10 @@ import { botGroundHeight, botPositionEmbedded, BOT_STEP_HEIGHT } from "../src/li
 import { insideRegions } from "../src/lib/map-blueprints";
 
 describe("Capture the Flag objective rules", () => {
-  test("Forest Warfare is the only CTF map and is exclusive", () => {
+  test("Forest Warfare and Orbital Nexus are exclusive CTF maps", () => {
     expect(mapAllowedForMode("ctf", "forest_warfare")).toBe(true);
+    expect(mapAllowedForMode("ctf", "orbital_nexus")).toBe(true);
+    expect(mapAllowedForMode("tdm", "orbital_nexus")).toBe(false);
     expect(mapAllowedForMode("ctf", "compound")).toBe(false);
     expect(mapAllowedForMode("tdm", "forest_warfare")).toBe(false);
     expect(getMap("forest_warfare").spawns.red.length).toBeGreaterThan(0);

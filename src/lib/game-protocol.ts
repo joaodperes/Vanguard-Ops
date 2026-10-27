@@ -13,7 +13,7 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
@@ -963,6 +963,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  orbital_nexus: [],
   forest_warfare: [],
   compound: [
     // Fuel service yard east of the northern security checkpoint.
@@ -1008,6 +1009,20 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  orbital_nexus: {
+    id:"orbital_nexus",name:"ORBITAL NEXUS",shortName:"ONX",
+    description:"CTF aboard an orbital station above a violet gas giant.",
+    size:100,wallHeight:17,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
+    spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",
+    theme:{floor:0x202a40,floorPattern:0x305578,wall:0x323d62,cover:0x64728f,
+      coverAccent:0x4ce8fb,stair:0x8596b0,platform:0x465876,
+      sky:"#07091d",fog:"#151d39",fogNear:45,fogFar:400,ambient:1.62,gridColor:0x305578},
+    lights:[
+      {pos:[-76,8,0],color:0xff567b,intensity:2.5,distance:38},
+      {pos:[76,8,0],color:0x57deff,intensity:2.5,distance:38},
+      {pos:[0,13,0],color:0x9f64ff,intensity:2.7,distance:48},
+    ],
+  },
   forest_warfare: {
     id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
     description: "Long woodland valley with ancient climbable trees, dense cover, and raised woodland platforms.",
@@ -1184,6 +1199,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
 export const MAPS: Record<string, MapDef> = {
+  orbital_nexus: applyMapFootprint(BASE_MAPS.orbital_nexus),
   forest_warfare: applyMapFootprint(BASE_MAPS.forest_warfare),
   compound: applyMapFootprint(BASE_MAPS.compound),
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
@@ -1209,7 +1225,7 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? id === "forest_warfare" : id !== "forest_warfare";
+  mode === "ctf" ? id === "forest_warfare" || id === "orbital_nexus" : id !== "forest_warfare" && id !== "orbital_nexus";
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];

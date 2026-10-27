@@ -1,0 +1,200 @@
+{
+  "biome": "orbital",
+  "label": "Orbital station above a luminous gas giant",
+  "palette": {
+    "floor": "#202a40",
+    "wall": "#323d62",
+    "cover": "#64728f",
+    "accent": "#4ce8fb",
+    "platform": "#465876",
+    "stair": "#8596b0",
+    "sky": "#07091d",
+    "fog": "#151d39",
+    "grid": "#305578"
+  },
+  "ambient": 1.62,
+  "vegetation": 0,
+  "props": [
+    {
+      "kind": "antenna",
+      "x": 0,
+      "z": -48,
+      "w": 5,
+      "d": 5,
+      "h": 16,
+      "color": "#62dff0"
+    },
+    {
+      "kind": "antenna",
+      "x": 0,
+      "z": 48,
+      "w": 5,
+      "d": 5,
+      "h": 16,
+      "color": "#d48bff"
+    },
+    {
+      "kind": "terminal",
+      "x": -74,
+      "z": -11,
+      "w": 3,
+      "d": 2,
+      "h": 2.5,
+      "color": "#ff5b82",
+      "text": "CRIMSON // FLAG VAULT"
+    },
+    {
+      "kind": "terminal",
+      "x": 74,
+      "z": 11,
+      "w": 3,
+      "d": 2,
+      "h": 2.5,
+      "color": "#59dfff",
+      "text": "AZURE // FLAG VAULT"
+    },
+    {
+      "kind": "terminal",
+      "x": -30,
+      "z": 13,
+      "w": 2.6,
+      "d": 1.9,
+      "h": 2.4,
+      "color": "#4ce8fb",
+      "text": "REACTOR STATUS"
+    },
+    {
+      "kind": "terminal",
+      "x": 30,
+      "z": -13,
+      "w": 2.6,
+      "d": 1.9,
+      "h": 2.4,
+      "color": "#c77bff",
+      "text": "QUANTUM STATUS"
+    },
+    {
+      "kind": "sign",
+      "x": -64,
+      "z": -39,
+      "w": 14,
+      "d": 1,
+      "h": 4,
+      "color": "#fc667e",
+      "text": "CRIMSON HANGAR"
+    },
+    {
+      "kind": "sign",
+      "x": 64,
+      "z": 39,
+      "w": 14,
+      "d": 1,
+      "h": 4,
+      "color": "#52e6ff",
+      "text": "AZURE HANGAR"
+    },
+    {
+      "kind": "lamp",
+      "x": -73,
+      "z": -34,
+      "h": 8,
+      "color": "#ff647e"
+    },
+    {
+      "kind": "lamp",
+      "x": -73,
+      "z": 34,
+      "h": 8,
+      "color": "#ff647e"
+    },
+    {
+      "kind": "lamp",
+      "x": -32,
+      "z": 36,
+      "h": 7,
+      "color": "#a991ff"
+    },
+    {
+      "kind": "lamp",
+      "x": -32,
+      "z": -36,
+      "h": 7,
+      "color": "#a991ff"
+    },
+    {
+      "kind": "industrial_pipe",
+      "x": -63,
+      "z": 0,
+      "y": 12,
+      "w": 1.5,
+      "d": 42,
+      "h": 1,
+      "color": "#4c86c1"
+    },
+    {
+      "kind": "lamp",
+      "x": 73,
+      "z": -34,
+      "h": 8,
+      "color": "#63e7ff"
+    },
+    {
+      "kind": "lamp",
+      "x": 73,
+      "z": 34,
+      "h": 8,
+      "color": "#63e7ff"
+    },
+    {
+      "kind": "lamp",
+      "x": 32,
+      "z": 36,
+      "h": 7,
+      "color": "#a991ff"
+    },
+    {
+      "kind": "lamp",
+      "x": 32,
+      "z": -36,
+      "h": 7,
+      "color": "#a991ff"
+    },
+    {
+      "kind": "industrial_pipe",
+      "x": 63,
+      "z": 0,
+      "y": 12,
+      "w": 1.5,
+      "d": 42,
+      "h": 1,
+      "color": "#4c86c1"
+    }
+  ],
+  "surfaces": {
+    "floor": {
+      "pattern": "metal",
+      "tileSize": 7,
+      "roughness": 0.6
+    },
+    "wall": {
+      "pattern": "metal",
+      "tileSize": 4,
+      "roughness": 0.42
+    },
+    "cover": {
+      "pattern": "metal",
+      "tileSize": 3,
+      "roughness": 0.55
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 3,
+      "roughness": 0.57
+    },
+    "platform": {
+      "pattern": "grate",
+      "tileSize": 5,
+      "roughness": 0.5
+    }
+  }
+}

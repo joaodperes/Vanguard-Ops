@@ -11,6 +11,7 @@ import { detectLegacyStairFlights } from "./legacy-stair-flights";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
+  orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
   bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
   shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
   compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},

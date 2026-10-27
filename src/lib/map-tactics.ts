@@ -19,6 +19,17 @@ function elevated(x: number, z: number, surface: number, width = 1.2, depth = 1.
 }
 
 export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
+  orbital_nexus: [
+    wall(-8,-34,10,1.2,3),wall(8,-34,10,1.2,3),
+    wall(-57,-25,2,11,2.8),wall(57,25,2,11,2.8),
+    wall(-57,25,2,11,2.8),wall(57,-25,2,11,2.8),
+    wall(-36,-7,6,1.2,1.5),wall(36,7,6,1.2,1.5),
+    wall(-36,7,6,1.2,1.5),wall(36,-7,6,1.2,1.5),
+    low(-14,-35,4,4,1.4),low(14,35,4,4,1.4),
+    low(-14,35,4,4,1.4),low(14,-35,4,4,1.4),
+    wall(-70,-40,7,1.4,2.1),wall(70,40,7,1.4,2.1),
+    wall(-70,40,7,1.4,2.1),wall(70,-40,7,1.4,2.1),
+  ],
   forest_warfare: FOREST_WARFARE_COVER,
   compound: [
     // North security checkpoint: breakable centre gate at (0,-34).
@@ -118,6 +129,11 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
  * fighting positions. Added alongside the original spawns; tested for cover
  * and hazard clearance so no spawn is placed inside solid geometry. */
 export const OUTER_SPAWNS: Record<MapId, { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] }> = {
+  orbital_nexus: {
+    ffa:[[-88,0,-15],[-88,0,15],[88,0,-15],[88,0,15],[-29,0,-44],[29,0,44]],
+    red:[[-88,0,-15],[-88,0,15],[-80,0,24]],
+    blue:[[88,0,-15],[88,0,15],[80,0,-24]],
+  },
   forest_warfare: FOREST_SPAWNS,
   compound: {
     ffa: [[-51,0,-18],[51,0,18],[-51,0,18],[51,0,-18],[0,0,-51],[0,0,51]],
