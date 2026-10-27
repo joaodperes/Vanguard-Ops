@@ -2,11 +2,24 @@
 import type {Vec3} from "./game-protocol";
 import type {WeaponDef} from "./game-data";
 export const ORBITAL_REAPER_ID="orbital_reaper";
+/** Bump when the authoritative reactor protocol or eligibility rule changes. */
+export const ORBITAL_RULES_VERSION=3;
 export const ORBITAL_KILLS_REQUIRED=5;
 /** Flat X/Z radius around the central reactor; flag bases remain outside it. */
 export const ORBITAL_CHARGE_RADIUS=55;
 export const ORBITAL_PICKUP_RADIUS=3.5;
 export const ORBITAL_PLATFORM_Y=3.2;
+/** A missing/older rules version means the multiplayer server was not restarted
+ * after gameplay updates. Show an explicit error instead of a false 0/5.
+ */
+export function orbitalServerWarning(
+  mapId:string,online:boolean,serverVersion:number|undefined,
+):string|undefined {
+  if(!online||mapId!=="orbital_nexus")return undefined;
+  return serverVersion===ORBITAL_RULES_VERSION?undefined:
+    "REACTOR UNAVAILABLE — multiplayer server is running outdated rules. Restart/redeploy the game server and start a new match.";
+}
+
 export const ORBITAL_REAPER:WeaponDef={
   id:ORBITAL_REAPER_ID,name:"Nexus Reaper",category:"melee",unlockLevel:0,unlockCost:0,
   description:"Reactor-forged plasma glaive; temporary and lost on death.",attachments:[],
