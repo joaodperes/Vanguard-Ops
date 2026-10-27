@@ -21,10 +21,18 @@ export function selectSmartTarget(origin:V3,dir:V3,candidates:WonderCandidate[],
  }
  return best;
 }
-/** Flame blooms radially outward from a short-range emitter. */
+/** Hellfire covers a broad 140-degree FORWARD arc, not a narrow bullet lane.
+ * Flat-plane arc is intentional: it threatens lateral approaches and denies
+ * passages, but never damages enemies behind the operator or through cover.
+ */
+export const HELLFIRE_HALF_ARC_DEGREES = 70;
 export function inFlameCone(origin:V3,dir:V3,target:V3,range=14):boolean{
- const aim=aimProjection(origin,dir,target);
- return aim.forward>0&&aim.forward<=range&&aim.offset<=0.8+aim.forward*.245;
+ const dx=target[0]-origin[0],dz=target[2]-origin[2];
+ const dist=Math.hypot(dx,dz),aimLen=Math.hypot(dir[0],dir[2]);
+ if(dist<=0||dist>range||aimLen===0)return false;
+ const forward=(dx*dir[0]+dz*dir[2])/(dist*aimLen);
+ return forward>=Math.cos(HELLFIRE_HALF_ARC_DEGREES*Math.PI/180) &&
+   Math.abs(target[1]-origin[1])<=2.3;
 }
 /** Electrical current follows the connecting segment between two anchors. */
 export function nearStormLink(a:V3,b:V3,pos:V3,radius=1.4):boolean{
