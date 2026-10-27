@@ -7,7 +7,8 @@ export const MOVEMENT = {
   sprintMultiplier: 1.95,
   sprintAdsMultiplier: 1.48,
   jumpVelocity: 8.55,
-  sprintJumpBoost: 2.35,
+  sprintJumpBoost: 3.15,
+  runJumpBoost: 1.45,  // momentum reward for a moving jump even without sprint
   gravity: 22.5,
   botPursuitMultiplier: 1.16,
   groundAcceleration: 23,  // brisk acceleration from rest
@@ -55,4 +56,18 @@ export function responsiveHorizontalVelocity(
   const x = vx + (targetX - vx) * alpha;
   const z = vz + (targetZ - vz) * alpha;
   return desired < 0.001 && Math.hypot(x, z) < 0.015 ? [0, 0] : [x, z];
+}
+
+/** Preserve incoming travel direction and reward running takeoffs. Stationary
+ * jumps receive no impulse; reversing before takeoff does not grant a boost. */
+export function runJumpTakeoffVelocity(
+  vx:number,vz:number,desiredX:number,desiredZ:number,sprinting:boolean,
+): [number,number] {
+  const speed=Math.hypot(vx,vz),desiredSpeed=Math.hypot(desiredX,desiredZ);
+  if(speed<MOVEMENT.walk*.38||desiredSpeed<.01) return [vx,vz];
+  const alignment=(vx*desiredX+vz*desiredZ)/(speed*desiredSpeed);
+  if(alignment<.45) return [vx,vz];
+  const boost=(sprinting?MOVEMENT.sprintJumpBoost:MOVEMENT.runJumpBoost)
+    * Math.min(1,speed/(MOVEMENT.walk*(sprinting?MOVEMENT.sprintMultiplier:1)));
+  return [vx+desiredX/desiredSpeed*boost,vz+desiredZ/desiredSpeed*boost];
 }
