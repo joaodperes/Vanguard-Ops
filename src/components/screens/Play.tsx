@@ -11,7 +11,7 @@ import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
 import {
-  MAP_LIST, TEAM_SIZES, roomCapacity, mapAllowedForMode,
+  MAP_LIST, teamSizesForMap, roomCapacity, mapAllowedForMode,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";
@@ -337,8 +337,8 @@ export function Play() {
                       </button>)}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-3">
-                      {TEAM_SIZES.map((ts) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {teamSizesForMap(roomConfig.mapId).map((ts) => {
                         const selected = roomConfig.teamSize === ts;
                         const total = ts * 2;
                         const label = roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${total} players` : `${ts}v${ts}`;
