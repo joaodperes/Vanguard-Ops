@@ -1029,9 +1029,12 @@ export class FPSEngine {
   // ---- Three.js setup ----
   private initThree() {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Dense city maps need a stable pixel budget; never render them at 2x DPI.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.map.biome==="city"||this.map.biome==="city_day"?1.35:2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.shadowMap.enabled = true;
+    // Thousands of city interior and stair boxes would otherwise issue an
+    // additional expensive shadow pass every frame. Keep shadows elsewhere.
+    this.renderer.shadowMap.enabled = this.map.biome!=="city"&&this.map.biome!=="city_day";
     // Nearest comparison avoids implementation-defined LINEAR depth texture
     // filtering in WebGL browsers (and the resulting console warnings).
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
@@ -1153,10 +1156,44 @@ export class FPSEngine {
 
     // cover / platforms / stairs
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
-    for (const c of this.map.cover) {
-      if (c.environmentId) continue; // handled by animated environment meshes
+    // The city once submitted one Mesh + draw call for EVERY wall section,
+    // furniture AABB and step, and then rendered them a second time for
+    // shadows. Instance equal-material solids; physics still reads every
+    // individual CoverBox from this.map.cover unchanged.
+    const cityBatch=this.map.biome==="city"||this.map.biome==="city_day";
+    if(cityBatch){
+      const materials:Record<string,THREE.Material>={
+        accent:accentMat,solid:wallMat,stair:stairMat,platform:platformMat,cover:coverMat,
+      };
+      const buckets=new Map<string,typeof this.map.cover>();
+      for(const c of this.map.cover){
+        if(c.environmentId)continue;
+        const kind=c.kind??"cover";
+        const key=kind in materials?kind:"cover";
+        const list=buckets.get(key)??[];
+        list.push(c);buckets.set(key,list);
+      }
+      const transform=new THREE.Object3D();
+      const unit=new THREE.BoxGeometry(1,1,1);
+      for(const [kind,boxes] of buckets){
+        if(!boxes.length)continue;
+        const instanced=new THREE.InstancedMesh(unit,materials[kind],boxes.length);
+        instanced.frustumCulled=false; // instance bounding volume spans the whole map
+        instanced.castShadow=false;instanced.receiveShadow=true;
+        for(let i=0;i<boxes.length;i++){
+          const c=boxes[i];
+          transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
+          transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
+          transform.updateMatrix();
+          instanced.setMatrixAt(i,transform.matrix);
+        }
+        instanced.instanceMatrix.needsUpdate=true;
+        this.scene.add(instanced);
+      }
+    }else for(const c of this.map.cover) {
+      if (c.environmentId) continue;
       const kind = c.kind ?? "cover";
-      if (this.map.id === "forest_warfare" && kind !== "stair") continue; // forest gets natural meshes
+      if (this.map.id === "forest_warfare" && kind !== "stair") continue;
       const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
       if(kind !== "accent"){
@@ -1167,7 +1204,6 @@ export class FPSEngine {
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
       this.scene.add(m);
-      // Accent stripe on tall platforms (visual cue for climbable tops)
       if (kind === "platform" && c.size[1] >= 1.5) {
         const stripeGeo = new THREE.BoxGeometry(c.size[0] * 2 + 0.05, 0.08, c.size[2] * 2 + 0.05);
         const stripe = new THREE.Mesh(stripeGeo, accentMat);
