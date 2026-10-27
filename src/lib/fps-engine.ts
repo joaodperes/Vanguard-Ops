@@ -1320,10 +1320,36 @@ export class FPSEngine {
         const display=new THREE.MeshStandardMaterial({color:daylight?0xe1b887:0xf0a6b1,roughness:.45,emissive:daylight?0x161109:0x632638,emissiveIntensity:.24});
         const fabric=new THREE.MeshStandardMaterial({color:use==="clinic"?0xc9dbde:0xc2b5a4,roughness:.93});
         const wallPaint=new THREE.MeshStandardMaterial({color:daylight?0xc6b8a2:0x86808e,roughness:.94});
-        // Continuous floor and room rugs connect the fixtures into purposeful
-        // interiors instead of freestanding featureless boxes.
-        cube(group,asphalt,0,.03,0,w-.9,.06,d-.9);
-        cube(group,fabric,-w*.22,.07,-d*.34,Math.min(5,w*.40),.045,Math.min(4,d*.30));
+        // Individual interiors have distinct floor materials, shop displays,
+        // wall treatments and purpose-specific visual props. All SOLID items
+        // come from cityInteriorFixtures and share collision with the server.
+        const interiorFloor=new THREE.MeshStandardMaterial({color:
+          ["cafe","bakery","diner"].includes(use)?0x8d715b:
+          ["house","apartments","hotel"].includes(use)?0x746655:
+          ["clinic","gym"].includes(use)?0x91a1a2:
+          ["florist","gallery"].includes(use)?0x777a66:
+          ["workshop","supermarket"].includes(use)?0x54585a:0x69727b,
+          roughness:["clinic","supermarket"].includes(use)?.52:.88});
+        cube(group,interiorFloor,0,.035,0,w-.9,.07,d-.9);
+        if(["house","apartments","hotel","library"].includes(use)){
+          cube(group,fabric,-w*.23,.08,-d*.35,Math.min(4.6,w*.33),.045,Math.min(3.6,d*.27));
+        }
+        // Wall-mounted identity cues never obstruct doorways or walking lanes.
+        const accentMat=new THREE.MeshStandardMaterial({color:
+          ["clinic","office"].includes(use)?0x76c6c9:
+          ["bakery","cafe","diner"].includes(use)?0xdfac73:
+          ["gym","workshop"].includes(use)?0xdbb24f:
+          ["gallery","florist"].includes(use)?0xb4b985:0xc6a48c,
+          roughness:.72,emissive:daylight?0x070706:0x16100a,emissiveIntensity:.20});
+        for(const side of [-1,1]){
+          cube(group,accentMat,side*w*.29,Math.min(3.3,h*.64),-d/2+.53,
+            Math.min(2.9,w*.20),.85,.12);
+        }
+        if(["supermarket","library","office","gym","clinic"].includes(use)){
+          for(const side of [-1,1]){
+            cube(group,accentMat,side*w*.40,.10,-d*.02,.10,.06,d*.66);
+          }
+        }
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
         for(const item of cityInteriorFixtures({...p,w,d})){
@@ -1377,6 +1403,46 @@ export class FPSEngine {
             const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
             leaves.position.set(x,fh*.71,z);
             leaves.scale.set(.8,1.1,.8);group.add(leaves);
+          }else if(style==="espresso"){
+            part(metal,0,.28,0,fw*.94,.54,fd*.94);
+            part(wood,0,.63,0,fw,.14,fd);
+            part(display,-fw*.20,.97,0,fw*.28,.61,fd*.45);
+            part(metal,fw*.25,.84,0,.19,.34,.24);
+            part(seating,fw*.18,1.05,fd*.13,.28,.15,.22);
+          }else if(style==="oven"){
+            part(asphalt,0,fh*.42,0,fw,fh*.84,fd);
+            part(metal,0,fh*.84,0,fw,.16,fd);
+            part(display,0,fh*.43,fd/2+.015,fw*.76,fh*.48,.08);
+            for(const side of [-1,1])part(wood,side*fw*.3,fh*.83,fd*.28,.22,.08,.21);
+          }else if(style==="checkout"){
+            part(wood,0,fh*.40,0,fw,fh*.8,fd);
+            part(metal,0,fh*.89,0,fw,.17,fd);
+            part(display,-fw*.22,fh*1.03,-fd*.15,fw*.25,.28,.16);
+            part(iron,fw*.30,fh*.95,0,.19,.28,fd*.45);
+          }else if(style==="treadmill"){
+            part(iron,0,.13,0,fw,.24,fd);
+            part(asphalt,0,.28,0,fw*.81,.07,fd*.83);
+            for(const side of [-1,1])part(metal,side*fw*.44,fh*.52,-fd*.42,.13,fh*.82,.14);
+            part(display,0,fh*.89,-fd*.44,fw*.71,.18,.15);
+          }else if(style==="exam_bed"){
+            part(metal,0,.26,0,fw*.93,.48,fd*.91);
+            part(fabric,0,.62,0,fw,.22,fd);
+            part(display,0,.80,-fd*.32,fw*.82,.12,fd*.20);
+            part(metal,0,fh*.59,fd*.44,fw*.89,.55,.11);
+          }else if(style==="sculpture"){
+            part(wood,0,.23,0,fw*.92,.44,fd*.92);
+            const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
+            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
+          }else if(style==="server_rack"){
+            part(iron,0,fh*.48,0,fw,fh*.96,fd);
+            for(let i=0;i<6;i++){
+              part(metal,0,fh*(.15+i*.11),fd/2+.02,fw*.85,.12,.09);
+              part(display,-fw*.30,fh*(.16+i*.11),fd/2+.08,.10,.06,.035);
+            }
+          }else if(style==="television"){
+            part(wood,0,.25,0,fw*.87,.49,fd);
+            part(iron,0,fh*.73,0,fw*.88,fh*.45,.22);
+            part(display,0,fh*.75,fd*.12,fw*.74,fh*.32,.06);
           }
         }
         const faceZ=d/2+.48;
@@ -1546,13 +1612,18 @@ export class FPSEngine {
         cube(group,masonry,0,1.1,0,2,2.2,1.3);
         cube(group,glass,0,1.48,.7,1.5,.75,.08);
       }else if(p.kind==="lamp"){
-        cube(group,masonry,0,2.7,0,.25,5.4,.25);
-        cube(group,trim,0,5.4,0,1.1,.35,.7);
-        const glow=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6),
-          new THREE.MeshBasicMaterial({color:palette.coverAccent}));
-        glow.position.y=5.15;group.add(glow);
-        const pl=new THREE.PointLight(palette.coverAccent,.65,15);
-        pl.position.y=5;group.add(pl);
+        const postH=p.h??6.4;
+        cube(group,masonry,0,postH/2,0,.19,postH,.19);
+        cube(group,trim,.53,postH-.16,0,1.22,.17,.30);
+        const glow=new THREE.Mesh(new THREE.SphereGeometry(.28,8,6),
+          new THREE.MeshBasicMaterial({color:p.color??"#ffd39c"}));
+        glow.position.set(1.04,postH-.30,0);group.add(glow);
+        // Long streets can have many posts; cap costly dynamic point lights
+        // while keeping every lamp's glowing head visible.
+        if((Math.abs(Math.round(p.x*7+p.z*11))%3)===0){
+          const pl=new THREE.PointLight(0xffce90,.75,16);
+          pl.position.set(.95,postH-.32,0);group.add(pl);
+        }
       }else if(p.kind==="sign"){
         cube(group,masonry,0,2.15,0,.3,4.3,.3);
         cube(group,trim,0,4.35,0,w,1.4,.35);
