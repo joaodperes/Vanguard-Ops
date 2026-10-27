@@ -24,6 +24,8 @@ import achievementColorsData from "../data/catalogs/achievement-colors.json";
 import matchModesData from "../data/catalogs/match-modes.json";
 import killstreakCalloutsData from "../data/catalogs/killstreak-callouts.json";
 
+import {ORBITAL_REAPER,ORBITAL_REAPER_ID} from "./orbital-reactor";
+
 export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "launcher" | "melee";
 
 // Weapon slots are the three loadout positions a player can equip.
@@ -323,7 +325,7 @@ export { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp, xpProgressInLevel } from
 export const REWARDS = rewardsData;
 
 // ---- Lookup helpers ---------------------------------------------------------
-export const weaponById = (id: string) => WEAPONS.find((w) => w.id === id) ?? WEAPONS[0];
+export const weaponById = (id: string) => id===ORBITAL_REAPER_ID?ORBITAL_REAPER:WEAPONS.find(w=>w.id===id)??WEAPONS[0];
 export const attachmentById = (id: string) => ATTACHMENTS.find((a) => a.id === id);
 export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === id) ?? WEAPON_SKINS[0];
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];

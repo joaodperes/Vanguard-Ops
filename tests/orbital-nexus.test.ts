@@ -43,3 +43,24 @@ describe("Orbital Nexus CTF map",()=>{
     expect(ctfBotIntent(flags,"red","bot1",[-60,0,28],"rifle_ar",[],{},id).goal[1]).toBe(0);
   });
 });
+
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
+import {WEAPONS,weaponById} from "../src/lib/game-data";
+describe("Orbital Nexus reactor",()=>{
+ test("nearby eliminations charge to five and only a living deck player can claim",()=>{
+  let n=0;for(let i=0;i<8;i++)n=orbitalRecordKill(n,[2,0,5],"orbital_nexus");
+  expect(n).toBe(ORBITAL_KILLS_REQUIRED);
+  expect(orbitalRecordKill(0,[40,0,0],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(0,[0,0,0],"forest_warfare")).toBe(0);
+  expect(orbitalCanClaim(n,[0,0,0],"orbital_nexus",true)).toBe(false);
+  expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",false)).toBe(false);
+  expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",true)).toBe(true);
+ });
+ test("new pads, gravity and transient weapon do not alter other maps or permanent catalog",()=>{
+  expect(MAP_BLUEPRINTS.maps.orbital_nexus.hazards?.filter(h=>h.type==="jump_pad")).toHaveLength(10);
+  expect(orbitalGravity("orbital_nexus")).toBe(.6);
+  expect(orbitalGravity("forest_warfare")).toBe(1);
+  expect(weaponById(ORBITAL_REAPER_ID).stats.damage).toBe(120);
+  expect(WEAPONS.some(w=>w.id===ORBITAL_REAPER_ID)).toBe(false);
+ });
+});

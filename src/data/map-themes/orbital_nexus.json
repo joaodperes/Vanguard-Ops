@@ -16,32 +16,13 @@
   "vegetation": 0,
   "props": [
     {
-      "kind": "antenna",
-      "x": 0,
-      "z": -48,
-      "w": 5,
-      "d": 5,
-      "h": 16,
-      "color": "#62dff0"
-    },
-    {
-      "kind": "antenna",
-      "x": 0,
-      "z": 48,
-      "w": 5,
-      "d": 5,
-      "h": 16,
-      "color": "#d48bff"
-    },
-    {
       "kind": "terminal",
       "x": -74,
       "z": -11,
       "w": 3,
       "d": 2,
       "h": 2.5,
-      "color": "#ff5b82",
-      "text": "CRIMSON // FLAG VAULT"
+      "color": "#ff5b82"
     },
     {
       "kind": "terminal",
@@ -50,8 +31,7 @@
       "w": 3,
       "d": 2,
       "h": 2.5,
-      "color": "#59dfff",
-      "text": "AZURE // FLAG VAULT"
+      "color": "#59dfff"
     },
     {
       "kind": "terminal",
@@ -60,8 +40,7 @@
       "w": 2.6,
       "d": 1.9,
       "h": 2.4,
-      "color": "#4ce8fb",
-      "text": "REACTOR STATUS"
+      "color": "#4ce8fb"
     },
     {
       "kind": "terminal",
@@ -70,28 +49,7 @@
       "w": 2.6,
       "d": 1.9,
       "h": 2.4,
-      "color": "#c77bff",
-      "text": "QUANTUM STATUS"
-    },
-    {
-      "kind": "sign",
-      "x": -64,
-      "z": -39,
-      "w": 14,
-      "d": 1,
-      "h": 4,
-      "color": "#fc667e",
-      "text": "CRIMSON HANGAR"
-    },
-    {
-      "kind": "sign",
-      "x": 64,
-      "z": 39,
-      "w": 14,
-      "d": 1,
-      "h": 4,
-      "color": "#52e6ff",
-      "text": "AZURE HANGAR"
+      "color": "#c77bff"
     },
     {
       "kind": "lamp",

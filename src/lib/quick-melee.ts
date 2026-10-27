@@ -19,6 +19,7 @@ export const MELEE_HALF_ARC_DEGREES: Readonly<Record<string,number>> = {
   machete: 32,
   axe: 41,
   hammer: 45,
+  orbital_reaper: 50,
 };
 export function meleeHalfArcDegrees(weaponId:string):number {
   return MELEE_HALF_ARC_DEGREES[weaponId] ?? 26;

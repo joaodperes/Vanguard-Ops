@@ -1867,6 +1867,150 @@
           "w": 9,
           "d": 1.4,
           "h": 1.2
+        },
+        {
+          "id": "nexus-cover-expansion-1",
+          "kind": "cover",
+          "x": -36,
+          "z": 18,
+          "w": 5,
+          "d": 5,
+          "h": 1.45
+        },
+        {
+          "id": "nexus-cover-expansion-2",
+          "kind": "cover",
+          "x": 36,
+          "z": -18,
+          "w": 5,
+          "d": 5,
+          "h": 1.45
+        },
+        {
+          "id": "nexus-cover-expansion-3",
+          "kind": "cover",
+          "x": -36,
+          "z": -18,
+          "w": 5,
+          "d": 5,
+          "h": 1.45
+        },
+        {
+          "id": "nexus-cover-expansion-4",
+          "kind": "cover",
+          "x": 36,
+          "z": 18,
+          "w": 5,
+          "d": 5,
+          "h": 1.45
+        },
+        {
+          "id": "nexus-cover-expansion-5",
+          "kind": "cover",
+          "x": -56,
+          "z": 5,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.35
+        },
+        {
+          "id": "nexus-cover-expansion-6",
+          "kind": "cover",
+          "x": 56,
+          "z": 5,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.35
+        },
+        {
+          "id": "nexus-cover-expansion-7",
+          "kind": "cover",
+          "x": -56,
+          "z": -5,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.35
+        },
+        {
+          "id": "nexus-cover-expansion-8",
+          "kind": "cover",
+          "x": 56,
+          "z": -5,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.35
+        },
+        {
+          "id": "nexus-cover-expansion-9",
+          "kind": "cover",
+          "x": -10,
+          "z": 33,
+          "w": 6,
+          "d": 2,
+          "h": 1.5
+        },
+        {
+          "id": "nexus-cover-expansion-10",
+          "kind": "cover",
+          "x": 10,
+          "z": 33,
+          "w": 6,
+          "d": 2,
+          "h": 1.5
+        },
+        {
+          "id": "nexus-cover-expansion-11",
+          "kind": "cover",
+          "x": -10,
+          "z": -33,
+          "w": 6,
+          "d": 2,
+          "h": 1.5
+        },
+        {
+          "id": "nexus-cover-expansion-12",
+          "kind": "cover",
+          "x": 10,
+          "z": -33,
+          "w": 6,
+          "d": 2,
+          "h": 1.5
+        },
+        {
+          "id": "nexus-cover-expansion-13",
+          "kind": "cover",
+          "x": -76,
+          "z": 17,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.15
+        },
+        {
+          "id": "nexus-cover-expansion-14",
+          "kind": "cover",
+          "x": 76,
+          "z": 17,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.15
+        },
+        {
+          "id": "nexus-cover-expansion-15",
+          "kind": "cover",
+          "x": -76,
+          "z": -17,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.15
+        },
+        {
+          "id": "nexus-cover-expansion-16",
+          "kind": "cover",
+          "x": 76,
+          "z": -17,
+          "w": 5,
+          "d": 2.5,
+          "h": 1.15
         }
       ],
       "hazards": [
@@ -1905,6 +2049,110 @@
           "d": 3,
           "launchX": 0,
           "launchY": 17,
+          "launchZ": -7
+        },
+        {
+          "id": "nexus-jump-expansion-1",
+          "type": "jump_pad",
+          "x": -49,
+          "z": -34,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": 4,
+          "launchY": 11,
+          "launchZ": 5
+        },
+        {
+          "id": "nexus-jump-expansion-2",
+          "type": "jump_pad",
+          "x": -49,
+          "z": 34,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": 4,
+          "launchY": 11,
+          "launchZ": -5
+        },
+        {
+          "id": "nexus-jump-expansion-3",
+          "type": "jump_pad",
+          "x": 49,
+          "z": -34,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": -4,
+          "launchY": 11,
+          "launchZ": 5
+        },
+        {
+          "id": "nexus-jump-expansion-4",
+          "type": "jump_pad",
+          "x": 49,
+          "z": 34,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": -4,
+          "launchY": 11,
+          "launchZ": -5
+        },
+        {
+          "id": "nexus-jump-expansion-5",
+          "type": "jump_pad",
+          "x": -23,
+          "z": -32,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": 7,
+          "launchY": 13,
+          "launchZ": 7
+        },
+        {
+          "id": "nexus-jump-expansion-6",
+          "type": "jump_pad",
+          "x": 23,
+          "z": -32,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": -7,
+          "launchY": 13,
+          "launchZ": 7
+        },
+        {
+          "id": "nexus-jump-expansion-7",
+          "type": "jump_pad",
+          "x": -23,
+          "z": 32,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": 7,
+          "launchY": 13,
+          "launchZ": -7
+        },
+        {
+          "id": "nexus-jump-expansion-8",
+          "type": "jump_pad",
+          "x": 23,
+          "z": 32,
+          "y": 0.15,
+          "w": 3.2,
+          "d": 3.2,
+          "h": 0.3,
+          "launchX": -7,
+          "launchY": 13,
           "launchZ": -7
         }
       ],
