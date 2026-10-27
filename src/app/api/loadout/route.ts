@@ -2,6 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { weaponChallengeProgress, weaponMasteryProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
     attachments,
     secondaryAttachments,
     meleeAttachments,
+    primaryReticle, secondaryReticle, primaryCharm, secondaryCharm,
   } = body as {
     playerKey?: string;
     primaryWeapon?: string;
@@ -103,6 +105,7 @@ export async function POST(req: NextRequest) {
     attachments?: Record<string, string | null>;
     secondaryAttachments?: Record<string, string | null>;
     meleeAttachments?: Record<string, string | null>;
+    primaryReticle?: string; secondaryReticle?: string; primaryCharm?: string; secondaryCharm?: string;
   };
   const { playerKey } = await resolvePlayerKey(req, bodyKey);
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
@@ -260,6 +263,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
   }
 
+  // Validate all paid cosmetic choices before committing an updated loadout.
+  const cosmeticSelections = { primaryReticle, secondaryReticle, primaryCharm, secondaryCharm };
+  const selections = Object.entries(cosmeticSelections).filter(([, id]) => id !== undefined);
+  if (selections.length) {
+    const purchases = await db.careerShopPurchase.findMany({ where: { playerId: player.id }, select: { itemKey: true } });
+    const owned = cosmeticShopOwnership(purchases.map(p => p.itemKey));
+    for (const [field, id] of selections) {
+      const kind = field.endsWith("Reticle") ? "reticle" : "charm";
+      if (typeof id !== "string" || !cosmeticById(id, kind)) return NextResponse.json({ error: "Unknown cosmetic option" }, { status: 400 });
+      if (!owned.includes(id)) return NextResponse.json({ error: "Buy this cosmetic in the Shop before equipping" }, { status: 403 });
+    }
+  }
+  const primaryWonder = !!weaponById(effectivePrimary).wonder;
+  const secondaryWonder = !!weaponById(effectiveSecondary).wonder;
+  if ((primaryWonder && primaryCharm !== undefined && primaryCharm !== "none") ||
+      (secondaryWonder && secondaryCharm !== undefined && secondaryCharm !== "none")) {
+    return NextResponse.json({ error: "Wonder Weapons cannot equip charms" }, { status: 403 });
+  }
+
   // Persist each newly chosen setup after ownership/compatibility checks,
   // preserving explicit None attachments and falling back to default when a
   // formerly owned skin is no longer available.
@@ -281,6 +303,10 @@ export async function POST(req: NextRequest) {
       secondaryWeaponSkin: sanitizedSecondarySkin ?? "default",
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
       playerSkin: playerSkin ?? "default",
+      primaryReticle: primaryReticle ?? "classic", secondaryReticle: secondaryReticle ?? "classic",
+      primaryCharm: primaryWonder ? "none" : primaryCharm ?? "none",
+      secondaryCharm: secondaryWonder ? "none" : secondaryCharm ?? "none",
+      cosmeticsMigrated: true,
       attachments: attsJson ?? "{}",
       secondaryAttachments: secAttsJson ?? "{}",
       meleeAttachments: melAttsJson ?? "{}",
@@ -288,6 +314,11 @@ export async function POST(req: NextRequest) {
     },
     update: {
       weaponSetups:JSON.stringify(setups),
+      ...(primaryReticle !== undefined ? { primaryReticle } : {}),
+      ...(secondaryReticle !== undefined ? { secondaryReticle } : {}),
+      ...(primaryCharm !== undefined || primaryWonder ? { primaryCharm: primaryWonder ? "none" : primaryCharm } : {}),
+      ...(secondaryCharm !== undefined || secondaryWonder ? { secondaryCharm: secondaryWonder ? "none" : secondaryCharm } : {}),
+      ...(selections.length ? { cosmeticsMigrated: true } : {}),
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
