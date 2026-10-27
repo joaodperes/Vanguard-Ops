@@ -6,8 +6,8 @@ import type { MapDef } from "../src/lib/game-protocol";
 
 describe("map footprint variety", () => {
   test("has real physical scale and pace categories, not just labels", () => {
-    // Preserve legacy pacing ratios; Forest Warfare is the dedicated CTF arena.
-    const legacy = MAP_LIST.filter(m => m.id !== "forest_warfare");
+    // Preserve original non-CTF pacing ratios while CTF gets dedicated arenas.
+    const legacy = MAP_LIST.filter(m => m.id !== "forest_warfare" && m.id !== "orbital_nexus");
     expect(MAP_FOOTPRINT.forest_warfare.pace).toBe("balanced");
     const compact = legacy.filter(m => MAP_FOOTPRINT[m.id].pace === "compact");
     const balanced = legacy.filter(m => MAP_FOOTPRINT[m.id].pace === "balanced");

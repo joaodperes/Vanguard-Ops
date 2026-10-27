@@ -177,7 +177,7 @@
       "roughness": 0.6
     },
     "wall": {
-      "pattern": "metal",
+      "pattern": "concrete",
       "tileSize": 4,
       "roughness": 0.42
     },
