@@ -1882,7 +1882,7 @@ export class FPSEngine {
             cube(group,display,side*(doorWidth/2+.72),2.86,d/2+1.37,.20,.48,.11);
         }
                 // Purpose-specific fascia: no misleading painted door on a solid wall.
-        if(p.text){
+        if(p.text && p.text.trim().toUpperCase() !== "RESIDENCE"){
           const canvas=document.createElement("canvas");
           canvas.width=512;canvas.height=96;
           const ctx=canvas.getContext("2d");
