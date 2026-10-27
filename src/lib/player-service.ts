@@ -171,6 +171,32 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
   return earned;
 }
 
+/** Backfill mastery-title awards for existing weapon specialists.
+ * Creating the achievement and credit/XP payout in one transaction ensures
+ * reopening Profile never pays the same title twice. */
+async function grantExistingMasteryTitles(playerId:string):Promise<boolean> {
+  const rows=await db.weaponProgress.findMany({where:{playerId}});
+  const values=masteryAchievementStats(rows);
+  const existing=new Set((await db.playerAchievement.findMany({where:{playerId}})).map(a=>a.achievementId));
+  let granted=false;
+  for(const achievement of ACHIEVEMENTS.filter(a=>a.category==="mastery")) {
+    if(existing.has(achievement.id) || (values[achievement.metric as keyof typeof values]??0)<achievement.goal) continue;
+    try {
+      await db.$transaction(async tx=>{
+        await tx.playerAchievement.create({data:{playerId,achievementId:achievement.id}});
+        await tx.player.update({where:{id:playerId},data:{
+          xp:{increment:achievement.rewardXp},credits:{increment:achievement.rewardCredits},
+        }});
+      });
+      granted=true;
+    }catch(error){
+      // Concurrent profile refresh may have inserted this same unique award.
+      if((error as {code?:string})?.code!=="P2002")throw error;
+    }
+  }
+  return granted;
+}
+
 export interface PlayerProfileView {
   playerKey: string;
   name: string;
@@ -214,7 +240,9 @@ export interface PlayerProfileView {
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
-  const player = await getOrCreatePlayer(playerKey);
+  const initial = await getOrCreatePlayer(playerKey);
+  const granted = await grantExistingMasteryTitles(initial.id);
+  const player = granted ? await getOrCreatePlayer(playerKey) : initial;
   if (!player) return null;
   await grantWeaponPrestiges(player.id);
   const [prestigeRows, wonderRows] = await Promise.all([
@@ -1205,6 +1233,7 @@ export async function getEliteQuestsView(playerKey: string): Promise<EliteQuestV
 
 export async function getAchievementsView(playerKey: string): Promise<AchievementView[]> {
   const player = await getOrCreatePlayer(playerKey);
+  await grantExistingMasteryTitles(player.id);
   const earned = await db.playerAchievement.findMany({ where: { playerId: player.id } });
   const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
   const combatModes=["ffa","tdm","gungame","killconfirmed","ctf"];
