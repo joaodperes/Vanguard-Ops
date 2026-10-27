@@ -6,6 +6,7 @@ import { shopItemById,shopItemKey } from "@/lib/shop-catalog";
 import { WEAPONS,levelForXp } from "@/lib/game-data";
 import { MAX_PLAYER_LEVEL } from "@/lib/progression";
 import { ownsWeapon } from "@/lib/collection-ownership";
+import { cosmeticById } from "@/lib/cosmetics";
 
 export const dynamic = "force-dynamic";
 export async function POST(req:NextRequest){
@@ -21,6 +22,9 @@ export async function POST(req:NextRequest){
     return NextResponse.json({error:"Select an owned regular weapon first"},{status:403});
   if(item.currency==="career"&&levelForXp(player.xp)<MAX_PLAYER_LEVEL)
     return NextResponse.json({error:"Career Shop opens at level 40"},{status:403});
+  if(item.cosmeticId&&!cosmeticById(item.cosmeticId,
+      item.kind==="reticle"?"reticle":item.kind==="charm"?"charm":"nameplate"))
+    return NextResponse.json({error:"Invalid cosmetic catalog"},{status:500});
   const key=shopItemKey(item,weaponId);
   try{
     await db.$transaction(async tx=>{
@@ -42,11 +46,11 @@ export async function POST(req:NextRequest){
         });
         if(locked.count!==1)throw new Error("NO_TOKENS");
       }
-      if(item.kind==="weaponSkin")await tx.skinUnlock.upsert({
+      if(item.kind==="weaponSkin"&&item.skinId)await tx.skinUnlock.upsert({
         where:{playerId_weaponId_skinId:{playerId:player.id,weaponId,skinId:item.skinId}},
         create:{playerId:player.id,weaponId,skinId:item.skinId},update:{},
       });
-      else await tx.playerSkinUnlock.upsert({
+      else if(item.kind==="playerSkin"&&item.skinId)await tx.playerSkinUnlock.upsert({
         where:{playerId_skinId:{playerId:player.id,skinId:item.skinId}},
         create:{playerId:player.id,skinId:item.skinId},update:{},
       });

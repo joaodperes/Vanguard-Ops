@@ -2,6 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { restoreCareer } from "@/lib/career";
 import { perkById, DEFAULT_PERK_ID } from "@/lib/perks";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { cosmeticById, parseEquippedCharms } from "@/lib/cosmetics";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WEAPONS } from "@/lib/game-data";
@@ -31,6 +32,9 @@ interface ExportData {
     careerXp?: number;
     careerTokensSpent?: number;
     selectedTitle?: string;
+    selectedReticle?: string;
+    selectedNameplate?: string;
+    equippedCharms?: string;
     pvpBestKillstreak?: number;
     xp: number;
     credits: number;
@@ -146,6 +150,9 @@ export async function POST(req: NextRequest) {
         ...career,
         careerTokensSpent:restoredTokensSpent,
         ...(p.selectedTitle !== undefined ? { selectedTitle: p.selectedTitle } : {}),
+        ...(p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?{selectedReticle:p.selectedReticle}:{}),
+        ...(p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?{selectedNameplate:p.selectedNameplate}:{}),
+        ...(p.equippedCharms?{equippedCharms:JSON.stringify({...parseEquippedCharms(existing.equippedCharms),...parseEquippedCharms(p.equippedCharms)})}:{}),
         pvpBestKillstreak: Math.max(existing.pvpBestKillstreak, p.pvpBestKillstreak ?? 0),
         xp: Math.max(existing.xp, p.xp),
         // Once Career spending starts, replaying a backup cannot refund it.
@@ -175,6 +182,9 @@ export async function POST(req: NextRequest) {
         ...career,
         careerTokensSpent:restoredTokensSpent,
         selectedTitle: p.selectedTitle ?? "",
+        selectedReticle: p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+        selectedNameplate: p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?p.selectedNameplate:"standard",
+        equippedCharms: JSON.stringify(parseEquippedCharms(p.equippedCharms)),
         pvpBestKillstreak: p.pvpBestKillstreak ?? 0,
         xp: p.xp,
         credits: p.credits,

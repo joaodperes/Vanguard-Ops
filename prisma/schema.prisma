@@ -33,6 +33,10 @@ model Player {
   selectedSkin    String   @default("default")
   /// The equipped title achievement id (never arbitrary user text).
   selectedTitle   String   @default("")
+  selectedReticle String @default("classic")
+  selectedNameplate String @default("standard")
+  /// Per-weapon charm IDs; server validated against account purchases.
+  equippedCharms String @default("{}")
   /// Non-Survival streak record; Survival kill streaks do not award PvP streak achievements.
   pvpBestKillstreak Int    @default(0)
   // 17-C: Quest-completion lifetime counters (used by the 4 quest achievements).
