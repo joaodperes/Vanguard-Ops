@@ -17,8 +17,20 @@ export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 5, 7] as const;
+export const TEAM_SIZES = [3, 5, 7, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
+
+/** Only the two expansive Afterlight City variants support 32 combatants.
+ * Other maps retain their previous 14-player maximum. */
+export function isAfterlightCityMap(mapId: MapId | string): boolean {
+  return mapId === "terminal" || mapId === "arena_neon";
+}
+export function teamSizesForMap(mapId: MapId | string): readonly TeamSize[] {
+  return isAfterlightCityMap(mapId) ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
+}
+export function teamSizeAllowed(mapId: MapId | string, teamSize: number): teamSize is TeamSize {
+  return teamSizesForMap(mapId).some(size => size === teamSize);
+}
 
 // Total combatant capacity for a room given mode + team size.
 // FFA: teamSize*2 total slots (no teams, just a player cap).
