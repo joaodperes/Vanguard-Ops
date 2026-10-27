@@ -579,7 +579,7 @@ function createLobbyRoom(
   // lobby display, use the first catalog weapon of the first type (sidearm).
   const hostWeaponId = isGungame ? "pistol_side" : loadout.weaponId;
   const host: PlayerNet = {
-    id: socketId, name: name.slice(0, 20) || "Host", team: team as any, isBot: false,
+    id: socketId, name: name.slice(0, 52) || "Host", team: team as any, isBot: false,
     pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
     weaponId: hostWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
     kills: 0, deaths: 0, lastShotAt: 0,
@@ -688,7 +688,7 @@ function joinLobbyRoom(
   // if the match hasn't started yet — startMatchInRoom will sync them).
   const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : loadout.weaponId;
   const p: PlayerNet = {
-    id: socketId, name: name.slice(0, 20) || "Recruit", team: team as any, isBot: false,
+    id: socketId, name: name.slice(0, 52) || "Recruit", team: team as any, isBot: false,
     pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
     weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
     kills: 0, deaths: 0, lastShotAt: 0,
@@ -2384,7 +2384,7 @@ async function handle(socket: any, msg: C2S) {
       // In gungame, joining players start on the first progression weapon.
       const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : loadout.weaponId;
       const p: PlayerNet = {
-        id: socket.id, name: msg.name?.slice(0, 20) || "Recruit", team, isBot: false,
+        id: socket.id, name: msg.name?.slice(0, 52) || "Recruit", team, isBot: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
         weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
         kills: 0, deaths: 0, lastShotAt: 0,
