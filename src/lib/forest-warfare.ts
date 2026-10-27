@@ -37,6 +37,46 @@ for (const [x,z,kind] of samples) for (const side of [-1,1]) {
   const h=kind==="tree"?9+(x+Math.abs(z))%5:kind==="bush"?1.25:kind==="rock"?1.8:1.05;
   layout.push({kind,x:px,z,w,d,h,sideways:(x+z)%2===0});
 }
+// Seeded asymmetrical infill: enough small cover to fracture long sight-lines
+// without sealing routes, flag circles, spawns, or any of the four stairways.
+// All objects participate in identical renderer / server / client collision.
+let forestSeed = 0x9e3779b9;
+const nextForestRandom = () => {
+  forestSeed ^= forestSeed << 13;
+  forestSeed ^= forestSeed >>> 17;
+  forestSeed ^= forestSeed << 5;
+  return (forestSeed >>> 0) / 0x100000000;
+};
+const protectedSpawns = [
+  ...([-1,1] as const).flatMap(sign => [
+    [-104*sign,-29],[-84*sign,-29],[-108*sign,18],[-81*sign,26],
+    [-95*sign,41],[-113*sign,-8],[-78*sign,-16],
+    [107*sign,0],[94*sign,0],
+  ]),
+];
+let added = 0;
+for(let trial=0;trial<1100 && added<72;trial++) {
+  const x=(nextForestRandom()*2-1)*116;
+  const z=(nextForestRandom()*2-1)*40;
+  // Avoid the tree trunks, deck-access footprint, entrance runs,
+  // delivery circles and spawn protection zones.
+  if(Math.abs(Math.abs(x)-94)<5 && Math.abs(z)<37)continue;
+  if(Math.abs(Math.abs(x)-107)<6 && Math.abs(z)<8)continue;
+  if(protectedSpawns.some(([sx,sz])=>Math.hypot(x-sx,z-sz)<5.8))continue;
+  if(layout.some(o=>Math.hypot(x-o.x,z-o.z)<(o.kind==="tree"?7:5.2)))continue;
+  const roll=nextForestRandom();
+  const kind:ForestObject["kind"]=roll<.4?"tree":roll<.75?"bush":"rock";
+  const wide=.8+nextForestRandom()*.7;
+  const prop:ForestObject={
+    kind,x:Math.round(x*10)/10,z:Math.round(z*10)/10,
+    w:kind==="tree"?.95*wide:kind==="rock"?1.5*wide:1.2*wide,
+    d:kind==="tree"?.95*wide:kind==="rock"?1.5*wide:1.1*wide,
+    h:kind==="tree"?8+nextForestRandom()*6:
+      kind==="rock"?1+nextForestRandom()*1.2:1.1+nextForestRandom()*.65,
+  };
+  layout.push(prop);
+  added++;
+}
 export const FOREST_OBJECTS: readonly ForestObject[] = layout;
 
 // Natural, VISIBLE cliff/rock barrier around precisely the floor union.
