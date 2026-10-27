@@ -148,38 +148,51 @@ try {
   assert.equal(restored.level,MAX_PLAYER_LEVEL);
   assert(restored.unlockedTitles.some(t=>t.id==="career_veteran"));
 
-  // Cosmetic Shop: account-owned only, server prices, repeat buys blocked,
-  // per-weapon charm selections and saved export/import state.
+  // Cosmetic ownership is account-wide, equip state belongs to each loadout slot.
   const cosmeticsPlayer=await create("cosmetic-player",totalXpForLevel(MAX_PLAYER_LEVEL),75000);
   let cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
-  assert.equal(cosmeticsView.selectedReticle,"classic");
+  assert.equal(cosmeticsView.loadout.primaryReticle,"classic");
+  assert.equal(cosmeticsView.loadout.primaryCharm,"none");
   assert.equal(cosmeticsView.selectedNameplate,"standard");
-  assert(cosmeticsView.ownedCosmetics.includes("dot"));
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"dot"})),200);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"reticle_nova"})),403);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),403);
+  const cosmeticEquip=(kind:"reticle"|"charm",id:string,slot:"primary"|"secondary",weaponId?:string)=>
+    equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind,cosmeticId:id,slot,weaponId}));
+  await status(await cosmeticEquip("reticle","dot","primary"),200);
+  await status(await cosmeticEquip("reticle","reticle_nova","primary"),403);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"dot"})),400);
   await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),200);
   await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),409);
   await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"vanguard_dog_tag"})),200);
   await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"steel_division"})),200);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"reticle_orbit"})),200);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"rifle_ar"})),200);
+  await status(await cosmeticEquip("reticle","reticle_orbit","primary","rifle_ar"),200);
+  await status(await cosmeticEquip("reticle","dot","secondary","pistol_side"),200);
+  await status(await cosmeticEquip("charm","charm_tag","primary","rifle_ar"),200);
+  await status(await cosmeticEquip("charm","charm_tag","secondary","pistol_side"),200);
   await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),200);
   cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
-  assert.equal(cosmeticsView.selectedReticle,"reticle_orbit");
+  assert.equal(cosmeticsView.loadout.primaryReticle,"reticle_orbit");
+  assert.equal(cosmeticsView.loadout.secondaryReticle,"dot");
+  assert.equal(cosmeticsView.loadout.primaryCharm,"charm_tag");
+  assert.equal(cosmeticsView.loadout.secondaryCharm,"charm_tag");
   assert.equal(cosmeticsView.selectedNameplate,"plate_steel");
-  assert.equal(cosmeticsView.equippedCharms.rifle_ar,"charm_tag");
   assert.equal(cosmeticsView.credits,75000-3500-6000-7500);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"not_a_weapon"})),403);
-  // Switching one weapon's charm does not mutate other stored selections.
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"none",weaponId:"rifle_ar"})),200);
-  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.equippedCharms.rifle_ar,undefined);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"rifle_ar"})),200);
+  await status(await cosmeticEquip("charm","charm_tag","primary","not_a_weapon"),409);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryReticle:"reticle_nova"})),403);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_skull"})),403);
+  await status(await preset(req({playerKey:cosmeticsPlayer.playerKey,action:"save",name:"Cosmetic Kit"})),200);
+  const savedCosmeticPreset=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
+  assert.equal(savedCosmeticPreset.primaryReticle,"reticle_orbit");
+  assert.equal(savedCosmeticPreset.secondaryReticle,"dot");
+  assert.equal(savedCosmeticPreset.primaryCharm,"charm_tag");
+  await status(await cosmeticEquip("charm","none","primary"),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,"charm_tag");
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:savedCosmeticPreset.id})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryCharm,"charm_tag");
   const cosmeticBackup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${cosmeticsPlayer.playerKey}`))).json();
-  assert.equal(cosmeticBackup.player.selectedReticle,"reticle_orbit");
-  assert.equal(cosmeticBackup.player.selectedNameplate,"plate_steel");
+  assert.equal(cosmeticBackup.loadout.primaryReticle,"reticle_orbit");
+  assert.equal(cosmeticBackup.loadout.secondaryCharm,"charm_tag");
+  await status(await cosmeticEquip("reticle","classic","primary"),200);
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
-  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.equippedCharms.rifle_ar,"charm_tag");
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,"reticle_orbit");
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.
