@@ -61,7 +61,10 @@ export type SfxName =
   | "match_win"
   | "match_lose"
   | "flag_taken"
-  | "flag_scored";
+  | "flag_scored"
+  | "flag_enemy_scored"
+  | "flag_returned"
+  | "flag_lost";
 
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
@@ -298,8 +301,11 @@ export class SoundManager {
       case "match_win": this.synthMatchWin(vol); break;
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
-      case "flag_taken": this.synthBlip(650, .16, vol*.55, "triangle"); this.synthBlip(980,.12,vol*.30,"sine"); break;
-      case "flag_scored": this.synthBlip(700,.24,vol*.6,"triangle"); this.synthBlip(1050,.35,vol*.55,"sine"); this.synthBlip(1400,.44,vol*.35,"sine"); break;
+      case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
+      case "flag_scored": this.synthFlagFanfare("score", vol); break;
+      case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
+      case "flag_returned": this.synthFlagFanfare("return", vol); break;
+      case "flag_lost": this.synthFlagFanfare("loss", vol); break;
     }
   }
 
@@ -618,6 +624,62 @@ export class SoundManager {
     filt.type = "lowpass"; filt.frequency.value = 600;
     osc.connect(filt).connect(g).connect(this.masterGain!);
     osc.start(t); osc.stop(t + 1.05);
+  }
+
+  /**
+   * Team-wide CTF cues. Layered, short brass-like motifs rather than ping
+   * oscillators: friendly scoring is a major fanfare; an enemy capture is a
+   * descending minor fanfare. Each client plays the same event locally, so
+   * there is no dependence on voice chat or spatial hearing distance.
+   */
+  private synthFlagFanfare(kind: "pickup" | "score" | "enemy_score" | "return" | "loss", vol: number) {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime;
+    const notes: Record<typeof kind, number[]> = {
+      pickup: [392, 523.25, 659.25],
+      score: [523.25, 659.25, 783.99, 1046.5],
+      enemy_score: [440, 369.99, 311.13, 220],
+      return: [523.25, 659.25, 783.99],
+      loss: [392, 329.63, 261.63],
+    };
+    const isScore = kind === "score" || kind === "enemy_score";
+    const step = isScore ? .125 : .10;
+    const peak = vol * (isScore ? .29 : .22);
+    notes[kind].forEach((freq, i) => {
+      const at = t0 + i * step;
+      // Richer harmonics provide a recognizable stinger even on small speakers.
+      const osc = ctx.createOscillator();
+      osc.type = kind === "enemy_score" || kind === "loss" ? "sawtooth" : "triangle";
+      osc.frequency.setValueAtTime(freq, at);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(kind === "enemy_score" ? 1250 : 2400, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(.0001, at);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, peak), at + .014);
+      gain.gain.exponentialRampToValueAtTime(.0001, at + (isScore ? .32 : .25));
+      osc.connect(filter).connect(gain).connect(this.masterGain!);
+      osc.start(at);
+      osc.stop(at + (isScore ? .34 : .27));
+      osc.onended = () => { osc.disconnect(); filter.disconnect(); gain.disconnect(); };
+    });
+    if (isScore) {
+      // Final resolution distinguishes a true team objective from a pickup.
+      const at = t0 + notes[kind].length * step;
+      const chord = kind === "score" ? [523.25, 783.99, 1046.5] : [220, 261.63, 311.13];
+      chord.forEach(freq => {
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(.0001, at);
+        gain.gain.exponentialRampToValueAtTime(vol * .13, at + .025);
+        gain.gain.exponentialRampToValueAtTime(.0001, at + .34);
+        osc.connect(gain).connect(this.masterGain!);
+        osc.start(at); osc.stop(at + .36);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      });
+    }
   }
 
   /** Match win: ascending triumphant arpeggio (C-E-G-C major chord roll). */
