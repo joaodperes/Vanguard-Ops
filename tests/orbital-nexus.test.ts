@@ -44,22 +44,32 @@ describe("Orbital Nexus CTF map",()=>{
   });
 });
 
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
 import {WEAPONS,weaponById} from "../src/lib/game-data";
 describe("Orbital Nexus reactor",()=>{
- test("eliminations anywhere across the map charge to five; only a living deck player can claim",()=>{
-  // Both teams' flag areas, flank lanes, ground level and raised walkways count.
-  const kills:[[number,number,number],[number,number,number],[number,number,number],[number,number,number],[number,number,number]]=[
-    [-86,0,-24],[86,0,24],[0,0,44],[-49,0,-34],[2,3.2,5],
+ test("victim deaths within 55 units charge the reactor; base kills do not",()=>{
+  expect(ORBITAL_CHARGE_RADIUS).toBe(55);
+  // The center and extended north/south flank lanes now contribute.
+  const qualifying:[number,number,number][]=[
+    [0,0,0],[40,0,0],[0,0,44],[-50,0,-20],[2,3.2,5],
   ];
   let n=0;
-  for(const pos of kills)n=orbitalRecordKill(n,pos,"orbital_nexus");
+  for(const victimPos of qualifying)n=orbitalRecordKill(n,victimPos,"orbital_nexus");
   expect(n).toBe(ORBITAL_KILLS_REQUIRED);
-  expect(orbitalRecordKill(n,[86,0,24],"orbital_nexus")).toBe(ORBITAL_KILLS_REQUIRED);
-  expect(orbitalRecordKill(0,[40,0,0],"orbital_nexus")).toBe(1);
+  // Exactly on the zone boundary counts; just outside does not.
+  expect(orbitalRecordKill(0,[55,0,0],"orbital_nexus")).toBe(1);
+  expect(orbitalRecordKill(0,[55.01,0,0],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(0,[50,0,30],"orbital_nexus")).toBe(0);
+  // Flag bases, even on elevated ground, are outside the charging area.
+  expect(orbitalRecordKill(0,[-86,0,-24],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(0,[86,3.2,24],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(n,[0,0,0],"orbital_nexus")).toBe(ORBITAL_KILLS_REQUIRED);
   expect(orbitalRecordKill(0,[0,0,0],"forest_warfare")).toBe(0);
   expect(orbitalRecordKill(0,[Infinity,0,0],"orbital_nexus")).toBe(0);
   expect(orbitalRecordKill(0,[0,0],"orbital_nexus")).toBe(0);
+  // Only victim location is passed to orbitalRecordKill — killer can be far away.
+  expect(orbitalRecordKill(0,[3,0,0],"orbital_nexus")).toBe(1);
+  // A fully charged reactor can still only be claimed on the raised deck.
   expect(orbitalCanClaim(n,[0,0,0],"orbital_nexus",true)).toBe(false);
   expect(orbitalCanClaim(n,[-86,3.2,0],"orbital_nexus",true)).toBe(false);
   expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",false)).toBe(false);
