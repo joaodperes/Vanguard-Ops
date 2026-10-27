@@ -33,6 +33,7 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
+import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
@@ -488,6 +489,20 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
+  private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
+  /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
+  private coverIndex():CoverSpatialIndex|null{
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
+    if(this.staticCoverIndex?.source!==this.map.cover)
+      this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
+    return this.staticCoverIndex.index;
+  }
+  private coverNear(x:number,z:number,pad=3):CoverBox[]{
+    return this.coverIndex()?.near(x,z,pad)??this.map.cover;
+  }
+  private coverAlong(a:Vec3,b:Vec3,pad=2):CoverBox[]{
+    return this.coverIndex()?.along(a[0],a[2],b[0],b[2],pad)??this.map.cover;
+  }
   private surfaceMaterials: MapSurfaceMaterials | null = null;
   private gardenMaterial: THREE.MeshStandardMaterial | null = null;
   private environmentTime = 0;
@@ -5726,7 +5741,7 @@ export class FPSEngine {
     }
     // cover blocking
     let blockedT = Infinity;
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*eff.range,origin[1]+dir[1]*eff.range,origin[2]+dir[2]*eff.range],2)) {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
@@ -7366,7 +7381,7 @@ export class FPSEngine {
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
     const r = PLAYER_RADIUS;
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3)) {
       const cx = cov.pos[0], cz = cov.pos[2];
       const hx = cov.size[0], hz = cov.size[2];
       const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
@@ -7392,7 +7407,7 @@ export class FPSEngine {
     if (Math.abs(next.z - desiredHorizontalZ) > 0.001) this.vel.z = 0;
 
     // ---- Vertical collision: stand on top of platforms/stairs ----
-    const groundY = groundHeightAt(this.map.cover, next.x, next.z, next.y, r);
+    const groundY = groundHeightAt(this.coverNear(next.x,next.z,2.5), next.x, next.z, next.y, r);
     if (next.y <= groundY) {
       next.y = groundY;
       this.vel.y = 0;
@@ -7789,13 +7804,13 @@ export class FPSEngine {
         c.pos[1] + vy * dt,
         c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
       c.ai.envJumpVelocityY = vy - 22 * dt;
-      const ground = botGroundHeight(this.map.cover, c.pos[0], c.pos[2], c.pos[1]);
+      const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;
         c.ai.envJumpVelocityY = undefined;
       }
     } else {
-      c.pos[1] = botNextFeetY(this.map.cover, c.pos, dt);
+      c.pos[1] = botNextFeetY(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos, dt);
     }
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     // ---- Task 16-a: stuck detection & recovery ----
@@ -7869,7 +7884,7 @@ export class FPSEngine {
     const len = Math.hypot(dx, dy, dz);
     if (len < 0.01) return true;
     const dir: Vec3 = [dx / len, dy / len, dz / len];
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong(from,to,2)) {
       if (cov.kind === "accent" || cov.kind === "stair") continue;
       const t = rayBox(from, dir, cov.pos, cov.size);
       if (t !== null && t < len) return false;
@@ -8198,7 +8213,7 @@ export class FPSEngine {
   // insurance for the rare edge case where multiple boxes interact and a wrong
   // sign would compound.
   private collideBots(pos: Vec3, currentY: number): Vec3 {
-    return resolveBotOverlap(this.map.cover, pos, currentY);
+    return resolveBotOverlap(this.coverNear(pos[0],pos[2],3), pos, currentY);
   }
 
   // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -8237,7 +8252,7 @@ export class FPSEngine {
       const push = overlap * 0.5 * 0.5;
       const before: Vec3 = [...bot.pos];
       const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
-      if (!blocksBotMotion(this.map.cover, before, after, currentY)) {
+      if (!blocksBotMotion(this.coverAlong(before,after,2), before, after, currentY)) {
         bot.pos = after;
       }
     }
@@ -8249,7 +8264,7 @@ export class FPSEngine {
   // "bot clips into wall then pops out" flicker, and prevents tunneling at
   // high speeds). The check is conservative — it samples the destination only.
   private botMoveBlocked(from: Vec3, to: Vec3, currentY: number): boolean {
-    if (blocksBotMotion(this.map.cover, from, to, currentY)) return true;
+    if (blocksBotMotion(this.coverAlong(from,to,2), from, to, currentY)) return true;
     for (const o of this.map.environment ?? []) {
       if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, this.environmentTime))) continue;
       if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
