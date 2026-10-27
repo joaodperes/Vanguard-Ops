@@ -1349,7 +1349,9 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       io.to(room.id).emit("message",{t:"orbitalReward",playerId:victim.id,active:false} as S2C);
     }
     if(attacker && attacker.id!==victim.id && attacker.team!==victim.team && room.map.id==="orbital_nexus"){
-      const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id);
+      // Either the attacker OR the defeated combatant can be in the central
+      // charge zone; the server validates opponent ownership before counting.
+      const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id,attacker.pos);
       if(charge!==room.orbitalCharge){
         room.orbitalCharge=charge;
         io.to(room.id).emit("message",{t:"orbitalAbsorb",pos:[...victim.pos] as Vec3} as S2C);
