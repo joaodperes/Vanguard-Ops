@@ -24,6 +24,10 @@ const samples: [number,number,"tree"|"bush"|"rock"|"log"][] = [
   [59,9,"tree"],[67,23,"bush"],[72,37,"tree"],[55,-18,"rock"],
   [67,-34,"tree"],[77,-4,"rock"],[82,35,"tree"],[104,38,"bush"],
   [109,-39,"rock"],[112,22,"tree"],[111,-22,"tree"],
+  [10,-34,"log"],[18,-36,"rock"],[25,13,"tree"],[33,-14,"bush"],
+  [39,37,"bush"],[47,-38,"tree"],[52,3,"tree"],[60,38,"rock"],
+  [65,-5,"bush"],[73,13,"log"],[79,-37,"tree"],[85,-22,"bush"],
+  [88,43,"rock"],[115,-38,"bush"],[117,5,"tree"],
 ];
 for (const [x,z,kind] of samples) for (const side of [-1,1]) {
   // Protect the home-tree decks, the north/south climb lanes, and team spawns.
