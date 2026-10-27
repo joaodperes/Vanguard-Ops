@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CareerProgress } from "@/components/game/CareerProgress";
+import { OperatorPreview } from "@/components/game/OperatorPreview";
 import { useGame } from "@/lib/game-store";
 import { achievementTitle } from "@/lib/achievement-titles";
 import { displayLabel } from "@/lib/display-labels";
@@ -200,6 +201,7 @@ export function Profile() {
           </div>
         </div>
 
+        <OperatorPreview equippedId={profile.loadout.playerSkin.id}/>
         <CareerProgress />
 
         <Tabs defaultValue="stats">
