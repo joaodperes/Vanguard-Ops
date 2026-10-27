@@ -7,7 +7,7 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 1.03; // 0.9-unit combined collider diameter + at most 0.13 reach
+export const QUICK_MELEE_REACH = 0.95; // 0.9-unit combined collider diameter + 0.05 contact tolerance
 /** Narrow forward hitbox: a target to the side is NOT in a melee swing. */
 export const MELEE_MIN_FORWARD_DOT = 0.94;
 export function meleeForwardHit(dx:number,dz:number,yaw:number):boolean {
