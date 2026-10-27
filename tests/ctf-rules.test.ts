@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createCtfFlags, ctfBase, ctfHome, ctfDrop, ctfTouch, ctfReturnExpired, CTF_DROP_RETURN_MS, ctfBotGoal, ctfBotIntent, ctfStairWaypoint, ctfResetMs, CTF_TREE_X, CTF_TREE_TOP } from "../src/lib/ctf-rules";
+import { createCtfFlags, ctfBase, ctfHome, ctfDrop, ctfTouch, ctfReturnExpired, CTF_DROP_RETURN_MS, ctfBotGoal, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, CTF_TREE_X, CTF_TREE_TOP } from "../src/lib/ctf-rules";
 import { getMap, mapAllowedForMode } from "../src/lib/game-protocol";
-import { FOREST_TREE_STAIRS, FOREST_TREE_DECKS, FOREST_PERIMETER, FOREST_REGIONS, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "../src/lib/forest-warfare";
+import { FOREST_TREE_STAIRS, FOREST_TREE_DECKS, FOREST_PERIMETER, FOREST_REGIONS, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, FOREST_OBJECTS } from "../src/lib/forest-warfare";
 import { botGroundHeight, botPositionEmbedded, BOT_STEP_HEIGHT } from "../src/lib/bot-physics";
 import { insideRegions } from "../src/lib/map-blueprints";
 
@@ -133,6 +133,43 @@ describe("Capture the Flag objective rules", () => {
     ctfTouch(flags,{id:"red-runner",team:"red",pos:ctfHome("blue")});
     expect(ctfBotIntent(flags,"red","b",[20,0,2],"rifle_ar",ids,{"red-runner":[20,0,2]}).role).toBe("escort");
     expect(ctfBotIntent(flags,"red","red-runner",[20,0,2],"rifle_ar",ids).goal).toEqual(ctfBase("red"));
+  });
+
+  test("visible hostiles interrupt flag navigation at sensible weapon ranges", () => {
+    expect(ctfEngageThreat(5,"rifle_ar")).toBe(true);
+    expect(ctfEngageThreat(30,"rifle_ar")).toBe(true);
+    expect(ctfEngageThreat(54,"sniper_lr")).toBe(true);
+    expect(ctfEngageThreat(28,"shotgun_auto")).toBe(false);
+    expect(ctfEngageThreat(Infinity,"rifle_ar")).toBe(false);
+  });
+
+  test("both teams capture at the new visible circle, never at the obsolete zone", () => {
+    const flags=createCtfFlags();
+    for(const team of ["red","blue"] as const) {
+      const enemy=team==="red"?"blue":"red";
+      const id=team+"-runner";
+      ctfTouch(flags,{id,team,pos:ctfHome(enemy)});
+      expect(ctfTouch(flags,{id,team,pos:[team==="red"?-94:94,0,-40]})).toBeNull();
+      const circle=ctfBase(team);
+      expect(Math.abs(circle[0])).toBe(107);
+      expect(circle[2]).toBe(0);
+      // Outer edge of the colored marker must also count as scoring.
+      expect(ctfTouch(flags,{id,team,pos:[circle[0],0,circle[2]+4.25]}))
+        .toEqual({kind:"capture",flag:enemy});
+    }
+  });
+
+  test("forest has added visual/solid asymmetrical cover without blocking objectives", () => {
+    expect(FOREST_OBJECTS.length).toBeGreaterThanOrEqual(110);
+    const unique=new Set(FOREST_OBJECTS.map(o=>o.x+","+o.z));
+    expect(unique.size).toBe(FOREST_OBJECTS.length);
+    const counts=Object.fromEntries(["tree","bush","rock"].map(kind=>
+      [kind,FOREST_OBJECTS.filter(o=>o.kind===kind).length]));
+    for (const count of Object.values(counts)) expect(count).toBeGreaterThan(12);
+    for(const team of ["red","blue"] as const) {
+      const base=ctfBase(team);
+      expect(FOREST_OBJECTS.some(o=>Math.hypot(o.x-base[0],o.z-base[2])<5.5)).toBe(false);
+    }
   });
 
   test("base is behind each trunk and new cover does not cover objectives or stairs", () => {
