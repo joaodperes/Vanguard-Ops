@@ -29,7 +29,7 @@ import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfResetMs, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -550,6 +550,7 @@ function createLobbyRoom(
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
     if (mode === "killconfirmed" && [10000, 15000, 25000, 30000, 45000].includes(cfg.tagLifetimeMs ?? -1)) config.tagLifetimeMs = cfg.tagLifetimeMs!;
     if (mode === "killconfirmed") config.denialScoreEnabled = cfg.denialScoreEnabled === true;
+    if (mode === "ctf") config.ctfFlagResetMs = ctfResetMs(cfg.ctfFlagResetMs);
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
   // Use a placeholder for now; startMatchInRoom overwrites it.
@@ -1471,7 +1472,7 @@ function tickKillConfirmedTags(room: Room, now: number) {
 
 // Flag contacts are resolved once by the server on its 20 Hz simulation tick.
 function tickCaptureTheFlag(room: Room, now = Date.now()): void {
-  ctfReturnExpired(room.flags, now);
+  ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs);
   for (const player of allCombatants(room)) {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
     const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
@@ -1902,7 +1903,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ? Math.hypot(enemy.pos[0] - bot.pos[0], enemy.pos[2] - bot.pos[2]) : Infinity;
     const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
     const ctfObjective = room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && threatDistance > 12
-      ? ctfBotGoal(room.flags, bot.team, bot.id, bot.pos)
+      ? ctfStairWaypoint(ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
+          [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
+          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos]))).goal,bot.pos)
       : null;
     const prevTarget = ai.targetId;
     ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
