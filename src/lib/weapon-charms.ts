@@ -9,7 +9,7 @@ export function createWeaponCharm(id:string):THREE.Group|null{
   const silver=new THREE.MeshStandardMaterial({color:0x8a9aaa,metalness:.85,roughness:.24});
   const main=new THREE.MeshStandardMaterial({color:cosmetic.color,metalness:.65,roughness:.27,
     emissive:id==="charm_orb"||id==="charm_reactor"?cosmetic.color:"#000000",
-    emissiveIntensity:id==="charm_orb"||id==="charm_reactor"?.35:0});
+    emissiveIntensity:(id==="charm_orb"||id==="charm_reactor") ? .35 : 0});
   const cap=new THREE.Mesh(new THREE.TorusGeometry(.025,.006,6,12),silver);
   cap.position.y=-.025;root.add(cap);
   const link=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.07,6),silver);

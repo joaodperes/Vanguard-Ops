@@ -1,3 +1,4 @@
+import {SHOP_ITEMS} from "./shop-catalog";
 /** Cosmetic IDs and public presentation data. No reticle alters gameplay ballistics. */
 export type CosmeticKind = "reticle" | "charm" | "nameplate";
 export interface CosmeticDefinition { id:string; name:string; kind:CosmeticKind; color:string; symbol:string; description:string; }

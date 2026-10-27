@@ -30,7 +30,7 @@ export function Shop(){
   }
   const section=(currency:ShopCurrency)=><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 mt-5">
     {SHOP_ITEMS.filter(item=>item.currency===currency).map(item=>{
-      const finish=WEAPON_SKINS.find(s=>s.id===item.skinId),operator=PLAYER_SKINS.find(s=>s.id===item.skinId);
+      const finish=WEAPON_SKINS.find(s=>s.id===(item.skinId??"")),operator=PLAYER_SKINS.find(s=>s.id===(item.skinId??""));
       const skin=finish??operator,cosmetic=cosmeticById(item.cosmeticId??"");
       const isOwned=item.kind==="weaponSkin"?
         (profile?.unlocks.skinsByWeapon[choice]??[]).includes(item.skinId??""):
