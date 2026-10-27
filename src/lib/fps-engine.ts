@@ -713,6 +713,7 @@ export class FPSEngine {
   private orbitalWeaponActive=false;
   private orbitalCore:THREE.Mesh|undefined;
   private orbitalRings:THREE.Mesh[]=[];
+  private orbitalMotes:{mesh:THREE.Mesh;origin:Vec3;start:number}[]=[];
   private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
   private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
   private ctfRulesVerified = false;
@@ -1471,8 +1472,32 @@ export class FPSEngine {
   }
 
 
+  private spawnOrbitalMote(pos:Vec3) {
+    if(this.map.id!=="orbital_nexus"||this.orbitalMotes.length>=12)return;
+    const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),
+      new THREE.MeshBasicMaterial({color:0x93e7ff,transparent:true,opacity:.92,
+        blending:THREE.AdditiveBlending,depthWrite:false}));
+    mesh.position.set(pos[0],pos[1]+1.1,pos[2]);
+    this.scene.add(mesh);
+    this.orbitalMotes.push({mesh,origin:[...pos],start:performance.now()});
+  }
   private animateOrbitalReactor(now:number) {
     if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    this.orbitalMotes=this.orbitalMotes.filter(m=>{
+      const t=Math.max(0,(now-m.start)/1050);
+      if(t>=1){
+        this.scene.remove(m.mesh);m.mesh.geometry.dispose();
+        (m.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      const eased=t*t*(3-2*t),inv=1-eased;
+      m.mesh.position.set(m.origin[0]*inv,
+        (m.origin[1]+1.1)*inv+11*eased+Math.sin(t*Math.PI)*2,
+        m.origin[2]*inv);
+      m.mesh.scale.setScalar(.5+(1-t)*.9);
+      (m.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
+      return true;
+    });
     const progress=this.orbitalCharge/ORBITAL_KILLS_REQUIRED;
     const ready=this.orbitalCharge>=ORBITAL_KILLS_REQUIRED;
     const color=new THREE.Color(0x53dbff).lerp(new THREE.Color(0xa247ff),progress);
@@ -1525,6 +1550,7 @@ export class FPSEngine {
     if(this.opts.online||this.map.id!=="orbital_nexus")return;
     const prev=this.orbitalCharge;
     this.orbitalCharge=orbitalRecordKill(prev,pos,this.map.id);
+    if(this.orbitalCharge!==prev)this.spawnOrbitalMote(pos);
     if(prev<ORBITAL_KILLS_REQUIRED&&this.orbitalCharge>=ORBITAL_KILLS_REQUIRED)
       this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
   }
@@ -4892,6 +4918,9 @@ export class FPSEngine {
           // Enemy fire sound: distance-attenuated + muffled if suppressed.
           this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
         }
+        break;
+      case "orbitalAbsorb":
+        this.spawnOrbitalMote(msg.pos);
         break;
       case "orbitalReactor":
         if(this.map.id==="orbital_nexus"){

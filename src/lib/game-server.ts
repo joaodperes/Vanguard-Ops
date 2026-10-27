@@ -1348,6 +1348,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id);
       if(charge!==room.orbitalCharge){
         room.orbitalCharge=charge;
+        io.to(room.id).emit("message",{t:"orbitalAbsorb",pos:[...victim.pos] as Vec3} as S2C);
         io.to(room.id).emit("message",{t:"orbitalReactor",charge} as S2C);
       }
     }

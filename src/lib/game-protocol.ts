@@ -1393,6 +1393,7 @@ export type S2C =
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "orbitalReactor"; charge: number }
+  | { t: "orbitalAbsorb"; pos: Vec3 }
   | { t: "orbitalReward"; playerId: string; active: boolean }
   | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
