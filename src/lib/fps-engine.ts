@@ -5751,7 +5751,7 @@ export class FPSEngine {
     }
     // cover blocking
     let blockedT = Infinity;
-    for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*eff.range,origin[1]+dir[1]*eff.range,origin[2]+dir[2]*eff.range],2)) {
+    for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range],2)) {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
