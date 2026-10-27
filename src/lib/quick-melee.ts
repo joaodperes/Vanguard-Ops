@@ -7,18 +7,18 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 1.8; // hard safety cap; every weapon still uses its own shorter reach
+export const QUICK_MELEE_REACH = 1.9; // hard safety cap; every weapon still uses its own shorter reach
 
 /** Half-angle to either side of the attacker's forward direction.
  * Fast stabbing weapons stay focused; heavy axe and hammer swings are broader.
  * Shared by local play, F quick melee, and authoritative online hit selection. */
 export const MELEE_HALF_ARC_DEGREES: Readonly<Record<string,number>> = {
-  shiv: 24,
-  knife_tactical: 26,
-  baton: 28,
-  machete: 30,
-  axe: 38,
-  hammer: 42,
+  shiv: 26,
+  knife_tactical: 28,
+  baton: 30,
+  machete: 32,
+  axe: 41,
+  hammer: 45,
 };
 export function meleeHalfArcDegrees(weaponId:string):number {
   return MELEE_HALF_ARC_DEGREES[weaponId] ?? 26;
