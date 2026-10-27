@@ -733,7 +733,8 @@ function snapshot(room: Room): S2C {
       (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
-    ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime } : {}),
+    ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
+      ctfBases: {red:ctfBase("red"),blue:ctfBase("blue")}, ctfRulesVersion: 2 } : {}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
