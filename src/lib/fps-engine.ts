@@ -1968,6 +1968,7 @@ export class FPSEngine {
         c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
         if (c.health <= 0) {
           c.alive = false; c.health = 0; c.deaths++;
+          if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, c.id, [...c.pos] as Vec3);
           c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
           const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
           this.killFeed.unshift(entry);
@@ -5749,7 +5750,8 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
+      if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, victim.id, [...victim.pos] as Vec3);
+      if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
       // Offline: only a Scavenger player's kills create private ammo packs.
@@ -7419,15 +7421,25 @@ export class FPSEngine {
       const tagDistance = nearestTag ? Math.hypot(nearestTag.pos[0] - c.pos[0], nearestTag.pos[2] - c.pos[2]) : Infinity;
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
+      const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && threatDistance > 12
+        ? (() => {
+            const own = c.team as FlagTeam, enemyFlag = this.ctfFlags[otherFlag(own)];
+            if (enemyFlag.carrierId === c.id) return ctfBase(own);
+            if (this.ctfFlags[own].dropped) return this.ctfFlags[own].pos;
+            return enemyFlag.carrierId ? ctfBase(otherFlag(own)) : enemyFlag.pos;
+          })()
+        : null;
       const prevTarget = ai.targetId;
-      ai.targetId = pursueTag ? null : (enemy ? enemy.id : null);
+      ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
       if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
+      if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
       if (!ai.targetId) {
-        if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
+        if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
+        else if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
         else if (Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5)
           ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
             this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
@@ -7874,9 +7886,10 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          if (this.opts.mode !== "killconfirmed") nearest.victim.score = nearest.victim.kills;
+          if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, nearest.victim.id, [...nearest.victim.pos] as Vec3);
+          if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
-          if (this.opts.mode !== "killconfirmed") attacker.score = attacker.kills;
+          if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") attacker.score = attacker.kills;
           if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(nearest.victim.id, nearest.victim.team, nearest.victim.pos);
           if (this.opts.mode === "tdm") this.teamScores[attacker.team as "red" | "blue"] += 1;
           const entry: KillFeedEntry = { killer: attacker.name, victim: nearest.victim.name, weapon: attacker.weaponId, headshot: nearest.head, killerTeam: attacker.team, victimTeam: nearest.victim.team };
@@ -7904,6 +7917,7 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
       this.recentKills = [];
       this.shotBloom = 0;
