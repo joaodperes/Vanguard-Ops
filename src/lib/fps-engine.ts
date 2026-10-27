@@ -47,7 +47,7 @@ import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accur
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
-import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
+import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfResetMs, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
@@ -1307,6 +1307,17 @@ export class FPSEngine {
       const cap=new THREE.Mesh(new THREE.BoxGeometry(hx*2+.16,.18,hz*2+.16),moss);
       cap.position.set(x,y+hy+.08,z);cap.receiveShadow=true;this.scene.add(cap);
     }
+    // Every new low barrier has the same rendered box and physics AABB.
+    for (const cover of FOREST_BASE_COVER) {
+      const rock=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),stone);
+      rock.rotation.y=0;place(rock,...cover.pos);
+      const lichen=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2+.06,.08,cover.size[2]*2+.06),moss);
+      place(lichen,cover.pos[0],cover.pos[1]+cover.size[1]+.03,cover.pos[2]);
+    }
+    for (const cover of FOREST_TREE_PARAPETS) {
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),barkLight);
+      place(rail,...cover.pos);
+    }
     for (const prop of FOREST_OBJECTS) {
       const {x,z,w,d,h,kind}=prop;
       if(kind==="tree") {
@@ -1347,6 +1358,17 @@ export class FPSEngine {
         const angle=i*2*Math.PI/14;
         const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(4.1+(i%3)*.4,1),i%2?leafB:leafA);
         place(canopy,x+Math.cos(angle)*16.2,24.5+(i%3)*.6,Math.sin(angle)*16.2);
+      }
+      // Heavy branches physically meet the high canopy clusters. Kept above
+      // player head height so the open flag deck remains a clear combat space.
+      for(const angle of [Math.PI/5,Math.PI*4/5,Math.PI*7/5,Math.PI*9/5]){
+        const x2=x+Math.cos(angle)*16.2,z2=Math.sin(angle)*16.2;
+        const start=new THREE.Vector3(x,18,0),end=new THREE.Vector3(x2,24,z2);
+        const direction=end.clone().sub(start);
+        const branch=new THREE.Mesh(new THREE.CylinderGeometry(.45,1.05,direction.length(),10),bark);
+        branch.position.copy(start.add(end).multiplyScalar(.5));
+        branch.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+        branch.castShadow=true;this.scene.add(branch);
       }
       const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
       place(crown,x,28.5,0);
