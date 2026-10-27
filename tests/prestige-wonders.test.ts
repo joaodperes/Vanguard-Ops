@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fullWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
-import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges } from "../src/lib/weapon-prestige";
+import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
 import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
 import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
 
@@ -70,6 +70,24 @@ describe("One-time Prestige mastery", () => {
     expect(prestigeTokens(tokenEligiblePrestiges(["rifle_ar","smg_kp"],progress).length,0)).toBe(1);
     expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:110}})).toEqual(["rifle_ar"]);
     expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:109}})).toEqual([]);
+  });
+  test("Wonder milestone has two independent objectives and never counts as a Prestige trial",()=>{
+    const initial=wonderUnlockChallenge("rifle_ar",false,0,0);
+    expect(initial.progress).toBe(0);
+    expect(initial.requirements.map(r=>r.progress)).toEqual([0,0]);
+    const prestigeOnly=wonderUnlockChallenge("rifle_ar",true,150,25);
+    expect(prestigeOnly.progress).toBe(1);
+    expect(prestigeOnly.requirements.map(r=>r.progress)).toEqual([1,3]);
+    const masteryOnly=wonderUnlockChallenge("rifle_ar",false,600,110);
+    expect(masteryOnly.progress).toBe(1);
+    expect(masteryOnly.completed).toBe(false);
+    const complete=wonderUnlockChallenge("rifle_ar",true,600,110);
+    expect(complete.progress).toBe(2);
+    expect(complete.completed).toBe(true);
+    expect(allSkinChallengesForWeapon("rifle_ar").some(c=>c.id===complete.id)).toBe(false);
+    expect(wonderUnlockChallenge("wonder_singularity",true,600,110).completed).toBe(false);
+    const owned=new Set(allSkinChallengesForWeapon("rifle_ar").map(c=>c.skinId));
+    expect(prestigeEligible("rifle_ar",{kills:0,headshots:0},owned)).toBe(true);
   });
   test("token balance is awards minus lifetime purchases (no double claim)", () => {
     expect(prestigeTokens(0, 0)).toBe(0);

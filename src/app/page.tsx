@@ -17,7 +17,7 @@ import { loadTutorialProgress, shouldOfferTutorial } from "@/lib/tutorial";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkById } from "@/lib/perks";
-import { isPrimaryWeaponCategory } from "@/lib/game-data";
+import { isPrimaryWeaponCategory, weaponById } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
@@ -113,7 +113,7 @@ export default function Page() {
       if (rewards.newPrestiges?.length) {
         for (const id of rewards.newPrestiges) {
           toast.success("WEAPON PRESTIGE EARNED", {
-            description: `${id.replaceAll("_", " ")} · Eventide & Viridian Blight camos earned. Prestige Token requires Weapon Mastery rank 5/5.`,
+            description: `${weaponById(id).name} · Viridian Blight camo earned. Track the separate Wonder Weapon Unlock challenge in Armory → Customize → Challenges.`,
             duration: 6500,
           });
         }

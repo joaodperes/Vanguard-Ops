@@ -10,7 +10,7 @@ Run the safe schema update **before starting the new app/server build**.
   Prestige cosmetics are not part of that checklist.
 - Completing all seven awards that particular weapon's Prestige exactly once.
   Bought legacy skins count as completed (preserves historical entitlement).
-- **Prestige** awards **Viridian Blight** (animated toxic green) independently.
+- **Prestige** awards **Viridian Blight** (animated toxic green) independently. Only the seven ordinary skin challenges count toward Prestige.
 - **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
   players can equip it even without completing Prestige.
 - Completing both tracks on the same weapon grants a one-use **Wonder Weapon
@@ -115,3 +115,11 @@ change and also needs migration if not already applied.
 **Status:** The implementation is on `dev`. Confirm green validation for the exact candidate commit, complete manual gameplay checks and apply reviewed database updates before deployment.
 
 For the four later additions (Deadlock, Hellfire, Stormweaver and Bogfather), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for their mechanics, limitations and playtest requirements.
+
+## Independent Wonder Weapon Unlock challenge
+
+The Armory Challenges tab also tracks **Wonder Weapon Unlock** as an independent
+0/2 to 2/2 milestone. Its two objectives are **Weapon Prestige (1/1)** and
+**Weapon Mastery (5/5)**. It never counts as one of the seven cosmetic Prestige
+challenges or delays Viridian Blight. Completing both awards a single Wonder
+Weapon unlock entitlement (not a Prestige token or another Shop currency).

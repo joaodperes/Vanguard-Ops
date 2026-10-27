@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
@@ -890,6 +891,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   // find an Equip button.
   const canEquipSkin = true;
   const mastery = weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id);
+  const wonderChallenge = wonderUnlockChallenge(w.id,prestiged,progress?.kills ?? 0,progress?.headshots ?? 0);
   const rarityColor = w.unlockCost >= 3500 ? RARITY_COLORS.legendary : w.unlockCost >= 2000 ? RARITY_COLORS.epic : w.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
 
   return (
@@ -1186,7 +1188,7 @@ function CustomizeModal(props: CustomizeModalProps) {
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
                 <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Viridian Blight earned. Mastery can independently unlock Eventide." : "Complete every regular cosmetic challenge to earn Viridian Blight."}</p>
+              <p className="text-white/50">{prestiged ? "Viridian Blight earned." : "Complete every regular cosmetic challenge to earn Viridian Blight."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
@@ -1197,8 +1199,31 @@ function CustomizeModal(props: CustomizeModalProps) {
                 {progress?.kills ?? 0} kills {w.category === "melee" ? "(melee mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
                 {mastery.next && ` · Next: ${mastery.next.kills} kills (${Math.max(0, mastery.next.kills - (progress?.kills ?? 0))} remaining)${w.category === "melee" ? "" : ` · ${mastery.next.headshots} headshots ${(progress?.headshots ?? 0) >= mastery.next.headshots ? "✓" : `(${mastery.next.headshots - (progress?.headshots ?? 0)} remaining)`}`}`}
               </div>
-              <p className="mt-2 text-violet-300/85">Wonder Weapon unlock requires both Prestige completion and Weapon Mastery 5/5. {prestiged && mastery.rank === 5 ? "This weapon qualifies for one token." : prestiged ? "Prestige complete — finish Mastery to qualify." : mastery.rank === 5 ? "Mastery complete — finish Prestige to qualify." : "Advance both tracks to qualify."}</p>
+              
             </div>
+            {/* Wonder is a separate challenge, outside the seven Prestige trials. */}
+            {!w.wonder && (
+              <div className={`mb-3 rounded-lg border p-3 text-xs ${wonderChallenge.completed?"border-emerald-500/40 bg-emerald-500/10":"border-violet-500/30 bg-violet-500/5"}`} aria-label="Wonder Weapon Unlock challenge">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-violet-200 text-sm font-bold flex items-center gap-2"><Sparkles className="w-4 h-4" />{wonderChallenge.title}</span>
+                  <span className={wonderChallenge.completed?"text-emerald-300 font-semibold":"text-white/60"}>
+                    {wonderChallenge.completed?"✓ Completed":`${wonderChallenge.progress}/${wonderChallenge.goal} objectives`}
+                  </span>
+                </div>
+                <p className="mt-1 text-white/55">Reward: {wonderChallenge.reward}. Complete both objectives independently; this challenge does not count toward Prestige.</p>
+                <div className="mt-3 h-1.5 rounded bg-black/50 overflow-hidden">
+                  <div className={wonderChallenge.completed?"h-full bg-emerald-400":"h-full bg-violet-400"} style={{width:`${wonderChallenge.progress/wonderChallenge.goal*100}%`}} />
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {wonderChallenge.requirements.map(req=>(
+                    <div key={req.id} className={`flex items-center justify-between gap-2 rounded-md border p-2 ${req.completed?"border-emerald-500/30 text-emerald-200":"border-white/10 text-white/70"}`}>
+                      <span>{req.completed?"✓":"○"} {req.title}</span>
+                      <span className="font-mono tabular-nums shrink-0">{req.progress}/{req.goal}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {challengeViews.filter(c => !c.completed).length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>
             ) : (
