@@ -1,4 +1,5 @@
 import { calculateMatchRewards } from "./match-rewards";
+import { ORBITAL_REAPER_ID } from "./orbital-reactor";
 import { careerXpAfterMatch, careerView, CAREER_TITLES } from "./career";
 import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
@@ -674,7 +675,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     [input.weaponId ?? player.loadout?.primaryWeapon ?? "rifle_ar"]:{kills:input.kills,headshots:input.headshots},
   };
   for (const [wid,delta] of Object.entries(matchWeaponStats)){
-    if(!WEAPONS.some(w=>w.id===wid))continue;
+    if(!WEAPONS.some(w=>w.id===wid)&&wid!==ORBITAL_REAPER_ID)continue;
     const current=projectedWeapons.get(wid)??{weaponId:wid,kills:0,headshots:0};
     projectedWeapons.set(wid,{weaponId:wid,kills:current.kills+Math.max(0,delta.kills),headshots:current.headshots+Math.max(0,delta.headshots)});
   }
@@ -728,6 +729,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       // Math.max above when this match's bestStreak exceeds the prior best.
       case "ctf_captures": return lifetimeStats.ctf_captures;
       case "ctf_wins": return lifetimeStats.ctf_wins;
+      case "nexus_reaper_kills": return projectedWeapons.get(ORBITAL_REAPER_ID)?.kills ?? 0;
       case "best_killstreak": return Math.max(player.pvpBestKillstreak,countsThisMatch?(input.bestStreak??0):0);
       case "mastery_recruits": return masteryStats.mastery_recruits;
       case "mastery_specialists": return masteryStats.mastery_specialists;
@@ -1223,6 +1225,7 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak)
       case "ctf_captures": return ctfAggregate._sum.score ?? 0;
       case "ctf_wins": return ctfWonMatches;
+      case "nexus_reaper_kills": return weaponRows.find(w=>w.weaponId===ORBITAL_REAPER_ID)?.kills ?? 0;
       case "best_killstreak": return player.pvpBestKillstreak;
       case "mastery_recruits": return masteryStats.mastery_recruits;
       case "mastery_specialists": return masteryStats.mastery_specialists;
