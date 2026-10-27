@@ -94,4 +94,16 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(muted.punchLevel).toBe(0);
     expect(muted.blastLevel).toBe(0);
   });
+  test("bare muzzle reports gain bass and treble without making suppressed weapons louder", () => {
+    const open = resolveShotAcoustics("assault", { weaponId: "rifle_ar" });
+    const suppressed = resolveShotAcoustics("assault", { weaponId: "rifle_ar", suppressed: true });
+    expect(open.punchLevel).toBeGreaterThan(.65);
+    expect(open.crackLevel).toBeGreaterThan(1.1);
+    expect(suppressed.punchLevel).toBeLessThan(open.punchLevel * .3);
+    expect(suppressed.crackLevel).toBeLessThan(open.crackLevel * .04);
+    expect(resolveShotAcoustics("sniper").punchLevel).toBeGreaterThan(open.punchLevel);
+    expect(resolveShotAcoustics("assault", { weaponId: "rifle_electron" }).crackLevel)
+      .toBeLessThan(open.crackLevel * .5);
+  });
+
 });
