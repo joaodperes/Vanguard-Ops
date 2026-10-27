@@ -4739,6 +4739,20 @@ export class FPSEngine {
           this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
         }
         break;
+      case "ctfEvent":
+        if (this.opts.mode === "ctf") {
+          if (msg.action === "pickup") this.sound.play("flag_taken", {volume:.65,throttleMs:250});
+          if (msg.action === "capture") this.sound.play("flag_scored", {volume:.85,throttleMs:250});
+          if (msg.playerId === this.selfId) {
+            if (msg.action === "capture") this.ctfCaptures++;
+            this.ctfNotice = {at:performance.now(),label:
+              msg.action === "capture" ? "FLAG SCORED! +75 XP / +30 CR" :
+              msg.action === "pickup" ? "ENEMY FLAG TAKEN! +10% SPEED" : "FLAG RETURNED!"};
+          } else if (msg.action === "capture") {
+            this.ctfNotice = {at:performance.now(),label:"FLAG SCORED!"};
+          }
+        }
+        break;
       case "matchEnd":
         this.finalizeMatch(msg.standings, msg.winnerTeam);
         break;
