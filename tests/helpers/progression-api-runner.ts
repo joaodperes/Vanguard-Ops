@@ -72,6 +72,20 @@ try {
   await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "battle_hardened" })), 200);
   assert.equal((await buildProfileView(p.playerKey))!.loadout.secondary.id, "pistol_side");
 
+  // Prestige and Mastery finishes must equip without the OTHER achievement.
+  const masterySkinPlayer=await create("mastery-skins-player",totalXpForLevel(25));
+  await db.weaponProgress.upsert({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},
+    create:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar",kills:600,headshots:110},
+    update:{kills:600,headshots:110}});
+  await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.equal((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+  const prestigeSkinPlayer=await create("prestige-skins-player",totalXpForLevel(25));
+  await db.weaponPrestige.create({data:{playerId:prestigeSkinPlayer.id,weaponId:"rifle_ar",legacyReward:false}});
+  await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_toxic"})),200);
+  assert.equal((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_toxic");
+  await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.notEqual((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+
   // Quest/achievement XP must be included in both returned and persisted level.
   const q = await create("quest-player", totalXpForLevel(12) - 200);
   const award = await applyMatchResult({ playerKey: q.playerKey, kills: 200, deaths: 1, headshots: 100, won: true, mode: "ffa", score: 200, weaponId: "rifle_ar" });

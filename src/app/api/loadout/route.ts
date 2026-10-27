@@ -4,7 +4,7 @@ import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
-import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
+import { weaponChallengeProgress, weaponMasteryProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
 import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
@@ -211,10 +211,18 @@ export async function POST(req: NextRequest) {
     const skinDef = WEAPON_SKINS.find(s => s.id === skinId);
     if (!skinDef) return undefined;
     if (skinDef.prestige) {
-      const earned = await db.weaponPrestige.findUnique({ where: {
-        playerId_weaponId: { playerId: player.id, weaponId },
-      } });
-      return earned ? skinId : undefined;
+      const prestige=await db.weaponPrestige.findUnique({where:{
+        playerId_weaponId:{playerId:player.id,weaponId},
+      }});
+      if(skinDef.prestige==="toxic")return prestige ? skinId:undefined;
+      // Eventide belongs to rank-5 Mastery, independent of Prestige.
+      // Historical pre-split Prestige awards retain their Eventide entitlement.
+      const progress=await db.weaponProgress.findUnique({where:{
+        playerId_weaponId:{playerId:player.id,weaponId},
+      }});
+      return prestige?.legacyReward || weaponMasteryProgress(
+        progress?.kills??0,progress?.headshots??0,weaponId,
+      ).rank===5 ? skinId:undefined;
     }
     const owned = await db.skinUnlock.findUnique({
       where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
