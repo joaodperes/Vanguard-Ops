@@ -1556,12 +1556,31 @@ export class FPSEngine {
     if(prev<ORBITAL_KILLS_REQUIRED&&this.orbitalCharge>=ORBITAL_KILLS_REQUIRED)
       this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
   }
+  private refreshOfflineOrbitalBotModel(bot:Combatant){
+    if(!bot.group||this.opts.online)return;
+    this.scene.remove(bot.group);
+    bot.group.traverse(child=>{
+      if(child instanceof THREE.Mesh){
+        child.geometry.dispose();
+        const mat=child.material;
+        if(Array.isArray(mat))mat.forEach(m=>m.dispose());
+        else mat.dispose();
+      }else if(child instanceof THREE.Sprite){
+        const mat=child.material as THREE.SpriteMaterial;
+        mat.map?.dispose();mat.dispose();
+      }
+    });
+    bot.group=undefined;
+    bot.parts=undefined;
+    this.addCombatantMesh(bot);
+  }
   private releaseOrbitalBotWeapon(bot:Combatant){
     const original=this.orbitalBotHolders.get(bot.id);
     if(!original)return;
     this.orbitalBotHolders.delete(bot.id);
     bot.weaponId=original;
     if(bot.ai){bot.ai.ammoInMag=weaponById(original).stats.magSize;bot.ai.nextDecisionAt=0;}
+    this.refreshOfflineOrbitalBotModel(bot);
   }
   private tickOrbitalPickup(){
     if(this.opts.online||this.preMatchCountdown>0||
@@ -1589,6 +1608,7 @@ export class FPSEngine {
       bot.ai!.ammoInMag=1;
       bot.ai!.reloadingUntil=0;
       bot.ai!.nextDecisionAt=0;
+      this.refreshOfflineOrbitalBotModel(bot);
       this.ctfNotice={label:bot.name+" CLAIMED THE NEXUS REAPER!",at:performance.now()};
     }
   }
