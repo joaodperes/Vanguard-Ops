@@ -9,6 +9,30 @@ export function buildMeleeWeaponParts(
   const box=(w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number)=>{
     place(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat),x,y,z);
   };
+  if(id==="orbital_reaper"){
+    // Curved plasma reaper: its crescent is a luminous cutting arc, never a
+    // cross-shaped guard. Shared first/third-person profile.
+    const energy=new THREE.MeshStandardMaterial({
+      color:0xb98bff,emissive:0x8c36ff,emissiveIntensity:2.25,
+      metalness:.25,roughness:.16,side:THREE.DoubleSide,
+    });
+    const handle=new THREE.Mesh(new THREE.CylinderGeometry(.026,.032,.96,10),grip);
+    handle.rotation.x=Math.PI/2;place(handle,0,-.045,-.25);
+    box(.09,.08,.08,metal,0,-.045,-.68);
+    const crescent=new THREE.Shape();
+    crescent.moveTo(.03,-.075);
+    crescent.quadraticCurveTo(-.1,-.20,-.30,-.27);
+    crescent.quadraticCurveTo(-.47,0,-.30,.27);
+    crescent.quadraticCurveTo(-.12,.14,.03,.075);
+    crescent.quadraticCurveTo(-.18,0,.03,-.075);
+    const blade=new THREE.Mesh(new THREE.ExtrudeGeometry(crescent,{
+      depth:.05,bevelEnabled:true,bevelSize:.008,bevelThickness:.008,bevelSegments:2,
+    }),energy);
+    place(blade,0,-.03,-.79);
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.09,1),energy);
+    place(core,0,-.045,-.79);
+    return -.86;
+  }
   if(id==="hammer"||id==="axe"){
     const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.024,.029,.7,10),grip);
     shaft.rotation.x=Math.PI/2;place(shaft,0,-.045,-.17);
