@@ -70,6 +70,30 @@ export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
     kind:"platform" as const,
   }));
 });
+/** Visible low cover flanking each root and either stair approach. */
+export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
+  const x=sign*CTF_TREE_X;
+  return [
+    // Bush-height root boulders around both lower approaches.
+    ...([-1,1] as const).flatMap(side=>[
+      {pos:[x+side*8,1.25,-23] as Vec3,size:[2.3,1.25,2.4] as Vec3,kind:"cover" as const},
+      {pos:[x+side*7,1.05,26] as Vec3,size:[2.0,1.05,2.6] as Vec3,kind:"cover" as const},
+      {pos:[x+side*13,.8,-8] as Vec3,size:[3,.8,1.2] as Vec3,kind:"cover" as const},
+    ]),
+    // Keep the delivery objective open; cover sits left/right of its approach.
+    {pos:[x-10,1.0,17] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
+    {pos:[x+10,1.0,17] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
+  ];
+});
+/** Waist-high parapets, interrupted where the stairs meet the flag deck. */
+export const FOREST_TREE_PARAPETS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
+  const x=sign*CTF_TREE_X;
+  return ([-1,1] as const).flatMap(side=>[
+    {pos:[x+side*10.3,12.65,0] as Vec3,size:[.7,.65,4.1] as Vec3,kind:"cover" as const},
+    {pos:[x+side*7.7,12.65,8.0] as Vec3,size:[2.8,.65,.65] as Vec3,kind:"cover" as const},
+    {pos:[x+side*7.7,12.65,-8.0] as Vec3,size:[2.8,.65,.65] as Vec3,kind:"cover" as const},
+  ]);
+});
 export const FOREST_WARFARE_COVER: CoverBox[]=[
   ...FOREST_PERIMETER,
   ...([-1,1] as const).map(sign=>({
@@ -77,6 +101,8 @@ export const FOREST_WARFARE_COVER: CoverBox[]=[
   })),
   ...FOREST_TREE_DECKS,
   ...FOREST_TREE_STAIRS,
+  ...FOREST_BASE_COVER,
+  ...FOREST_TREE_PARAPETS,
   ...layout.map(p=>({
     pos:[p.x,p.kind==="tree"?2.65:p.h/2,p.z] as Vec3,
     size:[p.w,p.kind==="tree"?2.65:p.h/2,p.d] as Vec3,
