@@ -178,6 +178,10 @@ export function Play() {
   // ---- Create Room: launch the match via the engine ----
   const handleCreate = async () => {
     const mode = roomConfig.mode;
+    if (mode === "ctf" && roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) {
+      toast.error("Capture the Flag requires a capture target or a time limit.");
+      return;
+    }
     const selectedMap = mode === "ctf" ? "forest_warfare" : roomConfig.mapId === "forest_warfare" ? "compound" : roomConfig.mapId;
     if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
       toast.error("This Survival tier is locked. Clear the previous milestone first.");
@@ -303,7 +307,7 @@ export function Play() {
               <div className="space-y-5">
                 {/* Game mode */}
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mode === "ctf" ? "forest_warfare" : roomConfig.mapId === "forest_warfare" ? "compound" : roomConfig.mapId, scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
@@ -448,8 +452,8 @@ export function Play() {
                       <div>
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
-                          {(roomConfig.mode === "ctf" ? [1, 2, 3, 5, 7] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
-                            <button key={s} onClick={() => setRoomConfig({ scoreLimit: s })}
+                          {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
+                            <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
                             </button>
@@ -460,7 +464,7 @@ export function Play() {
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Time Limit</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {[0, 180, 300, 360, 480, 600, 900].map((t) => (
-                            <button key={t} onClick={() => setRoomConfig({ timeLimit: t })}
+                            <button key={t} onClick={() => setRoomConfig({ timeLimit: t, ...(roomConfig.mode === "ctf" && t === 0 && roomConfig.scoreLimit === 0 ? { scoreLimit: 3 } : {}) })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {t === 0 ? "No limit" : `${t / 60}m`}
                             </button>
