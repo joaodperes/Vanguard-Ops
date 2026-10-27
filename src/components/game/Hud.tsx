@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
+import { formatMatchClock } from "@/lib/match-clock";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
@@ -108,9 +109,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
-  const clockSeconds = hud.unlimitedTime ? hud.elapsedSeconds : hud.timeLeft;
-  const mins = Math.floor(clockSeconds / 60);
-  const secs = clockSeconds % 60;
+  const clockText = formatMatchClock(hud);
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -234,7 +233,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
           <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-3 py-1.5"}`}>
             <Clock className="w-3.5 h-3.5 text-white/60" />
-            <span className="text-white font-bold tabular-nums text-sm">{hud.ctfOvertime ? "OVERTIME" : `${mins}:${secs.toString().padStart(2, "0")}`}</span>
+            <span className="text-white font-bold tabular-nums text-sm">{clockText}</span>
           </div>
           {hud.survivalPrepLeft && hud.survivalPrepLeft > 0 ? (
             <div className={`bg-amber-500/20 backdrop-blur rounded-lg border border-amber-500/40 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
@@ -254,7 +253,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         <div className={`backdrop-blur rounded-lg border flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "bg-rose-950/70 border-rose-500/50" : "bg-black/55 border-white/10"}`}
              style={(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? { animation: "countdownPulse 1s ease-in-out infinite" } : {}}>
           <Clock className={isTouch ? "w-3 h-3 text-white/70" : "w-4 h-4 text-white/70"} />
-          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{`${mins}:${secs.toString().padStart(2, "0")}`}</span>
+          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{clockText}</span>
+          {hud.ctfOvertime && <span className="text-amber-300 text-[9px] font-black uppercase tracking-wider">OT</span>}
           {(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 && (
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
