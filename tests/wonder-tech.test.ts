@@ -16,9 +16,11 @@ describe("Novel Wonder families",()=>{
   expect(selectSmartTarget([0,1.6,0],[0,0,1],[enemy],"blue",false,60,()=>true)).toBe(null);
   expect(selectSmartTarget([0,1.6,0],[0,0,-1],[enemy],"red",false,60,()=>true)).toBe(null);
  });
- test("flame cone spreads but does not hit targets behind the shooter",()=>{
+ test("Hellfire has a wide frontal damage arc, with no back hits or distant reach",()=>{
   expect(inFlameCone([0,1,0],[0,0,1],[2,1,11])).toBe(true);
-  expect(inFlameCone([0,1,0],[0,0,1],[8,1,11])).toBe(false);
+  expect(inFlameCone([0,1,0],[0,0,1],[9,1,2],11)).toBe(true);
+  expect(inFlameCone([0,1,0],[0,0,1],[9,1,.5],11)).toBe(false);
+  expect(inFlameCone([0,1,0],[0,0,1],[13,1,8],11)).toBe(false);
   expect(inFlameCone([0,1,0],[0,0,1],[0,1,-3])).toBe(false);
  });
  test("sludge slows only hostile players in unexpired puddles",()=>{
