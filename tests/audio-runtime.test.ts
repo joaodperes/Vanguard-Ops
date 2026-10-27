@@ -86,7 +86,7 @@ afterEach(() => {
 describe("SoundManager browser audio graph", () => {
   test("routes FX and footsteps through WebAudio without music", () => {
     const sm=new SoundManager();
-    sm.setMasterVolume(.75); sm.setMusicVolume(.3);
+    sm.setMasterVolume(.75);
     sm.setFootstepVolume(.5); sm.setFxVolume(.2);
     sm.resume();
     const a=sm as unknown as AudioInternals;
