@@ -1477,6 +1477,7 @@ function tickCaptureTheFlag(room: Room, now = Date.now()): void {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
     const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
     if (!event) continue;
+    io.to(room.id).emit("message", {t:"ctfEvent",action:event.kind,flag:event.flag,playerId:player.id} as S2C);
     if (event.kind === "capture") {
       room.teamScores[player.team as FlagTeam]++;
       room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + 1);
