@@ -303,7 +303,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
           {hud.ctfOvertime && <div className="mt-1 text-amber-300 font-black uppercase tracking-widest text-xs animate-pulse">Sudden Death · Next Capture Wins</div>}
           <div className={`mt-1 text-[10px] font-semibold ${hud.ctfCarrying ? "text-amber-200" : "text-white/75"}`}>
-            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : "Steal the enemy flag · Score at your tree base · Dropped flags return in 30s"}
+            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : `Steal the enemy flag · Score at your base · Dropped flags ${hud.ctfFlagResetMs === -1 ? "never auto-return" : hud.ctfFlagResetMs === 0 ? "reset instantly" : `return in ${(hud.ctfFlagResetMs ?? 30000) / 1000}s`}`}
           </div>
           {hud.ctfNotice && performance.now() - hud.ctfNotice.at < 2400 && (
             <div className="mt-2 text-lg font-black text-amber-300 uppercase tracking-widest" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
