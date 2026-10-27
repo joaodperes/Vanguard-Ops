@@ -7573,8 +7573,24 @@ export class FPSEngine {
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
               this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[]))).goal,c.pos)
         : null;
+      // Ground-level bots otherwise acquire distant opponents through map
+      // walls on every decision tick and never enter patrol mode. Let designated
+      // climbers first approach their real stair entry when combat is not
+      // immediate; close or clearly visible threats still take precedence.
+      const city=(this.map.biome==="city"||this.map.biome==="city_day");
+      const safeToClimb=city&&ai.wantsHighGround&&!pursueTag&&!ctfObjective&&
+        threatDistance>27;
+      if(safeToClimb&&!ai.highGroundPatrol){
+        const variation=c.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
+        ai.highGroundPatrol=chooseCityHighGroundGoal(c.pos,this.highGroundGoals(),variation);
+        if(ai.highGroundPatrol){
+          ai.highGroundExpiresAt=now+24000;
+          ai.routeWaypoint=null;ai.nextRouteAt=0;
+        }
+      }
+      const climbing=safeToClimb&&!!ai.highGroundPatrol&&c.pos[1]<ai.highGroundPatrol.roof[1]-.65;
       const prevTarget = ai.targetId;
-      ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
+      ai.targetId = pursueTag || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
       if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
       if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
