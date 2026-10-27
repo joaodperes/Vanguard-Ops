@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
-import { perkSelection, PERK_STORAGE_KEY } from "@/lib/perks";
+import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
 // ----------------------------------------------------------------------------
@@ -279,7 +279,7 @@ export function Armory() {
     try {
       const response = await fetch("/api/loadout/presets", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerKey, action, id, name, perkId: perkSelection(profile?.level ?? 1) }),
+        body: JSON.stringify({ playerKey, action, id, name }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save loadout");
       await refreshProfile();
@@ -290,7 +290,7 @@ export function Armory() {
     finally { setPresetBusy(false); }
   };
 
-  const equipPreset = async (id: string, perkId: string) => {
+  const equipPreset = async (id: string) => {
     if (presetBusy) return;
     setPresetBusy(true);
     try {
@@ -299,8 +299,6 @@ export function Armory() {
         body: JSON.stringify({ playerKey, presetId: id }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not equip loadout");
-      // The Armory and match setup read the selected passive perk from here.
-      localStorage.setItem(PERK_STORAGE_KEY, perkId);
       await refreshProfile();
       toast.success("Saved loadout equipped");
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not equip loadout"); }
@@ -340,24 +338,18 @@ export function Armory() {
             <Crosshair className="w-4 h-4 mr-1.5" /> Enter Firing Range
           </Button>
         </div>
-        {/* Current Loadout — top section (replaces the old Loadout tab) */}
+        {/* Single current-loadout box owns both confirmation and named snapshots. */}
         <div className="mb-6">
-          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
-        </div>
-
-        {/* Saved loadouts are persistent, named snapshots of the equipped kit. */}
-        <section className="mb-6 rounded-2xl border border-amber-500/25 bg-zinc-900/60 p-5" aria-label="Saved loadouts">
-          <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
-            <div>
-              <h2 className="text-white font-bold uppercase tracking-wider flex items-center gap-2">
-                <Save className="w-4 h-4 text-amber-400" /> Saved Loadouts
-                <span className="text-xs text-white/40 font-normal normal-case">{(profile?.savedLoadouts ?? []).length} / 5</span>
-              </h2>
-              <p className="text-xs text-white/50 mt-1">Save your current Armory setup, name it, and equip it before a match.</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => document.getElementById("armory-weapons")?.scrollIntoView({ behavior: "smooth" })} className="border-white/20 text-white">Customize Weapons</Button>
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })}>
+            <details className="mt-5 rounded-xl border border-amber-500/25 bg-black/30 group" aria-label="Saved loadouts">
+              <summary className="cursor-pointer select-none p-4 text-amber-200 font-semibold flex items-center gap-2">
+                <Save className="w-4 h-4" /> Saved Loadouts
+                <span className="text-xs text-white/40 font-normal">({(profile?.savedLoadouts ?? []).length} / 5)</span>
+                <ChevronDown className="w-4 h-4 ml-auto group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="px-4 pb-4">
+                <p className="text-xs text-white/50 mb-3">Profile snapshots include weapons, skins, attachments and the selected perk. Confirm changes above before saving.</p>
+            <div className="flex flex-wrap gap-2 mb-4">
             <input
               value={presetName}
               onChange={e => setPresetName(e.target.value)}
@@ -399,14 +391,18 @@ export function Armory() {
                       </div>
                     </div>
                   )}
-                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name}</div>
-                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id, preset.perkId)}
+                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
+                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id)}
                     className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
                 </div>
               ))}
             </div>
           )}
-        </section>
+
+              </div>
+            </details>
+          </LoadoutSelector>
+        </div>
 
         <div id="armory-weapons" />
         <Tabs defaultValue="weapons">
