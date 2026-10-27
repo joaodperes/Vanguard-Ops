@@ -37,9 +37,10 @@ interface LoadoutSelectorProps {
   onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
+  children?: React.ReactNode; // named saved-loadout dropdown nested in Current Loadout
 }
 
-export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, compact, onCustomize, children }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
@@ -241,6 +242,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
           )}
         </div>
       </div>
+      {children}
     </div>
   );
 }
