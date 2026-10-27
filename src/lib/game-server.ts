@@ -23,6 +23,8 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
+import {CoverSpatialIndex} from "./cover-spatial-index";
+import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
 import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
@@ -99,6 +101,9 @@ interface BotAI {
   stuckSince: number;
   nextRouteAt?: number;
   routeWaypoint?: Vec3 | null;
+  wantsHighGround?:boolean;
+  highGroundPatrol?:HighGroundGoal|null;
+  highGroundExpiresAt?:number;
   lastPosX: number;
   lastPosZ: number;
   envJumpVelocityY?: number;
@@ -1805,6 +1810,30 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   return best;
 }
 
+/** Short-range static collision and elevated city goals are cached per MapDef.
+ * Dynamic hazards use the original movement checks; Afterlight itself has no
+ * moving cover and is safe to index once per room map. */
+const cityCoverIndexes=new WeakMap<MapDef,CoverSpatialIndex>();
+const cityHighGoals=new WeakMap<MapDef,HighGroundGoal[]>();
+function cityIndex(room:Room):CoverSpatialIndex|undefined{
+  if(room.map.biome!=="city"&&room.map.biome!=="city_day")return undefined;
+  let index=cityCoverIndexes.get(room.map);
+  if(!index){index=new CoverSpatialIndex(room.map.cover);cityCoverIndexes.set(room.map,index);}
+  return index;
+}
+function cityCoverNear(room:Room,x:number,z:number,pad=3){
+  return cityIndex(room)?.near(x,z,pad)??room.map.cover;
+}
+function cityCoverAlong(room:Room,a:Vec3,b:Vec3,pad=2){
+  return cityIndex(room)?.along(a[0],a[2],b[0],b[2],pad)??room.map.cover;
+}
+function roomHighGroundGoals(room:Room):HighGroundGoal[]{
+  if(room.map.biome!=="city"&&room.map.biome!=="city_day")return [];
+  let goals=cityHighGoals.get(room.map);
+  if(!goals){goals=cityHighGroundGoals(room.map.props??[]);cityHighGoals.set(room.map,goals);}
+  return goals;
+}
+
 function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire }, now: number) {
   if ((room.equipmentStun.get(bot.id) ?? 0) > now) return;
   const ai = bot.ai;
@@ -1883,12 +1912,28 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
-    if (!ai.targetId) {
-      if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
-      else if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
-      else if (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5)
-        ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
-          room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
+    if(!ai.targetId){
+      if(ctfObjective||nearestTag){
+        ai.highGroundPatrol=null;
+        ai.wanderTarget=[...(ctfObjective??nearestTag!.pos)] as Vec3;
+      }else{
+        if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
+          bot.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
+        if(!ai.highGroundPatrol && ai.wantsHighGround === undefined)
+          ai.wantsHighGround=Math.random()<.7;
+        if(!ai.highGroundPatrol&&ai.wantsHighGround&&Math.random()<.55){
+          const variation=bot.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
+          const goal=chooseCityHighGroundGoal(bot.pos,roomHighGroundGoals(room),variation);
+          if(goal){
+            ai.highGroundPatrol=goal;ai.highGroundExpiresAt=now+20000;
+            ai.routeWaypoint=null;ai.nextRouteAt=0;
+          }
+        }
+        if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
+        else if(Math.hypot(ai.wanderTarget[0]-bot.pos[0],ai.wanderTarget[2]-bot.pos[2])<2.5)
+          ai.wanderTarget=chooseBotPatrolPoint(bot.team,room.mode,bot.pos,
+            room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa);
+      }
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
@@ -1947,7 +1992,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
       botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]))) {
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,room.map.environment,room.map.regions) ?? botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
+        const index=cityIndex(room);
+        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,
+          room.map.environment,room.map.regions,index,index?280:1000) ??
+          botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850;
       }
       const waypoint=ai.routeWaypoint;
@@ -2074,10 +2122,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   } else {
     ai.sprinting = false;
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
-    const dx = ai.wanderTarget[0] - bot.pos[0];
-    const dz = ai.wanderTarget[2] - bot.pos[2];
-    const d = Math.hypot(dx, dz);
-    if (d > 1.5) {
+    const patrolGoal=ai.highGroundPatrol;
+    const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
+      cityCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
+    const dx=patrolPoint[0]-bot.pos[0],dz=patrolPoint[2]-bot.pos[2];
+    const d=Math.hypot(dx,dz);
+    if(d>(patrolGoal?.38:1.5)){
       // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the movement
       // direction. If blocked, rotate the movement direction by ±35° (sign
       // from ai.strafeDir) so the bot angles around the obstacle instead of
@@ -2085,10 +2135,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       // faces where it's going.
       let fx = dx / d, fz = dz / d;
       const patrolBlocked = botMoveBlocked(room, bot.pos, [bot.pos[0]+fx*4, bot.pos[1], bot.pos[2]+fz*4], bot.pos[1]);
-      if (patrolBlocked || Math.abs(ai.wanderTarget[1] - bot.pos[1]) > 1.3 || room.map.id === "bunker") {
-        if(now > (ai.nextRouteAt??0) || !ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(bot.pos,ai.wanderTarget,room.map.cover,room.map.size,3,room.map.environment,room.map.regions);
-          ai.nextRouteAt=now+850;
+      if((patrolBlocked||(patrolGoal&&d>5)||
+          Math.abs(patrolPoint[1]-bot.pos[1])>1.3||room.map.id==="bunker") &&
+          (!patrolGoal||d>4.5)){
+        if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+          const index=cityIndex(room);
+          ai.routeWaypoint=botNextWaypoint(bot.pos,patrolPoint,room.map.cover,room.map.size,3,
+            room.map.environment,room.map.regions,index,index?280:1000);
+          ai.nextRouteAt=now+(index?1500:850);
         }
         const waypoint=ai.routeWaypoint;
         if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],wd=Math.hypot(wx,wz);
@@ -2159,13 +2213,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       bot.pos[1] + dy / 20,
       bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
     bot.ai.envJumpVelocityY = dy - 22 / 20;
-    const ground = botGroundHeight(room.map.cover, bot.pos[0], bot.pos[2], bot.pos[1]);
+    const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;
       bot.ai.envJumpVelocityY = undefined;
     }
   } else {
-    bot.pos[1] = botNextFeetY(room.map.cover, bot.pos, 1 / 20);
+    bot.pos[1] = botNextFeetY(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos, 1 / 20);
   }
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   // ---- Task 16-a: stuck detection & recovery (mirrors the offline engine) ----
@@ -2186,9 +2240,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
     if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
       // Recovery: change patrol objective (prefer enemy territory in TDM).
-      ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
-        room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
-      ai.targetId = null;        // wander instead of engaging
+      ai.wanderTarget=chooseBotPatrolPoint(bot.team,room.mode,bot.pos,
+        room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa);
+      ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
+      ai.targetId=null;        // wander instead of engaging
       ai.routeWaypoint=null;ai.nextRouteAt=0;
       ai.strafeDir = -ai.strafeDir;
       ai.stuckSince = 0;
@@ -2236,7 +2291,7 @@ function randSpread(s: number): Vec3 {
 // would put the bot inside any blocking cover box. Uses 3 samples (from, to,
 // midpoint) so thin walls can't be tunneled.
 function botMoveBlocked(room: Room, from: Vec3, to: Vec3, currentY: number): boolean {
-  if (blocksBotMotion(room.map.cover, from, to, currentY)) return true;
+  if (blocksBotMotion(cityCoverAlong(room,from,to,2), from, to, currentY)) return true;
   for (const o of room.map.environment ?? []) {
     if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, room.environmentTime))) continue;
     if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
@@ -2245,7 +2300,7 @@ function botMoveBlocked(room: Room, from: Vec3, to: Vec3, currentY: number): boo
 }
 
 function collideBots(room: Room, pos: Vec3, currentY: number): Vec3 {
-  return resolveBotOverlap(room.map.cover, pos, currentY);
+  return resolveBotOverlap(cityCoverNear(room,pos[0],pos[2],3), pos, currentY);
 }
 
 // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -2287,7 +2342,7 @@ function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: numb
     const push = overlap * 0.5 * 0.5;
     const before: Vec3 = [...bot.pos];
     const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
-    if (!blocksBotMotion(room.map.cover, before, after, currentY)) bot.pos = after;
+    if (!blocksBotMotion(cityCoverAlong(room,before,after,2), before, after, currentY)) bot.pos = after;
   }
 }
 
@@ -2299,7 +2354,7 @@ function hasLineOfSight(room: Room, from: Vec3, to: Vec3): boolean {
   const len = Math.hypot(dx, dy, dz);
   if (len < 0.01) return true;
   const dir: Vec3 = [dx / len, dy / len, dz / len];
-  for (const cov of room.map.cover) {
+  for (const cov of cityCoverAlong(room,from,to,2)) {
     if (cov.kind === "accent" || cov.kind === "stair") continue;
     const t = rayBox(from, dir, cov.pos, cov.size);
     if (t !== null && t < len) return false;
