@@ -159,6 +159,7 @@ export class SoundManager {
   // Throttle distant shots per-category (so 5 bots firing smg simultaneously
   // don't slam the audio graph with 5 overlapping synth nodes).
   private lastDistantPlayed: Map<WeaponShotCategory, number> = new Map();
+  private lastRemoteFootstepAt=-Infinity;
   // Noise buffer cache (reused for shot/death sounds).
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
@@ -258,6 +259,7 @@ export class SoundManager {
   /** Play a named SFX. Honors master volume + mute. Throttles repeats. */
   play(name: SfxName, opts: { volume?: number; throttleMs?: number } = {}) {
     if (!this.ctx || !this.masterGain || this.muted) return;
+    if(this.ctx.state==="suspended")void this.ctx.resume().catch(()=>{});
     const now = this.ctx.currentTime;
     const vol = opts.volume ?? 1.0;
     const throttle = opts.throttleMs ?? 0;
@@ -301,6 +303,11 @@ export class SoundManager {
   playFootstepAtDistance(distance: number, sprinting = false): void {
     const volume = footstepVolumeAtDistance(distance, sprinting);
     if (volume < 0.004) return;
+    const now=this.ctx?.currentTime??0;
+    // Ambient bot traffic should not allocate dozens of overlapping noise
+    // graphs and steal audio work from the player's own steps or shots.
+    if((now*1000)-this.lastRemoteFootstepAt<95)return;
+    this.lastRemoteFootstepAt=now*1000;
     this.play("footstep", { volume });
   }
 
