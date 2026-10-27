@@ -2848,7 +2848,7 @@ export class FPSEngine {
   private quickMelee() {
     if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
     const now = performance.now();
-    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats);
+    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
     if (now - this.quickMeleeLastAt < melee.cooldownMs ||
         (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
     this.quickMeleeLastAt = now;
@@ -2873,7 +2873,7 @@ export class FPSEngine {
         const to: Vec3 = [c.pos[0], c.pos[1] + 1.1, c.pos[2]];
         const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
         return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
-      }, melee.reach);
+      }, melee.reach, melee.halfArcDegrees);
     if(candidate){
       const target=this.combatants.get(candidate.id);
       if(target){
@@ -5453,13 +5453,13 @@ export class FPSEngine {
   private tryMeleeAttack(w: WeaponDef, now: number) {
     // Swing cooldown: based on the melee weapon's fireRate (1.6 rps machete →
     // ~625ms between swings; 3.5 rps shiv → ~285ms; 0.7 rps hammer → ~1430ms).
-    const swingGap=quickMeleeProfile(w.stats).cooldownMs;
+    const swingGap=quickMeleeProfile(w.stats,w.id).cooldownMs;
     if (now - this.lastShotAt < swingGap ||
         (w.id===this.meleeWeaponId && now-this.quickMeleeLastAt < swingGap)) return;
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0;
     this.meleeSwingAt = now;
-    this.meleeSwingDur = quickMeleeProfile(w.stats).swingMs;
+    this.meleeSwingDur = quickMeleeProfile(w.stats,w.id).swingMs;
     // Actual swing event, not button press (respects melee cooldown).
     this.weaponAudio.play("melee", { weaponId: this.weaponId, volume: 0.85 });
 
@@ -5479,7 +5479,7 @@ export class FPSEngine {
           const t=rayBox(eye,dir,box.pos,box.size);
           return t!==null&&t>.08&&t<dist-.15;
         });
-      },this.eff.range);
+      },quickMeleeProfile(w.stats,w.id).reach,quickMeleeProfile(w.stats,w.id).halfArcDegrees);
     if(nearest&&!this.opts.online){
       const victim=this.combatants.get(nearest.id);
       if(victim){
