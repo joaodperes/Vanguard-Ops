@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fullWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
-import { prestigeEligible, prestigeTokens } from "../src/lib/weapon-prestige";
+import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges } from "../src/lib/weapon-prestige";
 import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
 import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
 
@@ -63,6 +63,13 @@ describe("One-time Prestige mastery", () => {
     owned.delete("arctic");
     expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, owned)).toBe(false);
     expect(prestigeEligible("wonder_singularity", { kills: 999999, headshots: 999999 }, owned)).toBe(false);
+  });
+  test("Prestige grants two skins at any mastery rank; token requires rank 5 and is unique",()=>{
+    const progress={rifle_ar:{kills:150,headshots:25},smg_kp:{kills:600,headshots:110}};
+    expect(tokenEligiblePrestiges(["rifle_ar","smg_kp","smg_kp"],progress)).toEqual(["smg_kp"]);
+    expect(prestigeTokens(tokenEligiblePrestiges(["rifle_ar","smg_kp"],progress).length,0)).toBe(1);
+    expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:110}})).toEqual(["rifle_ar"]);
+    expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:109}})).toEqual([]);
   });
   test("token balance is awards minus lifetime purchases (no double claim)", () => {
     expect(prestigeTokens(0, 0)).toBe(0);
