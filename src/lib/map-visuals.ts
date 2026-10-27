@@ -289,7 +289,8 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
  */
 export type CityFixtureStyle = "partition"|"bed"|"sofa"|"table"|"counter"|
   "shelf"|"desk"|"cabinet"|"workbench"|"plant"|"bench"|"display"|
-  "locker"|"reception";
+  "locker"|"reception"|"espresso"|"oven"|"checkout"|"treadmill"|
+  "exam_bed"|"sculpture"|"server_rack"|"television";
 export interface CityFixture { x:number;z:number;w:number;d:number;h:number;style:CityFixtureStyle }
 export function cityInteriorFixtures(p:MapProp):CityFixture[]{
   const w=p.w??20,d=p.d??20,access=p.roofAccess??true,round=p.shape==="round";
@@ -303,34 +304,52 @@ export function cityInteriorFixtures(p:MapProp):CityFixture[]{
     desk:[2.5,1.15,1.15],cabinet:[1.4,.82,2],workbench:[2.6,1.1,1.2],
     plant:[1,1,1.6],bench:[2.2,1,.96],display:[1.9,1.15,1.5],
     locker:[1.4,.85,2.1],reception:[2.9,1,1.2],
+    espresso:[1.65,.85,1.35],oven:[2.0,1.4,1.65],checkout:[1.6,1.0,1.15],
+    treadmill:[1.2,2.5,1.25],exam_bed:[1.9,2.3,1.05],
+    sculpture:[1.2,1.2,1.65],server_rack:[1.35,1.0,2.15],
+    television:[1.55,.45,1.45],
   };
+  // Every function has its own fixtures and several different layouts.
+  // Seed variations by the lot, not by map ID: day/night remain identical.
   const rooms:Record<NonNullable<MapProp["use"]>,readonly CityFixtureStyle[]>={
-    house:["bed","cabinet","sofa","table"],
-    apartments:["bed","cabinet","sofa","desk"],
-    cafe:["counter","shelf","table","table"],
-    supermarket:["shelf","cabinet","shelf","counter"],
-    bakery:["counter","shelf","table","display"],
-    office:["desk","cabinet","desk","plant"],
-    hotel:["bed","cabinet","reception","sofa"],
-    library:["shelf","shelf","desk","bench"],
-    diner:["counter","cabinet","bench","table"],
-    clinic:["bed","cabinet","reception","bench"],
-    workshop:["workbench","shelf","workbench","cabinet"],
-    gallery:["display","cabinet","display","bench"],
-    florist:["plant","shelf","counter","plant"],
-    gym:["bench","locker","workbench","locker"],
+    house:["bed","cabinet","sofa","table","television","plant","shelf","desk"],
+    apartments:["bed","cabinet","desk","sofa","television","shelf","table","plant"],
+    cafe:["counter","espresso","table","table","display","shelf","plant","bench"],
+    supermarket:["shelf","checkout","shelf","cabinet","shelf","display","shelf","shelf"],
+    bakery:["oven","counter","display","shelf","table","espresso","cabinet","bench"],
+    office:["desk","server_rack","desk","cabinet","plant","desk","shelf","reception"],
+    hotel:["bed","cabinet","reception","sofa","television","plant","desk","bench"],
+    library:["shelf","desk","shelf","bench","shelf","shelf","plant","table"],
+    diner:["counter","table","bench","table","espresso","checkout","bench","cabinet"],
+    clinic:["exam_bed","cabinet","reception","bench","desk","shelf","plant","exam_bed"],
+    workshop:["workbench","shelf","workbench","cabinet","locker","workbench","shelf","bench"],
+    gallery:["sculpture","display","display","bench","sculpture","display","plant","desk"],
+    florist:["plant","counter","plant","shelf","display","plant","plant","table"],
+    gym:["treadmill","locker","bench","treadmill","bench","locker","plant","treadmill"],
   };
-  const layout=rooms[p.use??"house"];
-  const places:[number,number][]=[[-w*.27,-d*.33],[w*.22,-d*.33],[-w*.29,d*.10],[w*.27,d*.09]];
-  for(let i=0;i<4;i++){
-    if(access&&!round&&(i===1||i===3))continue;
-    const [fw,fd,fh]=dims[layout[i]];
-    const [x,z]=places[i];
-    if(Math.abs(x)+fw/2>w/2-.72||Math.abs(z)+fd/2>d/2-.74)continue;
-    if(access&&!round&&Math.abs(x-(w/2-2.8))<fw/2+1.5)continue;
-    if(z>-d*.15&&Math.abs(x)<fw/2+1.65)continue;
-    if(out.some(q=>Math.abs(q.x-x)<(q.w+fw)/2+.3&&Math.abs(q.z-z)<(q.d+fd)/2+.3))continue;
-    out.push({x,z,w:fw,d:fd,h:fh,style:layout[i]});
+  const layout=rooms[p.use??"house"],seed=(p.lotId??"authored")+":"+Math.round(p.x*10)+":"+Math.round(p.z*10);
+  const varied=Math.floor(hashed("interior-var:"+seed)*3);
+  // Candidate rows hug the walls; preserve an unobstructed central entrance
+  // and passage to the rear room. Roof-access buildings reserve the entire
+  // east-side staircase aisle, including the upper hatch approach.
+  const rowZ=[-d*.33,d*.20,-d*.055,d*.36];
+  for(let row=0;row<4;row++)for(let side=0;side<2;side++){
+    const slot=row*2+side;
+    const index=slot===0?0:1+((slot-1+varied*2)%(layout.length-1));
+    const style=layout[index];
+    const [fw,fd,fh]=dims[style];
+    const leftSide=side===0;
+    if(access&&!round&&!leftSide)continue;
+    const baseX=leftSide?-w*.30:w*.30;
+    const wobble=(hashed("furniture-x:"+seed+":"+slot)-.5)*.35;
+    const x=baseX+wobble;
+    const z=rowZ[row]+(hashed("furniture-z:"+seed+":"+slot)-.5)*.42;
+    if(Math.abs(x)+fw/2>w/2-.68||Math.abs(z)+fd/2>d/2-.73)continue;
+    if(Math.abs(x)<fw/2+1.7)continue;
+    if(access&&!round&&x+fw/2>w/2-4.75)continue;
+    if(Math.abs(z-wallZ)<fd/2+.45)continue;
+    if(out.some(q=>Math.abs(q.x-x)<(q.w+fw)/2+.28&&Math.abs(q.z-z)<(q.d+fd)/2+.28))continue;
+    out.push({x,z,w:fw,d:fd,h:fh,style});
   }
   return out;
 }
