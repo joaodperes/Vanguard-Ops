@@ -8,7 +8,7 @@
     "goal": 1,
     "tier": "bronze",
     "rewardXp": 50,
-    "rewardCredits": 25,
+    "rewardCredits": 10,
     "category": "pvp"
   },
   {
@@ -20,7 +20,7 @@
     "goal": 100,
     "tier": "bronze",
     "rewardXp": 200,
-    "rewardCredits": 100,
+    "rewardCredits": 40,
     "category": "pvp"
   },
   {
@@ -32,7 +32,7 @@
     "goal": 500,
     "tier": "silver",
     "rewardXp": 500,
-    "rewardCredits": 250,
+    "rewardCredits": 100,
     "category": "pvp"
   },
   {
@@ -44,7 +44,7 @@
     "goal": 2000,
     "tier": "gold",
     "rewardXp": 1500,
-    "rewardCredits": 750,
+    "rewardCredits": 300,
     "category": "pvp"
   },
   {
@@ -56,7 +56,7 @@
     "goal": 50,
     "tier": "bronze",
     "rewardXp": 200,
-    "rewardCredits": 100,
+    "rewardCredits": 40,
     "category": "pvp"
   },
   {
@@ -68,7 +68,7 @@
     "goal": 250,
     "tier": "silver",
     "rewardXp": 600,
-    "rewardCredits": 300,
+    "rewardCredits": 120,
     "category": "pvp"
   },
   {
@@ -80,7 +80,7 @@
     "goal": 10,
     "tier": "bronze",
     "rewardXp": 250,
-    "rewardCredits": 125,
+    "rewardCredits": 50,
     "category": "pvp"
   },
   {
@@ -92,7 +92,7 @@
     "goal": 50,
     "tier": "silver",
     "rewardXp": 750,
-    "rewardCredits": 375,
+    "rewardCredits": 150,
     "category": "pvp"
   },
   {
@@ -104,7 +104,7 @@
     "goal": 200,
     "tier": "gold",
     "rewardXp": 2000,
-    "rewardCredits": 1000,
+    "rewardCredits": 400,
     "category": "pvp"
   },
   {
@@ -116,7 +116,7 @@
     "goal": 25,
     "tier": "bronze",
     "rewardXp": 200,
-    "rewardCredits": 100,
+    "rewardCredits": 40,
     "category": "pvp"
   },
   {
@@ -128,7 +128,7 @@
     "goal": 100,
     "tier": "silver",
     "rewardXp": 600,
-    "rewardCredits": 300,
+    "rewardCredits": 120,
     "category": "pvp"
   },
   {
@@ -140,7 +140,7 @@
     "goal": 10,
     "tier": "bronze",
     "rewardXp": 300,
-    "rewardCredits": 150,
+    "rewardCredits": 60,
     "category": "career"
   },
   {
@@ -152,7 +152,7 @@
     "goal": 20,
     "tier": "silver",
     "rewardXp": 800,
-    "rewardCredits": 400,
+    "rewardCredits": 160,
     "category": "career"
   },
   {
@@ -164,7 +164,7 @@
     "goal": 30,
     "tier": "platinum",
     "rewardXp": 3000,
-    "rewardCredits": 1500,
+    "rewardCredits": 600,
     "category": "career"
   },
   {
@@ -176,7 +176,7 @@
     "goal": 5,
     "tier": "bronze",
     "rewardXp": 250,
-    "rewardCredits": 125,
+    "rewardCredits": 50,
     "category": "pve"
   },
   {
@@ -188,7 +188,7 @@
     "goal": 10,
     "tier": "silver",
     "rewardXp": 700,
-    "rewardCredits": 350,
+    "rewardCredits": 140,
     "category": "pve"
   },
   {
@@ -200,7 +200,7 @@
     "goal": 20,
     "tier": "gold",
     "rewardXp": 2000,
-    "rewardCredits": 1000,
+    "rewardCredits": 400,
     "category": "pve"
   },
   {
@@ -212,7 +212,7 @@
     "goal": 1,
     "tier": "gold",
     "rewardXp": 2500,
-    "rewardCredits": 1250,
+    "rewardCredits": 500,
     "category": "pve"
   },
   {
@@ -224,7 +224,7 @@
     "goal": 10,
     "tier": "silver",
     "rewardXp": 750,
-    "rewardCredits": 400,
+    "rewardCredits": 160,
     "category": "pve"
   },
   {
@@ -236,7 +236,7 @@
     "goal": 20,
     "tier": "gold",
     "rewardXp": 2000,
-    "rewardCredits": 1000,
+    "rewardCredits": 400,
     "category": "pve"
   },
   {
@@ -248,7 +248,7 @@
     "goal": 10,
     "tier": "silver",
     "rewardXp": 1200,
-    "rewardCredits": 600,
+    "rewardCredits": 240,
     "category": "pve"
   },
   {
@@ -260,7 +260,7 @@
     "goal": 20,
     "tier": "platinum",
     "rewardXp": 3500,
-    "rewardCredits": 1800,
+    "rewardCredits": 720,
     "category": "pve"
   },
   {
@@ -272,7 +272,7 @@
     "goal": 10,
     "tier": "gold",
     "rewardXp": 2000,
-    "rewardCredits": 1100,
+    "rewardCredits": 440,
     "category": "pve"
   },
   {
@@ -284,7 +284,7 @@
     "goal": 20,
     "tier": "platinum",
     "rewardXp": 6000,
-    "rewardCredits": 3000,
+    "rewardCredits": 1200,
     "category": "pve"
   },
   {
@@ -296,7 +296,7 @@
     "goal": 10,
     "tier": "bronze",
     "rewardXp": 300,
-    "rewardCredits": 150,
+    "rewardCredits": 60,
     "category": "pvp"
   },
   {
@@ -308,7 +308,7 @@
     "goal": 5,
     "tier": "silver",
     "rewardXp": 800,
-    "rewardCredits": 400,
+    "rewardCredits": 160,
     "category": "pvp"
   },
   {
@@ -320,7 +320,7 @@
     "goal": 3,
     "tier": "gold",
     "rewardXp": 2000,
-    "rewardCredits": 1000,
+    "rewardCredits": 400,
     "category": "pvp"
   },
   {
@@ -332,7 +332,7 @@
     "goal": 50,
     "tier": "platinum",
     "rewardXp": 5000,
-    "rewardCredits": 2500,
+    "rewardCredits": 1000,
     "category": "pvp"
   },
   {
@@ -344,7 +344,7 @@
     "goal": 3,
     "tier": "bronze",
     "rewardXp": 100,
-    "rewardCredits": 50,
+    "rewardCredits": 20,
     "category": "pvp"
   },
   {
@@ -356,7 +356,7 @@
     "goal": 5,
     "tier": "silver",
     "rewardXp": 300,
-    "rewardCredits": 150,
+    "rewardCredits": 60,
     "category": "pvp"
   },
   {
@@ -368,7 +368,7 @@
     "goal": 10,
     "tier": "gold",
     "rewardXp": 1000,
-    "rewardCredits": 500,
+    "rewardCredits": 200,
     "category": "pvp"
   },
   {
@@ -380,7 +380,7 @@
     "goal": 25,
     "tier": "bronze",
     "rewardXp": 100,
-    "rewardCredits": 50,
+    "rewardCredits": 20,
     "category": "pvp"
   },
   {
@@ -392,7 +392,7 @@
     "goal": 1000,
     "tier": "gold",
     "rewardXp": 900,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "category": "pvp"
   },
   {
@@ -404,7 +404,7 @@
     "goal": 10,
     "tier": "bronze",
     "rewardXp": 100,
-    "rewardCredits": 50,
+    "rewardCredits": 20,
     "category": "pvp"
   },
   {
@@ -416,7 +416,7 @@
     "goal": 500,
     "tier": "gold",
     "rewardXp": 1200,
-    "rewardCredits": 600,
+    "rewardCredits": 240,
     "category": "pvp"
   },
   {
@@ -428,7 +428,7 @@
     "goal": 3,
     "tier": "bronze",
     "rewardXp": 150,
-    "rewardCredits": 75,
+    "rewardCredits": 30,
     "category": "pvp"
   },
   {
@@ -440,7 +440,7 @@
     "goal": 250,
     "tier": "gold",
     "rewardXp": 1400,
-    "rewardCredits": 700,
+    "rewardCredits": 280,
     "category": "pvp"
   },
   {
@@ -452,7 +452,7 @@
     "goal": 7,
     "tier": "gold",
     "rewardXp": 650,
-    "rewardCredits": 325,
+    "rewardCredits": 130,
     "category": "pvp"
   },
   {
@@ -464,7 +464,7 @@
     "goal": 1,
     "tier": "bronze",
     "rewardXp": 200,
-    "rewardCredits": 100,
+    "rewardCredits": 40,
     "category": "mastery",
     "rewardTitle": "Weapon Apprentice"
   },
@@ -477,7 +477,7 @@
     "goal": 1,
     "tier": "silver",
     "rewardXp": 600,
-    "rewardCredits": 300,
+    "rewardCredits": 120,
     "category": "mastery",
     "rewardTitle": "Arms Specialist"
   },
@@ -490,7 +490,7 @@
     "goal": 1,
     "tier": "gold",
     "rewardXp": 1600,
-    "rewardCredits": 800,
+    "rewardCredits": 320,
     "category": "mastery",
     "rewardTitle": "Weapon Master"
   },
@@ -503,7 +503,7 @@
     "goal": 3,
     "tier": "platinum",
     "rewardXp": 3500,
-    "rewardCredits": 1750,
+    "rewardCredits": 700,
     "category": "mastery",
     "rewardTitle": "Arsenal Veteran"
   },
@@ -516,7 +516,7 @@
     "goal": 8,
     "tier": "platinum",
     "rewardXp": 8000,
-    "rewardCredits": 4000,
+    "rewardCredits": 1600,
     "category": "mastery",
     "rewardTitle": "Arsenal Legend"
   },
@@ -529,7 +529,7 @@
     "goal": 1,
     "tier": "bronze",
     "rewardXp": 150,
-    "rewardCredits": 75,
+    "rewardCredits": 30,
     "category": "pvp"
   },
   {
@@ -541,7 +541,7 @@
     "goal": 10,
     "tier": "silver",
     "rewardXp": 500,
-    "rewardCredits": 250,
+    "rewardCredits": 100,
     "category": "pvp"
   },
   {
@@ -553,7 +553,7 @@
     "goal": 50,
     "tier": "gold",
     "rewardXp": 1600,
-    "rewardCredits": 800,
+    "rewardCredits": 320,
     "category": "pvp"
   },
   {
@@ -565,7 +565,7 @@
     "goal": 1,
     "tier": "bronze",
     "rewardXp": 200,
-    "rewardCredits": 100,
+    "rewardCredits": 40,
     "category": "pvp"
   },
   {
@@ -577,7 +577,7 @@
     "goal": 10,
     "tier": "gold",
     "rewardXp": 1200,
-    "rewardCredits": 600,
+    "rewardCredits": 240,
     "category": "pvp"
   }
 ]

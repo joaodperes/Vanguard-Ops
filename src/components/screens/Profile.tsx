@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { CareerProgress } from "@/components/game/CareerProgress";
 import { useGame } from "@/lib/game-store";
 import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
@@ -98,7 +99,7 @@ export function Profile() {
   const ownedPS = PLAYER_SKINS.filter(s => ownsOperativeSkin(s, lvl, profile.unlocks.playerSkins)).length;
   const earnedAchievements = achievements.filter((a) => a.earned).length;
   const totalAchievements = achievements.length || 1;
-  const xpPct = Math.min(100, (profile.xpProgress.current / profile.xpProgress.needed) * 100);
+  const xpPct = Math.min(100, profile.xpProgress.needed ? (profile.xpProgress.current / profile.xpProgress.needed) * 100 : 100);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -140,7 +141,7 @@ export function Profile() {
                   <option value="">No title</option>
                   {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
                 </select>
-                <span className="text-[11px] text-white/45">Earn titles from Weapon Mastery achievements; show them beside your name in matches.</span>
+                <span className="text-[11px] text-white/45">Earn titles from Weapon Mastery and Career ranks; show them beside your name in matches.</span>
                 {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
@@ -161,7 +162,7 @@ export function Profile() {
               <div className="mt-3">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/60">{next ? `Next rank: ${next.name} (LVL ${next.level})` : "Max rank achieved"}</span>
-                  <span className="text-white/60 tabular-nums">{profile.xpProgress.current} / {profile.xpProgress.needed} XP</span>
+                  <span className="text-white/60 tabular-nums">{profile.xpProgress.needed ? `${profile.xpProgress.current} / ${profile.xpProgress.needed} XP` : "Level cap · Career unlocked"}</span>
                 </div>
                 <div className="relative h-2.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
                   <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-all duration-500" style={{ width: `${xpPct}%` }} />
@@ -171,8 +172,10 @@ export function Profile() {
           </div>
         </div>
 
+        <CareerProgress />
+
         <Tabs defaultValue="stats">
-          <TabsList className="bg-zinc-900/60 border border-white/10">
+          <TabsList className="bg-zinc-900/60 border border-white/10 w-full sm:w-fit justify-start overflow-x-auto">
             <TabsTrigger value="stats" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><TrendingUp className="w-4 h-4 mr-1.5" /> Stats</TabsTrigger>
             <TabsTrigger value="achievements" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Award className="w-4 h-4 mr-1.5" /> Achievements <span className="ml-1 text-[10px] tabular-nums">({earnedAchievements}/{totalAchievements})</span></TabsTrigger>
             <TabsTrigger value="matches" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Clock className="w-4 h-4 mr-1.5" /> History</TabsTrigger>

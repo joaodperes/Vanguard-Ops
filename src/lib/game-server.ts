@@ -1,3 +1,4 @@
+import { resolveMatchLoadout } from "./match-loadout";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -34,7 +35,6 @@ import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, 
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
-import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
@@ -2434,23 +2434,7 @@ io.on("connection", (socket) => {
  */
 async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire): Promise<LoadoutWire> {
   const player = await getOrCreatePlayer(playerKey);
-  const level = player?.level ?? 1;
-  const perk = perkById(requested.perkId);
-  const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
-  let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
-  const w = WEAPONS.find(x => x.id === secondaryWeaponId);
-  if (!w || w.disabled || w.category === "melee" ||
-      (!w.wonder && w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id)) ||
-      (isPrimaryWeaponCategory(w.category) &&
-      (!canEquipSecondaryPrimary(perkId, level) || !!w.wonder ||
-       secondaryWeaponId === requested.weaponId ||
-       player?.loadout?.secondaryWeapon !== secondaryWeaponId ||
-       (w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id))))) {
-    secondaryWeaponId = "pistol_side";
-  }
-  const selectedPrimary=WEAPONS.find(x=>x.id===requested.weaponId);
-  const weaponId=!selectedPrimary || selectedPrimary.disabled ? "rifle_ar" : requested.weaponId;
-  return { ...requested, weaponId, perkId, secondaryWeaponId };
+  return resolveMatchLoadout(player, requested);
 }
 
 async function handle(socket: any, msg: C2S) {

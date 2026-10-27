@@ -76,6 +76,8 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Check Gun Game progression and Kill Confirmed enemy/friendly tag scoring.
 - Validate guest and account login, profile persistence, credits, challenge counters, unlocks, purchase rejection, weapon-specific attachment/skin memory and import/export. Repeat after refresh, relogin and, where feasible, a second device.
 - On a test copy of real data, review additive Prisma updates and legacy IDs; never use `db:reset` as a migration shortcut.
+- Confirm XP-earned perks save when the legacy cached level is stale, including named presets and multiplayer. Unequipping Well Prepared must remove the second primary.
+- Compare rewards against `docs/economy-and-career-progression.md`. At level 36, verify that only fresh post-cap XP advances Career, a promotion charges once and resets its meter, titles require their Career rank, and old backups cannot refund promotions.
 
 ## 6. Performance and sign-off
 

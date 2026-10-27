@@ -316,44 +316,10 @@ export function skinChallengesForWeapon(weaponId: string, skinId: string): Weapo
   return WEAPON_CHALLENGES.filter((c) => c.weaponId === weaponId && c.skinId === skinId);
 }
 
-// ---- Leveling curve ---------------------------------------------------------
-// XP curve: steeper progression so leveling takes meaningful play time.
-// Level N requires totalXpForLevel(N) cumulative XP. The curve is roughly
-// cubic — early levels come quickly (so new players feel progression), but
-// mid-to-high levels take many matches to climb. This replaces the old
-// `100 * (level-1) * level` quadratic curve which let a single 30-kill match
-// take a player from level 1 → level 5.
-//
-// Examples (new vs old):
-//   L2:  150 XP  (was 200)   — slight ease for the very first level
-//   L4:  1350 XP (was 1200)  — comparable
-//   L8:  7350 XP (was 5600)  — steeper
-//   L12: 19800 XP (was 13200) — significantly steeper
-//   L20: 77000 XP (was 38000) — much steeper (veteran players)
-//   L30: 244650 XP (was 87000) — long-term goal
-export function totalXpForLevel(level: number): number {
-  if (level <= 1) return 0;
-  // Cubic-ish: 50 * (level-1)^2 * level / 2 ≈ 25 * (level-1)^2 * level
-  // Tuned so L2 = 150, L4 = 1350, L8 = 7350, L12 = 19800.
-  return Math.round(25 * (level - 1) * (level - 1) * level);
-}
-export function levelForXp(xp: number): number {
-  let lvl = 1;
-  while (totalXpForLevel(lvl + 1) <= xp) lvl++;
-  return lvl;
-}
-export function xpProgressInLevel(xp: number): { current: number; needed: number; level: number } {
-  const level = levelForXp(xp);
-  const base = totalXpForLevel(level);
-  const next = totalXpForLevel(level + 1);
-  return { current: xp - base, needed: next - base, level };
-}
+// XP is authoritative for every level gate. Keep stable exports for callers.
+export { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp, xpProgressInLevel } from "./progression";
 
-// XP & credit rewards
-// Reduced per-kill XP from 100 → 25 so a single 30-kill match no longer takes
-// a player from L1 → L4. The bulk of XP now comes from wins + challenges,
-// not raw kill count. Difficulty-scaled kill XP is applied in player-service
-// (easy=10, normal=15, hard=22, veteran=30 — see applyMatchResult).
+// All combat and objective payouts share the deployment-bundled catalog.
 export const REWARDS = rewardsData;
 
 // ---- Lookup helpers ---------------------------------------------------------

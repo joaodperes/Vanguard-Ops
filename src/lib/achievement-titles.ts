@@ -1,10 +1,11 @@
+import { careerTitle } from "./career";
 import { ACHIEVEMENTS } from "./game-data";
 import { weaponMasteryProgress } from "./armory-challenges";
 
 /** Permanent weapon-mastery achievement rewards. The player's equipped value
  * stores the achievement ID, never a client-provided arbitrary title. */
 export function achievementTitle(achievementId:string|null|undefined):string|null {
-  return ACHIEVEMENTS.find(a=>a.id===achievementId)?.rewardTitle ?? null;
+  return ACHIEVEMENTS.find(a=>a.id===achievementId)?.rewardTitle ?? careerTitle(achievementId)?.title ?? null;
 }
 export function unlockedAchievementTitles(earnedIds:readonly string[]) {
   const earned=new Set(earnedIds);

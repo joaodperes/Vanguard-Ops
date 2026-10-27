@@ -1,3 +1,4 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
   const {
     playerKey: bodyKey,
     primaryWeapon,
-    secondaryWeapon,
+    secondaryWeapon: requestedSecondaryWeapon,
     perkId,
     meleeWeapon,
     weaponSkin,
@@ -110,9 +111,19 @@ export async function POST(req: NextRequest) {
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
-  const selectedPerk = perkById(perkId ?? player.loadout?.perkId ?? DEFAULT_PERK_ID);
-  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > player.level)) {
+  let selectedPerk = perkById(perkId ?? player.loadout?.perkId ?? DEFAULT_PERK_ID);
+  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > levelForXp(player.xp))) {
     return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
+  }
+  if (selectedPerk.unlockLevel > levelForXp(player.xp)) selectedPerk = perkById(DEFAULT_PERK_ID);
+  let secondaryWeapon = requestedSecondaryWeapon;
+  // A perk-only update must also remove a now-ineligible second primary.
+  // Pass the fallback through the normal attachment/skin/setup validation.
+  const storedSecondary = weaponById(player.loadout?.secondaryWeapon ?? "pistol_side");
+  if (secondaryWeapon === undefined && isPrimaryWeaponCategory(storedSecondary.category) &&
+      (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) ||
+       storedSecondary.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
+    secondaryWeapon = "pistol_side";
   }
   // Validate weapon selections against the catalog and their slot constraints.
   if (primaryWeapon !== undefined) {
@@ -140,7 +151,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
     }
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
-    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, player.level) || w.wonder ||
+    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
       return NextResponse.json({ error: "Second primary requires Well Prepared (LVL 28), must be different from your first, and cannot be a Wonder Weapon" }, { status: 403 });
     }
@@ -272,7 +283,7 @@ export async function POST(req: NextRequest) {
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
-      ...(perkId !== undefined ? { perkId: selectedPerk.id } : {}),
+      perkId: selectedPerk.id,
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),

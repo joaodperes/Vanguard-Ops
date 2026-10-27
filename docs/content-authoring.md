@@ -268,3 +268,18 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 - The firing-range dropdowns group by type, order conventional weapons by level and alphabetize Wonders. Disabled Bogfather is excluded even from trial links. Practice overlays expose Resume and Leave and no longer show the purchases/profile notice.
 - Reclaimer base bolt damage/range reduced. Quiver is 10 lighter automatic bolts with no retrieval, Extended Mag remains the normal extension, Heavy Arrows allows 2 damaging bolts whose ammo can only be restored by picking up fired bolts. Arrow prop and hand insert move along the upper flight rail.
 - Stormweaver uses one visibly thicker electric arc per chain and its mines expire after 4 seconds. Deadlock smart volleys hit up to 3 acquired/visible targets per consumed charge. Default bodies of Plagueheart, Deadlock, Bullet Spitter and Event Horizon no longer force animated cosmetic finishes.
+
+## Economy and Career progression
+
+See [Economy and Career progression](economy-and-career-progression.md) for the
+current reward table, 40% faster XP curve, level-36 equipment cap and repeatable
+Career ranks. `rewards.json` owns difficulty-specific kill and objective payouts
+as well as base rewards; the runtime and Guide read those same numeric keys.
+Do not add a numeric reward setting without a consuming rule.
+
+Use XP-derived levels for every entitlement check; `Player.level` is a repaired
+cache, not an authority. Career rank and fresh-XP progress are distinct persisted
+fields and confer cosmetic titles. Do not spend lifetime XP or use historic
+overflow to satisfy fresh Career goals. New late equipment needs its own
+appropriate mastery/content objective; increasing a level gate or credit price
+alone does not solve veteran stockpiling. Preserve all historical ownership.

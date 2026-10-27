@@ -45,7 +45,7 @@ export function MainMenu() {
   const xp = profile?.xpProgress ?? { current: 0, needed: 100 };
   const rank = rankForLevel(lvl);
   const next = nextRank(lvl);
-  const xpPct = Math.min(100, (xp.current / xp.needed) * 100);
+  const xpPct = Math.min(100, xp.needed ? (xp.current / xp.needed) * 100 : 100);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -132,7 +132,7 @@ export function MainMenu() {
                     <TrendingUp className="w-3 h-3 text-amber-400" />
                     {next ? `Next: ${next.name} (LVL ${next.level})` : "Max rank reached"}
                   </span>
-                  <span className="text-white/70 tabular-nums">{xp.current} / {xp.needed} XP</span>
+                  <span className="text-white/70 tabular-nums">{xp.needed ? `${xp.current} / ${xp.needed} XP` : "Level cap · Career in Profile"}</span>
                 </div>
                 <div className="relative h-2.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
                   <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-all duration-500" style={{ width: `${xpPct}%` }}>
@@ -387,7 +387,7 @@ export function MainMenu() {
 
 function NavBtn({ onClick, icon, label }: { onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
-    <Button variant="ghost" size="sm" onClick={onClick} className="text-white/70 hover:text-white hover:bg-white/5 transition-colors">
+    <Button variant="ghost" size="sm" onClick={onClick} aria-label={label} className="text-white/70 hover:text-white hover:bg-white/5 transition-colors">
       {icon}
       <span className="ml-1.5 hidden sm:inline">{label}</span>
     </Button>

@@ -41,7 +41,8 @@
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1
+        "minimum": 1,
+        "maximum": 36
       },
       "unlockCost": {
         "type": "integer",

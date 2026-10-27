@@ -19,6 +19,10 @@ model Player {
   level           Int      @default(1)
   xp              Int      @default(0)
   credits         Int      @default(0)
+  /// Career promotions consume fresh post-cap XP and credits; no equipment reset.
+  careerRank      Int      @default(0)
+  /// Capped progress toward the NEXT promotion, reset to zero on promotion.
+  careerXp        Int      @default(0)
   kills           Int      @default(0)
   deaths          Int      @default(0)
   matchesPlayed   Int      @default(0)

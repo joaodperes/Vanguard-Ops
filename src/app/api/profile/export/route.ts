@@ -1,3 +1,4 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
@@ -47,7 +48,11 @@ export async function GET(req: NextRequest) {
     playerKey: player.playerKey,
     player: {
       name: player.name,
-      level: player.level,
+      level: levelForXp(player.xp),
+      careerRank: player.careerRank,
+      careerXp: player.careerXp,
+      selectedTitle: player.selectedTitle,
+      pvpBestKillstreak: player.pvpBestKillstreak,
       xp: player.xp,
       credits: player.credits,
       kills: player.kills,
@@ -71,6 +76,11 @@ export async function GET(req: NextRequest) {
     playerSkinUnlocks: player.playerSkinUnlocks.map(u => ({ skinId: u.skinId })),
     loadout: player.loadout
       ? {
+          perkId: player.loadout.perkId,
+          secondaryWeaponSkin: player.loadout.secondaryWeaponSkin,
+          meleeWeaponSkin: player.loadout.meleeWeaponSkin,
+          weaponSetups: player.loadout.weaponSetups,
+          savedLoadouts: player.loadout.savedLoadouts,
           primaryWeapon: player.loadout.primaryWeapon,
           secondaryWeapon: player.loadout.secondaryWeapon,
           meleeWeapon: player.loadout.meleeWeapon,

@@ -1,3 +1,7 @@
+import { levelForXp } from "@/lib/progression";
+import { restoreCareer } from "@/lib/career";
+import { perkById, DEFAULT_PERK_ID } from "@/lib/perks";
+import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WEAPONS } from "@/lib/game-data";
@@ -23,6 +27,10 @@ interface ExportData {
   player: {
     name: string;
     level: number;
+    careerRank?: number;
+    careerXp?: number;
+    selectedTitle?: string;
+    pvpBestKillstreak?: number;
     xp: number;
     credits: number;
     kills: number;
@@ -44,6 +52,11 @@ interface ExportData {
   attachmentUnlocks?: { weaponId: string; attachmentId: string }[];
   playerSkinUnlocks?: { skinId: string }[];
   loadout?: {
+    perkId?: string;
+    secondaryWeaponSkin?: string;
+    meleeWeaponSkin?: string;
+    weaponSetups?: string;
+    savedLoadouts?: string;
     primaryWeapon: string;
     secondaryWeapon: string;
     meleeWeapon: string;
@@ -105,6 +118,16 @@ export async function POST(req: NextRequest) {
   });
 
   const p = data.player;
+  const career = restoreCareer(existing, p);
+  const restoredXp = Math.max(existing?.xp ?? 0, p.xp);
+  const restoredPerk = perkById(data.loadout?.perkId);
+  const restoredLoadout = {
+    perkId: restoredPerk.unlockLevel <= levelForXp(restoredXp) ? restoredPerk.id : DEFAULT_PERK_ID,
+    ...(data.loadout?.secondaryWeaponSkin !== undefined ? { secondaryWeaponSkin: data.loadout.secondaryWeaponSkin } : {}),
+    ...(data.loadout?.meleeWeaponSkin !== undefined ? { meleeWeaponSkin: data.loadout.meleeWeaponSkin } : {}),
+    ...(data.loadout?.weaponSetups !== undefined ? { weaponSetups: data.loadout.weaponSetups } : {}),
+    ...(data.loadout?.savedLoadouts !== undefined ? { savedLoadouts: JSON.stringify(parseSavedLoadouts(data.loadout.savedLoadouts)) } : {}),
+  };
 
   if (existing) {
     // Update — take MAX of numeric progression fields to avoid downgrading.
@@ -112,9 +135,13 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id },
       data: {
         name: p.name,
-        level: Math.max(existing.level, p.level),
+        level: levelForXp(restoredXp),
+        ...career,
+        ...(p.selectedTitle !== undefined ? { selectedTitle: p.selectedTitle } : {}),
+        pvpBestKillstreak: Math.max(existing.pvpBestKillstreak, p.pvpBestKillstreak ?? 0),
         xp: Math.max(existing.xp, p.xp),
-        credits: Math.max(existing.credits, p.credits),
+        // Once Career spending starts, replaying a backup cannot refund it.
+        credits: existing.careerRank > 0 ? existing.credits : Math.max(existing.credits, p.credits),
         kills: Math.max(existing.kills, p.kills),
         deaths: Math.max(existing.deaths, p.deaths),
         matchesPlayed: Math.max(existing.matchesPlayed, p.matchesPlayed),
@@ -136,7 +163,10 @@ export async function POST(req: NextRequest) {
       data: {
         playerKey: targetKey,
         name: p.name,
-        level: p.level,
+        level: levelForXp(p.xp),
+        ...career,
+        selectedTitle: p.selectedTitle ?? "",
+        pvpBestKillstreak: p.pvpBestKillstreak ?? 0,
         xp: p.xp,
         credits: p.credits,
         kills: p.kills,
@@ -201,6 +231,7 @@ export async function POST(req: NextRequest) {
       await db.loadout.update({
         where: { playerId: player.id },
         data: {
+          ...restoredLoadout,
           primaryWeapon: data.loadout.primaryWeapon,
           secondaryWeapon: data.loadout.secondaryWeapon,
           meleeWeapon: data.loadout.meleeWeapon,
@@ -215,6 +246,7 @@ export async function POST(req: NextRequest) {
       await db.loadout.create({
         data: {
           playerId: player.id,
+          ...restoredLoadout,
           primaryWeapon: data.loadout.primaryWeapon,
           secondaryWeapon: data.loadout.secondaryWeapon,
           meleeWeapon: data.loadout.meleeWeapon,

@@ -1,3 +1,6 @@
+import { calculateMatchRewards } from "./match-rewards";
+import { careerXpAfterMatch, careerView, CAREER_TITLES } from "./career";
+import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
@@ -13,7 +16,6 @@ import {
   WEAPON_SKINS,
   PLAYER_SKINS,
   levelForXp,
-  totalXpForLevel,
   REWARDS,
   type ResolvedLoadout,
   resolveLoadout,
@@ -236,6 +238,7 @@ export interface PlayerProfileView {
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
+  career: ReturnType<typeof careerView>;
   prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[] };
 }
 
@@ -264,8 +267,10 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const p = fresh!;
   const level = levelForXp(p.xp);
   // Use the shared XP-curve helpers so this stays in sync with game-data.ts.
-  const base = totalXpForLevel(level);
-  const next = totalXpForLevel(level + 1);
+  // Repair legacy cached levels without trusting them for entitlement checks.
+  if (p.level !== level) await db.player.updateMany({
+    where: { id: p.id, xp: p.xp }, data: { level },
+  });
 
   // Build per-weapon unlock maps from the (now weaponId-bearing) DB rows.
   const attachmentsByWeapon: Record<string, string[]> = {};
@@ -358,8 +363,11 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
     selectedSkin: p.selectedSkin,
     selectedTitle: p.selectedTitle,
-    unlockedTitles: unlockedAchievementTitles(p.achievements?.map(a=>a.achievementId) ?? []),
-    xpProgress: { current: p.xp - base, needed: next - base, level },
+    unlockedTitles: [
+      ...unlockedAchievementTitles(p.achievements?.map(a=>a.achievementId) ?? []),
+      ...CAREER_TITLES.filter(t => p.careerRank >= t.rank).map(t => ({ id: t.id, title: t.title })),
+    ],
+    xpProgress: xpProgressInLevel(p.xp),
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
       weaponSkins: flatSkins,
@@ -372,6 +380,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     savedLoadouts: parseSavedLoadouts(p.loadout?.savedLoadouts),
     weaponProgress,
     operatorContracts,
+    career: careerView(p),
     prestige: { tokens: prestigeTokens(tokenReadyWeapons.length, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons },
   };
 }
@@ -529,111 +538,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const player = await getOrCreatePlayer(input.playerKey);
   const oldLevel = levelForXp(player.xp);
 
-  // ---- Per-kill XP scaled by victim difficulty ----
-  // The engine sends a killDifficulties[] array (one entry per kill, values:
-  // "easy" | "normal" | "hard" | "veteran" | "enemy_player"). Each tier awards
-  // a different amount of XP/credits — harder victims pay more. If the array
-  // is missing (legacy client), fall back to the flat per-kill reward.
-  const DIFF_XP: Record<string, number> = { easy: 10, normal: 15, hard: 22, veteran: 30, enemy_player: 30 };
-  const DIFF_CR: Record<string, number> = { easy: 4, normal: 6, hard: 10, veteran: 14, enemy_player: 14 };
-  const diffs = input.killDifficulties ?? [];
-  let killXp = 0;
-  let killCredits = 0;
-  if (diffs.length > 0 && diffs.length <= input.kills + 5) {
-    // Sum per-kill difficulty rewards. Cap at input.kills to avoid abuse.
-    for (let i = 0; i < Math.min(diffs.length, input.kills); i++) {
-      const d = diffs[i];
-      killXp += DIFF_XP[d] ?? DIFF_XP.normal;
-      killCredits += DIFF_CR[d] ?? DIFF_CR.normal;
-    }
-    // Headshots add a small bonus on top (per headshot, regardless of which kill).
-    killXp += input.headshots * REWARDS.headshotXpBonus;
-    killCredits += input.headshots * REWARDS.headshotCreditsBonus;
-  } else {
-    // Legacy path: flat per-kill reward.
-    killXp = input.kills * REWARDS.killXp + input.headshots * REWARDS.headshotXpBonus;
-    killCredits = input.kills * REWARDS.killCredits + input.headshots * REWARDS.headshotCreditsBonus;
-  }
-  // Team assists reward meaningful contributions without treating them as
-  // kills for win conditions, challenges or killstreak calculations.
-  const assists=Math.max(0,Math.min(200,Math.floor(input.assists??0)));
-  killXp += assists*REWARDS.assistXp;
-  killCredits += assists*REWARDS.assistCredits;
-  // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
-  // Wave-clear bonus compensates (see below).
-  if (input.mode === "survival") {
-    killXp = Math.round(killXp * 0.4);
-    killCredits = Math.round(killCredits * 0.4);
-  }
-  const winXp = input.won ? REWARDS.winXpBonus : 0;
-  const winCredits = input.won ? REWARDS.winCreditsBonus : 0;
-  let xpGained = killXp + winXp + REWARDS.participationXp;
-  let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
-  // Reward playing the objective, not just farming kills.
-  // Request values are sanitized at the API boundary; cap again for direct callers.
-  if (input.mode === "ctf") {
-    // Every personally delivered flag is an objective point, NOT a kill.
-    const captures=Math.max(0,Math.min(50,Math.floor(input.score||0)));
-    xpGained += captures * 75;
-    creditsGained += captures * 30;
-  }
-  if (input.mode === "killconfirmed") {
-    const confirms = Math.max(0, Math.min(200, Math.floor(input.confirmations ?? 0)));
-    const denies = Math.max(0, Math.min(200, Math.floor(input.denials ?? 0)));
-    xpGained += confirms * 10 + denies * 5;
-    creditsGained += confirms * 5 + denies * 2;
-  }
-
-  // --- 19a+19b: Kill-streak bonus (stacks with headshot bonus above) ---
-  // Each "multi-kill" (double-kill or better streak, tracked by the engine as
-  // multikillsCount and forwarded here as input.multikills) awards a flat
-  // +50 XP / +25 CR bonus on top of the per-kill rewards. This makes chained
-  // kills meaningfully more rewarding than the same kills spread out, and
-  // naturally stacks with the boosted headshot bonus (both are added to
-  // xpGained/creditsGained independently). 50 XP per multikill ≈ 2 normal
-  // kills' worth; 25 CR per multikill ≈ 3 normal kills' worth — a noticeable
-  // but not economy-breaking boost. The streak bonus shows up under "bonus"
-  // in the results screen (see bonusXp/bonusCredits calc below).
-  if (input.multikills && input.multikills > 0) {
-    xpGained += input.multikills * 50;
-    creditsGained += input.multikills * 25;
-  }
-
-  // --- Survival mode: wave-clear bonus that scales with progress ---
-  // Each wave survived awards +60 XP / +20 credits (compounding reward for deeper runs).
-  let survivalWaves = 0;
-  if (input.mode === "survival") {
-    survivalWaves = Math.max(0, Math.floor(input.survivalWaves ?? 0));
-    const rewardMul = survivalTier === "nightmare" ? 2 : survivalTier === "elite" ? 1.6 : survivalTier === "hard" ? 1.25 : 1;
-    const waveBonusXp = Math.round(survivalWaves * 60 * rewardMul);
-    const waveBonusCredits = Math.round(survivalWaves * 20 * rewardMul);
-    xpGained += waveBonusXp;
-    creditsGained += waveBonusCredits;
-    if (input.won && survivalTier === "default") {
-      xpGained += 12000;
-      creditsGained += 6000;
-    }
-  }
-
-  const newXp = player.xp + xpGained;
-  const newLevel = levelForXp(newXp);
-  const leveledUp = newLevel > oldLevel;
-
-  // Auto-grant items unlocked by the new level (free ones).
-  // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
-  // auto-granted by level — they're per-weapon (purchased or challenge-earned).
-  const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
-  if (leveledUp) {
-    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) {
-        if (w.wonder || w.unlockLevel !== lvl) continue;
-        if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
-        else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
-      }
-      for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
-      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
-    }
-  }
+  const rewards = calculateMatchRewards(input);
+  const { killXp, killCredits, winXp, winCredits, survivalWaves } = rewards;
+  let { xpGained, creditsGained } = rewards;
 
   // --- 17-C: Quest-completion counters ---
   // Local accumulators for how many challenges (by type) were newly awarded
@@ -777,7 +684,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     matches: combatAgg._count._all + (countsThisMatch?1:0),
     ctf_captures:(ctfAggregate._sum.score??0)+(input.mode==="ctf"?Math.max(0,Math.floor(input.score)):0),
     ctf_wins:ctfWonMatches+(input.mode==="ctf"&&input.won?1:0),
-    level: newLevel,
+    level: levelForXp(player.xp + xpGained),
     credits_earned_total: player.credits + creditsGained,
     survival_waves: Math.max(player.survivalBestWave, survivalWaves),
     // 17-C: post-match lifetime quest counters (existing + this match's awards)
@@ -797,7 +704,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       case "headshots": return (combatAgg._sum.headshots ?? 0) + (countsThisMatch?input.headshots:0);
       case "wins": return lifetimeStats.wins;
       case "matches": return lifetimeStats.matches;
-      case "level": return lifetimeStats.level;
+      case "level": return levelForXp(player.xp + xpGained);
       case "credits_earned_total": return lifetimeStats.credits_earned_total;
       case "survival_waves": return lifetimeStats.survival_waves;
       case "survival_default_wins": return survivalProgress.defaultWins;
@@ -834,6 +741,26 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // Elite is now a per-period promotion of daily/weekly challenges (handled
   // in the loops above). Old DB rows with type="elite" / dayKey="elite" are
   // left orphaned (no automatic cleanup) — they don't affect new logic.
+
+  const newXp = player.xp + xpGained;
+  const newLevel = levelForXp(newXp);
+  const leveledUp = newLevel > oldLevel;
+
+  // Auto-grant items unlocked by the new level (free ones).
+  // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
+  // auto-granted by level — they're per-weapon (purchased or challenge-earned).
+  const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
+  if (leveledUp) {
+    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+      for (const w of WEAPONS) {
+        if (w.wonder || w.unlockLevel !== lvl) continue;
+        if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+        else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
+      }
+      for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
+      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
+    }
+  }
 
   const bonusXp = xpGained - (killXp + winXp + REWARDS.participationXp);
   const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
@@ -941,11 +868,14 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   }
 
   await db.$transaction(async (tx) => {
+    const current = await tx.player.findUniqueOrThrow({ where: { id: player.id } });
     await tx.player.update({
       where: { id: player.id },
       data: {
-        xp: player.xp + xpGained,
-        credits: player.credits + creditsGained,
+        xp: { increment: xpGained },
+        credits: { increment: creditsGained },
+        level: levelForXp(current.xp + xpGained),
+        careerXp: careerXpAfterMatch(current.careerXp, current.careerRank, current.xp, xpGained),
         kills: player.kills + input.kills,
         deaths: player.deaths + input.deaths,
         matchesPlayed: player.matchesPlayed + 1,

@@ -6,6 +6,7 @@
  * docs/content-authoring.md and with the public types in game-data.ts.
  */
 import { z } from "zod";
+import { MAX_PLAYER_LEVEL } from "./progression";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, WEAPON_CHALLENGES,
   WEAPON_ATTACHMENT_COMPAT, CATEGORY_ATTACHMENT_CHOICES, SIGHT_DEFS,
@@ -46,7 +47,7 @@ const bolt = z.object({
 });
 const weapon = z.object({
   id, name: label, description: label, category,
-  unlockLevel: pos.int(), unlockCost: count,
+  unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
   stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
@@ -57,7 +58,7 @@ const weapon = z.object({
   }).optional(),
 });
 const attachment = z.object({
-  id, name: label, description: label, slot, unlockLevel: pos.int(),
+  id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
   unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
   weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
   sightType: z.string().optional(),
@@ -69,14 +70,14 @@ const attachment = z.object({
   }),
 });
 const skin = z.object({
-  id, name: label, unlockLevel: pos.int(), unlockCost: count, rarity,
+  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
   tier: z.enum(["standard", "rare", "legendary"]), color: cssColor,
   metalness: unit, roughness: unit, emissive: cssColor.optional(),
   emissiveIntensity: num.nonnegative().optional(),
   prestige: z.enum(["cosmic", "toxic"]).optional(),
 });
 const operator = z.object({
-  id, name: label, unlockLevel: pos.int(), unlockCost: count, rarity,
+  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
   color: cssColor, accent: cssColor, emissive: cssColor.optional(),
 });
 const challenge = z.object({

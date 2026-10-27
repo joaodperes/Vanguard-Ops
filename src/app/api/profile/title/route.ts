@@ -1,3 +1,4 @@
+import { careerTitle } from "@/lib/career";
 import { NextRequest, NextResponse } from "next/server";
 import { resolvePlayerKey } from "@/lib/auth";
 import { getOrCreatePlayer, buildProfileView } from "@/lib/player-service";
@@ -16,7 +17,11 @@ export async function POST(req: NextRequest) {
   const id = body.achievementId;
   if (id && !achievementTitle(id)) return NextResponse.json({ error: "Unknown title" }, { status: 400 });
   const player = await getOrCreatePlayer(playerKey);
-  if (id) {
+  const career = careerTitle(id);
+  if (career && player.careerRank < career.rank) {
+    return NextResponse.json({ error: `Requires Career Rank ${career.rank}` }, { status: 403 });
+  }
+  if (id && !career) {
     const ownership = await db.playerAchievement.findUnique({
       where: { playerId_achievementId: { playerId: player.id, achievementId: id } },
     });
