@@ -5162,7 +5162,7 @@ export class FPSEngine {
       if (hit !== null && hit >= 0 && hit < t) t = hit;
     }
     for (const c of this.combatants.values()) {
-      if (!c.alive || (this.opts.mode === "tdm" && c.team === this.opts.team)) continue;
+      if (!c.alive || ((this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") && c.team === this.opts.team)) continue;
       const hit = rayCombatantHit(origin, dir, c.pos);
       if (hit && hit.t < t) t = hit.t;
     }
@@ -5758,7 +5758,7 @@ export class FPSEngine {
     // Remember the player's meaningful non-lethal contributions so a
     // friendly offline bot finishing the same enemy can award an assist.
     if (!this.opts.online && victim.team !== this.opts.team &&
-        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="survival")) {
+        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf"||this.opts.mode==="survival")) {
       const old=this.offlineAssistDamage.get(victim.id);
       this.offlineAssistDamage.set(victim.id,{
         damage:(old && performance.now()-old.at<=10000?old.damage:0)+Math.max(0,Math.min(damage,victim.health)),
@@ -7512,7 +7512,7 @@ export class FPSEngine {
       }
 
       ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
-      const speed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+      const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = 14;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
@@ -7710,7 +7710,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
         const mvx = fx * moveSpeed;
         const mvz = fz * moveSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -7901,7 +7901,7 @@ export class FPSEngine {
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
           const recent=this.offlineAssistDamage.get(nearest.victim.id);
           if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
-              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed") &&
+              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf") &&
               recent && recent.damage>=15 && performance.now()-recent.at<=10000)
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
