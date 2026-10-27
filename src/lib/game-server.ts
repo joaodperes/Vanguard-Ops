@@ -16,6 +16,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
+import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
 import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
@@ -77,6 +78,7 @@ interface BotAI {
   strafeDir: number;
   moveSpeed: number;
   sprinting?: boolean;
+  aiming?: boolean;
   // ---- Humanization (mirrors the offline engine) ----
   acquiredTargetAt: number;
   skill: number;
@@ -767,7 +769,7 @@ function toSnap(p: PlayerNet): SnapshotPlayer {
     id: p.id, name: p.name, team: p.team, isBot: p.isBot,
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
-    kills: p.kills, deaths: p.deaths, aiming: false, reloading: false,
+    kills: p.kills, deaths: p.deaths, aiming: (p as PlayerNet & { ai?: BotAI }).ai?.aiming ?? false, reloading: false,
     spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
   };
 }
@@ -1965,9 +1967,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.sprayDriftPitch *= 0.92;
     }
 
-    ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
+    const clearShot=hasLineOfSight(room,
+      [bot.pos[0],bot.pos[1]+1.45,bot.pos[2]],
+      [target.pos[0],target.pos[1]+1.45,target.pos[2]]);
+    const reactionReady=now-ai.acquiredTargetAt>=botReactionDelay(ai.difficulty);
+    const aimSettled=now-ai.acquiredTargetAt>=
+      botReactionDelay(ai.difficulty)+eff.adsTime*750;
+    const stance=botCombatDecision(weapon.category,dist,clearShot,
+      reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil);
+    ai.sprinting=stance.sprinting;
+    ai.aiming=stance.aiming;
     const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
-    const ideal = 14;
+    const ideal = stance.idealDistance;
     let mvx = 0, mvz = 0;
     if (dist > ideal + 3) {
       mvx = Math.sin(bot.yaw) * moveSpeed / 20;
@@ -2053,17 +2064,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const missThisShot = Math.random() < missChance;
     const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
+    const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
 
     // shooting
     if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
-      const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
-      const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
+      const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+      const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
       let didHit = false;
       for (let i = 0; i < pellets; i++) {
-        const pdir = pellets > 1 ? normalize(add(dir, randSpread(eff.spread))) : dir;
+        const pdir = pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
         const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range, eff.falloffEndMultiplier);
         if (hit) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
@@ -2114,13 +2126,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       io.to(room.id).emit("message", { t: "reloadFx", playerId: bot.id } as S2C);
     }
   } else {
-    ai.sprinting = false;
+    ai.aiming = false;
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
     const patrolGoal=ai.highGroundPatrol;
     const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
       cityCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
     const dx=patrolPoint[0]-bot.pos[0],dz=patrolPoint[2]-bot.pos[2];
     const d=Math.hypot(dx,dz);
+    ai.sprinting=botPatrolSprint(d);
     if(d>(patrolGoal?.38:1.5)){
       // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the movement
       // direction. If blocked, rotate the movement direction by ±35° (sign
@@ -2164,8 +2177,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       } else {
         bot.yaw = lerpAngle(bot.yaw, Math.atan2(dx, dz), 0.15);
       }
-      const mvx = fx * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier / 20;
-      const mvz = fz * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier / 20;
+      const mvx = fx * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) / 20;
+      const mvz = fz * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) / 20;
       // Substepped collision-aware movement (same as the chase path).
       // Task 16-a: SUBSTEP=0.15 (was 0.2), with slide-along-wall + 45° diagonal.
       const moveLen = Math.hypot(mvx, mvz);
