@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createCtfFlags, ctfBase, ctfHome, ctfDrop, ctfTouch, ctfReturnExpired, CTF_DROP_RETURN_MS, ctfBotGoal, CTF_TREE_X, CTF_TREE_TOP } from "../src/lib/ctf-rules";
+import { createCtfFlags, ctfBase, ctfHome, ctfDrop, ctfTouch, ctfReturnExpired, CTF_DROP_RETURN_MS, ctfBotGoal, ctfBotIntent, ctfStairWaypoint, ctfResetMs, CTF_TREE_X, CTF_TREE_TOP } from "../src/lib/ctf-rules";
 import { getMap, mapAllowedForMode } from "../src/lib/game-protocol";
-import { FOREST_TREE_STAIRS, FOREST_TREE_DECKS, FOREST_PERIMETER, FOREST_REGIONS } from "../src/lib/forest-warfare";
+import { FOREST_TREE_STAIRS, FOREST_TREE_DECKS, FOREST_PERIMETER, FOREST_REGIONS, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "../src/lib/forest-warfare";
 import { botGroundHeight, botPositionEmbedded, BOT_STEP_HEIGHT } from "../src/lib/bot-physics";
 import { insideRegions } from "../src/lib/map-blueprints";
 
@@ -99,6 +99,51 @@ describe("Capture the Flag objective rules", () => {
     expect(ctfBotGoal(flags,"red","r",[CTF_TREE_X,CTF_TREE_TOP,-8])).toEqual(ctfHome("blue"));
     ctfTouch(flags,{id:"r",team:"red",pos:ctfHome("blue")});
     expect(ctfBotGoal(flags,"red","r",[CTF_TREE_X,CTF_TREE_TOP,0])).toEqual(ctfBase("red"));
+  });
+
+  test("instant, configurable, and never-return dropped flags are independent of match limits", () => {
+    expect(ctfResetMs(undefined)).toBe(30000);
+    expect(ctfResetMs(10000)).toBe(10000);
+    expect(ctfResetMs(60000)).toBe(60000);
+    expect(ctfResetMs(120000)).toBe(120000);
+    expect(ctfResetMs(-1)).toBe(-1);
+    const flags=createCtfFlags();
+    ctfTouch(flags,{id:"raider",team:"blue",pos:ctfHome("red")});
+    ctfDrop(flags,"raider",[1,0,3],1000);
+    expect(ctfReturnExpired(flags,400000,-1)).toEqual([]);
+    expect(flags.red.dropped).toBe(true);
+    expect(ctfReturnExpired(flags,1000,0)).toEqual(["red"]);
+    expect(flags.red.dropped).toBe(false);
+  });
+
+  test("defenders, escorts, and all-hands flag recovery respect CTF objectives", () => {
+    const flags=createCtfFlags();
+    const ids=["a","b","c","sniper"];
+    expect(ctfBotIntent(flags,"red","sniper",[-94,0,0],"sniper_lr",ids).role).toBe("defend_flag");
+    expect(ctfBotIntent(flags,"red","b",[-94,0,0],"rifle_ar",ids).role).toBe("attack");
+    expect(ctfBotIntent(flags,"red","a",[-94,0,0],"rifle_ar",ids).role).toBe("defend_stairs");
+    ctfTouch(flags,{id:"blue-thief",team:"blue",pos:ctfHome("red")});
+    for(const id of ids) expect(ctfBotIntent(flags,"red",id,ctfHome("red"),"sniper_lr",ids,{"blue-thief":[-31,0,8]})).toEqual({role:"recover",goal:[-31,0,8]});
+    ctfDrop(flags,"blue-thief",[-19,0,5]);
+    for(const id of ids) expect(ctfBotIntent(flags,"red",id,[0,0,0],"rifle_ar",ids).role).toBe("recover");
+    ctfTouch(flags,{id:"red-def",team:"red",pos:[-19,0,5]});
+    ctfTouch(flags,{id:"red-runner",team:"red",pos:ctfHome("blue")});
+    expect(ctfBotIntent(flags,"red","b",[20,0,2],"rifle_ar",ids,{"red-runner":[20,0,2]}).role).toBe("escort");
+    expect(ctfBotIntent(flags,"red","red-runner",[20,0,2],"rifle_ar",ids).goal).toEqual(ctfBase("red"));
+  });
+
+  test("base is behind each trunk and new cover does not cover objectives or stairs", () => {
+    expect(ctfBase("red")[0]).toBeLessThan(ctfHome("red")[0]);
+    expect(ctfBase("blue")[0]).toBeGreaterThan(ctfHome("blue")[0]);
+    expect(FOREST_BASE_COVER.length).toBeGreaterThanOrEqual(12);
+    expect(FOREST_TREE_PARAPETS.length).toBeGreaterThanOrEqual(8);
+    for(const team of ["red","blue"] as const) {
+      const base=ctfBase(team);
+      expect(botPositionEmbedded(getMap("forest_warfare").cover,base)).toBe(false);
+      const home=ctfHome(team);
+      expect(botPositionEmbedded(getMap("forest_warfare").cover,[home[0],home[1],home[2]])).toBe(false);
+    }
+    expect(ctfStairWaypoint(ctfHome("blue"),[0,0,-9])).toEqual([CTF_TREE_X,0,-34.5]);
   });
 
 });
