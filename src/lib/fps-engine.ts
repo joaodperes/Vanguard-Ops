@@ -4806,7 +4806,7 @@ export class FPSEngine {
             // event itself eliminates any race and guarantees per-weapon skin
             // challenges (Breacher, Longshot, etc.) progress on the weapon
             // actually used for the kill.
-            if (msg.weaponId !== "perk_explonando" && msg.weaponId!==ORBITAL_REAPER_ID) this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
+            if (msg.weaponId !== "perk_explonando") this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
             this.sound.play("kill", { volume: 0.6 });
@@ -6314,7 +6314,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando" && sourceWeaponId!==ORBITAL_REAPER_ID) this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -6434,6 +6434,9 @@ export class FPSEngine {
     } else {
       this.perWeaponKills.set(weaponId, { kills: 1, headshots: headshot ? 1 : 0 });
     }
+    // Temporary Reaper kills earn their unique achievement, not regular
+    // Armory challenge or permanent weapon mastery progression.
+    if(weaponId===ORBITAL_REAPER_ID)return;
     // Applied at elimination, including online kills acknowledged by the server.
     const actions = this.perWeaponActions.get(weaponId) ?? {};
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
