@@ -1,5 +1,5 @@
 import {describe,test,expect} from "bun:test";
-import {collectorProgress} from "../src/lib/collector";
+import {collectorProgress,collectorSkinEntitlements} from "../src/lib/collector";
 import {CAREER_REQUIRED_COMPLETIONS,careerContractOffer,careerContractDelta,freshCareerXp} from "../src/lib/career-contracts";
 import {SHOP_ITEMS,shopItemKey,shopItemById} from "../src/lib/shop-catalog";
 import {ownsOperativeSkin} from "../src/lib/collection-ownership";
@@ -46,6 +46,16 @@ describe("Career Tokens and exclusive cosmetic economy",()=>{
   });
 });
 describe("Collector achievement percentage",()=>{
+  test("counts independently earned Viridian and Eventide even without purchased skin rows",()=>{
+    const result=collectorSkinEntitlements([],[{weaponId:"rifle_ar",kills:600,headshots:110}],
+      [{weaponId:"pistol_side",legacyReward:false},{weaponId:"smg_kp",legacyReward:true}]);
+    expect(result.rifle_ar).toContain("prestige_cosmic");
+    expect(result.rifle_ar??[]).not.toContain("prestige_toxic");
+    expect(result.pistol_side).toContain("prestige_toxic");
+    expect(result.pistol_side).not.toContain("prestige_cosmic");
+    expect(result.smg_kp).toContain("prestige_cosmic");
+    expect(result.smg_kp).toContain("prestige_toxic");
+  });
   const normal=WEAPONS.filter(w=>!w.wonder);
   const skins=WEAPON_SKINS.filter(s=>s.shopCurrency!=="career");
   const operators=PLAYER_SKINS.filter(s=>s.shopCurrency!=="career");

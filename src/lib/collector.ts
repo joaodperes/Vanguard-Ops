@@ -1,5 +1,7 @@
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, compatibleAttachments, weaponAttachmentSlots } from "./game-data";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "./collection-ownership";
+import { weaponMasteryProgress } from "./armory-challenges";
+import { WEAPON_CHALLENGES } from "./game-data";
 type CollectionProfile = {
   level:number; unlockedWeapons:readonly string[];
   ownedAttachments:Readonly<Record<string,readonly string[]>>;
@@ -46,4 +48,38 @@ export function collectorProgress(p:CollectionProfile):CollectorProgress {
   const obtained=weapons.owned+attachments.owned+weaponSkins.owned+operatorSkins.owned;
   return {total,owned:obtained,percent:total>0?Math.floor(obtained/total*100):0,
     weapons,attachments,weaponSkins,operatorSkins};
+}
+
+/** Combine bought SkinUnlocks with BOTH independently earned special finishes.
+ * These earned camos are virtual entitlements, not SkinUnlock database rows. */
+export function collectorSkinEntitlements(
+  unlocks:readonly {weaponId:string;skinId:string}[],
+  progress:readonly {weaponId:string;kills:number;headshots:number}[],
+  prestiges:readonly {weaponId:string;legacyReward:boolean}[],
+):Record<string,string[]> {
+  const byWeapon:Record<string,string[]>={};
+  const grant=(weaponId:string,skinId:string)=>{
+    const list=(byWeapon[weaponId]??=[]);
+    if(!list.includes(skinId))list.push(skinId);
+  };
+  const wildcard=new Set(unlocks.filter(u=>u.weaponId==="*").map(u=>u.skinId));
+  for(const row of unlocks)if(row.weaponId!=="*")grant(row.weaponId,row.skinId);
+  for(const row of prestiges){
+    grant(row.weaponId,"prestige_toxic");
+    if(row.legacyReward)grant(row.weaponId,"prestige_cosmic");
+  }
+  const progressByWeapon=new Map(progress.map(row=>[row.weaponId,row]));
+  for(const weapon of WEAPONS.filter(w=>!w.wonder)){
+    const stats=progressByWeapon.get(weapon.id);
+    if(weaponMasteryProgress(stats?.kills??0,stats?.headshots??0,weapon.id).rank===5)
+      grant(weapon.id,"prestige_cosmic");
+    // Older wildcard unlocks only count if the old challenge threshold is met,
+    // matching the legacy migration behavior in buildProfileView.
+    for(const challenge of WEAPON_CHALLENGES){
+      if(challenge.weaponId!==weapon.id||!wildcard.has(challenge.skinId))continue;
+      const value=challenge.metric==="kills"?(stats?.kills??0):(stats?.headshots??0);
+      if(value>=challenge.goal)grant(weapon.id,challenge.skinId);
+    }
+  }
+  return byWeapon;
 }

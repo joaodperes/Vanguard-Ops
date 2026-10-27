@@ -6,7 +6,7 @@ import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
-import { collectorProgress } from "./collector";
+import { collectorProgress, collectorSkinEntitlements } from "./collector";
 import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
@@ -207,11 +207,11 @@ async function grantExistingMasteryTitles(playerId:string):Promise<boolean> {
 async function grantCollectorAchievements(playerId:string):Promise<void> {
   const p=await db.player.findUniqueOrThrow({where:{id:playerId},include:{
     weaponUnlocks:true,attachmentUnlocks:true,skinUnlocks:true,
-    playerSkinUnlocks:true,achievements:true,
+    playerSkinUnlocks:true,achievements:true,weaponPrestiges:true,weaponProgress:true,
   }});
-  const attachments:Record<string,string[]>={},skins:Record<string,string[]>={};
+  const attachments:Record<string,string[]>={};
   for(const row of p.attachmentUnlocks)(attachments[row.weaponId]??=[]).push(row.attachmentId);
-  for(const row of p.skinUnlocks)(skins[row.weaponId]??=[]).push(row.skinId);
+  const skins=collectorSkinEntitlements(p.skinUnlocks,p.weaponProgress,p.weaponPrestiges);
   const score=collectorProgress({
     level:levelForXp(p.xp),
     unlockedWeapons:p.weaponUnlocks.map(row=>row.weaponId),
@@ -1248,9 +1248,9 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
     .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const survivalProgress = await getSurvivalProgressById(player.id);
   const acquiredAttachments:Record<string,string[]>={};
-  const acquiredSkins:Record<string,string[]>={};
   for(const row of player.attachmentUnlocks)(acquiredAttachments[row.weaponId]??=[]).push(row.attachmentId);
-  for(const row of player.skinUnlocks)(acquiredSkins[row.weaponId]??=[]).push(row.skinId);
+  const prestigeHistory=await db.weaponPrestige.findMany({where:{playerId:player.id}});
+  const acquiredSkins=collectorSkinEntitlements(player.skinUnlocks,weaponRows,prestigeHistory);
   const collection=collectorProgress({
     level:levelForXp(player.xp),unlockedWeapons:player.weaponUnlocks.map(w=>w.weaponId),
     ownedAttachments:acquiredAttachments,ownedWeaponSkins:acquiredSkins,
