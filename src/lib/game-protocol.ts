@@ -962,6 +962,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  forest_warfare: [],
   compound: [
     // Fuel service yard east of the northern security checkpoint.
     { id: "compound_spikes_service", type: "spikes", pos: [38, 0, -28], size: [1.8, .4, 1.8], damage: 24, period: 4.5, activeFor: 1.6 },
