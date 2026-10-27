@@ -123,7 +123,10 @@ describe("Capture the Flag objective rules", () => {
     expect(ctfBotIntent(flags,"red","b",[-94,0,0],"rifle_ar",ids).role).toBe("attack");
     expect(ctfBotIntent(flags,"red","a",[-94,0,0],"rifle_ar",ids).role).toBe("defend_stairs");
     ctfTouch(flags,{id:"blue-thief",team:"blue",pos:ctfHome("red")});
-    for(const id of ids) expect(ctfBotIntent(flags,"red",id,ctfHome("red"),"sniper_lr",ids,{"blue-thief":[-31,0,8]})).toEqual({role:"recover",goal:[-31,0,8]});
+    const intercepts=ids.map(id=>ctfBotIntent(flags,"red",id,ctfHome("red"),"sniper_lr",ids,{"blue-thief":[-31,0,8]}));
+    expect(intercepts.every(intent=>intent.role==="recover")).toBe(true);
+    expect(new Set(intercepts.map(intent=>intent.goal.join(","))).size).toBeGreaterThan(1);
+    for(const intent of intercepts) expect(Math.hypot(intent.goal[0]+31,intent.goal[2]-8)).toBeLessThan(24);
     ctfDrop(flags,"blue-thief",[-19,0,5]);
     for(const id of ids) expect(ctfBotIntent(flags,"red",id,[0,0,0],"rifle_ar",ids).role).toBe("recover");
     ctfTouch(flags,{id:"red-def",team:"red",pos:[-19,0,5]});
