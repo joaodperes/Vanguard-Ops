@@ -73,7 +73,7 @@ export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolea
     Math.hypot(pos[0],pos[2])<=ORBITAL_PICKUP_RADIUS&&
     pos[1]>=ORBITAL_PLATFORM_Y-.65&&pos[1]<=ORBITAL_PLATFORM_Y+2.6;
 }
-export const orbitalGravity=(id:string)=>id==="orbital_nexus"?.6:1;
+export const orbitalGravity=(id:string,weaponId?:string)=>id==="orbital_nexus"?(.6*(weaponId===ORBITAL_REAPER_ID?ORBITAL_REAPER_GRAVITY_MULTIPLIER:1)):1;
 
 /** Each team sends its nearest eligible bot; flag carriers stay on objective. */
 export interface OrbitalBotCandidate {
