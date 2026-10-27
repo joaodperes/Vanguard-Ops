@@ -1,5 +1,6 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
+import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
 import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
@@ -183,6 +184,8 @@ export interface PlayerProfileView {
   survivalBestWave: number;
   kd: number;
   selectedSkin: string;
+  selectedTitle: string;
+  unlockedTitles: { id: string; title: string }[];
   xpProgress: { current: number; needed: number; level: number };
   unlocks: {
     weapons: string[];
@@ -326,6 +329,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     survivalBestWave: p.survivalBestWave,
     kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
     selectedSkin: p.selectedSkin,
+    selectedTitle: p.selectedTitle,
+    unlockedTitles: unlockedAchievementTitles(p.achievements?.map(a=>a.achievementId) ?? []),
     xpProgress: { current: p.xp - base, needed: next - base, level },
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
@@ -697,6 +702,29 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
   const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
   const lifetimeHeadshots = (headshotAgg._sum.headshots ?? 0) + input.headshots;
+  // Only ordinary combat modes count toward PvP combat achievements.
+  // Survival-specific records may use suffixed mode IDs, so positively list
+  // the non-Survival modes rather than subtracting just "survival".
+  const combatModes = ["ffa","tdm","gungame","killconfirmed","ctf"];
+  const combatAgg = await db.matchRecord.aggregate({
+    where:{playerId:player.id,mode:{in:combatModes}},
+    _sum:{kills:true,headshots:true},_count:{_all:true},
+  });
+  const combatWins = await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const countsThisMatch = input.mode!=="survival";
+  const weaponRows = await db.weaponProgress.findMany({where:{playerId:player.id}});
+  const projectedWeapons = new Map(weaponRows.map(row=>[row.weaponId,{
+    weaponId:row.weaponId,kills:row.kills,headshots:row.headshots,
+  }]));
+  const matchWeaponStats=input.perWeaponKills ?? {
+    [input.weaponId ?? player.loadout?.primaryWeapon ?? "rifle_ar"]:{kills:input.kills,headshots:input.headshots},
+  };
+  for (const [wid,delta] of Object.entries(matchWeaponStats)){
+    if(!WEAPONS.some(w=>w.id===wid))continue;
+    const current=projectedWeapons.get(wid)??{weaponId:wid,kills:0,headshots:0};
+    projectedWeapons.set(wid,{weaponId:wid,kills:current.kills+Math.max(0,delta.kills),headshots:current.headshots+Math.max(0,delta.headshots)});
+  }
+  const masteryStats=masteryAchievementStats([...projectedWeapons.values()]);
   const totalAwardedThisMatch = dailyAwardedCount + weeklyAwardedCount + eliteAwardedCount;
   const survivalProgress = survivalProgressBefore ?? {defaultWins:0,hardBest:0,eliteBest:0,nightmareBest:0};
   if (input.mode === "survival") {
@@ -706,9 +734,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     if (survivalTier === "nightmare") survivalProgress.nightmareBest = Math.max(survivalProgress.nightmareBest,survivalWaves);
   }
   const lifetimeStats = {
-    kills: player.kills + input.kills,
-    wins: player.matchesWon + (input.won ? 1 : 0),
-    matches: player.matchesPlayed + 1,
+    kills: (combatAgg._sum.kills ?? 0) + (countsThisMatch?input.kills:0),
+    wins: combatWins + (countsThisMatch&&input.won?1:0),
+    matches: combatAgg._count._all + (countsThisMatch?1:0),
     level: newLevel,
     credits_earned_total: player.credits + creditsGained,
     survival_waves: Math.max(player.survivalBestWave, survivalWaves),
@@ -726,7 +754,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const getStatValue = (metric: string): number => {
     switch (metric) {
       case "kills": return lifetimeStats.kills;
-      case "headshots": return lifetimeHeadshots;
+      case "headshots": return (combatAgg._sum.headshots ?? 0) + (countsThisMatch?input.headshots:0);
       case "wins": return lifetimeStats.wins;
       case "matches": return lifetimeStats.matches;
       case "level": return lifetimeStats.level;
@@ -742,7 +770,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       case "total_challenges_completed": return lifetimeStats.total_challenges_completed;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak). Set by
       // Math.max above when this match's bestStreak exceeds the prior best.
-      case "best_killstreak": return lifetimeStats.best_killstreak;
+      case "best_killstreak": return Math.max(player.pvpBestKillstreak,countsThisMatch?(input.bestStreak??0):0);
+      case "mastery_recruits": return masteryStats.mastery_recruits;
+      case "mastery_specialists": return masteryStats.mastery_specialists;
+      case "mastery_elites": return masteryStats.mastery_elites;
       default: return 0;
     }
   };
@@ -886,6 +917,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         // 19a+19b: update lifetime best kill streak. Math.max so a lower
         // bestStreak this match doesn't overwrite a higher prior best.
         bestKillstreak: Math.max(player.bestKillstreak, input.bestStreak ?? 0),
+        pvpBestKillstreak: Math.max(player.pvpBestKillstreak, input.mode!=="survival" ? (input.bestStreak ?? 0) : 0),
       },
     });
     if (newUnlocks.weapons.length) await tx.weaponUnlock.createMany({ data: newUnlocks.weapons.map((id) => ({ playerId: player.id, weaponId: id })) });
