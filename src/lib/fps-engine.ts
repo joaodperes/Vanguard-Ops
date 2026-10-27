@@ -44,6 +44,8 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
+import { FOREST_OBJECTS } from "./forest-warfare";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -150,6 +152,9 @@ export interface HudState {
   deaths: number;
   score: number;
   teamScores: { red: number; blue: number };
+  ctfFlags?: CtfFlags;
+  ctfCarrying?: boolean;
+  ctfNotice?: { label: string; at: number };
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
   denials?: number;
@@ -635,6 +640,10 @@ export class FPSEngine {
   // combatants
   private combatants = new Map<string, Combatant>();
   private selfId = "self";
+  private ctfFlags: CtfFlags = createCtfFlags();
+  private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
+  private ctfNotice: { label: string; at: number } | undefined;
+  private ctfCaptures = 0;
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
@@ -947,7 +956,7 @@ export class FPSEngine {
     });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
-    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
+    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ctf" ? 3 : opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
     this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
@@ -976,6 +985,7 @@ export class FPSEngine {
     }
     this.buildArena();
     this.buildMapProps();
+    if (this.map.id === "forest_warfare") this.buildCtfFlagModels();
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
@@ -1084,7 +1094,7 @@ export class FPSEngine {
       const grid=new THREE.GridHelper(this.map.size*2,64,theme.gridColor,theme.gridColor);
       (grid.material as THREE.Material).opacity=0.4;
       (grid.material as THREE.Material).transparent=true;
-      grid.position.y=0.02; this.scene.add(grid);
+      grid.position.y=0.02; if (this.map.id !== "forest_warfare") this.scene.add(grid);
     }
 
     // Ridgefall is an indoor factory. Render a ceiling over each connected
@@ -1146,6 +1156,7 @@ export class FPSEngine {
     for (const c of this.map.cover) {
       if (c.environmentId) continue; // handled by animated environment meshes
       const kind = c.kind ?? "cover";
+      if (this.map.id === "forest_warfare" && kind !== "stair") continue; // forest gets natural meshes
       const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
       if(kind !== "accent"){
@@ -1194,7 +1205,131 @@ export class FPSEngine {
    * visually distinct but never create a corridor wall; the world colliders
    * for solid props are generated separately on client AND server.
    */
+  // Decorative geometry uses the same positions as the shared authoritative cover.
+  // Meshes do not generate independent collision, so visuals and hitboxes stay aligned.
+  private buildForestWarfare() {
+    const bark = new THREE.MeshStandardMaterial({ color: 0x68462a, roughness: 1 });
+    const barkLight = new THREE.MeshStandardMaterial({ color: 0x92663b, roughness: 1 });
+    const leafA = new THREE.MeshStandardMaterial({ color: 0x387b3e, roughness: 1 });
+    const leafB = new THREE.MeshStandardMaterial({ color: 0x5d9947, roughness: 1 });
+    const leafC = new THREE.MeshStandardMaterial({ color: 0x244f32, roughness: 1 });
+    const stone = new THREE.MeshStandardMaterial({ color: 0x727a72, roughness: 0.95 });
+    const set = (mesh: THREE.Mesh, x:number,y:number,z:number) => {
+      mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true; this.scene.add(mesh); return mesh;
+    };
+    for (const prop of FOREST_OBJECTS) {
+      const {x,z,w,d,h,kind}=prop;
+      if(kind==="tree"){
+        // Dense cedar trunk with staggered evergreen canopy.
+        set(new THREE.Mesh(new THREE.CylinderGeometry(w*.85,w,5,8),bark),x,2.5,z);
+        for(let i=0;i<3;i++){
+          const foliage=new THREE.Mesh(new THREE.ConeGeometry(3.2-i*.42,4.4,8),[leafC,leafA,leafB][i]);
+          set(foliage,x,h*.52+i*1.35,z);
+        }
+      } else if(kind==="bush"){
+        for(const [ox,oz,scale] of [[0,0,1],[-.95,.28,.68],[.8,-.45,.62]]){
+          const shrub=new THREE.Mesh(new THREE.IcosahedronGeometry(1.55*scale,1),scale===1?leafA:leafB);
+          shrub.scale.y=.6; set(shrub,x+ox,.8*scale,z+oz);
+        }
+      } else if(kind==="rock"){
+        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),stone);
+        rock.scale.set(w*1.1,h*.9,d*1.1);
+        rock.rotation.y=(x+z)*.14;set(rock,x,h*.75,z);
+      } else {
+        const log=new THREE.Mesh(new THREE.CylinderGeometry(.87,.95,w*2,10),barkLight);
+        log.rotation.z=Math.PI/2;set(log,x,.9,z);
+        const stump=new THREE.Mesh(new THREE.CylinderGeometry(.89,.89,.1,10),bark);
+        stump.rotation.z=Math.PI/2;set(stump,x+w,.9,z);
+      }
+    }
+    // Matching ancient home trees, both with climbable wrap-around stair flights.
+    // Open wooden crown decks sit precisely over the authoritative platform boxes.
+    for (const [team,sign] of [["red",-1],["blue",1]] as const) {
+      const x=37*sign;
+      set(new THREE.Mesh(new THREE.CylinderGeometry(1.65,2.25,6.2,12),bark),x,3.1,0);
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(4.45,4.45,.42,24),barkLight);
+      set(deck,x,6.05,0);
+      for(let i=0;i<12;i++){
+        const theta=i*Math.PI/6;
+        const foliage=new THREE.Mesh(new THREE.IcosahedronGeometry(2.0,1),i%2?leafB:leafA);
+        set(foliage,x+Math.cos(theta)*4.6,7.5+Math.sin(i*4)*.65,Math.sin(theta)*4.6);
+      }
+      // Root arches and branches signal the climb.
+      for(const dir of [-1,1]){
+        const root=new THREE.Mesh(new THREE.CylinderGeometry(.5,.8,6.2,7),bark);
+        root.rotation.z=dir*.6;set(root,x+dir*2.2,1.0,1.6);
+      }
+      const base=ctfBase(team);
+      const mark=new THREE.Mesh(new THREE.RingGeometry(2.6,3.2,32),new THREE.MeshBasicMaterial({
+        color:team==="red"?0xff5959:0x55c8ff,side:THREE.DoubleSide,transparent:true,opacity:.75,depthTest:true
+      }));
+      mark.rotation.x=-Math.PI/2;mark.position.set(base[0],.06,base[2]);this.scene.add(mark);
+    }
+  }
+
+  private buildCtfFlagModels() {
+    const create=(color:number):THREE.Group=>{
+      const group=new THREE.Group();
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,2.3,8),
+        new THREE.MeshStandardMaterial({color:0xddddc7,metalness:.5,roughness:.4}));
+      pole.position.y=1.15;pole.castShadow=true;group.add(pole);
+      const cloth=new THREE.Mesh(new THREE.PlaneGeometry(1.35,.75),
+        new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.86,emissive:color,emissiveIntensity:.12}));
+      cloth.position.set(.65,1.85,0);cloth.castShadow=true;group.add(cloth);
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(.16,9,8),
+        new THREE.MeshStandardMaterial({color:0xf4e8b3}));
+      tip.position.y=2.33;group.add(tip);
+      this.scene.add(group);
+      return group;
+    };
+    this.ctfFlagMeshes={red:create(0xef4444),blue:create(0x22baf5)};
+  }
+
+  private updateCtfFlagsVisuals() {
+    if(!this.ctfFlagMeshes)return;
+    for(const team of ["red","blue"] as const){
+      const flag=this.ctfFlags[team],mesh=this.ctfFlagMeshes[team];
+      let pos:Vec3=flag.pos;
+      if(flag.carrierId){
+        if(flag.carrierId===this.selfId)pos=[this.pos.x,this.pos.y+1.25,this.pos.z];
+        else{
+          const carrier=this.combatants.get(flag.carrierId);
+          if(!carrier){mesh.visible=false;continue;}
+          pos=[carrier.pos[0],carrier.pos[1]+1.25,carrier.pos[2]];
+        }
+      }
+      mesh.visible=true;
+      mesh.position.set(pos[0],pos[1],pos[2]);
+    }
+  }
+
+  private tickOfflineCtf() {
+    if (this.opts.mode!=="ctf"||this.matchEnded)return;
+    const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
+    if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
+      actors.push({id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z],self:true});
+    for(const bot of this.combatants.values())
+      if(bot.alive&&(bot.team==="red"||bot.team==="blue"))
+        actors.push({id:bot.id,team:bot.team,pos:bot.pos,self:false,bot});
+    for(const actor of actors){
+      const event=ctfTouch(this.ctfFlags,actor);
+      if(!event)continue;
+      if(actor.self)this.ctfNotice={
+        label:event.kind==="capture"?"FLAG CAPTURED!":event.kind==="return"?"FLAG RETURNED":"ENEMY FLAG TAKEN!",
+        at:performance.now()
+      };
+      if(event.kind==="capture"){
+        this.teamScores[actor.team]++;
+        if(actor.self)this.ctfCaptures++;
+        else if(actor.bot)actor.bot.score++;
+        this.checkWin();
+        if(this.matchEnded)return;
+      }
+    }
+  }
+
   private buildMapProps() {
+    if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -3424,7 +3559,7 @@ export class FPSEngine {
     const botWeapons = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
     const isGungame = this.opts.mode === "gungame";
     for (let n = 0; n < this.opts.botCount; n++) {
-      const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
+      const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
       const id = "bot_" + n;
       const sp = this.pickSpawn(team);
       const wid = isGungame ? this.gungameWeapons[0] : botWeapons[i % botWeapons.length];
@@ -3440,7 +3575,7 @@ export class FPSEngine {
       this.addCombatantMesh(c);
       i++;
     }
-    if (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") {
+    if (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") {
       const redCount = [...this.combatants.values()].filter((c) => c.team === "red").length;
       const blueCount = [...this.combatants.values()].filter((c) => c.team === "blue").length;
       (this.opts as any).team = redCount <= blueCount ? "red" : "blue";
