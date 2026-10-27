@@ -688,5 +688,48 @@
     "series": "ctf_wins",
     "seriesTier": 2,
     "rewardTitle": "Banner Commander"
+  },
+  {
+    "id": "nexus_reaper_10",
+    "title": "Nexus Initiate",
+    "description": "Eliminate 10 enemies with the Nexus Reaper (blade or purple shockwave)",
+    "icon": "Swords",
+    "metric": "nexus_reaper_kills",
+    "goal": 10,
+    "tier": "bronze",
+    "rewardXp": 250,
+    "rewardCredits": 50,
+    "category": "pvp",
+    "series": "nexus_reaper_kills",
+    "seriesTier": 1
+  },
+  {
+    "id": "nexus_reaper_35",
+    "title": "Void Cleaver",
+    "description": "Eliminate 35 enemies with the Nexus Reaper",
+    "icon": "Swords",
+    "metric": "nexus_reaper_kills",
+    "goal": 35,
+    "tier": "silver",
+    "rewardXp": 600,
+    "rewardCredits": 120,
+    "category": "pvp",
+    "series": "nexus_reaper_kills",
+    "seriesTier": 2
+  },
+  {
+    "id": "nexus_reaper_100",
+    "title": "Nexus Reaper",
+    "description": "Eliminate 100 enemies with the Nexus Reaper",
+    "icon": "Swords",
+    "metric": "nexus_reaper_kills",
+    "goal": 100,
+    "tier": "gold",
+    "rewardXp": 1500,
+    "rewardCredits": 300,
+    "category": "pvp",
+    "series": "nexus_reaper_kills",
+    "seriesTier": 3,
+    "rewardTitle": "Nexus Reaper"
   }
 ]
