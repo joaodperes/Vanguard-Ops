@@ -9,7 +9,7 @@ describe("Afterlight roof safety and bot high-ground anchors",()=>{
     for(const p of props.filter(p=>p.kind==="building")){
       const boxes=cityBuildingBoxes(p);
       const roofY=(p.y??0)+(p.h??6.4)+.16;
-      const roof=boxes.filter(c=>c.kind==="platform"&&Math.abs(c.pos[1]-roofY)<.1);
+      const roof=boxes.filter(c=>(c.kind==="platform"||c.kind==="cover")&&Math.abs(c.pos[1]-roofY)<.1);
       expect(roof.length).toBeGreaterThan(0);
       if(p.shape!=="round"&&!cityHasUsableInteriorStairs(p)){
         sealed++;
