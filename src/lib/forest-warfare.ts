@@ -62,7 +62,7 @@ export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   const x=sign*CTF_TREE_X;
   const strips:[number,number,number][]=[
     [0,3,11.6],[-4.3,1.3,10.5],[4.3,1.3,10.5],
-    [-7.1,1.5,8.8],[7.1,1.5,8.8],[-9.8,1.2,5.7],[9.8,1.2,5.7],
+    [-7.1,1.5,8.8],[7.1,1.5,8.8],[-9.8,2.1,5.7],[9.8,2.1,5.7],
   ];
   return strips.map(([z,hz,hx])=>({
     pos:[x,CTF_TREE_TOP-.24,z] as Vec3,
