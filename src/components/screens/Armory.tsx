@@ -827,19 +827,18 @@ function CustomizeModal(props: CustomizeModalProps) {
   const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
   const {profile: account,playerKey,refreshProfile} = useGame();
-  const [charmBusy,setCharmBusy]=useState(false);
-  async function equipCharm(charmId:string){
-    if(!w||charmBusy)return;
-    setCharmBusy(true);
+  const [cosmeticBusy,setCosmeticBusy]=useState(false);
+  async function equipCosmetic(kind:"reticle"|"charm",cosmeticId:string){
+    if(!w||!slot||slot==="melee"||cosmeticBusy)return;
+    setCosmeticBusy(true);
     try{
-      const response=await fetch("/api/profile/cosmetics",{method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({playerKey,kind:"charm",cosmeticId:charmId,weaponId:w.id})});
-      if(!response.ok)throw new Error((await response.json().catch(()=>({}))).error??"Could not equip charm");
+      const r=await fetch("/api/profile/cosmetics",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,kind,cosmeticId,slot,weaponId:w.id})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Could not equip cosmetic");
       await refreshProfile();
-      toast.success("Weapon charm updated");
-    }catch(e){toast.error(e instanceof Error?e.message:"Could not equip charm");}
-    finally{setCharmBusy(false);}
+      toast.success(kind==="reticle"?"Loadout reticle updated":"Loadout charm updated");
+    }catch(e){toast.error(e instanceof Error?e.message:"Could not equip cosmetic");}
+    finally{setCosmeticBusy(false);}
   }
   const [previewAttachment, setPreviewAttachment] = useState<{ slot: AttachmentSlot; id: string | null } | null>(null);
   const [activeAttachmentSlot, setActiveAttachmentSlot] = useState<AttachmentSlot | null>(null);
@@ -926,7 +925,10 @@ function CustomizeModal(props: CustomizeModalProps) {
             <TabsTrigger value="challenges" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Target className="w-3.5 h-3.5 mr-1.5" /> Challenges
             </TabsTrigger>
-            {w.category!=="melee" && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+            {w.category!=="melee" && <TabsTrigger value="reticles" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+              <Crosshair className="w-3.5 h-3.5 mr-1.5" /> Reticles
+            </TabsTrigger>}
+            {w.category!=="melee" && !w.wonder && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Charms
             </TabsTrigger>}
           </TabsList>
@@ -1133,19 +1135,38 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
           </TabsContent>
 
+          {/* RETICLES TAB — chosen independently per equipped loadout slot. */}
+          <TabsContent value="reticles" className="mt-4">
+            <p className="text-xs text-white/50 mb-3">Pick the hipfire reticle for this loadout slot. Optic/ADS reticles remain unchanged. Color and size are adjusted in Settings.</p>
+            {!canEditAttachments && <p className="text-sm text-amber-300 mb-3">Equip {w.name} in the {slot} slot before customizing it.</p>}
+            <div className="grid sm:grid-cols-2 gap-2">
+              {COSMETICS.filter(c=>c.kind==="reticle").map(c=>{
+                const owned=account?.ownedCosmetics.includes(c.id)??["classic","dot"].includes(c.id);
+                const selected=canEditAttachments&&(slot==="primary"?profile.primaryReticle:profile.secondaryReticle)===c.id;
+                return <div key={c.id} className={`p-3 rounded-lg border ${selected?"border-amber-400/60 bg-amber-500/10":"border-white/10 bg-black/30"}`}>
+                  <div className="flex gap-2 items-center"><span className="text-2xl w-9 text-center" style={{color:c.color}}>{c.symbol}</span>
+                    <div className="flex-1 min-w-0"><div className="text-sm text-white font-semibold">{c.name}</div><p className="text-xs text-white/45">{c.description}</p></div></div>
+                  <Button size="sm" className="mt-2 w-full" disabled={!canEditAttachments||!owned||selected||cosmeticBusy} onClick={()=>void equipCosmetic("reticle",c.id)}>
+                    {selected?"Equipped":owned?"Equip":"Locked · Shop"}
+                  </Button>
+                </div>;
+              })}
+            </div>
+          </TabsContent>
           {/* CHARMS TAB — permanent account cosmetics, selected per weapon. */}
           <TabsContent value="charms" className="mt-4">
-            <p className="text-xs text-white/50 mb-3">Charms are cosmetic pendants mounted to the weapon model and visible in first person and to other players. Buy designs once in the Shop, then equip them independently for each weapon.</p>
+            {!canEditAttachments && <p className="text-sm text-amber-300 mb-3">Equip {w.name} in the {slot} slot before customizing it.</p>}
+            <p className="text-xs text-white/50 mb-3">Charms are cosmetic pendants mounted to the weapon model and visible in first person and to other players. Buy designs once in the Shop, then equip them independently in each saved loadout slot.</p>
             <div className="grid sm:grid-cols-2 gap-2">
               {COSMETICS.filter(c=>c.kind==="charm").map(c=>{
                 const owned=account?.ownedCosmetics.includes(c.id)??c.id==="none";
-                const selected=(account?.equippedCharms[w.id]??"none")===c.id;
+                const selected=canEditAttachments&&(slot==="primary"?profile.primaryCharm:profile.secondaryCharm)===c.id;
                 return <div key={c.id} className={`p-3 rounded-lg border ${selected?"border-amber-400/60 bg-amber-500/10":"border-white/10 bg-black/30"}`}>
                   <div className="flex gap-2 items-center"><span className="text-2xl w-9 text-center" style={{color:c.color}}>{c.symbol}</span>
                     <div className="flex-1 min-w-0"><div className="text-sm text-white font-semibold">{c.name}</div>
                       <p className="text-xs text-white/45">{c.description}</p></div></div>
-                  <Button size="sm" className="mt-2 w-full" disabled={!owned||selected||charmBusy}
-                    onClick={()=>void equipCharm(c.id)}>
+                  <Button size="sm" className="mt-2 w-full" disabled={!canEditAttachments||!owned||selected||cosmeticBusy}
+                    onClick={()=>void equipCosmetic("charm",c.id)}>
                     {selected?"Equipped":owned?"Equip":"Locked · Shop"}
                   </Button>
                 </div>;
