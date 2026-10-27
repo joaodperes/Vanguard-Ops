@@ -116,7 +116,7 @@ Append to `weapon-skins.json`:
 }
 ```
 
-`rarity` is `common` / `rare` / `epic` / `legendary`; `tier` is `standard` / `rare` / `legendary`; colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Existing prestige-only skins use special `prestige` values (`cosmic` or `toxic`) with coded rendering rules; **do not assign novel prestige values without implementing them**.
+`rarity` is `common` / `rare` / `epic` / `legendary` / `prestige` (the last is reserved for Prestige-only finishes); `tier` remains `standard` / `rare` / `legendary` and controls unlock classification independently. The required `artBrief` is a concise, player-facing description shown in the Armory. Colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Prestige finishes use coded `prestige` variants (`cosmic` or `toxic`); **do not assign novel prestige values without implementing them**. See [Weapon skin art briefs](weapon-skin-art-briefs.md) for current finishes and the Gold plating contract.
 
 A cosmetic entry does not automatically create an authored unlock challenge: existing skin IDs have explicit/fallback support in `src/lib/armory-challenges.ts`, and new skin IDs require corresponding eligibility logic **for every weapon intended to use them**. An authored challenge for one gun does not establish an unlock path for all other guns. Edit that logic and add appropriate tests before publishing a new paid skin. Verify appearance in the weapon viewmodel/world model, in loadouts and under purchased ownership checks.
 

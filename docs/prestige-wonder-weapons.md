@@ -13,10 +13,11 @@ Run the safe schema update **before starting the new app/server build**.
 - The award automatically makes **Eventide** (scrolling starfield) and
   **Viridian Blight** (animated fluorescent sludge) equipable on that weapon,
   with no credit price.
-- Each weapon Prestige contributes one token. Token balance is **unique weapon
-  Prestige awards minus unique Wonder Weapon purchases**, not a separately
-  incremented balance. Thus reloading a profile, completing a challenge again,
-  or re-importing a backup never generates repeat tokens.
+- Each weapon Prestige grants the two cosmetics immediately. A **Wonder token**
+  becomes spendable only when that same weapon also reaches **Weapon Mastery 5/5**.
+  Token balance is the number of uniquely Prestiged-and-mastered weapons minus
+  unique Wonder purchases, not a separately incremented balance. Repeated
+  completions, reloads or imports do not mint tokens.
 - Weapon Prestige does not reset rank, kills, or attachments.
 
 ## Wonder Weapons
