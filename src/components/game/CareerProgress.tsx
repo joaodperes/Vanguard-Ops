@@ -30,7 +30,7 @@ export function CareerProgress() {
         <h2 className="text-white font-bold flex items-center gap-2"><Award className="w-5 h-5 text-amber-400" />Career Rank {career.rank}</h2>
         <span className="text-xs text-amber-300">{career.unlocked ? `Next: Rank ${career.rank + 1}` : `Opens at level ${career.unlockLevel}`}</span>
       </div>
-      <p className="text-sm text-white/65 mt-2">Continue your service with fresh XP and credit-funded promotions. Keep your equipment, mastery and level. Earn exclusive nameplate titles as you advance.</p>
+      <p className="text-sm text-white/65 mt-2">Optional post-level-36 progression: earn fresh match XP and spend credits for repeatable promotions and exclusive nameplate titles. Career does not reset weapons, mastery or level, and grants no combat advantage.</p>
       {career.unlocked ? <>
         <div className="flex justify-between text-xs text-white/70 mt-4 mb-1"><span>Fresh Career XP</span><span>{career.currentXp.toLocaleString()} / {career.requiredXp.toLocaleString()}</span></div>
         <div role="progressbar" aria-label="Fresh Career XP" aria-valuenow={career.currentXp} aria-valuemin={0} aria-valuemax={career.requiredXp} className="h-2 rounded-full bg-white/10 overflow-hidden">
