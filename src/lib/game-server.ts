@@ -978,7 +978,7 @@ function destroyTurretsHitByMelee(room: Room, player: PlayerNet, range: number) 
  * Reach and facing are server-owned. Batons interrupt ongoing reload actions.
  */
 function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:number){
-  const weapon=weaponById(weaponId),attack=quickMeleeProfile(weapon.stats);
+  const weapon=weaponById(weaponId),attack=quickMeleeProfile(weapon.stats,weaponId);
   destroyTurretsHitByMelee(room,attacker,attack.reach);
   const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,
     allCombatants(room).filter(c=>c.id!==attacker.id).map(c=>({
@@ -990,7 +990,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
       const dir:Vec3=[(c.pos[0]-attacker.pos[0])/dist,0,(c.pos[2]-attacker.pos[2])/dist];
       return !losBlocked(room,eye,dir,Math.max(.01,dist-.15));
-    },attack.reach);
+    },attack.reach,attack.halfArcDegrees);
   const victim=target?(room.players.get(target.id)??room.bots.get(target.id)):null;
   if(!victim)return;
   const beingReloaded=(room.reloadingPlayers.get(victim.id)??0)>now ||
@@ -2455,7 +2455,7 @@ async function handle(socket: any, msg: C2S) {
       const meleeId=room.loadouts.get(socket.id)?.meleeWeaponId ?? "knife_tactical";
       const weapon=weaponById(meleeId);
       if(weapon.category!=="melee")return;
-      const attack=quickMeleeProfile(weapon.stats);
+      const attack=quickMeleeProfile(weapon.stats,meleeId);
       const now = Date.now();
       if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs ||
           (p.weaponId===meleeId && now - p.lastShotAt < attack.cooldownMs)) return;
