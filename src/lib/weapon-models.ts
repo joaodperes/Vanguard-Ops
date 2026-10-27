@@ -118,6 +118,7 @@ export function buildFirstPersonWeapon(
   darkMat: THREE.Material,
   add: WeaponPartAdder,
   fullSkinMaterial?: THREE.Material,
+  signatureMaterial?: THREE.Material,
 ): number {
   // Bullet Spitter is a deployable tool rather than a conventional LMG.
   // Show a compact placement controller in both first-person and world models;
@@ -139,7 +140,9 @@ export function buildFirstPersonWeapon(
   const c = -0.12;
   // Full-coating finishes may cover furniture; plated finishes like Gold retain
   // colored signature inserts, dark rails, magazine trim and energy details.
-  const sig = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
+  // Non-default skins recolor every signature insert (stock butt, magazine foot
+  // and rail badges), avoiding the original weapon's gold/yellow accent bleeding through.
+  const sig = fullSkinMaterial ?? signatureMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
   const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
   const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
   const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {

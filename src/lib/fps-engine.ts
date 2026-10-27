@@ -2510,6 +2510,28 @@ export class FPSEngine {
     return tex;
   }
 
+  /** Contrasting procedural twill across the complete carbon-fiber finish. */
+  private createCarbonTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256; canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#111820"; ctx.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 16) for (let x = 0; x < 256; x += 16) {
+      const alt = ((x + y) / 16) % 2 === 0;
+      ctx.fillStyle = alt ? "#647788" : "#344554";
+      ctx.fillRect(x + 1, y + 1, 13, 13);
+      ctx.strokeStyle = alt ? "#8995a3" : "#495968";
+      ctx.lineWidth = 2;
+      for (let i = 2; i <= 11; i += 4) {
+        ctx.beginPath(); ctx.moveTo(x + i, y + 1); ctx.lineTo(x + i + 5, y + 14); ctx.stroke();
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2); tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   private buildViewmodel() {
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
@@ -2553,7 +2575,7 @@ export class FPSEngine {
     // clearly visible. Default skins use the weapon's signature tint; unlocked
     // skins override this with the skin's color.
     const isDefaultSkin = skin.id === "default";
-    const fullLegendaryFinish = coatsAllWeaponParts(skin);
+    const fullLegendaryFinish = coatsAllWeaponParts(skin) || skin.id === "carbon";
     if (isDefaultSkin) {
       const weaponTints: Record<string, number> = {
         rifle_electron: 0x097b99, // exposed cyan reactor
@@ -2600,6 +2622,13 @@ export class FPSEngine {
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
+    if (skin.id === "carbon") {
+      this.prestigeTexture = this.createCarbonTexture();
+      const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
+      material.map = this.prestigeTexture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    }
     if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
       // Only explicitly selected Prestige skins override an existing cosmetic.
       // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
@@ -2664,7 +2693,8 @@ export class FPSEngine {
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
       muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart,
-        fullLegendaryFinish ? this.weaponMat : undefined);
+        fullLegendaryFinish ? this.weaponMat : undefined,
+        !isDefaultSkin ? (skin.id === "gold" ? accentMat : this.weaponMat) : undefined);
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -4237,7 +4267,7 @@ export class FPSEngine {
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
-    const fullWorldLegendary = coatsAllWeaponParts(weaponFinish);
+    const fullWorldLegendary = coatsAllWeaponParts(weaponFinish) || weaponFinish.id === "carbon";
     const worldDefaultTint = weaponFinish.id === "default"
       ? c.weaponId === "wonder_hellfire" ? "#db3a14"
         : c.weaponId === "wonder_deadlock" ? "#51246e"
@@ -4249,6 +4279,10 @@ export class FPSEngine {
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
     });
+    if (weaponFinish.id === "carbon") {
+      weaponMat.map = this.createCarbonTexture();
+      weaponMat.color.set(0xffffff);
+    }
     if (weaponFinish.prestige || (["wonder_singularity","wonder_stormweaver"].includes(c.weaponId) && weaponFinish.id==="default")) {
       weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ?? "cosmic");
       weaponMat.color.set(0xffffff);
@@ -4374,7 +4408,8 @@ export class FPSEngine {
       buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
         mesh.position.set(x, y, z);
         visual.add(mesh);
-      }, fullWorldLegendary ? weaponMat : undefined);
+      }, fullWorldLegendary ? weaponMat : undefined,
+        weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
       weaponStub.add(visual);
     }
     // Place the gun ahead of the chest rather than through it. The right-hand
