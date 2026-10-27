@@ -516,7 +516,7 @@ function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: Loa
 
 // Build the player list (humans + bots) as SnapshotPlayer[] for a lobby snapshot.
 function lobbyPlayers(room: Room): SnapshotPlayer[] {
-  return [...room.players.values(), ...room.bots.values()].map(toSnap);
+  return [...room.players.values(), ...room.bots.values()].map(p => toSnap(p));
 }
 
 // Broadcast a lobby snapshot to every socket in the room. Sent whenever the
@@ -2585,7 +2585,7 @@ async function handle(socket: any, msg: C2S) {
       spawnBots(room);
       const joined: S2C = {
         t: "joined", matchId: room.id, selfId: socket.id, mode: room.mode, team,
-        config: room.config, mapId: room.map.id, players: [...room.players.values(), ...room.bots.values()].map(toSnap),
+        config: room.config, mapId: room.map.id, players: [...room.players.values(), ...room.bots.values()].map(p => toSnap(p)),
       };
       socket.emit("message", joined);
       socket.emit("message", snapshot(room));
