@@ -47,7 +47,7 @@ import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accur
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -7534,12 +7534,7 @@ export class FPSEngine {
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
       const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && threatDistance > 12
-        ? (() => {
-            const own = c.team as FlagTeam, enemyFlag = this.ctfFlags[otherFlag(own)];
-            if (enemyFlag.carrierId === c.id) return ctfBase(own);
-            if (this.ctfFlags[own].dropped) return this.ctfFlags[own].pos;
-            return enemyFlag.carrierId ? ctfBase(otherFlag(own)) : enemyFlag.pos;
-          })()
+        ? ctfBotGoal(this.ctfFlags, c.team, c.id, c.pos)
         : null;
       const prevTarget = ai.targetId;
       ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
