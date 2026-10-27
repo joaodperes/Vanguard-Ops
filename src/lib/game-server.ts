@@ -1,5 +1,5 @@
 import { resolveMatchLoadout } from "./match-loadout";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -1341,7 +1341,11 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     victim.alive = false;
     victim.deaths += 1;
     if(room.orbitalHolders.delete(victim.id)){
-      if(victim.weaponId===ORBITAL_REAPER_ID)victim.weaponId=room.loadouts.get(victim.id)?.meleeWeaponId??"knife_tactical";
+      if(victim.weaponId===ORBITAL_REAPER_ID){
+        const deadBot=room.bots.get(victim.id);
+        victim.weaponId=deadBot?.loadout.weaponId??room.loadouts.get(victim.id)?.meleeWeaponId??"knife_tactical";
+        if(deadBot)deadBot.ai.ammoInMag=weaponById(victim.weaponId).stats.magSize;
+      }
       io.to(room.id).emit("message",{t:"orbitalReward",playerId:victim.id,active:false} as S2C);
     }
     if(attacker && attacker.id!==victim.id && attacker.team!==victim.team && room.map.id==="orbital_nexus"){
@@ -1716,13 +1720,27 @@ function tickRoom(room: Room) {
   }
   if (room.preMatchCountdown <= 0) {
     if(room.map.id==="orbital_nexus"&&room.orbitalCharge>=ORBITAL_KILLS_REQUIRED){
-      for(const p of room.players.values()){
-        if(room.orbitalHolders.has(p.id)||!orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))continue;
-        room.orbitalHolders.add(p.id);
+      // Authoritative single pickup: first eligible combatant occupying the
+      // deck wins. Equal-tick ties are resolved by proximity, not player type.
+      const contenders=allCombatants(room).filter(p=>
+        !room.orbitalHolders.has(p.id)&&
+        orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))
+        .sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+          a.id.localeCompare(b.id));
+      const winner=contenders[0];
+      if(winner){
+        room.orbitalHolders.add(winner.id);
         room.orbitalCharge=0;
+        const bot=room.bots.get(winner.id);
+        if(bot){
+          bot.weaponId=ORBITAL_REAPER_ID;
+          bot.ai.ammoInMag=1;
+          bot.ai.reloadingUntil=0;
+          bot.ai.burstShotsLeft=0;
+          bot.ai.nextDecisionAt=0;
+        }
         io.to(room.id).emit("message",{t:"orbitalReactor",charge:0} as S2C);
-        io.to(room.id).emit("message",{t:"orbitalReward",playerId:p.id,active:true} as S2C);
-        break;
+        io.to(room.id).emit("message",{t:"orbitalReward",playerId:winner.id,active:true} as S2C);
       }
     }
     tickEnvironment(room, 1 / 20);
@@ -1947,23 +1965,32 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const threatDistance = enemy
       ? Math.hypot(enemy.pos[0] - bot.pos[0], enemy.pos[2] - bot.pos[2]) : Infinity;
     const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
-    const ctfObjective = room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
+    const roster=[...room.bots.values()].map(b=>({
+      id:b.id,team:b.team,pos:b.pos,alive:b.alive,
+      carryingFlag:room.flags.red.carrierId===b.id||room.flags.blue.carrierId===b.id,
+      hasReward:room.orbitalHolders.has(b.id),
+    }));
+    const orbitalObjective=orbitalBotShouldContest(room.map.id,room.orbitalCharge,
+      roster.find(c=>c.id===bot.id)!,roster,threatDistance)
+      ?orbitalBotDeckGoal(bot.pos,bot.team):null;
+    const ctfObjective = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
       ? ctfStairWaypoint(ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
           [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
           Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map.id).goal,bot.pos,room.map.id)
       : null;
     const prevTarget = ai.targetId;
-    ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
+    ai.targetId = pursueTag || orbitalObjective || ctfObjective ? null : (enemy ? enemy.id : null);
     if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
     if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
+    if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
     // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
     if(!ai.targetId){
-      if(ctfObjective||nearestTag){
+      if(orbitalObjective||ctfObjective||nearestTag){
         ai.highGroundPatrol=null;
-        ai.wanderTarget=[...(ctfObjective??nearestTag!.pos)] as Vec3;
+        ai.wanderTarget=[...(orbitalObjective??ctfObjective??nearestTag!.pos)] as Vec3;
       }else{
         if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
           bot.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
@@ -2031,8 +2058,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     ai.aiming=stance.aiming;
     const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
     const ideal = stance.idealDistance;
+    const chaseThreshold=weapon.id===ORBITAL_REAPER_ID?1.45:ideal+3;
     let mvx = 0, mvz = 0;
-    if (dist > ideal + 3) {
+    if (dist > chaseThreshold) {
       mvx = Math.sin(bot.yaw) * moveSpeed / 20;
       mvz = Math.cos(bot.yaw) * moveSpeed / 20;
     } else if (dist < ideal - 3) {
@@ -2045,7 +2073,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
     // Bunker centre is a maze of tall blocks. Navigate toward a clear A*
     // waypoint when the direct chase lane is obstructed; keep weapon aim on target.
-    if ((dist > ideal + 3 || Math.abs(target.pos[1] - bot.pos[1]) > 1.3) &&
+    if ((dist > chaseThreshold || Math.abs(target.pos[1] - bot.pos[1]) > 1.3) &&
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
       botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]))) {
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
@@ -2119,14 +2147,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
 
     // shooting
-    if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
+    if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=1.9)) {
       const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
       let didHit = false;
-      for (let i = 0; i < pellets; i++) {
+      if(weapon.id===ORBITAL_REAPER_ID){
+        // True frontal, line-of-sight melee strike; never a 120-damage bullet.
+        applyMeleeStrike(room,bot,ORBITAL_REAPER_ID,now);
+        didHit=true;
+      }else for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
         const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range, eff.falloffEndMultiplier);
         if (hit) {
