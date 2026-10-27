@@ -6,6 +6,7 @@ import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
+import { collectorProgress } from "./collector";
 import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
@@ -201,6 +202,35 @@ async function grantExistingMasteryTitles(playerId:string):Promise<boolean> {
   return granted;
 }
 
+/** Server-awarded collection milestones stay correct after Shop / Armory purchases.
+ * Unique achievement rows guard against duplicate awards on concurrent refreshes. */
+async function grantCollectorAchievements(playerId:string):Promise<void> {
+  const p=await db.player.findUniqueOrThrow({where:{id:playerId},include:{
+    weaponUnlocks:true,attachmentUnlocks:true,skinUnlocks:true,
+    playerSkinUnlocks:true,achievements:true,
+  }});
+  const attachments:Record<string,string[]>={},skins:Record<string,string[]>={};
+  for(const row of p.attachmentUnlocks)(attachments[row.weaponId]??=[]).push(row.attachmentId);
+  for(const row of p.skinUnlocks)(skins[row.weaponId]??=[]).push(row.skinId);
+  const score=collectorProgress({
+    level:levelForXp(p.xp),
+    unlockedWeapons:p.weaponUnlocks.map(row=>row.weaponId),
+    ownedAttachments:attachments,ownedWeaponSkins:skins,
+    ownedOperators:["default",p.selectedSkin,...p.playerSkinUnlocks.map(row=>row.skinId)],
+  });
+  const earned=new Set(p.achievements.map(x=>x.achievementId));
+  for(const ach of ACHIEVEMENTS.filter(a=>a.metric==="collection_percent"&&a.goal<=score.percent&&!earned.has(a.id))){
+    try{
+      await db.$transaction(async tx=>{
+        await tx.playerAchievement.create({data:{playerId,achievementId:ach.id}});
+        await tx.player.update({where:{id:playerId},data:{
+          xp:{increment:ach.rewardXp},credits:{increment:ach.rewardCredits},
+        }});
+      });
+    }catch(e){if((e as {code?:string})?.code!=="P2002")throw e;}
+  }
+}
+
 export interface PlayerProfileView {
   playerKey: string;
   name: string;
@@ -250,6 +280,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const player = granted ? await getOrCreatePlayer(playerKey) : initial;
   if (!player) return null;
   await grantWeaponPrestiges(player.id);
+  await grantCollectorAchievements(player.id);
   const [prestigeRows, wonderRows] = await Promise.all([
     db.weaponPrestige.findMany({ where: { playerId: player.id } }),
     db.wonderUnlock.findMany({ where: { playerId: player.id } }),
@@ -262,12 +293,10 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     // upsert prevents those fresh-player requests racing to create the kit.
     await db.loadout.upsert({ where: { playerId: player.id }, create: { playerId: player.id }, update: {} });
   }
-  const fresh = player.loadout
-    ? player
-    : await db.player.findUnique({
+  const fresh = await db.player.findUnique({
         where: { playerKey },
         include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true,
- playerSkinUnlocks: true, loadout: true, achievements: true },
+          playerSkinUnlocks: true, loadout: true, achievements: true },
       });
   const p = fresh!;
   const level = levelForXp(p.xp);
@@ -1201,6 +1230,7 @@ export async function getEliteQuestsView(playerKey: string): Promise<EliteQuestV
 export async function getAchievementsView(playerKey: string): Promise<AchievementView[]> {
   const player = await getOrCreatePlayer(playerKey);
   await grantExistingMasteryTitles(player.id);
+  await grantCollectorAchievements(player.id);
   const earned = await db.playerAchievement.findMany({ where: { playerId: player.id } });
   const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
   const combatModes=["ffa","tdm","gungame","killconfirmed","ctf"];
@@ -1217,8 +1247,18 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
   const masteryStats=masteryAchievementStats(weaponRows
     .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const survivalProgress = await getSurvivalProgressById(player.id);
+  const acquiredAttachments:Record<string,string[]>={};
+  const acquiredSkins:Record<string,string[]>={};
+  for(const row of player.attachmentUnlocks)(acquiredAttachments[row.weaponId]??=[]).push(row.attachmentId);
+  for(const row of player.skinUnlocks)(acquiredSkins[row.weaponId]??=[]).push(row.skinId);
+  const collection=collectorProgress({
+    level:levelForXp(player.xp),unlockedWeapons:player.weaponUnlocks.map(w=>w.weaponId),
+    ownedAttachments:acquiredAttachments,ownedWeaponSkins:acquiredSkins,
+    ownedOperators:["default",player.selectedSkin,...player.playerSkinUnlocks.map(s=>s.skinId)],
+  });
   const statFor = (metric: string): number => {
     switch (metric) {
+      case "collection_percent": return collection.percent;
       case "kills": return combatAgg._sum.kills ?? 0;
       case "headshots": return combatAgg._sum.headshots ?? 0;
       case "wins": return combatWins;

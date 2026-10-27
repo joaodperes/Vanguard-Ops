@@ -5,6 +5,7 @@ import { useGame } from "@/lib/game-store";
 import { achievementTitle } from "@/lib/achievement-titles";
 import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
+import { collectorProgress } from "@/lib/collector";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -60,9 +61,15 @@ export function Profile() {
   const lvl = profile.level;
   const rank = rankForLevel(lvl);
   const next = nextRank(lvl);
-  const totalWeapons = WEAPONS.length;
-  const totalWSkins = WEAPON_SKINS.length * WEAPONS.length;
-  const totalPSkins = PLAYER_SKINS.length;
+  const collector=collectorProgress({
+    level:lvl,unlockedWeapons:profile.unlocks.weapons,
+    ownedAttachments:profile.unlocks.attachmentsByWeapon,
+    ownedWeaponSkins:profile.unlocks.skinsByWeapon,
+    ownedOperators:profile.unlocks.playerSkins,
+  });
+  const totalWeapons=collector.weapons.total;
+  const totalWSkins=collector.weaponSkins.total;
+  const totalPSkins=collector.operatorSkins.total;
   // Attachments unlock PER-WEAPON (AttachmentUnlock is keyed by playerId+weaponId+attachmentId).
   // So the meaningful totals count (weapon, attachment) PAIRS, not distinct attachment types.
   //   - totalAttachmentPairs: every valid (weapon, attachment) combo across all weapons
@@ -90,15 +97,16 @@ export function Profile() {
   for (const w of WEAPONS) {
     ownedAttachmentPairs += (attachmentsByWeapon[w.id]?.length ?? 0);
   }
-  const ownedW = WEAPONS.filter(w => ownsWeapon(w, lvl, profile.unlocks.weapons)).length;
-  const ownedA = ownedAttachmentPairs;
+  const ownedW = collector.weapons.owned;
+  const ownedA = collector.attachments.owned;
+  totalAttachmentPairs = collector.attachments.total;
   const skinPairs = WEAPONS.flatMap(w => WEAPON_SKINS.map(s => ({
     id: `${w.id}:${s.id}`, name: s.name, sub: w.name,
     owned: ownsWeaponSkin(w.id, s.id, lvl, profile.unlocks.weapons, profile.unlocks.skinsByWeapon ?? {}, WEAPONS),
     color: RARITY_COLORS[s.rarity],
   })));
-  const ownedWS = skinPairs.filter(pair => pair.owned).length;
-  const ownedPS = PLAYER_SKINS.filter(s => ownsOperativeSkin(s, lvl, profile.unlocks.playerSkins)).length;
+  const ownedWS = collector.weaponSkins.owned;
+  const ownedPS = collector.operatorSkins.owned;
   const earnedAchievements = achievements.filter((a) => a.earned).length;
   const totalAchievements = achievements.length || 1;
   const xpPct = Math.min(100, profile.xpProgress.needed ? (profile.xpProgress.current / profile.xpProgress.needed) * 100 : 100);
@@ -217,7 +225,8 @@ export function Profile() {
 
             {/* collection summary */}
             <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-5 mt-5">
-              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress</h3>
+              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress · {collector.percent}%</h3>
+              <p className="text-xs text-white/50 mb-3">Collector milestones at 10%, 25%, 50%, 75% and 100%. Wonder weapons and Career Token-exclusive cosmetics are excluded.</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <Progress label="Weapons" value={ownedW} total={totalWeapons} color="from-rose-500 to-amber-500" />
                 <Progress label="Owned Attachments" value={ownedA} total={totalAttachmentPairs} color="from-amber-500 to-yellow-500" sub="Owned per-weapon" />
