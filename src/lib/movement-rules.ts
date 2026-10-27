@@ -61,13 +61,14 @@ export function responsiveHorizontalVelocity(
 /** Preserve incoming travel direction and reward running takeoffs. Stationary
  * jumps receive no impulse; reversing before takeoff does not grant a boost. */
 export function runJumpTakeoffVelocity(
-  vx:number,vz:number,desiredX:number,desiredZ:number,sprinting:boolean,
+  vx:number,vz:number,desiredX:number,desiredZ:number,sprinting:boolean,boostMultiplier=1,
 ): [number,number] {
   const speed=Math.hypot(vx,vz),desiredSpeed=Math.hypot(desiredX,desiredZ);
   if(speed<MOVEMENT.walk*.38||desiredSpeed<.01) return [vx,vz];
   const alignment=(vx*desiredX+vz*desiredZ)/(speed*desiredSpeed);
   if(alignment<.45) return [vx,vz];
   const boost=(sprinting?MOVEMENT.sprintJumpBoost:MOVEMENT.runJumpBoost)
-    * Math.min(1,speed/(MOVEMENT.walk*(sprinting?MOVEMENT.sprintMultiplier:1)));
+    * Math.min(1,speed/(MOVEMENT.walk*(sprinting?MOVEMENT.sprintMultiplier:1)))
+    * Math.max(0,Math.min(2,boostMultiplier));
   return [vx+desiredX/desiredSpeed*boost,vz+desiredZ/desiredSpeed*boost];
 }
