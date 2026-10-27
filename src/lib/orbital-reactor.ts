@@ -3,6 +3,8 @@ import type {Vec3} from "./game-protocol";
 import type {WeaponDef} from "./game-data";
 export const ORBITAL_REAPER_ID="orbital_reaper";
 export const ORBITAL_KILLS_REQUIRED=5;
+/** Flat X/Z radius around the central reactor; flag bases remain outside it. */
+export const ORBITAL_CHARGE_RADIUS=55;
 export const ORBITAL_PICKUP_RADIUS=3.5;
 export const ORBITAL_PLATFORM_Y=3.2;
 export const ORBITAL_REAPER:WeaponDef={
@@ -11,13 +13,14 @@ export const ORBITAL_REAPER:WeaponDef={
   stats:{damage:120,fireRate:1.55,magSize:1,reloadTime:0,spread:0,adsSpread:0,
     recoil:0,range:1.9,adsTime:.15,moveSpeed:1.02,auto:false,headshotMult:1},
 };
-/** Every legitimate elimination anywhere on Orbital Nexus charges the core.
- * The elevated center platform restricts CLAIMING only, never CHARGING.
- * Multiplayer callers verify an enemy kill; invalid/decontextualized positions
- * must not grant energy.
+/** The defeated combatant must DIE within the central charge radius.
+ * The killer's position is deliberately irrelevant (ranged kills count).
+ * Height does not restrict charging: ground and raised walkway deaths count.
+ * Multiplayer/offline callers separately validate an actual enemy elimination.
  */
 export function orbitalRecordKill(charge:number,pos:readonly number[],mapId:string):number {
-  return mapId==="orbital_nexus"&&pos.length===3&&pos.every(Number.isFinite)
+  return mapId==="orbital_nexus"&&pos.length===3&&pos.every(Number.isFinite)&&
+    Math.hypot(pos[0],pos[2])<=ORBITAL_CHARGE_RADIUS
     ?Math.min(ORBITAL_KILLS_REQUIRED,charge+1):charge;
 }
 export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolean):boolean {
