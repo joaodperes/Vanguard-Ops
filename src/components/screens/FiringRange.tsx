@@ -1,3 +1,4 @@
+import { titledDisplayName } from "@/lib/achievement-titles";
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -148,7 +149,7 @@ function RangeSession({ profile, requestedId, onExit }: {
         botCount={0}
         botDifficulty="easy"
         online={false}
-        playerName={profile.name}
+        playerName={titledDisplayName(profile.name,profile.selectedTitle)}
         playerKey={profile.playerKey}
         scoreLimit={0}
         timeLimitMin={0}
