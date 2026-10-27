@@ -9,7 +9,11 @@ export interface HudFlag { carrierId: string | null; dropped: boolean }
 /** Competition ranking by kills: players with equal kills share their rank. */
 export function killRank(rows: readonly HudRankRow[], selfKills: number): { rank: number; players: number } {
   const kills = rows.find(row => row.isSelf)?.kills ?? selfKills;
-  return { rank: 1 + rows.filter(row => row.kills > kills).length, players: Math.max(1, rows.length) };
+  // Snapshot delivery can briefly omit the viewer; include that player in
+  // the count so the rank can never display an impossible #2/1.
+  const containsSelf = rows.some(row => row.isSelf);
+  return { rank: 1 + rows.filter(row => row.kills > kills).length,
+    players: Math.max(1, rows.length + (containsSelf ? 0 : 1)) };
 }
 
 /** Blue players see blue as their team; red players see red as theirs. */
