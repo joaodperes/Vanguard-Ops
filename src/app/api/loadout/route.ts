@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
-  const selectedPerk = perkId ? perkById(perkId) : perkById(DEFAULT_PERK_ID);
+  const selectedPerk = perkById(perkId ?? player.loadout?.perkId ?? DEFAULT_PERK_ID);
   if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > player.level)) {
     return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
   }
@@ -257,6 +257,7 @@ export async function POST(req: NextRequest) {
       primaryWeapon: primaryWeapon ?? "rifle_ar",
       secondaryWeapon: secondaryWeapon ?? "pistol_side",
       meleeWeapon: meleeWeapon ?? "knife_tactical",
+      perkId: selectedPerk.id,
       weaponSkin: sanitizedWeaponSkin ?? "default",
       secondaryWeaponSkin: sanitizedSecondarySkin ?? "default",
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
@@ -271,6 +272,7 @@ export async function POST(req: NextRequest) {
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
+      ...(perkId !== undefined ? { perkId: selectedPerk.id } : {}),
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),
