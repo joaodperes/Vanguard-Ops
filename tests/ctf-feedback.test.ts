@@ -4,7 +4,7 @@ import { ctfFeedback } from "../src/lib/ctf-feedback";
 describe("CTF event announcements", () => {
   test("a delivered flag is never described as lost", () => {
     expect(ctfFeedback("capture", "blue", "me", "me", "red")).toEqual({
-      label: "FLAG DELIVERED! +75 XP / +30 CR", sound: "flag_scored",
+      label: "FLAG DELIVERED!", sound: "flag_scored",
     });
     expect(ctfFeedback("drop", "blue", "me", "me", "red")).toEqual({
       label: "FLAG LOST!", sound: "flag_lost",
