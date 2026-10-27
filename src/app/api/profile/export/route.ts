@@ -35,6 +35,9 @@ export async function GET(req: NextRequest) {
       weaponProgress: true,
       weaponPrestiges: true,
       wonderUnlocks: true,
+      careerContracts: true,
+      careerRewards: true,
+      careerShopPurchases: true,
     },
   });
 
@@ -51,6 +54,7 @@ export async function GET(req: NextRequest) {
       level: levelForXp(player.xp),
       careerRank: player.careerRank,
       careerXp: player.careerXp,
+      careerTokensSpent: player.careerTokensSpent,
       selectedTitle: player.selectedTitle,
       pvpBestKillstreak: player.pvpBestKillstreak,
       xp: player.xp,
@@ -95,6 +99,9 @@ export async function GET(req: NextRequest) {
     weaponProgress: player.weaponProgress.map((w) => ({ weaponId: w.weaponId, kills: w.kills, headshots: w.headshots, conditionStats: w.conditionStats })),
     weaponPrestiges: player.weaponPrestiges.map(w => ({ weaponId: w.weaponId, legacyReward: w.legacyReward })),
     wonderUnlocks: player.wonderUnlocks.map(w => ({ weaponId: w.weaponId })),
+    careerContracts: player.careerContracts.map(c=>({cycle:c.cycle,contractId:c.contractId,goal:c.goal,progress:c.progress,completed:c.completed})),
+    careerRewards: player.careerRewards.map(r=>({cycle:r.cycle})),
+    careerShopPurchases: player.careerShopPurchases.map(p=>({itemKey:p.itemKey,currency:p.currency,cost:p.cost})),
     // Match records can be large; include them for completeness but they're
     // optional on import (the import can skip them to save space).
     matchRecords: player.matchRecords.map((m) => ({

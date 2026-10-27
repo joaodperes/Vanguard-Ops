@@ -29,6 +29,7 @@ interface ExportData {
     level: number;
     careerRank?: number;
     careerXp?: number;
+    careerTokensSpent?: number;
     selectedTitle?: string;
     pvpBestKillstreak?: number;
     xp: number;
@@ -70,6 +71,9 @@ interface ExportData {
   weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
   weaponPrestiges?: { weaponId: string; legacyReward?: boolean }[];
   wonderUnlocks?: { weaponId: string }[];
+  careerContracts?: {cycle:number;contractId:string;goal:number;progress:number;completed:boolean}[];
+  careerRewards?: {cycle:number}[];
+  careerShopPurchases?: {itemKey:string;currency:string;cost:number}[];
   matchRecords?: {
     mode: string;
     online: boolean;
@@ -119,6 +123,9 @@ export async function POST(req: NextRequest) {
 
   const p = data.player;
   const career = restoreCareer(existing, p);
+  const existingShopPurchases=existing ? await db.careerShopPurchase.count({where:{playerId:existing.id}}):0;
+  const restoredTokensSpent=Math.max(existing?.careerTokensSpent??0,
+    Number.isSafeInteger(p.careerTokensSpent)&&p.careerTokensSpent!>=0?p.careerTokensSpent!:0);
   const restoredXp = Math.max(existing?.xp ?? 0, p.xp);
   const restoredPerk = perkById(data.loadout?.perkId);
   const restoredLoadout = {
@@ -137,11 +144,12 @@ export async function POST(req: NextRequest) {
         name: p.name,
         level: levelForXp(restoredXp),
         ...career,
+        careerTokensSpent:restoredTokensSpent,
         ...(p.selectedTitle !== undefined ? { selectedTitle: p.selectedTitle } : {}),
         pvpBestKillstreak: Math.max(existing.pvpBestKillstreak, p.pvpBestKillstreak ?? 0),
         xp: Math.max(existing.xp, p.xp),
         // Once Career spending starts, replaying a backup cannot refund it.
-        credits: existing.careerRank > 0 ? existing.credits : Math.max(existing.credits, p.credits),
+        credits: existing.careerRank > 0 || existingShopPurchases>0 ? existing.credits : Math.max(existing.credits, p.credits),
         kills: Math.max(existing.kills, p.kills),
         deaths: Math.max(existing.deaths, p.deaths),
         matchesPlayed: Math.max(existing.matchesPlayed, p.matchesPlayed),
@@ -165,6 +173,7 @@ export async function POST(req: NextRequest) {
         name: p.name,
         level: levelForXp(p.xp),
         ...career,
+        careerTokensSpent:restoredTokensSpent,
         selectedTitle: p.selectedTitle ?? "",
         pvpBestKillstreak: p.pvpBestKillstreak ?? 0,
         xp: p.xp,
@@ -322,6 +331,36 @@ export async function POST(req: NextRequest) {
         await db.wonderUnlock.create({ data: { playerId: player.id, weaponId } });
       }
     }
+  }
+
+  // Career Contracts and purchase ledger survive backup/restore. Unique rows
+  // are permanent; imports can never lower spent tokens or repeat an award.
+  for(const record of data.careerRewards??[]){
+    if(!Number.isSafeInteger(record.cycle)||record.cycle<0)continue;
+    await db.careerReward.upsert({
+      where:{playerId_cycle:{playerId:player.id,cycle:record.cycle}},
+      create:{playerId:player.id,cycle:record.cycle},update:{},
+    });
+  }
+  for(const record of data.careerContracts??[]){
+    if(!Number.isSafeInteger(record.cycle)||record.cycle<0||typeof record.contractId!=="string"||record.contractId.length>80)continue;
+    if(!Number.isSafeInteger(record.goal)||record.goal<1||!Number.isSafeInteger(record.progress)||record.progress<0)continue;
+    const key={playerId:player.id,cycle:record.cycle,contractId:record.contractId};
+    const existingContract=await db.careerContract.findUnique({where:{playerId_cycle_contractId:key}});
+    await db.careerContract.upsert({
+      where:{playerId_cycle_contractId:key},
+      create:{...key,goal:record.goal,progress:Math.min(record.goal,record.progress),completed:!!record.completed},
+      update:existingContract?{progress:Math.max(existingContract.progress,Math.min(existingContract.goal,record.progress)),
+        completed:existingContract.completed||!!record.completed}:{},
+    });
+  }
+  for(const record of data.careerShopPurchases??[]){
+    if(typeof record.itemKey!=="string"||record.itemKey.length>128||
+      !["career","credits"].includes(record.currency)||!Number.isSafeInteger(record.cost)||record.cost<0)continue;
+    await db.careerShopPurchase.upsert({
+      where:{playerId_itemKey:{playerId:player.id,itemKey:record.itemKey}},
+      create:{playerId:player.id,itemKey:record.itemKey,currency:record.currency,cost:record.cost},update:{},
+    });
   }
 
   // --- Restore match records (skip duplicates by playedAt+score — best-effort) ---
