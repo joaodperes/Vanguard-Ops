@@ -1825,7 +1825,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
 const cityCoverIndexes=new WeakMap<MapDef,CoverSpatialIndex>();
 const cityHighGoals=new WeakMap<MapDef,HighGroundGoal[]>();
 function cityIndex(room:Room):CoverSpatialIndex|undefined{
-  if(room.map.biome!=="city"&&room.map.biome!=="city_day")return undefined;
+  if(room.map.biome!=="city"&&room.map.biome!=="city_day"&&room.map.biome!=="forest_warfare")return undefined;
   let index=cityCoverIndexes.get(room.map);
   if(!index){index=new CoverSpatialIndex(room.map.cover);cityCoverIndexes.set(room.map,index);}
   return index;
