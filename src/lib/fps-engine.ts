@@ -1418,9 +1418,9 @@ export class FPSEngine {
             part(wood,0,fh*.40,0,fw,fh*.8,fd);
             part(metal,0,fh*.89,0,fw,.17,fd);
             part(display,-fw*.22,fh*1.03,-fd*.15,fw*.25,.28,.16);
-            part(iron,fw*.30,fh*.95,0,.19,.28,fd*.45);
+            part(asphalt,fw*.30,fh*.95,0,.19,.28,fd*.45);
           }else if(style==="treadmill"){
-            part(iron,0,.13,0,fw,.24,fd);
+            part(asphalt,0,.13,0,fw,.24,fd);
             part(asphalt,0,.28,0,fw*.81,.07,fd*.83);
             for(const side of [-1,1])part(metal,side*fw*.44,fh*.52,-fd*.42,.13,fh*.82,.14);
             part(display,0,fh*.89,-fd*.44,fw*.71,.18,.15);
@@ -1434,14 +1434,14 @@ export class FPSEngine {
             const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
             sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
           }else if(style==="server_rack"){
-            part(iron,0,fh*.48,0,fw,fh*.96,fd);
+            part(asphalt,0,fh*.48,0,fw,fh*.96,fd);
             for(let i=0;i<6;i++){
               part(metal,0,fh*(.15+i*.11),fd/2+.02,fw*.85,.12,.09);
               part(display,-fw*.30,fh*(.16+i*.11),fd/2+.08,.10,.06,.035);
             }
           }else if(style==="television"){
             part(wood,0,.25,0,fw*.87,.49,fd);
-            part(iron,0,fh*.73,0,fw*.88,fh*.45,.22);
+            part(asphalt,0,fh*.73,0,fw*.88,fh*.45,.22);
             part(display,0,fh*.75,fd*.12,fw*.74,fh*.32,.06);
           }
         }
