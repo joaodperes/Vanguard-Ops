@@ -96,10 +96,11 @@
   "ctf": {
     "id": "ctf",
     "label": "Capture the Flag",
-    "description": "Steal their flag from the treetop and bring it to your base. Defend your own flag.",
+    "description": "Steal the enemy treetop flag and return it to base. Dropped flags reset after 30s; tied rounds enter sudden-death overtime.",
     "icon": "Flag",
     "defaultScoreLimit": 3,
     "scoreOptions": [
+      0,
       1,
       2,
       3,
