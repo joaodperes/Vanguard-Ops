@@ -41,7 +41,7 @@ export interface MatchResultInput {
   headshots: number;
   assists?: number;
   won: boolean;
-  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
+  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
   score: number;
   // Personal Kill Confirmed objective stats (separate from kills).
   confirmations?: number;
