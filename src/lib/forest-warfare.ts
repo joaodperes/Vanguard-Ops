@@ -1,54 +1,87 @@
-// Shared Forest Warfare collision layout and decorative vegetation coordinates.
-// The same cover geometry is used by client movement, bots and server raycasts.
+/**
+ * Forest Warfare: 244 m long, predominantly rectangular wooded valley.
+ * All solid shapes are shared by the renderer and both physics simulations.
+ * No hidden blocking boxes: boundary rock ridges are drawn from the same
+ * regionBoundary() cover boxes, and cover props are rendered at these coordinates.
+ */
 import type { CoverBox, Vec3 } from "./game-protocol";
+import { regionBoundary, type MapRegion } from "./map-blueprints";
 import { CTF_TREE_X, CTF_TREE_TOP } from "./ctf-rules";
+
+export const FOREST_HALF_EXTENT = 124;
+export const FOREST_REGIONS: MapRegion[] = [
+  { x: 0, z: 0, w: 218, d: 88 },
+  { x: -85, z: 0, w: 73, d: 96 },
+  { x: 85, z: 0, w: 73, d: 96 },
+];
 
 export type ForestObject = { kind: "tree" | "bush" | "rock" | "log"; x: number; z: number; w: number; d: number; h: number; sideways?: boolean };
 const layout: ForestObject[] = [];
-// Deterministic mirrored cover lanes, avoiding the central lane and spawn/tree ladders.
-const samples: [number, number, "tree"|"bush"|"rock"|"log"][] = [
-  [5,7,"tree"],[11,15,"rock"],[17,4,"bush"],[23,19,"tree"],[29,12,"log"],
-  [6,24,"bush"],[15,29,"tree"],[25,30,"rock"],[32,25,"tree"],
-  [9,-9,"rock"],[18,-15,"tree"],[25,-8,"bush"],[31,-19,"log"],
-  [9,-25,"tree"],[17,-28,"bush"],[27,-30,"tree"],[33,32,"rock"],
-  [3,34,"rock"],[37,20,"bush"],[39,-25,"tree"],[13,38,"tree"],
-  [30,39,"bush"],[5,-38,"bush"],[23,-40,"rock"]
+const samples: [number,number,"tree"|"bush"|"rock"|"log"][] = [
+  [6,7,"tree"],[13,16,"rock"],[21,3,"bush"],[30,27,"tree"],[38,15,"log"],
+  [9,33,"bush"],[22,38,"tree"],[35,39,"rock"],[46,28,"tree"],
+  [14,-10,"rock"],[27,-23,"tree"],[42,-8,"bush"],[50,-32,"log"],
+  [59,9,"tree"],[67,23,"bush"],[72,37,"tree"],[55,-18,"rock"],
+  [67,-34,"tree"],[77,-4,"rock"],[82,35,"tree"],[104,38,"bush"],
+  [109,-39,"rock"],[112,22,"tree"],[111,-22,"tree"],
 ];
-for (const [x,z,kind] of samples) {
-  for (const sign of [-1,1]) {
-    // Center lane stays passable; two asymmetric-looking but balanced forest halves.
-    const w = kind === "tree" ? 1.2 : kind === "bush" ? 1.8 : kind === "rock" ? 2.1 : 3.2;
-    const d = kind === "tree" ? 1.2 : kind === "bush" ? 1.6 : kind === "rock" ? 2.3 : 0.85;
-    const h = kind === "tree" ? 8 + ((x+z+100)%5) : kind === "bush" ? 1.35 : kind === "rock" ? 1.7 : 1;
-    layout.push({ kind, x: sign * x, z, w, d, h, sideways: (x+z)%2===0 });
-  }
+for (const [x,z,kind] of samples) for (const side of [-1,1]) {
+  // Protect the home-tree decks, the north/south climb lanes, and team spawns.
+  const px=side*x;
+  const w=kind==="tree"?1.35:kind==="bush"?1.8:kind==="rock"?2.3:3.3;
+  const d=kind==="tree"?1.35:kind==="bush"?1.6:kind==="rock"?2.4:1.0;
+  const h=kind==="tree"?9+(x+Math.abs(z))%5:kind==="bush"?1.25:kind==="rock"?1.8:1.05;
+  layout.push({kind,x:px,z,w,d,h,sideways:(x+z)%2===0});
 }
 export const FOREST_OBJECTS: readonly ForestObject[] = layout;
-export const FOREST_WARFARE_COVER: CoverBox[] = [
-  // Root mass on each side; canopy clearing/platform and two climbable stair flights.
-  ...([-1,1] as const).flatMap(sign => {
-    const x = sign * CTF_TREE_X, result: CoverBox[] = [
-      { pos:[x,2.85,0], size:[1.7,2.85,1.7], kind:"solid" },
-      { pos:[x,CTF_TREE_TOP-0.23,0], size:[4.5,0.23,4.5], kind:"platform" },
-    ];
-    for (const direction of [-1,1] as const) {
-      // North/south root ramp approaches, 0.49-unit risers (walkable).
-      const depth = 11, steps = 13, riser = CTF_TREE_TOP / steps;
-      for (let i=0;i<steps;i++) {
-        const top = riser*(i+1), sz = direction*(4.55+(steps-i-0.5)*depth/steps);
-        result.push({pos:[x,top/2,sz],size:[1.4,top/2+0.005,depth/steps/2+0.008],kind:"stair"});
-      }
-    }
-    return result;
-  }),
-  ...layout.map(p => ({
-    pos: [p.x, p.kind === "tree" ? 2.5 : p.h/2, p.z] as Vec3,
-    size: [p.w, p.kind === "tree" ? 2.5 : p.h/2, p.d] as Vec3,
-    kind: p.kind === "rock" ? "platform" as const : "cover" as const,
+
+// Natural, VISIBLE cliff/rock barrier around precisely the floor union.
+export const FOREST_PERIMETER: CoverBox[] = regionBoundary(FOREST_REGIONS, 10);
+
+// Discrete long flights of half-metre steps. Both stair geometry and render
+// share these boxes; the final riser directly meets the deck rim.
+export const FOREST_TREE_STAIRS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
+  const x=sign*CTF_TREE_X;
+  const steps:CoverBox[]=[];
+  const count=24,tread=.94;
+  for(const side of [-1,1] as const) for(let i=0;i<count;i++){
+    const top=CTF_TREE_TOP*(i+1)/count;
+    const center=side*(11.6+(count-i-.5)*tread);
+    steps.push({pos:[x,top/2,center],size:[2.7,top/2,tread/2+.025],kind:"stair"});
+  }
+  return steps;
+});
+
+// Slices approximate the circular treetop, so collision extends to the
+// visually rendered round deck (unlike a hidden square platform).
+export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
+  const x=sign*CTF_TREE_X;
+  const strips:[number,number,number][]=[
+    [0,3,11.6],[-4.3,1.3,10.5],[4.3,1.3,10.5],
+    [-7.1,1.5,8.8],[7.1,1.5,8.8],[-9.8,1.2,5.7],[9.8,1.2,5.7],
+  ];
+  return strips.map(([z,hz,hx])=>({
+    pos:[x,CTF_TREE_TOP-.24,z] as Vec3,
+    size:[hx,.24,hz] as Vec3,
+    kind:"platform" as const,
+  }));
+});
+export const FOREST_WARFARE_COVER: CoverBox[]=[
+  ...FOREST_PERIMETER,
+  ...([-1,1] as const).map(sign=>({
+    pos:[sign*CTF_TREE_X,5.9,0] as Vec3,size:[2.65,5.9,2.65] as Vec3,kind:"solid" as const,
+  })),
+  ...FOREST_TREE_DECKS,
+  ...FOREST_TREE_STAIRS,
+  ...layout.map(p=>({
+    pos:[p.x,p.kind==="tree"?2.65:p.h/2,p.z] as Vec3,
+    size:[p.w,p.kind==="tree"?2.65:p.h/2,p.d] as Vec3,
+    kind:p.kind==="rock"?"platform" as const:"cover" as const,
   })),
 ];
-export const FOREST_SPAWNS = {
-  red: [[-42,0,-8],[-34,0,-8],[-42,0,-18],[-33,0,-24],[-46,0,-15],[-29,0,-12]] as Vec3[],
-  blue: [[42,0,-8],[34,0,-8],[42,0,-18],[33,0,-24],[46,0,-15],[29,0,-12]] as Vec3[],
-  ffa: [[-42,0,-8],[42,0,-8],[-25,0,0],[25,0,0],[-42,0,-18],[42,0,-18]] as Vec3[],
+// All spawns are on solid ground around their home tree, outside the ramp lanes.
+export const FOREST_SPAWNS={
+  red:[[-104,0,-29],[-84,0,-29],[-108,0,18],[-81,0,26],[-95,0,41],[-113,0,-8],[-78,0,-16]] as Vec3[],
+  blue:[[104,0,-29],[84,0,-29],[108,0,18],[81,0,26],[95,0,41],[113,0,-8],[78,0,-16]] as Vec3[],
+  ffa:[[-104,0,-29],[104,0,-29],[-45,0,0],[45,0,0],[-95,0,41],[95,0,41]] as Vec3[],
 };
