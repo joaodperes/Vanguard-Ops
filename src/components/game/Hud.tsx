@@ -9,7 +9,7 @@ import { displayMapLabel } from "@/lib/display-labels";
 import { matchHudInfo } from "@/lib/match-hud";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
@@ -352,7 +352,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {/* Top-left transient killfeed. No persistent map/ADS banner. */}
       {/* On mobile the font is much smaller
           and padding tighter so it doesn't dominate the small screen. */}
-      <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-14" : "top-[72px]"}`}>
+      <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-[84px]" : "top-[88px]"}`}>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
           <div key={i} className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`} style={{ animation: "killfeedSlide 0.3s ease-out" }}>
             <span className={teamColor(k.killerTeam)}>{k.killer}</span>
