@@ -59,7 +59,9 @@ export type SfxName =
   | "ads_out"
   | "match_start"
   | "match_win"
-  | "match_lose";
+  | "match_lose"
+  | "flag_taken"
+  | "flag_scored";
 
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
@@ -296,6 +298,8 @@ export class SoundManager {
       case "match_win": this.synthMatchWin(vol); break;
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
+      case "flag_taken": this.synthBlip(650, .16, vol*.55, "triangle"); this.synthBlip(980,.12,vol*.30,"sine"); break;
+      case "flag_scored": this.synthBlip(700,.24,vol*.6,"triangle"); this.synthBlip(1050,.35,vol*.55,"sine"); this.synthBlip(1400,.44,vol*.35,"sine"); break;
     }
   }
 
