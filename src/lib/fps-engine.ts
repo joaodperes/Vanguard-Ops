@@ -69,7 +69,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
-import { createWeaponCharm, swingWeaponCharm } from "@/lib/weapon-charms";
+import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -2705,8 +2705,8 @@ export class FPSEngine {
     const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
     if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
-      const charm=createWeaponCharm(equippedCharm);
-      if(charm)addPart(charm,.16,-.105,-.14);
+      const charm=createWeaponCharm(equippedCharm,true);
+      if(charm)addPart(charm,...weaponCharmMountPoint(this.weaponId,"firstPerson"));
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -4425,7 +4425,7 @@ export class FPSEngine {
         weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
       if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
         const charm=createWeaponCharm(c.charmId);
-        if(charm){charm.position.set(.16,-.105,-.14);visual.add(charm);}
+        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
       }
       weaponStub.add(visual);
     }
