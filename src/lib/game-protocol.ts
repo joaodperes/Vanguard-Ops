@@ -8,10 +8,12 @@ import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
+import { FOREST_SPAWNS, FOREST_WARFARE_COVER } from "./forest-warfare";
+import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
-export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon";
+export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
@@ -1004,6 +1006,20 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  forest_warfare: {
+    id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
+    description: "Capture the Flag only. Dense woodland, fallen timber, rocky cover and two climbable flag trees.",
+    size: 54, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
+    biome: "forest_warfare", accentColor: "#75bc5d",
+    theme: { floor: 0x37532b, floorPattern: 0x284422, wall: 0x304829,
+      cover: 0x656e5b, coverAccent: 0x78ae54, stair: 0x6b452b,
+      platform: 0x5d3d26, sky: "#8aa99a", fog: "#8aa99a", fogNear: 55, fogFar: 165,
+      ambient: 1.35, gridColor: 0x405c31 },
+    lights: [
+      { pos: [-37,10,0], color: 0xffc6a9, intensity: 1.5, distance: 25 },
+      { pos: [37,10,0], color: 0xb6e2ff, intensity: 1.5, distance: 25 },
+    ],
+  },
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
@@ -1158,6 +1174,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
 export const MAPS: Record<string, MapDef> = {
+  forest_warfare: applyMapFootprint(BASE_MAPS.forest_warfare),
   compound: applyMapFootprint(BASE_MAPS.compound),
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
@@ -1181,6 +1198,8 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
+export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
+  mode === "ctf" ? id === "forest_warfare" : id !== "forest_warfare";
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
@@ -1332,7 +1351,7 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }> }
+  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
@@ -1377,8 +1396,8 @@ export interface MatchConfig {
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "killconfirmed" ? 600 : 360,
+  scoreLimit: mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
   denialScoreEnabled: false,
