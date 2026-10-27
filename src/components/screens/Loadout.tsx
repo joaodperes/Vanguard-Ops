@@ -34,13 +34,14 @@ interface LoadoutSelectorProps {
   // Optional callback invoked after a successful save. Defaults to refreshing
   // the profile via the game store.
   onSaved?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
   children?: React.ReactNode; // named saved-loadout dropdown nested in Current Loadout
 }
 
-export function LoadoutSelector({ onSaved, compact, onCustomize, children }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, children }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
@@ -86,6 +87,12 @@ export function LoadoutSelector({ onSaved, compact, onCustomize, children }: Loa
     ...(profile?.unlocks.weapons ?? []),
     ...(profile?.prestige?.wonderWeapons ?? []),
   ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
+
+  const dirtyForPreset = !!current && (
+    primary !== current.weapon.id || secondary !== current.secondary.id ||
+    melee !== current.melee.id || perkId !== savedPerk
+  );
+  useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
 
   if (!profile || !current) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
