@@ -20,6 +20,9 @@ on:
       - src/lib/cover-spatial-index.ts
       - src/lib/city-high-ground.ts
       - src/lib/bot-routing.ts
+      - src/lib/game-server.ts
+      - src/lib/sound.ts
+      - src/lib/weapon-audio.ts
       - src/data/map-themes/shipyard.json
       - tests/map-studio-*.test.ts
       - src/lib/map-visuals.ts
