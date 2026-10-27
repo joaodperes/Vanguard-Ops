@@ -36,7 +36,18 @@ describe("authored map combat layouts", () => {
         // MAP_LIST already scales every spawn, wall and hazard together.
         // Check the *actual* appended spawn positions, not unscaled design
         // coordinates against the compact/tactical arena bounds.
-        const points = map.spawns[team].slice(-authored.length);
+        // Afterlight expands its city spawn pool; inherited outer spawns remain
+        // valid but no longer necessarily appear at the end of the list.
+        const points = (map.id==="arena_neon"||map.id==="terminal")
+          ? authored.map(design=>{
+              const factor=MAP_FOOTPRINT[map.id].scale;
+              const found=map.spawns[team].find(point=>
+                Math.abs(point[0]-design[0]*factor)<.005&&
+                Math.abs(point[2]-design[2]*factor)<.005);
+              if(!found)throw new Error(`${map.id} missing inherited outer spawn ${design}`);
+              return found;
+            })
+          : map.spawns[team].slice(-authored.length);
         expect(points).toHaveLength(authored.length);
         for (let i = 0; i < points.length; i++) {
           const point = points[i];
