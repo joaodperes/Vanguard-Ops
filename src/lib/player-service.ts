@@ -679,7 +679,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     const current=projectedWeapons.get(wid)??{weaponId:wid,kills:0,headshots:0};
     projectedWeapons.set(wid,{weaponId:wid,kills:current.kills+Math.max(0,delta.kills),headshots:current.headshots+Math.max(0,delta.headshots)});
   }
-  const masteryStats=masteryAchievementStats([...projectedWeapons.values()]);
+  const masteryStats=masteryAchievementStats([...projectedWeapons.values()]
+    .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const totalAwardedThisMatch = dailyAwardedCount + weeklyAwardedCount + eliteAwardedCount;
   const survivalProgress = survivalProgressBefore ?? {defaultWins:0,hardBest:0,eliteBest:0,nightmareBest:0};
   if (input.mode === "survival") {
@@ -1202,7 +1203,8 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
     db.matchRecord.count({where:{playerId:player.id,mode:"ctf",won:true}}),
   ]);
   const weaponRows=await db.weaponProgress.findMany({where:{playerId:player.id}});
-  const masteryStats=masteryAchievementStats(weaponRows);
+  const masteryStats=masteryAchievementStats(weaponRows
+    .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const survivalProgress = await getSurvivalProgressById(player.id);
   const statFor = (metric: string): number => {
     switch (metric) {
