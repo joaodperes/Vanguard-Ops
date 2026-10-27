@@ -98,7 +98,12 @@ function hashed(seed:string):number {
  */
 export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraSpawns:Vec3[]=[]):MapProp[] {
   const spawns=[...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...extraSpawns];
-  const result=[...theme.props].filter(p=>insideRegions(p.x,p.z,plan.regions,2));
+  // Never show the generic RESIDENCE placard, including authored city houses.
+  // Keep named commercial and civic signs unchanged on both day/night variants.
+  const city = theme.biome === "city" || theme.biome === "city_day";
+  const result=[...theme.props].filter(p=>insideRegions(p.x,p.z,plan.regions,2))
+    .map(p => city && p.kind === "building" && p.text?.trim().toUpperCase() === "RESIDENCE"
+      ? { ...p, text: undefined } : p);
   const authoredBuildings=result.filter(p=>p.kind==="building");
   // Both Afterlight editions compile the EXACT same authored geometry. Vary the
   // lot dimensions, floor heights, entrances and functions; keep roads walkable.
@@ -112,7 +117,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     const purposes=["house","cafe","supermarket","apartments","bakery","office","hotel","library","diner","clinic","workshop","gallery","florist","gym"] as const;
     const facades=["brick","stucco","concrete","glass","timber","industrial"] as const;
     const signs:Record<(typeof purposes)[number],string>={
-      house:"RESIDENCE",cafe:"CAFÉ",supermarket:"SUPERMARKET",
+      house:"",cafe:"CAFÉ",supermarket:"SUPERMARKET",
       apartments:"APARTMENTS",bakery:"BAKERY",office:"OFFICES",
       hotel:"HOTEL",library:"LIBRARY",diner:"DINER",
       clinic:"CLINIC",workshop:"WORKSHOP",gallery:"GALLERY",florist:"FLOWERS",gym:"FITNESS",
@@ -159,7 +164,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         const x=onXAxis?side*55:offset,z=onXAxis?offset:side*55;
         const before=buildings.length;
         addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
-          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+          shape:"narrow",stairSide:side>0?"east":"west"});
         if(buildings.length>before && ++placed===2)break;
       }
     }
@@ -168,7 +173,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
     for(const side of [-1,1])for(const offset of [-40,-20,0,20,40])
       for(const [x,z] of [[side*78,offset],[offset,side*78]])
         addBuilding({kind:"building",x,z,w:14,d:15,h:4.6,use:"house",
-          shape:"narrow",stairSide:side>0?"east":"west",text:"RESIDENCE"});
+          shape:"narrow",stairSide:side>0?"east":"west"});
     // 32m urban blocks, with narrow homes among bigger civic / retail
     // buildings. The old 40m grid left 25m+ dead zones around the park.
     for(let x=-180;x<=180;x+=32)for(let z=-180;z<=180;z+=32){
