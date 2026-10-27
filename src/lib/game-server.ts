@@ -46,7 +46,7 @@ import type {
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  roomCapacity, mapAllowedForMode, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
+  roomCapacity, mapAllowedForMode, teamSizeAllowed, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
@@ -3064,6 +3064,11 @@ async function handle(socket: any, msg: C2S) {
     case "createRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const cfg = msg.config;
+      if (!teamSizeAllowed(cfg.mapId, cfg.teamSize)) {
+        socket.emit("message", { t: "roomError",
+          message: "This map supports up to 7v7 (14 free-for-all players). 16v16 / 32 players is exclusive to Afterlight City (day and night)." } as S2C);
+        break;
+      }
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "Forest Warfare is exclusive to Capture the Flag; CTF only supports Forest Warfare." } as S2C);
         break;
