@@ -71,6 +71,7 @@ export interface CreateRoomConfig {
   scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
   tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
+  ctfFlagResetMs?: number;  // CTF dropped flag return timer; -1 means never
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
@@ -1398,6 +1399,7 @@ export interface MatchConfig {
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
   tagLifetimeMs: number;   // Kill Confirmed tag lifetime
+  ctfFlagResetMs: number; // CTF dropped flag return timer
   denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
   survivalTier?: SurvivalTier;
 }
@@ -1409,6 +1411,7 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
   timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
+  ctfFlagResetMs: 30000,
   denialScoreEnabled: false,
   survivalTier: mode === "survival" ? "default" : undefined,
 });
