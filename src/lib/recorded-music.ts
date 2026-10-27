@@ -24,7 +24,8 @@ export class RecordedMusicPlayer {
   private unlocked = false;
   private active = false;
   private theme: MusicThemeId = "menu";
-  private level = 0;
+  // Match SoundManager defaults even before the Settings store initializes.
+  private level = 0.8 * 0.65 * BED_GAIN;
   private disposed = false;
 
   setMix(master: number, music: number, muted: boolean) {
