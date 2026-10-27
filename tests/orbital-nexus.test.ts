@@ -12,7 +12,7 @@ describe("Orbital Nexus CTF map",()=>{
     expect(mapAllowedForMode("ctf",id)).toBe(true);
     expect(mapAllowedForMode("tdm",id)).toBe(false);
     expect(validateBlueprint(bp)).toEqual([]);
-    expect(map.name).toBe("ORBITAL NEXUS");
+    expect(map.name).toBe("Orbital Nexus");
     expect(map.biome).toBe("orbital");
     const collision=makeEnvironmentMap(map).cover;
     for(const spawn of Object.values(map.spawns).flat()){

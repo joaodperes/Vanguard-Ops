@@ -1022,7 +1022,7 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
   orbital_nexus: {
-    id:"orbital_nexus",name:"ORBITAL NEXUS",shortName:"ONX",
+    id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
     description:"CTF aboard an orbital station above a violet gas giant.",
     size:100,wallHeight:17,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
     spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",

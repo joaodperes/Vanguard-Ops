@@ -3,7 +3,7 @@
   "units": "world units; X east/west, Z north/south, Y elevation; widths/depths are FULL extents",
   "maps": {
     "bunker": {
-      "name": "BLACKSITE",
+      "name": "Blacksite",
       "shortName": "BLK",
       "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
       "pace": "compact",
@@ -99,7 +99,7 @@
       }
     },
     "shipyard": {
-      "name": "BREAKWATER",
+      "name": "Breakwater",
       "shortName": "BRK",
       "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
       "pace": "compact",
@@ -237,7 +237,7 @@
       }
     },
     "compound": {
-      "name": "VERDANT RUINS",
+      "name": "Verdant Ruins",
       "shortName": "IRD",
       "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
       "pace": "balanced",
@@ -756,7 +756,7 @@
       "templateMapId": "terminal"
     },
     "skybridge": {
-      "name": "RIDGEFALL",
+      "name": "Ridgefall",
       "shortName": "RFL",
       "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
       "pace": "tactical",
@@ -1642,7 +1642,7 @@
     },
     "orbital_nexus": {
       "templateMapId": "bunker",
-      "name": "ORBITAL NEXUS",
+      "name": "Orbital Nexus",
       "shortName": "ONX",
       "description": "An orbital research station over a violet gas giant: mirrored flag vaults, reactor crossfire, launch pads and three interconnected attack lanes.",
       "pace": "balanced",
