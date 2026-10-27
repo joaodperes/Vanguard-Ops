@@ -23,6 +23,8 @@ model Player {
   careerRank      Int      @default(0)
   /// Capped progress toward the NEXT promotion, reset to zero on promotion.
   careerXp        Int      @default(0)
+  /// Monotonic tokens spent in the Career Shop (optimistic checkout guard).
+  careerTokensSpent Int @default(0)
   kills           Int      @default(0)
   deaths          Int      @default(0)
   matchesPlayed   Int      @default(0)
@@ -59,6 +61,9 @@ model Player {
   weaponProgress  WeaponProgress[]
   weaponPrestiges WeaponPrestige[]
   wonderUnlocks WonderUnlock[]
+  careerContracts CareerContract[]
+  careerRewards CareerReward[]
+  careerShopPurchases CareerShopPurchase[]
 
   @@index([playerKey])
 }
@@ -269,4 +274,43 @@ model DailyChallenge {
   @@unique([playerId, challengeId, dayKey])
   @@index([playerId, dayKey])
   @@index([playerId, type])
+}
+
+
+/// Five current challenges per cycle, three required to earn each Career Token.
+/// Progress is written only by the authoritative match-completion endpoint.
+model CareerContract {
+  id String @id @default(cuid())
+  playerId String
+  cycle Int
+  contractId String
+  goal Int
+  progress Int @default(0)
+  completed Boolean @default(false)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, cycle, contractId])
+  @@index([playerId, cycle])
+}
+
+/// Each completed set can be claimed exactly once.
+model CareerReward {
+  id String @id @default(cuid())
+  playerId String
+  cycle Int
+  claimedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, cycle])
+}
+
+/// Permanent, server-priced credit or Career Token purchases.
+model CareerShopPurchase {
+  id String @id @default(cuid())
+  playerId String
+  itemKey String
+  currency String
+  cost Int
+  boughtAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, itemKey])
+  @@index([playerId])
 }

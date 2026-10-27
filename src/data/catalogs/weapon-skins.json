@@ -128,5 +128,33 @@
     "emissiveIntensity": 0.34,
     "prestige": "toxic",
     "artBrief": "Dark oxidized green with slowly moving acid-green mottling and subdued mint luminescence."
+  },
+  {
+    "id": "shop_copper",
+    "name": "Cobalt Alloy",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "epic",
+    "tier": "legendary",
+    "shopCurrency": "credits",
+    "color": "#234a69",
+    "metalness": 0.82,
+    "roughness": 0.25,
+    "artBrief": "Exclusive deep-blue alloy with bright steel and midnight-blue furniture; available from the Credit Shop."
+  },
+  {
+    "id": "shop_void",
+    "name": "Void Circuit",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "legendary",
+    "tier": "legendary",
+    "shopCurrency": "career",
+    "color": "#2c174d",
+    "metalness": 0.65,
+    "roughness": 0.26,
+    "emissive": "#b785f9",
+    "emissiveIntensity": 0.6,
+    "artBrief": "Career-exclusive rich violet plating with glowing lavender circuitry, black mechanical inserts and subdued futuristic luminescence."
   }
 ]

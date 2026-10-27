@@ -10,7 +10,7 @@ export function prestigeEligible(
   const weapon = WEAPONS.find(w => w.id === weaponId);
   if (!weapon || weapon.wonder) return false;
   const challenges = allSkinChallengesForWeapon(weaponId);
-  const standard = WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige);
+  const standard = WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency);
   // No empty/partially configured challenge catalogs can grant a token.
   if (challenges.length < standard.length) return false;
   return standard.every(s => {

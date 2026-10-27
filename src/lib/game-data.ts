@@ -253,6 +253,8 @@ export interface WeaponSkinDef {
   emissiveIntensity?: number;
   /** Awarded free to a weapon after completing every standard skin challenge. */
   prestige?: "cosmic" | "toxic";
+  /** Cosmetics bought through the Shop, not earned from standard skin challenges. */
+  shopCurrency?: "credits" | "career";
 }
 
 // Wildcard weaponId used in SkinUnlock rows for standard-tier skins. A skin
@@ -270,6 +272,7 @@ export const WEAPON_SKINS: WeaponSkinDef[] = weaponSkinsData as unknown as Weapo
 
 export interface PlayerSkinDef {
   id: string;
+  shopCurrency?: "credits" | "career";
   name: string;
   unlockLevel: number;
   unlockCost: number;

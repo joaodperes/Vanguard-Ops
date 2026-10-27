@@ -75,7 +75,7 @@ const skin = z.object({
   tier: z.enum(["standard", "rare", "legendary"]), artBrief: label, color: cssColor,
   metalness: unit, roughness: unit, emissive: cssColor.optional(),
   emissiveIntensity: num.nonnegative().optional(),
-  prestige: z.enum(["cosmic", "toxic"]).optional(),
+  prestige: z.enum(["cosmic", "toxic"]).optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
 });
 const operator = z.object({
   id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
