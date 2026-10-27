@@ -34,6 +34,7 @@ import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
+import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
@@ -298,6 +299,8 @@ interface BotAI {
   attachments: Record<AttachmentSlot, string | null>;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
+  highGroundPatrol?:HighGroundGoal|null;
+  highGroundExpiresAt?:number;
   // reaction delay before first shot at a newly-acquired target (ms timestamp)
   acquiredTargetAt: number;
   // ---- Humanization fields ----
@@ -490,6 +493,13 @@ export class FPSEngine {
   // current map
   private map: MapDef;
   private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
+  private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
+  private highGroundGoals():HighGroundGoal[]{
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
+    if(this.highGroundCache?.source!==this.map.props)
+      this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
+    return this.highGroundCache.goals;
+  }
   /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
   private coverIndex():CoverSpatialIndex|null{
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
@@ -3668,7 +3678,7 @@ export class FPSEngine {
       strafeDir: Math.random() < 0.5 ? 1 : -1,
       moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
-      wantsHighGround: Math.random() < 0.3,
+      wantsHighGround: Math.random() < (this.map.biome==="city"||this.map.biome==="city_day"?.7:.3),
       acquiredTargetAt: 0,
       skill,
       burstShotsLeft: 0,
@@ -7509,11 +7519,25 @@ export class FPSEngine {
         ai.acquiredTargetAt = now;
       }
       if (!ai.targetId) {
-        if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
-        else if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
-        else if (Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5)
-          ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
-            this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+        if(ctfObjective||nearestTag){
+          ai.highGroundPatrol=null;
+          ai.wanderTarget=[...(ctfObjective??nearestTag!.pos)] as Vec3;
+        }else{
+          if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
+            c.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
+          if(!ai.highGroundPatrol && ai.wantsHighGround && Math.random()<.55){
+            const variation=c.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
+            const goal=chooseCityHighGroundGoal(c.pos,this.highGroundGoals(),variation);
+            if(goal){
+              ai.highGroundPatrol=goal;ai.highGroundExpiresAt=now+20000;
+              ai.routeWaypoint=null;ai.nextRouteAt=0;
+            }
+          }
+          if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
+          else if(Math.hypot(ai.wanderTarget[0]-c.pos[0],ai.wanderTarget[2]-c.pos[2])<2.5)
+            ai.wanderTarget=chooseBotPatrolPoint(c.team,this.opts.mode,c.pos,
+              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa);
+        }
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
@@ -7575,7 +7599,9 @@ export class FPSEngine {
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,this.map.regions) ?? botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,
+            this.map.regions,this.coverIndex(),this.coverIndex()?280:1000) ??
+            botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
         }
         const waypoint=ai.routeWaypoint;
@@ -7719,9 +7745,12 @@ export class FPSEngine {
       }
     } else {
       ai.sprinting = false;
-      const dx = ai.wanderTarget[0] - c.pos[0], dz = ai.wanderTarget[2] - c.pos[2];
-      const d = Math.hypot(dx, dz);
-      if (d > 1.5) {
+      const patrolGoal=ai.highGroundPatrol;
+      const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
+        this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
+      const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
+      const d=Math.hypot(dx,dz);
+      if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
         // ±35° (sign from ai.strafeDir) so the bot angles around the obstacle
@@ -7729,10 +7758,13 @@ export class FPSEngine {
         // so the bot faces where it's going.
         let fx = dx / d, fz = dz / d;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
-        if(patrolBlocked || Math.abs(ai.wanderTarget[1] - c.pos[1]) > 1.3 || this.opts.mapId === "bunker") {
+        if((patrolBlocked || (patrolGoal&&d>5) ||
+            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker") &&
+            (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size,3,this.map.environment,this.map.regions);
-            ai.nextRouteAt=now+850;
+            ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
+              this.map.environment,this.map.regions,this.coverIndex(),this.coverIndex()?280:1000);
+            ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
           const waypoint=ai.routeWaypoint;
           if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
@@ -7833,6 +7865,7 @@ export class FPSEngine {
         // Reset stuck patrol toward enemy territory, not the same team spawn.
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
           this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+        ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
         ai.targetId = null;        // wander instead of engaging
       ai.routeWaypoint=null;ai.nextRouteAt=0;
         ai.strafeDir = -ai.strafeDir;
