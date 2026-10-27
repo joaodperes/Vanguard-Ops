@@ -122,7 +122,7 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       if(plan.cityBuildingDisabled?.includes(lotId))return;
       const prop:MapProp={...draft,lotId,
         facade:draft.facade??facades[Math.floor(hashed("facade:"+key)*facades.length)],
-        roofAccess:draft.roofAccess??hashed("roof:"+key)<(draft.use==="house"?.19:.39),
+        roofAccess:draft.roofAccess??(hashed("roof:"+key)<(draft.use==="house"?.19:.39) && (draft.d??20)>=18),
       };
       const w=prop.w??20,d=prop.d??20;
       // Avoid the actual park square (not just a radial exclusion), allow
@@ -366,7 +366,7 @@ export function cityHasUsableInteriorStairs(p:MapProp):boolean{
   const odd=(((p.turns??0)%4)+4)%4%2===1;
   const w=odd?(p.d??20):(p.w??20),d=odd?(p.w??20):(p.d??20),h=p.h??6.4;
   const tread=(d-5.2)/Math.ceil(h/.39);
-  return w>=15.5&&d>=16&&tread>=.55;
+  return w>=15.5&&d>=16&&tread>=.55&&h<=7.2;
 }
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const quarter=(((p.turns??0)%4)+4)%4;
