@@ -6182,7 +6182,7 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      this.recordOrbitalKill(victim.pos);
+      if (victim.team!==this.opts.team)this.recordOrbitalKill(victim.pos);
       this.releaseOrbitalBotWeapon(victim);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
@@ -8427,7 +8427,10 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
-      this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z]);
+      // Falling, environmental hazards and friendly damage must not charge
+      // the reactor; only a legitimate opposing-team kill contributes.
+      if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)
+        this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z]);
       this.grantOrbitalReaper(false);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
