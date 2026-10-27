@@ -96,7 +96,7 @@
   "ctf": {
     "id": "ctf",
     "label": "Capture the Flag",
-    "description": "Steal the enemy treetop flag and return it to base. Dropped flags reset after 30s; tied rounds enter sudden-death overtime.",
+    "description": "Steal the opposing team's flag, escort your carrier home, and defend your own. Flag recovery is configurable; tied rounds enter sudden-death overtime.",
     "icon": "Flag",
     "defaultScoreLimit": 3,
     "scoreOptions": [
