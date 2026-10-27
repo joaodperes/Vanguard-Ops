@@ -47,12 +47,21 @@ describe("Orbital Nexus CTF map",()=>{
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
 import {WEAPONS,weaponById} from "../src/lib/game-data";
 describe("Orbital Nexus reactor",()=>{
- test("nearby eliminations charge to five and only a living deck player can claim",()=>{
-  let n=0;for(let i=0;i<8;i++)n=orbitalRecordKill(n,[2,0,5],"orbital_nexus");
+ test("eliminations anywhere across the map charge to five; only a living deck player can claim",()=>{
+  // Both teams' flag areas, flank lanes, ground level and raised walkways count.
+  const kills:[[number,number,number],[number,number,number],[number,number,number],[number,number,number],[number,number,number]]=[
+    [-86,0,-24],[86,0,24],[0,0,44],[-49,0,-34],[2,3.2,5],
+  ];
+  let n=0;
+  for(const pos of kills)n=orbitalRecordKill(n,pos,"orbital_nexus");
   expect(n).toBe(ORBITAL_KILLS_REQUIRED);
-  expect(orbitalRecordKill(0,[40,0,0],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(n,[86,0,24],"orbital_nexus")).toBe(ORBITAL_KILLS_REQUIRED);
+  expect(orbitalRecordKill(0,[40,0,0],"orbital_nexus")).toBe(1);
   expect(orbitalRecordKill(0,[0,0,0],"forest_warfare")).toBe(0);
+  expect(orbitalRecordKill(0,[Infinity,0,0],"orbital_nexus")).toBe(0);
+  expect(orbitalRecordKill(0,[0,0],"orbital_nexus")).toBe(0);
   expect(orbitalCanClaim(n,[0,0,0],"orbital_nexus",true)).toBe(false);
+  expect(orbitalCanClaim(n,[-86,3.2,0],"orbital_nexus",true)).toBe(false);
   expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",false)).toBe(false);
   expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",true)).toBe(true);
  });
