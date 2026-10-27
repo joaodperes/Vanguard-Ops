@@ -128,7 +128,14 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       // Avoid the actual park square (not just a radial exclusion), allow
       // close-in infill without swallowing the public walking paths.
       if(Math.abs(prop.x)<40+w/2+5 && Math.abs(prop.z)<40+d/2+5)return;
-      if(!insideRegions(prop.x,prop.z,plan.regions,Math.max(w,d)/2+3.5))return;
+      const edgeShopfront=w<=11.5&&d<=14.5&&prop.roofAccess===false;
+      if(edgeShopfront){
+        // Boundary shops can sit a couple of metres from a district wall.
+        // Test *all* corners, not just a large circular setback from its
+        // centre; no walls or stairs are allowed outside the playable union.
+        if(!([-1,1] as const).every(sx=>([-1,1] as const).every(sz=>
+          insideRegions(prop.x+sx*w/2,prop.z+sz*d/2,plan.regions,1.45))))return;
+      }else if(!insideRegions(prop.x,prop.z,plan.regions,Math.max(w,d)/2+3.5))return;
       if([...authoredBuildings,...buildings].some(q=>Math.abs(prop.x-q.x)<(w+(q.w??20))/2+4 &&
         Math.abs(prop.z-q.z)<(d+(q.d??20))/2+4))return;
       const boxes=cityBuildingBoxes(prop);
@@ -179,11 +186,56 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
       addBuilding({kind:"building",x:x+jitterX,z:z+jitterZ,w,d,h,use,shape,
         stairSide:hashed("stairs:"+x+":"+z)<.5?"east":"west",text:signs[use]});
     }
-    for(const p of buildings){
-      // Lamps belong in the remaining pavements, never inside rooms.
-      if(hashed("light:"+Math.round(p.x)+":"+Math.round(p.z))>.7)
-        result.push({kind:"lamp",x:p.x+Math.min((p.w??20)/2+4,17),z:p.z+Math.min((p.d??20)/2+4,17)});
+    // Slim 10x13 shopfronts and row homes follow OUTER district walls.
+    // They are deliberately added after the large blocks, filling otherwise
+    // empty 20m+ roadside gaps while retaining existing spawn clearance.
+    const microUses:NonNullable<MapProp["use"]>[]=["house","bakery","workshop","florist","cafe","house"];
+    let fringeIndex=0;
+    for(const r of plan.regions){
+      const placement=(x:number,z:number)=>{
+        const use=microUses[fringeIndex++%microUses.length];
+        const w=10.2,d=12.8,h=4.5+Math.round(hashed("edge-height:"+x+":"+z)*2)*.55;
+        addBuilding({kind:"building",x:Math.round(x*10)/10,z:Math.round(z*10)/10,
+          w,d,h,use,shape:"narrow",roofAccess:false,
+          facade:facades[Math.floor(hashed("edge-facade:"+x+":"+z)*facades.length)],
+          text:signs[use]});
+      };
+      const startZ=r.z-r.d/2+9,endZ=r.z+r.d/2-9;
+      for(let z=startZ;z<=endZ;z+=17){
+        placement(r.x-r.w/2+5.1+1.9,z);
+        placement(r.x+r.w/2-5.1-1.9,z);
+      }
+      const startX=r.x-r.w/2+8,endX=r.x+r.w/2-8;
+      for(let x=startX;x<=endX;x+=17){
+        placement(x,r.z-r.d/2+6.4+1.9);
+        placement(x,r.z+r.d/2-6.4-1.9);
+      }
     }
+    // Independent pedestrian lighting replaces the former sparse
+    // building-based 30% chance. The same seed applies to day and night.
+    // Avoid façade intersections, exits, stairs, spawns and park planting.
+    const lamps:MapProp[]=[];
+    const candidates:[number,number][]=[];
+    for(let x=-174;x<=174;x+=24)for(let z=-174;z<=174;z+=24){
+      if(hashed("streetlamp:"+x+":"+z)<.31)continue;
+      candidates.push([x,z]);
+    }
+    for(const side of [-1,1])for(let t=-32;t<=32;t+=16){
+      candidates.push([side*44,t],[t,side*44]);
+    }
+    for(const [x,z] of candidates){
+      if(lamps.length>=62)break;
+      if(!insideRegions(x,z,plan.regions,2.6))continue;
+      if(Math.abs(x)<40.5&&Math.abs(z)<40.5)continue;
+      if(spawns.some(p=>Math.hypot(p[0]-x,p[2]-z)<6))continue;
+      if(lamps.some(p=>Math.hypot(p.x-x,p.z-z)<13))continue;
+      if([...authoredBuildings,...buildings].some(p=>
+        Math.abs(x-p.x)<(p.w??20)/2+2.1&&Math.abs(z-p.z)<(p.d??20)/2+2.1))continue;
+      if(buildings.some(p=>cityBuildingBoxes(p).some(c=>c.kind==="stair"&&
+        Math.abs(x-c.pos[0])<c.size[0]+2&&Math.abs(z-c.pos[2])<c.size[2]+2)))continue;
+      lamps.push({kind:"lamp",x,z,h:6.7,color:"#ffd69a"});
+    }
+    result.push(...lamps);
   } else {
     const frequency=Math.ceil(theme.vegetation*(theme.biome==="highlands"?36:theme.biome==="jungle"?32:18));
   for(let r=0;r<plan.regions.length;r++){
