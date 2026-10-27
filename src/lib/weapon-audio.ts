@@ -236,7 +236,8 @@ export class WeaponAudio {
     volume?: number;
   } = {}): void {
     // Reserve several voices for the player when the arena is extremely busy.
-    const voiceLimit = options.distance === undefined ? this.maxVoices + 8 : this.maxVoices;
+    // Remote firefights must not exhaust voices reserved for the local gun.
+    const voiceLimit = options.distance === undefined ? this.maxVoices + 8 : Math.max(4,this.maxVoices - 6);
     if (this.volume === 0 || this.disposed || this.activeVoices >= voiceLimit) return;
     if (!this.ctx) this.unlock();
     const ctx = this.ctx;
