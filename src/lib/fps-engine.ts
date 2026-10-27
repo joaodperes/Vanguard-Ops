@@ -49,7 +49,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfResetMs, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -673,6 +673,7 @@ export class FPSEngine {
   private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
   private ctfNotice: { label: string; at: number } | undefined;
   private ctfCaptures = 0;
+  private ctfResetDurationMs = 30000;
   private ctfOvertime = false;
 
   // tracers
@@ -989,6 +990,7 @@ export class FPSEngine {
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ctf" ? 3 : opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
+    this.ctfResetDurationMs = ctfResetMs(opts.roomConnect?.config?.ctfFlagResetMs);
     this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
@@ -1383,14 +1385,15 @@ export class FPSEngine {
           pos=[carrier.pos[0],carrier.pos[1]+1.25,carrier.pos[2]];
         }
       }
-      mesh.visible=true;
+      // A carrier never sees their own attached flag model/pole obstructing ADS.
+      mesh.visible=flag.carrierId!==this.selfId;
       mesh.position.set(pos[0],pos[1],pos[2]);
     }
   }
 
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
-    const expired = ctfReturnExpired(this.ctfFlags, Date.now());
+    const expired = ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs);
     if (expired.includes(this.opts.team as FlagTeam))
       this.ctfNotice={label:"YOUR FLAG AUTO-RETURNED",at:performance.now()};
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
@@ -4191,6 +4194,7 @@ export class FPSEngine {
         this.scoreLimit = msg.config.scoreLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
+        this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
         (this.opts as any).team = msg.team;
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -4742,6 +4746,7 @@ export class FPSEngine {
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
           this.hasTimeLimit = msg.config.timeLimit > 0 && this.opts.mode !== "gungame" && this.opts.mode !== "survival";
+          this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
           this.elapsedSeconds = 0;
         }
         // Reset tags and objective score for the new online match.
@@ -6173,7 +6178,7 @@ export class FPSEngine {
     if (this.matchEnded) return;
     this.matchEnded = true;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
+    const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
     // this.selfId BEFORE adding the self entry — otherwise the player appears
     // twice in the standings (showing up as both 1st and 2nd place in the
@@ -7544,7 +7549,10 @@ export class FPSEngine {
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
       const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && threatDistance > 12
-        ? ctfBotGoal(this.ctfFlags, c.team, c.id, c.pos)
+        ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
+            [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
+            Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[]))).goal,c.pos)
         : null;
       const prevTarget = ai.targetId;
       ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
