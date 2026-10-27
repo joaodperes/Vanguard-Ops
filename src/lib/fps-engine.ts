@@ -7776,6 +7776,7 @@ export class FPSEngine {
     // Can't sprint with a sniper/sniper-equivalent out at full ADS — must release.
     // ALSO gated on stamina: can't start a sprint with 0 stamina; must regen above
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
+    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map.id,this.weaponId);
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
     const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
@@ -7790,7 +7791,8 @@ export class FPSEngine {
     }
     // ---- Stamina drain / regen ----
     if (this.sprinting) {
-      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) * dt);
+      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) *
+        (reaperMovement?ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER:1) * dt);
       this.lastSprintAt = performance.now();
       if (this.stamina <= 0) {
         // Exhausted — force-stop the sprint (will resume only after regen above threshold).
@@ -7810,6 +7812,7 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(reaperMovement)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
     const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
@@ -7849,11 +7852,13 @@ export class FPSEngine {
       // player is sprinting or moving at ordinary running speed.
       [this.vel.x, this.vel.z] = runJumpTakeoffVelocity(
         this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
+        reaperMovement?ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER:1,
       );
       if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id) * dt;
+    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id,
+      reaperMovement?this.weaponId:undefined) * dt;
 
     const next = this.pos.clone();
     next.x += this.vel.x * dt;
@@ -8105,7 +8110,8 @@ export class FPSEngine {
         reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil);
       ai.sprinting = stance.sprinting;
       ai.aiming = stance.aiming;
-      const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+      const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
+        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
       const chaseThreshold=w.id===ORBITAL_REAPER_ID?3:ideal+3;
       // Determine the desired movement vector for this frame.
@@ -8360,7 +8366,7 @@ export class FPSEngine {
       c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
         c.pos[1] + vy * dt,
         c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id) * dt;
+      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id,c.weaponId) * dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;
