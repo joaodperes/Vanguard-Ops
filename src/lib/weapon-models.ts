@@ -137,9 +137,8 @@ export function buildFirstPersonWeapon(
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
   const [w,h,l] = p.receiver;
   const c = -0.12;
-  // Legendary finishes also cover the signature inserts, colored rails,
-  // magazine trim and bespoke energy parts. Ordinary skins retain each gun's
-  // recognizable colored furniture.
+  // Full-coating finishes may cover furniture; plated finishes like Gold retain
+  // colored signature inserts, dark rails, magazine trim and energy details.
   const sig = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
   const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
   const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });

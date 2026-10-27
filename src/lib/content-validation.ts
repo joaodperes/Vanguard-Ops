@@ -26,6 +26,7 @@ const unit = num.min(0).max(1);
 const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw", "launcher", "melee"]);
 const slot = z.enum(["sight", "barrel", "grip", "magazine"]);
 const rarity = z.enum(["common", "rare", "epic", "legendary"]);
+const weaponSkinRarity = z.enum(["common", "rare", "epic", "legendary", "prestige"]);
 const cssColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 const stats = z.object({
@@ -70,8 +71,8 @@ const attachment = z.object({
   }),
 });
 const skin = z.object({
-  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
-  tier: z.enum(["standard", "rare", "legendary"]), color: cssColor,
+  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity: weaponSkinRarity,
+  tier: z.enum(["standard", "rare", "legendary"]), artBrief: label, color: cssColor,
   metalness: unit, roughness: unit, emissive: cssColor.optional(),
   emissiveIntensity: num.nonnegative().optional(),
   prestige: z.enum(["cosmic", "toxic"]).optional(),

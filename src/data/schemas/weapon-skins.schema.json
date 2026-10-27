@@ -14,7 +14,8 @@
       "tier",
       "color",
       "metalness",
-      "roughness"
+      "roughness",
+      "artBrief"
     ],
     "properties": {
       "id": {
@@ -38,7 +39,8 @@
           "common",
           "rare",
           "epic",
-          "legendary"
+          "legendary",
+          "prestige"
         ]
       },
       "tier": {
@@ -75,6 +77,10 @@
           "cosmic",
           "toxic"
         ]
+      },
+      "artBrief": {
+        "type": "string",
+        "minLength": 12
       }
     },
     "additionalProperties": false

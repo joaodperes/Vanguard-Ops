@@ -8,7 +8,8 @@
     "tier": "standard",
     "color": "#2b2f36",
     "metalness": 0.6,
-    "roughness": 0.45
+    "roughness": 0.45,
+    "artBrief": "Factory-issue graphite gunmetal; a practical satin receiver with dark grips and exposed mechanical details."
   },
   {
     "id": "arctic",
@@ -19,7 +20,8 @@
     "tier": "standard",
     "color": "#dfe7ee",
     "metalness": 0.4,
-    "roughness": 0.5
+    "roughness": 0.5,
+    "artBrief": "Pale glacier-white ceramic plating over graphite grips, rails and mechanisms; clean cold-weather precision."
   },
   {
     "id": "crimson",
@@ -30,7 +32,8 @@
     "tier": "standard",
     "color": "#7f1d1d",
     "metalness": 0.7,
-    "roughness": 0.35
+    "roughness": 0.35,
+    "artBrief": "Deep oxblood-red coated receiver with subdued steel accents; aggressive and military rather than candy red."
   },
   {
     "id": "emerald",
@@ -41,7 +44,8 @@
     "tier": "standard",
     "color": "#065f46",
     "metalness": 0.7,
-    "roughness": 0.3
+    "roughness": 0.3,
+    "artBrief": "Dark emerald anodized metal over charcoal furniture; jewel-toned but grounded tactical finishing."
   },
   {
     "id": "carbon",
@@ -52,7 +56,8 @@
     "tier": "standard",
     "color": "#111418",
     "metalness": 0.3,
-    "roughness": 0.6
+    "roughness": 0.6,
+    "artBrief": "Near-black charcoal composite with a subdued carbon-fiber aesthetic and industrial hardware."
   },
   {
     "id": "neon",
@@ -65,7 +70,8 @@
     "metalness": 0.5,
     "roughness": 0.2,
     "emissive": "#22d3ee",
-    "emissiveIntensity": 0.7
+    "emissiveIntensity": 0.7,
+    "artBrief": "Almost-black high-tech casing with cyan illuminated highlights; a futuristic pulse against the dark chassis."
   },
   {
     "id": "inferno",
@@ -78,7 +84,8 @@
     "metalness": 0.6,
     "roughness": 0.25,
     "emissive": "#f97316",
-    "emissiveIntensity": 0.6
+    "emissiveIntensity": 0.6,
+    "artBrief": "Smoked dark metal with hot ember-orange illumination; the impression of a weapon forged in a furnace."
   },
   {
     "id": "gold",
@@ -89,34 +96,37 @@
     "tier": "standard",
     "color": "#d4af37",
     "metalness": 0.95,
-    "roughness": 0.18
+    "roughness": 0.18,
+    "artBrief": "Warm satin gold-plated receiver with shadowed bronze and black rails, controls and grips; premium but mechanically legible."
   },
   {
     "id": "prestige_cosmic",
     "name": "Eventide",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "rarity": "legendary",
+    "rarity": "prestige",
     "tier": "legendary",
     "color": "#080d2b",
     "metalness": 0.65,
     "roughness": 0.13,
     "emissive": "#a78bfa",
     "emissiveIntensity": 1.1,
-    "prestige": "cosmic"
+    "prestige": "cosmic",
+    "artBrief": "Animated midnight-indigo and violet starfield with drifting points of light and cool spectral glow."
   },
   {
     "id": "prestige_toxic",
     "name": "Viridian Blight",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "rarity": "legendary",
+    "rarity": "prestige",
     "tier": "legendary",
     "color": "#1c4334",
     "metalness": 0.2,
     "roughness": 0.44,
     "emissive": "#65a583",
     "emissiveIntensity": 0.34,
-    "prestige": "toxic"
+    "prestige": "toxic",
+    "artBrief": "Dark oxidized green with slowly moving acid-green mottling and subdued mint luminescence."
   }
 ]

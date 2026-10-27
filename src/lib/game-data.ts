@@ -235,7 +235,7 @@ export interface WeaponSkinDef {
   name: string;
   unlockLevel: number;
   unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary";
+  rarity: "common" | "rare" | "epic" | "legendary" | "prestige";
   // Skin tier controls how the skin unlocks:
   //  - "standard"  : basic color variants (default, arctic, desert, etc.) — available
   //                  on ALL weapons. One unlock (SkinUnlock with weaponId="*") applies globally.
@@ -243,6 +243,8 @@ export interface WeaponSkinDef {
   //  - "legendary" : per-weapon special-event skin (future).
   // Currently every skin is "standard" — non-standard tiers will be added later.
   tier: "standard" | "rare" | "legendary";
+  /** Player-facing visual art brief. */
+  artBrief: string;
   // Visual properties for the engine
   color: string;        // base hex
   metalness: number;    // 0..1
@@ -487,6 +489,7 @@ export const RARITY_COLORS: Record<string, string> = {
   rare: "#3b82f6",
   epic: "#a855f7",
   legendary: "#f59e0b",
+  prestige: "#c4b5fd",
 };
 
 // ============================================================================

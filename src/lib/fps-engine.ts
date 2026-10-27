@@ -69,6 +69,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
   withinEnvironment, spikesActive, closestCoverHit,
@@ -2451,7 +2452,7 @@ export class FPSEngine {
     const baseCol = new THREE.Color(skin.color);
     // Lighten the base colour toward a mid steel-grey so the weapon reads against any
     // background (the raw skin colour #2b2f36 is too dark to see in-game).
-    let lightCol = this.weaponId===ORBITAL_REAPER_ID?new THREE.Color(0xb578ff):baseCol.clone().lerp(new THREE.Color(0xaab4c0), 0.7);
+    let lightCol = this.weaponId===ORBITAL_REAPER_ID?new THREE.Color(0xb578ff):baseCol.clone().lerp(new THREE.Color(0xaab4c0), skin.id === "gold" ? 0.16 : 0.7);
     // ---- Per-weapon body tint (Issue 7 + Issue c round 2) ----
     // Each weapon gets a VIBRANT unique hue so the player can tell at a glance
     // which weapon they're holding, even within the same category. Previously the
@@ -2460,7 +2461,7 @@ export class FPSEngine {
     // clearly visible. Default skins use the weapon's signature tint; unlocked
     // skins override this with the skin's color.
     const isDefaultSkin = skin.id === "default";
-    const fullLegendaryFinish = skin.rarity === "legendary";
+    const fullLegendaryFinish = coatsAllWeaponParts(skin);
     if (isDefaultSkin) {
       const weaponTints: Record<string, number> = {
         rifle_electron: 0x097b99, // exposed cyan reactor
@@ -2502,7 +2503,7 @@ export class FPSEngine {
         lightCol = new THREE.Color(tint).lerp(new THREE.Color(0xaab4c0), 0.35);
       }
     }
-    const darkCol = baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
+    const darkCol = skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
     const emissiveCol = skin.emissive ? new THREE.Color(skin.emissive) : null;
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
@@ -2521,9 +2522,8 @@ export class FPSEngine {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
     }
-    // Standard skins keep their mechanical accent colors. Legendaries (Gold,
-    // Inferno, Eventide, Viridian) cover every gun component with their finish,
-    // including attachments and unique barrel/receiver inserts.
+    // Gold retains dark hardware and distinctive inserts; Inferno and animated
+    // Prestige finishes deliberately coat the entire model.
     const accentMat = fullLegendaryFinish
       ? this.weaponMat
       : new THREE.MeshBasicMaterial({ color: darkCol });
@@ -4143,7 +4143,7 @@ export class FPSEngine {
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
-    const fullWorldLegendary = weaponFinish.rarity === "legendary";
+    const fullWorldLegendary = coatsAllWeaponParts(weaponFinish);
     const worldDefaultTint = weaponFinish.id === "default"
       ? c.weaponId === "wonder_hellfire" ? "#db3a14"
         : c.weaponId === "wonder_deadlock" ? "#51246e"
