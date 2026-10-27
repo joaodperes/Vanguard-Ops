@@ -140,6 +140,13 @@ export function resolveShotAcoustics(
     * Math.max(0, 1 - Math.pow(distance / 90, 3));
   const level = (suppressed ? .48 : 1) * attenuation
     * Math.min(1.2, Math.max(0, options.volume ?? 1));
+  // Conventional bare muzzles have both a heavier pressure kick and a
+  // brighter transient. Keep these boosts OUT of suppressed and experimental
+  // electronic/quiet weapons so the silencer remains meaningfully muffled.
+  const conventional = category !== "melee" &&
+    !["rifle_electron", "crossbow_reclaimer", "pistol_arc", "wonder_hellfire"].includes(options.weaponId ?? "");
+  const bassBoost = conventional && !suppressed ? 1.34 : 1;
+  const trebleBoost = conventional && !suppressed ? 1.26 : 1;
   return {
     level,
     suppressed,
@@ -148,14 +155,14 @@ export function resolveShotAcoustics(
       : distance > 7 ? Math.max(1700, 8500 - distance * 85) : null,
     crackHz: impact.crackHz,
     crackSeconds: impact.crackSeconds,
-    crackLevel: impact.crackLevel * level * (suppressed ? .06 : 1),
+    crackLevel: impact.crackLevel * level * (suppressed ? .06 : trebleBoost),
     punchHz: impact.punchHz,
     punchSeconds: impact.punchSeconds,
-    punchLevel: impact.punchLevel * level * (suppressed ? .55 : 1),
+    punchLevel: impact.punchLevel * level * (suppressed ? .55 : bassBoost),
     blastHighpassHz: blast?.highpassHz ?? 0,
     blastLowpassHz: blast?.lowpassHz ?? 0,
     blastSeconds: blast?.seconds ?? 0,
-    blastLevel: (blast?.level ?? 0) * level * (suppressed ? .09 : 1),
+    blastLevel: (blast?.level ?? 0) * level * (suppressed ? .09 : 1.12),
   };
 }
 
@@ -360,7 +367,7 @@ export class WeaponAudio {
       crackHigh.frequency.value = acoustics.crackHz * pitch;
       const crackLow = ctx.createBiquadFilter();
       crackLow.type = "lowpass";
-      crackLow.frequency.value = Math.min(9500, ctx.sampleRate * .43);
+      crackLow.frequency.value = Math.min(12000, ctx.sampleRate * .43);
       const crackGain = ctx.createGain();
       shape(crackGain, acoustics.crackLevel * .85, .0007, acoustics.crackSeconds);
       crack.connect(crackHigh).connect(crackLow).connect(crackGain).connect(destination);
