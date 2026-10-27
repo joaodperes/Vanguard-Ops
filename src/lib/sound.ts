@@ -20,22 +20,8 @@
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
 
-import { MUSIC_THEMES, musicNotesForStep, type MusicInstrument, type MusicThemeId } from "./music-themes";
-
-// Music should simply fill quiet moments, never fight with footsteps, gunfire,
-// or callouts. This is independent of the user-facing music slider.
-const BACKGROUND_MUSIC_GAIN = 0.115;
-const MUSIC_TIMBRES: Record<MusicInstrument, {
-  wave: OscillatorType; attack: number; lowpass: number; harmonic: number; overtone: number;
-}> = {
-  keys:    { wave: "triangle", attack: .012, lowpass: 2600, harmonic: 2, overtone: .17 },
-  bell:    { wave: "sine",     attack: .006, lowpass: 4300, harmonic: 3, overtone: .12 },
-  flute:   { wave: "sine",     attack: .065, lowpass: 1900, harmonic: 2, overtone: .045 },
-  guitar:  { wave: "triangle", attack: .007, lowpass: 1850, harmonic: 2, overtone: .085 },
-  organ:   { wave: "sine",     attack: .055, lowpass: 1700, harmonic: 2, overtone: .13 },
-  marimba: { wave: "sine",     attack: .006, lowpass: 3300, harmonic: 3, overtone: .11 },
-  bass:    { wave: "sine",     attack: .024, lowpass: 450,  harmonic: 2, overtone: .045 },
-};
+import type { MusicThemeId } from "./music-themes";
+import { RecordedMusicPlayer } from "./recorded-music";
 
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
@@ -181,13 +167,7 @@ export class SoundManager {
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
-  private ambientGain: GainNode | null = null;
-  private musicLayer: GainNode | null = null;
-  private retiredMusicLayers: { node: GainNode; removeAt: number }[] = [];
-  private ambientTheme: MusicThemeId = "compound";
-  private ambientStep = 0;
-  private nextAmbientAt = 0;
-  private ambientActive = false;
+  private readonly recordedMusic = new RecordedMusicPlayer();
 
   constructor() {
     // Defer AudioContext creation until the first resume() call — browsers
@@ -217,12 +197,6 @@ export class SoundManager {
         this.convolver = this.ctx.createConvolver();
         this.convolver.buffer = this.makeImpulseResponse(0.18, 2.0);
         this.convolver.connect(this.masterGain);
-        this.ambientGain = this.ctx.createGain();
-        this.ambientGain.gain.value = 0;
-        this.ambientGain.connect(this.outputGain);
-        this.musicLayer = this.ctx.createGain();
-        this.musicLayer.gain.value = 1;
-        this.musicLayer.connect(this.ambientGain);
       } catch (e) {
         // Web Audio not available — silently degrade.
         this.ctx = null;
@@ -231,6 +205,7 @@ export class SoundManager {
     if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
+    this.recordedMusic.unlock();
   }
 
   setMasterVolume(v: number) {
@@ -238,13 +213,12 @@ export class SoundManager {
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
+    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
   }
 
   setMusicVolume(v: number) {
     this.musicVolume = Math.max(0, Math.min(1, v));
-    if (this.ambientGain && this.ctx) {
-      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * BACKGROUND_MUSIC_GAIN : 0, this.ctx.currentTime, 0.08);
-    }
+    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
   }
 
   setFootstepVolume(v: number) {
@@ -266,6 +240,7 @@ export class SoundManager {
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(m ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
+    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
   }
 
   isMuted() { return this.muted; }
@@ -335,103 +310,11 @@ export class SoundManager {
     }
   }
 
-  /** Schedule the appropriate menu, lobby or map arrangement. The active theme
-   * is swapped with a short gain crossfade, even when a chord is still decaying.
+  /** A real, licensed recording for each map; no procedural tune plays.
+   * Music is independently mixed and crossfaded on map changes.
    */
   tickAmbientMusic(active: boolean, themeId: MusicThemeId = "compound"): void {
-    const ctx = this.ctx, bus = this.ambientGain;
-    if (!ctx || !bus) return;
-    if (themeId !== this.ambientTheme) {
-      this.ambientTheme = themeId;
-      // Fade the prior arrangement, including already scheduled sustaining notes.
-      if (this.musicLayer) {
-        this.musicLayer.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
-        this.retiredMusicLayers.push({ node: this.musicLayer, removeAt: ctx.currentTime + 3 });
-      }
-      this.musicLayer = ctx.createGain();
-      this.musicLayer.gain.value = 0;
-      this.musicLayer.connect(bus);
-      this.musicLayer.gain.setTargetAtTime(1, ctx.currentTime, 0.2);
-      this.ambientStep = 0;
-      this.nextAmbientAt = ctx.currentTime + 0.07;
-    }
-    // After the final old note ends, dispose its routing bus.
-    this.retiredMusicLayers = this.retiredMusicLayers.filter(({ node, removeAt }) => {
-      if (ctx.currentTime < removeAt) return true;
-      node.disconnect();
-      return false;
-    });
-    if (active !== this.ambientActive) {
-      this.ambientActive = active;
-      bus.gain.setTargetAtTime(active ? this.musicVolume * BACKGROUND_MUSIC_GAIN : 0, ctx.currentTime, 0.25);
-      if (active) this.nextAmbientAt = ctx.currentTime + 0.06;
-    }
-    if (!active || this.muted || this.musicVolume === 0 || ctx.state !== "running") return;
-    if (this.nextAmbientAt < ctx.currentTime - 0.4) this.nextAmbientAt = ctx.currentTime + 0.06;
-    const interval = 60 / MUSIC_THEMES[themeId].bpm / 2;
-    for (let count = 0; count < 5 && this.nextAmbientAt < ctx.currentTime + 0.42; count++) {
-      this.scheduleAmbientStep(this.nextAmbientAt, this.ambientStep, themeId, interval);
-      this.ambientStep = (this.ambientStep + 1) % 32;
-      this.nextAmbientAt += interval;
-    }
-  }
-
-  private scheduleAmbientStep(time: number, step: number, themeId: MusicThemeId, interval: number): void {
-    const bus = this.musicLayer;
-    if (!bus) return;
-    for (const note of musicNotesForStep(themeId, step)) {
-      this.scheduleMusicNote(time, note.midi, note.level, interval * note.durationSteps, note.instrument, bus);
-    }
-  }
-
-  /** Soft, two-harmonic instrument voices with a gentle top-end rolloff.
-   * All nodes end/disconnect on their own; the scheduler stays asset-free and
-   * never touches the combat FX or weapon audio buses.
-   */
-  private scheduleMusicNote(
-    time: number, midi: number, level: number, duration: number,
-    instrument: MusicInstrument, bus: GainNode,
-  ): void {
-    const ctx = this.ctx;
-    if (!ctx || level <= 0) return;
-    const timbre = MUSIC_TIMBRES[instrument];
-    const seconds = Math.max(.08, duration);
-    const hz = 440 * Math.pow(2, (midi - 69) / 12);
-    const tone = ctx.createOscillator();
-    tone.type = timbre.wave;
-    tone.frequency.value = hz;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = Math.min(timbre.lowpass, ctx.sampleRate * .43);
-    filter.Q.value = .55;
-    const amp = ctx.createGain();
-    const attack = Math.min(timbre.attack, seconds * .2);
-    amp.gain.setValueAtTime(.0001, time);
-    amp.gain.linearRampToValueAtTime(level, time + attack);
-    if (instrument === "organ" || instrument === "flute") {
-      amp.gain.setValueAtTime(level * .7, time + seconds * .6);
-    }
-    amp.gain.exponentialRampToValueAtTime(.0001, time + seconds);
-    tone.connect(filter).connect(amp).connect(bus);
-
-    const overtone = ctx.createOscillator();
-    overtone.type = "sine";
-    overtone.frequency.value = hz * timbre.harmonic;
-    const overtoneGain = ctx.createGain();
-    overtoneGain.gain.value = timbre.overtone;
-    overtone.connect(overtoneGain).connect(filter);
-    tone.start(time);
-    overtone.start(time);
-    const stopAt = time + seconds + .012;
-    tone.stop(stopAt);
-    overtone.stop(stopAt);
-    tone.onended = () => {
-      tone.disconnect();
-      overtone.disconnect();
-      overtoneGain.disconnect();
-      filter.disconnect();
-      amp.disconnect();
-    };
+    this.recordedMusic.tick(active, themeId);
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
@@ -942,6 +825,7 @@ export class SoundManager {
   }
 
   dispose() {
+    this.recordedMusic.dispose();
     if (this.ctx) {
       this.ctx.close().catch(() => {});
       this.ctx = null;
@@ -950,10 +834,6 @@ export class SoundManager {
       this.footstepGain = null;
       this.noiseBuffer = null;
       this.convolver = null;
-      this.ambientGain = null;
-      this.musicLayer = null;
-      this.retiredMusicLayers = [];
-      this.ambientActive = false;
     }
   }
 }
