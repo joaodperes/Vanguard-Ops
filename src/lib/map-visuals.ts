@@ -358,6 +358,16 @@ export function cityInteriorFixtures(p:MapProp):CityFixture[]{
  * functional interior roof hatches; round buildings use a stepped octagonal
  * shell and a roof accessed from a separate exterior stair.
  */
+/** Roof openings are only legal when the interior has a reliably climbable
+ * stair flight. Narrow/steep structures use an intact roof and exterior
+ * fire escape instead of exposing a fatal, unreachable hatch. */
+export function cityHasUsableInteriorStairs(p:MapProp):boolean{
+  if(p.roofAccess===false||p.shape==="round")return false;
+  const odd=(((p.turns??0)%4)+4)%4%2===1;
+  const w=odd?(p.d??20):(p.w??20),d=odd?(p.w??20):(p.d??20),h=p.h??6.4;
+  const tread=(d-5.2)/Math.ceil(h/.39);
+  return w>=15.5&&d>=16&&tread>=.55;
+}
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const quarter=(((p.turns??0)%4)+4)%4;
   const odd=quarter%2===1;
@@ -399,7 +409,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     put(-(w+door)/4,h/2,d/2,front/2,h/2,wall);
     put((w+door)/4,h/2,d/2,front/2,h/2,wall);
     put(0,(h+2.5)/2,d/2,door/2,(h-2.5)/2,wall);
-    if(p.roofAccess??true){
+    if(cityHasUsableInteriorStairs(p)){
     // Four real slab sections frame the working internal hatch.
     const hatchX=w/2-2.8,hatchZ=-d/2+3.4,hatchW=3.6,hatchD=5.2;
     const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
