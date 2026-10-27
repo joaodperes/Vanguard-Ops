@@ -5,6 +5,7 @@
  * All dimensions are half-extents in the generated CoverBox.
  */
 import type { CoverBox, MapId, Vec3 } from "./game-protocol";
+import { FOREST_WARFARE_COVER, FOREST_SPAWNS } from "./forest-warfare";
 
 function wall(x: number, z: number, width: number, depth: number, height = 2.4): CoverBox {
   return { pos: [x, height / 2, z], size: [width / 2, height / 2, depth / 2], kind: "cover" };
@@ -18,6 +19,7 @@ function elevated(x: number, z: number, surface: number, width = 1.2, depth = 1.
 }
 
 export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
+  forest_warfare: FOREST_WARFARE_COVER,
   compound: [
     // North security checkpoint: breakable centre gate at (0,-34).
     wall(-8,-34,9,1,2.8), wall(8,-34,9,1,2.8),
@@ -116,6 +118,7 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
  * fighting positions. Added alongside the original spawns; tested for cover
  * and hazard clearance so no spawn is placed inside solid geometry. */
 export const OUTER_SPAWNS: Record<MapId, { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] }> = {
+  forest_warfare: FOREST_SPAWNS,
   compound: {
     ffa: [[-51,0,-18],[51,0,18],[-51,0,18],[51,0,-18],[0,0,-51],[0,0,51]],
     red: [[-51,0,-18],[-51,0,18],[-51,0,0]],
