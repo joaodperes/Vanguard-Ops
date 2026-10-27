@@ -2438,6 +2438,7 @@ io.on("connection", (socket) => {
     if (room) {
       if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
       room.players.delete(socket.id);
+       room.orbitalHolders.delete(socket.id);
       room.downed.delete(socket.id);
       room.sockets.delete(socket.id);
       room.scores.delete(socket.id);
@@ -2523,6 +2524,7 @@ async function handle(socket: any, msg: C2S) {
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
+       room.orbitalHolders.delete(socket.id);
         room.scores.delete(socket.id);
         socket.leave(roomId);
         if (room.players.size === 0 && !room.ended) endMatch(room);
@@ -2600,7 +2602,8 @@ async function handle(socket: any, msg: C2S) {
       if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return;
       const p = room.players.get(socket.id);
       if (!p?.alive || room.downed.has(socket.id)) return;
-      const meleeId=room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(room.loadouts.get(socket.id)?.meleeWeaponId??"knife_tactical");
+      const requestedMelee=room.loadouts.get(socket.id)?.meleeWeaponId;
+      const meleeId=room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(requestedMelee===ORBITAL_REAPER_ID?"knife_tactical":requestedMelee??"knife_tactical");
       const weapon=weaponById(meleeId);
       if(weapon.category!=="melee")return;
       const attack=quickMeleeProfile(weapon.stats,meleeId);
@@ -3059,7 +3062,7 @@ async function handle(socket: any, msg: C2S) {
         if (isPrimaryWeaponCategory(selected.category) &&
             (loadout.perkId !== "well_prepared" || selected.wonder || newWeaponId === loadout.weaponId)) return;
       }
-      else if (msg.slot === "melee") newWeaponId = room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(loadout.meleeWeaponId??"knife_tactical");
+      else if (msg.slot === "melee") newWeaponId = room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(loadout.meleeWeaponId===ORBITAL_REAPER_ID?"knife_tactical":loadout.meleeWeaponId??"knife_tactical");
       // Validate the weapon exists.
       const w = weaponById(newWeaponId);
       if (!w) return;
@@ -3211,6 +3214,7 @@ async function handle(socket: any, msg: C2S) {
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
+       room.orbitalHolders.delete(socket.id);
         room.sockets.delete(socket.id);
         room.scores.delete(socket.id);
         room.loadouts.delete(socket.id);
