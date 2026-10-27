@@ -4,10 +4,10 @@ import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
-import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
 import { matchHudInfo } from "@/lib/match-hud";
+import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
@@ -112,8 +112,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
   const clockText = formatMatchClock(hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier);
-  const personalPrimary = mode === "ctf" || mode === "killconfirmed" ? hud.score : hud.kills;
-  const personalSecondary = mode === "ctf" ? hud.kills : mode === "killconfirmed" ? hud.denials ?? 0 : hud.deaths;
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -135,6 +133,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // mark every teammate as an "ally" (Shield icon) since all players on your
   // team are friendlies.
   const selfTeam = hud.scoreboard.find(r => r.isSelf)?.team;
+  const ranking = killRank(hud.scoreboard, hud.kills);
+  const teamScores = teamScorePerspective(hud.teamScores, selfTeam);
+  const flagLine = hud.ctfFlags ? ctfFlagLine(hud.ctfFlags, selfTeam, !!hud.ctfCarrying) : null;
+  const clockEnding = !hud.unlimitedTime && !hud.ctfOvertime && hud.timeLeft > 0 && hud.timeLeft <= 30;
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none font-mono">
@@ -227,118 +229,117 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>
       )}
 
-      {/* top center: timer + mode + scores (or survival wave panel) */}
-      {mode === "survival" ? (
-        <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-2"}`}>
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-amber-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Skull className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
-            <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
-            <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-xl"}`}>{hud.survivalWave ?? 0}</span>
-          </div>
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-3 py-1.5"}`}>
-            <Clock className="w-3.5 h-3.5 text-white/60" />
-            <span className="text-white font-bold tabular-nums text-sm">{clockText}</span>
-          </div>
-          {hud.survivalPrepLeft && hud.survivalPrepLeft > 0 ? (
-            <div className={`bg-amber-500/20 backdrop-blur rounded-lg border border-amber-500/40 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-              <Clock className={isTouch ? "w-3 h-3 text-amber-300 animate-pulse" : "w-4 h-4 text-amber-300 animate-pulse"} />
-              <span className={`text-amber-200 uppercase tracking-wider font-bold ${isTouch ? "text-[9px]" : "text-xs"}`}>Prep {hud.survivalPrepLeft}s</span>
-            </div>
+
+      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
+      <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
+        <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
+          {mode === "survival" ? (
+            <>
+              <div className={`bg-black/65 backdrop-blur rounded-lg border border-amber-500/30 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                <Skull className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
+                <span className={`text-white/60 uppercase ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
+                <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalWave ?? 0}</span>
+              </div>
+              <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                <Clock className="w-3 h-3 text-white/60" />
+                <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{clockText}</span>
+              </div>
+              <div className={`backdrop-blur rounded-lg border flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "bg-amber-950/70 border-amber-500/30" : "bg-black/65 border-rose-500/30"}`}>
+                <span className={`uppercase ${isTouch ? "text-[9px]" : "text-xs"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "text-amber-200" : "text-rose-200"}`}>
+                  {(hud.survivalPrepLeft ?? 0) > 0 ? "Prep" : "Enemies"}
+                </span>
+                <span className={`font-black tabular-nums ${isTouch ? "text-sm" : "text-lg"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "text-amber-300" : "text-rose-300"}`}>
+                  {(hud.survivalPrepLeft ?? 0) > 0 ? Math.ceil(hud.survivalPrepLeft ?? 0) + "s" : hud.survivalEnemiesLeft ?? 0}
+                </span>
+              </div>
+            </>
           ) : (
-            <div className={`bg-black/55 backdrop-blur rounded-lg border border-rose-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-              <AlertTriangle className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />
-              <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Enemies</span>
-              <span className={`text-rose-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalEnemiesLeft ?? 0}</span>
+            <>
+              <div className={`backdrop-blur rounded-lg border flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"} ${clockEnding ? "bg-rose-950/75 border-rose-500/50" : "bg-black/65 border-white/10"}`}>
+                <Clock className={`w-3 h-3 ${clockEnding ? "text-rose-300" : "text-white/60"}`} />
+                <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"} ${clockEnding ? "text-rose-300" : "text-white"}`}>{clockText}</span>
+                {hud.ctfOvertime && <span className="text-amber-300 text-[9px] font-black">OT</span>}
+              </div>
+              {mode === "ffa" ? (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}</span>
+                    {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && <span className="text-amber-300/70 text-[10px]">/{hud.scoreLimit}</span>}
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <Trophy className="w-3 h-3 text-amber-300" />
+                    <span className={`text-amber-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
+                  </div>
+                </>
+              ) : mode === "tdm" ? (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
+                    <span className="text-red-300 font-bold text-[10px]">R</span>
+                    <span className={`text-red-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.red}</span>
+                    <span className="text-white/30">–</span>
+                    <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.blue}</span>
+                    <span className="text-blue-300 font-bold text-[10px]">B</span>
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K/D</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
+                  </div>
+                </>
+              ) : mode === "killconfirmed" || mode === "ctf" ? (
+                <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
+                  <span className={`text-emerald-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Team</span>
+                  <span className={`text-emerald-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.own}</span>
+                  <span className="text-white/30">–</span>
+                  <span className={`text-rose-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.enemy}</span>
+                  <span className={`text-rose-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Enemy</span>
+                </div>
+              ) : (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}</span>
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <Trophy className="w-3 h-3 text-purple-300" />
+                    <span className={`text-purple-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {mode === "ctf" && hud.ctfFlags && flagLine && (
+          <>
+            <div className={`flex items-center justify-center flex-wrap rounded-md border border-emerald-400/20 bg-black/60 backdrop-blur ${isTouch ? "gap-x-2 px-2 py-0.5" : "gap-x-3 px-3 py-1"}`}>
+              <span className="text-[10px] font-semibold uppercase text-emerald-300">Our flag <span className="text-white/85">{flagLine.own}</span></span>
+              <span className="text-white/30">·</span>
+              <span className="text-[10px] font-semibold uppercase text-rose-300">Enemy flag <span className="text-white/85">{flagLine.enemy}</span></span>
+              {hud.orbitalCharge !== undefined && (
+                <span className="text-[10px] font-semibold text-violet-300">· Core {hud.orbitalCharge}/5{hud.orbitalReaper ? " · REAPER ACTIVE" : ""}</span>
+              )}
             </div>
-          )}
-        </div>
-      ) : (
-      <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-3"}`}>
-        <div className={`backdrop-blur rounded-lg border flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "bg-rose-950/70 border-rose-500/50" : "bg-black/55 border-white/10"}`}
-             style={(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? { animation: "countdownPulse 1s ease-in-out infinite" } : {}}>
-          <Clock className={isTouch ? "w-3 h-3 text-white/70" : "w-4 h-4 text-white/70"} />
-          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{clockText}</span>
-          {hud.ctfOvertime && <span className="text-amber-300 text-[9px] font-black uppercase tracking-wider">OT</span>}
-          {(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 && (
-            <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
-          )}
-        </div>
-        {/* Explicit mode identity, including team modes — never default to FFA. */}
-        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "px-1.5 py-0.5" : "px-3 py-1.5"}`}>
-          <span className={`text-amber-200 font-black tracking-wider uppercase whitespace-nowrap ${isTouch ? "text-[9px]" : "text-xs"}`}>
-            {isTouch ? matchInfo.short : matchInfo.title}
-          </span>
-        </div>
-        {matchInfo.teamBased ? (
-          <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1 px-1.5 py-0.5" : "gap-2 px-3 py-1.5"}`}
-               title={`Red vs Blue · ${matchInfo.teamObjective.toLowerCase()} scored`}>
-            <span className="text-red-300 text-[9px] font-bold">R</span>
-            <span className={`text-red-400 font-black tabular-nums ${isTouch ? "text-xs" : "text-lg"}`}>{hud.teamScores.red}</span>
-            <span className="text-white/40 text-[9px]">–</span>
-            <span className={`text-blue-400 font-black tabular-nums ${isTouch ? "text-xs" : "text-lg"}`}>{hud.teamScores.blue}</span>
-            <span className="text-blue-300 text-[9px] font-bold">B</span>
-            {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
-              <span className={`text-white/40 ${isTouch ? "text-[8px]" : "text-[10px]"}`}>/ {hud.scoreLimit}</span>
+            {hud.ctfOvertime && <div className="text-[10px] text-amber-300 font-bold uppercase">Sudden death · Next capture wins</div>}
+            {hud.ctfZoneError && <div className="rounded px-2 py-1 bg-amber-950/80 border border-amber-400/40 text-amber-300 text-[10px] max-w-[85vw] text-center">{hud.ctfZoneError}</div>}
+            {hud.ctfNotice && now - hud.ctfNotice.at < 2400 && (
+              <div className="text-amber-200 font-black tracking-wide text-sm uppercase" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
             )}
-            {!isTouch && <span className="text-white/40 text-[9px] font-semibold uppercase">{matchInfo.teamObjective}</span>}
+          </>
+        )}
+
+        {mode === "gungame" && hud.gungameTotal !== undefined && (
+          <GunGameProgress index={hud.gungameIndex ?? 0} total={hud.gungameTotal} currentWeaponId={hud.weaponId} compact={isTouch} />
+        )}
+
+        {mode === "survival" && (
+          <div className="max-w-[90vw] text-center text-[10px] tracking-wide text-amber-200 font-semibold uppercase">
+            {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
+            {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
+            {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
           </div>
-        ) : null}
-        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-1.5 py-0.5" : "gap-1.5 px-3 py-1.5"}`}>
-          <span className={`text-white/50 font-semibold ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{matchInfo.personalPrimary}</span>
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{personalPrimary}</span>
-          {matchInfo.personalGoal && hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
-            <span className="text-amber-400/70 text-[10px]">/{hud.scoreLimit}</span>
-          )}
-          <span className="text-white/20 mx-0.5">·</span>
-          <span className={`text-white/50 font-semibold ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{matchInfo.personalSecondary}</span>
-          <span className={`text-white/80 font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{personalSecondary}</span>
-        </div>
+        )}
       </div>
-      )}
-
-      {mode === "ctf" && hud.ctfFlags && (
-        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none ${isTouch ? "top-12" : "top-[77px]"}`}>
-          <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-lg bg-black/65 border border-emerald-400/30 px-3 py-1.5 text-[10px] font-bold tracking-wide">
-            <span className="text-rose-300">RED {hud.ctfFlags.red.carrierId ? "TAKEN" : hud.ctfFlags.red.dropped ? "DROPPED" : "HOME"}</span>
-            <span className="text-white/35">·</span>
-            <span className="text-sky-300">BLUE {hud.ctfFlags.blue.carrierId ? "TAKEN" : hud.ctfFlags.blue.dropped ? "DROPPED" : "HOME"}</span>
-          </div>
-          {hud.orbitalCharge!==undefined && (
-            <div className="mt-1 inline-flex flex-wrap justify-center items-center gap-2 rounded-lg bg-violet-950/70 border border-violet-400/40 px-3 py-1 text-[10px] font-black tracking-wide">
-              <span className="text-cyan-200">REACTOR {hud.orbitalCharge}/5</span>
-              <span className="text-violet-200">{hud.orbitalCharge>=5?"READY · CLAIM AT CENTRAL DECK":"NEARBY KILLS CHARGE THE CORE"}</span>
-              {hud.orbitalReaper && <span className="text-amber-200">NEXUS REAPER · LOST ON DEATH</span>}
-            </div>
-          )}
-          {hud.ctfOvertime && <div className="mt-1 text-amber-300 font-black uppercase tracking-widest text-xs animate-pulse">Sudden Death · Next Capture Wins</div>}
-          <div className={`mt-1 text-[10px] font-semibold ${hud.ctfCarrying ? "text-amber-200" : "text-white/75"}`}>
-            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · DELIVER TO YOUR BASE" : `Steal the enemy flag · Score at your base · Dropped flags ${hud.ctfFlagResetMs === -1 ? "never auto-return" : hud.ctfFlagResetMs === 0 ? "reset instantly" : `return in ${(hud.ctfFlagResetMs ?? 30000) / 1000}s`}`}
-          </div>
-          {hud.ctfZoneError && (
-            <div className="mt-2 max-w-72 text-[11px] font-bold text-amber-300 bg-amber-950/60 border border-amber-500/50 rounded px-2 py-1">
-              {hud.ctfZoneError}
-            </div>
-          )}
-          {hud.ctfNotice && performance.now() - hud.ctfNotice.at < 2400 && (
-            <div className="mt-2 text-lg font-black text-amber-300 uppercase tracking-widest" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
-          )}
-        </div>
-      )}
-
-      {mode === "survival" && (
-        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-[90vw] max-w-xl ${isTouch?"top-11":"top-16"}`}>
-          <span className="text-[10px] tracking-widest font-bold uppercase text-amber-200">
-            {(hud.survivalTier ?? "default").toUpperCase()} SURVIVAL
-            {hud.survivalTier === "default" ? " · CLEAR 30" : " · ENDLESS"}
-          </span>
-          {(hud.survivalModifierNames?.length ?? 0) > 0 && (
-            <div className="text-[10px] text-rose-300 font-bold mt-1">
-              Mutators: {hud.survivalModifierNames!.join(" · ")}
-            </div>
-          )}
-          {hud.survivalBossWave && <div className="text-xs text-red-400 font-black uppercase tracking-widest mt-1 animate-pulse">Boss Wave · Heavy weapons / Shockwave</div>}
-        </div>
-      )}
 
       {/* Kill Confirmed pickup callout — only shown briefly on a local pickup. */}
       {mode === "killconfirmed" && hud.tagNotice && performance.now() - hud.tagNotice.at < 1300 && (
@@ -348,19 +349,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </span>
         </div>
       )}
-      {/* Gun Game progression indicator (gungame mode only) — sits below the top scoreboard */}
-      {mode === "gungame" && hud.gungameTotal !== undefined && (
-        <GunGameProgress
-          index={hud.gungameIndex ?? 0}
-          total={hud.gungameTotal}
-          currentWeaponId={hud.weaponId}
-          compact={isTouch}
-          weaponList={hud.gungameWeapons}
-          rank={1 + hud.scoreboard.filter(p => !p.isSelf && p.kills > hud.kills).length}
-          players={hud.scoreboard.length}
-        />
-      )}
-
       {/* top left: killfeed + map name. On mobile the font is much smaller
           and padding tighter so it doesn't dominate the small screen. */}
       <div className={`absolute left-4 flex flex-col gap-1 max-w-[60vw] ${isTouch ? "top-2" : "top-4"}`}>
