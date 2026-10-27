@@ -419,8 +419,8 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos and one token. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
-              <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
+              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge to unlock the two animated Prestige camos. A Prestige Token is earned only after that weapon also reaches Weapon Mastery rank 5/5. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Token-qualified: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
@@ -1116,12 +1116,12 @@ function CustomizeModal(props: CustomizeModalProps) {
                 <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
                   {prestiged ? "✦ PRESTIGED — Eventide + Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
                 </span>
-                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">+1 token on completion</span>}
+                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">2 Prestige skins · token after Mastery 5/5</span>}
               </div>
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
                 <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes can be equipped from Skins." : "Complete every cosmetic challenge to earn a permanent weapon Prestige and one Wonder Weapon token."}</p>
+              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes are available in Skins. Token unlock also requires Mastery rank 5/5." : "Complete every cosmetic challenge to unlock both Prestige skins; earn the token at Mastery rank 5.  weapon Prestige and one Wonder Weapon token."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
