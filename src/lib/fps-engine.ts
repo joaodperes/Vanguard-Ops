@@ -35,6 +35,7 @@ import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
+import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
@@ -1228,12 +1229,15 @@ export class FPSEngine {
     // individual CoverBox from this.map.cover unchanged.
     const cityBatch=this.map.biome==="city"||this.map.biome==="city_day";
     if(cityBatch){
+      // Keep all physics colliders, but don't ALSO draw a coplanar proxy for
+      // fully detailed city furniture, bandstand columns or shop exteriors.
+      const hiddenCityBoxes = hiddenCityColliderKeys(this.map.props ?? []);
       const materials:Record<string,THREE.Material>={
         accent:accentMat,solid:wallMat,stair:stairMat,platform:platformMat,cover:coverMat,
       };
       const buckets=new Map<string,typeof this.map.cover>();
       for(const c of this.map.cover){
-        if(c.environmentId)continue;
+        if(c.environmentId || hiddenCityBoxes.has(cityCoverKey(c)))continue;
         const kind=c.kind??"cover";
         const key=kind in materials?kind:"cover";
         const list=buckets.get(key)??[];
