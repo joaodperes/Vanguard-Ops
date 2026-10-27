@@ -84,6 +84,8 @@ export async function GET(req: NextRequest) {
     loadout: player.loadout
       ? {
           perkId: player.loadout.perkId,
+          primaryReticle:player.loadout.primaryReticle,secondaryReticle:player.loadout.secondaryReticle,
+          primaryCharm:player.loadout.primaryCharm,secondaryCharm:player.loadout.secondaryCharm,
           secondaryWeaponSkin: player.loadout.secondaryWeaponSkin,
           meleeWeaponSkin: player.loadout.meleeWeaponSkin,
           weaponSetups: player.loadout.weaponSetups,

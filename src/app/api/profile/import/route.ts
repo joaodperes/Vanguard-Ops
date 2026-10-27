@@ -58,6 +58,7 @@ interface ExportData {
   playerSkinUnlocks?: { skinId: string }[];
   loadout?: {
     perkId?: string;
+    primaryReticle?: string;secondaryReticle?: string;primaryCharm?: string;secondaryCharm?: string;
     secondaryWeaponSkin?: string;
     meleeWeaponSkin?: string;
     weaponSetups?: string;
@@ -132,7 +133,16 @@ export async function POST(req: NextRequest) {
     Number.isSafeInteger(p.careerTokensSpent)&&p.careerTokensSpent!>=0?p.careerTokensSpent!:0);
   const restoredXp = Math.max(existing?.xp ?? 0, p.xp);
   const restoredPerk = perkById(data.loadout?.perkId);
+  // Legacy backups had one reticle and weapon-ID charms; convert to the two active slots.
+  const legacyCharms=parseEquippedCharms(p.equippedCharms);
+  const cosmeticChoice=(id:string|undefined,kind:"reticle"|"charm",fallback:string)=>
+    typeof id==="string"&&cosmeticById(id,kind)?id:fallback;
   const restoredLoadout = {
+    primaryReticle:cosmeticChoice(data.loadout?.primaryReticle??p.selectedReticle,"reticle","classic"),
+    secondaryReticle:cosmeticChoice(data.loadout?.secondaryReticle??p.selectedReticle,"reticle","classic"),
+    primaryCharm:cosmeticChoice(data.loadout?.primaryCharm??legacyCharms[data.loadout?.primaryWeapon??""],"charm","none"),
+    secondaryCharm:cosmeticChoice(data.loadout?.secondaryCharm??legacyCharms[data.loadout?.secondaryWeapon??""],"charm","none"),
+    cosmeticsMigrated:true,
     perkId: restoredPerk.unlockLevel <= levelForXp(restoredXp) ? restoredPerk.id : DEFAULT_PERK_ID,
     ...(data.loadout?.secondaryWeaponSkin !== undefined ? { secondaryWeaponSkin: data.loadout.secondaryWeaponSkin } : {}),
     ...(data.loadout?.meleeWeaponSkin !== undefined ? { meleeWeaponSkin: data.loadout.meleeWeaponSkin } : {}),

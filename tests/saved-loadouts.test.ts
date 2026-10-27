@@ -4,7 +4,7 @@ import { captureSavedLoadout, cleanLoadoutName, parseSavedLoadouts, MAX_SAVED_LO
 const equipped = {
   primaryWeapon: "rifle_ar", secondaryWeapon: "pistol_side", meleeWeapon: "knife_tactical",
   weaponSkin: "default", secondaryWeaponSkin: "default", meleeWeaponSkin: "default",
-  playerSkin: "default", attachments: '{"sight":"red_dot"}',
+  playerSkin: "default", primaryReticle:"reticle_orbit",secondaryReticle:"dot",primaryCharm:"charm_tag",secondaryCharm:"none", attachments: '{"sight":"red_dot"}',
   secondaryAttachments: "{}", meleeAttachments: "{}",
 };
 
@@ -21,6 +21,9 @@ describe("Named loadout slots", () => {
     expect(preset.perkId).toBe("steady");
     expect(preset.primaryWeapon).toBe("rifle_ar");
     expect(preset.attachments.sight).toBe("red_dot");
+    expect(preset.primaryReticle).toBe("reticle_orbit");
+    expect(preset.secondaryReticle).toBe("dot");
+    expect(preset.primaryCharm).toBe("charm_tag");
     expect(preset.secondaryAttachments).toEqual({});
   });
   test("round-trips three independent weapon skins and attachment maps through a preset",()=>{
@@ -35,6 +38,9 @@ describe("Named loadout slots", () => {
     expect(restored.secondaryWeaponSkin).toBe("neon");
     expect(restored.meleeWeaponSkin).toBe("arctic");
     expect(restored.playerSkin).toBe("blue");
+    expect(restored.primaryReticle).toBe("reticle_orbit");
+    expect(restored.secondaryReticle).toBe("dot");
+    expect(restored.primaryCharm).toBe("charm_tag");
     expect(restored.attachments.barrel).toBe("barrel_heavy");
     expect(restored.secondaryAttachments.magazine).toBe("mag_extended");
     expect(restored.meleeAttachments).toEqual({sight:null,barrel:null,grip:null,magazine:null});
