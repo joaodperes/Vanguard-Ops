@@ -1,5 +1,5 @@
 import { WEAPONS, WEAPON_SKINS } from "./game-data";
-import { allSkinChallengesForWeapon, weaponChallengeProgress, type WeaponConditionStats } from "./armory-challenges";
+import { allSkinChallengesForWeapon, weaponChallengeProgress, weaponMasteryProgress, type WeaponConditionStats } from "./armory-challenges";
 
 export const PRESTIGE_CAMO_IDS = ["prestige_cosmic", "prestige_toxic"] as const;
 export function prestigeEligible(
@@ -20,6 +20,18 @@ export function prestigeEligible(
   });
 }
 
+/** Cosmetic prestige grants skins immediately. Only Rank 5 weapon mastery
+ * combined with that earned prestige unlocks a spendable Wonder token.
+ * Derive this from permanent rows so rank-ups retroactively award the token
+ * exactly once without a second claim or duplicate accounting.
+ */
+export function tokenEligiblePrestiges(
+  prestigedWeaponIds: readonly string[],
+  progress: Readonly<Record<string,{kills:number;headshots:number}>>,
+): string[] {
+  return [...new Set(prestigedWeaponIds)].filter(id=>
+    weaponMasteryProgress(progress[id]?.kills??0,progress[id]?.headshots??0).rank===5);
+}
 export function prestigeTokens(awards: number, wonderUnlocks: number): number {
   return Math.max(0, awards - wonderUnlocks);
 }
