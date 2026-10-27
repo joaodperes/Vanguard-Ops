@@ -519,5 +519,65 @@
     "rewardCredits": 4000,
     "category": "mastery",
     "rewardTitle": "Arsenal Legend"
+  },
+  {
+    "id": "ctf_first_capture",
+    "title": "Flag Runner",
+    "description": "Score your first Capture the Flag point",
+    "icon": "Flag",
+    "metric": "ctf_captures",
+    "goal": 1,
+    "tier": "bronze",
+    "rewardXp": 150,
+    "rewardCredits": 75,
+    "category": "pvp"
+  },
+  {
+    "id": "ctf_captures_10",
+    "title": "Relentless Courier",
+    "description": "Score 10 flags across Capture the Flag matches",
+    "icon": "Flag",
+    "metric": "ctf_captures",
+    "goal": 10,
+    "tier": "silver",
+    "rewardXp": 500,
+    "rewardCredits": 250,
+    "category": "pvp"
+  },
+  {
+    "id": "ctf_captures_50",
+    "title": "Legendary Flagbearer",
+    "description": "Score 50 flags across Capture the Flag matches",
+    "icon": "Crown",
+    "metric": "ctf_captures",
+    "goal": 50,
+    "tier": "gold",
+    "rewardXp": 1600,
+    "rewardCredits": 800,
+    "category": "pvp"
+  },
+  {
+    "id": "ctf_first_win",
+    "title": "Home Advantage",
+    "description": "Win your first Capture the Flag match",
+    "icon": "Shield",
+    "metric": "ctf_wins",
+    "goal": 1,
+    "tier": "bronze",
+    "rewardXp": 200,
+    "rewardCredits": 100,
+    "category": "pvp"
+  },
+  {
+    "id": "ctf_wins_10",
+    "title": "Banner Commander",
+    "description": "Win 10 Capture the Flag matches",
+    "icon": "Trophy",
+    "metric": "ctf_wins",
+    "goal": 10,
+    "tier": "gold",
+    "rewardXp": 1200,
+    "rewardCredits": 600,
+    "category": "pvp"
   }
 ]
