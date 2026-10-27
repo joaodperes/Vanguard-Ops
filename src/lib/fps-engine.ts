@@ -1379,9 +1379,10 @@ export class FPSEngine {
       }
       // Heavy branches physically meet the high canopy clusters. Kept above
       // player head height so the open flag deck remains a clear combat space.
-      for(const angle of [Math.PI/5,Math.PI*4/5,Math.PI*7/5,Math.PI*9/5]){
+      for(const branchIndex of [1,4,8,12]){
+        const angle=branchIndex*2*Math.PI/14;
         const x2=x+Math.cos(angle)*16.2,z2=Math.sin(angle)*16.2;
-        const start=new THREE.Vector3(x,18,0),end=new THREE.Vector3(x2,24,z2);
+        const start=new THREE.Vector3(x,18,0),end=new THREE.Vector3(x2,24.5+(branchIndex%3)*.6,z2);
         const direction=end.clone().sub(start);
         const branch=new THREE.Mesh(new THREE.CylinderGeometry(.45,1.05,direction.length(),10),bark);
         branch.position.copy(start.add(end).multiplyScalar(.5));
