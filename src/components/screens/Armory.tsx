@@ -100,6 +100,7 @@ export function Armory() {
   const [editingPreset, setEditingPreset] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [presetBusy, setPresetBusy] = useState(false);
+  const [unconfirmedLoadout, setUnconfirmedLoadout] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<WeaponProgressMap>({});
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
@@ -341,7 +342,7 @@ export function Armory() {
         </div>
         {/* Single current-loadout box owns both confirmation and named snapshots. */}
         <div className="mb-6">
-          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })}>
+          <LoadoutSelector onDirtyChange={setUnconfirmedLoadout} onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })}>
             <details className="mt-5 rounded-xl border border-amber-500/25 bg-black/30 group" aria-label="Saved loadouts">
               <summary className="cursor-pointer select-none p-4 text-amber-200 font-semibold flex items-center gap-2">
                 <Save className="w-4 h-4" /> Saved Loadouts
@@ -349,7 +350,7 @@ export function Armory() {
                 <ChevronDown className="w-4 h-4 ml-auto group-open:rotate-180 transition-transform" />
               </summary>
               <div className="px-4 pb-4">
-                <p className="text-xs text-white/50 mb-3">Profile snapshots include weapons, skins, attachments and the selected perk. Confirm changes above before saving.</p>
+                <p className="text-xs text-white/50 mb-3">Profile snapshots include weapons, skins, attachments and the selected perk. Confirm any changed weapon or perk selection above before saving a profile snapshot.</p>
             <div className="flex flex-wrap gap-2 mb-4">
             <input
               value={presetName}
@@ -360,7 +361,7 @@ export function Armory() {
               className="flex-1 min-w-40 rounded-lg bg-black/40 border border-white/20 text-white px-3 py-2 text-sm outline-none focus:border-amber-400"
             />
             <Button
-              disabled={presetBusy || !presetName.trim() || (profile?.savedLoadouts ?? []).length >= 5}
+              disabled={presetBusy || unconfirmedLoadout || !presetName.trim() || (profile?.savedLoadouts ?? []).length >= 5}
               onClick={() => managePreset("save")}
               className="bg-amber-500 hover:bg-amber-400 text-black"
             ><Save className="w-4 h-4 mr-1.5" /> Save Current</Button>
