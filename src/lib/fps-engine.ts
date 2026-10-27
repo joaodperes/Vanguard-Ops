@@ -163,7 +163,6 @@ export interface HudState {
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   orbitalCharge?: number;
-  orbitalActivations?: number;
   orbitalReaper?: boolean;
   orbitalWarning?: string;
   ctfCarrying?: boolean;
@@ -714,7 +713,6 @@ export class FPSEngine {
   private ctfResetDurationMs = 30000;
   private ctfOvertime = false;
   private orbitalCharge=0;
-  private orbitalActivations=0;
   private orbitalServerVersion:number|undefined;
   private orbitalSnapshotSeen=false;
   private orbitalWeaponActive=false;
@@ -1701,7 +1699,6 @@ export class FPSEngine {
       a.id.localeCompare(b.id));
     const winner=contenders[0];if(!winner)return;
     this.orbitalCharge=0;
-    this.orbitalActivations++;
     if(winner.self)this.grantOrbitalReaper(true);
     else if(winner.bot){
       const bot=winner.bot;
@@ -4683,7 +4680,6 @@ export class FPSEngine {
           this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
           if(this.map.id==="orbital_nexus"){
           if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
-           if(msg.orbitalActivations!==undefined)this.orbitalActivations=msg.orbitalActivations;
            this.orbitalServerVersion=msg.orbitalRulesVersion;
            this.orbitalSnapshotSeen=true;
           if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
@@ -5079,9 +5075,6 @@ export class FPSEngine {
       case "orbitalAbsorb":
         this.spawnOrbitalMote(msg.pos);
         break;
-      case "orbitalKillResult":
-        // Ignored: no negative no-charge pop-ups.
-        break;
       case "orbitalPulse":
         this.showOrbitalPulse(msg.pos);
         break;
@@ -5177,7 +5170,7 @@ export class FPSEngine {
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
         this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
-        this.orbitalCharge=0;this.orbitalActivations=0;
+        this.orbitalCharge=0;
         this.orbitalServerVersion=undefined;this.orbitalSnapshotSeen=false;
         this.grantOrbitalReaper(false);
         // Reset per-kill tracking for the fresh match.
@@ -8647,7 +8640,6 @@ export class FPSEngine {
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
-      orbitalActivations:this.map.id==="orbital_nexus"?this.orbitalActivations:undefined,
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
