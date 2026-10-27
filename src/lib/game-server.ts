@@ -1,5 +1,5 @@
 import { resolveMatchLoadout } from "./match-loadout";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -742,7 +742,7 @@ function snapshot(room: Room): S2C {
       ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
     ...(room.map.id==="orbital_nexus"?{
       orbitalCharge:room.orbitalCharge,orbitalActivations:room.orbitalActivations,
-      orbitalHolders:[...room.orbitalHolders],
+      orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
     }:{}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
@@ -1356,6 +1356,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       // Either the attacker OR the defeated combatant can be in the central
       // charge zone; the server validates opponent ownership before counting.
       const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id,attacker.pos);
+      // Explicit per-kill result prevents silent no-op debugging in live CTF.
+      // Only the killer sees rejected out-of-zone eliminations.
+      if(!attacker.isBot)io.to(attacker.id).emit("message",
+        {t:"orbitalKillResult",counted:charge>room.orbitalCharge,charge} as S2C);
       if(charge!==room.orbitalCharge){
         room.orbitalCharge=charge;
         io.to(room.id).emit("message",{t:"orbitalAbsorb",pos:[...victim.pos] as Vec3} as S2C);
