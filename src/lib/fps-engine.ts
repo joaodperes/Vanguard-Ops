@@ -50,7 +50,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -722,6 +722,7 @@ export class FPSEngine {
   private orbitalCore:THREE.Mesh|undefined;
   private orbitalRings:THREE.Mesh[]=[];
   private orbitalMotes:{mesh:THREE.Mesh;origin:Vec3;start:number}[]=[];
+  private orbitalPulseRings:{mesh:THREE.Mesh;at:number}[]=[];
   private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
   private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
   private ctfRulesVerified = false;
@@ -1489,8 +1490,28 @@ export class FPSEngine {
     this.scene.add(mesh);
     this.orbitalMotes.push({mesh,origin:[...pos],start:performance.now()});
   }
+  private showOrbitalPulse(pos:Vec3) {
+    if(this.map.id!=="orbital_nexus")return;
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.45,1,56),
+      new THREE.MeshBasicMaterial({color:0xb26bff,transparent:true,opacity:.92,
+        blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+    ring.rotation.x=-Math.PI/2;
+    ring.position.set(pos[0],pos[1]+.22,pos[2]);
+    this.scene.add(ring);
+    this.orbitalPulseRings.push({mesh:ring,at:performance.now()});
+  }
   private animateOrbitalReactor(now:number) {
     if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    this.orbitalPulseRings=this.orbitalPulseRings.filter(p=>{
+      const t=(now-p.at)/580;
+      if(t>=1){
+        this.scene.remove(p.mesh);p.mesh.geometry.dispose();
+        (p.mesh.material as THREE.Material).dispose();return false;
+      }
+      p.mesh.scale.setScalar(.2+ORBITAL_PULSE_RADIUS*t);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
+      return true;
+    });
     this.orbitalMotes=this.orbitalMotes.filter(m=>{
       const t=Math.max(0,(now-m.start)/1050);
       if(t>=1){
@@ -1549,10 +1570,7 @@ export class FPSEngine {
       this.quickMeleeModel=null;
     }
     this.createQuickMeleeModel();
-    if(active){
-      this.ctfNotice={label:"NEXUS REAPER CLAIMED — MELEE SLOT 3",at:performance.now()};
-      this.sound.play("flag_scored",{volume:.85});
-    }
+    // The weapon model is the pickup cue; no charged/claim pop-up.
   }
   /** Local kill scoring mirrors the multiplayer server's killer-or-victim
    * zone rule. Always pass the actual attacker position for credited kills.
@@ -1561,18 +1579,9 @@ export class FPSEngine {
     if(this.opts.online||this.map.id!=="orbital_nexus")return;
     const prev=this.orbitalCharge;
     this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
-    if(this.orbitalCharge===prev){
-      if(prev<ORBITAL_KILLS_REQUIRED)
-        this.ctfNotice={label:"NO REACTOR CHARGE — BOTH FIGHTERS OUTSIDE ZONE",at:performance.now()};
-      return;
-    }
+    if(this.orbitalCharge===prev)return;
     this.spawnOrbitalMote(victimPos);
-    this.ctfNotice={
-      label:this.orbitalCharge===ORBITAL_KILLS_REQUIRED
-        ?"REACTOR CHARGED — REACH THE CENTER!"
-        :`REACTOR CHARGE +1 — ${this.orbitalCharge}/${ORBITAL_KILLS_REQUIRED}`,
-      at:performance.now(),
-    };
+    // Reactor progression is visible in the HUD; no charged/claim banners.
   }
   private refreshOfflineOrbitalBotModel(bot:Combatant){
     if(!bot.group||this.opts.online)return;
@@ -1628,7 +1637,7 @@ export class FPSEngine {
       bot.ai!.reloadingUntil=0;
       bot.ai!.nextDecisionAt=0;
       this.refreshOfflineOrbitalBotModel(bot);
-      this.ctfNotice={label:bot.name+" CLAIMED THE NEXUS REAPER!",at:performance.now()};
+      // No claim announcement; the glowing weapon model indicates ownership.
     }
   }
 
@@ -4995,36 +5004,21 @@ export class FPSEngine {
         this.spawnOrbitalMote(msg.pos);
         break;
       case "orbitalKillResult":
-        if(this.map.id==="orbital_nexus"&&!msg.counted){
-          this.ctfNotice={
-            label:msg.charge>=ORBITAL_KILLS_REQUIRED
-              ?"REACTOR FULL — CLAIM AT CENTER"
-              :"NO REACTOR CHARGE — BOTH FIGHTERS OUTSIDE ZONE",
-            at:performance.now(),
-          };
-        }
+        // Ignored: no negative no-charge pop-ups.
+        break;
+      case "orbitalPulse":
+        this.showOrbitalPulse(msg.pos);
         break;
       case "orbitalReactor":
         if(this.map.id==="orbital_nexus"){
           const old=this.orbitalCharge;
           this.orbitalCharge=msg.charge;
-          if(msg.charge>old){
-            this.ctfNotice={
-              label:msg.charge>=ORBITAL_KILLS_REQUIRED
-                ?"REACTOR CHARGED — REACH THE CENTER!"
-                :`REACTOR CHARGE +1 — ${msg.charge}/${ORBITAL_KILLS_REQUIRED}`,
-              at:performance.now(),
-            };
-          }
+          void old; // Charge updates are reflected in the HUD only.
         }
         break;
       case "orbitalReward":
         if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
-        else if(msg.active){
-          const holder=this.combatants.get(msg.playerId);
-          this.ctfNotice={label:`${holder?.name??"OPPONENT"} CLAIMED NEXUS REAPER!`,
-            at:performance.now()};
-        }
+        // No Reaper claim pop-ups.
         break;
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
