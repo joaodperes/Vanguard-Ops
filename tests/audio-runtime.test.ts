@@ -67,44 +67,66 @@ class FakeAudioContext {
   async close(): Promise<void> { this.state = "closed"; }
 }
 
+/** Recorded music now uses independent HTML audio elements, not a WebAudio
+ * oscillator or ambient gain node. The fake spies on actual media playback. */
+class FakeHtmlAudio {
+  static instances: FakeHtmlAudio[] = [];
+  src = "";
+  volume = 0;
+  loop = false;
+  preload = "";
+  paused = true;
+  onerror: (() => void) | null = null;
+  playCount = 0;
+  constructor(){ FakeHtmlAudio.instances.push(this); }
+  play(): Promise<void> { this.playCount++; this.paused = false; return Promise.resolve(); }
+  pause(): void { this.paused = true; }
+  load(): void {}
+  removeAttribute(name:string): void { if(name==="src")this.src=""; }
+}
+interface FakeMusicSlot { audio: FakeHtmlAudio; track:{id:string}; startedAt:number; from:number; to:number }
 interface AudioInternals {
   outputGain: FakeGain;
   masterGain: FakeGain;
   footstepGain: FakeGain;
-  ambientGain: FakeGain;
-  musicLayer: FakeGain;
-  retiredMusicLayers: { node: FakeGain; removeAt: number }[];
-  ambientTheme: string;
+  recordedMusic: {
+    current: FakeMusicSlot | null;
+    outgoing: FakeMusicSlot | null;
+    tick(active:boolean,theme:string,now:number):void;
+  };
 }
 const previousWindow = (globalThis as any).window;
+const previousAudio = (globalThis as any).Audio;
 beforeEach(() => {
   (globalThis as any).window = { AudioContext: FakeAudioContext };
+  (globalThis as any).Audio = FakeHtmlAudio;
   FakeAudioContext.last = null;
+  FakeHtmlAudio.instances = [];
 });
 afterEach(() => {
   if (previousWindow === undefined) delete (globalThis as any).window;
   else (globalThis as any).window = previousWindow;
+  if (previousAudio === undefined) delete (globalThis as any).Audio;
+  else (globalThis as any).Audio = previousAudio;
 });
 
 describe("SoundManager browser audio graph", () => {
-  test("uses separate routed buses, keeping master volume above all channels", () => {
-    const sm = new SoundManager();
-    sm.setMasterVolume(0.75);
-    sm.setMusicVolume(0.3);
-    sm.setFootstepVolume(0.5);
-    sm.setFxVolume(0.2);
+  test("routes FX and footsteps through WebAudio while licensed music is independent", () => {
+    const sm=new SoundManager();
+    sm.setMasterVolume(.75); sm.setMusicVolume(.3);
+    sm.setFootstepVolume(.5); sm.setFxVolume(.2);
     sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
+    const a=sm as unknown as AudioInternals;
+    const ctx=FakeAudioContext.last!;
     expect(a.outputGain.connections).toContain(ctx.destination);
     expect(a.masterGain.connections).toContain(a.outputGain);
     expect(a.footstepGain.connections).toContain(a.outputGain);
-    expect(a.ambientGain.connections).toContain(a.outputGain);
-    expect(a.musicLayer.connections).toContain(a.ambientGain);
-    expect(a.outputGain.gain.value).toBe(0.75);
-    expect(a.masterGain.gain.value).toBe(0.2);
-    expect(a.footstepGain.gain.value).toBe(0.5);
-    expect(a.ambientGain.gain.value).toBe(0);
+    expect(a.outputGain.gain.value).toBe(.75);
+    expect(a.masterGain.gain.value).toBe(.2);
+    expect(a.footstepGain.gain.value).toBe(.5);
+    sm.tickAmbientMusic(true,"menu");
+    expect(a.recordedMusic.current?.audio).toBeDefined();
+    expect(a.recordedMusic.current?.audio.playCount).toBeGreaterThan(0);
     sm.dispose();
   });
 
@@ -134,49 +156,44 @@ describe("SoundManager browser audio graph", () => {
     sm.dispose();
   });
 
-  test("starts the menu track and crossfades to a distinct lobby/map arrangement", () => {
-    const sm = new SoundManager(); sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
-    sm.tickAmbientMusic(true, "menu");
-    const firstLayer = a.musicLayer;
-    const menuNote = ctx.oscillators.find(o => o.type === "sine" && o.startedAt !== null);
-    expect(menuNote).toBeDefined();
-    expect(a.ambientTheme).toBe("menu");
-    // Music is intentionally a quiet bed under gunfire and footsteps.
-    expect(a.ambientGain.gain.value).toBeCloseTo(0.65 * 0.115);
-    const afterMenu = ctx.oscillators.length;
-
-    ctx.currentTime = 1.7;
-    sm.tickAmbientMusic(true, "lobby");
-    expect(a.ambientTheme).toBe("lobby");
-    expect(a.musicLayer).not.toBe(firstLayer);
-    expect(a.retiredMusicLayers.some(x => x.node === firstLayer)).toBe(true);
-    expect(firstLayer.gain.targets).toContain(0);
-    expect(ctx.oscillators.length).toBeGreaterThan(afterMenu);
-
-    ctx.currentTime = 2.4;
-    sm.tickAmbientMusic(true, "bunker");
-    expect(a.ambientTheme).toBe("bunker");
-    expect(a.musicLayer.connections).toContain(a.ambientGain);
-    sm.tickAmbientMusic(false, "bunker");
-    expect(a.ambientGain.gain.value).toBe(0);
+  test("crossfades between distinct licensed recordings instead of oscillator themes", () => {
+    const sm=new SoundManager(); sm.resume();
+    const a=sm as unknown as AudioInternals;
+    const player=a.recordedMusic;
+    player.tick(true,"menu",1000);
+    const first=player.current!;
+    expect(first.audio.src).toBeTruthy();
+    expect(first.audio.playCount).toBeGreaterThan(0);
+    player.tick(true,"menu",2300);
+    expect(first.audio.volume).toBeGreaterThan(0);
+    player.tick(true,"lobby",2400);
+    expect(player.current).not.toBe(first);
+    expect(player.current?.track.id).not.toBe(first.track.id);
+    expect(player.outgoing).toBe(first);
+    player.tick(true,"lobby",2800);
+    expect(first.audio.volume).toBeLessThan(.65*.8*.16);
+    player.tick(true,"bunker",3000);
+    expect(player.current?.track.id).not.toBe(first.track.id);
+    player.tick(false,"bunker",4300);
+    expect(player.current?.audio.paused).toBe(true);
     sm.dispose();
   });
 
-  test("music at zero stops scheduling notes but leaves the other buses audible", () => {
-    const sm = new SoundManager(); sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
+  test("zero music volume mutes recorded playback, not weapon or footstep buses", () => {
+    const sm=new SoundManager(); sm.resume();
+    const a=sm as unknown as AudioInternals;
+    const ctx=FakeAudioContext.last!;
     sm.setMusicVolume(0);
-    sm.tickAmbientMusic(true, "shipyard");
+    sm.tickAmbientMusic(true,"shipyard");
     expect(ctx.oscillators.length).toBe(0);
-    expect(a.ambientGain.gain.value).toBe(0);
-    expect(a.footstepGain.gain.value).toBe(0.85);
+    expect(a.recordedMusic.current?.audio.paused).toBe(true);
+    expect(a.footstepGain.gain.value).toBe(.85);
     expect(a.masterGain.gain.value).toBe(1);
-    sm.setMusicVolume(0.5);
-    sm.tickAmbientMusic(true, "shipyard");
-    expect(ctx.oscillators.length).toBeGreaterThan(0);
+    sm.setMusicVolume(.5);
+    sm.tickAmbientMusic(true,"shipyard");
+    expect(a.recordedMusic.current?.audio.playCount).toBeGreaterThan(0);
+    expect(ctx.oscillators.length).toBe(0); // music is now a recording
     sm.dispose();
   });
+
 });
