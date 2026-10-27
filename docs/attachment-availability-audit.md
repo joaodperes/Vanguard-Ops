@@ -1,64 +1,30 @@
-# Attachment availability audit — 27 October 2026
+# Attachment choices — latest dev pass
 
-Each count is the number of **distinct compatible attachment choices** for that weapon and slot, not simultaneous attachments. Zero means the slot has no choices in the current `dev` catalogs. Data derived from weapons, attachments, per-weapon compatibility and per-category defaults.
+All **36** ordinary ranged weapons (Wonder and melee excluded) now support all four attachment slots, with at least four options each. Conventional launchers, including Breach-2 and Swarm-3, now support attachments, but suppressors and recoil-reduction-only upgrades are excluded from launcher attachment lists.
 
-| Weapon | Category | Sight | Barrel | Grip | Magazine | Total |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Event Horizon | dmr | 0 | 0 | 0 | 0 | 0 |
-| Plagueheart | shotgun | 0 | 0 | 0 | 0 | 0 |
-| Bullet Spitter | lmg | 0 | 0 | 0 | 0 | 0 |
-| Electron Rifle | assault | 3 | 4 | 3 | 4 | 14 |
-| Reclaimer Crossbow | dmr | 3 | 3 | 3 | 3 | 12 |
-| Arc Pistol | pistol | 3 | 3 | 3 | 3 | 12 |
-| Falcon SR | assault | 4 | 4 | 4 | 4 | 16 |
-| Hydra Twin | assault | 4 | 4 | 4 | 4 | 16 |
-| Cyclone DMR | dmr | 4 | 3 | 3 | 3 | 13 |
-| Whisper DMR | dmr | 4 | 3 | 3 | 3 | 13 |
-| Shock Baton | melee | 0 | 0 | 0 | 0 | 0 |
-| Breacher Axe | melee | 0 | 0 | 0 | 0 | 0 |
-| VK-12 Assault | assault | 4 | 4 | 4 | 4 | 16 |
-| Kestrel SMG | smg | 4 | 4 | 4 | 4 | 16 |
-| Breacher | shotgun | 3 | 3 | 3 | 7 | 16 |
-| Marksman DMR | dmr | 4 | 3 | 3 | 3 | 13 |
-| Longshot | sniper | 4 | 3 | 3 | 3 | 13 |
-| Hailstorm LMG | lmg | 4 | 4 | 3 | 3 | 14 |
-| Sidearm P-9 | pistol | 3 | 3 | 3 | 3 | 12 |
-| Vector PDW | smg | 4 | 4 | 4 | 4 | 16 |
-| Wraith Auto | shotgun | 3 | 3 | 3 | 7 | 16 |
-| Magnum .50 | pistol | 3 | 3 | 3 | 3 | 12 |
-| Scout Tactical | dmr | 4 | 3 | 3 | 3 | 13 |
-| Tactical Knife | melee | 0 | 0 | 0 | 0 | 0 |
-| Shiv | melee | 0 | 0 | 0 | 0 | 0 |
-| Machete | melee | 0 | 0 | 0 | 0 | 0 |
-| Sledge Hammer | melee | 0 | 0 | 0 | 0 | 0 |
-| Burst Pistol | pistol | 3 | 3 | 3 | 3 | 12 |
-| Machine Pistol | pdw | 4 | 4 | 4 | 4 | 16 |
-| RL-7 Rocket Launcher | launcher | 3 | 3 | 3 | 3 | 12 |
-| Scout Sniper | sniper | 4 | 3 | 3 | 3 | 13 |
-| Reaver BR | assault | 4 | 4 | 4 | 4 | 16 |
-| Behemoth AR | assault | 4 | 4 | 4 | 4 | 16 |
-| Wasp PDW | smg | 4 | 4 | 4 | 4 | 16 |
-| Mauler CS | shotgun | 3 | 3 | 3 | 7 | 16 |
-| Executioner DMR | dmr | 4 | 3 | 3 | 3 | 13 |
-| Vanguard LSW | lmg | 4 | 4 | 3 | 3 | 14 |
-| Annihilator | sniper | 4 | 3 | 3 | 0 | 10 |
-| Leviathan | lmg | 4 | 4 | 3 | 3 | 14 |
-| Deadlock | dmr | 0 | 0 | 0 | 0 | 0 |
-| Hellfire | lmg | 0 | 0 | 0 | 0 | 0 |
-| Stormweaver | shotgun | 0 | 0 | 0 | 0 | 0 |
-| Bogfather | shotgun | 0 | 0 | 0 | 0 | 0 |
-| Ghost-18 | pistol | 3 | 3 | 3 | 3 | 12 |
-| Bastion .45 | pistol | 3 | 3 | 3 | 3 | 12 |
-| Mamba-9 | pdw | 4 | 4 | 4 | 4 | 16 |
-| Sentinel-45 | pdw | 4 | 4 | 4 | 4 | 16 |
-| Breach-2 | launcher | 0 | 0 | 0 | 0 | 0 |
-| Swarm-3 | launcher | 0 | 0 | 0 | 0 | 0 |
-| **TOTAL** | **49 weapons** | **124** | **117** | **113** | **123** | **477** |
+- **579** allowed weapon-attachment combinations across four slots after the shotgun adjustment.
+- Standard firearm configurations have four choices each per slot.
+- The three shotguns retain **five magazine-slot choices**: Quickdraw Magazine and Slug, Buckshot Swarm, Dragon's Breath, and Beanbag ammunition. No Extended Mag, Drum Mag or Shell Carrier for shotguns.
+- Normal and specialist sniper rifles now have four choices in each slot. Annihilator has a single-round chamber with four different chamber/cartridge upgrades rather than magazine-capacity stacking.
+- Attachment unlocks remain per-weapon, with the same progress/challenge validation and current credit purchasing flow.
 
-## Review notes
+## New parts (values are percentages of existing weapon stats)
 
-- All Wonder Weapons and melee weapons have no attachment slots by design.
-- Breach-2 and Swarm-3 launchers have zero slots in their weapon definitions. No attachments appear because the catalog explicitly disables them.
-- The Annihilator sniper lacks a magazine slot but retains the other three slots.
-- Each of the three ordinary shotguns has seven magazine-slot choices, including ammo types. This is above the 2–4 choices of most weapon-slot combinations and should be monitored for clarity/balance, not silently restricted.
-- Counts include only catalog IDs that resolve to attachments in the matching slot. This audit does not change gameplay balance.
+| Slot | Attachment | Changes |
+|---|---|---|
+| Sight | Compact Reflex Sight | ADS time -12%, ADS spread -6%; 1x red dot |
+| Magazine | Lightweight Magazine | Movement +6%, magazine capacity -15% |
+| Barrel | Agile Bolt Assembly (Reclaimer) | ADS -14%, movement +4%, range -10% |
+| Magazine | Light Quiver (Reclaimer) | Reload -15%, movement +5%, damage -8% |
+| Barrel | Launcher Handling Kit | ADS -12%, range -8% |
+| Magazine | Reinforced Warhead Rack | Damage +8%, reload +18%, movement -5% |
+| Barrel | Blast Chamber (launchers) | Damage +10%, range -15%, reload +12% |
+| Barrel | Long-Range Launch Tube | Range +18%, ADS +12%, movement -6% |
+| Grip | Quick Loader Support | Reload -16%, ADS +8% |
+| Grip | Lightweight Carry Support | Movement +6%, reload +12% |
+| Magazine | Match Cartridge (Annihilator) | ADS spread -10%, range +14%, reload +12% |
+| Magazine | Fast-Bolt Cartridge (Annihilator) | Reload -25%, recoil +15% |
+| Magazine | Light Chamber (Annihilator) | Movement +7%, damage -12% |
+| Magazine | Stabilized Cartridge (Annihilator) | Recoil -20%, ADS +12% |
+
+Overall catalog now has **49 distinct attachment definitions**. Reused ordinary parts include Angled Grip, Stability Grip, Compensator, Muzzle Brake, Ported Barrel, Lightweight Barrel and Quickdraw Magazine. Old purchased attachments remain in the ownership data; unsupported formerly-equipped choices are rejected at loadout validation.
