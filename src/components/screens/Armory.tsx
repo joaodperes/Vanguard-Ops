@@ -96,6 +96,7 @@ export function Armory() {
   const { profile, setScreen, refreshProfile, playerKey, setRangeWeaponId } = useGame();
   const tryInRange = (id?: string) => { setRangeWeaponId(id ?? null); setScreen("range"); };
   const [presetName, setPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
   const [editingPreset, setEditingPreset] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [presetBusy, setPresetBusy] = useState(false);
@@ -367,8 +368,13 @@ export function Armory() {
           {(profile?.savedLoadouts ?? []).length === 0 ? (
             <div className="text-sm text-white/40 py-3">No saved loadouts yet. Equip your preferred kit in the Armory, then save it here.</div>
           ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {(profile?.savedLoadouts ?? []).map(preset => (
+            <div className="space-y-3">
+              <select aria-label="Choose saved loadout" value={(profile?.savedLoadouts ?? []).some(p=>p.id===selectedPresetId) ? selectedPresetId : (profile?.savedLoadouts?.[0]?.id ?? "")}
+                onChange={e => { setSelectedPresetId(e.target.value); setEditingPreset(null); }}
+                className="w-full rounded-lg bg-zinc-900 border border-white/20 p-2 text-white text-sm">
+                {(profile?.savedLoadouts ?? []).map(preset => <option key={preset.id} value={preset.id}>{preset.name} · {perkById(preset.perkId).name}</option>)}
+              </select>
+              {(profile?.savedLoadouts ?? []).filter(p=>p.id===(selectedPresetId && profile?.savedLoadouts?.some(x=>x.id===selectedPresetId) ? selectedPresetId : profile?.savedLoadouts?.[0]?.id)).map(preset => (
                 <div key={preset.id} className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-2">
                   {editingPreset === preset.id ? (
                     <div className="flex gap-2">
@@ -1117,7 +1123,7 @@ function CustomizeModal(props: CustomizeModalProps) {
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
                 <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes are available in Skins. Token unlock also requires Mastery rank 5/5." : "Complete every cosmetic challenge to unlock both Prestige skins; earn the token at Mastery rank 5.  weapon Prestige and one Wonder Weapon token."}</p>
+              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes are available in Skins. Token unlock also requires Mastery rank 5/5." : "Complete every cosmetic challenge for both Prestige skins; a Wonder Weapon token requires Weapon Mastery rank 5/5 as well."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
