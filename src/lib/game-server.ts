@@ -27,7 +27,7 @@ import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -1896,13 +1896,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ? Math.hypot(enemy.pos[0] - bot.pos[0], enemy.pos[2] - bot.pos[2]) : Infinity;
     const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
     const ctfObjective = room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && threatDistance > 12
-      ? (() => {
-          const ownTeam = bot.team as FlagTeam;
-          if (room.flags[otherFlag(ownTeam)].carrierId === bot.id) return ctfBase(ownTeam);
-          if (room.flags[ownTeam].dropped) return room.flags[ownTeam].pos;
-          const enemyFlag = room.flags[otherFlag(ownTeam)];
-          return enemyFlag.carrierId ? ctfBase(otherFlag(ownTeam)) : enemyFlag.pos;
-        })()
+      ? ctfBotGoal(room.flags, bot.team, bot.id, bot.pos)
       : null;
     const prevTarget = ai.targetId;
     ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
