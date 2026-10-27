@@ -96,7 +96,7 @@
   "ctf": {
     "id": "ctf",
     "label": "Capture the Flag",
-    "description": "Steal the opposing team's flag, escort your carrier home, and defend your own. Flag recovery is configurable; tied rounds enter sudden-death overtime.",
+    "description": "Steal the enemy flag, escort your carrier to your base to score, and defend your own flag.",
     "icon": "Flag",
     "defaultScoreLimit": 3,
     "scoreOptions": [
