@@ -1589,8 +1589,12 @@ export class FPSEngine {
     targetId:string,damage:number,attacker:Combatant|null,
   ) {
     if(targetId===this.selfId){
-      if(attacker)this.takeDamage(damage,attacker.name,attacker.team,false,
-        ORBITAL_REAPER_ID,attacker.pos);
+      if(attacker){
+        const aliveBefore=this.alive;
+        this.takeDamage(damage,attacker.name,attacker.team,false,
+          ORBITAL_REAPER_ID,attacker.pos);
+        if(aliveBefore&&!this.alive)attacker.kills++;
+      }
       return;
     }
     const victim=this.combatants.get(targetId);
@@ -1651,7 +1655,15 @@ export class FPSEngine {
       protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.team===attacker.team});
     const profile=quickMeleeProfile(weaponById(ORBITAL_REAPER_ID).stats,ORBITAL_REAPER_ID);
     const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
-      (_c,dist)=>dist<=profile.reach,profile.reach,profile.halfArcDegrees);
+      (candidate,dist)=>{
+        const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
+        const dir:Vec3=[(candidate.pos[0]-attacker.pos[0])/dist,0,
+          (candidate.pos[2]-attacker.pos[2])/dist];
+        return !this.map.cover.some(box=>{
+          const hit=rayBox(eye,dir,box.pos,box.size);
+          return hit!==null&&hit>.08&&hit<dist-.15;
+        });
+      },profile.reach,profile.halfArcDegrees);
     if(target)this.offlineOrbitalStrikeDamage(target.id,profile.damage,attacker);
     this.offlineOrbitalPulse(attacker.pos,attacker.team,attacker,target?[target.id]:[]);
   }
