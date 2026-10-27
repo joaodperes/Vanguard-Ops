@@ -7,7 +7,7 @@ import { xpProgressInLevel } from "./progression";
 import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
 import { collectorProgress, collectorSkinEntitlements } from "./collector";
-import { cosmeticShopOwnership, parseEquippedCharms } from "./cosmetics";
+import { cosmeticShopOwnership, parseEquippedCharms, cosmeticById } from "./cosmetics";
 import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
@@ -246,9 +246,7 @@ export interface PlayerProfileView {
   kd: number;
   selectedSkin: string;
   selectedTitle: string;
-  selectedReticle: string;
   selectedNameplate: string;
-  equippedCharms: Record<string,string>;
   ownedCosmetics: string[];
   unlockedTitles: { id: string; title: string }[];
   xpProgress: { current: number; needed: number; level: number };
@@ -304,6 +302,16 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
           playerSkinUnlocks: true, loadout: true, achievements: true },
       });
   const p = fresh!;
+  // Migrate existing account-wide reticles and per-weapon charms once into
+  // equipped loadout slots. Subsequent choices belong solely to each loadout.
+  if(p.loadout && !p.loadout.cosmeticsMigrated){
+    const old=parseEquippedCharms(p.equippedCharms);
+    const migration={primaryReticle:cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+      secondaryReticle:cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+      primaryCharm:old[p.loadout.primaryWeapon]??"none",secondaryCharm:old[p.loadout.secondaryWeapon]??"none",cosmeticsMigrated:true};
+    const updated=await db.loadout.updateMany({where:{playerId:p.id,cosmeticsMigrated:false},data:migration});
+    Object.assign(p.loadout,updated.count?migration:await db.loadout.findUniqueOrThrow({where:{playerId:p.id}}));
+  }
   const level = levelForXp(p.xp);
   // Use the shared XP-curve helpers so this stays in sync with game-data.ts.
   // Repair legacy cached levels without trusting them for entitlement checks.
@@ -368,6 +376,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
     meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",
     playerSkin: p.loadout?.playerSkin ?? p.selectedSkin ?? "default",
+    primaryReticle:p.loadout?.primaryReticle,secondaryReticle:p.loadout?.secondaryReticle,
+    primaryCharm:p.loadout?.primaryCharm,secondaryCharm:p.loadout?.secondaryCharm,
     // Attachments, including poison bolts, only resolve if purchased for the
     // exact equipped weapon. Also discard incompatible legacy selections.
     attachments: sanitizeOwnedAttachments(primaryId, p.loadout?.attachments ?? "{}", attachmentsByWeapon[primaryId]),
@@ -400,9 +410,12 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const selectedTitle = unlockedTitles.some(t => t.id === p.selectedTitle) ? p.selectedTitle : "";
   const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true}});
   const ownedCosmetics=cosmeticShopOwnership(purchases.map(x=>x.itemKey));
-  const selectedReticle=ownedCosmetics.includes(p.selectedReticle)?p.selectedReticle:"classic";
   const selectedNameplate=ownedCosmetics.includes(p.selectedNameplate)?p.selectedNameplate:"standard";
-  const equippedCharms=Object.fromEntries(Object.entries(parseEquippedCharms(p.equippedCharms)).filter(([,id])=>ownedCosmetics.includes(id)));
+  // Account ownership gates persisted cosmetic choices even for old backup data.
+  loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
+  loadout.secondaryReticle=ownedCosmetics.includes(loadout.secondaryReticle)?loadout.secondaryReticle:"classic";
+  loadout.primaryCharm=!loadout.weapon.wonder&&loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
+  loadout.secondaryCharm=!loadout.secondary.wonder&&loadout.secondary.category!=="melee"&&ownedCosmetics.includes(loadout.secondaryCharm)?loadout.secondaryCharm:"none";
   if (selectedTitle !== p.selectedTitle) await db.player.updateMany({
     where: { id: p.id, selectedTitle: p.selectedTitle }, data: { selectedTitle },
   });
@@ -420,7 +433,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
     selectedSkin: p.selectedSkin,
     selectedTitle,
-    selectedReticle,selectedNameplate,equippedCharms,ownedCosmetics,
+    selectedNameplate,ownedCosmetics,
     unlockedTitles,
     xpProgress: xpProgressInLevel(p.xp),
     unlocks: {

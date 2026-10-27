@@ -346,6 +346,8 @@ export interface ResolvedLoadout {
   secondaryWeaponSkin: WeaponSkinDef;
   meleeWeaponSkin: WeaponSkinDef;
   playerSkin: PlayerSkinDef;
+  primaryReticle: string; secondaryReticle: string;
+  primaryCharm: string; secondaryCharm: string;
   attachments: Record<AttachmentSlot, string | null>;
   // Secondary-slot attachments (sidearms). Defaults to all-null when not provided.
   secondaryAttachments: Record<AttachmentSlot, string | null>;
@@ -364,6 +366,8 @@ export function resolveLoadout(input: {
   secondaryWeaponSkin?: string;
   meleeWeaponSkin?: string;
   playerSkin: string;
+  primaryReticle?: string; secondaryReticle?: string;
+  primaryCharm?: string; secondaryCharm?: string;
   attachments: Record<string, string | null> | string;
   // Optional secondary + melee attachment maps (JSON string or object).
   // Default to all-null if not provided.
@@ -408,6 +412,8 @@ export function resolveLoadout(input: {
     secondaryWeaponSkin: secondarySkin,
     meleeWeaponSkin: meleeSkin,
     playerSkin: playerSkinById(input.playerSkin),
+    primaryReticle: input.primaryReticle ?? "classic", secondaryReticle: input.secondaryReticle ?? "classic",
+    primaryCharm: input.primaryCharm ?? "none", secondaryCharm: input.secondaryCharm ?? "none",
     attachments: requestedPrimary.disabled ? parseAtts(undefined) : parseAtts(input.attachments),
     secondaryAttachments: requestedSecondary.disabled ? parseAtts(undefined) : parseAtts(input.secondaryAttachments),
     meleeAttachments: parseAtts(input.meleeAttachments),

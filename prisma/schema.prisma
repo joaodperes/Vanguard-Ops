@@ -157,6 +157,12 @@ model Loadout {
   /// Skin for the MELEE weapon.
   meleeWeaponSkin     String @default("default")
   playerSkin      String   @default("default")
+  /// Active loadout cosmetics (independent for primary and secondary).
+  primaryReticle String @default("classic")
+  secondaryReticle String @default("classic")
+  primaryCharm String @default("none")
+  secondaryCharm String @default("none")
+  cosmeticsMigrated Boolean @default(false)
   /// JSON string of selected attachment ids keyed by slot for the PRIMARY weapon:
   /// {"sight":"red_dot","barrel":"suppressor","grip":"vertical"}
   attachments     String   @default("{}")
