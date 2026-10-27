@@ -141,7 +141,7 @@
     "tier": "bronze",
     "rewardXp": 300,
     "rewardCredits": 150,
-    "category": "pvp"
+    "category": "career"
   },
   {
     "id": "level_20",
@@ -153,7 +153,7 @@
     "tier": "silver",
     "rewardXp": 800,
     "rewardCredits": 400,
-    "category": "pvp"
+    "category": "career"
   },
   {
     "id": "level_30",
@@ -165,7 +165,7 @@
     "tier": "platinum",
     "rewardXp": 3000,
     "rewardCredits": 1500,
-    "category": "pvp"
+    "category": "career"
   },
   {
     "id": "surv_5",
@@ -338,7 +338,7 @@
   {
     "id": "streak_3",
     "title": "Triple Threat",
-    "description": "Achieve a 3-kill streak",
+    "description": "Achieve a 3-kill streak in a non-Survival match",
     "icon": "Flame",
     "metric": "best_killstreak",
     "goal": 3,
@@ -350,7 +350,7 @@
   {
     "id": "streak_5",
     "title": "Killstreak King",
-    "description": "Achieve a 5-kill streak",
+    "description": "Achieve a 5-kill streak in a non-Survival match",
     "icon": "Flame",
     "metric": "best_killstreak",
     "goal": 5,
@@ -362,7 +362,7 @@
   {
     "id": "streak_10",
     "title": "Untouchable Force",
-    "description": "Achieve a 10-kill streak",
+    "description": "Achieve a 10-kill streak in a non-Survival match",
     "icon": "Crown",
     "metric": "best_killstreak",
     "goal": 10,
@@ -370,5 +370,154 @@
     "rewardXp": 1000,
     "rewardCredits": 500,
     "category": "pvp"
+  },
+  {
+    "id": "kills_25",
+    "title": "First Strike",
+    "description": "Get 25 eliminations outside Survival",
+    "icon": "Crosshair",
+    "metric": "kills",
+    "goal": 25,
+    "tier": "bronze",
+    "rewardXp": 100,
+    "rewardCredits": 50,
+    "category": "pvp"
+  },
+  {
+    "id": "kills_1000",
+    "title": "Elimination Expert",
+    "description": "Get 1,000 eliminations outside Survival",
+    "icon": "Skull",
+    "metric": "kills",
+    "goal": 1000,
+    "tier": "gold",
+    "rewardXp": 900,
+    "rewardCredits": 450,
+    "category": "pvp"
+  },
+  {
+    "id": "hs_10",
+    "title": "Steady Hand",
+    "description": "Land 10 headshots outside Survival",
+    "icon": "Target",
+    "metric": "headshots",
+    "goal": 10,
+    "tier": "bronze",
+    "rewardXp": 100,
+    "rewardCredits": 50,
+    "category": "pvp"
+  },
+  {
+    "id": "hs_500",
+    "title": "Deadeye",
+    "description": "Land 500 headshots outside Survival",
+    "icon": "Target",
+    "metric": "headshots",
+    "goal": 500,
+    "tier": "gold",
+    "rewardXp": 1200,
+    "rewardCredits": 600,
+    "category": "pvp"
+  },
+  {
+    "id": "win_3",
+    "title": "Rising Competitor",
+    "description": "Win three non-Survival matches",
+    "icon": "Trophy",
+    "metric": "wins",
+    "goal": 3,
+    "tier": "bronze",
+    "rewardXp": 150,
+    "rewardCredits": 75,
+    "category": "pvp"
+  },
+  {
+    "id": "play_250",
+    "title": "Battle Tested",
+    "description": "Complete 250 non-Survival matches",
+    "icon": "Swords",
+    "metric": "matches",
+    "goal": 250,
+    "tier": "gold",
+    "rewardXp": 1400,
+    "rewardCredits": 700,
+    "category": "pvp"
+  },
+  {
+    "id": "streak_7",
+    "title": "Unstoppable",
+    "description": "Earn a seven-kill streak outside Survival",
+    "icon": "Flame",
+    "metric": "best_killstreak",
+    "goal": 7,
+    "tier": "gold",
+    "rewardXp": 650,
+    "rewardCredits": 325,
+    "category": "pvp"
+  },
+  {
+    "id": "mastery_1",
+    "title": "Weapon Apprentice",
+    "description": "Earn Mastery rank 1 on any weapon",
+    "icon": "Star",
+    "metric": "mastery_recruits",
+    "goal": 1,
+    "tier": "bronze",
+    "rewardXp": 200,
+    "rewardCredits": 100,
+    "category": "mastery",
+    "rewardTitle": "Weapon Apprentice"
+  },
+  {
+    "id": "mastery_3",
+    "title": "Arms Specialist",
+    "description": "Earn Mastery rank 3 on any weapon",
+    "icon": "Target",
+    "metric": "mastery_specialists",
+    "goal": 1,
+    "tier": "silver",
+    "rewardXp": 600,
+    "rewardCredits": 300,
+    "category": "mastery",
+    "rewardTitle": "Arms Specialist"
+  },
+  {
+    "id": "mastery_5",
+    "title": "Weapon Master",
+    "description": "Earn Mastery rank 5 on any weapon",
+    "icon": "Crown",
+    "metric": "mastery_elites",
+    "goal": 1,
+    "tier": "gold",
+    "rewardXp": 1600,
+    "rewardCredits": 800,
+    "category": "mastery",
+    "rewardTitle": "Weapon Master"
+  },
+  {
+    "id": "mastery_5x3",
+    "title": "Arsenal Veteran",
+    "description": "Earn Mastery rank 5 on three different weapons",
+    "icon": "Crown",
+    "metric": "mastery_elites",
+    "goal": 3,
+    "tier": "platinum",
+    "rewardXp": 3500,
+    "rewardCredits": 1750,
+    "category": "mastery",
+    "rewardTitle": "Arsenal Veteran"
+  },
+  {
+    "id": "mastery_5x8",
+    "title": "Arsenal Legend",
+    "description": "Earn Mastery rank 5 on eight different weapons",
+    "icon": "Crown",
+    "metric": "mastery_elites",
+    "goal": 8,
+    "tier": "platinum",
+    "rewardXp": 8000,
+    "rewardCredits": 4000,
+    "category": "mastery",
+    "rewardTitle": "Arsenal Legend"
   }
 ]
