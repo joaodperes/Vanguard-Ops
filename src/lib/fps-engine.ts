@@ -4939,10 +4939,13 @@ export class FPSEngine {
     const start=ownShot
       ? this.muzzleFlash.getWorldPosition(new THREE.Vector3())
       : new THREE.Vector3(...origin).addScaledVector(forward,.48);
-    for(let i=0;i<3;i++){
+    for(let i=0;i<5;i++){
+      // Visible flame fan follows the same broad forward arc as damage.
+      const angle=(-.95+i*.475)+(Math.random()-.5)*.20;
+      const spread=new THREE.Vector3(forward.x,forward.y*.45,forward.z).applyAxisAngle(new THREE.Vector3(0,1,0),angle).normalize();
       const length=1.15+Math.random()*1.25;
       const advance=i*.40;
-      const centre=start.clone().addScaledVector(forward,advance+length*.5);
+      const centre=start.clone().addScaledVector(spread,advance+length*.5);
       centre.x+=(Math.random()-.5)*.07;centre.y+=(Math.random()-.5)*.07;
       const mesh=new THREE.Mesh(new THREE.ConeGeometry(.14+advance*.19,length,9,1),
         new THREE.MeshBasicMaterial({color:i===0?0xfff0a3:i===1?0xff981f:0xf03b13,
@@ -4950,7 +4953,7 @@ export class FPSEngine {
           side:THREE.DoubleSide}));
       // Three.js cones widen toward -Y. Point -Y toward the enemy so the
       // flames expand AWAY from the player, with the narrow end at the muzzle.
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward.clone().negate());
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),spread.clone().negate());
       mesh.position.copy(centre);this.scene.add(mesh);
       this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
