@@ -50,7 +50,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -712,6 +712,7 @@ export class FPSEngine {
   private ctfOvertime = false;
   private orbitalCharge=0;
   private orbitalWeaponActive=false;
+  private orbitalBotHolders=new Map<string,string>();
   private orbitalCore:THREE.Mesh|undefined;
   private orbitalRings:THREE.Mesh[]=[];
   private orbitalMotes:{mesh:THREE.Mesh;origin:Vec3;start:number}[]=[];
@@ -1555,11 +1556,40 @@ export class FPSEngine {
     if(prev<ORBITAL_KILLS_REQUIRED&&this.orbitalCharge>=ORBITAL_KILLS_REQUIRED)
       this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
   }
+  private releaseOrbitalBotWeapon(bot:Combatant){
+    const original=this.orbitalBotHolders.get(bot.id);
+    if(!original)return;
+    this.orbitalBotHolders.delete(bot.id);
+    bot.weaponId=original;
+    if(bot.ai){bot.ai.ammoInMag=weaponById(original).stats.magSize;bot.ai.nextDecisionAt=0;}
+  }
   private tickOrbitalPickup(){
-    if(this.opts.online||this.orbitalWeaponActive||this.preMatchCountdown>0)return;
-    if(orbitalCanClaim(this.orbitalCharge,[this.pos.x,this.pos.y,this.pos.z],this.map.id,this.alive)){
-      this.orbitalCharge=0;
-      this.grantOrbitalReaper(true);
+    if(this.opts.online||this.preMatchCountdown>0||
+      this.orbitalCharge<ORBITAL_KILLS_REQUIRED||this.map.id!=="orbital_nexus")return;
+    const contenders:{id:string;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
+    if(!this.orbitalWeaponActive&&this.alive){
+      const pos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+      if(orbitalCanClaim(this.orbitalCharge,pos,this.map.id,true))
+        contenders.push({id:this.selfId,pos,self:true});
+    }
+    for(const bot of this.combatants.values()){
+      if(!bot.ai||this.orbitalBotHolders.has(bot.id)||!orbitalCanClaim(
+        this.orbitalCharge,bot.pos,this.map.id,bot.alive))continue;
+      contenders.push({id:bot.id,pos:bot.pos,self:false,bot});
+    }
+    contenders.sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+      a.id.localeCompare(b.id));
+    const winner=contenders[0];if(!winner)return;
+    this.orbitalCharge=0;
+    if(winner.self)this.grantOrbitalReaper(true);
+    else if(winner.bot){
+      const bot=winner.bot;
+      this.orbitalBotHolders.set(bot.id,bot.weaponId);
+      bot.weaponId=ORBITAL_REAPER_ID;
+      bot.ai!.ammoInMag=1;
+      bot.ai!.reloadingUntil=0;
+      bot.ai!.nextDecisionAt=0;
+      this.ctfNotice={label:bot.name+" CLAIMED THE NEXUS REAPER!",at:performance.now()};
     }
   }
 
@@ -6133,6 +6163,7 @@ export class FPSEngine {
       victim.alive = false;
       victim.deaths += 1;
       this.recordOrbitalKill(victim.pos);
+      this.releaseOrbitalBotWeapon(victim);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
@@ -7271,6 +7302,7 @@ export class FPSEngine {
     if (!this.opts.online && this.opts.mode === "killconfirmed" && !this.matchEnded) {
       this.collectOfflineKillConfirmedTags();
     }
+    if (!this.opts.online && !this.matchEnded)this.tickOrbitalPickup();
     if (!this.opts.online && this.opts.mode === "ctf" && !this.matchEnded) this.tickOfflineCtf();
     if (this.opts.online && this.socket?.connected && this.alive) {
       this.socket.emit("message", {
@@ -7817,7 +7849,15 @@ export class FPSEngine {
       const tagDistance = nearestTag ? Math.hypot(nearestTag.pos[0] - c.pos[0], nearestTag.pos[2] - c.pos[2]) : Infinity;
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
-      const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
+      const roster=[...this.combatants.values()].filter(b=>!!b.ai).map(b=>({
+        id:b.id,team:b.team,pos:b.pos,alive:b.alive,
+        carryingFlag:this.ctfFlags.red.carrierId===b.id||this.ctfFlags.blue.carrierId===b.id,
+        hasReward:this.orbitalBotHolders.has(b.id),
+      }));
+      const orbitalObjective=orbitalBotShouldContest(this.map.id,this.orbitalCharge,
+        roster.find(b=>b.id===c.id)!,roster,threatDistance)
+        ?orbitalBotDeckGoal(c.pos,c.team):null;
+      const ctfObjective = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
         ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
@@ -7840,17 +7880,18 @@ export class FPSEngine {
       }
       const climbing=safeToClimb&&!!ai.highGroundPatrol&&c.pos[1]<ai.highGroundPatrol.roof[1]-.65;
       const prevTarget = ai.targetId;
-      ai.targetId = pursueTag || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
+      ai.targetId = pursueTag || orbitalObjective || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
       if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
       if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
+      if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
       if (!ai.targetId) {
-        if(ctfObjective||nearestTag){
+        if(orbitalObjective||ctfObjective||nearestTag){
           ai.highGroundPatrol=null;
-          ai.wanderTarget=[...(ctfObjective??nearestTag!.pos)] as Vec3;
+          ai.wanderTarget=[...(orbitalObjective??ctfObjective??nearestTag!.pos)] as Vec3;
         }else{
           if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
             c.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
@@ -7929,13 +7970,14 @@ export class FPSEngine {
       ai.aiming = stance.aiming;
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
+      const chaseThreshold=w.id===ORBITAL_REAPER_ID?1.45:ideal+3;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
-      if (dist > ideal + 3) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
+      if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
       else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
       // Obstacle-aware chase navigation around the dense Bunker centre.
-      if((dist > ideal + 3 || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
+      if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
@@ -8021,7 +8063,7 @@ export class FPSEngine {
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
       const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
 
-      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
+      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=1.9)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
@@ -8032,7 +8074,7 @@ export class FPSEngine {
           const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
           this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
         }
-        this.spawnTracer(origin, dir, c.weaponSkinId);
+        if(w.id!==ORBITAL_REAPER_ID)this.spawnTracer(origin, dir, c.weaponSkinId);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         ai.ammoInMag--;
@@ -8042,7 +8084,7 @@ export class FPSEngine {
         // Enemy fire sound: distance-attenuated + muffled if suppressed.
         // Bots in offline mode have null barrel attachments (no suppressors),
         // but the check is wired correctly so a future loadout pass would Just Work.
-        this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
+        if(w.id!==ORBITAL_REAPER_ID)this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
         // Accumulate spray drift from this shot (recovers when not firing).
         const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
         ai.sprayDriftPitch += driftKick;  // climb up
@@ -8321,7 +8363,7 @@ export class FPSEngine {
           const won = this.advanceCombatantGungameTier(attacker);
           if (won) { this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1); this.finalizeMatchLocal(); return; }
         }
-        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1);
+        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1, attacker.weaponId);
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
@@ -8333,6 +8375,7 @@ export class FPSEngine {
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
           this.recordOrbitalKill(nearest.victim.pos);
+          this.releaseOrbitalBotWeapon(nearest.victim);
           if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
           if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
