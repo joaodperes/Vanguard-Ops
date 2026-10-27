@@ -158,6 +158,10 @@ export default function Page() {
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
         meleeWeaponSkinId: profile.loadout.meleeWeaponSkin?.id ?? "default",
         playerSkinId: profile.loadout.playerSkin.id,
+        nameplateId: profile.selectedNameplate,
+        primaryCharmId: profile.equippedCharms[profile.loadout.weapon.id]??"none",
+        secondaryCharmId: profile.equippedCharms[profile.loadout.secondary.id]??"none",
+        meleeCharmId: profile.equippedCharms[profile.loadout.melee.id]??"none",
         attachments: {
           sight: profile.loadout.attachments.sight,
           barrel: profile.loadout.attachments.barrel,

@@ -36,12 +36,13 @@ interface Props {
   mode: GameMode;
   crosshairColor?: string;
   crosshairSize?: number;
+  reticleStyle?: string;
   showPing?: boolean;
   isTouch?: boolean;
   scopeOverlay?: boolean;
 }
 
-export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
@@ -165,6 +166,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           hud={hud}
           crosshairColor={crosshairColor}
           crosshairSize={crosshairSize}
+          reticleStyle={reticleStyle}
           dynamicGap={dynamicGap}
           showHit={showHit}
           hitMarkerAge={hitMarkerAge}
@@ -866,11 +868,12 @@ function GunGameProgress({ index, total, currentWeaponId, compact }: { index: nu
 // (acog/hunter/thermal/nvg) we render a scope circle + reticle, with tinted overlays
 // for thermal (amber) and NVG (green). Fades in/out with ADS progress.
 function ScopeOrCrosshair({
-  hud, crosshairColor, crosshairSize, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
+  hud, crosshairColor, crosshairSize, reticleStyle, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
 }: {
   hud: HudState;
   crosshairColor: string;
   crosshairSize: number;
+  reticleStyle: string;
   dynamicGap: number;   // gap from center (drives spread visualization)
   showHit: boolean;
   hitMarkerAge: number;
@@ -923,6 +926,8 @@ function ScopeOrCrosshair({
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
             <div className="absolute rounded-full"
               style={{ width: 4, height: 4, background: reticleColor, boxShadow: `0 0 6px ${reticleColor}`, opacity: Math.min(1, adsP), transform: 'translate(-50%, -50%)' }} />
+          ) : reticleStyle!=="classic" ? (
+            <CosmeticCrosshair styleId={reticleStyle} color={crosshairColor} size={crosshairSize} gap={gap}/>
           ) : (
             <>
               {/* Center dot (2×2, centered on the 0×0 origin via translate) */}
@@ -1024,4 +1029,28 @@ function ScopeOrCrosshair({
       )}
     </>
   );
+}
+
+/** Cosmetic hipfire drawings share the same exact viewport centre and do NOT
+ * override the functional sight-specific ADS or magnified optic reticles. */
+export function CosmeticCrosshair({styleId,color,size,gap}:{
+  styleId:string;color:string;size:number;gap:number;
+}){
+  const half=Math.max(12,Math.round(size+gap+5));
+  const stroke=Math.max(1.3,Math.min(2.6,size/5));
+  const common={stroke:color,strokeWidth:stroke,strokeLinecap:"round" as const,fill:"none"};
+  const n=Math.max(4,gap),r=Math.max(4,size);
+  return <svg aria-hidden="true" className="absolute pointer-events-none" width={half*2} height={half*2}
+      viewBox={`${-half} ${-half} ${half*2} ${half*2}`}
+      style={{left:0,top:0,transform:"translate(-50%,-50%)",filter:`drop-shadow(0 0 2px ${color}66)`}}>
+      {styleId==="dot" ? <circle cx="0" cy="0" r={Math.max(1.6,r/4)} fill={color}/> :
+       styleId==="reticle_orbit"?<><circle r={n+r*.55} {...common}/><circle r="1.5" fill={color}/>
+         <path d={`M ${-n-r-3} 0 h 4 M ${n+r-1} 0 h 4 M 0 ${-n-r-3} v 4 M 0 ${n+r-1} v 4`} {...common}/></>:
+       styleId==="reticle_chevron"?<><path d={`M ${-r*.75} ${-n} L 0 ${-n-r*.7} L ${r*.75} ${-n}`} {...common}/>
+         <path d={`M ${-n-r} 0 h ${r*.7} M ${n+r*.3} 0 h ${r*.7}`} {...common}/><circle r="1.2" fill={color}/></>:
+       styleId==="reticle_nova"?<><path d={`M 0 ${-n-r} L ${r*.25} ${-r*.25} L ${n+r} 0 L ${r*.25} ${r*.25} L 0 ${n+r} L ${-r*.25} ${r*.25} L ${-n-r} 0 L ${-r*.25} ${-r*.25} Z`} {...common}/><circle r="1.3" fill={color}/></>:
+       styleId==="reticle_pulse"?<><path d={`M 0 ${-n-r} L ${n+r} 0 L 0 ${n+r} L ${-n-r} 0 Z`} {...common}/>
+         <path d={`M 0 ${-n} L ${n} 0 L 0 ${n} L ${-n} 0 Z`} {...common}/><circle r="1.4" fill={color}/></>:
+       <circle r="1.8" fill={color}/>}
+     </svg>;
 }

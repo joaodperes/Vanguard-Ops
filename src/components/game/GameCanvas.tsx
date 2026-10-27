@@ -9,6 +9,7 @@ import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
+import { useGame } from "@/lib/game-store";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +50,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
+  const selectedReticle = useGame(s=>s.profile?.selectedReticle??"classic");
   const practiceObserver = useRef(onPracticeSample);
   useEffect(() => { practiceObserver.current = onPracticeSample; }, [onPracticeSample]);
 
@@ -200,7 +202,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           </div>
         </div>
       )}
-      {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
+      {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={selectedReticle} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}

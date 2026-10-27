@@ -69,6 +69,8 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { createWeaponCharm, swingWeaponCharm } from "@/lib/weapon-charms";
+import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
@@ -371,6 +373,8 @@ interface Combatant {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  charmId?: string;
+  nameplateId?: string;
   kills: number;
   deaths: number;
   score: number;
@@ -2696,6 +2700,14 @@ export class FPSEngine {
         fullLegendaryFinish ? this.weaponMat : undefined,
         !isDefaultSkin ? (skin.id === "gold" ? accentMat : this.weaponMat) : undefined);
     }
+    // A purchased charm lives on the weapon model rather than the HUD. It
+    // inherits all aim, reload, sway and recoil transforms automatically.
+    const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
+      this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
+    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
+      const charm=createWeaponCharm(equippedCharm);
+      if(charm)addPart(charm,.16,-.105,-.14);
+    }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
     // front of the receiver. The colour identifies the weapon CATEGORY at a
@@ -3211,6 +3223,7 @@ export class FPSEngine {
     const hideEntireViewmodel = !this.reloading && !this.equipmentAction && (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
+      if(p.obj.name==="weapon_charm")swingWeaponCharm(p.obj,now);
       if (quickMeleeActive || hideEntireViewmodel) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
@@ -4410,6 +4423,10 @@ export class FPSEngine {
         visual.add(mesh);
       }, fullWorldLegendary ? weaponMat : undefined,
         weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
+      if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
+        const charm=createWeaponCharm(c.charmId);
+        if(charm){charm.position.set(.16,-.105,-.14);visual.add(charm);}
+      }
       weaponStub.add(visual);
     }
     // Place the gun ahead of the chest rather than through it. The right-hand
@@ -4433,7 +4450,7 @@ export class FPSEngine {
     root.add(weaponStub);
 
     // ---- Name sprite ----
-    const sprite = this.makeTextSprite(c.name + (c.isSelf ? " (You)" : ""), c.team);
+    const sprite = this.makeTextSprite(c.name + (c.isSelf ? " (You)" : ""), c.team, c.nameplateId);
     sprite.position.y = PLAYER_HEIGHT + 0.55;
     root.add(sprite);
     c.nameSprite = sprite;
@@ -4520,16 +4537,25 @@ export class FPSEngine {
     c.walkPhase = 0;
   }
 
-  private makeTextSprite(text: string, team: string): THREE.Sprite {
+  private makeTextSprite(text: string, team: string, plateId?: string): THREE.Sprite {
     const canvas = document.createElement("canvas");
     canvas.width = 256; canvas.height = 64;
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = team === "red" ? "#ff6b6b" : team === "blue" ? "#6ba6ff" : "#dddddd";
+    const plate=cosmeticById(plateId??"standard","nameplate");
+    if(plate&&plate.id!=="standard"){
+      ctx.fillStyle="#0b1025";
+      ctx.fillRect(8,6,240,52);
+      ctx.strokeStyle=plate.color;ctx.lineWidth=3;ctx.strokeRect(9,7,238,50);
+      ctx.fillStyle=plate.color;
+      ctx.font="24px sans-serif";ctx.textAlign="left";ctx.fillText(plate.symbol,18,41);
+    }
+    ctx.fillStyle = plate?.id!=="standard" ? plate?.color??"#eeeeee" :
+      team === "red" ? "#ff6b6b" : team === "blue" ? "#6ba6ff" : "#dddddd";
     ctx.font = "bold 28px sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 4;
-    ctx.strokeText(text, 128, 32);
-    ctx.fillText(text, 128, 32);
+    ctx.strokeText(text, plate?.id!=="standard"?142:128, 32);
+    ctx.fillText(text, plate?.id!=="standard"?142:128, 32);
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
     const s = new THREE.Sprite(mat);
@@ -5350,6 +5376,7 @@ export class FPSEngine {
         id: p.id, name: p.name, team: p.team, isBot: p.isBot, isSelf: p.id === this.selfId,
         pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
+        charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };

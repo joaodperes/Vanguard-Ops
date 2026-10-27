@@ -1279,6 +1279,11 @@ export interface LoadoutWire {
   secondaryWeaponSkinId?: string;
   meleeWeaponSkinId?: string;
   playerSkinId: string;
+  /** Chosen cosmetics; ignored for combat stats. */
+  primaryCharmId?: string;
+  secondaryCharmId?: string;
+  meleeCharmId?: string;
+  nameplateId?: string;
   // Primary-slot attachments. Always present (defaults to all-null on the server).
   attachments: { sight: string | null; barrel: string | null; grip: string | null; magazine: string | null };
   // Secondary-slot attachments (sidearms support attachments just like primaries).
@@ -1302,6 +1307,8 @@ export interface PlayerNet {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  charmId?: string;
+  nameplateId?: string;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1359,6 +1366,7 @@ export interface SnapshotPlayer {
   id: string; name: string; team: string; isBot: boolean;
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
+  charmId?: string; nameplateId?: string;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
