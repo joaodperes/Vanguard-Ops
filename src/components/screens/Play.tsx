@@ -206,6 +206,7 @@ export function Play() {
       scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.scoreLimit : undefined,
       timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.timeLimit : undefined,
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
+      ctfFlagResetMs: mode === "ctf" ? roomConfig.ctfFlagResetMs : undefined,
       denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
     };
     if (!(await prepareMatchLoadout())) return;
@@ -471,6 +472,20 @@ export function Play() {
                           ))}
                         </div>
                       </div>
+                      {roomConfig.mode === "ctf" && (
+                        <div>
+                          <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Dropped Flag Reset</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {([{ms:0,label:"Instant"},{ms:10000,label:"10s"},{ms:30000,label:"30s"},{ms:60000,label:"1m"},{ms:120000,label:"2m"},{ms:-1,label:"No limit"}] as const).map(({ms,label}) => (
+                              <button key={ms} type="button" onClick={() => setRoomConfig({ctfFlagResetMs:ms})}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.ctfFlagResetMs === ms ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/35 text-xs mt-1">Only changes dropped-flag recovery; a match still requires a capture target or time limit.</p>
+                        </div>
+                      )}
                       {roomConfig.mode === "killconfirmed" && (
                         <div>
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
