@@ -21,3 +21,27 @@ export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolea
     pos[1]>=ORBITAL_PLATFORM_Y-.65&&pos[1]<=ORBITAL_PLATFORM_Y+2.6;
 }
 export const orbitalGravity=(id:string)=>id==="orbital_nexus"?.6:1;
+
+/** Each team sends its nearest eligible bot; flag carriers stay on objective. */
+export interface OrbitalBotCandidate {
+ id:string;team:string;pos:Vec3;alive:boolean;carryingFlag?:boolean;hasReward?:boolean;
+}
+export function orbitalBotShouldContest(
+ mapId:string,charge:number,bot:OrbitalBotCandidate,roster:readonly OrbitalBotCandidate[],
+ threatDistance:number,
+):boolean {
+ if(mapId!=="orbital_nexus"||charge<ORBITAL_KILLS_REQUIRED||
+ !bot.alive||bot.carryingFlag||bot.hasReward||threatDistance<=12)return false;
+ const eligible=roster.filter(c=>c.team===bot.team&&c.alive&&!c.carryingFlag&&!c.hasReward)
+  .sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+   a.id.localeCompare(b.id));
+ return eligible[0]?.id===bot.id;
+}
+/** The reactor deck stairs start near Z ±13; avoid running under the platform. */
+export function orbitalBotDeckGoal(pos:Vec3,team:string):Vec3 {
+ const side=pos[2]===0?(team==="red"?-1:1):Math.sign(pos[2]);
+ const entry=side*13;
+ if(pos[1]>=ORBITAL_PLATFORM_Y-.65||
+   (Math.abs(pos[0])<=2.4&&Math.abs(pos[2]-entry)<=3))return [0,ORBITAL_PLATFORM_Y,0];
+ return [0,0,entry];
+}
