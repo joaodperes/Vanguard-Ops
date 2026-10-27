@@ -26,6 +26,21 @@ export function Profile() {
   const { profile, setScreen, playerKey, refreshProfile } = useGame();
   const [matches, setMatches] = useState<MatchRecordView[]>([]);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [titleBusy, setTitleBusy] = useState(false);
+  const [titleError, setTitleError] = useState("");
+  async function equipTitle(id:string) {
+    if (!playerKey || titleBusy) return;
+    setTitleBusy(true); setTitleError("");
+    try {
+      const response = await fetch("/api/profile/title",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,achievementId:id}),
+      });
+      if(!response.ok)throw new Error((await response.json().catch(()=>({}))).error??"Unable to equip title");
+      await refreshProfile();
+    }catch(error){setTitleError(error instanceof Error?error.message:"Unable to equip title");}
+    finally{setTitleBusy(false);}
+  }
 
   useEffect(() => {
     if (!playerKey) return;
@@ -117,6 +132,17 @@ export function Profile() {
             <div className="flex-1 min-w-0">
               <div className="text-white/50 text-xs uppercase tracking-widest">{rank.name}</div>
               <div className="text-3xl font-bold text-white">{profile.name}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
+                <select id="equipped-mastery-title" value={profile.selectedTitle ?? ""} disabled={titleBusy}
+                  onChange={e=>void equipTitle(e.target.value)}
+                  className="rounded-lg border border-amber-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  <option value="">No title</option>
+                  {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
+                </select>
+                <span className="text-[11px] text-white/45">Earn titles from Weapon Mastery achievements; show them beside your name in matches.</span>
+                {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
+              </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">
                   <Star className="w-3 h-3" /> LVL {lvl}
@@ -231,11 +257,38 @@ export function Profile() {
               </div>
             </div>
 
+            {/* Tiered weapon mastery and account-wide career achievements. */}
+            <div className="mb-6">
+              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400"/> Weapon Mastery &amp; Career
+                <span className="text-white/40 text-xs normal-case tracking-normal">Master weapons for permanent equipable nameplate titles</span>
+              </h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {achievements.filter(a=>["mastery","career"].includes(ACHIEVEMENTS.find(d=>d.id===a.id)?.category??"")).map(a=>{
+                  const definition=ACHIEVEMENTS.find(d=>d.id===a.id);
+                  const color=ACHIEVEMENT_TIER_COLORS[a.tier]??"#e9b85f";
+                  const pct=Math.min(100,100*a.currentValue/a.goal);
+                  return <div key={a.id} className={`rounded-xl border p-4 ${a.earned?"border-amber-500/40 bg-amber-500/5":"border-white/10 bg-zinc-900/40"}`}>
+                    <div className="flex gap-2 items-center mb-1">
+                      <Crown className="w-4 h-4" style={{color}}/>
+                      <span className="font-bold text-sm text-white">{a.title}</span>
+                      {a.earned&&<span className="text-[10px] text-emerald-300 ml-auto">EARNED</span>}
+                    </div>
+                    <p className="text-white/50 text-xs mb-2">{a.description}</p>
+                    {definition?.rewardTitle&&<div className="mb-2 text-xs text-amber-300">Title reward: [{definition.rewardTitle}]</div>}
+                    <div className="flex justify-between text-[11px] text-white/50 mb-1"><span>{a.currentValue} / {a.goal}</span><span className="uppercase" style={{color}}>{a.tier}</span></div>
+                    <div className="h-1.5 bg-black/70 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{width:`${pct}%`}}/></div>
+                    <p className="text-[11px] text-white/50 mt-2">+{a.rewardXp} XP · +{a.rewardCredits} CR</p>
+                  </div>;
+                })}
+              </div>
+            </div>
+
             {/* PvP Achievements */}
             <div className="mb-5">
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
                 <Swords className="w-4 h-4 text-rose-400" /> PvP Achievements
-                <span className="text-white/30 text-xs normal-case tracking-normal">FFA &amp; TDM</span>
+                <span className="text-white/30 text-xs normal-case tracking-normal">All modes except Survival (FFA, TDM, Gun Game, Kill Confirmed, CTF)</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {achievements.filter((a) => (ACHIEVEMENTS.find((d) => d.id === a.id)?.category ?? "pvp") === "pvp" && !["quest_daily_10", "quest_weekly_5", "quest_elite_3", "quest_total_50"].includes(a.id)).map((a) => {
