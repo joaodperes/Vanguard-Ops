@@ -46,7 +46,7 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
-import { FOREST_OBJECTS } from "./forest-warfare";
+import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -1275,56 +1275,75 @@ export class FPSEngine {
     const leafB = new THREE.MeshStandardMaterial({ color: 0x5d9947, roughness: 1 });
     const leafC = new THREE.MeshStandardMaterial({ color: 0x244f32, roughness: 1 });
     const stone = new THREE.MeshStandardMaterial({ color: 0x727a72, roughness: 0.95 });
-    const set = (mesh: THREE.Mesh, x:number,y:number,z:number) => {
-      mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true; this.scene.add(mesh); return mesh;
+    const cliff = new THREE.MeshStandardMaterial({ color: 0x5c6e5b, roughness: 1 });
+    const moss = new THREE.MeshStandardMaterial({ color: 0x436d3b, roughness: 1 });
+    const place = (mesh: THREE.Mesh,x:number,y:number,z:number) => {
+      mesh.position.set(x,y,z);
+      mesh.castShadow=true; mesh.receiveShadow=true; this.scene.add(mesh);
+      return mesh;
     };
+    // Exact visual counterpart of every outside-edge collision slab: no
+    // invisible cliffs and no unrendered collidable border walls.
+    for (const wall of FOREST_PERIMETER) {
+      const [x,y,z]=wall.pos, [hx,hy,hz]=wall.size;
+      place(new THREE.Mesh(new THREE.BoxGeometry(hx*2,hy*2,hz*2),cliff),x,y,z);
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(hx*2+.16,.18,hz*2+.16),moss);
+      cap.position.set(x,y+hy+.08,z);cap.receiveShadow=true;this.scene.add(cap);
+    }
     for (const prop of FOREST_OBJECTS) {
       const {x,z,w,d,h,kind}=prop;
-      if(kind==="tree"){
-        // Dense cedar trunk with staggered evergreen canopy.
-        set(new THREE.Mesh(new THREE.CylinderGeometry(w*.85,w,5,8),bark),x,2.5,z);
+      if(kind==="tree") {
+        place(new THREE.Mesh(new THREE.CylinderGeometry(w*.85,w,5.3,8),bark),x,2.65,z);
         for(let i=0;i<3;i++){
-          const foliage=new THREE.Mesh(new THREE.ConeGeometry(3.2-i*.42,4.4,8),[leafC,leafA,leafB][i]);
-          set(foliage,x,h*.52+i*1.35,z);
+          const foliage=new THREE.Mesh(new THREE.ConeGeometry(3.0-i*.33,4.6,8),[leafC,leafA,leafB][i]);
+          place(foliage,x,h*.52+i*1.5,z);
         }
-      } else if(kind==="bush"){
-        for(const [ox,oz,scale] of [[0,0,1],[-.95,.28,.68],[.8,-.45,.62]]){
-          const shrub=new THREE.Mesh(new THREE.IcosahedronGeometry(1.55*scale,1),scale===1?leafA:leafB);
-          shrub.scale.y=.6; set(shrub,x+ox,.8*scale,z+oz);
+      } else if(kind==="bush") {
+        for(const [ox,oz,scale] of [[0,0,1],[-.9,.28,.68],[.8,-.45,.62]]){
+          const shrub=new THREE.Mesh(new THREE.IcosahedronGeometry(1.5*scale,1),scale===1?leafA:leafB);
+          shrub.scale.y=.6;place(shrub,x+ox,.8*scale,z+oz);
         }
-      } else if(kind==="rock"){
-        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),stone);
-        rock.scale.set(w*1.1,h*.9,d*1.1);
-        rock.rotation.y=(x+z)*.14;set(rock,x,h*.75,z);
+      } else if(kind==="rock") {
+        const boulder=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),stone);
+        boulder.scale.set(w*1.07,h*.88,d*1.08);
+        boulder.rotation.y=(x+z)*.14;place(boulder,x,h*.76,z);
       } else {
-        const log=new THREE.Mesh(new THREE.CylinderGeometry(.87,.95,w*2,10),barkLight);
-        log.rotation.z=Math.PI/2;set(log,x,.9,z);
-        const stump=new THREE.Mesh(new THREE.CylinderGeometry(.89,.89,.1,10),bark);
-        stump.rotation.z=Math.PI/2;set(stump,x+w,.9,z);
+        const log=new THREE.Mesh(new THREE.CylinderGeometry(.88,.95,w*2,10),barkLight);
+        log.rotation.z=Math.PI/2;place(log,x,.95,z);
+        const ring=new THREE.Mesh(new THREE.CylinderGeometry(.90,.90,.13,10),bark);
+        ring.rotation.z=Math.PI/2;place(ring,x+w,.95,z);
       }
     }
-    // Matching ancient home trees, both with climbable wrap-around stair flights.
-    // Open wooden crown decks sit precisely over the authoritative platform boxes.
-    for (const [team,sign] of [["red",-1],["blue",1]] as const) {
-      const x=37*sign;
-      set(new THREE.Mesh(new THREE.CylinderGeometry(1.65,2.25,6.2,12),bark),x,3.1,0);
-      const deck=new THREE.Mesh(new THREE.CylinderGeometry(4.45,4.45,.42,24),barkLight);
-      set(deck,x,6.05,0);
-      for(let i=0;i<12;i++){
-        const theta=i*Math.PI/6;
-        const foliage=new THREE.Mesh(new THREE.IcosahedronGeometry(2.0,1),i%2?leafB:leafA);
-        set(foliage,x+Math.cos(theta)*4.6,7.5+Math.sin(i*4)*.65,Math.sin(theta)*4.6);
+    // Landmark trees are intentionally MUCH taller and broader than ordinary
+    // woodland trees. Crown leaves sit above the players' eye lines when
+    // fighting on the accessible, 24m-wide circular treetop clearing.
+    for(const [team,sign] of [["red",-1],["blue",1]] as const){
+      const x=94*sign;
+      place(new THREE.Mesh(new THREE.CylinderGeometry(2.65,3.1,11.8,16),bark),x,5.9,0);
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(12,12,.48,40),barkLight);
+      place(deck,x,11.76,0); // top face exactly y=12, same as shared collision
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(11.7,.25,8,48),bark);
+      ring.rotation.x=Math.PI/2;place(ring,x,12.08,0);
+      // Large high boughs frame the platform but never occlude a
+      // standing defender's view across the treetop.
+      for(let i=0;i<14;i++) {
+        const angle=i*2*Math.PI/14;
+        const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(4.1+(i%3)*.4,1),i%2?leafB:leafA);
+        place(canopy,x+Math.cos(angle)*16.2,24.5+(i%3)*.6,Math.sin(angle)*16.2);
       }
-      // Root arches and branches signal the climb.
-      for(const dir of [-1,1]){
-        const root=new THREE.Mesh(new THREE.CylinderGeometry(.5,.8,6.2,7),bark);
-        root.rotation.z=dir*.6;set(root,x+dir*2.2,1.0,1.6);
-      }
+      const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
+      place(crown,x,28.5,0);
+      // Nonblocking colored base objective ring; wide approaches from both
+      // directions give the return carrier a clear, recognizable destination.
       const base=ctfBase(team);
-      const mark=new THREE.Mesh(new THREE.RingGeometry(2.6,3.2,32),new THREE.MeshBasicMaterial({
-        color:team==="red"?0xff5959:0x55c8ff,side:THREE.DoubleSide,transparent:true,opacity:.75,depthTest:true
-      }));
-      mark.rotation.x=-Math.PI/2;mark.position.set(base[0],.06,base[2]);this.scene.add(mark);
+      const marker=new THREE.Mesh(new THREE.RingGeometry(3.0,4.25,40),
+        new THREE.MeshBasicMaterial({
+          color:team==="red"?0xff5959:0x55c8ff,
+          side:THREE.DoubleSide,transparent:true,opacity:.8,depthTest:true,
+        }));
+      marker.rotation.x=-Math.PI/2;
+      marker.position.set(base[0],.07,base[2]);
+      this.scene.add(marker);
     }
   }
 
