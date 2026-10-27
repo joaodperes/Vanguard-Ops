@@ -234,7 +234,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
           <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-3 py-1.5"}`}>
             <Clock className="w-3.5 h-3.5 text-white/60" />
-            <span className="text-white font-bold tabular-nums text-sm">{`${mins}:${secs.toString().padStart(2, "0")}`}</span>
+            <span className="text-white font-bold tabular-nums text-sm">{hud.ctfOvertime ? "OVERTIME" : `${mins}:${secs.toString().padStart(2, "0")}`}</span>
           </div>
           {hud.survivalPrepLeft && hud.survivalPrepLeft > 0 ? (
             <div className={`bg-amber-500/20 backdrop-blur rounded-lg border border-amber-500/40 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
@@ -301,8 +301,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-white/35">·</span>
             <span className="text-sky-300">BLUE {hud.ctfFlags.blue.carrierId ? "TAKEN" : hud.ctfFlags.blue.dropped ? "DROPPED" : "HOME"}</span>
           </div>
+          {hud.ctfOvertime && <div className="mt-1 text-amber-300 font-black uppercase tracking-widest text-xs animate-pulse">Sudden Death · Next Capture Wins</div>}
           <div className={`mt-1 text-[10px] font-semibold ${hud.ctfCarrying ? "text-amber-200" : "text-white/75"}`}>
-            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : "Steal the enemy flag · Score at your tree base"}
+            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : "Steal the enemy flag · Score at your tree base · Dropped flags return in 30s"}
           </div>
           {hud.ctfNotice && performance.now() - hud.ctfNotice.at < 2400 && (
             <div className="mt-2 text-lg font-black text-amber-300 uppercase tracking-widest" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
