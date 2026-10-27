@@ -2,9 +2,10 @@
 import { useEffect } from "react";
 import { useGame } from "@/lib/game-store";
 import { useSettings, CROSSHAIR_PRESETS } from "@/lib/settings-store";
+import { LICENSED_TRACKS, MUSIC_CREATOR, MUSIC_LICENSE_URL } from "@/lib/music-recordings";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
+import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, Music2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
 export function Settings() {
   const { setScreen } = useGame();
@@ -157,6 +158,25 @@ export function Settings() {
                   onValueChange={(v) => update({ [key]: v[0] })} />
               </div>
             ))}
+          </div>
+        </Section>
+
+        <Section icon={<Music2 className="w-4 h-4" />} title="Music Credits" desc="The soundtrack uses freely licensed recordings. Thank you to the artist.">
+          <div className="space-y-3 text-xs text-white/60">
+            <p>All six recordings are by <a href="https://incompetech.com" target="_blank" rel="noopener noreferrer" className="text-amber-300 hover:underline">{MUSIC_CREATOR}</a>, used under{" "}
+              <a href={MUSIC_LICENSE_URL} target="_blank" rel="noopener noreferrer" className="text-amber-300 hover:underline">Creative Commons Attribution 4.0 International (CC BY 4.0)</a>.
+              The in-game files have been re-encoded to a smaller bitrate for web delivery; the musical compositions have not been remixed.</p>
+            <ul className="grid sm:grid-cols-2 gap-2">
+              {LICENSED_TRACKS.map((track) => (
+                <li key={track.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <a href={track.page} target="_blank" rel="noopener noreferrer" className="font-semibold text-amber-300 hover:underline">{track.title}</a>
+                  <span className="block mt-1 text-white/45">Kevin MacLeod · ISRC {track.isrc}</span>
+                </li>
+              ))}
+            </ul>
+            <p>Attribution: Each titled work is © Kevin MacLeod (incompetech.com), licensed under{" "}
+              <a href={MUSIC_LICENSE_URL} target="_blank" rel="noopener noreferrer" className="text-amber-300 hover:underline">CC BY 4.0</a>.
+              Titles link to the composer&rsquo;s original track pages.</p>
           </div>
         </Section>
 
