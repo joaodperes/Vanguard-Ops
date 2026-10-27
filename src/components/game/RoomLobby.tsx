@@ -4,7 +4,7 @@ import type { GameMode } from "@/lib/game-protocol";
 import { displayLabel } from "@/lib/display-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Crown, DoorOpen, Play, Users, Shield, Skull, Radio, Bot as BotIcon, Swords, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Crown, DoorOpen, Play, Users, Shield, Skull, Flag, Radio, Bot as BotIcon, Swords, Wifi, WifiOff, Loader2 } from "lucide-react";
 
 interface Props {
   state: LobbyState;
@@ -20,7 +20,7 @@ interface Props {
 // scene is dimmed but visible.
 export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Props) {
   const modeLabel = mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All";
-  const ModeIcon = (mode === "tdm" || mode === "killconfirmed") ? Shield : mode === "survival" ? Skull : mode === "gungame" ? Swords : Users;
+  const ModeIcon = mode === "ctf" ? Flag : (mode === "tdm" || mode === "killconfirmed") ? Shield : mode === "survival" ? Skull : mode === "gungame" ? Swords : Users;
   const humans = state.players.filter((p) => !p.isBot);
   // Round 20a: Derive connection status from the prop (no effect needed).
   const connStatus: "connecting" | "connected" | "disconnected" =
