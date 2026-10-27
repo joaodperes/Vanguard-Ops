@@ -7,35 +7,48 @@ export interface CtfFlag {
   pos: Vec3;
   carrierId: string | null;
   dropped: boolean;
+  /** Authoritative wall-clock time for automatic recovery; absent while carried/home. */
+  droppedAt?: number;
 }
 export type CtfFlags = { red: CtfFlag; blue: CtfFlag };
 export const CTF_SPEED_MULTIPLIER = 1.10;
 export const CTF_PICKUP_RADIUS = 2.4;
 export const CTF_CAPTURE_RADIUS = 4;
-export const CTF_TREE_X = 37;
-export const CTF_TREE_TOP = 6.25;
-export const CTF_BASE_Z = -17;
+export const CTF_TREE_X = 94;
+export const CTF_TREE_TOP = 12;
+export const CTF_BASE_Z = -40;
+export const CTF_DROP_RETURN_MS = 30_000;
 
 export const ctfHome = (team: FlagTeam): Vec3 =>
   [team === "red" ? -CTF_TREE_X : CTF_TREE_X, CTF_TREE_TOP + 0.2, 0];
 export const ctfBase = (team: FlagTeam): Vec3 =>
   [team === "red" ? -CTF_TREE_X : CTF_TREE_X, 0, CTF_BASE_Z];
 export const otherFlag = (team: FlagTeam): FlagTeam => team === "red" ? "blue" : "red";
-export const createCtfFlags = (): CtfFlags => ({
-  red: { team: "red", pos: ctfHome("red"), carrierId: null, dropped: false },
-  blue: { team: "blue", pos: ctfHome("blue"), carrierId: null, dropped: false },
-});
+export const ctfResetFlag = (team: FlagTeam): CtfFlag =>
+  ({ team, pos: ctfHome(team), carrierId: null, dropped: false });
+export const createCtfFlags = (): CtfFlags => ({red:ctfResetFlag("red"),blue:ctfResetFlag("blue")});
 export const flagAtHome = (flag: CtfFlag): boolean => !flag.dropped && flag.carrierId === null;
 export const ctfWithin = (a: Vec3, b: Vec3, radius: number, vertical = 2.6): boolean =>
   Math.hypot(a[0] - b[0], a[2] - b[2]) <= radius && Math.abs(a[1] - b[1]) <= vertical;
-export function ctfDrop(flags: CtfFlags, carrierId: string, pos: Vec3): FlagTeam | null {
+export function ctfDrop(flags: CtfFlags, carrierId: string, pos: Vec3, now = Date.now()): FlagTeam | null {
   for (const team of ["red", "blue"] as const) {
     const flag = flags[team];
     if (flag.carrierId !== carrierId) continue;
-    flag.pos = [...pos]; flag.carrierId = null; flag.dropped = true;
+    flag.pos = [...pos]; flag.carrierId = null; flag.dropped = true; flag.droppedAt = now;
     return team;
   }
   return null;
+}
+/** Timed recovery is server-authoritative online and uses the same rule offline. */
+export function ctfReturnExpired(flags: CtfFlags, now = Date.now()): FlagTeam[] {
+  const returned: FlagTeam[] = [];
+  for (const team of ["red", "blue"] as const) {
+    const flag = flags[team];
+    if (!flag.dropped || flag.droppedAt === undefined || now - flag.droppedAt < CTF_DROP_RETURN_MS) continue;
+    flags[team] = ctfResetFlag(team);
+    returned.push(team);
+  }
+  return returned;
 }
 export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; pos: Vec3 }):
   { kind: "pickup" | "return" | "capture"; flag: FlagTeam } | null {
@@ -43,15 +56,15 @@ export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; 
   // A returning carrier captures only when their own flag is safely home.
   if (enemy.carrierId === player.id && flagAtHome(own) &&
       ctfWithin(player.pos, ctfBase(player.team), CTF_CAPTURE_RADIUS, 3)) {
-    flags[enemyTeam] = { team: enemyTeam, pos: ctfHome(enemyTeam), carrierId: null, dropped: false };
+    flags[enemyTeam] = ctfResetFlag(enemyTeam);
     return { kind: "capture", flag: enemyTeam };
   }
   if (own.dropped && ctfWithin(player.pos, own.pos, CTF_PICKUP_RADIUS)) {
-    flags[player.team] = { team: player.team, pos: ctfHome(player.team), carrierId: null, dropped: false };
+    flags[player.team] = ctfResetFlag(player.team);
     return { kind: "return", flag: player.team };
   }
   if (!enemy.carrierId && ctfWithin(player.pos, enemy.pos, CTF_PICKUP_RADIUS)) {
-    enemy.carrierId = player.id; enemy.dropped = false;
+    enemy.carrierId = player.id; enemy.dropped = false; delete enemy.droppedAt;
     return { kind: "pickup", flag: enemyTeam };
   }
   return null;
