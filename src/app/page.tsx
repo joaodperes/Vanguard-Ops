@@ -1,3 +1,4 @@
+import { titledDisplayName } from "@/lib/achievement-titles";
 "use client";
 import { useEffect, useState } from "react";
 import { useGame } from "@/lib/game-store";
@@ -188,7 +189,7 @@ export default function Page() {
           botDifficulty={playConfig.botDifficulty}
           survivalTier={playConfig.survivalTier ?? "default"}
           online={playConfig.online}
-          playerName={profile.name}
+          playerName={titledDisplayName(profile.name,profile.selectedTitle)}
           playerKey={playerKey}
           scoreLimit={playConfig.scoreLimit}
           timeLimitMin={playConfig.timeLimit}
