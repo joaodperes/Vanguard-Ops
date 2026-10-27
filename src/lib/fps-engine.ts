@@ -43,7 +43,7 @@ import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
-import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
+import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS } from "./forest-warfare";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
@@ -7336,11 +7336,11 @@ export class FPSEngine {
       this.lastGroundedAt = -Infinity;
       this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);
       this.onGround = false;
-      // Tiny forward sprint-hop boost for that arcade momentum feel.
-      if (this.sprinting) {
-        this.vel.x += fwd.x * MOVEMENT.sprintJumpBoost;
-        this.vel.z += fwd.z * MOVEMENT.sprintJumpBoost;
-      }
+      // Running takeoffs carry additional horizontal momentum, whether the
+      // player is sprinting or moving at ordinary running speed.
+      [this.vel.x, this.vel.z] = runJumpTakeoffVelocity(
+        this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
+      );
       if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
