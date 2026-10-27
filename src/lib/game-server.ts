@@ -1,4 +1,5 @@
 import { resolveMatchLoadout } from "./match-loadout";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -129,6 +130,8 @@ interface Room {
   teamScores: { red: number; blue: number };
   flags: CtfFlags;
   overtime: boolean;
+  orbitalCharge:number;
+  orbitalHolders:Set<string>;
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   tagConfirmations: Map<string, number>; // individual enemy tag pickups
   tagDenials: Map<string, number>;       // individual friendly tag pickups
@@ -398,7 +401,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -557,7 +560,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -622,6 +625,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.teamScores = { red: 0, blue: 0 };
   room.flags = createCtfFlags(room.map.id);
   room.overtime = false;
+  room.orbitalCharge=0;room.orbitalHolders.clear();
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
@@ -735,6 +739,7 @@ function snapshot(room: Room): S2C {
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
       ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
+    ...(room.map.id==="orbital_nexus"?{orbitalCharge:room.orbitalCharge,orbitalHolders:[...room.orbitalHolders]}:{}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1331,6 +1336,17 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     victim.alive = false;
     victim.deaths += 1;
+    if(room.orbitalHolders.delete(victim.id)){
+      if(victim.weaponId===ORBITAL_REAPER_ID)victim.weaponId=room.loadouts.get(victim.id)?.meleeWeaponId??"knife_tactical";
+      io.to(room.id).emit("message",{t:"orbitalReward",playerId:victim.id,active:false} as S2C);
+    }
+    if(attacker && attacker.id!==victim.id && attacker.team!==victim.team && room.map.id==="orbital_nexus"){
+      const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id);
+      if(charge!==room.orbitalCharge){
+        room.orbitalCharge=charge;
+        io.to(room.id).emit("message",{t:"orbitalReactor",charge} as S2C);
+      }
+    }
     if (room.mode === "ctf") dropCarriedFlag(room, victim.id, [...victim.pos] as Vec3);
     // Server places exactly one death charge on a legitimate elimination.
     // The victim never chooses the position/timing; fuse survives respawn.
@@ -1432,6 +1448,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     p.pos = sp;
     p.health = MAX_HEALTH; room.lastDamagedAt.delete(p.id);
     p.alive = true;
+    room.orbitalHolders.delete(p.id);
     const reserve = equipmentById(room.loadouts.get(p.id)?.equipmentId).charges;
     room.equipmentCharges.set(p.id,reserve);
     if (!p.isBot) io.to(p.id).emit("message",{t:"equipmentState",remaining:reserve} as S2C);
@@ -1693,6 +1710,16 @@ function tickRoom(room: Room) {
     }
   }
   if (room.preMatchCountdown <= 0) {
+    if(room.map.id==="orbital_nexus"&&room.orbitalCharge>=ORBITAL_KILLS_REQUIRED){
+      for(const p of room.players.values()){
+        if(!orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))continue;
+        room.orbitalHolders.add(p.id);
+        room.orbitalCharge=0;
+        io.to(room.id).emit("message",{t:"orbitalReactor",charge:0} as S2C);
+        io.to(room.id).emit("message",{t:"orbitalReward",playerId:p.id,active:true} as S2C);
+        break;
+      }
+    }
     tickEnvironment(room, 1 / 20);
     if (!room.ended) {
       const gameNow = Date.now();
@@ -2239,7 +2266,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     bot.pos = [bot.pos[0] + (bot.ai.envLaunchX ?? 0) / 20,
       bot.pos[1] + dy / 20,
       bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
-    bot.ai.envJumpVelocityY = dy - 22 / 20;
+    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map.id) / 20;
     const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;
@@ -2568,7 +2595,7 @@ async function handle(socket: any, msg: C2S) {
       if (!room || room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return;
       const p = room.players.get(socket.id);
       if (!p?.alive || room.downed.has(socket.id)) return;
-      const meleeId=room.loadouts.get(socket.id)?.meleeWeaponId ?? "knife_tactical";
+      const meleeId=room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(room.loadouts.get(socket.id)?.meleeWeaponId??"knife_tactical");
       const weapon=weaponById(meleeId);
       if(weapon.category!=="melee")return;
       const attack=quickMeleeProfile(weapon.stats,meleeId);
@@ -2623,7 +2650,7 @@ async function handle(socket: any, msg: C2S) {
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
-      if (weapon.disabled || weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
+      if (weapon.disabled || (weapon.id===ORBITAL_REAPER_ID&&!room.orbitalHolders.has(socket.id)) || weapon.id !== p.weaponId || (room.downed.has(socket.id) && msg.weaponId !== (room.loadouts.get(socket.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       // Melee collision is resolved by the shared server-owned frontal arc.
       const now = Date.now();
       // Quiver mode truly fires automatically; server honours its faster
@@ -3027,7 +3054,7 @@ async function handle(socket: any, msg: C2S) {
         if (isPrimaryWeaponCategory(selected.category) &&
             (loadout.perkId !== "well_prepared" || selected.wonder || newWeaponId === loadout.weaponId)) return;
       }
-      else if (msg.slot === "melee") newWeaponId = loadout.meleeWeaponId ?? "knife_tactical";
+      else if (msg.slot === "melee") newWeaponId = room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(loadout.meleeWeaponId??"knife_tactical");
       // Validate the weapon exists.
       const w = weaponById(newWeaponId);
       if (!w) return;
@@ -3070,7 +3097,7 @@ async function handle(socket: any, msg: C2S) {
         break;
       }
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
-        socket.emit("message", { t: "roomError", message: "Forest Warfare is exclusive to Capture the Flag; CTF only supports Forest Warfare." } as S2C);
+        socket.emit("message", { t: "roomError", message: "Forest Warfare and Orbital Nexus are exclusive to Capture the Flag." } as S2C);
         break;
       }
       if (cfg.mode === "ctf" &&
