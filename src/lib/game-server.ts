@@ -1331,7 +1331,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     victim.alive = false;
     victim.deaths += 1;
-    if (room.mode === "ctf") ctfDrop(room.flags, victim.id, [...victim.pos] as Vec3);
+    if (room.mode === "ctf") dropCarriedFlag(room, victim.id, [...victim.pos] as Vec3);
     // Server places exactly one death charge on a legitimate elimination.
     // The victim never chooses the position/timing; fuse survives respawn.
     if (!victim.isBot && room.loadouts.get(victim.id)?.perkId === "explonando" && !room.ended) {
@@ -1471,9 +1471,20 @@ function tickKillConfirmedTags(room: Room, now: number) {
   }
 }
 
+// A drop is not a capture. Notify everyone at the authoritative mutation site,
+// including disconnects and bot deaths, so clients never have to guess from snapshots.
+function dropCarriedFlag(room: Room, carrierId: string, pos: Vec3): void {
+  const flag = ctfDrop(room.flags, carrierId, pos);
+  if (flag) io.to(room.id).emit("message",
+    { t: "ctfEvent", action: "drop", flag, playerId: carrierId } as S2C);
+}
+
 // Flag contacts are resolved once by the server on its 20 Hz simulation tick.
 function tickCaptureTheFlag(room: Room, now = Date.now()): void {
-  ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs);
+  for (const flag of ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs)) {
+    io.to(room.id).emit("message",
+      { t: "ctfEvent", action: "auto_return", flag, playerId: "server" } as S2C);
+  }
   for (const player of allCombatants(room)) {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
     const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
@@ -2393,7 +2404,7 @@ io.on("connection", (socket) => {
     if (!roomId) return;
     const room = rooms.get(roomId);
     if (room) {
-      if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
+      if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
       room.players.delete(socket.id);
       room.downed.delete(socket.id);
       room.sockets.delete(socket.id);
@@ -2478,7 +2489,7 @@ async function handle(socket: any, msg: C2S) {
       if (!roomId) return;
       const room = rooms.get(roomId);
       if (room) {
-        if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
+        if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
         room.scores.delete(socket.id);
         socket.leave(roomId);
@@ -3161,7 +3172,7 @@ async function handle(socket: any, msg: C2S) {
       if (!roomId) return;
       const room = rooms.get(roomId);
       if (room) {
-        if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
+        if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
         room.sockets.delete(socket.id);
         room.scores.delete(socket.id);
