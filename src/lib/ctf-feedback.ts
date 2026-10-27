@@ -21,7 +21,7 @@ export function ctfFeedback(
   switch (action) {
     case "capture":
       return friendly
-        ? { label: self ? "FLAG DELIVERED! +75 XP / +30 CR" : "TEAM SCORED!", sound: "flag_scored" }
+        ? { label: self ? "FLAG DELIVERED!" : "TEAM SCORED!", sound: "flag_scored" }
         : { label: "ENEMY SCORED!", sound: "flag_enemy_scored" };
     case "pickup":
       return friendly
