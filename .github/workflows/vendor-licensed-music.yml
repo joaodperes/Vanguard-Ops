@@ -26,6 +26,10 @@ jobs:
         with:
           ref: dev
           persist-credentials: true
+      - name: Install audio codec tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
       - name: Fetch and compress six licensed songs
         run: bash scripts/vendor-licensed-music.sh
       - name: Commit recordings to dev
