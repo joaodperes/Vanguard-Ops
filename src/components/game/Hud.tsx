@@ -232,6 +232,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
             <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-xl"}`}>{hud.survivalWave ?? 0}</span>
           </div>
+          <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-3 py-1.5"}`}>
+            <Clock className="w-3.5 h-3.5 text-white/60" />
+            <span className="text-white font-bold tabular-nums text-sm">{`${mins}:${secs.toString().padStart(2, "0")}`}</span>
+          </div>
           {hud.survivalPrepLeft && hud.survivalPrepLeft > 0 ? (
             <div className={`bg-amber-500/20 backdrop-blur rounded-lg border border-amber-500/40 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
               <Clock className={isTouch ? "w-3 h-3 text-amber-300 animate-pulse" : "w-4 h-4 text-amber-300 animate-pulse"} />
