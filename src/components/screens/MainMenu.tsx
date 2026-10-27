@@ -120,7 +120,7 @@ export function MainMenu() {
                     <TrendingUp className="w-3 h-3 text-amber-400" />
                     {next ? `Next: ${next.name} (LVL ${next.level})` : "Max rank reached"}
                   </span>
-                  <span className="text-white/70 tabular-nums">{xp.needed ? `${xp.current} / ${xp.needed} XP` : "Level cap · Career in Profile"}</span>
+                  <span className="text-white/70 tabular-nums">{xp.needed ? `${xp.current} / ${xp.needed} XP` : "Level cap · Career Contracts"}</span>
                 </div>
                 <div className="relative h-2.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
                   <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-all duration-500" style={{ width: `${xpPct}%` }}>

@@ -161,7 +161,7 @@ export function Profile() {
                   <option value="">No title</option>
                   {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
                 </select>
-                <span className="text-[11px] text-white/45">Finish achievement chains for titles in kills, leveling, quests, Survival and mastery. Career promotions also award titles. Equip one beside your name in matches.</span>
+                <span className="text-[11px] text-white/45">Finish achievement chains for titles in kills, leveling, quests, Survival and mastery. Previously earned Career Rank titles remain available. Equip one beside your name in matches.</span>
                 {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">

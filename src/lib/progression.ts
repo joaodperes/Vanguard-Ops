@@ -1,6 +1,6 @@
 /** Equipment progression stops at the final current weapon tier. Lifetime XP
- * remains intact; fresh post-cap match XP advances the separate Career track. */
-export const MAX_PLAYER_LEVEL = 36;
+ * remains intact; post-cap matches advance Career Contracts. */
+export const MAX_PLAYER_LEVEL = 40;
 
 /** 40% less XP than the previous 25 * (level - 1)^2 * level curve. */
 export function totalXpForLevel(level: number): number {

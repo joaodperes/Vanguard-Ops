@@ -1,6 +1,7 @@
 import { calculateMatchRewards } from "./match-rewards";
 import { ORBITAL_REAPER_ID } from "./orbital-reactor";
-import { careerXpAfterMatch, careerView, CAREER_TITLES } from "./career";
+import { careerXpAfterMatch, CAREER_TITLES } from "./career";
+import { careerContractsView, recordCareerMatch } from "./career-contract-service";
 import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
@@ -239,7 +240,7 @@ export interface PlayerProfileView {
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
-  career: ReturnType<typeof careerView>;
+  career: Awaited<ReturnType<typeof careerContractsView>>;
   prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[] };
 }
 
@@ -394,7 +395,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     savedLoadouts: parseSavedLoadouts(p.loadout?.savedLoadouts),
     weaponProgress,
     operatorContracts,
-    career: careerView(p),
+    career: await careerContractsView(p),
     prestige: { tokens: prestigeTokens(tokenReadyWeapons.length, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons },
   };
 }
@@ -958,6 +959,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         weaponId: input.weaponId ?? "rifle_ar",
         waves: survivalWaves,
       },
+    });
+    // Active Career Contracts advance atomically with this completed match.
+    await recordCareerMatch(tx,player.id,current.xp,xpGained,{
+      mode:input.mode,won:input.won,kills:input.kills,headshots:input.headshots,
+      survivalWaves,weaponId:input.weaponId??equippedForTx,
+      perWeaponKills:input.perWeaponKills,
     });
   });
 

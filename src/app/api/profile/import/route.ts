@@ -299,11 +299,11 @@ export async function POST(req: NextRequest) {
   // --- Restore one-time Prestige awards and Wonder purchases (dedup by key).
   // Balance is derived from these two tables, not from a mutable imported counter.
   if (data.weaponPrestiges?.length) {
-    for (const { weaponId } of data.weaponPrestiges) {
+    for (const { weaponId, legacyReward } of data.weaponPrestiges) {
       if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
       await db.weaponPrestige.upsert({
         where: { playerId_weaponId: { playerId: player.id, weaponId } },
-        create: { playerId: player.id, weaponId }, update: {},
+        create: { playerId: player.id, weaponId, legacyReward: legacyReward !== false }, update: {},
       });
     }
   }
