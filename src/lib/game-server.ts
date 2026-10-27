@@ -25,7 +25,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { createCtfFlags, ctfDrop, ctfTouch, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -120,6 +120,7 @@ interface Room {
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
   flags: CtfFlags;
+  overtime: boolean;
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   tagConfirmations: Map<string, number>; // individual enemy tag pickups
   tagDenials: Map<string, number>;       // individual friendly tag pickups
@@ -389,7 +390,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -547,7 +548,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), overtime: false, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -611,6 +612,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
   room.flags = createCtfFlags();
+  room.overtime = false;
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
@@ -722,7 +724,7 @@ function snapshot(room: Room): S2C {
       (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
-    ...(room.mode === "ctf" ? { ctfFlags: room.flags } : {}),
+    ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime } : {}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1460,7 +1462,8 @@ function tickKillConfirmedTags(room: Room, now: number) {
 }
 
 // Flag contacts are resolved once by the server on its 20 Hz simulation tick.
-function tickCaptureTheFlag(room: Room): void {
+function tickCaptureTheFlag(room: Room, now = Date.now()): void {
+  ctfReturnExpired(room.flags, now);
   for (const player of allCombatants(room)) {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
     const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
@@ -1468,6 +1471,7 @@ function tickCaptureTheFlag(room: Room): void {
     if (event.kind === "capture") {
       room.teamScores[player.team as FlagTeam]++;
       room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + 1);
+      if (room.overtime) { endMatch(room); return; }
       checkWin(room);
       if (room.ended) return;
     }
@@ -1724,7 +1728,16 @@ function tickRoom(room: Room) {
   if (room.preMatchCountdown <= 0) room.elapsedSeconds = (room.elapsedSeconds ?? 0) + 1 / 20;
   if (room.preMatchCountdown <= 0 && room.timeLeft > 0) {
     room.timeLeft -= 1 / 20;
-    if (room.timeLeft <= 0) return endMatch(room);
+    if (room.timeLeft <= 0) {
+      room.timeLeft = 0;
+      // Capture the Flag: a tied regulation score enters sudden-death
+      // overtime with no clock. The next successful capture wins.
+      if (room.mode === "ctf" && room.teamScores.red === room.teamScores.blue) {
+        room.overtime = true;
+      } else {
+        return endMatch(room);
+      }
+    }
   }
   const now = Date.now();
   // Only run bot AI when the pre-match countdown is over.
@@ -1740,7 +1753,7 @@ function tickRoom(room: Room) {
     if (room.ended) return;
   }
   if (room.mode === "ctf" && room.preMatchCountdown <= 0) {
-    tickCaptureTheFlag(room);
+    tickCaptureTheFlag(room, now);
     if (room.ended) return;
   }
   // broadcast ~ every tick (20Hz). Could throttle to 15Hz to save bandwidth but fine.
@@ -2987,6 +3000,12 @@ async function handle(socket: any, msg: C2S) {
       const cfg = msg.config;
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "Forest Warfare is exclusive to Capture the Flag; CTF only supports Forest Warfare." } as S2C);
+        break;
+      }
+      if (cfg.mode === "ctf" &&
+          (cfg.scoreLimit ?? DEFAULT_CONFIG("ctf",0).scoreLimit) === 0 &&
+          (cfg.timeLimit ?? DEFAULT_CONFIG("ctf",0).timeLimit) === 0) {
+        socket.emit("message", { t: "roomError", message: "CTF needs a capture limit or a time limit." } as S2C);
         break;
       }
       if (cfg.mode === "survival") {
