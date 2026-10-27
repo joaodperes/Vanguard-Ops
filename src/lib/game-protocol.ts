@@ -1011,6 +1011,19 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
     description: "Capture the Flag only. Dense woodland, fallen timber, rocky cover and two climbable flag trees.",
     size: 54, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
+    // Three overlapping forest clearings define an irregular but contiguous playfield.
+    regions: [
+      { x: 0, z: -2, w: 100, d: 76 },
+      { x: -35, z: 12, w: 32, d: 70 },
+      { x: 35, z: 12, w: 32, d: 70 },
+    ],
+    surfaces: {
+      floor: { pattern: "grass", tileSize: 7, roughness: 1 },
+      wall: { pattern: "stone", tileSize: 4, roughness: 1 },
+      cover: { pattern: "moss", tileSize: 4, roughness: 1 },
+      stair: { pattern: "planks", tileSize: 3, roughness: 1 },
+      platform: { pattern: "planks", tileSize: 5, roughness: 1 },
+    },
     biome: "forest_warfare", accentColor: "#75bc5d",
     theme: { floor: 0x37532b, floorPattern: 0x284422, wall: 0x304829,
       cover: 0x656e5b, coverAccent: 0x78ae54, stair: 0x6b452b,
