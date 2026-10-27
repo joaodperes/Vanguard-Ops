@@ -55,22 +55,23 @@
     "sight": [
       "sight_laser",
       "sight_red_dot",
-      "sight_holo"
+      "sight_holo",
+      "sight_compact_reflex"
     ],
     "barrel": [
       "barrel_choke",
       "barrel_ported",
-      "barrel_lightweight"
+      "barrel_lightweight",
+      "barrel_muzzle_brake"
     ],
     "grip": [
       "grip_angled",
       "grip_laser",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_stability"
     ],
     "magazine": [
-      "mag_extended",
       "mag_quickdraw",
-      "mag_shell_carrier",
       "mag_slug",
       "mag_pellets",
       "mag_dragons_breath",
@@ -87,17 +88,20 @@
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
-      "barrel_match"
+      "barrel_match",
+      "barrel_ported"
     ],
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_angled"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "sniper": {
@@ -110,17 +114,20 @@
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
-      "barrel_match"
+      "barrel_match",
+      "barrel_lightweight"
     ],
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_angled"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "lmg": {
@@ -139,34 +146,40 @@
     "grip": [
       "grip_vertical",
       "grip_stability",
-      "grip_precision"
+      "grip_precision",
+      "grip_angled"
     ],
     "magazine": [
       "mag_extended",
       "mag_drum",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_quickdraw"
     ]
   },
   "pistol": {
     "sight": [
       "sight_red_dot",
       "sight_laser",
-      "sight_holo"
+      "sight_holo",
+      "sight_compact_reflex"
     ],
     "barrel": [
       "barrel_suppressor",
       "barrel_ported",
-      "barrel_lightweight"
+      "barrel_lightweight",
+      "barrel_compensator"
     ],
     "grip": [
       "grip_laser",
       "grip_precision",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_angled"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "pdw": {
@@ -198,23 +211,27 @@
   "launcher": {
     "sight": [
       "sight_red_dot",
+      "sight_holo",
       "sight_laser",
-      "sight_holo"
+      "sight_compact_reflex"
     ],
     "barrel": [
-      "barrel_suppressor",
-      "barrel_ported",
-      "barrel_lightweight"
+      "barrel_lightweight",
+      "barrel_heavy",
+      "barrel_match",
+      "barrel_launcher_stabilizer"
     ],
     "grip": [
       "grip_laser",
       "grip_precision",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_angled"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_launcher_reinforced"
     ]
   }
 }

@@ -1033,7 +1033,8 @@
     "attachments": [
       "sight",
       "barrel",
-      "grip"
+      "grip",
+      "magazine"
     ],
     "baseSightType": "sniper_scope"
   },
@@ -1329,7 +1330,12 @@
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.32
     },
-    "attachments": []
+    "attachments": [
+      "sight",
+      "barrel",
+      "grip",
+      "magazine"
+    ]
   },
   {
     "id": "launcher_swarm",
@@ -1357,6 +1363,11 @@
       "falloffEndMultiplier": 1.52,
       "minDamageMultiplier": 0.3
     },
-    "attachments": []
+    "attachments": [
+      "sight",
+      "barrel",
+      "grip",
+      "magazine"
+    ]
   }
 ]
