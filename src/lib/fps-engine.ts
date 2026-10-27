@@ -498,6 +498,16 @@ export class FPSEngine {
   private map: MapDef;
   private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
   private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
+  // Decorative interior detail is distance-culled; collision never is.
+  private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
+  private nextCityDetailUpdate=0;
+  private updateCityDetailVisibility(now:number){
+    if(now<this.nextCityDetailUpdate)return;
+    this.nextCityDetailUpdate=now+350;
+    const x=this.camera.position.x,z=this.camera.position.z;
+    for(const item of this.cityInteriorDetailGroups)
+      item.node.visible=Math.abs(item.x-x)<52&&Math.abs(item.z-z)<52;
+  }
   private highGroundGoals():HighGroundGoal[]{
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
     if(this.highGroundCache?.source!==this.map.props)
@@ -1421,6 +1431,7 @@ export class FPSEngine {
   }
 
   private buildMapProps() {
+    this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
@@ -1547,6 +1558,7 @@ export class FPSEngine {
         const display=new THREE.MeshStandardMaterial({color:daylight?0xe1b887:0xf0a6b1,roughness:.45,emissive:daylight?0x161109:0x632638,emissiveIntensity:.24});
         const fabric=new THREE.MeshStandardMaterial({color:use==="clinic"?0xc9dbde:0xc2b5a4,roughness:.93});
         const wallPaint=new THREE.MeshStandardMaterial({color:daylight?0xc6b8a2:0x86808e,roughness:.94});
+        const detailFirstChild=group.children.length;
         // Individual interiors have distinct floor materials, shop displays,
         // wall treatments and purpose-specific visual props. All SOLID items
         // come from cityInteriorFixtures and share collision with the server.
@@ -1671,6 +1683,12 @@ export class FPSEngine {
             part(asphalt,0,fh*.73,0,fw*.88,fh*.45,.22);
             part(display,0,fh*.75,fd*.12,fw*.74,fh*.32,.06);
           }
+        }
+        if(this.map.biome==="city"||this.map.biome==="city_day"){
+          const details=new THREE.Group();
+          for(const obj of group.children.slice(detailFirstChild))details.add(obj);
+          group.add(details);
+          this.cityInteriorDetailGroups.push({node:details,x:p.x,z:p.z});
         }
         const faceZ=d/2+.48;
         const doorWidth=Math.min(5,w*.31);
@@ -6583,6 +6601,7 @@ export class FPSEngine {
     this.timer.update();
     const dt = Math.min(0.05, this.timer.getDelta());
     this.update(dt);
+    if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.renderer.render(this.scene, this.camera);
   };
 
