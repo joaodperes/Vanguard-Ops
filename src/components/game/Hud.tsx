@@ -132,7 +132,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // In TDM mode the scoreboard is split into Red/Blue panels; we use this to
   // mark every teammate as an "ally" (Shield icon) since all players on your
   // team are friendlies.
-  const selfTeam = hud.scoreboard.find(r => r.isSelf)?.team;
+  const selfTeam = hud.playerTeam ?? hud.scoreboard.find(r => r.isSelf)?.team;
   const ranking = killRank(hud.scoreboard, hud.kills);
   const teamScores = teamScorePerspective(hud.teamScores, selfTeam);
   const flagLine = hud.ctfFlags ? ctfFlagLine(hud.ctfFlags, selfTeam, !!hud.ctfCarrying) : null;
@@ -832,11 +832,10 @@ function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string
 }
 
 // ---- Gun Game progression indicator ----
-// Shows a horizontal tier list (one cell per weapon in GUN_GAME_PROGRESSION).
-// The current tier is highlighted in purple (the gungame accent color). A
-// compact label shows the current tier's weapon name (e.g., "Tier 5/18 — VK-12 Assault").
+// Shows only the current weapon tier, weapon name and a compact progress bar.
+// Rank and kills belong to the primary HUD row, not this secondary strip.
 function GunGameProgress({ index, total, currentWeaponId, compact }: { index: number; total: number; currentWeaponId: string; compact?: boolean }) {
-  const tier = Math.max(1, Math.min(total, index + 1));
+  const tier = total > 0 ? Math.max(1, Math.min(total, index + 1)) : 0;
   const pct = total > 0 ? Math.min(100, tier / total * 100) : 0;
   const final = total > 0 && tier === total;
   return (
