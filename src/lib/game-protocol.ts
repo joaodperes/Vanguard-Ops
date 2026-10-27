@@ -8,7 +8,7 @@ import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
-import { FOREST_SPAWNS, FOREST_WARFARE_COVER } from "./forest-warfare";
+import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT } from "./forest-warfare";
 import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
@@ -1009,14 +1009,9 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
 const BASE_MAPS: Record<MapId, MapDef> = {
   forest_warfare: {
     id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
-    description: "Capture the Flag only. Dense woodland, fallen timber, rocky cover and two climbable flag trees.",
-    size: 54, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
-    // Three overlapping forest clearings define an irregular but contiguous playfield.
-    regions: [
-      { x: 0, z: -2, w: 100, d: 76 },
-      { x: -35, z: 12, w: 32, d: 70 },
-      { x: 35, z: 12, w: 32, d: 70 },
-    ],
+    description: "CTF only. Long woodland valley with cover, climbable ancient trees and raised, open flag platforms.",
+    size: FOREST_HALF_EXTENT, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
+    regions: FOREST_REGIONS,
     surfaces: {
       floor: { pattern: "grass", tileSize: 7, roughness: 1 },
       wall: { pattern: "stone", tileSize: 4, roughness: 1 },
@@ -1027,11 +1022,11 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     biome: "forest_warfare", accentColor: "#75bc5d",
     theme: { floor: 0x37532b, floorPattern: 0x284422, wall: 0x304829,
       cover: 0x656e5b, coverAccent: 0x78ae54, stair: 0x6b452b,
-      platform: 0x5d3d26, sky: "#8aa99a", fog: "#8aa99a", fogNear: 55, fogFar: 165,
+      platform: 0x5d3d26, sky: "#8aa99a", fog: "#8aa99a", fogNear: 90, fogFar: 450,
       ambient: 1.35, gridColor: 0x405c31 },
     lights: [
-      { pos: [-37,10,0], color: 0xffc6a9, intensity: 1.5, distance: 25 },
-      { pos: [37,10,0], color: 0xb6e2ff, intensity: 1.5, distance: 25 },
+      { pos: [-94,19,0], color: 0xffc6a9, intensity: 1.5, distance: 38 },
+      { pos: [94,19,0], color: 0xb6e2ff, intensity: 1.5, distance: 38 },
     ],
   },
   compound: {
