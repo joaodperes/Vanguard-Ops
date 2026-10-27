@@ -8,6 +8,7 @@ import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
 import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, type MapBlueprint } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type MapVisualTheme } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
+import { expandCitySpawnPositions } from "./city-spawn-layout";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
@@ -114,6 +115,15 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     :scaledBase.environment??[];
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
+  const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
+    ...propColliders(props,allSpawns),
+    ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
+  const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
+  const expandedSpawns = isAfterlight ? {
+    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32),
+    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16),
+    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16),
+  } : initialSpawns;
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
@@ -124,10 +134,8 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
     regions,
     environment:[...legacyEnvironment,...(plan.hazards??[]).map(authoredHazardEnvironment)],
-    cover:[...legacyCover,...flankFeatures.flatMap(featureBoxes),
-      ...propColliders(props,allSpawns),
-      ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)],
-    spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
+    cover:fullCover,
+    spawns:expandedSpawns,
     props,biome:visuals.biome,surfaces:visuals.surfaces,accentColor:visuals.palette.accent,
     theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),
       fogFar:Math.max(scaledBase.theme.fogFar,halfExtent*2.5+60)},
