@@ -4,7 +4,7 @@ import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { WEAPONS, weaponById, attachmentById, RARITY_COLORS, rankForLevel, nextRank } from "@/lib/game-data";
 import {
   Crosshair, Trophy, Backpack, Zap, ChevronRight, Target,
-  Crown, Sparkles, Calendar, TrendingUp, Skull, Play as PlayIcon, Star, Wrench,
+  Crown, Sparkles, Calendar, TrendingUp, Skull, Play as PlayIcon, Star, Wrench, ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,7 @@ export function MainMenu() {
               <PlayIcon className="w-4 h-4 mr-1.5" /> Play
             </Button>
             <NavBtn onClick={() => setScreen("armory")} icon={<Backpack className="w-4 h-4" />} label="Armory" />
+            <NavBtn onClick={() => setScreen("shop")} icon={<ShoppingBag className="w-4 h-4" />} label="Shop" />
             <NavBtn onClick={() => setScreen("profile")} icon={<Trophy className="w-4 h-4" />} label="Profile" />
             <NavBtn onClick={() => setScreen("settings")} icon={<Sparkles className="w-4 h-4" />} label="Settings" />
 

@@ -6,7 +6,7 @@ import { teamSizeAllowed, teamSizesForMap } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
-export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "tutorial" | "playing" | "results" | "range";
+export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "tutorial" | "playing" | "results" | "range" | "shop";
 
 export interface PlayConfig {
   mode: GameMode;

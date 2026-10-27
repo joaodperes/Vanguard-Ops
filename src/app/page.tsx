@@ -9,6 +9,7 @@ import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
 import { FiringRange } from "@/components/screens/FiringRange";
 import { Profile } from "@/components/screens/Profile";
+import { Shop } from "@/components/screens/Shop";
 import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
 import { Tutorial } from "@/components/screens/Tutorial";
@@ -191,6 +192,7 @@ export default function Page() {
       {screen === "armory" && <Armory />}
       {screen === "range" && <FiringRange />}
       {screen === "profile" && <Profile />}
+      {screen === "shop" && <Shop />}
       {screen === "settings" && <Settings />}
       {screen === "tutorial" && <Tutorial key={playerKey} />}
       {screen === "results" && <Results />}
