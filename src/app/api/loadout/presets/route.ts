@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (presets.length >= MAX_SAVED_LOADOUTS) {
       return NextResponse.json({ error: "You can save up to five loadouts" }, { status: 409 });
     }
-    const perkId = body.perkId ?? DEFAULT_PERK_ID;
+    const perkId = active.perkId ?? DEFAULT_PERK_ID;
     const perk = perkById(perkId);
     if (perk.id !== perkId || perk.unlockLevel > player.level) {
       return NextResponse.json({ error: "That perk is not unlocked" }, { status: 403 });
