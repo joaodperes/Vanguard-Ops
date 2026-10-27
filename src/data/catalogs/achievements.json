@@ -795,7 +795,7 @@
     "icon": "Star",
     "metric": "collection_percent",
     "goal": 100,
-    "tier": "diamond",
+    "tier": "platinum",
     "rewardXp": 3000,
     "rewardCredits": 600,
     "category": "career",

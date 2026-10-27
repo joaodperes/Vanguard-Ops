@@ -4,13 +4,14 @@ import { NextRequest } from "next/server";
 import { db } from "../../src/lib/db";
 import { POST as saveLoadout } from "../../src/app/api/loadout/route";
 import { POST as preset } from "../../src/app/api/loadout/presets/route";
-import { POST as promote } from "../../src/app/api/profile/career/route";
+import { POST as claimCareer } from "../../src/app/api/profile/career/route";
+import { POST as shopPurchase } from "../../src/app/api/shop/route";
 import { POST as equipTitle } from "../../src/app/api/profile/title/route";
 import { GET as exportProfile } from "../../src/app/api/profile/export/route";
 import { POST as importProfile } from "../../src/app/api/profile/import/route";
 import { getOrCreatePlayer, buildProfileView, applyMatchResult } from "../../src/lib/player-service";
 import { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp } from "../../src/lib/progression";
-import { careerRequirement } from "../../src/lib/career";
+
 import { PERKS } from "../../src/lib/perks";
 import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
 
@@ -88,55 +89,48 @@ try {
   assert.equal(crossed.careerXp, crossingResult.xpGained - 1);
   assert.equal(crossingResult.newLevel, MAX_PLAYER_LEVEL);
 
-  // Historic overflow XP cannot fund even the first Career promotion.
-  const c = await create("career-player", cap + 1000000);
+  // Historic overflow XP does not complete a Career Contract.
+  const c=await create("career-player",cap+1000000);
   await suppressAwards(c.id);
-  assert.equal((await buildProfileView(c.playerKey))!.career.currentXp, 0);
-  await status(await promote(req({ playerKey: c.playerKey, rank: 0, careerXp: 9999999 })), 403);
-  await status(await promote(req({ playerKey: c.playerKey, rank: -1 })), 400);
-  await status(await promote(req({ playerKey: c.playerKey })), 400);
-  await status(await promote(req({ playerKey: q.playerKey, rank: 0 })), 403);
-  await status(await equipTitle(req({ playerKey: c.playerKey, achievementId: "career_veteran" })), 403);
-  const earnings = await applyMatchResult({ playerKey: c.playerKey, kills: 1, deaths: 0, headshots: 0, won: false, mode: "ffa", score: 1 });
-  assert.equal((await buildProfileView(c.playerKey))!.career.currentXp, earnings.xpGained);
+  const initialCareer=(await buildProfileView(c.playerKey))!.career;
+  assert.equal(initialCareer.completed,0);
+  assert.equal(initialCareer.tokens,0);
+  assert.equal(initialCareer.contracts.length,5);
+  await status(await claimCareer(req({playerKey:c.playerKey})),403);
+  await status(await equipTitle(req({playerKey:c.playerKey,achievementId:"career_veteran"})),403);
+  const earned=await applyMatchResult({playerKey:c.playerKey,kills:10,deaths:0,headshots:5,won:false,mode:"ffa",score:10,weaponId:"rifle_ar"});
+  const after=(await buildProfileView(c.playerKey))!.career;
+  assert(after.contracts.some(contract=>contract.progress>0));
+  assert(after.contracts.some(contract=>contract.id==="fresh_xp"&&contract.progress===earned.xpGained));
+  // Force completion for this isolated API fixture; only a valid server claim
+  // converts 3 finished contract rows into one token.
+  for(const contract of after.contracts.slice(0,3)){
+    await db.careerContract.updateMany({
+      where:{playerId:c.id,cycle:0,contractId:contract.id},
+      data:{completed:true,progress:contract.goal},
+    });
+  }
+  const backup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${c.playerKey}`))).json();
+  await status(await claimCareer(req({playerKey:c.playerKey})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,1);
+  await status(await claimCareer(req({playerKey:c.playerKey})),403);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),409);
+  await status(await importProfile(req({playerKey:c.playerKey,data:backup})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
+  assert.equal((await db.player.findUniqueOrThrow({where:{id:c.id}})).careerTokensSpent,1);
 
-  await db.player.update({ where: { id: c.id }, data: { careerXp: careerRequirement(0).xp, credits: 36000 } });
-  const beforeExport = await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${c.playerKey}`));
-  const backup = await beforeExport.json();
-  // Two simultaneous requests spend exactly once and cannot skip a rank.
-  const attempts = await Promise.all([promote(req({ playerKey: c.playerKey, rank: 0 })), promote(req({ playerKey: c.playerKey, rank: 0 }))]);
-  assert.deepEqual(attempts.map(r => r.status).sort(), [200,409]);
-  let career = await db.player.findUniqueOrThrow({ where: { id: c.id } });
-  assert.equal(career.careerRank, 1);
-  assert.equal(career.careerXp, 0);
-  assert.equal(career.credits, 31000);
-  assert.equal(career.xp, backup.player.xp);
-  await status(await promote(req({ playerKey: c.playerKey, rank: 1 })), 403);
-  await status(await promote(req({ playerKey: c.playerKey, rank: 0 })), 409);
-  await status(await equipTitle(req({ playerKey: c.playerKey, achievementId: "career_veteran" })), 200);
-  await status(await equipTitle(req({ playerKey: c.playerKey, achievementId: "career_legend" })), 403);
-  assert((await buildProfileView(c.playerKey))!.unlockedTitles.some(t => t.id === "career_veteran"));
-
-  // Re-importing an earlier backup cannot refund promotion credits or fresh XP.
-  await status(await importProfile(req({ playerKey: c.playerKey, data: backup })), 200);
-  await status(await importProfile(req({ playerKey: c.playerKey, data: backup })), 200);
-  career = await db.player.findUniqueOrThrow({ where: { id: c.id } });
-  assert.equal(career.credits, 31000);
-  assert.equal(career.careerRank, 1);
-  assert.equal(career.careerXp, 0);
-  await db.player.update({ where: { id: c.id }, data: { careerXp: careerRequirement(1).xp, credits: 7499 } });
-  await status(await promote(req({ playerKey: c.playerKey, rank: 1 })), 403);
-  assert.equal((await db.player.findUniqueOrThrow({ where: { id: c.id } })).careerXp, 25000);
-
-  // Fresh recovery preserves rank and the live perk/preset state; forged cached
-  // levels in old exports do not grant perks.
-  const recovered = { ...backup, playerKey: "restored-player", player: { ...backup.player, careerRank: 1, careerXp: 50, level: 1 }, loadout: { ...backup.loadout, perkId: "steady" } };
-  await status(await importProfile(req({ playerKey: recovered.playerKey, data: recovered })), 200);
-  const restored = (await buildProfileView(recovered.playerKey))!;
-  assert.equal(restored.career.rank, 1);
-  assert.equal(restored.career.currentXp, 50);
-  assert.equal(restored.loadout.perkId, "steady");
-  assert.equal(restored.level, MAX_PLAYER_LEVEL);
+  // Old exports still preserve legacy Career titles without minting tokens.
+  const recovered={...backup,playerKey:"restored-player",
+    player:{...backup.player,careerRank:1,careerXp:50,level:1},
+    loadout:{...backup.loadout,perkId:"steady"}};
+  await status(await importProfile(req({playerKey:recovered.playerKey,data:recovered})),200);
+  const restored=(await buildProfileView(recovered.playerKey))!;
+  assert.equal((await db.player.findUniqueOrThrow({where:{playerKey:recovered.playerKey}})).careerRank,1);
+  assert.equal(restored.loadout.perkId,"steady");
+  assert.equal(restored.level,MAX_PLAYER_LEVEL);
+  assert(restored.unlockedTitles.some(t=>t.id==="career_veteran"));
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.

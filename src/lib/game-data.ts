@@ -716,7 +716,8 @@ export interface AchievementDef {
     | "ctf_wins"
     | "mastery_recruits"
     | "mastery_specialists"
-    | "mastery_elites";
+    | "mastery_elites"
+    | "collection_percent";
   goal: number;
   tier: "bronze" | "silver" | "gold" | "platinum";
   rewardXp: number;
