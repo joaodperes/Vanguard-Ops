@@ -1280,6 +1280,8 @@ export interface LoadoutWire {
   meleeWeaponSkinId?: string;
   playerSkinId: string;
   /** Chosen cosmetics; ignored for combat stats. */
+  primaryReticleId?: string;
+  secondaryReticleId?: string;
   primaryCharmId?: string;
   secondaryCharmId?: string;
   meleeCharmId?: string;
