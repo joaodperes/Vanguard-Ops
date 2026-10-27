@@ -104,7 +104,12 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
   const legacyCover=compileVisibleLegacyBoxes(
     legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides);
-  const legacyEnvironmentSource=scaledBase.environment??[];
+  // Ridgefall replaces the old skybridge arena. The inherited breakable wall
+  // at (0,-28) sat inside the new central staircase, could absorb shots and
+  // was not a usable doorway. Keep only authored factory hazards instead.
+  const legacyEnvironmentSource=base.id==="skybridge"
+    ?(scaledBase.environment??[]).filter(o=>o.id!=="skybridge_wall")
+    :scaledBase.environment??[];
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   return {
