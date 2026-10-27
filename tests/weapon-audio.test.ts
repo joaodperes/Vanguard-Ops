@@ -68,6 +68,15 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(resolveShotAcoustics("melee").crackLevel).toBe(0);
   });
 
+  test("Hellfire has no ballistic crack, shotgun blast or pressure pulse", () => {
+    const flame=resolveShotAcoustics("lmg",{weaponId:"wonder_hellfire"});
+    const ordinary=resolveShotAcoustics("lmg",{weaponId:"lmg_hv"});
+    expect(flame.crackLevel).toBe(0);
+    expect(flame.punchLevel).toBe(0);
+    expect(flame.blastLevel).toBe(0);
+    expect(ordinary.crackLevel).toBeGreaterThan(.5);
+  });
+
   test("nearby enemies remain identifiable, distant gunfire fades and darkens", () => {
     const near = resolveShotAcoustics("pistol", { distance: 5 });
     const mid = resolveShotAcoustics("pistol", { distance: 30 });
