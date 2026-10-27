@@ -15,7 +15,7 @@ on:
       - src/lib/factory-machinery.ts
       - src/data/map-themes/skybridge.json
       - tests/ridgefall-factory.test.ts
-      - tests/afterlight-ridgefall-polish.test.ts
+      - tests/afterlight-ridgefall-polish.test.ts tests/afterlight-performance-roof-bots.test.ts
       - tests/afterlight-performance-and-elevation.test.ts
       - src/lib/cover-spatial-index.ts
       - src/lib/city-high-ground.ts
