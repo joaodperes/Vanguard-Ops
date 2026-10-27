@@ -10,14 +10,15 @@ Run the safe schema update **before starting the new app/server build**.
   Prestige cosmetics are not part of that checklist.
 - Completing all seven awards that particular weapon's Prestige exactly once.
   Bought legacy skins count as completed (preserves historical entitlement).
-- The award automatically makes **Eventide** (scrolling starfield) and
-  **Viridian Blight** (animated fluorescent sludge) equipable on that weapon,
-  with no credit price.
-- Each weapon Prestige grants the two cosmetics immediately. A **Wonder token**
-  becomes spendable only when that same weapon also reaches **Weapon Mastery 5/5**.
-  Token balance is the number of uniquely Prestiged-and-mastered weapons minus
-  unique Wonder purchases, not a separately incremented balance. Repeated
-  completions, reloads or imports do not mint tokens.
+- **Prestige** awards **Viridian Blight** (animated toxic green) independently.
+- **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
+  players can equip it even without completing Prestige.
+- Completing both tracks on the same weapon grants a one-use **Wonder Weapon
+  unlock entitlement**, equal to uniquely dual-completed weapons minus already
+  purchased Wonder Weapons. This is displayed as 'Wonder unlocks available',
+  not as a separate reusable Shop currency. Old Prestige awards retain both
+  cosmetics, even if they predate the split. Repeated completions, reloads or
+  imports do not mint entitlements.
 - Weapon Prestige does not reset rank, kills, or attachments.
 
 ## Wonder Weapons
@@ -32,7 +33,7 @@ Run the safe schema update **before starting the new app/server build**.
 | Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
 | Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
-A Wonder Weapon costs **one token** and is permanently owned. It equips into
+A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
 the Primary slot, has no attachments or reserve ammo, and cannot manually
 reload. The recharge clock continues through death and while the gun is
 holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
@@ -98,7 +99,7 @@ The startup sync intentionally omits `--accept-data-loss`.
    bun run build
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
-   mastered weapon, confirm token +2 camos, spend it once, check purchase
+   mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
    rejection on replay and no free refill through swap, death or ammo cache.
 4. Verify all seven Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.

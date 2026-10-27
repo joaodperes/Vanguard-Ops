@@ -1,4 +1,6 @@
-# Economy, perk saves and Career ranks
+# Economy, perk saves and Career Contracts
+
+**Current design:** account levels cap at **40** and players pursue [Career Contracts and a two-tab cosmetic Shop](career-contracts-and-shop.md). The repeatable credit-funded Career promotion mechanism below is historical design context, not the current feature. Previously earned rank titles remain accessible.
 
 Implementation is on `dev`. This change fixes the split between XP-derived
 profile levels and stale cached `Player.level` values. Loadout confirmation,
@@ -15,12 +17,12 @@ payouts stay the same. Lifetime XP, credits and purchases are retained; old
 accounts immediately use the faster curve. For example, the old level-18
 threshold of 130,050 XP now reaches level 21.
 
-Equipment levels cap at **36**, the highest current ordinary weapon gate.
-The threshold is 661,500 XP. Above that threshold, lifetime XP continues to
-increase, while further advancement uses Career ranks. The level helper is
-bounded, including for oversized imported values. Content validation rejects
-equipment unlock gates above the cap so new content cannot become unreachable. At cap, the menu and Profile
-show the Career destination instead of a fictitious next equipment level.
+Equipment levels now cap at **40**, the current progression threshold of
+912,600 lifetime XP under this curve. Lifetime XP continues to increase after
+the cap, but only fresh match XP accrued after reaching level 40 advances an
+active Career Contract. The older 36-level cap and repeatable promotion meter
+are retained below solely to explain legacy migrations. Validation still
+rejects equipment unlock levels above the configured cap.
 
 ## Credit payouts
 
@@ -63,7 +65,7 @@ Changed catalogs:
 - `src/data/catalogs/elite-quests.json`
 - `src/data/catalogs/achievements.json`
 
-## Repeatable Career ranks
+## Historic repeatable Career ranks (retired; legacy reference only)
 
 At equipment level 36, Profile shows an optional Career promotion track:
 
