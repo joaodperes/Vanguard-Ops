@@ -1,25 +1,13 @@
 "use client";
-import { useEffect,useState } from "react";
+import { useEffect } from "react";
 import { useGame } from "@/lib/game-store";
 import { useSettings, CROSSHAIR_PRESETS } from "@/lib/settings-store";
-import { COSMETICS } from "@/lib/cosmetics";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
 export function Settings() {
-  const { setScreen,profile,playerKey,refreshProfile } = useGame();
-  const [reticleBusy,setReticleBusy]=useState(false),[reticleError,setReticleError]=useState("");
-  async function selectReticle(id:string){
-    if(reticleBusy||!playerKey)return;
-    setReticleBusy(true);setReticleError("");
-    try{
-      const r=await fetch("/api/profile/cosmetics",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({playerKey,kind:"reticle",cosmeticId:id})});
-      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Cannot equip reticle");
-      await refreshProfile();
-    }catch(e){setReticleError(e instanceof Error?e.message:"Cannot equip reticle");}
-    finally{setReticleBusy(false);}
-  }
+  const { setScreen } = useGame();
   const { settings, update, reset, load } = useSettings();
   useEffect(() => { load(); }, [load]);
 
@@ -42,24 +30,14 @@ export function Settings() {
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5">
         {/* Crosshair */}
-        <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Customize your targeting reticle">
+        <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Global color and size. Equip each weapon’s reticle in Armory → Customize → Reticles.">
           <div className="flex items-center gap-6">
             {/* live preview */}
             <div className="w-32 h-32 rounded-xl bg-gradient-to-br from-zinc-900 to-black border border-white/10 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04), transparent 60%)" }} />
-              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} shape={profile?.selectedReticle??"classic"} />
+              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} shape="classic" />
             </div>
             <div className="flex-1 space-y-4">
-              <div>
-                <label htmlFor="reticle-style" className="text-white/60 text-xs uppercase tracking-wider mb-2 block">Reticle Style</label>
-                <select id="reticle-style" value={profile?.selectedReticle??"classic"} disabled={reticleBusy}
-                  onChange={e=>void selectReticle(e.target.value)} className="w-full bg-zinc-950 text-white border border-white/20 rounded-lg p-2 text-sm">
-                  {COSMETICS.filter(c=>c.kind==="reticle").map(c=><option key={c.id} value={c.id}
-                    disabled={!profile?.ownedCosmetics?.includes(c.id)}>{c.symbol} {c.name}{profile?.ownedCosmetics?.includes(c.id)?"":" · Shop"}</option>)}
-                </select>
-                {reticleError&&<p role="alert" className="text-xs text-rose-400 mt-1">{reticleError}</p>}
-                <p className="text-xs text-white/40 mt-1">Classic Cross and Precision Dot are free. More styles are optional Shop cosmetics. Color and size remain free.</p>
-              </div>
               <div>
                 <div className="text-white/60 text-xs uppercase tracking-wider mb-2">Color Presets</div>
                 <div className="flex flex-wrap gap-2">
