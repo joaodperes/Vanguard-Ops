@@ -231,7 +231,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     : await db.player.findUnique({
         where: { playerKey },
         include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true,
- playerSkinUnlocks: true, loadout: true },
+ playerSkinUnlocks: true, loadout: true, achievements: true },
       });
   const p = fresh!;
   const level = levelForXp(p.xp);
