@@ -7,6 +7,7 @@ import { Minimap } from "./Minimap";
 import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
+import { matchHudInfo } from "@/lib/match-hud";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
@@ -110,6 +111,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
   const clockText = formatMatchClock(hud);
+  const matchInfo = matchHudInfo(mode, hud.survivalTier);
+  const personalPrimary = mode === "ctf" || mode === "killconfirmed" ? hud.score : hud.kills;
+  const personalSecondary = mode === "ctf" ? hud.kills : mode === "killconfirmed" ? hud.denials ?? 0 : hud.deaths;
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -259,37 +263,35 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
         </div>
-        {(mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
-          <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1.5 px-2 py-0.5" : "gap-3 px-4 py-1.5"}`}>
-            <span className={`text-red-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.red}</span>
-            {hud.scoreLimit && hud.scoreLimit > 0 && <span className={`text-white/30 ${isTouch ? "text-[9px]" : "text-xs"}`}>/{hud.scoreLimit}</span>}
-            <span className="text-white/40 text-[10px]">vs</span>
-            <span className={`text-blue-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.blue}</span>
+        {/* Explicit mode identity, including team modes — never default to FFA. */}
+        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "px-1.5 py-0.5" : "px-3 py-1.5"}`}>
+          <span className={`text-amber-200 font-black tracking-wider uppercase whitespace-nowrap ${isTouch ? "text-[9px]" : "text-xs"}`}>
+            {isTouch ? matchInfo.short : matchInfo.title}
+          </span>
+        </div>
+        {matchInfo.teamBased ? (
+          <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1 px-1.5 py-0.5" : "gap-2 px-3 py-1.5"}`}
+               title={`Red vs Blue · ${matchInfo.teamObjective.toLowerCase()} scored`}>
+            <span className="text-red-300 text-[9px] font-bold">R</span>
+            <span className={`text-red-400 font-black tabular-nums ${isTouch ? "text-xs" : "text-lg"}`}>{hud.teamScores.red}</span>
+            <span className="text-white/40 text-[9px]">–</span>
+            <span className={`text-blue-400 font-black tabular-nums ${isTouch ? "text-xs" : "text-lg"}`}>{hud.teamScores.blue}</span>
+            <span className="text-blue-300 text-[9px] font-bold">B</span>
+            {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
+              <span className={`text-white/40 ${isTouch ? "text-[8px]" : "text-[10px]"}`}>/ {hud.scoreLimit}</span>
+            )}
+            {!isTouch && <span className="text-white/40 text-[9px] font-semibold uppercase">{matchInfo.teamObjective}</span>}
           </div>
-        ) : (
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Trophy className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
-            <span className={`text-white/80 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>{mode === "gungame" ? "Gun Game" : "FFA"}</span>
-          </div>
-        )}
-        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
-          {mode === "killconfirmed" || mode === "ctf" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" || mode === "ctf" ? hud.score : hud.kills}</span>
-          {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
-            <>
-              <span className="text-white/30">/</span>
-              <span className={`text-amber-400/70 ${isTouch ? "text-[9px]" : "text-xs"}`}>{hud.scoreLimit}</span>
-            </>
+        ) : null}
+        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-1.5 py-0.5" : "gap-1.5 px-3 py-1.5"}`}>
+          <span className={`text-white/50 font-semibold ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{matchInfo.personalPrimary}</span>
+          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{personalPrimary}</span>
+          {matchInfo.personalGoal && hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
+            <span className="text-amber-400/70 text-[10px]">/{hud.scoreLimit}</span>
           )}
           <span className="text-white/20 mx-0.5">·</span>
-          {mode === "killconfirmed" ? (
-            <span className={`text-cyan-300/75 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.denials ?? 0} denied</span>
-          ) : (
-            <>
-              <span className="text-white/30">/</span>
-              <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
-            </>
-          )}
+          <span className={`text-white/50 font-semibold ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{matchInfo.personalSecondary}</span>
+          <span className={`text-white/80 font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{personalSecondary}</span>
         </div>
       </div>
       )}
@@ -665,7 +667,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.preMatchCountdown}
           </div>
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
-            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}
+            {matchInfo.title}
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{displayMapLabel(hud.mapName ?? "Compound")}</span>
           </div>
@@ -681,19 +683,19 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
       {showScoreboard && hud.alive !== undefined && hud.pointerLocked && (
-        (mode === "tdm" || mode === "killconfirmed") ? (
+        (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               {/* header bar */}
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "killconfirmed" ? "Kill Confirmed — tags recovered" : "Team Deathmatch"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : "Team Deathmatch · Kills"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               {/* team panels */}
               <div className="flex flex-col sm:flex-row gap-2 p-2 max-h-[50vh] overflow-y-auto custom-scroll">
-                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} />
-                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} />
+                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
               </div>
             </div>
           </div>
@@ -702,7 +704,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{matchInfo.title}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               <div className="max-h-[50vh] overflow-y-auto custom-scroll">
@@ -763,7 +765,7 @@ function teamDot(t: string) {
 // highlighted emerald (same as the FFA table). Every player whose team matches
 // `selfTeam` (i.e. friendlies — which in a team panel is either everyone or
 // no-one) gets a small Shield icon prefix so allies are visually distinct.
-function TeamPanel({ team, score, rows, selfTeam }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string }) {
+function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string }) {
   const accent = team === "red" ? "border-red-500/40" : "border-blue-500/40";
   const headerBg = team === "red" ? "bg-red-500/10" : "bg-blue-500/10";
   const headerText = team === "red" ? "text-red-400" : "text-blue-400";
@@ -783,7 +785,7 @@ function TeamPanel({ team, score, rows, selfTeam }: { team: "red" | "blue"; scor
             <th className="text-left px-3 py-1 font-medium">Player</th>
             <th className="text-center px-1 py-1 font-medium w-10">K</th>
             <th className="text-center px-1 py-1 font-medium w-10">D</th>
-            <th className="text-center px-3 py-1 font-medium w-12">Scr</th>
+            <th className="text-center px-3 py-1 font-medium w-12">{scoreLabel}</th>
           </tr>
         </thead>
         <tbody>
