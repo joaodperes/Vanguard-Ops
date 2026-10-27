@@ -11,7 +11,6 @@ import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
 import { FAQ } from "@/components/screens/FAQ";
 import { GameCanvas } from "@/components/game/GameCanvas";
-import { MenuMusic } from "@/components/game/MenuMusic";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkById } from "@/lib/perks";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
@@ -126,10 +125,10 @@ export default function Page() {
 
   // Show the auth screen until the user signs in or chooses guest.
   if (authState !== "authenticated" && authState !== "guest") {
-    return <><MenuMusic active /><Auth /></>;
+    return <Auth />;
   }
   if (screen === "auth") {
-    return <><MenuMusic active /><Auth /></>;
+    return <Auth />;
   }
 
   // Build loadout wire from profile
@@ -172,7 +171,6 @@ export default function Page() {
 
   return (
     <>
-      <MenuMusic active={screen !== "playing" && screen !== "range"} />
       <div className="dark min-h-screen bg-[#0a0a0a] text-white">
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}

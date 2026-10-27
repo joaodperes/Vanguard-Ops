@@ -63,7 +63,6 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       botDifficulty,
       survivalTier,
       masterVolume: settings.masterVolume,
-      musicVolume: settings.musicVolume,
       footstepVolume: settings.footstepVolume,
       fxVolume: settings.fxVolume,
       scoreLimit,

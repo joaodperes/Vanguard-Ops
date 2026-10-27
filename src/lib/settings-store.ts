@@ -38,7 +38,9 @@ function loadSettings(): GameSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    delete saved.musicVolume; // Discard legacy music preference.
+    return { ...DEFAULTS, ...saved } as GameSettings;
   } catch {
     return DEFAULTS;
   }

@@ -111,7 +111,6 @@ export interface EngineOptions {
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
   masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
-  musicVolume?: number;        // 0..100, relative to master
   footstepVolume?: number;     // 0..100, relative to master
   fxVolume?: number;           // 0..100, relative to master (including WeaponAudio)
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
@@ -939,7 +938,6 @@ export class FPSEngine {
     this.weaponAudio = new WeaponAudio(80);
     this.setAudioMix({
       masterVolume: opts.masterVolume ?? DEFAULT_AUDIO_MIX.masterVolume,
-      musicVolume: opts.musicVolume ?? DEFAULT_AUDIO_MIX.musicVolume,
       footstepVolume: opts.footstepVolume ?? DEFAULT_AUDIO_MIX.footstepVolume,
       fxVolume: opts.fxVolume ?? DEFAULT_AUDIO_MIX.fxVolume,
     });
@@ -2723,10 +2721,9 @@ export class FPSEngine {
   /** Apply settings without reconstructing the game/audio contexts.
    * WeaponAudio has its own Web Audio output, so scale FX by master there too.
    */
-  setAudioMix(mix: { masterVolume: number; musicVolume: number; footstepVolume: number; fxVolume: number }) {
+  setAudioMix(mix: { masterVolume: number; footstepVolume: number; fxVolume: number }) {
     const levels = audioGainLevels(mix);
     this.sound.setMasterVolume(levels.master);
-    this.sound.setMusicVolume(levels.music);
     this.sound.setFootstepVolume(levels.footsteps);
     this.sound.setFxVolume(levels.fx);
     this.weaponAudio.setVolume(levels.weaponOutputPercent);
@@ -6241,8 +6238,6 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
-    // The music scheduler runs only after audio was unlocked by a user gesture.
-    this.sound.tickAmbientMusic(!this.matchEnded, this.lobbyActive ? "lobby" : this.map.id);
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());

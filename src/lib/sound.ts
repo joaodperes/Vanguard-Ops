@@ -20,9 +20,6 @@
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
 
-import type { MusicThemeId } from "./music-themes";
-import { RecordedMusicPlayer } from "./recorded-music";
-
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
 // the same base sound; distance + suppressor modifiers are layered on top.
@@ -154,7 +151,6 @@ export class SoundManager {
   private outputGain: GainNode | null = null;
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
-  private musicVolume = 0.65;
   private footstepVolume = 0.85;
   private fxVolume = 1;
   private muted = false;
@@ -167,13 +163,8 @@ export class SoundManager {
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
-  private readonly recordedMusic = new RecordedMusicPlayer();
 
   constructor() {
-    // Recorded music is a separate HTMLAudioElement mix. Initialize its
-    // configured default levels even if the Settings screen hasn't touched a
-    // slider; otherwise the first menu theme stays permanently muted.
-    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
     // Defer AudioContext creation until the first resume() call — browsers
     // require a user gesture before audio can start. Constructing the context
     // here is fine, but we wait to actually create it on first use.
@@ -185,7 +176,7 @@ export class SoundManager {
       try {
         const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
         this.ctx = new AC();
-        // Master scales all channels. Music, footsteps, and FX are independent.
+        // Master scales footsteps and effects independently.
         this.outputGain = this.ctx.createGain();
         this.outputGain.gain.value = this.muted ? 0 : this.masterVolume;
         this.outputGain.connect(this.ctx.destination);
@@ -209,7 +200,6 @@ export class SoundManager {
     if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
-    this.recordedMusic.unlock();
   }
 
   setMasterVolume(v: number) {
@@ -217,12 +207,6 @@ export class SoundManager {
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
-    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
-  }
-
-  setMusicVolume(v: number) {
-    this.musicVolume = Math.max(0, Math.min(1, v));
-    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
   }
 
   setFootstepVolume(v: number) {
@@ -244,7 +228,6 @@ export class SoundManager {
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(m ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
-    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
   }
 
   isMuted() { return this.muted; }
@@ -312,13 +295,6 @@ export class SoundManager {
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
     }
-  }
-
-  /** A real, licensed recording for each map; no procedural tune plays.
-   * Music is independently mixed and crossfaded on map changes.
-   */
-  tickAmbientMusic(active: boolean, themeId: MusicThemeId = "compound"): void {
-    this.recordedMusic.tick(active, themeId);
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
@@ -829,7 +805,6 @@ export class SoundManager {
   }
 
   dispose() {
-    this.recordedMusic.dispose();
     if (this.ctx) {
       this.ctx.close().catch(() => {});
       this.ctx = null;
