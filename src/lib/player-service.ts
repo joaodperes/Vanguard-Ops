@@ -571,6 +571,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
   // Reward playing the objective, not just farming kills.
   // Request values are sanitized at the API boundary; cap again for direct callers.
+  if (input.mode === "ctf") {
+    // Every personally delivered flag is an objective point, NOT a kill.
+    const captures=Math.max(0,Math.min(50,Math.floor(input.score||0)));
+    xpGained += captures * 75;
+    creditsGained += captures * 30;
+  }
   if (input.mode === "killconfirmed") {
     const confirms = Math.max(0, Math.min(200, Math.floor(input.confirmations ?? 0)));
     const denies = Math.max(0, Math.min(200, Math.floor(input.denials ?? 0)));
@@ -739,6 +745,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     _sum:{kills:true,headshots:true},_count:{_all:true},
   });
   const combatWins = await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const [ctfAggregate,ctfWonMatches] = await Promise.all([
+    db.matchRecord.aggregate({where:{playerId:player.id,mode:"ctf"},_sum:{score:true}}),
+    db.matchRecord.count({where:{playerId:player.id,mode:"ctf",won:true}}),
+  ]);
   const countsThisMatch = input.mode!=="survival";
   const weaponRows = await db.weaponProgress.findMany({where:{playerId:player.id}});
   const projectedWeapons = new Map(weaponRows.map(row=>[row.weaponId,{
@@ -765,6 +775,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     kills: (combatAgg._sum.kills ?? 0) + (countsThisMatch?input.kills:0),
     wins: combatWins + (countsThisMatch&&input.won?1:0),
     matches: combatAgg._count._all + (countsThisMatch?1:0),
+    ctf_captures:(ctfAggregate._sum.score??0)+(input.mode==="ctf"?Math.max(0,Math.floor(input.score)):0),
+    ctf_wins:ctfWonMatches+(input.mode==="ctf"&&input.won?1:0),
     level: newLevel,
     credits_earned_total: player.credits + creditsGained,
     survival_waves: Math.max(player.survivalBestWave, survivalWaves),
@@ -798,6 +810,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       case "total_challenges_completed": return lifetimeStats.total_challenges_completed;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak). Set by
       // Math.max above when this match's bestStreak exceeds the prior best.
+      case "ctf_captures": return lifetimeStats.ctf_captures;
+      case "ctf_wins": return lifetimeStats.ctf_wins;
       case "best_killstreak": return Math.max(player.pvpBestKillstreak,countsThisMatch?(input.bestStreak??0):0);
       case "mastery_recruits": return masteryStats.mastery_recruits;
       case "mastery_specialists": return masteryStats.mastery_specialists;
@@ -1242,6 +1256,10 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
     _sum:{kills:true,headshots:true},_count:{_all:true},
   });
   const combatWins=await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const [ctfAggregate,ctfWonMatches]=await Promise.all([
+    db.matchRecord.aggregate({where:{playerId:player.id,mode:"ctf"},_sum:{score:true}}),
+    db.matchRecord.count({where:{playerId:player.id,mode:"ctf",won:true}}),
+  ]);
   const weaponRows=await db.weaponProgress.findMany({where:{playerId:player.id}});
   const masteryStats=masteryAchievementStats(weaponRows);
   const survivalProgress = await getSurvivalProgressById(player.id);
@@ -1264,6 +1282,8 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
       case "elite_challenges_completed": return player.eliteChallengesCompleted;
       case "total_challenges_completed": return player.totalChallengesCompleted;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak)
+      case "ctf_captures": return ctfAggregate._sum.score ?? 0;
+      case "ctf_wins": return ctfWonMatches;
       case "best_killstreak": return player.pvpBestKillstreak;
       case "mastery_recruits": return masteryStats.mastery_recruits;
       case "mastery_specialists": return masteryStats.mastery_specialists;
