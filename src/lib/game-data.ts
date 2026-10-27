@@ -737,14 +737,19 @@ export interface AchievementDef {
     // double-kill-or-better streaks; this tracks the highest streak length
     // achieved across all matches. Drives the Triple Threat / Killstreak King /
     // Untouchable Force tiered achievements.
-    | "best_killstreak";
+    | "best_killstreak"
+    | "mastery_recruits"
+    | "mastery_specialists"
+    | "mastery_elites";
   goal: number;
   tier: "bronze" | "silver" | "gold" | "platinum";
   rewardXp: number;
   rewardCredits: number;
-  // PvP = earned in FFA/TDM; PvE = earned in Survival. General milestones
-  // (level, matches played, quest completion) default to "pvp".
-  category: "pvp" | "pve";
+  // PvP = non-Survival combat (all regular modes); PvE = Survival.
+  // Career and mastery can advance in any game mode.
+  category: "pvp" | "pve" | "career" | "mastery";
+  /** Optional permanent nameplate title, granted only when the achievement is earned. */
+  rewardTitle?: string;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = achievementsData as unknown as AchievementDef[];
