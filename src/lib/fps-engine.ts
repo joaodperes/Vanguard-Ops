@@ -45,6 +45,7 @@ import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
+import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
@@ -297,6 +298,7 @@ interface BotAI {
   strafeDir: number;
   moveSpeed: number;
   sprinting?: boolean;
+  aiming?: boolean;
   attachments: Record<AttachmentSlot, string | null>;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
@@ -7612,9 +7614,19 @@ export class FPSEngine {
         ai.sprayDriftPitch *= 0.92;
       }
 
-      ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
+      const clearShot = this.hasLineOfSight(
+        [c.pos[0], c.pos[1] + 1.45, c.pos[2]],
+        [tgt.pos[0], tgt.pos[1] + 1.45, tgt.pos[2]],
+      );
+      const reactionReady = now - ai.acquiredTargetAt >= botReactionDelay(ai.difficulty);
+      const aimSettled = now - ai.acquiredTargetAt >=
+        botReactionDelay(ai.difficulty) + eff.adsTime * 750;
+      const stance = botCombatDecision(w.category, dist, clearShot,
+        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil);
+      ai.sprinting = stance.sprinting;
+      ai.aiming = stance.aiming;
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
-      const ideal = 14;
+      const ideal = stance.idealDistance;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
       if (dist > ideal + 3) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
@@ -7705,16 +7717,17 @@ export class FPSEngine {
       const missChance = (1 - ai.skill) * 0.45 + 0.03;
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
+      const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
 
       if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
-        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
-        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
+        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
         const pellets = eff.pellets ?? 1;
         for (let i = 0; i < pellets; i++) {
-          const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(eff.spread))) : dir;
+          const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
           this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
         }
         this.spawnTracer(origin, dir, c.weaponSkinId);
@@ -7770,12 +7783,13 @@ export class FPSEngine {
         ai.burstEndsAt = now + durationMs;
       }
     } else {
-      ai.sprinting = false;
+      ai.aiming = false;
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
       const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
+      ai.sprinting = botPatrolSprint(d);
       if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
@@ -7819,7 +7833,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
         const mvx = fx * moveSpeed;
         const mvz = fz * moveSpeed;
         const moveLen = Math.hypot(mvx, mvz);
