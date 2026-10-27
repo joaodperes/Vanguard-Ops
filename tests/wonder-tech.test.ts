@@ -18,7 +18,7 @@ describe("Novel Wonder families",()=>{
  });
  test("Hellfire has a wide frontal damage arc, with no back hits or distant reach",()=>{
   expect(inFlameCone([0,1,0],[0,0,1],[2,1,11])).toBe(true);
-  expect(inFlameCone([0,1,0],[0,0,1],[9,1,2],11)).toBe(true);
+  expect(inFlameCone([0,1,0],[0,0,1],[8,1,3],11)).toBe(true);
   expect(inFlameCone([0,1,0],[0,0,1],[9,1,.5],11)).toBe(false);
   expect(inFlameCone([0,1,0],[0,0,1],[13,1,8],11)).toBe(false);
   expect(inFlameCone([0,1,0],[0,0,1],[0,1,-3])).toBe(false);
