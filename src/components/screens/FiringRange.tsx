@@ -1,5 +1,6 @@
-import { titledDisplayName } from "@/lib/achievement-titles";
 "use client";
+
+import { titledDisplayName } from "@/lib/achievement-titles";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameCanvas } from "@/components/game/GameCanvas";
