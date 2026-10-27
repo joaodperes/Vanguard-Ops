@@ -85,3 +85,18 @@ describe("live-match melee arcs versus ideal stationary alignment",()=>{
     expect(hit("hammer",25,1.45,()=>true,1.3)).toBeNull();
   });
 });
+
+test("Reaper reaches farther than ordinary melee while keeping the frontal blade arc",()=>{
+ const stats=weaponById("orbital_reaper").stats;
+ const reaper=quickMeleeProfile(stats,"orbital_reaper");
+ const hammer=quickMeleeProfile(weaponById("hammer").stats,"hammer");
+ expect(reaper.reach).toBe(3.5);
+ expect(reaper.reach).toBeGreaterThan(hammer.reach);
+ const origin=[0,0,0] as const;
+ expect(chooseQuickMeleeTarget(origin,0,
+   [{id:"front",pos:[0,0,3.2] as const,alive:true}],()=>true,
+   reaper.reach,reaper.halfArcDegrees)?.id).toBe("front");
+ expect(chooseQuickMeleeTarget(origin,0,
+   [{id:"behind",pos:[0,0,-2] as const,alive:true}],()=>true,
+   reaper.reach,reaper.halfArcDegrees)).toBeNull();
+});
