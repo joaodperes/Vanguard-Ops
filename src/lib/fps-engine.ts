@@ -47,7 +47,7 @@ import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accur
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -156,6 +156,7 @@ export interface HudState {
   teamScores: { red: number; blue: number };
   ctfFlags?: CtfFlags;
   ctfCarrying?: boolean;
+  ctfOvertime?: boolean;
   ctfNotice?: { label: string; at: number };
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
@@ -669,6 +670,7 @@ export class FPSEngine {
   private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
   private ctfNotice: { label: string; at: number } | undefined;
   private ctfCaptures = 0;
+  private ctfOvertime = false;
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
@@ -1385,6 +1387,9 @@ export class FPSEngine {
 
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
+    const expired = ctfReturnExpired(this.ctfFlags, Date.now());
+    if (expired.includes(this.opts.team as FlagTeam))
+      this.ctfNotice={label:"YOUR FLAG AUTO-RETURNED",at:performance.now()};
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
       actors.push({id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z],self:true});
@@ -1402,7 +1407,8 @@ export class FPSEngine {
         this.teamScores[actor.team]++;
         if(actor.self)this.ctfCaptures++;
         else if(actor.bot)actor.bot.score++;
-        this.checkWin();
+        if (this.ctfOvertime) this.finalizeMatchLocal();
+        else this.checkWin();
         if(this.matchEnded)return;
       }
     }
@@ -4284,6 +4290,7 @@ export class FPSEngine {
         if (this.opts.mode === "ctf" && msg.ctfFlags) {
           const previous = this.ctfFlags;
           this.ctfFlags = msg.ctfFlags;
+          this.ctfOvertime = !!msg.ctfOvertime;
           const enemyTeam = this.opts.team === "red" ? "blue" : "red";
           if (previous[enemyTeam].carrierId !== this.selfId && msg.ctfFlags[enemyTeam].carrierId === this.selfId)
             this.ctfNotice = {label:"ENEMY FLAG TAKEN! +10% SPEED",at:performance.now()};
@@ -4733,7 +4740,7 @@ export class FPSEngine {
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
-        this.ctfFlags = createCtfFlags(); this.ctfCaptures = 0; this.ctfNotice = undefined;
+        this.ctfFlags = createCtfFlags(); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -6630,7 +6637,12 @@ export class FPSEngine {
       // because `0 - dt <= 0` was always true.
       if (this.timeLeft > 0 && this.opts.mode !== "gungame") {
         this.timeLeft -= dt;
-        if (this.timeLeft <= 0) { this.timeLeft = 0; this.finalizeMatchLocal(); }
+        if (this.timeLeft <= 0) {
+          this.timeLeft = 0;
+          if (this.opts.mode === "ctf" && this.teamScores.red === this.teamScores.blue)
+            this.ctfOvertime = true;
+          else this.finalizeMatchLocal();
+        }
       }
     }
     if (!this.matchEnded) {
@@ -8115,6 +8127,7 @@ export class FPSEngine {
       score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
+      ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
         (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
       ctfNotice: this.ctfNotice,
