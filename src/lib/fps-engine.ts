@@ -50,7 +50,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -164,6 +164,7 @@ export interface HudState {
   orbitalCharge?: number;
   orbitalActivations?: number;
   orbitalReaper?: boolean;
+  orbitalWarning?: string;
   ctfCarrying?: boolean;
   ctfOvertime?: boolean;
   ctfFlagResetMs?: number;
@@ -713,6 +714,8 @@ export class FPSEngine {
   private ctfOvertime = false;
   private orbitalCharge=0;
   private orbitalActivations=0;
+  private orbitalServerVersion:number|undefined;
+  private orbitalSnapshotSeen=false;
   private orbitalWeaponActive=false;
   private orbitalBotHolders=new Map<string,string>();
   private orbitalCore:THREE.Mesh|undefined;
@@ -1557,7 +1560,11 @@ export class FPSEngine {
     if(this.opts.online||this.map.id!=="orbital_nexus")return;
     const prev=this.orbitalCharge;
     this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
-    if(this.orbitalCharge===prev)return;
+    if(this.orbitalCharge===prev){
+      if(prev<ORBITAL_KILLS_REQUIRED)
+        this.ctfNotice={label:"NO REACTOR CHARGE — BOTH FIGHTERS OUTSIDE ZONE",at:performance.now()};
+      return;
+    }
     this.spawnOrbitalMote(victimPos);
     this.ctfNotice={
       label:this.orbitalCharge===ORBITAL_KILLS_REQUIRED
@@ -4592,6 +4599,8 @@ export class FPSEngine {
           if(this.map.id==="orbital_nexus"){
           if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
            if(msg.orbitalActivations!==undefined)this.orbitalActivations=msg.orbitalActivations;
+           this.orbitalServerVersion=msg.orbitalRulesVersion;
+           this.orbitalSnapshotSeen=true;
           if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
         }
         if (msg.ctfBases) {
@@ -4985,6 +4994,16 @@ export class FPSEngine {
       case "orbitalAbsorb":
         this.spawnOrbitalMote(msg.pos);
         break;
+      case "orbitalKillResult":
+        if(this.map.id==="orbital_nexus"&&!msg.counted){
+          this.ctfNotice={
+            label:msg.charge>=ORBITAL_KILLS_REQUIRED
+              ?"REACTOR FULL — CLAIM AT CENTER"
+              :"NO REACTOR CHARGE — BOTH FIGHTERS OUTSIDE ZONE",
+            at:performance.now(),
+          };
+        }
+        break;
       case "orbitalReactor":
         if(this.map.id==="orbital_nexus"){
           const old=this.orbitalCharge;
@@ -5088,7 +5107,9 @@ export class FPSEngine {
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
         this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
-        this.orbitalCharge=0;this.orbitalActivations=0;this.grantOrbitalReaper(false);
+        this.orbitalCharge=0;this.orbitalActivations=0;
+        this.orbitalServerVersion=undefined;this.orbitalSnapshotSeen=false;
+        this.grantOrbitalReaper(false);
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -8494,6 +8515,9 @@ export class FPSEngine {
   }
 
   private emitHud(now: number) {
+    const orbitalWarning=this.orbitalSnapshotSeen
+      ?orbitalServerWarning(this.map.id,this.opts.online,this.orbitalServerVersion)
+      :undefined;
     const radarNow = Date.now();
     for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
     const scoreboard: ScoreRow[] = [];
@@ -8540,18 +8564,19 @@ export class FPSEngine {
       orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
       orbitalActivations:this.map.id==="orbital_nexus"?this.orbitalActivations:undefined,
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
+      orbitalWarning,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
         (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
       ctfNotice: this.ctfNotice,
-      ctfZoneError: this.opts.mode === "ctf" && this.opts.online && !this.ctfRulesVerified
+      ctfZoneError: orbitalWarning ?? (this.opts.mode === "ctf" && this.opts.online && !this.ctfRulesVerified
         ? "Multiplayer server has outdated CTF scoring rules. Restart/update the game server."
         : this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
           (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId) &&
           ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],4.7,3) &&
           !flagAtHome(this.ctfFlags[this.opts.team])
-          ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined,
+          ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
       confirmations: this.confirmations,
       denials: this.denials,
