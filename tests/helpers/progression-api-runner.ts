@@ -5,6 +5,8 @@ import { db } from "../../src/lib/db";
 import { POST as saveLoadout } from "../../src/app/api/loadout/route";
 import { POST as preset } from "../../src/app/api/loadout/presets/route";
 import { POST as claimCareer } from "../../src/app/api/profile/career/route";
+import { POST as shopCosmetic } from "../../src/app/api/shop/route";
+import { POST as equipCosmetic } from "../../src/app/api/profile/cosmetics/route";
 import { POST as shopPurchase } from "../../src/app/api/shop/route";
 import { POST as equipTitle } from "../../src/app/api/profile/title/route";
 import { GET as exportProfile } from "../../src/app/api/profile/export/route";
@@ -145,6 +147,39 @@ try {
   assert.equal(restored.loadout.perkId,"steady");
   assert.equal(restored.level,MAX_PLAYER_LEVEL);
   assert(restored.unlockedTitles.some(t=>t.id==="career_veteran"));
+
+  // Cosmetic Shop: account-owned only, server prices, repeat buys blocked,
+  // per-weapon charm selections and saved export/import state.
+  const cosmeticsPlayer=await create("cosmetic-player",totalXpForLevel(MAX_PLAYER_LEVEL),75000);
+  let cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(cosmeticsView.selectedReticle,"classic");
+  assert.equal(cosmeticsView.selectedNameplate,"standard");
+  assert(cosmeticsView.ownedCosmetics.includes("dot"));
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"dot"})),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"reticle_nova"})),403);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),403);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),200);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),409);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"vanguard_dog_tag"})),200);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"steel_division"})),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"reticle_orbit"})),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"rifle_ar"})),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),200);
+  cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(cosmeticsView.selectedReticle,"reticle_orbit");
+  assert.equal(cosmeticsView.selectedNameplate,"plate_steel");
+  assert.equal(cosmeticsView.equippedCharms.rifle_ar,"charm_tag");
+  assert.equal(cosmeticsView.credits,75000-3500-6000-7500);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"not_a_weapon"})),403);
+  // Switching one weapon's charm does not mutate other stored selections.
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"none",weaponId:"rifle_ar"})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.equippedCharms.rifle_ar,undefined);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"charm",cosmeticId:"charm_tag",weaponId:"rifle_ar"})),200);
+  const cosmeticBackup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${cosmeticsPlayer.playerKey}`))).json();
+  assert.equal(cosmeticBackup.player.selectedReticle,"reticle_orbit");
+  assert.equal(cosmeticBackup.player.selectedNameplate,"plate_steel");
+  await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.equippedCharms.rifle_ar,"charm_tag");
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.
