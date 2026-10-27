@@ -7,25 +7,40 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 1.55; // hard cap, hammer only; each weapon defines its own reach
-/** Narrow forward hitbox: a target to the side is NOT in a melee swing. */
-export const MELEE_MIN_FORWARD_DOT = 0.94;
-export function meleeForwardHit(dx:number,dz:number,yaw:number):boolean {
+export const QUICK_MELEE_REACH = 1.8; // hard safety cap; every weapon still uses its own shorter reach
+
+/** Half-angle to either side of the attacker's forward direction.
+ * Fast stabbing weapons stay focused; heavy axe and hammer swings are broader.
+ * Shared by local play, F quick melee, and authoritative online hit selection. */
+export const MELEE_HALF_ARC_DEGREES: Readonly<Record<string,number>> = {
+  shiv: 24,
+  knife_tactical: 26,
+  baton: 28,
+  machete: 30,
+  axe: 38,
+  hammer: 42,
+};
+export function meleeHalfArcDegrees(weaponId:string):number {
+  return MELEE_HALF_ARC_DEGREES[weaponId] ?? 26;
+}
+export function meleeForwardHit(dx:number,dz:number,yaw:number,halfArcDegrees=26):boolean {
   const distance=Math.hypot(dx,dz);
   if(distance<0.001)return false;
   const forward=dx*Math.sin(yaw)+dz*Math.cos(yaw);
-  const lateral=Math.abs(dx*Math.cos(yaw)-dz*Math.sin(yaw));
-  return forward/distance>=MELEE_MIN_FORWARD_DOT && lateral<=0.24+forward*.075;
+  // A continuous forward arc handles realistic sideways movement. The former
+  // tight lateral clamp narrowed long-reach weapons to almost straight ahead.
+  return forward/distance>=Math.cos(halfArcDegrees*Math.PI/180);
 }
 /** A quick swing is a temporary use of the equipped melee weapon.
- * Its damage, attack interval and reach must match the weapon catalog. */
-export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:number}) {
+ * Its damage, attack interval, reach and hit arc match an equipped swing. */
+export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:number},weaponId="knife_tactical") {
   const cooldownMs=Math.ceil(1000/Math.max(.1,stats.fireRate));
   return {
     damage:stats.damage,
     cooldownMs,
     swingMs:Math.max(160,Math.round(cooldownMs*.68)),
     reach:Math.min(stats.range, QUICK_MELEE_REACH),
+    halfArcDegrees:meleeHalfArcDegrees(weaponId),
   };
 }
 export function chooseQuickMeleeTarget(
@@ -33,6 +48,7 @@ export function chooseQuickMeleeTarget(
   candidates: readonly QuickMeleeCandidate[],
   clearPath: (target: QuickMeleeCandidate, distance: number) => boolean,
   reach = QUICK_MELEE_REACH,
+  halfArcDegrees = 26,
 ): QuickMeleeCandidate | null {
   let best: QuickMeleeCandidate | null = null;
   let bestDist = Infinity;
@@ -43,7 +59,7 @@ export function chooseQuickMeleeTarget(
     // Hard clamp even if a caller passes stale/modified effective range.
     if (dist > Math.min(reach, QUICK_MELEE_REACH) || dist < 0.001) continue;
     if (Math.abs(target.pos[1] - origin[1]) > 1.15) continue;
-    if (!meleeForwardHit(dx,dz,yaw)) continue;
+    if (!meleeForwardHit(dx,dz,yaw,halfArcDegrees)) continue;
     if (!clearPath(target, dist)) continue;
     if (dist < bestDist) { best = target; bestDist = dist; }
   }
