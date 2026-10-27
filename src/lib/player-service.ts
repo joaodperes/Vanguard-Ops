@@ -1207,15 +1207,21 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
   const player = await getOrCreatePlayer(playerKey);
   const earned = await db.playerAchievement.findMany({ where: { playerId: player.id } });
   const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
-  const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
-  const lifetimeHeadshots = headshotAgg._sum.headshots ?? 0;
+  const combatModes=["ffa","tdm","gungame","killconfirmed","ctf"];
+  const combatAgg=await db.matchRecord.aggregate({
+    where:{playerId:player.id,mode:{in:combatModes}},
+    _sum:{kills:true,headshots:true},_count:{_all:true},
+  });
+  const combatWins=await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const weaponRows=await db.weaponProgress.findMany({where:{playerId:player.id}});
+  const masteryStats=masteryAchievementStats(weaponRows);
   const survivalProgress = await getSurvivalProgressById(player.id);
   const statFor = (metric: string): number => {
     switch (metric) {
-      case "kills": return player.kills;
-      case "headshots": return lifetimeHeadshots;
-      case "wins": return player.matchesWon;
-      case "matches": return player.matchesPlayed;
+      case "kills": return combatAgg._sum.kills ?? 0;
+      case "headshots": return combatAgg._sum.headshots ?? 0;
+      case "wins": return combatWins;
+      case "matches": return combatAgg._count._all;
       case "level": return levelForXp(player.xp);
       case "credits_earned_total": return player.credits;
       case "survival_waves": return player.survivalBestWave;
@@ -1229,7 +1235,10 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
       case "elite_challenges_completed": return player.eliteChallengesCompleted;
       case "total_challenges_completed": return player.totalChallengesCompleted;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak)
-      case "best_killstreak": return player.bestKillstreak;
+      case "best_killstreak": return player.pvpBestKillstreak;
+      case "mastery_recruits": return masteryStats.mastery_recruits;
+      case "mastery_specialists": return masteryStats.mastery_specialists;
+      case "mastery_elites": return masteryStats.mastery_elites;
       default: return 0;
     }
   };
