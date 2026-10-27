@@ -4111,6 +4111,16 @@ export class FPSEngine {
           // the client requested (findOpenRoom matches by mode only — fix that later).
         }
         for (const p of msg.players) this.ensureCombatant(p);
+        // The engine initially uses an FFA preview spawn before the server assigns
+        // a team. For CTF, snap to the authoritative home-tree spawn on join.
+        if (msg.mode === "ctf") {
+          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
+          if (spawn) {
+            this.pos.set(spawn[0], spawn[1], spawn[2]);
+            this.vel.set(0, 0, 0);
+            this.cameraFeetY = spawn[1];
+          }
+        }
         break;
       case "snapshot":
         // Authoritative poison status is sent to everyone, not just the
@@ -4591,6 +4601,16 @@ export class FPSEngine {
           this.map = makeEnvironmentMap(getMap(msg.mapId));
         }
         for (const p of msg.players) this.ensureCombatant(p);
+        // The engine initially uses an FFA preview spawn before the server assigns
+        // a team. For CTF, snap to the authoritative home-tree spawn on join.
+        if (msg.mode === "ctf") {
+          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
+          if (spawn) {
+            this.pos.set(spawn[0], spawn[1], spawn[2]);
+            this.vel.set(0, 0, 0);
+            this.cameraFeetY = spawn[1];
+          }
+        }
         // Track lobby state from the server's response.
         this.lobbyRoomName = msg.roomName;
         this.lobbyIsHost = !!msg.isHost;
