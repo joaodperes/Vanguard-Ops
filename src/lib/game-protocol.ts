@@ -1010,7 +1010,7 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
 const BASE_MAPS: Record<MapId, MapDef> = {
   forest_warfare: {
     id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
-    description: "CTF only. Long woodland valley with cover, climbable ancient trees and raised, open flag platforms.",
+    description: "Long woodland valley with ancient climbable trees, dense cover, and raised woodland platforms.",
     size: FOREST_HALF_EXTENT, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
     regions: FOREST_REGIONS,
     surfaces: {
