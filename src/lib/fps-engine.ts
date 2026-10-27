@@ -49,7 +49,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfResetMs, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -7627,7 +7627,7 @@ export class FPSEngine {
       const tagDistance = nearestTag ? Math.hypot(nearestTag.pos[0] - c.pos[0], nearestTag.pos[2] - c.pos[2]) : Infinity;
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
-      const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && threatDistance > 12
+      const ctfObjective = this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
         ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
