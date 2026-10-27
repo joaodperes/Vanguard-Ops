@@ -11,9 +11,14 @@ export const ORBITAL_REAPER:WeaponDef={
   stats:{damage:120,fireRate:1.55,magSize:1,reloadTime:0,spread:0,adsSpread:0,
     recoil:0,range:1.9,adsTime:.15,moveSpeed:1.02,auto:false,headshotMult:1},
 };
+/** Every legitimate elimination anywhere on Orbital Nexus charges the core.
+ * The elevated center platform restricts CLAIMING only, never CHARGING.
+ * Multiplayer callers verify an enemy kill; invalid/decontextualized positions
+ * must not grant energy.
+ */
 export function orbitalRecordKill(charge:number,pos:readonly number[],mapId:string):number {
-  return mapId==="orbital_nexus"&&pos.length===3&&pos.every(Number.isFinite)&&
-    Math.hypot(pos[0],pos[2])<=30?Math.min(ORBITAL_KILLS_REQUIRED,charge+1):charge;
+  return mapId==="orbital_nexus"&&pos.length===3&&pos.every(Number.isFinite)
+    ?Math.min(ORBITAL_KILLS_REQUIRED,charge+1):charge;
 }
 export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolean):boolean {
   return mapId==="orbital_nexus"&&alive&&charge>=ORBITAL_KILLS_REQUIRED&&
