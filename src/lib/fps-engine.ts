@@ -8438,7 +8438,7 @@ export class FPSEngine {
   // skipped. The player is pushed ONLY on the bot's side — we don't mutate
   // `this.pos` (the player's own collision handles their side).
   private separateBots(bot: Combatant, currentY: number): void {
-    const minDist = 2 * PLAYER_RADIUS + 0.2;
+    const minDist = this.opts.mode === "ctf" ? 3.1 : 2 * PLAYER_RADIUS + 0.2;
     const minDistSq = minDist * minDist;
     const yTol = PLAYER_HEIGHT * 0.8;
     const others: { pos: Vec3; alive: boolean }[] = [];
