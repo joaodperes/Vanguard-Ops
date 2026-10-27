@@ -70,7 +70,7 @@ export function Results() {
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
             {isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
-              : `${playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
+              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
           </h1>
           {!isSurvival && (
             <p className="text-white/50 mt-2">
