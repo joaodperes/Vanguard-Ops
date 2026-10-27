@@ -78,7 +78,7 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(heavy.magSize).toBe(2);
   expect(heavy.damage).toBeGreaterThan(basic.damage*2);
   expect(ATTACHMENTS.filter(a=>a.exclusiveWeaponIds?.includes("crossbow_reclaimer")&&
-    a.slot==="magazine").map(a=>a.id)).toEqual(["mag_bolt_quiver","mag_bolt_heavy"]);
+    a.slot==="magazine").map(a=>a.id)).toEqual(["mag_bolt_quiver","mag_bolt_heavy","mag_bolt_light_quiver"]);
  });
  test("Reclaimer bolt reload hand and arrow follow TOP rail, not vertically",()=>{
   const start=sampleReloadMotion(.35,"bolt"),finish=sampleReloadMotion(.70,"bolt");
