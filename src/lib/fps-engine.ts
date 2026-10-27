@@ -3963,6 +3963,7 @@ export class FPSEngine {
       case "joined":
         this.selfId = msg.selfId;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
+        this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         (this.opts as any).team = msg.team;
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -4435,6 +4436,7 @@ export class FPSEngine {
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
+        this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
