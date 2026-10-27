@@ -29,7 +29,7 @@ for entry in "${tracks[@]}"; do
     --max-time 900 "$url" -o "$tmp/source.mp3"
   # Fail closed: do not commit an HTML error page as an MP3.
   duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$tmp/source.mp3")"
-  awk -v length="$duration" 'BEGIN { if (!(length > 25)) exit 1 }'
+  awk -v seconds="$duration" 'BEGIN { if (!(seconds > 25)) exit 1 }'
   ffmpeg -hide_banner -loglevel error -y -i "$tmp/source.mp3" -vn \
     -map_metadata -1 -codec:a libmp3lame -b:a 80k -ar 44100 -ac 2 \
     "public/music/$filename.mp3"
