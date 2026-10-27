@@ -11,7 +11,7 @@ describe("Ridgefall factory redesign",()=>{
   const theme=visualThemeForMap("skybridge");
   test("replaces outdoor skybridge geometry without changing the map ID",()=>{
     expect(compiled.id).toBe("skybridge");
-    expect(compiled.name).toBe("RIDGEFALL");
+    expect(compiled.name).toBe("Ridgefall");
     expect(compiled.biome).toBe("factory_interior");
     expect(compiled.editorLegacyCoverCount).toBe(0);
     expect(blueprint.regions.length).toBeGreaterThanOrEqual(5);
