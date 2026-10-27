@@ -1245,7 +1245,7 @@
         {
           "id": "shipping-security-frame-west",
           "x": -6.3,
-          "z": -65,
+          "z": -61.5,
           "w": 4,
           "d": 2,
           "h": 8,
@@ -1255,7 +1255,7 @@
         {
           "id": "shipping-security-frame-east",
           "x": 6.3,
-          "z": -65,
+          "z": -61.5,
           "w": 4,
           "d": 2,
           "h": 8,
@@ -1265,7 +1265,7 @@
         {
           "id": "freight-security-left-wing",
           "x": -30,
-          "z": -65,
+          "z": -61.5,
           "w": 44,
           "d": 2,
           "h": 8,
@@ -1275,7 +1275,7 @@
         {
           "id": "freight-security-right-wing",
           "x": 30,
-          "z": -65,
+          "z": -61.5,
           "w": 44,
           "d": 2,
           "h": 8,
