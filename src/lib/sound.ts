@@ -170,6 +170,10 @@ export class SoundManager {
   private readonly recordedMusic = new RecordedMusicPlayer();
 
   constructor() {
+    // Recorded music is a separate HTMLAudioElement mix. Initialize its
+    // configured default levels even if the Settings screen hasn't touched a
+    // slider; otherwise the first menu theme stays permanently muted.
+    this.recordedMusic.setMix(this.masterVolume, this.musicVolume, this.muted);
     // Defer AudioContext creation until the first resume() call — browsers
     // require a user gesture before audio can start. Constructing the context
     // here is fine, but we wait to actually create it on first use.
