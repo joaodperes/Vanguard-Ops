@@ -79,3 +79,11 @@ describe("running jump takeoff momentum",()=>{
     expect(runJumpTakeoffVelocity(8,0,-8,0,true)).toEqual([8,0]);
   });
 });
+
+test("temporary Reaper jump boost transfers greater horizontal momentum without creating motion from rest",()=>{
+  const normal=runJumpTakeoffVelocity(15,0,15,0,true,1);
+  const reaper=runJumpTakeoffVelocity(15,0,15,0,true,1.55);
+  expect(reaper[0]).toBeGreaterThan(normal[0]+1);
+  expect(runJumpTakeoffVelocity(0,0,15,0,true,1.55)).toEqual([0,0]);
+  expect(runJumpTakeoffVelocity(15,0,-15,0,true,1.55)).toEqual([15,0]);
+});
