@@ -69,3 +69,22 @@ export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; 
   }
   return null;
 }
+
+/** Route objective bots to a stair entrance and then up its full flight.
+ * Directly steering at a treetop flag made them run into the massive trunk.
+ * The two flights are symmetrical and share their collision with the renderer.
+ */
+export function ctfBotGoal(flags: CtfFlags, team: FlagTeam, id: string, pos: Vec3): Vec3 {
+  const enemyTeam = otherFlag(team), enemy = flags[enemyTeam];
+  if (enemy.carrierId === id) return ctfBase(team);
+  if (flags[team].dropped) return [...flags[team].pos];
+  if (enemy.carrierId) return ctfBase(enemyTeam);
+  if (enemy.pos[1] > CTF_TREE_TOP / 2 && pos[1] < CTF_TREE_TOP - .7) {
+    const x = ctfHome(enemyTeam)[0];
+    const side = pos[2] < 0 ? -1 : 1;
+    const climbing = Math.abs(pos[0] - x) < 7 &&
+      Math.abs(pos[2]) > 8 && Math.abs(pos[2]) < 36;
+    return climbing ? [x, CTF_TREE_TOP, side*8.7] : [x, 0, side*34.5];
+  }
+  return [...enemy.pos];
+}
