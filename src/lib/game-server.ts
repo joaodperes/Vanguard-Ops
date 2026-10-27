@@ -1,4 +1,6 @@
 import { resolveMatchLoadout } from "./match-loadout";
+import { cosmeticShopOwnership } from "./cosmetics";
+import { db } from "./db";
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
@@ -2551,7 +2553,18 @@ io.on("connection", (socket) => {
  */
 async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire): Promise<LoadoutWire> {
   const player = await getOrCreatePlayer(playerKey);
-  return resolveMatchLoadout(player, requested);
+  const resolved = resolveMatchLoadout(player, requested);
+  const purchases = await db.careerShopPurchase.findMany({where:{playerId:player.id},select:{itemKey:true}});
+  const owned = cosmeticShopOwnership(purchases.map(p=>p.itemKey));
+  // Match sockets cannot supply cosmetic IDs they did not purchase.
+  return {
+    ...resolved,
+    primaryReticleId:owned.includes(resolved.primaryReticleId??"classic")?resolved.primaryReticleId:"classic",
+    secondaryReticleId:owned.includes(resolved.secondaryReticleId??"classic")?resolved.secondaryReticleId:"classic",
+    primaryCharmId:owned.includes(resolved.primaryCharmId??"none")&&!weaponById(resolved.weaponId).wonder?resolved.primaryCharmId:"none",
+    secondaryCharmId:owned.includes(resolved.secondaryCharmId??"none")&&!weaponById(resolved.secondaryWeaponId??"pistol_side").wonder?resolved.secondaryCharmId:"none",
+    meleeCharmId:"none",
+  };
 }
 
 async function handle(socket: any, msg: C2S) {
