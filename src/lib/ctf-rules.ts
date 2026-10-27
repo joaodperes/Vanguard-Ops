@@ -16,7 +16,7 @@ export const CTF_PICKUP_RADIUS = 2.4;
 export const CTF_CAPTURE_RADIUS = 4;
 export const CTF_TREE_X = 94;
 export const CTF_TREE_TOP = 12;
-export const CTF_BASE_Z = 18; // Behind the flag tree relative to the opposing base-to-base lane.
+export const CTF_BASE_Z = 0; // Behind trunk on each outer end of the base-to-base axis.
 export const CTF_DROP_RETURN_MS = 30_000;
 export const CTF_RESET_OPTIONS = [0, 10000, 30000, 60000, 120000, -1] as const;
 export function ctfResetMs(value: number | undefined): number {
@@ -26,7 +26,7 @@ export function ctfResetMs(value: number | undefined): number {
 export const ctfHome = (team: FlagTeam): Vec3 =>
   [team === "red" ? -CTF_TREE_X : CTF_TREE_X, CTF_TREE_TOP + 0.2, 0];
 export const ctfBase = (team: FlagTeam): Vec3 =>
-  [team === "red" ? -CTF_TREE_X : CTF_TREE_X, 0, CTF_BASE_Z];
+  [team === "red" ? -(CTF_TREE_X+13) : CTF_TREE_X+13, 0, CTF_BASE_Z];
 export const otherFlag = (team: FlagTeam): FlagTeam => team === "red" ? "blue" : "red";
 export const ctfResetFlag = (team: FlagTeam): CtfFlag =>
   ({ team, pos: ctfHome(team), carrierId: null, dropped: false });
