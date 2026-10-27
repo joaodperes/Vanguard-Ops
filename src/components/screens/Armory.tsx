@@ -1128,13 +1128,13 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, weapon.id).title}</span>
-                <span className="text-white/50">Rank {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, weapon.id).rank}/5</span>
+                <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id).title}</span>
+                <span className="text-white/50">Rank {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id).rank}/5</span>
               </div>
               <div className="mt-1 text-white/50">
-                {progress?.kills ?? 0} kills · {progress?.headshots ?? 0} headshots
-                {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, weapon.id).next &&
-                  ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, weapon.id).next!.kills} kills / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, weapon.id).next!.headshots} headshots`}
+                {progress?.kills ?? 0} kills {w.category === "melee" ? "(melee mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
+                {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id).next &&
+                  ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id).next!.kills} kills${w.category === "melee" ? "" : ` / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id).next!.headshots} headshots`}`}
               </div>
             </div>
             {challengeViews.filter(c => !c.completed).length === 0 ? (
