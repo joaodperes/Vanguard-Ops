@@ -160,6 +160,8 @@ export interface HudState {
   score: number;
   teamScores: { red: number; blue: number };
   ctfFlags?: CtfFlags;
+  orbitalCharge?: number;
+  orbitalReaper?: boolean;
   ctfCarrying?: boolean;
   ctfOvertime?: boolean;
   ctfFlagResetMs?: number;
@@ -4892,7 +4894,12 @@ export class FPSEngine {
         }
         break;
       case "orbitalReactor":
-        if(this.map.id==="orbital_nexus")this.orbitalCharge=msg.charge;
+        if(this.map.id==="orbital_nexus"){
+          const old=this.orbitalCharge;
+          this.orbitalCharge=msg.charge;
+          if(old<ORBITAL_KILLS_REQUIRED&&msg.charge===ORBITAL_KILLS_REQUIRED)
+            this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
+        }
         break;
       case "orbitalReward":
         if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
@@ -8404,6 +8411,8 @@ export class FPSEngine {
       score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
+      orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
+      orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&

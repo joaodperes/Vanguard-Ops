@@ -303,9 +303,16 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-white/35">·</span>
             <span className="text-sky-300">BLUE {hud.ctfFlags.blue.carrierId ? "TAKEN" : hud.ctfFlags.blue.dropped ? "DROPPED" : "HOME"}</span>
           </div>
+          {hud.orbitalCharge!==undefined && (
+            <div className="mt-1 inline-flex flex-wrap justify-center items-center gap-2 rounded-lg bg-violet-950/70 border border-violet-400/40 px-3 py-1 text-[10px] font-black tracking-wide">
+              <span className="text-cyan-200">REACTOR {hud.orbitalCharge}/5</span>
+              <span className="text-violet-200">{hud.orbitalCharge>=5?"READY · CLAIM AT CENTRAL DECK":"NEARBY KILLS CHARGE THE CORE"}</span>
+              {hud.orbitalReaper && <span className="text-amber-200">NEXUS REAPER · LOST ON DEATH</span>}
+            </div>
+          )}
           {hud.ctfOvertime && <div className="mt-1 text-amber-300 font-black uppercase tracking-widest text-xs animate-pulse">Sudden Death · Next Capture Wins</div>}
           <div className={`mt-1 text-[10px] font-semibold ${hud.ctfCarrying ? "text-amber-200" : "text-white/75"}`}>
-            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : `Steal the enemy flag · Score at your base · Dropped flags ${hud.ctfFlagResetMs === -1 ? "never auto-return" : hud.ctfFlagResetMs === 0 ? "reset instantly" : `return in ${(hud.ctfFlagResetMs ?? 30000) / 1000}s`}`}
+            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · DELIVER TO YOUR BASE" : `Steal the enemy flag · Score at your base · Dropped flags ${hud.ctfFlagResetMs === -1 ? "never auto-return" : hud.ctfFlagResetMs === 0 ? "reset instantly" : `return in ${(hud.ctfFlagResetMs ?? 30000) / 1000}s`}`}
           </div>
           {hud.ctfZoneError && (
             <div className="mt-2 max-w-72 text-[11px] font-bold text-amber-300 bg-amber-950/60 border border-amber-500/50 rounded px-2 py-1">
