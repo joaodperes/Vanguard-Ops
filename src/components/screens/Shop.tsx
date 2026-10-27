@@ -45,7 +45,7 @@ export function Shop(){
         </div>
         <h3 className="font-semibold text-white">{item.name}</h3>
         <p className="text-sm text-white/55 mt-1 min-h-10">{item.description}</p>
-        <p className="text-xs text-white/40 mt-2">{item.kind==="weaponSkin"?`Weapon finish · ${WEAPONS.find(w=>w.id===choice)?.name??"Select a weapon"}`:item.kind==="playerSkin"?"Operative skin":item.kind==="reticle"?"Hipfire reticle · existing colors and size remain free":item.kind==="charm"?"Account-owned charm · equip on any regular weapon":"Account-wide player nameplate"}</p>
+        <p className="text-xs text-white/40 mt-2">{item.kind==="weaponSkin"?`Weapon finish · ${WEAPONS.find(w=>w.id===choice)?.name??"Select a weapon"}`:item.kind==="playerSkin"?"Operative skin":item.kind==="reticle"?"Hipfire reticle · existing colors and size remain free":item.kind==="charm"?"Account-owned charm · equip on any regular ranged weapon":"Account-wide player nameplate"}</p>
         <Button className="w-full mt-3" disabled={busy!==""||isOwned||!canPay||locked||item.kind==="weaponSkin"&&!choice}
           onClick={()=>void buy(item.id)}>
           {isOwned?"Owned":locked?<><Lock className="w-4 h-4 mr-1"/>Level 40 required</>:

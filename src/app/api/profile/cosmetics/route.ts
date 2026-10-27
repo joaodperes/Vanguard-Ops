@@ -5,7 +5,6 @@ import { getOrCreatePlayer,buildProfileView } from "@/lib/player-service";
 import { cosmeticById,DEFAULT_COSMETICS,parseEquippedCharms,cosmeticShopOwnership,type CosmeticKind } from "@/lib/cosmetics";
 import { WEAPONS,levelForXp } from "@/lib/game-data";
 import { ownsWeapon } from "@/lib/collection-ownership";
-import {SHOP_ITEMS} from "@/lib/shop-catalog";
 
 export const dynamic="force-dynamic";
 /** Cosmetics are permanent account purchases, with a separate selection for
@@ -30,8 +29,8 @@ export async function POST(req:NextRequest){
   if(kind==="charm"){
     const weaponId=typeof body.weaponId==="string"?body.weaponId:"";
     const w=WEAPONS.find(w=>w.id===weaponId);
-    if(!w||w.wonder||!ownsWeapon(w,levelForXp(player.xp),player.weaponUnlocks.map(row=>row.weaponId)))
-      return NextResponse.json({error:"Equip an owned regular weapon to attach a charm"},{status:403});
+    if(!w||w.wonder||w.category==="melee"||!ownsWeapon(w,levelForXp(player.xp),player.weaponUnlocks.map(row=>row.weaponId)))
+      return NextResponse.json({error:"Equip an owned regular ranged weapon to attach a charm"},{status:403});
     // A per-player transaction serializes this RMW update so other equipped
     // weapons retain their charms when changing a single weapon.
     await db.$transaction(async tx=>{

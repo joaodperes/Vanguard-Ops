@@ -926,9 +926,9 @@ function CustomizeModal(props: CustomizeModalProps) {
             <TabsTrigger value="challenges" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Target className="w-3.5 h-3.5 mr-1.5" /> Challenges
             </TabsTrigger>
-            <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+            {w.category!=="melee" && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Charms
-            </TabsTrigger>
+            </TabsTrigger>}
           </TabsList>
 
           <div className="grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,180px)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
