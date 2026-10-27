@@ -274,7 +274,7 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 See [Economy and Career progression](economy-and-career-progression.md) for the
 current reward table, 40% faster XP curve, level-36 equipment cap and repeatable
 Career ranks. `rewards.json` owns difficulty-specific kill and objective payouts
-as well as base rewards; the runtime and Guide read those same numeric keys.
+as well as base rewards; the runtime and archived Guide read those same numeric keys.
 Do not add a numeric reward setting without a consuming rule.
 
 Use XP-derived levels for every entitlement check; `Player.level` is a repaired
@@ -283,3 +283,50 @@ fields and confer cosmetic titles. Do not spend lifetime XP or use historic
 overflow to satisfy fresh Career goals. New late equipment needs its own
 appropriate mastery/content objective; increasing a level gate or credit price
 alone does not solve veteran stockpiling. Preserve all historical ownership.
+
+## Achievement chains and nameplate titles
+
+`achievements.json` keeps every shipped achievement ID, metric, goal and XP/credit
+reward. Each entry now has a stable `series` ID and positive integer `seriesTier`.
+Tiers are unique within a series; catalog order and bronze/silver/gold/platinum
+colors do not decide which tier is last. All five mastery achievements form one
+`weapon_mastery` chain, ending at `mastery_5x8` (Arsenal Legend).
+
+Only the highest `seriesTier` may declare `rewardTitle`. The validator rejects
+duplicate tiers and intermediate title rewards; the title resolver also enforces
+the final-tier rule. New chains should declare one title at their endpoint. The
+current endpoints award titles for kills, headshots, wins, matches, leveling,
+streaks, quest counters, Survival difficulties, CTF and weapon mastery. Quest
+completion counters remain valid across all modes and are displayed separately
+from PvP combat achievements. Career promotion titles remain their separate,
+rank-based system.
+
+Titles use the existing server-owned achievement awards: no new purchase, counter
+or payout is introduced. Existing final-tier awards immediately expose the new
+title. Previously selected intermediate titles are cleared on profile refresh,
+while their achievement records and past rewards remain intact. Equipping checks
+actual ownership; a title name or unlocked lower tier is insufficient.
+
+## New-player tutorial and archived Guide
+
+The Guide component remains at `src/components/screens/FAQ.tsx` for reference,
+but has no navigation button, screen union entry or import in the game router.
+`Tutorial.tsx` replaces it with onboarding: welcome, live range drills, an
+interactive view of current equipment, mode briefings, and a final checklist.
+The main-menu Deploy area is removed; Play remains in the header. Account login
+and logout, plus tutorial replay/resume, are in Profile.
+
+New profiles with zero XP and zero matches enter training once. Existing players
+can opt in from Profile. Versioned checkpoints are stored per player key in this
+browser/device. Completing or skipping suppresses automatic prompts; leaving a
+drill saves its checkpoint, which resumes on the next visit or from Profile.
+Replaying completed/skipped training starts at the welcome step. An already
+offered tutorial does not reopen on every menu visit in the same session.
+
+The five range tasks observe actual simulation snapshots for distance walked,
+ADS, a fresh elimination, a completed reload, and a weapon change. Reloads
+cancelled by swapping do not complete the task. Keyboard/mouse and touch use
+the same observations with device-specific instructions. The ordinary starter
+kit runs through the existing `firingRange` path: no networking, purchases,
+loadout edits, match submissions, XP, credits, or achievement progression. A player
+can skip drills or the full tutorial; WebGL startup failures retain an exit.

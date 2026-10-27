@@ -47,6 +47,8 @@ Test desktop keyboard/mouse **and** touch/mobile:
 - Confirm Stormweaver identifies as Shotgun in HUD/loadouts; seven pellets group tightly at short range, lightning arcs begin at a struck victim and jump between actual targets (never from the muzzle), and missed pellets become floor mines. Verify server/local hit parity.
 - Inspect Event Horizon default Eventide-inspired finish and explicit skin overrides, Deadlock's targeting modules, Hellfire red/orange/yellow chassis and forward-directed muzzle flames. Check axe blade silhouette and melee reach visually, then compare LMG vertical recoil while hipfiring and ADS.
 - Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface.
+- On a new guest and a new account, complete the tutorial's movement, ADS, target, reload and swap drills using desktop and touch controls. Escape must expose tutorial buttons; cancel a reload by swapping and verify it does not complete the reload task. Confirm the range awards no stats/XP/credits and does not change the equipped loadout.
+- Skip, finish, save/leave and reload the tutorial; verify per-player checkpoints, resume from Profile, replay after completion and no repeated menu prompts. Confirm existing players are not forced into training, the Guide is absent, the Deploy area is gone, Play still works and account logout is inside Profile.
 
 ## 4. Map and bot acceptance
 
@@ -77,6 +79,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Validate guest and account login, profile persistence, credits, challenge counters, unlocks, purchase rejection, weapon-specific attachment/skin memory and import/export. Repeat after refresh, relogin and, where feasible, a second device.
 - On a test copy of real data, review additive Prisma updates and legacy IDs; never use `db:reset` as a migration shortcut.
 - Confirm XP-earned perks save when the legacy cached level is stale, including named presets and multiplayer. Unequipping Well Prepared must remove the second primary.
+- In Profile, verify the PvP label reads "Non-Survival game modes" and title rewards appear on final achievement tiers in every section. Check existing final awards grant titles without new payouts, retired intermediate selections clear, locked titles cannot be equipped, and chosen titles persist into matches. Achievement IDs and earned records must remain intact.
 - Compare rewards against `docs/economy-and-career-progression.md`. At level 36, verify that only fresh post-cap XP advances Career, a promotion charges once and resets its meter, titles require their Career rank, and old backups cannot refund promotions.
 
 ## 6. Performance and sign-off

@@ -1,15 +1,22 @@
 import { careerTitle } from "./career";
-import { ACHIEVEMENTS } from "./game-data";
+import { ACHIEVEMENTS, type AchievementDef } from "./game-data";
 import { weaponMasteryProgress } from "./armory-challenges";
 
-/** Permanent weapon-mastery achievement rewards. The player's equipped value
+export function isFinalAchievementTier(achievement: AchievementDef, catalog: readonly AchievementDef[] = ACHIEVEMENTS): boolean {
+  return !catalog.some(other => other.series === achievement.series && other.seriesTier > achievement.seriesTier);
+}
+
+/** Permanent achievement rewards. The player's equipped value
  * stores the achievement ID, never a client-provided arbitrary title. */
 export function achievementTitle(achievementId:string|null|undefined):string|null {
-  return ACHIEVEMENTS.find(a=>a.id===achievementId)?.rewardTitle ?? careerTitle(achievementId)?.title ?? null;
+  const achievement = ACHIEVEMENTS.find(a => a.id === achievementId);
+  return achievement && isFinalAchievementTier(achievement)
+    ? achievement.rewardTitle ?? null
+    : careerTitle(achievementId)?.title ?? null;
 }
 export function unlockedAchievementTitles(earnedIds:readonly string[]) {
   const earned=new Set(earnedIds);
-  return ACHIEVEMENTS.filter(a=>a.rewardTitle&&earned.has(a.id)).map(a=>({id:a.id,title:a.rewardTitle!}));
+  return ACHIEVEMENTS.filter(a=>a.rewardTitle&&isFinalAchievementTier(a)&&earned.has(a.id)).map(a=>({id:a.id,title:a.rewardTitle!}));
 }
 export function titledDisplayName(name:string,achievementId:string|null|undefined):string {
   const title=achievementTitle(achievementId);

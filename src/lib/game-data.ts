@@ -716,7 +716,10 @@ export interface AchievementDef {
   // PvP = non-Survival combat (all regular modes); PvE = Survival.
   // Career and mastery can advance in any game mode.
   category: "pvp" | "pve" | "career" | "mastery";
-  /** Optional permanent nameplate title, granted only when the achievement is earned. */
+  /** Stable achievement chain and its ordered tier, independent of display color. */
+  series: string;
+  seriesTier: number;
+  /** Nameplate reward for the final tier of this series only. */
   rewardTitle?: string;
 }
 

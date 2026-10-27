@@ -5,7 +5,7 @@ import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from 
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
-export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "faq" | "playing" | "results" | "range";
+export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "tutorial" | "playing" | "results" | "range";
 
 export interface PlayConfig {
   mode: GameMode;

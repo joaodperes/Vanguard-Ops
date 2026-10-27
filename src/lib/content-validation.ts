@@ -95,6 +95,8 @@ const achievement = z.object({
   title: label, description: label, icon: label,
   tier: z.enum(["bronze", "silver", "gold", "platinum"]),
   category: z.enum(["pvp", "pve", "career", "mastery"]),
+  series: id,
+  seriesTier: pos.int(),
   rewardTitle: label.optional(),
 });
 const sight = z.object({
@@ -109,6 +111,7 @@ export interface ContentValidationInput {
   weaponSkins?: unknown;
   operatorSkins?: unknown;
   weaponChallenges?: unknown;
+  achievements?: unknown;
 }
 
 /** A human-readable list, stable enough for CI errors and unit assertions. */
@@ -119,6 +122,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   const sk = (overrides.weaponSkins ?? WEAPON_SKINS) as unknown;
   const op = (overrides.operatorSkins ?? PLAYER_SKINS) as unknown;
   const ch = (overrides.weaponChallenges ?? WEAPON_CHALLENGES) as unknown;
+  const achievements = overrides.achievements ?? ACHIEVEMENTS;
 
   function check(name: string, value: unknown, schema: z.ZodTypeAny): void {
     const parsed = schema.safeParse(value);
@@ -143,13 +147,24 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     ["daily challenges", DAILY_CHALLENGE_POOL, z.array(rotatingChallenge)],
     ["weekly challenges", WEEKLY_CHALLENGE_POOL, z.array(rotatingChallenge)],
     ["elite quests (legacy)", ELITE_QUESTS, z.array(rotatingChallenge)],
-    ["achievements", ACHIEVEMENTS, z.array(achievement)],
+    ["achievements", achievements, z.array(achievement)],
     ["ranks", RANKS, z.array(z.object({level:pos.int(),name:label,shortName:label,color:cssColor,insignia:label}))],
     ["killstreak callouts", KILLSTREAK_CALLOUTS, z.array(z.object({threshold:pos.int(),label,icon:label,color:cssColor}))],
   ];
   for (const [name, value, schema] of arrays) {
     check(name, value, schema);
     unique(name, value);
+  }
+  const parsedAchievements = z.array(achievement).safeParse(achievements);
+  if (parsedAchievements.success) {
+    const tiers = new Set<string>();
+    for (const entry of parsedAchievements.data) {
+      const key = `${entry.series}:${entry.seriesTier}`;
+      if (tiers.has(key)) issues.push(`achievements: duplicate series tier ${key}`);
+      tiers.add(key);
+      if (entry.rewardTitle && parsedAchievements.data.some(other => other.series === entry.series && other.seriesTier > entry.seriesTier))
+        issues.push(`achievements: ${entry.id} grants a title before the final series tier`);
+    }
   }
   check("sight definitions", SIGHT_DEFS, z.record(z.string(), sight));
   check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, z.record(z.string(), z.record(z.string(), z.array(id))));

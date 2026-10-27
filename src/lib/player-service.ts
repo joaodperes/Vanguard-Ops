@@ -255,7 +255,9 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const masteredWeapons = prestigeRows.map(p => p.weaponId);
   const wonderWeapons = wonderRows.map(w => w.weaponId);
   if (!player.loadout) {
-    await db.loadout.create({ data: { playerId: player.id } });
+    // The first menu/tutorial can request the profile concurrently. A single
+    // upsert prevents those fresh-player requests racing to create the kit.
+    await db.loadout.upsert({ where: { playerId: player.id }, create: { playerId: player.id }, update: {} });
   }
   const fresh = player.loadout
     ? player
@@ -349,6 +351,16 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots, conditionStats: parseWeaponConditionStats(row.conditionStats) };
   }
   const tokenReadyWeapons = tokenEligiblePrestiges(masteredWeapons,weaponProgress);
+  const unlockedTitles = [
+    ...unlockedAchievementTitles(p.achievements?.map(a => a.achievementId) ?? []),
+    ...CAREER_TITLES.filter(t => p.careerRank >= t.rank).map(t => ({ id: t.id, title: t.title })),
+  ];
+  // Retired intermediate-tier titles must not remain on nameplates or leave
+  // the selector pointing at an option that no longer exists. Awards stay intact.
+  const selectedTitle = unlockedTitles.some(t => t.id === p.selectedTitle) ? p.selectedTitle : "";
+  if (selectedTitle !== p.selectedTitle) await db.player.updateMany({
+    where: { id: p.id, selectedTitle: p.selectedTitle }, data: { selectedTitle },
+  });
   return {
     playerKey: p.playerKey,
     name: p.name,
@@ -362,11 +374,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     survivalBestWave: p.survivalBestWave,
     kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
     selectedSkin: p.selectedSkin,
-    selectedTitle: p.selectedTitle,
-    unlockedTitles: [
-      ...unlockedAchievementTitles(p.achievements?.map(a=>a.achievementId) ?? []),
-      ...CAREER_TITLES.filter(t => p.careerRank >= t.rank).map(t => ({ id: t.id, title: t.title })),
-    ],
+    selectedTitle,
+    unlockedTitles,
     xpProgress: xpProgressInLevel(p.xp),
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],

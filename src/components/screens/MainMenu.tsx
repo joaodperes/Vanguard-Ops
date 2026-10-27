@@ -3,8 +3,8 @@ import { useGame } from "@/lib/game-store";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { WEAPONS, weaponById, attachmentById, RARITY_COLORS, rankForLevel, nextRank } from "@/lib/game-data";
 import {
-  Crosshair, Users, Swords, Trophy, Backpack, Zap, ChevronRight, Target,
-  Crown, Sparkles, Calendar, TrendingUp, Skull, LogOut, UserCircle, Play as PlayIcon, DoorOpen, Globe, BookOpen, Star, Wrench,
+  Crosshair, Trophy, Backpack, Zap, ChevronRight, Target,
+  Crown, Sparkles, Calendar, TrendingUp, Skull, Play as PlayIcon, Star, Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ interface WeeklyChallengeView extends ChallengeView {
 }
 
 export function MainMenu() {
-  const { profile, setScreen, session } = useGame();
+  const { profile, setScreen } = useGame();
   const [challenges, setChallenges] = useState<ChallengeView[]>([]);
   const [weekly, setWeekly] = useState<WeeklyChallengeView[]>([]);
 
@@ -51,7 +51,7 @@ export function MainMenu() {
     <div className="min-h-screen flex flex-col">
       {/* header */}
       <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             <div className="relative w-9 h-9 rounded-md bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center shadow-lg shadow-amber-900/40">
               <Crosshair className="w-5 h-5 text-white" />
@@ -62,7 +62,7 @@ export function MainMenu() {
               <div className="text-[10px] tracking-[0.3em] text-amber-400/80 leading-none mt-0.5">OPS</div>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
             <Button
               onClick={() => setScreen("play")}
               className="bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold h-9 px-4 shadow-lg shadow-amber-900/30"
@@ -71,20 +71,8 @@ export function MainMenu() {
             </Button>
             <NavBtn onClick={() => setScreen("armory")} icon={<Backpack className="w-4 h-4" />} label="Armory" />
             <NavBtn onClick={() => setScreen("profile")} icon={<Trophy className="w-4 h-4" />} label="Profile" />
-            <NavBtn onClick={() => setScreen("faq")} icon={<BookOpen className="w-4 h-4" />} label="Guide" />
             <NavBtn onClick={() => setScreen("settings")} icon={<Sparkles className="w-4 h-4" />} label="Settings" />
-            {/* account indicator + sign out */}
-            <button
-              onClick={() => useGame.getState().signOut()}
-              title={session ? `Signed in as ${session.email} · Click to sign out` : "Playing as guest · Click to sign in"}
-              className="ml-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-black/30 hover:bg-white/5 text-xs transition-colors"
-            >
-              <UserCircle className={`w-4 h-4 ${session ? "text-emerald-400" : "text-white/40"}`} />
-              <span className="hidden md:inline max-w-[120px] truncate text-white/70">
-                {session ? session.name : "Guest"}
-              </span>
-              <LogOut className="w-3.5 h-3.5 text-white/40" />
-            </button>
+
           </div>
         </div>
       </header>
@@ -323,52 +311,6 @@ export function MainMenu() {
           </div>
         )}
 
-        {/* Play hero CTA — routes to the dedicated Play / Room Lobby screen */}
-        <div className="mb-3 flex items-center gap-2">
-          <Swords className="w-5 h-5 text-amber-400" />
-          <h2 className="text-white font-bold tracking-wide uppercase text-sm">Deploy</h2>
-          <div className="ml-auto text-xs text-white/40">Create a room or browse active matches</div>
-        </div>
-        <button
-          onClick={() => setScreen("play")}
-          className="group relative w-full overflow-hidden rounded-2xl border border-amber-500/30 p-6 sm:p-8 text-left transition-all hover:scale-[1.005] hover:shadow-2xl hover:shadow-amber-900/30 mb-8"
-          style={{ background: "linear-gradient(120deg, rgba(245,158,11,0.18), rgba(244,63,94,0.12) 50%, rgba(0,0,0,0.4))" }}
-        >
-          <div className="absolute -top-20 -right-10 w-72 h-72 rounded-full blur-3xl opacity-30" style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)" }} />
-          <div className="absolute -bottom-24 -left-10 w-64 h-64 rounded-full blur-3xl opacity-20" style={{ background: "radial-gradient(circle, #f43f5e, transparent 70%)" }} />
-          <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center shadow-xl shadow-amber-900/40 group-hover:scale-105 transition-transform">
-                <PlayIcon className="w-8 h-8 text-white" fill="white" />
-              </div>
-              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 opacity-30 blur-md group-hover:opacity-50 transition-opacity" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-white font-black text-2xl tracking-wide">PLAY</h3>
-                <Badge variant="outline" className="border-amber-500/40 text-amber-300/90 text-[10px] uppercase">Room Lobby</Badge>
-              </div>
-              <p className="text-white/60 text-sm max-w-md">
-                Create a custom room with your preferred mode, team size, map, and bot fill — or browse live matches and jump in. Bots fill empty slots and are replaced as players join.
-              </p>
-              <div className="flex flex-wrap items-center gap-3 mt-3 text-[11px] text-white/50">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 border border-white/10">
-                  <DoorOpen className="w-3 h-3 text-amber-400" /> Create a Room
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 border border-white/10">
-                  <Globe className="w-3 h-3 text-cyan-400" /> Room Browser
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 border border-white/10">
-                  <Users className="w-3 h-3 text-emerald-400" /> FFA · TDM · Survival
-                </span>
-              </div>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 text-amber-300 font-bold text-sm">
-              <span>Enter Lobby</span>
-              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-        </button>
       </main>
 
       <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">

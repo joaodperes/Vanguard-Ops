@@ -9,7 +9,9 @@
     "tier": "bronze",
     "rewardXp": 50,
     "rewardCredits": 10,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 1
   },
   {
     "id": "kills_100",
@@ -21,7 +23,9 @@
     "tier": "bronze",
     "rewardXp": 200,
     "rewardCredits": 40,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 3
   },
   {
     "id": "kills_500",
@@ -33,7 +37,9 @@
     "tier": "silver",
     "rewardXp": 500,
     "rewardCredits": 100,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 4
   },
   {
     "id": "kills_2000",
@@ -45,7 +51,10 @@
     "tier": "gold",
     "rewardXp": 1500,
     "rewardCredits": 300,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 6,
+    "rewardTitle": "Reaper"
   },
   {
     "id": "hs_50",
@@ -57,7 +66,9 @@
     "tier": "bronze",
     "rewardXp": 200,
     "rewardCredits": 40,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "headshots",
+    "seriesTier": 2
   },
   {
     "id": "hs_250",
@@ -69,7 +80,9 @@
     "tier": "silver",
     "rewardXp": 600,
     "rewardCredits": 120,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "headshots",
+    "seriesTier": 3
   },
   {
     "id": "win_10",
@@ -81,7 +94,9 @@
     "tier": "bronze",
     "rewardXp": 250,
     "rewardCredits": 50,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "wins",
+    "seriesTier": 2
   },
   {
     "id": "win_50",
@@ -93,7 +108,9 @@
     "tier": "silver",
     "rewardXp": 750,
     "rewardCredits": 150,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "wins",
+    "seriesTier": 3
   },
   {
     "id": "win_200",
@@ -105,7 +122,10 @@
     "tier": "gold",
     "rewardXp": 2000,
     "rewardCredits": 400,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "wins",
+    "seriesTier": 4,
+    "rewardTitle": "Conqueror"
   },
   {
     "id": "play_25",
@@ -117,7 +137,9 @@
     "tier": "bronze",
     "rewardXp": 200,
     "rewardCredits": 40,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "matches",
+    "seriesTier": 1
   },
   {
     "id": "play_100",
@@ -129,7 +151,9 @@
     "tier": "silver",
     "rewardXp": 600,
     "rewardCredits": 120,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "matches",
+    "seriesTier": 2
   },
   {
     "id": "level_10",
@@ -141,7 +165,9 @@
     "tier": "bronze",
     "rewardXp": 300,
     "rewardCredits": 60,
-    "category": "career"
+    "category": "career",
+    "series": "level",
+    "seriesTier": 1
   },
   {
     "id": "level_20",
@@ -153,7 +179,9 @@
     "tier": "silver",
     "rewardXp": 800,
     "rewardCredits": 160,
-    "category": "career"
+    "category": "career",
+    "series": "level",
+    "seriesTier": 2
   },
   {
     "id": "level_30",
@@ -165,7 +193,10 @@
     "tier": "platinum",
     "rewardXp": 3000,
     "rewardCredits": 600,
-    "category": "career"
+    "category": "career",
+    "series": "level",
+    "seriesTier": 3,
+    "rewardTitle": "Vanguard Elite"
   },
   {
     "id": "surv_5",
@@ -177,7 +208,9 @@
     "tier": "bronze",
     "rewardXp": 250,
     "rewardCredits": 50,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_waves",
+    "seriesTier": 1
   },
   {
     "id": "surv_10",
@@ -189,7 +222,9 @@
     "tier": "silver",
     "rewardXp": 700,
     "rewardCredits": 140,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_waves",
+    "seriesTier": 2
   },
   {
     "id": "surv_20",
@@ -201,7 +236,10 @@
     "tier": "gold",
     "rewardXp": 2000,
     "rewardCredits": 400,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_waves",
+    "seriesTier": 3,
+    "rewardTitle": "Untouchable"
   },
   {
     "id": "surv_default_victory",
@@ -213,7 +251,10 @@
     "tier": "gold",
     "rewardXp": 2500,
     "rewardCredits": 500,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_default_wins",
+    "seriesTier": 1,
+    "rewardTitle": "Hold the Line"
   },
   {
     "id": "surv_hard_10",
@@ -225,7 +266,9 @@
     "tier": "silver",
     "rewardXp": 750,
     "rewardCredits": 160,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_hard_waves",
+    "seriesTier": 1
   },
   {
     "id": "surv_hard_20",
@@ -237,7 +280,10 @@
     "tier": "gold",
     "rewardXp": 2000,
     "rewardCredits": 400,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_hard_waves",
+    "seriesTier": 2,
+    "rewardTitle": "Unbreakable"
   },
   {
     "id": "surv_elite_boss",
@@ -249,7 +295,9 @@
     "tier": "silver",
     "rewardXp": 1200,
     "rewardCredits": 240,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_elite_waves",
+    "seriesTier": 1
   },
   {
     "id": "surv_elite_20",
@@ -261,7 +309,10 @@
     "tier": "platinum",
     "rewardXp": 3500,
     "rewardCredits": 720,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_elite_waves",
+    "seriesTier": 2,
+    "rewardTitle": "Elite Vanguard"
   },
   {
     "id": "surv_nightmare_10",
@@ -273,7 +324,9 @@
     "tier": "gold",
     "rewardXp": 2000,
     "rewardCredits": 440,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_nightmare_waves",
+    "seriesTier": 1
   },
   {
     "id": "surv_nightmare_20",
@@ -285,7 +338,10 @@
     "tier": "platinum",
     "rewardXp": 6000,
     "rewardCredits": 1200,
-    "category": "pve"
+    "category": "pve",
+    "series": "survival_nightmare_waves",
+    "seriesTier": 2,
+    "rewardTitle": "Beyond the Abyss"
   },
   {
     "id": "quest_daily_10",
@@ -297,7 +353,10 @@
     "tier": "bronze",
     "rewardXp": 300,
     "rewardCredits": 60,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "daily_challenges_completed",
+    "seriesTier": 1,
+    "rewardTitle": "Daily Devotee"
   },
   {
     "id": "quest_weekly_5",
@@ -309,7 +368,10 @@
     "tier": "silver",
     "rewardXp": 800,
     "rewardCredits": 160,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "weekly_challenges_completed",
+    "seriesTier": 1,
+    "rewardTitle": "Weekly Warrior"
   },
   {
     "id": "quest_elite_3",
@@ -321,7 +383,10 @@
     "tier": "gold",
     "rewardXp": 2000,
     "rewardCredits": 400,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "elite_challenges_completed",
+    "seriesTier": 1,
+    "rewardTitle": "Elite Hunter"
   },
   {
     "id": "quest_total_50",
@@ -333,7 +398,10 @@
     "tier": "platinum",
     "rewardXp": 5000,
     "rewardCredits": 1000,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "total_challenges_completed",
+    "seriesTier": 1,
+    "rewardTitle": "Quest Master"
   },
   {
     "id": "streak_3",
@@ -345,7 +413,9 @@
     "tier": "bronze",
     "rewardXp": 100,
     "rewardCredits": 20,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "best_killstreak",
+    "seriesTier": 1
   },
   {
     "id": "streak_5",
@@ -357,7 +427,9 @@
     "tier": "silver",
     "rewardXp": 300,
     "rewardCredits": 60,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "best_killstreak",
+    "seriesTier": 2
   },
   {
     "id": "streak_10",
@@ -369,7 +441,10 @@
     "tier": "gold",
     "rewardXp": 1000,
     "rewardCredits": 200,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "best_killstreak",
+    "seriesTier": 4,
+    "rewardTitle": "Untouchable Force"
   },
   {
     "id": "kills_25",
@@ -381,7 +456,9 @@
     "tier": "bronze",
     "rewardXp": 100,
     "rewardCredits": 20,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 2
   },
   {
     "id": "kills_1000",
@@ -393,7 +470,9 @@
     "tier": "gold",
     "rewardXp": 900,
     "rewardCredits": 180,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "kills",
+    "seriesTier": 5
   },
   {
     "id": "hs_10",
@@ -405,7 +484,9 @@
     "tier": "bronze",
     "rewardXp": 100,
     "rewardCredits": 20,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "headshots",
+    "seriesTier": 1
   },
   {
     "id": "hs_500",
@@ -417,7 +498,10 @@
     "tier": "gold",
     "rewardXp": 1200,
     "rewardCredits": 240,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "headshots",
+    "seriesTier": 4,
+    "rewardTitle": "Deadeye"
   },
   {
     "id": "win_3",
@@ -429,7 +513,9 @@
     "tier": "bronze",
     "rewardXp": 150,
     "rewardCredits": 30,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "wins",
+    "seriesTier": 1
   },
   {
     "id": "play_250",
@@ -441,7 +527,10 @@
     "tier": "gold",
     "rewardXp": 1400,
     "rewardCredits": 280,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "matches",
+    "seriesTier": 3,
+    "rewardTitle": "Battle Tested"
   },
   {
     "id": "streak_7",
@@ -453,7 +542,9 @@
     "tier": "gold",
     "rewardXp": 650,
     "rewardCredits": 130,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "best_killstreak",
+    "seriesTier": 3
   },
   {
     "id": "mastery_1",
@@ -466,7 +557,8 @@
     "rewardXp": 200,
     "rewardCredits": 40,
     "category": "mastery",
-    "rewardTitle": "Weapon Apprentice"
+    "series": "weapon_mastery",
+    "seriesTier": 1
   },
   {
     "id": "mastery_3",
@@ -479,7 +571,8 @@
     "rewardXp": 600,
     "rewardCredits": 120,
     "category": "mastery",
-    "rewardTitle": "Arms Specialist"
+    "series": "weapon_mastery",
+    "seriesTier": 2
   },
   {
     "id": "mastery_5",
@@ -492,7 +585,8 @@
     "rewardXp": 1600,
     "rewardCredits": 320,
     "category": "mastery",
-    "rewardTitle": "Weapon Master"
+    "series": "weapon_mastery",
+    "seriesTier": 3
   },
   {
     "id": "mastery_5x3",
@@ -505,7 +599,8 @@
     "rewardXp": 3500,
     "rewardCredits": 700,
     "category": "mastery",
-    "rewardTitle": "Arsenal Veteran"
+    "series": "weapon_mastery",
+    "seriesTier": 4
   },
   {
     "id": "mastery_5x8",
@@ -518,6 +613,8 @@
     "rewardXp": 8000,
     "rewardCredits": 1600,
     "category": "mastery",
+    "series": "weapon_mastery",
+    "seriesTier": 5,
     "rewardTitle": "Arsenal Legend"
   },
   {
@@ -530,7 +627,9 @@
     "tier": "bronze",
     "rewardXp": 150,
     "rewardCredits": 30,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "ctf_captures",
+    "seriesTier": 1
   },
   {
     "id": "ctf_captures_10",
@@ -542,7 +641,9 @@
     "tier": "silver",
     "rewardXp": 500,
     "rewardCredits": 100,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "ctf_captures",
+    "seriesTier": 2
   },
   {
     "id": "ctf_captures_50",
@@ -554,7 +655,10 @@
     "tier": "gold",
     "rewardXp": 1600,
     "rewardCredits": 320,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "ctf_captures",
+    "seriesTier": 3,
+    "rewardTitle": "Legendary Flagbearer"
   },
   {
     "id": "ctf_first_win",
@@ -566,7 +670,9 @@
     "tier": "bronze",
     "rewardXp": 200,
     "rewardCredits": 40,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "ctf_wins",
+    "seriesTier": 1
   },
   {
     "id": "ctf_wins_10",
@@ -578,6 +684,9 @@
     "tier": "gold",
     "rewardXp": 1200,
     "rewardCredits": 240,
-    "category": "pvp"
+    "category": "pvp",
+    "series": "ctf_wins",
+    "seriesTier": 2,
+    "rewardTitle": "Banner Commander"
   }
 ]

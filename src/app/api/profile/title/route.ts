@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const ownership = await db.playerAchievement.findUnique({
       where: { playerId_achievementId: { playerId: player.id, achievementId: id } },
     });
-    if (!ownership) return NextResponse.json({ error: "Earn this mastery achievement before equipping its title" }, { status: 403 });
+    if (!ownership) return NextResponse.json({ error: "Earn this achievement before equipping its title" }, { status: 403 });
   }
   await db.player.update({ where: { id: player.id }, data: { selectedTitle: id } });
   return NextResponse.json(await buildProfileView(playerKey));

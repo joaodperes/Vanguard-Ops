@@ -1,7 +1,7 @@
 "use client";
 
-import { titledDisplayName } from "@/lib/achievement-titles";
-import { useEffect, useState } from "react";
+import { achievementTitle, titledDisplayName } from "@/lib/achievement-titles";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
@@ -11,7 +11,8 @@ import { FiringRange } from "@/components/screens/FiringRange";
 import { Profile } from "@/components/screens/Profile";
 import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
-import { FAQ } from "@/components/screens/FAQ";
+import { Tutorial } from "@/components/screens/Tutorial";
+import { loadTutorialProgress, shouldOfferTutorial } from "@/lib/tutorial";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkById } from "@/lib/perks";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 export default function Page() {
   const { screen, profile, refreshProfile, playerKey, playConfig, setScreen, setMatchResult, matchResult, authState, setSession, setAuthState, setPlayerKey, roomConnect, setRoomConnect } = useGame();
   const [booted, setBooted] = useState(false);
+  const tutorialOffered = useRef(new Set<string>());
 
   useEffect(() => {
     // Check for an existing account session first.
@@ -62,6 +64,13 @@ export default function Page() {
     }).then(() => refreshProfile()).catch(() => {});
   }, [booted, authState, screen, playerKey]);
 
+  useEffect(() => {
+    if (screen === "tutorial") { tutorialOffered.current.add(playerKey); return; }
+    if (!booted || screen !== "menu" || !profile || profile.playerKey !== playerKey || tutorialOffered.current.has(playerKey)) return;
+    tutorialOffered.current.add(playerKey);
+    if (shouldOfferTutorial(profile, loadTutorialProgress(playerKey))) setScreen("tutorial");
+  }, [booted, screen, profile, playerKey, setScreen]);
+
   const handleMatchEnd = async (r: MatchEndResult) => {
     try {
       const res = await fetch("/api/match/complete", {
@@ -95,7 +104,10 @@ export default function Page() {
       if (rewards.leveledUp) toast.success(`Level Up! → Level ${rewards.newLevel}`);
       for (const perkId of rewards.newUnlocks?.perks ?? []) toast.success(`Perk available: ${perkById(perkId).name}`, { description: `Level ${perkById(perkId).unlockLevel} · Equip in Armory` });
       if (rewards.newAchievements?.length) {
-        for (const a of rewards.newAchievements) toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR` });
+        for (const a of rewards.newAchievements) {
+          const title = achievementTitle(a.id);
+          toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+        }
       }
       if (rewards.newPrestiges?.length) {
         for (const id of rewards.newPrestiges) {
@@ -180,7 +192,7 @@ export default function Page() {
       {screen === "range" && <FiringRange />}
       {screen === "profile" && <Profile />}
       {screen === "settings" && <Settings />}
-      {screen === "faq" && <FAQ />}
+      {screen === "tutorial" && <Tutorial key={playerKey} />}
       {screen === "results" && <Results />}
       {screen === "playing" && loadoutWire && profile && (
         <GameCanvas

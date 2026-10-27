@@ -2,12 +2,13 @@
 import { useEffect, useState } from "react";
 import { CareerProgress } from "@/components/game/CareerProgress";
 import { useGame } from "@/lib/game-store";
+import { achievementTitle } from "@/lib/achievement-titles";
 import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Trophy, Target, Skull, Zap, Coins, TrendingUp, Award, Crown, Star, Clock, Crosshair, Flame, Swords, Shield, Users, Sparkles, Calendar } from "lucide-react";
+import { ArrowLeft, Trophy, Target, Skull, Zap, Coins, TrendingUp, Award, Crown, Star, Clock, Crosshair, Flame, Swords, Shield, Users, Sparkles, Calendar, LogOut, UserCircle, GraduationCap } from "lucide-react";
 
 interface MatchRecordView {
   id: string; mode: string; online: boolean; kills: number; deaths: number;
@@ -24,11 +25,12 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function Profile() {
-  const { profile, setScreen, playerKey, refreshProfile } = useGame();
+  const { profile, setScreen, playerKey, refreshProfile, session, signOut } = useGame();
   const [matches, setMatches] = useState<MatchRecordView[]>([]);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
   const [titleBusy, setTitleBusy] = useState(false);
   const [titleError, setTitleError] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
   async function equipTitle(id:string) {
     if (!playerKey || titleBusy) return;
     setTitleBusy(true); setTitleError("");
@@ -116,6 +118,24 @@ export function Profile() {
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+        <section aria-label="Account and training" className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/60 p-4">
+          <UserCircle className={`h-6 w-6 shrink-0 ${session ? "text-emerald-400" : "text-white/40"}`} />
+          <div className="min-w-0 flex-1 basis-40">
+            <p className="text-sm font-semibold text-white">{session ? session.name : "Guest operative"}</p>
+            <p className="break-words text-xs text-white/50">{session ? session.email : "Sign in or create an account to keep playing across devices."}</p>
+          </div>
+          <Button variant="outline" onClick={() => setScreen("tutorial")} className="border-amber-500/30 text-amber-200 hover:bg-amber-500/10">
+            <GraduationCap className="mr-2 h-4 w-4" /> Tutorial
+          </Button>
+          <Button variant="outline" disabled={accountBusy} onClick={async () => {
+            if (!session) { setScreen("auth"); return; }
+            setAccountBusy(true);
+            try { await signOut(); } finally { setAccountBusy(false); }
+          }} className="border-white/15 text-white/70 hover:bg-white/5">
+            {session ? <LogOut className="mr-2 h-4 w-4" /> : <UserCircle className="mr-2 h-4 w-4" />}
+            {accountBusy ? "Signing out…" : session ? "Log out" : "Sign in"}
+          </Button>
+        </section>
         {/* hero banner */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-6 mb-6">
           <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full blur-3xl" style={{ background: `${rank.color}20` }} />
@@ -141,7 +161,7 @@ export function Profile() {
                   <option value="">No title</option>
                   {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
                 </select>
-                <span className="text-[11px] text-white/45">Earn titles from Weapon Mastery and Career ranks; show them beside your name in matches.</span>
+                <span className="text-[11px] text-white/45">Finish achievement chains for titles in kills, leveling, quests, Survival and mastery. Career promotions also award titles. Equip one beside your name in matches.</span>
                 {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
@@ -238,6 +258,7 @@ export function Profile() {
                             <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                           </div>
                         </div>
+                        <AchievementTitleReward id={a.id} earned={a.earned} />
                         {!a.earned && (
                           <div>
                             <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -264,11 +285,10 @@ export function Profile() {
             <div className="mb-6">
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
                 <Crown className="w-4 h-4 text-amber-400"/> Weapon Mastery &amp; Career
-                <span className="text-white/40 text-xs normal-case tracking-normal">Master weapons for permanent equipable nameplate titles</span>
+                <span className="text-white/40 text-xs normal-case tracking-normal">Title rewards at the final tier of each achievement chain</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {achievements.filter(a=>["mastery","career"].includes(ACHIEVEMENTS.find(d=>d.id===a.id)?.category??"")).map(a=>{
-                  const definition=ACHIEVEMENTS.find(d=>d.id===a.id);
                   const color=ACHIEVEMENT_TIER_COLORS[a.tier]??"#e9b85f";
                   const pct=Math.min(100,100*a.currentValue/a.goal);
                   return <div key={a.id} className={`rounded-xl border p-4 ${a.earned?"border-amber-500/40 bg-amber-500/5":"border-white/10 bg-zinc-900/40"}`}>
@@ -278,7 +298,7 @@ export function Profile() {
                       {a.earned&&<span className="text-[10px] text-emerald-300 ml-auto">EARNED</span>}
                     </div>
                     <p className="text-white/50 text-xs mb-2">{a.description}</p>
-                    {definition?.rewardTitle&&<div className="mb-2 text-xs text-amber-300">Title reward: [{definition.rewardTitle}]</div>}
+                    <AchievementTitleReward id={a.id} earned={a.earned} />
                     <div className="flex justify-between text-[11px] text-white/50 mb-1"><span>{a.currentValue} / {a.goal}</span><span className="uppercase" style={{color}}>{a.tier}</span></div>
                     <div className="h-1.5 bg-black/70 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{width:`${pct}%`}}/></div>
                     <p className="text-[11px] text-white/50 mt-2">+{a.rewardXp} XP · +{a.rewardCredits} CR</p>
@@ -291,7 +311,7 @@ export function Profile() {
             <div className="mb-5">
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
                 <Swords className="w-4 h-4 text-rose-400" /> PvP Achievements
-                <span className="text-white/30 text-xs normal-case tracking-normal">All modes except Survival (FFA, TDM, Gun Game, Kill Confirmed, CTF)</span>
+                <span className="text-white/30 text-xs normal-case tracking-normal">Non-Survival game modes</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {achievements.filter((a) => (ACHIEVEMENTS.find((d) => d.id === a.id)?.category ?? "pvp") === "pvp" && !["quest_daily_10", "quest_weekly_5", "quest_elite_3", "quest_total_50"].includes(a.id)).map((a) => {
@@ -314,6 +334,7 @@ export function Profile() {
                           <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
+                      <AchievementTitleReward id={a.id} earned={a.earned} />
                       {!a.earned && (
                         <div>
                           <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -363,6 +384,7 @@ export function Profile() {
                           <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
+                      <AchievementTitleReward id={a.id} earned={a.earned} />
                       {!a.earned && (
                         <div>
                           <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -392,7 +414,7 @@ export function Profile() {
               <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-10 text-center">
                 <Clock className="w-10 h-10 mx-auto text-white/20 mb-2" />
                 <div className="text-white/60 font-semibold">No matches yet</div>
-                <div className="text-white/40 text-sm">Deploy from the main menu to start your record.</div>
+                <div className="text-white/40 text-sm">Choose Play in the main menu to start your record.</div>
               </div>
             ) : (
               <div className="rounded-2xl border border-white/10 bg-zinc-900/40 overflow-hidden">
@@ -481,6 +503,14 @@ export function Profile() {
       </footer>
     </div>
   );
+}
+
+function AchievementTitleReward({ id, earned }: { id: string; earned: boolean }) {
+  const title = achievementTitle(id);
+  if (!title) return null;
+  return <p className="my-2 flex items-center gap-1.5 text-xs text-amber-300">
+    <Crown className="h-3 w-3 shrink-0" /> {earned ? "Title unlocked" : "Final-tier title"}: {title}
+  </p>;
 }
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number | string; color: string }) {

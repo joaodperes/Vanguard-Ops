@@ -1,4 +1,6 @@
 "use client";
+// Archived Guide: retained for reference; intentionally not imported or routed
+// by the game. New-player onboarding lives in Tutorial.tsx.
 import { DIFFICULTY_REWARDS } from "@/lib/match-rewards";
 import { REWARDS, MAX_PLAYER_LEVEL } from "@/lib/game-data";
 import { useGame } from "@/lib/game-store";

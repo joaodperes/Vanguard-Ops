@@ -30,6 +30,10 @@ async function suppressAwards(playerId: string) {
   await db.playerAchievement.createMany({ data: ACHIEVEMENTS.map(a => ({ playerId, achievementId: a.id })) });
 }
 try {
+  const newPlayer = await getOrCreatePlayer("concurrent-onboarding-player");
+  const firstProfiles = await Promise.all(Array.from({ length: 4 }, () => buildProfileView(newPlayer.playerKey)));
+  assert(firstProfiles.every(p => p?.loadout.weapon.id === "rifle_ar"));
+  assert.equal(await db.loadout.count({ where: { playerId: newPlayer.id } }), 1);
   const legacy = await db.player.findUniqueOrThrow({ where: { playerKey: "legacy-player" } });
   assert.equal(legacy.xp, 130050);
   assert.equal(legacy.credits, 36000);
@@ -133,5 +137,44 @@ try {
   assert.equal(restored.career.currentXp, 50);
   assert.equal(restored.loadout.perkId, "steady");
   assert.equal(restored.level, MAX_PLAYER_LEVEL);
+
+  // Retired intermediate titles disappear without removing achievements or
+  // replaying payouts. Existing final awards immediately grant their new title.
+  const titles = await create("title-player", totalXpForLevel(30), 1234);
+  await db.playerAchievement.createMany({ data: ["mastery_1", "kills_2000", "level_30"].map(achievementId => ({ playerId: titles.id, achievementId })) });
+  await db.player.update({ where: { id: titles.id }, data: { selectedTitle: "mastery_1" } });
+  const titleView = (await buildProfileView(titles.playerKey))!;
+  assert.equal(titleView.selectedTitle, "");
+  assert.equal(titleView.credits, 1234);
+  assert(titleView.unlockedTitles.some(t => t.id === "kills_2000" && t.title === "Reaper"));
+  assert(titleView.unlockedTitles.some(t => t.id === "level_30" && t.title === "Vanguard Elite"));
+  assert(!titleView.unlockedTitles.some(t => t.id === "mastery_1"));
+  assert(await db.playerAchievement.findUnique({ where: { playerId_achievementId: { playerId: titles.id, achievementId: "mastery_1" } } }));
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "mastery_1" })), 400);
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "surv_nightmare_20" })), 403);
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "kills_2000" })), 200);
+  assert.equal((await buildProfileView(titles.playerKey))!.selectedTitle, "kills_2000");
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "" })), 200);
+  assert.equal((await buildProfileView(titles.playerKey))!.selectedTitle, "");
+  assert.equal((await buildProfileView(titles.playerKey))!.credits, 1234);
+
+  // Exercise actual awarding counters: Survival kills do not earn PvP titles,
+  // while the same kills in a non-Survival match do. Quest/level/Survival title
+  // rewards flow through the existing server-owned achievement pipeline.
+  const broad = await create("broad-title-player", totalXpForLevel(30), 0);
+  await db.player.update({ where: { id: broad.id }, data: {
+    dailyChallengesCompleted: 10, weeklyChallengesCompleted: 5,
+    eliteChallengesCompleted: 3, totalChallengesCompleted: 50,
+  } });
+  await applyMatchResult({ playerKey: broad.playerKey, mode: "survival", survivalTier: "nightmare", survivalWaves: 20,
+    kills: 2000, deaths: 1, headshots: 0, won: false, score: 2000, weaponId: "rifle_ar" });
+  const survivalTitles = (await buildProfileView(broad.playerKey))!.unlockedTitles.map(t => t.id);
+  for (const id of ["surv_20", "surv_nightmare_20", "quest_daily_10", "quest_weekly_5", "quest_elite_3", "quest_total_50", "level_30"])
+    assert(survivalTitles.includes(id), `Missing title ${id}`);
+  assert(!survivalTitles.includes("kills_2000"));
+  const combatAward = await applyMatchResult({ playerKey: broad.playerKey, mode: "tdm", kills: 2000, deaths: 0, headshots: 0,
+    won: true, score: 2000, weaponId: "rifle_ar" });
+  assert(combatAward.newAchievements.some(a => a.id === "kills_2000"));
+  assert((await buildProfileView(broad.playerKey))!.unlockedTitles.some(t => t.id === "kills_2000"));
   console.log("All progression API scenarios passed");
 } finally { await db.$disconnect(); }
