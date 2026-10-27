@@ -9,7 +9,7 @@ import { displayMapLabel } from "@/lib/display-labels";
 import { matchHudInfo } from "@/lib/match-hud";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
@@ -349,14 +349,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </span>
         </div>
       )}
-      {/* top left: killfeed + map name. On mobile the font is much smaller
+      {/* Top-left transient killfeed. No persistent map/ADS banner. */}
+      {/* On mobile the font is much smaller
           and padding tighter so it doesn't dominate the small screen. */}
-      <div className={`absolute left-4 flex flex-col gap-1 max-w-[60vw] ${isTouch ? "top-2" : "top-4"}`}>
-        <div className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 mb-1 ${isTouch ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`}>
-          <MapIcon className={isTouch ? "w-2.5 h-2.5 text-cyan-400" : "w-3 h-3 text-cyan-400"} />
-          <span className="text-cyan-300 font-bold tracking-wider uppercase">{displayMapLabel(hud.mapName ?? "Compound")}</span>
-          {hud.aiming && <span className="ml-auto text-amber-300 text-[9px] uppercase font-bold animate-pulse">ADS</span>}
-        </div>
+      <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-14" : "top-[72px]"}`}>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
           <div key={i} className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`} style={{ animation: "killfeedSlide 0.3s ease-out" }}>
             <span className={teamColor(k.killerTeam)}>{k.killer}</span>
@@ -368,7 +364,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {/* Perk information stacks BELOW the radar, never across its markers.
           Minimap: top 56px, height 176px desktop / 128px touch. */}
-      <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[200px]" : "top-[248px]"}`}>
+      <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[234px]" : "top-[248px]"}`}>
         {hud.perkName && (
           <div className="px-2.5 py-1 rounded-md bg-black/75 border border-amber-500/20 text-amber-200 text-[11px] max-w-44 text-right">
             Perk: {hud.perkName}
@@ -398,7 +394,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </svg>
       </div>}
       {/* top right: exit + ping */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 pointer-events-auto">
+      <div className={`absolute right-4 flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
         {showPing && (
           <div className="bg-black/55 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 flex items-center gap-1">
             <Zap className="w-3 h-3" /> {hud.ping}ms
@@ -839,51 +835,21 @@ function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string
 // Shows a horizontal tier list (one cell per weapon in GUN_GAME_PROGRESSION).
 // The current tier is highlighted in purple (the gungame accent color). A
 // compact label shows the current tier's weapon name (e.g., "Tier 5/18 — VK-12 Assault").
-function GunGameProgress({ index, total, currentWeaponId, compact, weaponList, rank, players }: { index: number; total: number; currentWeaponId: string; compact?: boolean; weaponList?: string[]; rank: number; players: number }) {
-  const current = weaponById(currentWeaponId);
-  const isFinalTier = index >= total - 1;
-  // Use the actual per-match weapon list (sent by the server / resolved locally)
-  // — NOT the static GUN_GAME_PROGRESSION fallback, which has a different length
-  // and would show a tier strip that doesn't match the real progression.
-  const progression = (weaponList && weaponList.length > 0) ? weaponList : GUN_GAME_PROGRESSION;
+function GunGameProgress({ index, total, currentWeaponId, compact }: { index: number; total: number; currentWeaponId: string; compact?: boolean }) {
+  const tier = Math.max(1, Math.min(total, index + 1));
+  const pct = total > 0 ? Math.min(100, tier / total * 100) : 0;
+  const final = total > 0 && tier === total;
   return (
-    <div className={`absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none ${compact ? "top-7 gap-1" : "top-[60px] gap-1.5"}`}>
-      {/* Compact "Tier N/total — Weapon" badge */}
-      <div className={`bg-black/60 backdrop-blur rounded-lg border border-purple-500/40 flex items-center gap-1.5 shadow-lg shadow-purple-900/30 ${compact ? "px-2 py-0.5" : "px-3 py-1"}`}>
-        <Swords className={compact ? "w-2.5 h-2.5 text-purple-300" : "w-3.5 h-3.5 text-purple-300"} />
-        <span className={`text-amber-300 uppercase tracking-wider font-bold ${compact ? "text-[8px]" : "text-[10px]"}`}>RANK #{rank}/{players}</span>
-        <span className="text-white/30">·</span>
-        <span className={`text-white/60 uppercase tracking-wider ${compact ? "text-[8px]" : "text-[10px]"}`}>Tier</span>
-        <span className={`text-purple-200 font-black tabular-nums ${compact ? "text-[11px]" : "text-sm"}`}>{index + 1}<span className="text-white/30 text-[9px]">/{total}</span></span>
-        <span className="text-white/30">·</span>
-        <span className={`text-white font-bold ${compact ? "text-[10px]" : "text-xs"}`}>{current.name}</span>
-        {total > 30 && <span className="text-purple-300 text-[9px]">Cycle {Math.floor(index / 30) + 1}/{Math.ceil(total / 30)}</span>}
-        {isFinalTier && (
-          <span className="ml-1 text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-500/40 font-bold animate-pulse">
-            Final
-          </span>
-        )}
+    <div className={`rounded-lg bg-black/60 backdrop-blur border border-purple-500/30 flex flex-col items-center ${compact ? "gap-0.5 px-2 py-1" : "gap-1 px-3 py-1.5"}`}>
+      <div className={`flex items-center justify-center gap-2 max-w-[85vw] ${compact ? "text-[10px]" : "text-xs"}`}>
+        <span className="font-black tabular-nums text-purple-200 whitespace-nowrap">Tier {tier}/{total}</span>
+        <span className="text-white/25">·</span>
+        <span className="font-semibold text-white/85 truncate">{weaponById(currentWeaponId).name}</span>
+        {final && <span className="text-amber-300 font-black uppercase text-[9px]">Final</span>}
       </div>
-      {/* Horizontal tier strip — one cell per progression slot (uses the ACTUAL
-          per-match weapon list so the strip length matches `total`). */}
-      <div className={`flex items-center gap-px max-w-[88vw] overflow-hidden bg-black/40 backdrop-blur rounded-md border border-white/10 ${compact ? "px-1 py-0.5" : "px-1.5 py-1"}`}>
-        {progression.map((wid, i) => {
-          const done = i < index;
-          const active = i === index;
-          const w = weaponById(wid);
-          return (
-            <div
-              key={i}
-              title={`${i + 1}. ${w.name}`}
-              style={{ flex: "1 1 0", minWidth: total > 45 ? 1 : 3, maxWidth: 10 }}
-              className={`rounded-sm transition-colors ${compact ? "w-1.5 h-2" : "w-2 h-3"} ${
-                active ? "bg-purple-400 shadow-[0_0_6px_#a855f7]"
-                : done ? "bg-purple-500/40"
-                : "bg-white/10"
-              }`}
-            />
-          );
-        })}
+      <div className={`rounded-full bg-white/15 overflow-hidden ${compact ? "w-36 h-1" : "w-52 h-1.5"}`}
+           role="progressbar" aria-label="Gun Game weapon progression" aria-valuemin={0} aria-valuemax={total} aria-valuenow={tier}>
+        <div className="h-full rounded-full bg-purple-400 transition-[width] duration-200" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
