@@ -13,7 +13,7 @@ export interface CtfFlag {
 export type CtfFlags = { red: CtfFlag; blue: CtfFlag };
 export const CTF_SPEED_MULTIPLIER = 1.10;
 export const CTF_PICKUP_RADIUS = 2.4;
-export const CTF_CAPTURE_RADIUS = 4;
+export const CTF_CAPTURE_RADIUS = 4.7; // Covers the entire visible 4.25-radius delivery marker.
 export const CTF_TREE_X = 94;
 export const CTF_TREE_TOP = 12;
 export const CTF_BASE_Z = 0; // Behind trunk on each outer end of the base-to-base axis.
@@ -75,45 +75,73 @@ export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; 
   return null;
 }
 
-/** Roles stay deterministic across server/client and across respawns. */
+/** Match objectives guide travel, but visible hostiles always override navigation.
+ * Each bot has a stable lane and offset rather than marching on one exact point.
+ */
 export type CtfBotRole = "attack" | "defend_flag" | "defend_stairs" | "escort" | "recover";
 export type CtfBotIntent = {role:CtfBotRole; goal:Vec3};
+export function ctfEngageThreat(enemyDistance:number, weaponId:string):boolean {
+  if(!Number.isFinite(enemyDistance))return false;
+  const limit=weaponId.startsWith("sniper_")||weaponId.startsWith("dmr_")?55:
+    weaponId.startsWith("shotgun_")?25:weaponId.startsWith("pistol_")?34:45;
+  return enemyDistance<=limit;
+}
 export function ctfBotIntent(
   flags:CtfFlags, team:FlagTeam, id:string, pos:Vec3, weaponId:string,
-  squadIds:readonly string[] = [], carriers: Readonly<Record<string,Vec3>> = {},
+  squadIds:readonly string[] = [], carriers:Readonly<Record<string,Vec3>> = {},
 ):CtfBotIntent {
   const own=flags[team], enemyTeam=otherFlag(team), enemy=flags[enemyTeam];
   const home=ctfHome(team), enemyHome=ctfHome(enemyTeam);
   const hash=[...id].reduce((acc,ch)=>((acc*31+ch.charCodeAt(0))>>>0),7);
+  const roster=[...squadIds].sort(),ix=roster.indexOf(id);
+  const rank=ix>=0?ix:hash%9, lane=((hash+rank*7)%7)-3;
+  const side=team==="red"?-1:1;
   const sniper=weaponId.startsWith("sniper_")||weaponId.startsWith("dmr_");
-  const rank=Math.max(0,[...squadIds].sort().indexOf(id));
-  // Emergency: every available fighter intercepts the thief or recovers our drop.
+  // All roles immediately become recovery/interception assignments.
   if(own.carrierId || own.dropped) {
-    const carrier=own.carrierId?carriers[own.carrierId]:undefined;
-    return {role:"recover",goal:[...(own.dropped?own.pos:carrier??own.pos)]};
+    const position=own.carrierId?carriers[own.carrierId]??own.pos:own.pos;
+    const dist=Math.hypot(pos[0]-position[0],pos[2]-position[2]);
+    if(dist>20)return {role:"recover",goal:[position[0]+side*6,position[1],position[2]+lane*4]};
+    return {role:"recover",goal:[...position]};
   }
-  // Escort and retrieval must outrank idle defense, including when an ally dies.
-  if(enemy.dropped) return {role:"escort",goal:[...enemy.pos]};
+  if(enemy.dropped) {
+    const dist=Math.hypot(pos[0]-enemy.pos[0],pos[2]-enemy.pos[2]);
+    return {role:"escort",goal:dist>24?
+      [enemy.pos[0]+side*5,enemy.pos[1],enemy.pos[2]+lane*4]:
+      [...enemy.pos]};
+  }
   if(enemy.carrierId) {
-    if(enemy.carrierId===id) return {role:"escort",goal:ctfBase(team)};
+    if(enemy.carrierId===id)return {role:"escort",goal:ctfBase(team)};
     const carrier=carriers[enemy.carrierId];
     if(carrier) {
-      // Flank with teammates rather than stacking directly on carrier.
-      const offset=(rank%3-1)*4;
-      return {role:"escort",goal:[carrier[0]+(team==="red"?-4:4),carrier[1],carrier[2]+offset]};
+      const radius=6+Math.abs(lane)*2;
+      return {role:"escort",goal:[
+        carrier[0]+side*radius,carrier[1],carrier[2]+lane*6,
+      ]};
     }
-    return {role:"escort",goal:ctfBase(team)};
+    return {role:"escort",goal:[ctfBase(team)[0]-side*6,0,lane*6]};
   }
-  // Default split: long-range weapons watch from the deck, some other
-  // weapons cover stairs, and the remainder attack the opposite flag.
-  if(sniper) return {role:"defend_flag",goal:[home[0]+((hash%3)-1)*4,home[1],home[2]+((hash%2)?3:-3)]};
-  if(rank%3===0) return {role:"defend_stairs",goal:[home[0],0,(hash%2?28:-28)]};
-  return {role:"attack",goal:enemyHome};
+  // Default: long-range defenders stay on different edges of the high deck.
+  if(sniper) {
+    const angle=((hash%12)/12)*Math.PI*2;
+    return {role:"defend_flag",goal:[
+      home[0]+Math.cos(angle)*8.2,home[1],Math.sin(angle)*8.2,
+    ]};
+  }
+  if(rank%3===0)return {role:"defend_stairs",goal:[
+    home[0]+lane*1.8,0,(hash%2?28:-28)+(rank%3)*2,
+  ]};
+  // Alternate approach lanes across the valley before converging on the stairs.
+  const approach=enemyHome[0]-Math.sign(enemyHome[0])*33;
+  if(Math.abs(pos[0]-enemyHome[0])>42)return {role:"attack",goal:[
+    approach,0,lane*7.5,
+  ]};
+  return {role:"attack",goal:[...enemyHome]};
 }
-/** Translate an elevated goal into a navigable staircase approach. */
-export function ctfStairWaypoint(goal:Vec3, pos:Vec3):Vec3 {
-  if(goal[1]<=CTF_TREE_TOP/2 || pos[1]>=CTF_TREE_TOP-.7) return [...goal];
-  const x=goal[0];
+/** Elevated flag and sniper goals route via the ACTUAL tree center's stairs. */
+export function ctfStairWaypoint(goal:Vec3,pos:Vec3):Vec3 {
+  if(goal[1]<=CTF_TREE_TOP/2||pos[1]>=CTF_TREE_TOP-.7)return [...goal];
+  const x=Math.sign(goal[0])*CTF_TREE_X;
   const side=pos[2]<0?-1:1;
   const climbing=Math.abs(pos[0]-x)<7 && Math.abs(pos[2])>8 && Math.abs(pos[2])<36;
   return climbing?[x,CTF_TREE_TOP,side*8.7]:[x,0,side*34.5];
