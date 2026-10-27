@@ -119,5 +119,10 @@ export function ctfStairWaypoint(goal:Vec3, pos:Vec3):Vec3 {
   return climbing?[x,CTF_TREE_TOP,side*8.7]:[x,0,side*34.5];
 }
 export function ctfBotGoal(flags:CtfFlags,team:FlagTeam,id:string,pos:Vec3):Vec3 {
-  return ctfStairWaypoint(ctfBotIntent(flags,team,id,pos,"rifle_ar").goal,pos);
+  // Compatibility helper for non-squad simulation and existing navigation tests.
+  const own=flags[team],enemy=flags[otherFlag(team)];
+  if(enemy.carrierId===id) return ctfBase(team);
+  if(own.dropped) return [...own.pos];
+  if(enemy.carrierId) return ctfBase(otherFlag(team));
+  return ctfStairWaypoint(enemy.pos,pos);
 }
