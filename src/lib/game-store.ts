@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from "@/lib/game-protocol";
+import { teamSizeAllowed, teamSizesForMap } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
@@ -134,7 +135,14 @@ export const useGame = create<GameStore>((set, get) => ({
   setProfile: (p) => set({ profile: p }),
   setScreen: (s) => set({ screen: s }),
   setPlayConfig: (c) => set({ playConfig: { ...get().playConfig, ...c } }),
-  setRoomConfig: (c) => set({ roomConfig: { ...get().roomConfig, ...c } }),
+  setRoomConfig: (c) => set(() => {
+    const next = { ...get().roomConfig, ...c };
+    // A saved 16-player team option must not leak into another map when
+    // switching maps or modes. Keep all menu actions consistent.
+    if (!teamSizeAllowed(next.mapId, next.teamSize))
+      next.teamSize = teamSizesForMap(next.mapId).at(-1)!;
+    return { roomConfig: next };
+  }),
   setRoomConnect: (r) => set({ roomConnect: r }),
   setMatchResult: (r) => set({ matchResult: r }),
   refreshProfile: async () => {
