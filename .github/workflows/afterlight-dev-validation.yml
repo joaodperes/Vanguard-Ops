@@ -14,7 +14,7 @@ on:
       - src/lib/container-details.ts
       - src/lib/factory-machinery.ts
       - src/data/map-themes/skybridge.json
-      - tests/ridgefall-factory.test.ts
+      - tests/ridgefall-factory.test.ts tests/afterlight-ridgefall-polish.test.ts
       - src/data/map-themes/shipyard.json
       - tests/map-studio-*.test.ts
       - src/lib/map-visuals.ts
