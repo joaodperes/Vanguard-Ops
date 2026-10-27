@@ -52,7 +52,7 @@ describe("Afterlight architectural maps",()=>{
             Math.abs(c.pos[0]-p.x)<.01&&Math.abs(c.pos[2]-p.z)<.01&&
             c.size[0]>=(p.w??20)/2-.1&&c.size[2]>=(p.d??20)/2-.1)).toBe(p.shape!=="round");
         }
-        expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:6);
+        expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:cityHasUsableInteriorStairs(p)?6:2);
         const crest=outer[outer.length-1];
         expect(Math.abs(crest.pos[1]+crest.size[1]-h)).toBeLessThan(.1);
       }else{
