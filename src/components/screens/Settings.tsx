@@ -1,13 +1,25 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect,useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { useSettings, CROSSHAIR_PRESETS } from "@/lib/settings-store";
+import { COSMETICS } from "@/lib/cosmetics";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
 export function Settings() {
-  const { setScreen } = useGame();
+  const { setScreen,profile,playerKey,refreshProfile } = useGame();
+  const [reticleBusy,setReticleBusy]=useState(false),[reticleError,setReticleError]=useState("");
+  async function selectReticle(id:string){
+    if(reticleBusy||!playerKey)return;
+    setReticleBusy(true);setReticleError("");
+    try{
+      const r=await fetch("/api/profile/cosmetics",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({playerKey,kind:"reticle",cosmeticId:id})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Cannot equip reticle");
+      await refreshProfile();
+    }catch(e){setReticleError(e instanceof Error?e.message:"Cannot equip reticle");}
+    finally{setReticleBusy(false);}
+  }
   const { settings, update, reset, load } = useSettings();
   useEffect(() => { load(); }, [load]);
 
@@ -35,9 +47,19 @@ export function Settings() {
             {/* live preview */}
             <div className="w-32 h-32 rounded-xl bg-gradient-to-br from-zinc-900 to-black border border-white/10 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04), transparent 60%)" }} />
-              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} />
+              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} shape={profile?.selectedReticle??"classic"} />
             </div>
             <div className="flex-1 space-y-4">
+              <div>
+                <label htmlFor="reticle-style" className="text-white/60 text-xs uppercase tracking-wider mb-2 block">Reticle Style</label>
+                <select id="reticle-style" value={profile?.selectedReticle??"classic"} disabled={reticleBusy}
+                  onChange={e=>void selectReticle(e.target.value)} className="w-full bg-zinc-950 text-white border border-white/20 rounded-lg p-2 text-sm">
+                  {COSMETICS.filter(c=>c.kind==="reticle").map(c=><option key={c.id} value={c.id}
+                    disabled={!profile?.ownedCosmetics?.includes(c.id)}>{c.symbol} {c.name}{profile?.ownedCosmetics?.includes(c.id)?"":" · Shop"}</option>)}
+                </select>
+                {reticleError&&<p role="alert" className="text-xs text-rose-400 mt-1">{reticleError}</p>}
+                <p className="text-xs text-white/40 mt-1">Classic Cross and Precision Dot are free. More styles are optional Shop cosmetics. Color and size remain free.</p>
+              </div>
               <div>
                 <div className="text-white/60 text-xs uppercase tracking-wider mb-2">Color Presets</div>
                 <div className="flex flex-wrap gap-2">
@@ -206,15 +228,10 @@ function Toggle({ label, desc, value, onChange }: { label: string; desc: string;
   );
 }
 
-function CrosshairPreview({ color, size }: { color: string; size: number }) {
-  const s = size;
-  return (
-    <div className="relative" style={{ width: s * 3, height: s * 3 }}>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: 2, height: 2, background: color }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: s, height: 1.5, background: color, transform: `translate(${-s - 2}px, -50%)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: s, height: 1.5, background: color, transform: `translate(${2}px, -50%)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 1.5, height: s, background: color, transform: `translate(-50%, ${-s - 2}px)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 1.5, height: s, background: color, transform: `translate(-50%, ${2}px)` }} />
-    </div>
-  );
+function CrosshairPreview({color,size,shape}:{color:string;size:number;shape:string}){
+ const view=shape==="dot"?"•":shape==="reticle_orbit"?"◎":shape==="reticle_chevron"?"⌃":shape==="reticle_nova"?"✧":shape==="reticle_pulse"?"◇":null;
+ if(view)return <span aria-hidden className="font-mono" style={{color,fontSize:size*3,textShadow:`0 0 8px ${color}66`}}>{view}</span>;
+ return <div className="relative" style={{width:size*3,height:size*3}}>
+  <span className="absolute inset-0 flex items-center justify-center font-thin" style={{color,fontSize:size*3}}>+</span>
+ </div>;
 }

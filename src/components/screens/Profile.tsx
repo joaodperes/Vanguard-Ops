@@ -7,6 +7,7 @@ import { achievementTitle } from "@/lib/achievement-titles";
 import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
 import { collectorProgress } from "@/lib/collector";
+import { COSMETICS,cosmeticById } from "@/lib/cosmetics";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -31,6 +32,8 @@ export function Profile() {
   const [matches, setMatches] = useState<MatchRecordView[]>([]);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
   const [titleBusy, setTitleBusy] = useState(false);
+  const [nameplateBusy,setNameplateBusy]=useState(false);
+  const [cosmeticError,setCosmeticError]=useState("");
   const [titleError, setTitleError] = useState("");
   const [accountBusy, setAccountBusy] = useState(false);
   async function equipTitle(id:string) {
@@ -45,6 +48,19 @@ export function Profile() {
       await refreshProfile();
     }catch(error){setTitleError(error instanceof Error?error.message:"Unable to equip title");}
     finally{setTitleBusy(false);}
+  }
+
+  async function equipNameplate(id:string){
+    if(!playerKey||nameplateBusy)return;
+    setNameplateBusy(true);setCosmeticError("");
+    try{
+      const r=await fetch("/api/profile/cosmetics",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,kind:"nameplate",cosmeticId:id})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Could not equip nameplate");
+      await refreshProfile();
+    }catch(e){setCosmeticError(e instanceof Error?e.message:"Could not equip nameplate");}
+    finally{setNameplateBusy(false);}
   }
 
   useEffect(() => {
@@ -161,7 +177,14 @@ export function Profile() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-white/50 text-xs uppercase tracking-widest">{rank.name}</div>
-              <div className="text-3xl font-bold text-white">{profile.name}</div>
+              <div className="inline-flex items-center gap-2 text-2xl sm:text-3xl font-bold px-3 py-1.5 rounded-xl border max-w-full"
+                style={{color:cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#ffffff",
+                  borderColor:`${cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#94a3b8"}80`,
+                  background:`linear-gradient(95deg,${cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#334155"}30,#090e19)`}}>
+                <span className="text-base">{cosmeticById(profile.selectedNameplate,"nameplate")?.symbol??"▭"}</span>
+                <span className="truncate">{profile.name}</span>
+                {profile.selectedTitle&&<span className="text-xs font-medium opacity-70">· {profile.unlockedTitles.find(t=>t.id===profile.selectedTitle)?.title}</span>}
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
                 <select id="equipped-mastery-title" value={profile.selectedTitle ?? ""} disabled={titleBusy}
@@ -172,6 +195,17 @@ export function Profile() {
                 </select>
                 <span className="text-[11px] text-white/45">Finish achievement chains for titles in kills, leveling, quests, Survival and mastery. Previously earned Career Rank titles remain available. Equip one beside your name in matches.</span>
                 {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <label htmlFor="equipped-nameplate" className="text-xs text-violet-200">Nameplate design</label>
+                <select id="equipped-nameplate" value={profile.selectedNameplate} disabled={nameplateBusy}
+                  onChange={e=>void equipNameplate(e.target.value)}
+                  className="rounded-lg border border-violet-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  {COSMETICS.filter(c=>c.kind==="nameplate").map(c=><option key={c.id} value={c.id}
+                    disabled={!profile.ownedCosmetics.includes(c.id)}>{c.name}{profile.ownedCosmetics.includes(c.id)?"":" · Shop"}</option>)}
+                </select>
+                <span className="text-xs text-white/45">Decorative profile and in-match name frame. Unlock more in the Shop.</span>
+                {cosmeticError&&<span role="alert" className="text-xs text-rose-400">{cosmeticError}</span>}
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">

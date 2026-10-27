@@ -2,6 +2,7 @@
 import {useMemo,useState} from "react";
 import {useGame} from "@/lib/game-store";
 import {SHOP_ITEMS,shopItemKey,type ShopCurrency} from "@/lib/shop-catalog";
+import { cosmeticById } from "@/lib/cosmetics";
 import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS,levelForXp} from "@/lib/game-data";
 import {ownsWeapon} from "@/lib/collection-ownership";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
@@ -27,19 +28,24 @@ export function Shop(){
     }catch(e){toast.error(e instanceof Error?e.message:"Purchase failed");}
     finally{setBusy("");}
   }
-  const section=(currency:ShopCurrency)=><div className="grid gap-4 md:grid-cols-2 mt-5">
+  const section=(currency:ShopCurrency)=><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 mt-5">
     {SHOP_ITEMS.filter(item=>item.currency===currency).map(item=>{
       const finish=WEAPON_SKINS.find(s=>s.id===item.skinId),operator=PLAYER_SKINS.find(s=>s.id===item.skinId);
-      const skin=finish??operator;const isOwned=item.kind==="weaponSkin"?
-        (profile?.unlocks.skinsByWeapon[choice]??[]).includes(item.skinId):
-        (profile?.unlocks.playerSkins??[]).includes(item.skinId);
+      const skin=finish??operator,cosmetic=cosmeticById(item.cosmeticId??"");
+      const isOwned=item.kind==="weaponSkin"?
+        (profile?.unlocks.skinsByWeapon[choice]??[]).includes(item.skinId??""):
+        item.kind==="playerSkin"?(profile?.unlocks.playerSkins??[]).includes(item.skinId??""):
+        (profile?.ownedCosmetics??[]).includes(item.cosmeticId??"");
       const canPay=currency==="credits"?(profile?.credits??0)>=item.cost:(profile?.career.tokens??0)>=item.cost;
       const locked=currency==="career"&&!profile?.career.unlocked;
       return <article key={shopItemKey(item,choice)} className="border border-white/10 bg-zinc-900/70 rounded-2xl p-4">
-        <div className="h-16 rounded-lg mb-3 border border-white/10" style={{background:`linear-gradient(125deg,#080c13,${skin?.color??"#444"},#111827)`}}/>
+        <div className="h-16 rounded-lg mb-3 border border-white/10 flex items-center justify-center"
+          style={{background:`linear-gradient(125deg,#080c13,${skin?.color??cosmetic?.color??"#444"}55,#111827)`}}>
+          {cosmetic&&<span className="text-3xl" style={{color:cosmetic.color,textShadow:`0 0 10px ${cosmetic.color}88`}}>{cosmetic.symbol}</span>}
+        </div>
         <h3 className="font-semibold text-white">{item.name}</h3>
         <p className="text-sm text-white/55 mt-1 min-h-10">{item.description}</p>
-        <p className="text-xs text-white/40 mt-2">{item.kind==="weaponSkin"?`Weapon finish · ${WEAPONS.find(w=>w.id===choice)?.name??"Select a weapon"}`:"Operative skin"}</p>
+        <p className="text-xs text-white/40 mt-2">{item.kind==="weaponSkin"?`Weapon finish · ${WEAPONS.find(w=>w.id===choice)?.name??"Select a weapon"}`:item.kind==="playerSkin"?"Operative skin":item.kind==="reticle"?"Hipfire reticle · existing colors and size remain free":item.kind==="charm"?"Account-owned charm · equip on any regular weapon":"Account-wide player nameplate"}</p>
         <Button className="w-full mt-3" disabled={busy!==""||isOwned||!canPay||locked||item.kind==="weaponSkin"&&!choice}
           onClick={()=>void buy(item.id)}>
           {isOwned?"Owned":locked?<><Lock className="w-4 h-4 mr-1"/>Level 40 required</>:
@@ -57,7 +63,7 @@ export function Shop(){
       </div>
     </header>
     <main className="max-w-6xl mx-auto p-5">
-      <p className="text-white/60 mb-5">Credits buy additional cosmetic options; Career Tokens unlock exclusive finishes. Reticle selection and all gameplay controls remain free.</p>
+      <p className="text-white/60 mb-5">Credits buy additional cosmetic options; Career Tokens unlock exclusive finishes. Existing reticles, colors, size and all gameplay controls remain free. Purchased variants are optional cosmetics.</p>
       <div className="flex gap-4 text-sm mb-5"><span className="text-amber-300">{profile?.credits??0} CR</span><span className="text-violet-300">{profile?.career.tokens??0} Career Tokens</span></div>
       <label htmlFor="shop-weapon" className="text-xs text-white/70 block mb-1">Preview/purchase weapon finishes for</label>
       <select id="shop-weapon" className="bg-zinc-900 border border-white/20 rounded-lg p-2 mb-5 w-full max-w-md"
@@ -71,7 +77,7 @@ export function Shop(){
         <TabsContent value="credits">{section("credits")}</TabsContent>
         <TabsContent value="career">{section("career")}</TabsContent>
       </Tabs>
-      <p className="text-xs text-white/40 mt-6">Purchases are permanent. Equip newly purchased finishes and operative skins in the Armory. No equipment stats, reticles, or gameplay advantages are sold here.</p>
+      <p className="text-xs text-white/40 mt-6">Purchases are permanent. Equip newly purchased finishes and operative skins in the Armory. No combat stats or gameplay advantages are sold here. Equip reticles in Settings, charms in the Armory, and nameplates in Profile.</p>
     </main>
   </div>;
 }
