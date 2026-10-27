@@ -17,6 +17,7 @@ export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; descri
   terminal: {scale:1.02,pace:"tactical",description:"Afterlight City shared neighborhood in natural daylight"},
   skybridge: {scale:1.07,pace:"tactical",description:"Enclosed steelworks with machinery lanes, freight bays and elevated gantries"},
   arena_neon: {scale:1.02,pace:"tactical",description:"Downtown markets, vibrant shopfronts and rooftop fighting"},
+  forest_warfare: {scale:1,pace:"balanced",description:"CTF forest with mirrored woodland cover and climbable flag trees"},
 };
 const scaled=(p:Vec3,s:number):Vec3=>[Math.round(p[0]*s*1000)/1000,p[1],Math.round(p[2]*s*1000)/1000];
 function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
