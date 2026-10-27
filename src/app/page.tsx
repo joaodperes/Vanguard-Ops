@@ -98,7 +98,7 @@ export default function Page() {
       if (rewards.newPrestiges?.length) {
         for (const id of rewards.newPrestiges) {
           toast.success("WEAPON PRESTIGE EARNED", {
-            description: `Mastered ${id.replaceAll("_", " ")} · +1 Prestige Token · Eventide & Viridian Blight camos`,
+            description: `${id.replaceAll("_", " ")} · Eventide & Viridian Blight camos earned. Prestige Token requires Weapon Mastery rank 5/5.`,
             duration: 6500,
           });
         }
