@@ -3426,7 +3426,7 @@ export class FPSEngine {
     if (this.matchEnded) return null;
     if (!this.matchStartedAt) return null;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
+    const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
@@ -4097,6 +4097,7 @@ export class FPSEngine {
     switch (msg.t) {
       case "joined":
         this.selfId = msg.selfId;
+        this.scoreLimit = msg.config.scoreLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         (this.opts as any).team = msg.team;
@@ -4189,6 +4190,15 @@ export class FPSEngine {
           for (const [id,t] of this.bulletSpitters) if (!t.offline && !activeIds.has(id)) this.removeBulletSpitter(id);
         }
         this.teamScores = msg.teamScores;
+        if (this.opts.mode === "ctf" && msg.ctfFlags) {
+          const previous = this.ctfFlags;
+          this.ctfFlags = msg.ctfFlags;
+          const enemyTeam = this.opts.team === "red" ? "blue" : "red";
+          if (previous[enemyTeam].carrierId !== this.selfId && msg.ctfFlags[enemyTeam].carrierId === this.selfId)
+            this.ctfNotice = {label:"ENEMY FLAG TAKEN! +10% SPEED",at:performance.now()};
+          else if (previous[enemyTeam].carrierId === this.selfId && msg.ctfFlags[enemyTeam].carrierId !== this.selfId)
+            this.ctfNotice = {label:"FLAG DELIVERED OR LOST",at:performance.now()};
+        }
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
           const stats = msg.tagStats?.[this.selfId];
@@ -4570,6 +4580,7 @@ export class FPSEngine {
       case "roomJoined":
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
+        this.scoreLimit = msg.config.scoreLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
@@ -4621,6 +4632,7 @@ export class FPSEngine {
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
+        this.ctfFlags = createCtfFlags(); this.ctfCaptures = 0; this.ctfNotice = undefined;
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -6111,7 +6123,7 @@ export class FPSEngine {
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const won = isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
-      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? winnerTeam === this.opts.team
+      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
@@ -6119,7 +6131,7 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
@@ -6457,6 +6469,7 @@ export class FPSEngine {
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
+    if (this.opts.mode === "ctf") this.updateCtfFlagsVisuals();
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
     // 3D scene underneath but don't process input, run AI, or count down the timer.
@@ -6860,6 +6873,7 @@ export class FPSEngine {
     if (!this.opts.online && this.opts.mode === "killconfirmed" && !this.matchEnded) {
       this.collectOfflineKillConfirmedTags();
     }
+    if (!this.opts.online && this.opts.mode === "ctf" && !this.matchEnded) this.tickOfflineCtf();
     if (this.opts.online && this.socket?.connected && this.alive) {
       this.socket.emit("message", {
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
@@ -7017,6 +7031,10 @@ export class FPSEngine {
         } else if (poisoned) {
           c.skinMaterial.emissive.setHex(0x30ff56);
           c.skinMaterial.emissiveIntensity = 1.05;
+        } else if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id)) {
+          // Normal depth-tested material: hidden carriers never glow through cover.
+          c.skinMaterial.emissive.setHex(0xffe56a);
+          c.skinMaterial.emissiveIntensity = 1.0;
         } else if (isThermalAds && isEnemy && !c.isSelf) {
           // Bright amber emissive — "thermal signature"
           c.skinMaterial.emissive.setHex(0xff6600);
@@ -7083,7 +7101,7 @@ export class FPSEngine {
       // Always visible (even through walls) so the player can locate their team.
       // Hidden for: self, enemies, dead players, and non-TDM modes.
       if (c.friendlyMarker) {
-        const isFriendly = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed")
+        const isFriendly = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf")
           && c.team === this.opts.team
           && c.id !== this.selfId
           && c.alive;
@@ -7225,6 +7243,7 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
     const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
@@ -7926,9 +7945,9 @@ export class FPSEngine {
       }
     } else {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     this.opts.onHud({
@@ -7956,8 +7975,12 @@ export class FPSEngine {
       respawnIn: this.alive ? 0 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
       kills: this.kills,
       deaths: this.deaths,
-      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
+      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
+      ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
+      ctfCarrying: this.opts.mode === "ctf" &&
+        (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
+      ctfNotice: this.ctfNotice,
       scoreLimit: this.scoreLimit,
       confirmations: this.confirmations,
       denials: this.denials,
