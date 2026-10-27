@@ -10,7 +10,7 @@ import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
 import { parseSavedLoadouts, type SavedLoadout } from "./saved-loadouts";
-import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, weaponMasteryProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -166,7 +166,7 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
       // Atomic upsert respects the per-player/weapon unique constraint even if
       // profile and match-end requests reach this function concurrently.
       await tx.weaponPrestige.upsert({
-        where: { playerId_weaponId: key }, create: key, update: {},
+        where: { playerId_weaponId: key }, create: { ...key, legacyReward: false }, update: {},
       });
       earned.push(weapon.id);
     }
@@ -254,6 +254,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     db.wonderUnlock.findMany({ where: { playerId: player.id } }),
   ]);
   const masteredWeapons = prestigeRows.map(p => p.weaponId);
+  const legacyPrestigeWeapons = new Set(prestigeRows.filter(p => p.legacyReward).map(p => p.weaponId));
   const wonderWeapons = wonderRows.map(w => w.weaponId);
   if (!player.loadout) {
     // The first menu/tutorial can request the profile concurrently. A single
@@ -297,9 +298,12 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for(const w of WEAPONS){
     if(!skinsByWeapon[w.id])skinsByWeapon[w.id]=[];
     if(!skinsByWeapon[w.id].includes("default"))skinsByWeapon[w.id].push("default");
-    if (masteredWeapons.includes(w.id)) {
-      for (const camoId of PRESTIGE_CAMO_IDS) if (!skinsByWeapon[w.id].includes(camoId)) skinsByWeapon[w.id].push(camoId);
-    }
+    // Viridian Blight comes from Prestige, Eventide from Mastery 5/5.
+    // Awards earned before the split explicitly retain BOTH historical skins.
+    const mastered = historicById.get(w.id);
+    const rank5 = weaponMasteryProgress(mastered?.kills ?? 0, mastered?.headshots ?? 0, w.id).rank === 5;
+    if (masteredWeapons.includes(w.id) && !skinsByWeapon[w.id].includes("prestige_toxic")) skinsByWeapon[w.id].push("prestige_toxic");
+    if ((rank5 || legacyPrestigeWeapons.has(w.id)) && !skinsByWeapon[w.id].includes("prestige_cosmic")) skinsByWeapon[w.id].push("prestige_cosmic");
     for(const ch of WEAPON_CHALLENGES){
       if(ch.weaponId!==w.id || !legacyGlobal.has(ch.skinId))continue;
       const row=historicById.get(w.id);

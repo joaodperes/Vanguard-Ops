@@ -64,7 +64,7 @@ describe("One-time Prestige mastery", () => {
     expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, owned)).toBe(false);
     expect(prestigeEligible("wonder_singularity", { kills: 999999, headshots: 999999 }, owned)).toBe(false);
   });
-  test("Prestige grants two skins at any mastery rank; token requires rank 5 and is unique",()=>{
+  test("Prestige and Mastery skins unlock separately; their combined entitlement is unique",()=>{
     const progress={rifle_ar:{kills:150,headshots:25},smg_kp:{kills:600,headshots:110}};
     expect(tokenEligiblePrestiges(["rifle_ar","smg_kp","smg_kp"],progress)).toEqual(["smg_kp"]);
     expect(prestigeTokens(tokenEligiblePrestiges(["rifle_ar","smg_kp"],progress).length,0)).toBe(1);

@@ -212,6 +212,8 @@ model WeaponProgress {
 /// One permanent Prestige award per mastered ordinary weapon.
 model WeaponPrestige {
   id String @id @default(cuid())
+  /// Old awards previously granted both camos; existing rows keep that reward.
+  legacyReward Boolean @default(true)
   playerId String
   weaponId String
   awardedAt DateTime @default(now())

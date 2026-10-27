@@ -422,7 +422,7 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge to unlock the two animated Prestige camos. A Prestige Token is earned only after that weapon also reaches Weapon Mastery rank 5/5. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
               <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Token-qualified: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -987,7 +987,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
             <div className="text-white/40 text-xs mb-3">
-              Standard skins: complete the weapon-specific challenge, then purchase with credits. Prestige skins: earn both free by finishing every regular cosmetic challenge.
+              Standard skins: complete the weapon-specific challenge, then purchase with credits. Viridian Blight: finish all Prestige challenges. Eventide: reach Weapon Mastery 5/5. Both are earned separately.
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
@@ -1088,7 +1088,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />{s.prestige ? "Prestige this weapon to earn" : "No unlock path"}
+                          <Lock className="w-2.5 h-2.5" />{s.prestige === "cosmic" ? "Reach Weapon Mastery 5/5 to earn" : s.prestige === "toxic" ? "Complete Weapon Prestige to earn" : "No unlock path"}
                         </div>
                       ) : null}
                     </div>
@@ -1119,25 +1119,25 @@ function CustomizeModal(props: CustomizeModalProps) {
             <div className={`mb-3 rounded-lg border p-3 text-xs ${prestiged ? "border-violet-400/40 bg-violet-500/10" : "border-white/10 bg-black/30"}`}>
               <div className="flex justify-between gap-2 items-center mb-2">
                 <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
-                  {prestiged ? "✦ PRESTIGED — Eventide + Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
+                  {prestiged ? "✦ PRESTIGED — Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
                 </span>
-                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">Reward: 2 Prestige skins</span>}
+                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">Reward: Viridian Blight</span>}
               </div>
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
                 <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes are now available in Skins." : "Complete every regular cosmetic challenge to earn Eventide and Viridian Blight for this weapon."}</p>
+              <p className="text-white/50">{prestiged ? "Viridian Blight earned. Mastery can independently unlock Eventide." : "Complete every regular cosmetic challenge to earn Viridian Blight."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-amber-300">Weapon Mastery · {mastery.title}</span>
-                <span className="text-white/50">Rank {mastery.rank}/5</span>
+                <span className="text-white/50">Rank {mastery.rank}/5 · Reward: Eventide</span>
               </div>
               <div className="mt-1 text-white/50">
                 {progress?.kills ?? 0} kills {w.category === "melee" ? "(melee mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
                 {mastery.next && ` · Next: ${mastery.next.kills} kills (${Math.max(0, mastery.next.kills - (progress?.kills ?? 0))} remaining)${w.category === "melee" ? "" : ` · ${mastery.next.headshots} headshots ${(progress?.headshots ?? 0) >= mastery.next.headshots ? "✓" : `(${mastery.next.headshots - (progress?.headshots ?? 0)} remaining)`}`}`}
               </div>
-              <p className="mt-2 text-violet-300/85">Wonder Weapon token requires both Prestige completion and Weapon Mastery 5/5. {prestiged && mastery.rank === 5 ? "This weapon qualifies for one token." : prestiged ? "Prestige complete — finish Mastery to qualify." : mastery.rank === 5 ? "Mastery complete — finish Prestige to qualify." : "Advance both tracks to qualify."}</p>
+              <p className="mt-2 text-violet-300/85">Wonder Weapon unlock requires both Prestige completion and Weapon Mastery 5/5. {prestiged && mastery.rank === 5 ? "This weapon qualifies for one token." : prestiged ? "Prestige complete — finish Mastery to qualify." : mastery.rank === 5 ? "Mastery complete — finish Prestige to qualify." : "Advance both tracks to qualify."}</p>
             </div>
             {challengeViews.filter(c => !c.completed).length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>

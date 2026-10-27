@@ -68,7 +68,7 @@ interface ExportData {
   } | null;
   achievements?: { achievementId: string; earnedAt: string }[];
   weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
-  weaponPrestiges?: { weaponId: string }[];
+  weaponPrestiges?: { weaponId: string; legacyReward?: boolean }[];
   wonderUnlocks?: { weaponId: string }[];
   matchRecords?: {
     mode: string;
