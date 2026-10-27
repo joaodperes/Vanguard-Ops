@@ -6,9 +6,12 @@ import type { MapDef } from "../src/lib/game-protocol";
 
 describe("map footprint variety", () => {
   test("has real physical scale and pace categories, not just labels", () => {
-    const compact = MAP_LIST.filter(m => MAP_FOOTPRINT[m.id].pace === "compact");
-    const balanced = MAP_LIST.filter(m => MAP_FOOTPRINT[m.id].pace === "balanced");
-    const tactical = MAP_LIST.filter(m => MAP_FOOTPRINT[m.id].pace === "tactical");
+    // Preserve legacy pacing ratios; Forest Warfare is the dedicated CTF arena.
+    const legacy = MAP_LIST.filter(m => m.id !== "forest_warfare");
+    expect(MAP_FOOTPRINT.forest_warfare.pace).toBe("balanced");
+    const compact = legacy.filter(m => MAP_FOOTPRINT[m.id].pace === "compact");
+    const balanced = legacy.filter(m => MAP_FOOTPRINT[m.id].pace === "balanced");
+    const tactical = legacy.filter(m => MAP_FOOTPRINT[m.id].pace === "tactical");
     expect(compact).toHaveLength(2);
     expect(balanced).toHaveLength(1);
     expect(tactical).toHaveLength(3);
@@ -64,7 +67,8 @@ describe("map footprint variety", () => {
       expect(map.regions?.length ?? 0).toBeGreaterThanOrEqual(3);
       const r=map.regions!;
       const boundary=map.cover.filter(c=>c.kind==="solid");
-      expect(boundary.length).toBeGreaterThan(4);
+      // Forests have living tree trunks rather than artificial border walls.
+      expect(boundary.length).toBeGreaterThan(map.id === "forest_warfare" ? 1 : 4);
       // Regions intentionally overlap to form connected corridors; adding
       // their individual areas double-counts those overlaps (especially in
       // the compact Shipyard). Measure their actual union instead.
