@@ -49,7 +49,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -161,6 +161,7 @@ export interface HudState {
   ctfOvertime?: boolean;
   ctfFlagResetMs?: number;
   ctfNotice?: { label: string; at: number };
+  ctfZoneError?: string;
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
   denials?: number;
@@ -703,6 +704,9 @@ export class FPSEngine {
   private ctfCaptures = 0;
   private ctfResetDurationMs = 30000;
   private ctfOvertime = false;
+  private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
+  private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
+  private ctfRulesVerified = false;
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
@@ -1019,6 +1023,7 @@ export class FPSEngine {
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
     this.ctfResetDurationMs = ctfResetMs(opts.roomConnect?.config?.ctfFlagResetMs);
+    this.ctfRulesVerified = !opts.online;
     this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
@@ -1402,6 +1407,7 @@ export class FPSEngine {
       marker.rotation.x=-Math.PI/2;
       marker.position.set(base[0],.07,base[2]);
       this.scene.add(marker);
+      this.ctfMarkers[team] = marker;
     }
   }
 
@@ -4357,6 +4363,16 @@ export class FPSEngine {
         }
         this.teamScores = msg.teamScores;
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
+        if (this.opts.mode === "ctf") {
+          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
+          if (msg.ctfBases) {
+            this.ctfBases = msg.ctfBases;
+            for (const team of ["red","blue"] as const) {
+              const marker=this.ctfMarkers[team],base=msg.ctfBases[team];
+              if (marker) marker.position.set(base[0],.07,base[2]);
+            }
+          }
+        }
         if (this.opts.mode === "ctf" && msg.ctfFlags) {
           const previous = this.ctfFlags;
           this.ctfFlags = msg.ctfFlags;
@@ -8253,6 +8269,13 @@ export class FPSEngine {
       ctfCarrying: this.opts.mode === "ctf" &&
         (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
       ctfNotice: this.ctfNotice,
+      ctfZoneError: this.opts.mode === "ctf" && this.opts.online && !this.ctfRulesVerified
+        ? "Multiplayer server has outdated CTF scoring rules. Restart/update the game server."
+        : this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
+          (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId) &&
+          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],4.7,3) &&
+          !flagAtHome(this.ctfFlags[this.opts.team])
+          ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined,
       scoreLimit: this.scoreLimit,
       confirmations: this.confirmations,
       denials: this.denials,
