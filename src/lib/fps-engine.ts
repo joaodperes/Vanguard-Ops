@@ -5386,7 +5386,7 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && p.weaponId !== c.weaponId) {
+      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
         this.scene.remove(c.group);
         c.group.traverse((child) => {
           if (child instanceof THREE.Mesh) {
@@ -5401,6 +5401,8 @@ export class FPSEngine {
           }
         });
         c.weaponId = p.weaponId;
+        c.charmId = p.charmId;
+        c.nameplateId = p.nameplateId;
         c.group = undefined;
         c.parts = undefined;
         this.addCombatantMesh(c);
@@ -7793,6 +7795,7 @@ export class FPSEngine {
     // the transformed grips so hands stay attached while firing and aiming.
     const recoilAge = c.lastFireRecoil ? now - c.lastFireRecoil : 9999;
     const recoil = recoilAge < 100 ? (1 - recoilAge / 100) * 0.15 : 0;
+    p.weaponStub.traverse(obj=>{if(obj.name==="weapon_charm")swingWeaponCharm(obj,now);});
     p.weaponStub.position.copy(p.weaponBase);
     p.weaponStub.position.z -= recoil * 0.5;
     p.weaponStub.position.y += Math.sin(c.walkPhase ?? 0) * 0.006;

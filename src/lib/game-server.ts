@@ -720,10 +720,10 @@ function joinLobbyRoom(
 function snapshot(room: Room): S2C {
   const players: SnapshotPlayer[] = [];
   for (const p of room.players.values()) {
-    players.push({ ...toSnap(p), perkId: room.loadouts.get(p.id)?.perkId });
+    players.push({ ...toSnap(p,room.loadouts.get(p.id)), perkId: room.loadouts.get(p.id)?.perkId });
   }
   for (const b of room.bots.values()) {
-    players.push(toSnap(b));
+    players.push(toSnap(b,room.loadouts.get(b.id)));
   }
   const scores: Record<string, number> = {};
   for (const [id, k] of room.scores) scores[id] = k;
@@ -778,12 +778,15 @@ function snapshot(room: Room): S2C {
   return base;
 }
 
-function toSnap(p: PlayerNet): SnapshotPlayer {
+function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
+  const currentCharm=loadout && p.weaponId===loadout.weaponId ? loadout.primaryCharmId :
+    loadout && p.weaponId===loadout.secondaryWeaponId ? loadout.secondaryCharmId :
+    loadout && p.weaponId===loadout.meleeWeaponId ? loadout.meleeCharmId : "none";
   return {
     id: p.id, name: p.name, team: p.team, isBot: p.isBot,
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
-    charmId:p.charmId,nameplateId:p.nameplateId,
+    charmId:currentCharm??"none",nameplateId:p.nameplateId,
     kills: p.kills, deaths: p.deaths, aiming: (p as PlayerNet & { ai?: BotAI }).ai?.aiming ?? false, reloading: false,
     spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
   };
