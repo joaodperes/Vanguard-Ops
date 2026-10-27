@@ -159,6 +159,7 @@ export interface HudState {
   ctfFlags?: CtfFlags;
   ctfCarrying?: boolean;
   ctfOvertime?: boolean;
+  ctfFlagResetMs?: number;
   ctfNotice?: { label: string; at: number };
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
@@ -1437,6 +1438,8 @@ export class FPSEngine {
     for(const actor of actors){
       const event=ctfTouch(this.ctfFlags,actor);
       if(!event)continue;
+      if(event.kind==="pickup")this.sound.play("flag_taken",{volume:.65,throttleMs:300});
+      if(event.kind==="capture")this.sound.play("flag_scored",{volume:.85,throttleMs:300});
       if(actor.self)this.ctfNotice={
         label:event.kind==="capture"?"FLAG CAPTURED!":event.kind==="return"?"FLAG RETURNED":"ENEMY FLAG TAKEN!",
         at:performance.now()
@@ -4335,6 +4338,7 @@ export class FPSEngine {
           for (const [id,t] of this.bulletSpitters) if (!t.offline && !activeIds.has(id)) this.removeBulletSpitter(id);
         }
         this.teamScores = msg.teamScores;
+        if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if (this.opts.mode === "ctf" && msg.ctfFlags) {
           const previous = this.ctfFlags;
           this.ctfFlags = msg.ctfFlags;
@@ -8211,6 +8215,7 @@ export class FPSEngine {
       teamScores: this.teamScores,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
+      ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
         (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
       ctfNotice: this.ctfNotice,
