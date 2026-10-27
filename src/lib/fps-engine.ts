@@ -1583,6 +1583,80 @@ export class FPSEngine {
     this.spawnOrbitalMote(victimPos);
     // Reactor progression is visible in the HUD; no charged/claim banners.
   }
+  /** Every Reaper swing emits a 360° purple shockwave, including complete
+   * blade misses. Only one damage instance per victim per swing is permitted.
+   * Applies to offline player and bots; multiplayer uses server hit results.
+   */
+  private offlineOrbitalStrikeDamage(
+    targetId:string,damage:number,attacker:Combatant|null,
+  ) {
+    if(targetId===this.selfId){
+      if(attacker)this.takeDamage(damage,attacker.name,attacker.team,false,
+        ORBITAL_REAPER_ID,attacker.pos);
+      return;
+    }
+    const victim=this.combatants.get(targetId);
+    if(!victim?.alive)return;
+    if(!attacker){
+      this.applyDamageLocal(victim,damage,false,ORBITAL_REAPER_ID);
+      return;
+    }
+    if((victim.spawnProtectedUntil??0)>Date.now())return;
+    victim.health-=damage;
+    if(victim.health>0)return;
+    victim.alive=false;victim.deaths++;
+    attacker.kills++;
+    this.recordOrbitalKill(victim.pos,attacker.pos);
+    this.releaseOrbitalBotWeapon(victim);
+    if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
+    const entry:KillFeedEntry={
+      killer:attacker.name,victim:victim.name,weapon:ORBITAL_REAPER_ID,
+      headshot:false,killerTeam:attacker.team,victimTeam:victim.team,
+    };
+    this.killFeed.unshift(entry);
+    if(this.killFeed.length>6)this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    this.scheduleRespawn(victim);
+    this.checkWin();
+  }
+  private offlineOrbitalPulse(
+    origin:Vec3,team:string,attacker:Combatant|null,excluded:string[]=[],
+  ) {
+    this.showOrbitalPulse(origin);
+    const candidates=[...this.combatants.values()].map(c=>({
+      id:c.id,pos:c.pos as readonly number[],alive:c.alive,
+      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===team,
+    }));
+    if(attacker)candidates.push({
+      id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+      alive:this.alive,protected:this.selfSpawnProtectedUntil>Date.now(),
+      friendly:this.opts.team===team,
+    });
+    const targets=orbitalPulseTargets(origin,candidates,pos=>{
+      const dist=Math.hypot(pos[0]-origin[0],pos[2]-origin[2]);
+      if(dist<.001)return false;
+      const eye:Vec3=[origin[0],origin[1]+1.1,origin[2]];
+      const dir:Vec3=[(pos[0]-origin[0])/dist,0,(pos[2]-origin[2])/dist];
+      return this.map.cover.some(box=>{
+        const hit=rayBox(eye,dir,box.pos,box.size);
+        return hit!==null&&hit>.08&&hit<dist-.15;
+      });
+    },excluded);
+    for(const id of targets)this.offlineOrbitalStrikeDamage(id,ORBITAL_PULSE_DAMAGE,attacker);
+  }
+  private offlineOrbitalBotSwing(attacker:Combatant){
+    const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
+      .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
+        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===attacker.team}));
+    candidates.push({id:this.selfId,
+      pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive,
+      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.team===attacker.team});
+    const profile=quickMeleeProfile(weaponById(ORBITAL_REAPER_ID).stats,ORBITAL_REAPER_ID);
+    const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
+      (_c,dist)=>dist<=profile.reach,profile.reach,profile.halfArcDegrees);
+    if(target)this.offlineOrbitalStrikeDamage(target.id,profile.damage,attacker);
+    this.offlineOrbitalPulse(attacker.pos,attacker.team,attacker,target?[target.id]:[]);
+  }
   private refreshOfflineOrbitalBotModel(bot:Combatant){
     if(!bot.group||this.opts.online)return;
     this.scene.remove(bot.group);
@@ -3410,6 +3484,8 @@ export class FPSEngine {
         const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
         return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
       }, melee.reach, melee.halfArcDegrees);
+    if(!this.opts.online&&this.meleeWeaponId===ORBITAL_REAPER_ID)
+      this.offlineOrbitalPulse(from,this.opts.team as string,null,candidate?[candidate.id]:[]);
     if(candidate){
       const target=this.combatants.get(candidate.id);
       if(target){
@@ -6098,6 +6174,8 @@ export class FPSEngine {
           return t!==null&&t>.08&&t<dist-.15;
         });
       },quickMeleeProfile(w.stats,w.id).reach,quickMeleeProfile(w.stats,w.id).halfArcDegrees);
+    if(!this.opts.online&&w.id===ORBITAL_REAPER_ID)
+      this.offlineOrbitalPulse(from,this.opts.team as string,null,nearest?[nearest.id]:[]);
     if(nearest&&!this.opts.online){
       const victim=this.combatants.get(nearest.id);
       if(victim){
@@ -8029,7 +8107,7 @@ export class FPSEngine {
       ai.aiming = stance.aiming;
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
-      const chaseThreshold=w.id===ORBITAL_REAPER_ID?1.45:ideal+3;
+      const chaseThreshold=w.id===ORBITAL_REAPER_ID?3:ideal+3;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
       if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
@@ -8122,16 +8200,20 @@ export class FPSEngine {
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
       const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
 
-      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=1.9)) {
+      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        const pellets = eff.pellets ?? 1;
-        for (let i = 0; i < pellets; i++) {
-          const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
-          this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
+        if(w.id===ORBITAL_REAPER_ID){
+          this.offlineOrbitalBotSwing(c);
+        }else{
+          const pellets = eff.pellets ?? 1;
+          for (let i = 0; i < pellets; i++) {
+            const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
+            this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
+          }
         }
         if(w.id!==ORBITAL_REAPER_ID)this.spawnTracer(origin, dir, c.weaponSkinId);
         c.lastFireRecoil = now;
