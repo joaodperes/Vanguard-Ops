@@ -7,7 +7,7 @@ export interface QuickMeleeCandidate {
   protected?: boolean;
   friendly?: boolean;
 }
-export const QUICK_MELEE_REACH = 1.9; // hard safety cap; every weapon still uses its own shorter reach
+export const QUICK_MELEE_REACH = 3.5; // shared safety cap; ordinary weapons retain their shorter stat reach
 
 /** Half-angle to either side of the attacker's forward direction.
  * Fast stabbing weapons stay focused; heavy axe and hammer swings are broader.
@@ -40,7 +40,7 @@ export function quickMeleeProfile(stats: {damage:number;fireRate:number;range:nu
     damage:stats.damage,
     cooldownMs,
     swingMs:Math.max(160,Math.round(cooldownMs*.68)),
-    reach:Math.min(stats.range, QUICK_MELEE_REACH),
+    reach:Math.min(stats.range, weaponId==="orbital_reaper"?QUICK_MELEE_REACH:1.9),
     halfArcDegrees:meleeHalfArcDegrees(weaponId),
   };
 }
