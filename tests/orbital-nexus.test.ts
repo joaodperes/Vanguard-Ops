@@ -21,7 +21,7 @@ describe("Orbital Nexus CTF map",()=>{
     }
     expect(bp.features.filter(f=>f.kind==="platform")).toHaveLength(3);
     expect(bp.features.filter(f=>f.kind==="platform").every(f=>featureBoxes(f).some(c=>c.kind==="stair"))).toBe(true);
-    expect(map.environment?.filter(e=>e.type==="jump_pad")).toHaveLength(2);
+    expect(map.environment?.filter(e=>e.type==="jump_pad")).toHaveLength(10);
     expect(map.environment?.filter(e=>e.type==="destructible_wall")).toHaveLength(1);
   });
   test("both ground-level flags can be stolen and delivered at their own bases",()=>{
