@@ -259,7 +259,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
           )}
         </div>
-        {(mode === "tdm" || mode === "killconfirmed") ? (
+        {(mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
           <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1.5 px-2 py-0.5" : "gap-3 px-4 py-1.5"}`}>
             <span className={`text-red-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.red}</span>
             {hud.scoreLimit && hud.scoreLimit > 0 && <span className={`text-white/30 ${isTouch ? "text-[9px]" : "text-xs"}`}>/{hud.scoreLimit}</span>}
@@ -273,8 +273,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
-          {mode === "killconfirmed" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? hud.score : hud.kills}</span>
+          {mode === "killconfirmed" || mode === "ctf" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
+          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" || mode === "ctf" ? hud.score : hud.kills}</span>
           {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
             <>
               <span className="text-white/30">/</span>
@@ -292,6 +292,22 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           )}
         </div>
       </div>
+      )}
+
+      {mode === "ctf" && hud.ctfFlags && (
+        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none ${isTouch ? "top-12" : "top-[77px]"}`}>
+          <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-lg bg-black/65 border border-emerald-400/30 px-3 py-1.5 text-[10px] font-bold tracking-wide">
+            <span className="text-rose-300">RED {hud.ctfFlags.red.carrierId ? "TAKEN" : hud.ctfFlags.red.dropped ? "DROPPED" : "HOME"}</span>
+            <span className="text-white/35">·</span>
+            <span className="text-sky-300">BLUE {hud.ctfFlags.blue.carrierId ? "TAKEN" : hud.ctfFlags.blue.dropped ? "DROPPED" : "HOME"}</span>
+          </div>
+          <div className={`mt-1 text-[10px] font-semibold ${hud.ctfCarrying ? "text-amber-200" : "text-white/75"}`}>
+            {hud.ctfCarrying ? "YOU HAVE THE FLAG · +10% SPEED · RETURN TO YOUR TREE" : "Steal the enemy flag · Score at your tree base"}
+          </div>
+          {hud.ctfNotice && performance.now() - hud.ctfNotice.at < 2400 && (
+            <div className="mt-2 text-lg font-black text-amber-300 uppercase tracking-widest" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
+          )}
+        </div>
       )}
 
       {mode === "survival" && (
