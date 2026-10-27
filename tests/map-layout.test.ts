@@ -7,8 +7,8 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all six maps have dedicated tactical cover and playable outer spawns", () => {
-    expect(MAP_LIST).toHaveLength(6);
+  test("all seven maps have dedicated tactical cover and playable outer spawns", () => {
+    expect(MAP_LIST).toHaveLength(7);
     for (const map of MAP_LIST) {
       expect(TACTICAL_COVER[map.id].length).toBeGreaterThanOrEqual(16);
       expect(OUTER_SPAWNS[map.id].ffa.length).toBeGreaterThanOrEqual(6);
@@ -21,6 +21,10 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
+        if(map.id==="forest_warfare") {
+          for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
+          continue;
+        }
         if(map.id==="skybridge"){
           // Ridgefall's old outdoor spawn coordinates were deliberately removed.
           // The compiled factory must use only the new indoor JSON spawn set.
@@ -71,7 +75,7 @@ describe("authored map combat layouts", () => {
     const ids = new Set<string>();
     for (const map of MAP_LIST) {
       const doors = map.environment?.filter(e => e.type === "destructible_wall") ?? [];
-      if (map.id === "arena_neon" || map.id === "terminal") {
+      if (map.id === "arena_neon" || map.id === "terminal" || map.id === "forest_warfare") {
         expect(doors).toHaveLength(0);
         expect(map.environment?.length ?? 0).toBe(0);
         continue;
