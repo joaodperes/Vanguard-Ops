@@ -14,7 +14,7 @@ export const CTF_PICKUP_RADIUS = 2.4;
 export const CTF_CAPTURE_RADIUS = 4;
 export const CTF_TREE_X = 37;
 export const CTF_TREE_TOP = 6.25;
-export const CTF_BASE_Z = -8;
+export const CTF_BASE_Z = -18;
 
 export const ctfHome = (team: FlagTeam): Vec3 =>
   [team === "red" ? -CTF_TREE_X : CTF_TREE_X, CTF_TREE_TOP + 0.2, 0];
