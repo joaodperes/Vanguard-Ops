@@ -130,6 +130,8 @@ model Loadout {
   primaryWeapon   String   @default("rifle_ar")
   secondaryWeapon String   @default("pistol_side")
   meleeWeapon     String   @default("knife_tactical")
+  /// Account-persistent active passive perk, separate from named preset snapshots.
+  perkId          String   @default("battle_hardened")
   /// Skin for the PRIMARY weapon (per-weapon, like attachments).
   weaponSkin      String   @default("default")
   /// Skin for the SECONDARY (sidearm) weapon. Per-weapon so changing a skin on
