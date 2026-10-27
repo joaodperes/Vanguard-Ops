@@ -48,6 +48,7 @@ import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, surv
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER } from "./forest-warfare";
+import { advanceMatchElapsed } from "./match-clock";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotGoal, ctfBase, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -4317,7 +4318,10 @@ export class FPSEngine {
           for (const id of [...this.scavengerPickups.keys()]) this.removeScavengerPickup(id);
         }
         this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.timeLeft;
-        if (typeof msg.elapsedSeconds === "number") this.elapsedSeconds = msg.elapsedSeconds;
+        // Server snapshots remain authoritative for catch-up, but a delayed
+        // or older server must not repeatedly reset the running elapsed clock.
+        if (typeof msg.elapsedSeconds === "number" && Number.isFinite(msg.elapsedSeconds))
+          this.elapsedSeconds = Math.max(this.elapsedSeconds, msg.elapsedSeconds);
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
@@ -6631,7 +6635,10 @@ export class FPSEngine {
       }
       return;
     }
-    if (!this.matchEnded && !this.opts.online) this.elapsedSeconds += dt;
+    // Count game time locally in *every* mode, including online Survival,
+    // Gun Game and user-configured unlimited-time matches. Reconcile upward
+    // with authoritative snapshots instead of letting stale zeroes freeze it.
+    this.elapsedSeconds = advanceMatchElapsed(this.elapsedSeconds, dt, !this.matchEnded);
     if (!this.opts.firingRange && !this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
       // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
       // timeLeft = 0 means "no limit" — the match runs until the kill target
@@ -8146,7 +8153,7 @@ export class FPSEngine {
       denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
-      unlimitedTime: !this.hasTimeLimit,
+      unlimitedTime: !this.hasTimeLimit || (this.opts.mode === "ctf" && this.ctfOvertime),
       elapsedSeconds: Math.max(0,Math.floor(this.elapsedSeconds)),
       scoreboard,
       killFeed: this.killFeed,
