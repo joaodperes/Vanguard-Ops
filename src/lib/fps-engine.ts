@@ -8140,7 +8140,7 @@ export class FPSEngine {
       c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
         c.pos[1] + vy * dt,
         c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * dt;
+      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id) * dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;

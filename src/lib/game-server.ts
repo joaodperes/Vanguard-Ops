@@ -1716,7 +1716,7 @@ function tickRoom(room: Room) {
   if (room.preMatchCountdown <= 0) {
     if(room.map.id==="orbital_nexus"&&room.orbitalCharge>=ORBITAL_KILLS_REQUIRED){
       for(const p of room.players.values()){
-        if(!orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))continue;
+        if(room.orbitalHolders.has(p.id)||!orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))continue;
         room.orbitalHolders.add(p.id);
         room.orbitalCharge=0;
         io.to(room.id).emit("message",{t:"orbitalReactor",charge:0} as S2C);
