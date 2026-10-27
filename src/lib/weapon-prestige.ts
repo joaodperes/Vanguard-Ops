@@ -30,7 +30,7 @@ export function tokenEligiblePrestiges(
   progress: Readonly<Record<string,{kills:number;headshots:number}>>,
 ): string[] {
   return [...new Set(prestigedWeaponIds)].filter(id=>
-    weaponMasteryProgress(progress[id]?.kills??0,progress[id]?.headshots??0).rank===5);
+    weaponMasteryProgress(progress[id]?.kills??0,progress[id]?.headshots??0,id).rank===5);
 }
 export function prestigeTokens(awards: number, wonderUnlocks: number): number {
   return Math.max(0, awards - wonderUnlocks);
