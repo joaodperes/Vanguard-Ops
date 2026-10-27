@@ -25,6 +25,7 @@ import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfBase, ctfHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -41,7 +42,7 @@ import type {
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  roomCapacity, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
+  roomCapacity, mapAllowedForMode, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
@@ -118,6 +119,7 @@ interface Room {
   damageContributions: Map<string, Map<string, Contribution>>; // victimId -> allies recently damaging victim
   scores: Map<string, number>;         // playerId -> kills
   teamScores: { red: number; blue: number };
+  flags: CtfFlags;
   tags: Map<string, KillConfirmedTag>; // Kill Confirmed, one collectible per enemy death
   tagConfirmations: Map<string, number>; // individual enemy tag pickups
   tagDenials: Map<string, number>;       // individual friendly tag pickups
@@ -375,7 +377,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
 function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const id = genId("match");
   const config = DEFAULT_CONFIG(mode, botCount);
-  const map = makeEnvironmentMap(getMap(mapId));
+  const map = makeEnvironmentMap(getMap(mode === "ctf" ? "forest_warfare" : mapId === "forest_warfare" ? "compound" : mapId));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
   // Gun Game: the score limit IS the progression length — first player to
@@ -387,7 +389,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -524,7 +526,7 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
-  const map = makeEnvironmentMap(getMap(cfg.mapId));
+  const map = makeEnvironmentMap(getMap(mode === "ctf" ? "forest_warfare" : cfg.mapId));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 1 ? 1 : 2);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
@@ -545,7 +547,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -570,7 +572,7 @@ function createLobbyRoom(
   };
   rooms.set(id, room);
   // Add the host as the first player. Host picks red team in TDM by default.
-  const team = assignTeam(mode, room, (mode === "tdm" || mode === "killconfirmed") ? "red" : undefined);
+  const team = assignTeam(mode, room, (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? "red" : undefined);
   const sp = pickSpawn(team, room);
   // In gungame, the host's initial weaponId is a placeholder — startMatchInRoom
   // resolves the per-match weapon list and resets everyone's weaponId. For the
@@ -608,6 +610,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.elapsedSeconds = 0;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
+  room.flags = createCtfFlags();
   room.tags.clear();
   room.tagConfirmations.clear();
   room.tagDenials.clear();
@@ -719,6 +722,7 @@ function snapshot(room: Room): S2C {
       (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
+    ...(room.mode === "ctf" ? { ctfFlags: room.flags } : {}),
     // Scavenger boxes are private to the killer; they must never be broadcast in shared snapshots.
     ...(room.mode === "killconfirmed" ? {
       tags: [...room.tags.values()],
@@ -1315,6 +1319,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     victim.alive = false;
     victim.deaths += 1;
+    if (room.mode === "ctf") ctfDrop(room.flags, victim.id, [...victim.pos] as Vec3);
     // Server places exactly one death charge on a legitimate elimination.
     // The victim never chooses the position/timing; fuse survives respawn.
     if (!victim.isBot && room.loadouts.get(victim.id)?.perkId === "explonando" && !room.ended) {
@@ -1336,7 +1341,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     if (attacker) {
       attacker.kills += 1;
       // Kill Confirmed awards score only when the dropped tag is collected.
-      if (room.mode !== "killconfirmed") room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
+      if (room.mode !== "killconfirmed" && room.mode !== "ctf") room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
       if (room.mode === "tdm") {
         room.teamScores[attacker.team as "red" | "blue"] += 1;
       }
@@ -1454,6 +1459,21 @@ function tickKillConfirmedTags(room: Room, now: number) {
   }
 }
 
+// Flag contacts are resolved once by the server on its 20 Hz simulation tick.
+function tickCaptureTheFlag(room: Room): void {
+  for (const player of allCombatants(room)) {
+    if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
+    const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos });
+    if (!event) continue;
+    if (event.kind === "capture") {
+      room.teamScores[player.team as FlagTeam]++;
+      room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + 1);
+      checkWin(room);
+      if (room.ended) return;
+    }
+  }
+}
+
 function checkWin(room: Room) {
   if (room.ended) return;
   if (room.mode === "survival") return; // endless — game over handled on reinforcement depletion
@@ -1486,7 +1506,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;
-  if (room.mode === "tdm" || room.mode === "killconfirmed") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
+  if (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
   else if (room.mode === "survival") winnerTeam =
     room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
   else winnerTeam = standings[0] ? standings[0].team : null;
@@ -1719,6 +1739,10 @@ function tickRoom(room: Room) {
     tickKillConfirmedTags(room, now);
     if (room.ended) return;
   }
+  if (room.mode === "ctf" && room.preMatchCountdown <= 0) {
+    tickCaptureTheFlag(room);
+    if (room.ended) return;
+  }
   // broadcast ~ every tick (20Hz). Could throttle to 15Hz to save bandwidth but fine.
   io.to(room.id).emit("message", snapshot(room));
 }
@@ -1829,15 +1853,26 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const threatDistance = enemy
       ? Math.hypot(enemy.pos[0] - bot.pos[0], enemy.pos[2] - bot.pos[2]) : Infinity;
     const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
+    const ctfObjective = room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && threatDistance > 12
+      ? (() => {
+          const ownTeam = bot.team as FlagTeam;
+          if (room.flags[otherFlag(ownTeam)].carrierId === bot.id) return ctfBase(ownTeam);
+          if (room.flags[ownTeam].dropped) return room.flags[ownTeam].pos;
+          const enemyFlag = room.flags[otherFlag(ownTeam)];
+          return enemyFlag.carrierId ? ctfBase(otherFlag(ownTeam)) : enemyFlag.pos;
+        })()
+      : null;
     const prevTarget = ai.targetId;
-    ai.targetId = pursueTag ? null : (enemy ? enemy.id : null);
+    ai.targetId = pursueTag || ctfObjective ? null : (enemy ? enemy.id : null);
     if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
+    if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
     // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
     if (!ai.targetId) {
-      if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
+      if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
+      else if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
       else if (Math.hypot(ai.wanderTarget[0] - bot.pos[0], ai.wanderTarget[2] - bot.pos[2]) < 2.5)
         ai.wanderTarget = chooseBotPatrolPoint(bot.team, room.mode, bot.pos,
           room.map.spawns.red, room.map.spawns.blue, room.map.spawns.ffa);
@@ -2274,6 +2309,7 @@ io.on("connection", (socket) => {
     if (!roomId) return;
     const room = rooms.get(roomId);
     if (room) {
+      if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
       room.players.delete(socket.id);
       room.downed.delete(socket.id);
       room.sockets.delete(socket.id);
@@ -2374,6 +2410,7 @@ async function handle(socket: any, msg: C2S) {
       if (!roomId) return;
       const room = rooms.get(roomId);
       if (room) {
+        if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
         room.scores.delete(socket.id);
         socket.leave(roomId);
@@ -2948,6 +2985,10 @@ async function handle(socket: any, msg: C2S) {
     case "createRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const cfg = msg.config;
+      if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
+        socket.emit("message", { t: "roomError", message: "Forest Warfare is exclusive to Capture the Flag; CTF only supports Forest Warfare." } as S2C);
+        break;
+      }
       if (cfg.mode === "survival") {
         const tier=normalizeSurvivalTier(cfg.survivalTier);
         if (tier !== "default") {
@@ -3046,6 +3087,7 @@ async function handle(socket: any, msg: C2S) {
       if (!roomId) return;
       const room = rooms.get(roomId);
       if (room) {
+        if (room.mode === "ctf") ctfDrop(room.flags, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
         room.sockets.delete(socket.id);
         room.scores.delete(socket.id);
