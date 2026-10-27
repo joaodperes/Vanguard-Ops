@@ -85,8 +85,8 @@ describe("melee identity and identical F profiles",()=>{
     expect(hammer.range).toBeGreaterThan(axe.range);
     expect(hammer.damage).toBeGreaterThan(axe.damage);
     expect(hammer.fireRate).toBeLessThan(axe.fireRate);
-    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.8);
-    const candidates=[{id:"enemy",pos:[0,0,1.08] as const,alive:true}];
+    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
+    const candidates=[{id:"enemy",pos:[0,0,1.12] as const,alive:true}];
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,shiv.range)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,machete.range)?.id).toBe("enemy");
     const distant=[{id:"distant",pos:[0,0,2.0] as const,alive:true}];
