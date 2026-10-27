@@ -1,6 +1,6 @@
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
-import { prestigeEligible, prestigeTokens, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
@@ -207,7 +207,7 @@ export interface PlayerProfileView {
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
-  prestige: { tokens: number; masteredWeapons: string[]; wonderWeapons: string[] };
+  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[] };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
@@ -311,6 +311,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for (const row of wpRows) {
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots, conditionStats: parseWeaponConditionStats(row.conditionStats) };
   }
+  const tokenReadyWeapons = tokenEligiblePrestiges(masteredWeapons,weaponProgress);
   return {
     playerKey: p.playerKey,
     name: p.name,
@@ -337,7 +338,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     savedLoadouts: parseSavedLoadouts(p.loadout?.savedLoadouts),
     weaponProgress,
     operatorContracts,
-    prestige: { tokens: prestigeTokens(masteredWeapons.length, wonderWeapons.length), masteredWeapons, wonderWeapons },
+    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons },
   };
 }
 
