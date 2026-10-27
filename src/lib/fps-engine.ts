@@ -63,6 +63,7 @@ import {
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
+import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
@@ -1448,11 +1449,26 @@ export class FPSEngine {
     }
   }
 
+  /** Map explicit CTF actions to feedback for the listener's team. */
+  private announceCtfEvent(action: CtfAction, flag: FlagTeam, playerId: string): void {
+    if (this.opts.team !== "red" && this.opts.team !== "blue") return;
+    const feedback = ctfFeedback(action, flag, playerId, this.selfId, this.opts.team);
+    this.ctfNotice = { label: feedback.label, at: performance.now() };
+    if (feedback.sound) this.sound.play(feedback.sound, {
+      volume: action === "capture" ? .88 : .7,
+      throttleMs: 220,
+    });
+  }
+
+  private dropOfflineCtfCarrier(id: string, pos: Vec3): void {
+    const flag = ctfDrop(this.ctfFlags, id, pos);
+    if (flag) this.announceCtfEvent("drop", flag, id);
+  }
+
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
-    const expired = ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs);
-    if (expired.includes(this.opts.team as FlagTeam))
-      this.ctfNotice={label:"YOUR FLAG AUTO-RETURNED",at:performance.now()};
+    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs))
+      this.announceCtfEvent("auto_return", flag, "server");
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
       actors.push({id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z],self:true});
@@ -1462,12 +1478,7 @@ export class FPSEngine {
     for(const actor of actors){
       const event=ctfTouch(this.ctfFlags,actor);
       if(!event)continue;
-      if(event.kind==="pickup")this.sound.play("flag_taken",{volume:.65,throttleMs:300});
-      if(event.kind==="capture")this.sound.play("flag_scored",{volume:.85,throttleMs:300});
-      if(actor.self)this.ctfNotice={
-        label:event.kind==="capture"?"FLAG CAPTURED!":event.kind==="return"?"FLAG RETURNED":"ENEMY FLAG TAKEN!",
-        at:performance.now()
-      };
+      this.announceCtfEvent(event.kind, event.flag, actor.id);
       if(event.kind==="capture"){
         this.teamScores[actor.team]++;
         if(actor.self)this.ctfCaptures++;
@@ -2128,7 +2139,7 @@ export class FPSEngine {
         c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
         if (c.health <= 0) {
           c.alive = false; c.health = 0; c.deaths++;
-          if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, c.id, [...c.pos] as Vec3);
+          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(c.id, [...c.pos] as Vec3);
           c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
           const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
           this.killFeed.unshift(entry);
@@ -4374,14 +4385,10 @@ export class FPSEngine {
           }
         }
         if (this.opts.mode === "ctf" && msg.ctfFlags) {
-          const previous = this.ctfFlags;
+          // Snapshots update visuals only: discrete server events distinguish
+          // capture, drop and return without a timing-dependent guess.
           this.ctfFlags = msg.ctfFlags;
           this.ctfOvertime = !!msg.ctfOvertime;
-          const enemyTeam = this.opts.team === "red" ? "blue" : "red";
-          if (previous[enemyTeam].carrierId !== this.selfId && msg.ctfFlags[enemyTeam].carrierId === this.selfId)
-            this.ctfNotice = {label:"ENEMY FLAG TAKEN! +10% SPEED",at:performance.now()};
-          else if (previous[enemyTeam].carrierId === this.selfId && msg.ctfFlags[enemyTeam].carrierId !== this.selfId)
-            this.ctfNotice = {label:"FLAG DELIVERED OR LOST",at:performance.now()};
         }
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
@@ -4758,16 +4765,8 @@ export class FPSEngine {
         break;
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
-          if (msg.action === "pickup") this.sound.play("flag_taken", {volume:.65,throttleMs:250});
-          if (msg.action === "capture") this.sound.play("flag_scored", {volume:.85,throttleMs:250});
-          if (msg.playerId === this.selfId) {
-            if (msg.action === "capture") this.ctfCaptures++;
-            this.ctfNotice = {at:performance.now(),label:
-              msg.action === "capture" ? "FLAG SCORED! +75 XP / +30 CR" :
-              msg.action === "pickup" ? "ENEMY FLAG TAKEN! +10% SPEED" : "FLAG RETURNED!"};
-          } else if (msg.action === "capture") {
-            this.ctfNotice = {at:performance.now(),label:"FLAG SCORED!"};
-          }
+          if (msg.action === "capture" && msg.playerId === this.selfId) this.ctfCaptures++;
+          this.announceCtfEvent(msg.action, msg.flag, msg.playerId);
         }
         break;
       case "matchEnd":
@@ -5961,7 +5960,7 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, victim.id, [...victim.pos] as Vec3);
+      if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
@@ -8158,7 +8157,7 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, nearest.victim.id, [...nearest.victim.pos] as Vec3);
+          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
           if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
           if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") attacker.score = attacker.kills;
@@ -8189,7 +8188,7 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
-      if (this.opts.mode === "ctf") ctfDrop(this.ctfFlags, this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
+      if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
       this.recentKills = [];
       this.shotBloom = 0;
