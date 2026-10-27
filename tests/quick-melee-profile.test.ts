@@ -25,7 +25,9 @@ describe("equipped quick melee F",()=>{
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
-    const far=[{id:"far",pos:[0,0,1.25] as const,alive:true}];
+    const far=[{id:"far",pos:[0,0,1.9] as const,alive:true}];
+    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.5] as const,alive:true}],()=>true,weaponById("hammer").stats.range)?.id).toBe("hammer-only");
+    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.5] as const,alive:true}],()=>true,weaponById("axe").stats.range)).toBeNull();
     for(const id of ["knife_tactical","machete","shiv","baton","axe","hammer"]) {
       const reach=quickMeleeProfile(weaponById(id).stats).reach;
       expect(chooseQuickMeleeTarget(from,0,far,()=>true,reach)).toBeNull();
