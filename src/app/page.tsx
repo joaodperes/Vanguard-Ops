@@ -113,7 +113,7 @@ export default function Page() {
       if (rewards.newPrestiges?.length) {
         for (const id of rewards.newPrestiges) {
           toast.success("WEAPON PRESTIGE EARNED", {
-            description: `${weaponById(id).name} · Viridian Blight camo earned. Track the separate Wonder Weapon Unlock challenge in Armory → Customize → Challenges.`,
+            description: `${weaponById(id).name} · Viridian Blight camo earned`,
             duration: 6500,
           });
         }
