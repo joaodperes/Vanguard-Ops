@@ -738,6 +738,8 @@ export interface AchievementDef {
     // achieved across all matches. Drives the Triple Threat / Killstreak King /
     // Untouchable Force tiered achievements.
     | "best_killstreak"
+    | "ctf_captures"
+    | "ctf_wins"
     | "mastery_recruits"
     | "mastery_specialists"
     | "mastery_elites";
