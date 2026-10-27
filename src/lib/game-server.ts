@@ -1914,7 +1914,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
 
     ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
-    const moveSpeed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
+    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
     const ideal = 14;
     let mvx = 0, mvz = 0;
     if (dist > ideal + 3) {
@@ -2103,8 +2103,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       } else {
         bot.yaw = lerpAngle(bot.yaw, Math.atan2(dx, dz), 0.15);
       }
-      const mvx = fx * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier / 20;
-      const mvz = fz * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier / 20;
+      const mvx = fx * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier / 20;
+      const mvz = fz * ai.moveSpeed * (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * 5 * MOVEMENT.botPursuitMultiplier / 20;
       // Substepped collision-aware movement (same as the chase path).
       // Task 16-a: SUBSTEP=0.15 (was 0.2), with slide-along-wall + 45° diagonal.
       const moveLen = Math.hypot(mvx, mvz);
