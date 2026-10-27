@@ -64,3 +64,36 @@ describe("Orbital Nexus reactor",()=>{
   expect(WEAPONS.some(w=>w.id===ORBITAL_REAPER_ID)).toBe(false);
  });
 });
+
+import {orbitalBotShouldContest,orbitalBotDeckGoal} from "../src/lib/orbital-reactor";
+describe("Orbital Nexus bot reactor contest arbitration",()=>{
+ const bot=(id:string,team:string,x:number,z:number,options:{alive?:boolean;carryingFlag?:boolean;hasReward?:boolean}={})=>({
+  id,team,pos:[x,0,z] as [number,number,number],alive:options.alive??true,
+  carryingFlag:options.carryingFlag??false,hasReward:options.hasReward??false,
+ });
+ test("only closest eligible teammate pursues, alongside a rival-team contender",()=>{
+  const contenders=[
+    bot("red-far","red",-72,25),bot("red-runner","red",-23,-18),
+    bot("red-carrier","red",-4,0,{carryingFlag:true}),
+    bot("blue-runner","blue",21,18),bot("blue-dead","blue",1,0,{alive:false}),
+  ];
+  expect(orbitalBotShouldContest("orbital_nexus",5,contenders[1],contenders,25)).toBe(true);
+  expect(orbitalBotShouldContest("orbital_nexus",5,contenders[0],contenders,25)).toBe(false);
+  expect(orbitalBotShouldContest("orbital_nexus",5,contenders[3],contenders,25)).toBe(true);
+  expect(orbitalBotShouldContest("orbital_nexus",5,contenders[2],contenders,25)).toBe(false);
+  expect(orbitalBotShouldContest("orbital_nexus",5,contenders[1],contenders,9)).toBe(false);
+  expect(orbitalBotShouldContest("orbital_nexus",4,contenders[1],contenders,25)).toBe(false);
+  expect(orbitalBotShouldContest("forest_warfare",5,contenders[1],contenders,25)).toBe(false);
+ });
+ test("previous holder can never monopolize a new charge cycle",()=>{
+  const bots=[bot("claimed","red",-2,0,{hasReward:true}),bot("new-runner","red",-17,2)];
+  expect(orbitalBotShouldContest("orbital_nexus",5,bots[0],bots,Infinity)).toBe(false);
+  expect(orbitalBotShouldContest("orbital_nexus",5,bots[1],bots,Infinity)).toBe(true);
+ });
+ test("center approach guides both teams up real stairs, not under the deck",()=>{
+  expect(orbitalBotDeckGoal([-70,0,-27],"red")).toEqual([0,0,-13]);
+  expect(orbitalBotDeckGoal([60,0,30],"blue")).toEqual([0,0,13]);
+  expect(orbitalBotDeckGoal([0,0,-13],"red")).toEqual([0,3.2,0]);
+  expect(orbitalBotDeckGoal([.2,3.2,4],"blue")).toEqual([0,3.2,0]);
+ });
+});
