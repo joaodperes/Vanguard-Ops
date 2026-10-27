@@ -1024,7 +1024,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   orbital_nexus: {
     id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
     description:"CTF aboard an orbital station above a violet gas giant.",
-    size:100,wallHeight:17,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
+    size:100,wallHeight:32,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
     spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",
     theme:{floor:0x202a40,floorPattern:0x305578,wall:0x323d62,cover:0x64728f,
       coverAccent:0x4ce8fb,stair:0x8596b0,platform:0x465876,
@@ -1396,6 +1396,7 @@ export type S2C =
   | { t: "orbitalKillResult"; counted: boolean; charge: number }
   | { t: "orbitalAbsorb"; pos: Vec3 }
   | { t: "orbitalReward"; playerId: string; active: boolean }
+  | { t: "orbitalPulse"; playerId: string; pos: Vec3 }
   | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
