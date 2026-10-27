@@ -159,6 +159,7 @@ export interface HudState {
   deaths: number;
   score: number;
   teamScores: { red: number; blue: number };
+  playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   orbitalCharge?: number;
   orbitalReaper?: boolean;
@@ -8439,6 +8440,7 @@ export class FPSEngine {
       deaths: this.deaths,
       score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
+      playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
