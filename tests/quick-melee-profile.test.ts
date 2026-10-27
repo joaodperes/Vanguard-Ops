@@ -21,7 +21,7 @@ describe("equipped quick melee F",()=>{
     expect(hammer.damage).toBeGreaterThan(shiv.damage);
   });
   test("only visually adjacent enemies can be hit, with distinct melee reaches",()=>{
-    const targets=[{id:"target",pos:[0,0,.935] as const,alive:true}];
+    const targets=[{id:"target",pos:[0,0,.91] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
