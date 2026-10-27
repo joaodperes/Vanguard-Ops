@@ -50,6 +50,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -706,6 +707,10 @@ export class FPSEngine {
   private ctfCaptures = 0;
   private ctfResetDurationMs = 30000;
   private ctfOvertime = false;
+  private orbitalCharge=0;
+  private orbitalWeaponActive=false;
+  private orbitalCore:THREE.Mesh|undefined;
+  private orbitalRings:THREE.Mesh[]=[];
   private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
   private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
   private ctfRulesVerified = false;
@@ -1441,12 +1446,12 @@ export class FPSEngine {
       color:0x7859cd,emissive:0x9654e9,emissiveIntensity:1.2,metalness:.45,roughness:.24,
     });
     const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),coreMat);
-    core.position.set(0,11,0);this.scene.add(core);
+    core.position.set(0,11,0);this.scene.add(core);this.orbitalCore=core;
     for(const [radius,height,rotation,color] of [
       [6,11,.27,0x61e7ff],[8,11,1.13,0xd484ff],[5,13,.72,0x4ee9e5]
     ] as const){
       const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,.17,10,64),luminous(color,.9));
-      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);
+      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
     }
     const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.85,10,14),luminous(0x5ac5ff,.22));
     beam.position.y=8;this.scene.add(beam);
@@ -1460,6 +1465,72 @@ export class FPSEngine {
       vaultHalo.position.set(sign*76,4,0);vaultHalo.rotation.x=Math.PI/2;this.scene.add(vaultHalo);
       const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),luminous(color,.68));
       beacon.position.set(sign*76,6.6,0);this.scene.add(beacon);
+    }
+  }
+
+
+  private animateOrbitalReactor(now:number) {
+    if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    const progress=this.orbitalCharge/ORBITAL_KILLS_REQUIRED;
+    const ready=this.orbitalCharge>=ORBITAL_KILLS_REQUIRED;
+    const color=new THREE.Color(0x53dbff).lerp(new THREE.Color(0xa247ff),progress);
+    const material=this.orbitalCore.material as THREE.MeshStandardMaterial;
+    material.color.copy(color);material.emissive.copy(color);material.emissiveIntensity=.85+progress*.95;
+    this.orbitalCore.scale.setScalar(1+progress*.38+(ready?.1*Math.sin(now*.009):0));
+    this.orbitalRings.forEach((ring,i)=>{
+      if(ready){ring.rotation.x+=.027*(i+1);ring.rotation.y+=.021*(i%2?-1:1);}
+      const mat=ring.material as THREE.MeshBasicMaterial;
+      mat.opacity=ready?.4+.6*Math.abs(Math.sin(now*.014+i*1.7)):.55+progress*.25;
+      mat.color.copy(color);
+    });
+  }
+  /** Match-only melee override, never saved to the player's loadout. */
+  private grantOrbitalReaper(active:boolean){
+    if(this.orbitalWeaponActive===active)return;
+    this.orbitalWeaponActive=active;
+    this.meleeWeaponId=active?ORBITAL_REAPER_ID:(this.opts.loadout.meleeWeaponId??"knife_tactical");
+    this.meleeEff=computeEffectiveStats(weaponById(this.meleeWeaponId),
+      {sight:null,barrel:null,grip:null,magazine:null});
+    this.meleeSight=sightDefForType(this.meleeEff.sightType);
+    this.meleeAmmoInMag=this.meleeEff.magSize;
+    if(this.currentSlot==="melee"){
+      this.weaponId=this.meleeWeaponId;
+      this.eff=this.meleeEff;
+      this.sightDef=this.meleeSight;
+      this.ammoInMag=this.meleeAmmoInMag;
+      this.buildViewmodel();
+      if(this.opts.online && this.alive && active && this.socket?.connected)
+        this.socket.emit("message",{t:"weaponSwap",slot:"melee"});
+    }
+    if(this.quickMeleeModel){
+      this.camera.remove(this.quickMeleeModel);
+      this.quickMeleeModel.traverse(child=>{
+        if(child instanceof THREE.Mesh){
+          child.geometry.dispose();
+          if(Array.isArray(child.material))child.material.forEach(m=>m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this.quickMeleeModel=null;
+    }
+    this.createQuickMeleeModel();
+    if(active){
+      this.ctfNotice={label:"NEXUS REAPER CLAIMED — MELEE SLOT 3",at:performance.now()};
+      this.sound.play("flag_scored",{volume:.85});
+    }
+  }
+  private recordOrbitalKill(pos:Vec3){
+    if(this.opts.online||this.map.id!=="orbital_nexus")return;
+    const prev=this.orbitalCharge;
+    this.orbitalCharge=orbitalRecordKill(prev,pos,this.map.id);
+    if(prev<ORBITAL_KILLS_REQUIRED&&this.orbitalCharge>=ORBITAL_KILLS_REQUIRED)
+      this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
+  }
+  private tickOrbitalPickup(){
+    if(this.opts.online||this.orbitalWeaponActive||this.preMatchCountdown>0)return;
+    if(orbitalCanClaim(this.orbitalCharge,[this.pos.x,this.pos.y,this.pos.z],this.map.id,this.alive)){
+      this.orbitalCharge=0;
+      this.grantOrbitalReaper(true);
     }
   }
 
@@ -2283,7 +2354,7 @@ export class FPSEngine {
     const baseCol = new THREE.Color(skin.color);
     // Lighten the base colour toward a mid steel-grey so the weapon reads against any
     // background (the raw skin colour #2b2f36 is too dark to see in-game).
-    let lightCol = baseCol.clone().lerp(new THREE.Color(0xaab4c0), 0.7);
+    let lightCol = this.weaponId===ORBITAL_REAPER_ID?new THREE.Color(0xb578ff):baseCol.clone().lerp(new THREE.Color(0xaab4c0), 0.7);
     // ---- Per-weapon body tint (Issue 7 + Issue c round 2) ----
     // Each weapon gets a VIBRANT unique hue so the player can tell at a glance
     // which weapon they're holding, even within the same category. Previously the
@@ -3053,7 +3124,7 @@ export class FPSEngine {
     const group=new THREE.Group();
     const skin=weaponSkinById(this.opts.loadout.meleeWeaponSkinId??"default");
     const metal=new THREE.MeshStandardMaterial({
-      color:skin.id==="default"?0xb5c6d2:skin.color,
+      color:this.orbitalWeaponActive?0xb578ff:(skin.id==="default"?0xb5c6d2:skin.color),
       emissive:skin.emissive??0x000000,
       emissiveIntensity:skin.emissive?.25:0,metalness:.76,roughness:.32,
     });
@@ -4428,7 +4499,11 @@ export class FPSEngine {
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if (this.opts.mode === "ctf") {
           this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
-          if (msg.ctfBases) {
+          if(this.map.id==="orbital_nexus"){
+          if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
+          if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
+        }
+        if (msg.ctfBases) {
             this.ctfBases = msg.ctfBases;
             for (const team of ["red","blue"] as const) {
               const marker=this.ctfMarkers[team],base=msg.ctfBases[team];
@@ -4546,7 +4621,7 @@ export class FPSEngine {
             // event itself eliminates any race and guarantees per-weapon skin
             // challenges (Breacher, Longshot, etc.) progress on the weapon
             // actually used for the kill.
-            if (msg.weaponId !== "perk_explonando") this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
+            if (msg.weaponId !== "perk_explonando" && msg.weaponId!==ORBITAL_REAPER_ID) this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
             this.sound.play("kill", { volume: 0.6 });
@@ -4558,6 +4633,7 @@ export class FPSEngine {
           if (msg.victimId === this.selfId) {
             this.deaths += 1;
             this.alive = false;
+            this.grantOrbitalReaper(false);
             this.killChain = { count: 0, lastKillAt: -Infinity };
             this.recentKills = [];
             this.shotBloom = 0;
@@ -4815,6 +4891,12 @@ export class FPSEngine {
           this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
         }
         break;
+      case "orbitalReactor":
+        if(this.map.id==="orbital_nexus")this.orbitalCharge=msg.charge;
+        break;
+      case "orbitalReward":
+        if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
+        break;
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
           if (msg.action === "capture" && msg.playerId === this.selfId) this.ctfCaptures++;
@@ -4896,6 +4978,7 @@ export class FPSEngine {
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
         this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
+        this.orbitalCharge=0;this.grantOrbitalReaper(false);
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -6012,6 +6095,7 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
+      this.recordOrbitalKill(victim.pos);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
@@ -6025,7 +6109,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando" && sourceWeaponId!==ORBITAL_REAPER_ID) this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -6737,6 +6821,8 @@ export class FPSEngine {
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
     if (this.opts.mode === "ctf") this.updateCtfFlagsVisuals();
+    this.animateOrbitalReactor(performance.now());
+    this.tickOrbitalPickup();
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
     // 3D scene underneath but don't process input, run AI, or count down the timer.
@@ -7561,7 +7647,7 @@ export class FPSEngine {
       if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= MOVEMENT.gravity * dt;
+    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id) * dt;
 
     const next = this.pos.clone();
     next.x += this.vel.x * dt;
@@ -8209,6 +8295,7 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
+          this.recordOrbitalKill(nearest.victim.pos);
           if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
           if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
@@ -8240,6 +8327,8 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z]);
+      this.grantOrbitalReaper(false);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
       this.recentKills = [];
