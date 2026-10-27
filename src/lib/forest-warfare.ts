@@ -81,8 +81,8 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
       {pos:[x+side*13,.8,-8] as Vec3,size:[3,.8,1.2] as Vec3,kind:"cover" as const},
     ]),
     // Keep the delivery objective open; cover sits left/right of its approach.
-    {pos:[x-10,1.0,17] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
-    {pos:[x+10,1.0,17] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
+    {pos:[x+sign*15,1.0,-9] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
+    {pos:[x+sign*15,1.0,9] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const},
   ];
 });
 /** Waist-high parapets, interrupted where the stairs meet the flag deck. */
