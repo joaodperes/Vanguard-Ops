@@ -498,7 +498,7 @@ export class FPSEngine {
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
     if(this.highGroundCache?.source!==this.map.props)
       this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
-    return this.highGroundCache.goals;
+    return this.highGroundCache!.goals;
   }
   /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
   private coverIndex():CoverSpatialIndex|null{
