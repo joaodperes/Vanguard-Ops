@@ -99,12 +99,12 @@ try {
   await status(await claimCareer(req({playerKey:c.playerKey})),403);
   await status(await equipTitle(req({playerKey:c.playerKey,achievementId:"career_veteran"})),403);
   const earned=await applyMatchResult({playerKey:c.playerKey,kills:10,deaths:0,headshots:5,won:false,mode:"ffa",score:10,weaponId:"rifle_ar"});
-  const after=(await buildProfileView(c.playerKey))!.career;
-  assert(after.contracts.some(contract=>contract.progress>0));
-  assert(after.contracts.some(contract=>contract.id==="fresh_xp"&&contract.progress===earned.xpGained));
+  const progressAfterCareerMatch=(await buildProfileView(c.playerKey))!.career;
+  assert(progressAfterCareerMatch.contracts.some(contract=>contract.progress>0));
+  assert(progressAfterCareerMatch.contracts.some(contract=>contract.id==="fresh_xp"&&contract.progress===earned.xpGained));
   // Force completion for this isolated API fixture; only a valid server claim
   // converts 3 finished contract rows into one token.
-  for(const contract of after.contracts.slice(0,3)){
+  for(const contract of progressAfterCareerMatch.contracts.slice(0,3)){
     await db.careerContract.updateMany({
       where:{playerId:c.id,cycle:0,contractId:contract.id},
       data:{completed:true,progress:contract.goal},
