@@ -4,6 +4,7 @@
 // ============================================================================
 
 import type { WeaponSpecial } from "./weapon-mechanics";
+import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
 import attachmentCompatibilityData from "../data/catalogs/attachment-compatibility.json";
@@ -362,7 +363,7 @@ export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === 
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];
 
 export interface ResolvedLoadout {
-  perkId: string;
+  perkId: PerkId;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
@@ -426,7 +427,7 @@ export function resolveLoadout(input: {
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
   const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
-    perkId: input.perkId ?? "battle_hardened",
+    perkId: perkById(input.perkId).id,
     weapon,
     secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
