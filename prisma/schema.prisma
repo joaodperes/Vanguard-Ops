@@ -25,6 +25,10 @@ model Player {
   matchesWon      Int      @default(0)
   survivalBestWave Int     @default(0)
   selectedSkin    String   @default("default")
+  /// The equipped title achievement id (never arbitrary user text).
+  selectedTitle   String   @default("")
+  /// Non-Survival streak record; Survival kill streaks do not award PvP streak achievements.
+  pvpBestKillstreak Int    @default(0)
   // 17-C: Quest-completion lifetime counters (used by the 4 quest achievements).
   // Incremented in applyMatchResult when a challenge transitions to awarded=true.
   dailyChallengesCompleted   Int @default(0)
