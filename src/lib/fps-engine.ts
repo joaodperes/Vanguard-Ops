@@ -6647,7 +6647,7 @@ export class FPSEngine {
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.renderer.render(this.scene, this.camera);
-    this.updateCityRenderBudget(frameStart,performance.now()-frameStart);
+    this.updateCityRenderBudget(frameStart,dt*1000);
   };
 
   private update(dt: number) {
