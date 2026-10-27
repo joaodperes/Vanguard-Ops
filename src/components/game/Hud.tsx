@@ -319,12 +319,18 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               {hud.orbitalCharge !== undefined && (
                 <>
                   <span className="text-white/30">·</span>
-                  <span className={`text-[10px] font-bold uppercase ${hud.orbitalCharge >= 5 ? "text-amber-300" : "text-violet-300"}`}>
-                    Reactor {hud.orbitalCharge}/5
-                    {(hud.orbitalActivations ?? 0) > 0 ? ` · Activations ${hud.orbitalActivations}` : ""}
-                    {hud.orbitalReaper ? " · REAPER EQUIPPED" :
-                      hud.orbitalCharge >= 5 ? " · CHARGED — CLAIM AT CENTER" : ""}
-                  </span>
+                  {hud.orbitalWarning ? (
+                    <span className="text-[10px] font-black uppercase text-rose-300">
+                      Reactor: server update required
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-bold uppercase ${hud.orbitalCharge >= 5 ? "text-amber-300" : "text-violet-300"}`}>
+                      Reactor {hud.orbitalCharge}/5
+                      {(hud.orbitalActivations ?? 0) > 0 ? ` · Activations ${hud.orbitalActivations}` : ""}
+                      {hud.orbitalReaper ? " · REAPER EQUIPPED" :
+                        hud.orbitalCharge >= 5 ? " · CHARGED — CLAIM AT CENTER" : ""}
+                    </span>
+                  )}
                 </>
               )}
             </div>
