@@ -866,5 +866,67 @@
     "exclusiveWeaponIds": [
       "sniper_heavy"
     ]
+  },
+  {
+    "id": "barrel_launcher_blast",
+    "name": "Blast Chamber",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Launches heavier explosive ordnance with +10% damage, but range drops 15% and reload slows 12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "damage": 10,
+      "range": -15,
+      "reloadTime": 12
+    }
+  },
+  {
+    "id": "barrel_launcher_range",
+    "name": "Long-Range Launch Tube",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Extends launcher effective range by 18%, at the cost of 12% slower ADS and 6% slower movement.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "range": 18,
+      "adsTime": 12,
+      "moveSpeed": -6
+    }
+  },
+  {
+    "id": "grip_launcher_loader",
+    "name": "Quick Loader Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Reload time -16%, but ADS time +8% for heavy launcher reloading hardware.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "reloadTime": -16,
+      "adsTime": 8
+    }
+  },
+  {
+    "id": "grip_launcher_carry",
+    "name": "Lightweight Carry Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Movement speed +6%, but launcher reload time +12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "moveSpeed": 6,
+      "reloadTime": 12
+    }
   }
 ]

@@ -63,7 +63,12 @@ describe("secondary family catalog and permanent IDs", () => {
         const ids = compatibleAttachments(id, slot);
         expect(ids.length).toBeGreaterThanOrEqual(4);
         expect(attachmentChallenge(id, ids[0])).not.toBeNull();
-        if (w.category === "launcher") expect(ids).not.toContain("barrel_suppressor");
+        if (w.category === "launcher") {
+          expect(ids).not.toContain("barrel_suppressor");
+          if (slot === "barrel" || slot === "grip") {
+            expect(ids.some(id => id.startsWith(slot + "_launcher_"))).toBe(true);
+          }
+        }
       }
     }
   });

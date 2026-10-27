@@ -212,20 +212,20 @@
     "sight": [
       "sight_red_dot",
       "sight_holo",
-      "sight_laser",
-      "sight_compact_reflex"
+      "sight_compact_reflex",
+      "sight_acog"
     ],
     "barrel": [
       "barrel_lightweight",
-      "barrel_heavy",
-      "barrel_match",
-      "barrel_launcher_stabilizer"
+      "barrel_launcher_stabilizer",
+      "barrel_launcher_blast",
+      "barrel_launcher_range"
     ],
     "grip": [
-      "grip_laser",
-      "grip_precision",
+      "grip_angled",
       "grip_runner_ads",
-      "grip_angled"
+      "grip_launcher_loader",
+      "grip_launcher_carry"
     ],
     "magazine": [
       "mag_extended",
