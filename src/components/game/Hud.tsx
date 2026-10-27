@@ -317,7 +317,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <span className="text-white/30">·</span>
               <span className="text-[10px] font-semibold uppercase text-rose-300">Enemy flag <span className="text-white/85">{flagLine.enemy}</span></span>
               {hud.orbitalCharge !== undefined && (
-                <span className="text-[10px] font-semibold text-violet-300">· Core {hud.orbitalCharge}/5{hud.orbitalReaper ? " · REAPER ACTIVE" : ""}</span>
+                <>
+                  <span className="text-white/30">·</span>
+                  <span className={`text-[10px] font-bold uppercase ${hud.orbitalCharge >= 5 ? "text-amber-300" : "text-violet-300"}`}>
+                    Reactor {hud.orbitalCharge}/5
+                    {hud.orbitalReaper ? " · REAPER EQUIPPED" :
+                      hud.orbitalCharge >= 5 ? " · CHARGED — CLAIM AT CENTER" : ""}
+                  </span>
+                </>
               )}
             </div>
             {hud.ctfOvertime && <div className="text-[10px] text-amber-300 font-bold uppercase">Sudden death · Next capture wins</div>}
