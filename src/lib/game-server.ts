@@ -1,5 +1,5 @@
 import { resolveMatchLoadout } from "./match-loadout";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -1017,11 +1017,13 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       return !losBlocked(room,eye,dir,Math.max(.01,dist-.15));
     },attack.reach,attack.halfArcDegrees);
   const victim=target?(room.players.get(target.id)??room.bots.get(target.id)):null;
-  if(!victim)return;
-  const beingReloaded=(room.reloadingPlayers.get(victim.id)??0)>now ||
-    (room.bots.get(victim.id)?.ai.reloadingUntil??0)>now;
-  applyDamage(room,attacker.id,victim,attack.damage,false,weaponId);
-  if(weaponId==="baton"&&victim.alive&&beingReloaded){
+  const hitIds:string[]=[];
+  if(victim){
+    hitIds.push(victim.id);
+    const beingReloaded=(room.reloadingPlayers.get(victim.id)??0)>now ||
+      (room.bots.get(victim.id)?.ai.reloadingUntil??0)>now;
+    applyDamage(room,attacker.id,victim,attack.damage,false,weaponId);
+    if(weaponId==="baton"&&victim.alive&&beingReloaded){
     room.reloadingPlayers.delete(victim.id);
     const until=now+1100;
     room.equipmentStun.set(victim.id,until);
@@ -1030,6 +1032,28 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       bot.ai.reloadingUntil=until;
       bot.ai.nextShotAt=Math.max(bot.ai.nextShotAt,until);
     }else io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:1100} as S2C);
+    }
+  }
+  // The Reaper pulse is a separate 360-degree area strike on EVERY swing,
+  // including a swing that misses the primary frontal target.
+  if(weaponId===ORBITAL_REAPER_ID){
+    const eligible=allCombatants(room).filter(c=>c.id!==attacker.id);
+    const pulseIds=orbitalPulseTargets(attacker.pos,eligible.map(c=>({
+      id:c.id,pos:c.pos,alive:c.alive,
+      protected:(c.spawnProtectedUntil??0)>now,
+      friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.team===attacker.team,
+    })),pos=>{
+      const dist=Math.hypot(pos[0]-attacker.pos[0],pos[2]-attacker.pos[2]);
+      if(dist<.001)return false;
+      return losBlocked(room,[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]],
+        [(pos[0]-attacker.pos[0])/dist,0,(pos[2]-attacker.pos[2])/dist],Math.max(.01,dist-.15));
+    },hitIds);
+    for(const id of pulseIds){
+      const enemy=room.players.get(id)??room.bots.get(id);
+      if(enemy)applyDamage(room,attacker.id,enemy,ORBITAL_PULSE_DAMAGE,false,weaponId);
+    }
+    io.to(room.id).emit("message",{t:"orbitalPulse",playerId:attacker.id,
+      pos:[...attacker.pos] as Vec3} as S2C);
   }
 }
 
@@ -2067,9 +2091,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil);
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming;
-    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
+    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
     const ideal = stance.idealDistance;
-    const chaseThreshold=weapon.id===ORBITAL_REAPER_ID?1.45:ideal+3;
+    const chaseThreshold=weapon.id===ORBITAL_REAPER_ID?3:ideal+3;
     let mvx = 0, mvz = 0;
     if (dist > chaseThreshold) {
       mvx = Math.sin(bot.yaw) * moveSpeed / 20;
@@ -2158,7 +2182,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
 
     // shooting
-    if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=1.9)) {
+    if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
       const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
@@ -2314,7 +2338,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     bot.pos = [bot.pos[0] + (bot.ai.envLaunchX ?? 0) / 20,
       bot.pos[1] + dy / 20,
       bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
-    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map.id) / 20;
+    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map.id,bot.weaponId) / 20;
     const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;
