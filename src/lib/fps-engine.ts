@@ -505,7 +505,7 @@ export class FPSEngine {
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
     if(this.staticCoverIndex?.source!==this.map.cover)
       this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
-    return this.staticCoverIndex.index;
+    return this.staticCoverIndex!.index;
   }
   private coverNear(x:number,z:number,pad=3):CoverBox[]{
     return this.coverIndex()?.near(x,z,pad)??this.map.cover;
@@ -7600,7 +7600,7 @@ export class FPSEngine {
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
           ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,
-            this.map.regions,this.coverIndex(),this.coverIndex()?280:1000) ??
+            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
         }
@@ -7763,7 +7763,7 @@ export class FPSEngine {
             (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
             ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
-              this.map.environment,this.map.regions,this.coverIndex(),this.coverIndex()?280:1000);
+              this.map.environment,this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000);
             ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
           const waypoint=ai.routeWaypoint;
