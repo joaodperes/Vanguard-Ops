@@ -1844,8 +1844,9 @@ export class FPSEngine {
         glow.position.set(1.04,postH-.30,0);group.add(glow);
         // Long streets can have many posts; cap costly dynamic point lights
         // while keeping every lamp's glowing head visible.
-        if((Math.abs(Math.round(p.x*7+p.z*11))%3)===0){
-          const pl=new THREE.PointLight(0xffce90,.75,16);
+        if((this.map.biome!=="city"&&this.map.biome!=="city_day") ||
+          (Math.abs(Math.round(p.x*7+p.z*11))%11)===0){
+          const pl=new THREE.PointLight(0xffce90,.52,12);
           pl.position.set(.95,postH-.32,0);group.add(pl);
         }
       }else if(p.kind==="sign"){
@@ -7560,7 +7561,8 @@ export class FPSEngine {
         }else{
           if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
             c.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
-          if(!ai.highGroundPatrol && ai.wantsHighGround && Math.random()<.55){
+          if(!ai.highGroundPatrol && ai.wantsHighGround &&
+            (this.map.biome==="city"||this.map.biome==="city_day" ? Math.random()<.92 : Math.random()<.55)){
             const variation=c.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
             const goal=chooseCityHighGroundGoal(c.pos,this.highGroundGoals(),variation);
             if(goal){
