@@ -47,33 +47,39 @@ describe("Orbital Nexus CTF map",()=>{
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,orbitalRecordKill,orbitalCanClaim,orbitalGravity} from "../src/lib/orbital-reactor";
 import {WEAPONS,weaponById} from "../src/lib/game-data";
 describe("Orbital Nexus reactor",()=>{
- test("victim deaths within 55 units charge the reactor; base kills do not",()=>{
+ test("enemy kills charge if either combatant is inside the 55-unit radius",()=>{
   expect(ORBITAL_CHARGE_RADIUS).toBe(55);
-  // The center and extended north/south flank lanes now contribute.
-  const qualifying:[number,number,number][]=[
-    [0,0,0],[40,0,0],[0,0,44],[-50,0,-20],[2,3.2,5],
-  ];
+  // The victim can be outside the zone as long as the killer is on the deck.
+  expect(orbitalRecordKill(0,[-86,0,-24],"orbital_nexus",[0,3.2,0])).toBe(1);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[1,0,4])).toBe(1);
+  // Conversely, distant sniper fire still counts when its victim is inside.
+  expect(orbitalRecordKill(0,[4,0,0],"orbital_nexus",[85,0,23])).toBe(1);
+  expect(orbitalRecordKill(0,[0,0,44],"orbital_nexus",[-80,0,30])).toBe(1);
+  // Both fighters outside the radius: no progress.
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[-86,0,-24])).toBe(0);
+  expect(orbitalRecordKill(0,[-50,0,-30],"orbital_nexus",[86,0,24])).toBe(0);
+  // Boundaries are inclusive, ground and elevated combat both work.
+  expect(orbitalRecordKill(0,[55,0,0],"orbital_nexus",[86,0,24])).toBe(1);
+  expect(orbitalRecordKill(0,[55.01,0,0],"orbital_nexus",[86,0,24])).toBe(0);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[0,3.2,0])).toBe(1);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[0,30,0])).toBe(1);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[NaN,0,0])).toBe(0);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[])).toBe(0);
+  expect(orbitalRecordKill(0,[0,0,0],"forest_warfare",[0,0,0])).toBe(0);
+  expect(orbitalRecordKill(0,[Infinity,0,0],"orbital_nexus",[0,0,0])).toBe(0);
+  expect(orbitalRecordKill(0,[0,0],"orbital_nexus",[0,0,0])).toBe(0);
+ });
+ test("charge always caps at five and center-platform claim resets it separately",()=>{
   let n=0;
-  for(const victimPos of qualifying)n=orbitalRecordKill(n,victimPos,"orbital_nexus");
+  for(let i=0;i<24;i++)
+    n=orbitalRecordKill(n,[86,0,24],"orbital_nexus",[0,3.2,0]);
   expect(n).toBe(ORBITAL_KILLS_REQUIRED);
-  // Exactly on the zone boundary counts; just outside does not.
-  expect(orbitalRecordKill(0,[55,0,0],"orbital_nexus")).toBe(1);
-  expect(orbitalRecordKill(0,[55.01,0,0],"orbital_nexus")).toBe(0);
-  expect(orbitalRecordKill(0,[50,0,30],"orbital_nexus")).toBe(0);
-  // Flag bases, even on elevated ground, are outside the charging area.
-  expect(orbitalRecordKill(0,[-86,0,-24],"orbital_nexus")).toBe(0);
-  expect(orbitalRecordKill(0,[86,3.2,24],"orbital_nexus")).toBe(0);
-  expect(orbitalRecordKill(n,[0,0,0],"orbital_nexus")).toBe(ORBITAL_KILLS_REQUIRED);
-  expect(orbitalRecordKill(0,[0,0,0],"forest_warfare")).toBe(0);
-  expect(orbitalRecordKill(0,[Infinity,0,0],"orbital_nexus")).toBe(0);
-  expect(orbitalRecordKill(0,[0,0],"orbital_nexus")).toBe(0);
-  // Only victim location is passed to orbitalRecordKill — killer can be far away.
-  expect(orbitalRecordKill(0,[3,0,0],"orbital_nexus")).toBe(1);
-  // A fully charged reactor can still only be claimed on the raised deck.
+  // The center platform checks the pickup, not charging eligibility.
   expect(orbitalCanClaim(n,[0,0,0],"orbital_nexus",true)).toBe(false);
   expect(orbitalCanClaim(n,[-86,3.2,0],"orbital_nexus",true)).toBe(false);
   expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",false)).toBe(false);
   expect(orbitalCanClaim(n,[0,3.2,0],"orbital_nexus",true)).toBe(true);
+  expect(orbitalRecordKill(0,[86,0,24],"orbital_nexus",[0,3.2,0])).toBe(1);
  });
  test("new pads, gravity and transient weapon do not alter other maps or permanent catalog",()=>{
   expect(MAP_BLUEPRINTS.maps.orbital_nexus.hazards?.filter(h=>h.type==="jump_pad")).toHaveLength(10);
