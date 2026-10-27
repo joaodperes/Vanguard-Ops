@@ -1548,13 +1548,21 @@ export class FPSEngine {
       this.sound.play("flag_scored",{volume:.85});
     }
   }
-  private recordOrbitalKill(pos:Vec3){
+  /** Local kill scoring mirrors the multiplayer server's killer-or-victim
+   * zone rule. Always pass the actual attacker position for credited kills.
+   */
+  private recordOrbitalKill(victimPos:Vec3,killerPos?:Vec3){
     if(this.opts.online||this.map.id!=="orbital_nexus")return;
     const prev=this.orbitalCharge;
-    this.orbitalCharge=orbitalRecordKill(prev,pos,this.map.id);
-    if(this.orbitalCharge!==prev)this.spawnOrbitalMote(pos);
-    if(prev<ORBITAL_KILLS_REQUIRED&&this.orbitalCharge>=ORBITAL_KILLS_REQUIRED)
-      this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
+    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
+    if(this.orbitalCharge===prev)return;
+    this.spawnOrbitalMote(victimPos);
+    this.ctfNotice={
+      label:this.orbitalCharge===ORBITAL_KILLS_REQUIRED
+        ?"REACTOR CHARGED — REACH THE CENTER!"
+        :`REACTOR CHARGE +1 — ${this.orbitalCharge}/${ORBITAL_KILLS_REQUIRED}`,
+      at:performance.now(),
+    };
   }
   private refreshOfflineOrbitalBotModel(bot:Combatant){
     if(!bot.group||this.opts.online)return;
@@ -4977,12 +4985,23 @@ export class FPSEngine {
         if(this.map.id==="orbital_nexus"){
           const old=this.orbitalCharge;
           this.orbitalCharge=msg.charge;
-          if(old<ORBITAL_KILLS_REQUIRED&&msg.charge===ORBITAL_KILLS_REQUIRED)
-            this.ctfNotice={label:"REACTOR CHARGED — REACH THE CENTER!",at:performance.now()};
+          if(msg.charge>old){
+            this.ctfNotice={
+              label:msg.charge>=ORBITAL_KILLS_REQUIRED
+                ?"REACTOR CHARGED — REACH THE CENTER!"
+                :`REACTOR CHARGE +1 — ${msg.charge}/${ORBITAL_KILLS_REQUIRED}`,
+              at:performance.now(),
+            };
+          }
         }
         break;
       case "orbitalReward":
         if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
+        else if(msg.active){
+          const holder=this.combatants.get(msg.playerId);
+          this.ctfNotice={label:`${holder?.name??"OPPONENT"} CLAIMED NEXUS REAPER!`,
+            at:performance.now()};
+        }
         break;
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
@@ -6182,7 +6201,8 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      if (victim.team!==this.opts.team)this.recordOrbitalKill(victim.pos);
+      if (victim.team!==this.opts.team)
+        this.recordOrbitalKill(victim.pos,[this.pos.x,this.pos.y,this.pos.z]);
       this.releaseOrbitalBotWeapon(victim);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
@@ -8383,7 +8403,8 @@ export class FPSEngine {
           const won = this.advanceCombatantGungameTier(attacker);
           if (won) { this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1); this.finalizeMatchLocal(); return; }
         }
-        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1, attacker.weaponId);
+        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1,
+          attacker.weaponId,attacker.pos);
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
@@ -8394,7 +8415,8 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          this.recordOrbitalKill(nearest.victim.pos);
+          if(attacker.team!==nearest.victim.team)
+            this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
           this.releaseOrbitalBotWeapon(nearest.victim);
           if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
           if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
@@ -8418,7 +8440,10 @@ export class FPSEngine {
     }
   }
 
-  private takeDamage(dmg: number, attackerName: string, attackerTeam: string, head: boolean, weaponId = "rifle_ar") {
+  private takeDamage(
+    dmg:number,attackerName:string,attackerTeam:string,head:boolean,
+    weaponId="rifle_ar",attackerPos?:Vec3,
+  ) {
     if (!this.alive || this.selfSpawnProtectedUntil > Date.now()) return;
     this.health -= dmg;
     this.damageFlashAt = performance.now();
@@ -8430,7 +8455,7 @@ export class FPSEngine {
       // Falling, environmental hazards and friendly damage must not charge
       // the reactor; only a legitimate opposing-team kill contributes.
       if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)
-        this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z]);
+        this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z],attackerPos);
       this.grantOrbitalReaper(false);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
