@@ -14,7 +14,8 @@
       "tier",
       "color",
       "metalness",
-      "roughness"
+      "roughness",
+      "artBrief"
     ],
     "properties": {
       "id": {
@@ -26,7 +27,8 @@
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1
+        "minimum": 1,
+        "maximum": 36
       },
       "unlockCost": {
         "type": "integer",
@@ -37,7 +39,8 @@
           "common",
           "rare",
           "epic",
-          "legendary"
+          "legendary",
+          "prestige"
         ]
       },
       "tier": {
@@ -74,6 +77,10 @@
           "cosmic",
           "toxic"
         ]
+      },
+      "artBrief": {
+        "type": "string",
+        "minLength": 12
       }
     },
     "additionalProperties": false

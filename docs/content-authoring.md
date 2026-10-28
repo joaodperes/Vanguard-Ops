@@ -17,10 +17,10 @@ Static data used by both the browser and multiplayer server is now read through 
 | Authored per-weapon challenge | `weapon-challenges.json` | `WEAPON_CHALLENGES` |
 | Daily/weekly goals | `daily-challenges.json`, `weekly-challenges.json` | `DAILY_CHALLENGE_POOL`, `WEEKLY_CHALLENGE_POOL` |
 | Lifetime achievements | `achievements.json` | `ACHIEVEMENTS` |
-| Map geometry and visual themes | `src/data/maps/<map_id>.json` | `MAP_DOCUMENTS` (with compatibility `MAP_BLUEPRINTS` and `MAP_VISUAL_THEMES`) |
+| Map regions and objects | `src/data/maps/<mapId>.json` | `MAP_BLUEPRINTS` |
 | Other declarative content | `ranks.json`, `rewards.json`, `elite-quests.json`, `achievement-colors.json`, `match-modes.json`, `killstreak-callouts.json` | Existing exports |
 
-**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Six underlying template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors a unified v2 document with blueprint and theme, not arbitrary TypeScript templates. See `docs/map-studio.md`.
+**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Built-in template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
 ## Choose the correct edit shape
 
@@ -31,8 +31,8 @@ Not every JSON catalog is an array of objects. Check the existing top-level shap
 | Arrays of entries | `weapons.json`, `attachments.json`, `weapon-skins.json`, `operator-skins.json`, `weapon-challenges.json`, `daily-challenges.json`, `weekly-challenges.json`, `elite-quests.json`, `achievements.json`, `ranks.json`, `killstreak-callouts.json` | Append an entry without deleting or reordering shipped entries; keep thresholds/levels in ascending order where applicable. Ranks and callouts have no `id` field. |
 | Objects keyed by identity | `sight-definitions.json`, `attachment-compatibility.json`, `category-attachments.json`, `match-modes.json`, `achievement-colors.json` | Add or deliberately replace one *key* while preserving siblings; only add keys supported by the runtime. |
 | Numeric settings object | `rewards.json` | Change an existing named scalar only after balance review; this changes rewards globally, not an individual object. |
-| Unified map document | `src/data/maps/<map_id>.json` | Write a full version-2 map document with matching `id`, `blueprint`, and `theme`. Register new IDs in `src/lib/map-documents.ts`. |
-| Map visual theme | `src/data/maps/<map_id>.json` → `theme` | Author complete palettes, props and surfaces within the same file as gameplay geometry. |
+| Versioned map dictionary | `src/data/maps/<mapId>.json` | Add an entry under `maps.<map_id>` without replacing `version`, `units` or other maps. |
+| Independent theme file | `src/data/map-themes/<map_id>.json` | Author a whole theme file, then register its static import in `src/lib/map-visuals.ts`. |
 
 Before merging a fragment, compare the existing entry and check every outgoing reference, ownership/unlock path, client/server consumer and relevant test. A schema accepting a field does **not** imply the engine interprets it.
 
@@ -116,7 +116,7 @@ Append to `weapon-skins.json`:
 }
 ```
 
-`rarity` is `common` / `rare` / `epic` / `legendary`; `tier` is `standard` / `rare` / `legendary`; colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Existing prestige-only skins use special `prestige` values (`cosmic` or `toxic`) with coded rendering rules; **do not assign novel prestige values without implementing them**.
+`rarity` is `common` / `rare` / `epic` / `legendary` / `prestige` (the last is reserved for Prestige-only finishes); `tier` remains `standard` / `rare` / `legendary` and controls unlock classification independently. The required `artBrief` is a concise, player-facing description shown in the Armory. Colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Prestige finishes use coded `prestige` variants (`cosmic` or `toxic`); **do not assign novel prestige values without implementing them**. See [Weapon skin art briefs](weapon-skin-art-briefs.md) for current finishes and the Gold plating contract.
 
 A cosmetic entry does not automatically create an authored unlock challenge: existing skin IDs have explicit/fallback support in `src/lib/armory-challenges.ts`, and new skin IDs require corresponding eligibility logic **for every weapon intended to use them**. An authored challenge for one gun does not establish an unlock path for all other guns. Edit that logic and add appropriate tests before publishing a new paid skin. Verify appearance in the weapon viewmodel/world model, in loadouts and under purchased ownership checks.
 
@@ -138,7 +138,7 @@ Existing operator contracts are authored/evaluated in `src/lib/armory-challenges
 
 ## Add a map
 
-Use `/map-editor` and export a single `<mapId>.json`; replace `src/data/maps/<mapId>.json` in the repo. Each unique ID maps to a version-2 document containing both `blueprint` and `theme`. The following is an example of the nested `blueprint` portion:
+Use `/map-editor` and export the JSON; replace `src/data/maps/<mapId>.json` in the repo. Each unique ID maps to a blueprint:
 
 ```json
 {
@@ -162,11 +162,11 @@ Use `/map-editor` and export a single `<mapId>.json`; replace `src/data/maps/<ma
 }
 ```
 
-Put this object under `blueprint` in a version-2 `src/data/maps/frost_yard.json`, alongside `version: 2`, `id: "frost_yard"` and a valid `theme` object. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
+Put this object under `maps.frost_yard` (not a top-level array) in the existing version-1 blueprint file. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
 
 ## Map color palettes, biomes and prop authoring
 
-Every shipped map has one JSON file in `src/data/maps/`. Edit its `theme.palette`, `theme.props` and `theme.surfaces` alongside its physical `blueprint`. For a new map ID, add its static import to `src/lib/map-documents.ts`; the runtime adapters expose the theme to the existing renderer. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
+Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
 
 ## Fixed runtime registries and other catalog types
 
@@ -176,7 +176,7 @@ Some valid JSON entries are **not** deployable without TypeScript and gameplay w
 | --- | --- |
 | New optic type in `sight-definitions.json` | `SightType` and reticle/overlay unions in `src/lib/game-data.ts`, existing rendering support, a compatible sight attachment with `sightType`, attachment allowlists and offline/online ADS behavior. Reusing a known `reticle` is safer than inventing one. |
 | New mode key in `match-modes.json` | `GameMode` in `src/lib/game-protocol.ts`, lobby and game rules, client/server protocol and match rewards. Adjusting descriptions or existing mode settings is a separate balance/UI review. |
-| New map ID | Register the v2 JSON in `src/lib/map-documents.ts`; the map is then included through the compatibility blueprint registry in `MAPS`/`MAP_LIST`. `MapId` in `src/lib/game-protocol.ts` is still a fixed union; review typed consumers and protocol/server selection. |
+| New map ID | The blueprint is dynamically included in `MAPS`/`MAP_LIST`, but `MapId` in `src/lib/game-protocol.ts` remains a fixed TypeScript union. Review typed consumers and protocol use for the new ID; add a static theme import if giving it a custom appearance. |
 | New achievement or rotating-goal metric | Check the exact metric's tracking and evaluator for **that** pool. A string passing `content:validate` may never advance if the progress pipeline does not support it. |
 | New weapon skin ID | `skinChallengesForWeaponAndSkin()`, fallback rules and per-weapon ownership in `src/lib/armory-challenges.ts`. |
 | New operator skin ID | `OPERATOR_CONTRACTS` and `operatorContract()` in `src/lib/armory-challenges.ts`. |
@@ -261,8 +261,6 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 - Default Wonder bodies use animated cosmic/toxic patterns with extra energy emitters; physical iron sight notches appear at crosshair height in ADS for unsighted conventional guns.
 - Triggering an empty conventional magazine, including semi-auto/burst guns, initiates reload.
 
-- Stormweaver: one energy charge fires seven spread pellets, each colliding with cover and limb-inclusive hitboxes independently. An enemy hit causes immediate pellet damage plus up to two 9m chain jumps. A pellet that hits no enemy becomes a glowing proximity mine on the ground (450ms arm delay, 2.65m trigger, 8s lifetime), delivering a burst and two more jumps when an eligible enemy approaches. Mines do not require a second shot or linked anchors, cannot trigger through walls, are capped at 12 per owner, and include late-join multiplayer snapshots. Damage is server-authoritative; offline and multiplayer share `src/lib/stormweaver.ts` geometry and targeting. Up to three direct pellets and two chain hits per victim per shot count toward damage to avoid unbounded stacks.
-
 ## Combat / camera calibration pass
 - Knife and Shiv reach 0.72m centre-to-centre, all melee swings require a narrow forward hit corridor and clear line of sight; sideways targets must never be caught by an off-axis swing. Axe uses a single-bit flared wedge and restrained across-body chop referenced to USDA Forest Service axe swing guidance.
 - RL-7 radius 1.9m with 176 damage and a high direct impact factor. Breach-2 radius 2.9m with 74 base damage and its own sub-lethal direct-impact multiplier. Swarm-3 retains 9.5m fragmentation, with slightly slower projectile travel.
@@ -270,3 +268,69 @@ The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`
 - The firing-range dropdowns group by type, order conventional weapons by level and alphabetize Wonders. Disabled Bogfather is excluded even from trial links. Practice overlays expose Resume and Leave and no longer show the purchases/profile notice.
 - Reclaimer base bolt damage/range reduced. Quiver is 10 lighter automatic bolts with no retrieval, Extended Mag remains the normal extension, Heavy Arrows allows 2 damaging bolts whose ammo can only be restored by picking up fired bolts. Arrow prop and hand insert move along the upper flight rail.
 - Stormweaver uses one visibly thicker electric arc per chain and its mines expire after 4 seconds. Deadlock smart volleys hit up to 3 acquired/visible targets per consumed charge. Default bodies of Plagueheart, Deadlock, Bullet Spitter and Event Horizon no longer force animated cosmetic finishes.
+
+## Economy and Career progression
+
+See [Economy and Career progression](economy-and-career-progression.md) for the
+current reward table, 40% faster XP curve, level-36 equipment cap and repeatable
+Career ranks. `rewards.json` owns difficulty-specific kill and objective payouts
+as well as base rewards; the runtime and archived Guide read those same numeric keys.
+Do not add a numeric reward setting without a consuming rule.
+
+Use XP-derived levels for every entitlement check; `Player.level` is a repaired
+cache, not an authority. Career rank and fresh-XP progress are distinct persisted
+fields and confer cosmetic titles. Do not spend lifetime XP or use historic
+overflow to satisfy fresh Career goals. New late equipment needs its own
+appropriate mastery/content objective; increasing a level gate or credit price
+alone does not solve veteran stockpiling. Preserve all historical ownership.
+
+## Achievement chains and nameplate titles
+
+`achievements.json` keeps every shipped achievement ID, metric, goal and XP/credit
+reward. Each entry now has a stable `series` ID and positive integer `seriesTier`.
+Tiers are unique within a series; catalog order and bronze/silver/gold/platinum
+colors do not decide which tier is last. All five mastery achievements form one
+`weapon_mastery` chain, ending at `mastery_5x8` (Arsenal Legend).
+
+Only the highest `seriesTier` may declare `rewardTitle`. The validator rejects
+duplicate tiers and intermediate title rewards; the title resolver also enforces
+the final-tier rule. New chains should declare one title at their endpoint. The
+current endpoints award titles for kills, headshots, wins, matches, leveling,
+streaks, quest counters, Survival difficulties, CTF and weapon mastery. Quest
+completion counters remain valid across all modes and are displayed separately
+from PvP combat achievements. Career promotion titles remain their separate,
+rank-based system.
+
+Titles use the existing server-owned achievement awards: no new purchase, counter
+or payout is introduced. Existing final-tier awards immediately expose the new
+title. Previously selected intermediate titles are cleared on profile refresh,
+while their achievement records and past rewards remain intact. Equipping checks
+actual ownership; a title name or unlocked lower tier is insufficient.
+
+## New-player tutorial and archived Guide
+
+The Guide component remains at `src/components/screens/FAQ.tsx` for reference,
+but has no navigation button, screen union entry or import in the game router.
+`Tutorial.tsx` replaces it with onboarding: welcome, live range drills, an
+interactive view of current equipment, mode briefings, and a final checklist.
+The main-menu Deploy area is removed; Play remains in the header. Account login
+and logout, plus tutorial replay/resume, are in Profile.
+
+New profiles with zero XP and zero matches enter training once. Existing players
+can opt in from Profile. Versioned checkpoints are stored per player key in this
+browser/device. Completing or skipping suppresses automatic prompts; leaving a
+drill saves its checkpoint, which resumes on the next visit or from Profile.
+Replaying completed/skipped training starts at the welcome step. An already
+offered tutorial does not reopen on every menu visit in the same session.
+
+The five range tasks observe actual simulation snapshots for distance walked,
+ADS, a fresh elimination, a completed reload, and a weapon change. Reloads
+cancelled by swapping do not complete the task. Keyboard/mouse and touch use
+the same observations with device-specific instructions. The ordinary starter
+kit runs through the existing `firingRange` path: no networking, purchases,
+loadout edits, match submissions, XP, credits, or achievement progression. A player
+can skip drills or the full tutorial; WebGL startup failures retain an exit.
+
+## Connected construction and asset recipes
+
+Map Studio publishes version-2 `src/data/maps/<mapId>.json` documents containing `id`, `blueprint`, and `theme`. `src/lib/map-documents.ts` registers all seven authored maps, including Orbital Nexus. The old split blueprints/themes are migration snapshots. Keep native TypeScript base environments and reactor rules when editing authored data. See `docs/map-studio.md` for stair attachments, assemblies, exact faces, geometry warnings, and editable asset recipes. Existing numeric coordinates are preserved during migration.

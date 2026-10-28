@@ -35,13 +35,13 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "weak impact splashes targets with lingering, lethal corrosion damage over time. Three regenerating charges; ordinary kills accelerate recharge.",
+    "description": "Corrosive bolt poisons enemies close to its impact (2.75m splash), then damages them over time. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
       "rechargeMs": 38000,
-      "killBonusMs": 3000,
-      "radius": 9
+      "killBonusMs": 8500,
+      "radius": 2.75
     },
     "attachments": [],
     "stats": {
@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "deploy an automated turret with a 140° horizontal field of fire and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but an explosive or melee strike still destroys it immediately.",
+    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -313,7 +313,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.3,
+      "range": 1.38,
       "adsTime": 0,
       "moveSpeed": 1.13,
       "auto": false,
@@ -336,7 +336,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.5,
+      "range": 1.69,
       "adsTime": 0,
       "moveSpeed": 0.96,
       "auto": false,
@@ -494,7 +494,7 @@
       "reloadTime": 4,
       "spread": 0.018,
       "adsSpread": 0.005,
-      "recoil": 1,
+      "recoil": 1.15,
       "range": 54,
       "adsTime": 0.4,
       "moveSpeed": 0.75,
@@ -648,7 +648,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 0.72,
+      "range": 1.19,
       "adsTime": 0,
       "moveSpeed": 1.1,
       "auto": false,
@@ -671,7 +671,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 0.72,
+      "range": 1.08,
       "adsTime": 0,
       "moveSpeed": 1.2,
       "auto": false,
@@ -694,7 +694,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.38,
+      "range": 1.49,
       "adsTime": 0,
       "moveSpeed": 1.15,
       "auto": false,
@@ -717,7 +717,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.74,
+      "range": 1.9,
       "adsTime": 0,
       "moveSpeed": 0.92,
       "auto": false,
@@ -995,7 +995,7 @@
       "reloadTime": 3.2,
       "spread": 0.015,
       "adsSpread": 0.004,
-      "recoil": 0.85,
+      "recoil": 1,
       "range": 48,
       "adsTime": 0.35,
       "moveSpeed": 0.82,
@@ -1033,7 +1033,8 @@
     "attachments": [
       "sight",
       "barrel",
-      "grip"
+      "grip",
+      "magazine"
     ],
     "baseSightType": "sniper_scope"
   },
@@ -1051,7 +1052,7 @@
       "reloadTime": 5,
       "spread": 0.02,
       "adsSpread": 0.006,
-      "recoil": 1.2,
+      "recoil": 1.38,
       "range": 57,
       "adsTime": 0.5,
       "moveSpeed": 0.68,
@@ -1097,10 +1098,10 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Continuous close-range flame spray, five fuel-seconds per full tank. Ignition only when completely recharged; no bullets or burning ground.",
+    "description": "Hold fire to sweep flames across a broad 140° forward arc, denying nearby approaches. Eight seconds of fuel; releasing the trigger preserves remaining charges. No burning ground.",
     "wonder": {
       "kind": "flame",
-      "maxCharges": 5,
+      "maxCharges": 8,
       "rechargeMs": 6500,
       "killBonusMs": 1700,
       "radius": 0
@@ -1109,7 +1110,7 @@
     "stats": {
       "damage": 6,
       "fireRate": 8,
-      "magSize": 5,
+      "magSize": 8,
       "reloadTime": 0,
       "spread": 0.05,
       "adsSpread": 0.012,
@@ -1124,10 +1125,10 @@
   {
     "id": "wonder_stormweaver",
     "name": "Stormweaver",
-    "category": "assault",
+    "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Fires seven electrical pellets in a wide fan. Pellets that hit enemies chain lightning to two more nearby targets; missed pellets settle as glowing energy mines that arm after a moment and zap approaching enemies, then chain to two others. Mines last 4 seconds.",
+    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 4 seconds.",
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
@@ -1137,7 +1138,7 @@
     },
     "attachments": [],
     "stats": {
-      "damage": 16,
+      "damage": 22,
       "fireRate": 1.3,
       "magSize": 2,
       "reloadTime": 0,
@@ -1329,7 +1330,12 @@
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.32
     },
-    "attachments": []
+    "attachments": [
+      "sight",
+      "barrel",
+      "grip",
+      "magazine"
+    ]
   },
   {
     "id": "launcher_swarm",
@@ -1357,6 +1363,11 @@
       "falloffEndMultiplier": 1.52,
       "minDamageMultiplier": 0.3
     },
-    "attachments": []
+    "attachments": [
+      "sight",
+      "barrel",
+      "grip",
+      "magazine"
+    ]
   }
 ]

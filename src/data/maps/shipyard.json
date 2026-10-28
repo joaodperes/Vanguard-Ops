@@ -2,7 +2,7 @@
   "version": 2,
   "id": "shipyard",
   "blueprint": {
-    "name": "BREAKWATER",
+    "name": "Breakwater",
     "shortName": "BRK",
     "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
     "pace": "compact",

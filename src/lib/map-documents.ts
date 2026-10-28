@@ -5,6 +5,7 @@ import shipyard from "../data/maps/shipyard.json";
 import compound from "../data/maps/compound.json";
 import terminal from "../data/maps/terminal.json";
 import skybridge from "../data/maps/skybridge.json";
+import orbital_nexus from "../data/maps/orbital_nexus.json";
 import arena_neon from "../data/maps/arena_neon.json";
 import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
@@ -16,6 +17,7 @@ export interface MapDocument {
   theme: MapVisualTheme;
 }
 export const MAP_DOCUMENTS: Record<string, MapDocument> = {
+  orbital_nexus: orbital_nexus as unknown as MapDocument,
   bunker: bunker as unknown as MapDocument,
   shipyard: shipyard as unknown as MapDocument,
   compound: compound as unknown as MapDocument,
@@ -39,6 +41,11 @@ export function validateMapDocument(value: unknown): string[] {
     if (!Array.isArray(plan.features)) issues.push("Missing features array");
     for (const team of ["ffa","red","blue"] as const)
       if (!Array.isArray(plan.spawns?.[team])) issues.push("Missing "+team+" spawns");
+    if(Array.isArray(plan.regions))for(const r of plan.regions)
+      if(!r||![r.x,r.z,r.w,r.d].every(Number.isFinite)||r.w<8||r.d<8)issues.push("Invalid region geometry");
+    if(Array.isArray(plan.features))for(const f of plan.features)
+      if(!f||typeof f.id!=="string"||!["cover","platform","stairs","accent"].includes(f.kind)||
+        ![f.x,f.z,f.y??0,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)issues.push("Invalid feature geometry");
   }
   const theme = doc.theme;
   if (!theme || typeof theme !== "object") issues.push("Missing theme");
@@ -49,6 +56,10 @@ export function validateMapDocument(value: unknown): string[] {
     if (!Number.isFinite(theme.vegetation) || theme.vegetation < 0 || theme.vegetation > 1)
       issues.push("Vegetation must be within 0–1");
     if (!Array.isArray(theme.props)) issues.push("Missing props array");
+    else for(const p of theme.props){
+      if(!p||typeof p.kind!=="string"||![p.x,p.z,p.y??0,p.w??5,p.h??5,p.d??5].every(Number.isFinite)||
+        (p.w??5)<=0||(p.h??5)<=0||(p.d??5)<=0||p.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(p.color))issues.push("Invalid prop geometry or color");
+    }
   }
   return issues;
 }

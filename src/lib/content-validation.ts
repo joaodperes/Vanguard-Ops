@@ -6,6 +6,7 @@
  * docs/content-authoring.md and with the public types in game-data.ts.
  */
 import { z } from "zod";
+import { MAX_PLAYER_LEVEL } from "./progression";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, WEAPON_CHALLENGES,
   WEAPON_ATTACHMENT_COMPAT, CATEGORY_ATTACHMENT_CHOICES, SIGHT_DEFS,
@@ -14,7 +15,7 @@ import {
   ACHIEVEMENT_TIER_COLORS,
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
-import { MAP_DOCUMENTS, validateMapDocument } from "./map-documents";
+import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
 import { MAP_VISUAL_THEMES } from "./map-visuals";
 
 const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
@@ -26,6 +27,7 @@ const unit = num.min(0).max(1);
 const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw", "launcher", "melee"]);
 const slot = z.enum(["sight", "barrel", "grip", "magazine"]);
 const rarity = z.enum(["common", "rare", "epic", "legendary"]);
+const weaponSkinRarity = z.enum(["common", "rare", "epic", "legendary", "prestige"]);
 const cssColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 const stats = z.object({
@@ -47,18 +49,18 @@ const bolt = z.object({
 });
 const weapon = z.object({
   id, name: label, description: label, category,
-  unlockLevel: pos.int(), unlockCost: count,
+  unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
   stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
     kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge"]),
-    maxCharges: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+    maxCharges: z.number().int().min(1).max(8),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),
 });
 const attachment = z.object({
-  id, name: label, description: label, slot, unlockLevel: pos.int(),
+  id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
   unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
   weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
   sightType: z.string().optional(),
@@ -70,15 +72,15 @@ const attachment = z.object({
   }),
 });
 const skin = z.object({
-  id, name: label, unlockLevel: pos.int(), unlockCost: count, rarity,
-  tier: z.enum(["standard", "rare", "legendary"]), color: cssColor,
+  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity: weaponSkinRarity,
+  tier: z.enum(["standard", "rare", "legendary"]), artBrief: label, color: cssColor,
   metalness: unit, roughness: unit, emissive: cssColor.optional(),
   emissiveIntensity: num.nonnegative().optional(),
-  prestige: z.enum(["cosmic", "toxic"]).optional(),
+  prestige: z.enum(["cosmic", "toxic"]).optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
 });
 const operator = z.object({
-  id, name: label, unlockLevel: pos.int(), unlockCost: count, rarity,
-  color: cssColor, accent: cssColor, emissive: cssColor.optional(),
+  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
+  color: cssColor, accent: cssColor, emissive: cssColor.optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
 });
 const challenge = z.object({
   id, weaponId: id, skinId: id, goal: pos,
@@ -94,7 +96,10 @@ const achievement = z.object({
   id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
   title: label, description: label, icon: label,
   tier: z.enum(["bronze", "silver", "gold", "platinum"]),
-  category: z.enum(["pvp", "pve"]),
+  category: z.enum(["pvp", "pve", "career", "mastery"]),
+  series: id,
+  seriesTier: pos.int(),
+  rewardTitle: label.optional(),
 });
 const sight = z.object({
   type: label, name: label, zoom: pos, reticle: label,
@@ -108,6 +113,7 @@ export interface ContentValidationInput {
   weaponSkins?: unknown;
   operatorSkins?: unknown;
   weaponChallenges?: unknown;
+  achievements?: unknown;
 }
 
 /** A human-readable list, stable enough for CI errors and unit assertions. */
@@ -118,6 +124,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   const sk = (overrides.weaponSkins ?? WEAPON_SKINS) as unknown;
   const op = (overrides.operatorSkins ?? PLAYER_SKINS) as unknown;
   const ch = (overrides.weaponChallenges ?? WEAPON_CHALLENGES) as unknown;
+  const achievements = overrides.achievements ?? ACHIEVEMENTS;
 
   function check(name: string, value: unknown, schema: z.ZodTypeAny): void {
     const parsed = schema.safeParse(value);
@@ -142,13 +149,24 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     ["daily challenges", DAILY_CHALLENGE_POOL, z.array(rotatingChallenge)],
     ["weekly challenges", WEEKLY_CHALLENGE_POOL, z.array(rotatingChallenge)],
     ["elite quests (legacy)", ELITE_QUESTS, z.array(rotatingChallenge)],
-    ["achievements", ACHIEVEMENTS, z.array(achievement)],
+    ["achievements", achievements, z.array(achievement)],
     ["ranks", RANKS, z.array(z.object({level:pos.int(),name:label,shortName:label,color:cssColor,insignia:label}))],
     ["killstreak callouts", KILLSTREAK_CALLOUTS, z.array(z.object({threshold:pos.int(),label,icon:label,color:cssColor}))],
   ];
   for (const [name, value, schema] of arrays) {
     check(name, value, schema);
     unique(name, value);
+  }
+  const parsedAchievements = z.array(achievement).safeParse(achievements);
+  if (parsedAchievements.success) {
+    const tiers = new Set<string>();
+    for (const entry of parsedAchievements.data) {
+      const key = `${entry.series}:${entry.seriesTier}`;
+      if (tiers.has(key)) issues.push(`achievements: duplicate series tier ${key}`);
+      tiers.add(key);
+      if (entry.rewardTitle && parsedAchievements.data.some(other => other.series === entry.series && other.seriesTier > entry.seriesTier))
+        issues.push(`achievements: ${entry.id} grants a title before the final series tier`);
+    }
   }
   check("sight definitions", SIGHT_DEFS, z.record(z.string(), sight));
   check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, z.record(z.string(), z.record(z.string(), z.array(id))));
@@ -206,7 +224,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
 
-  // Shipped biome palettes and props live in unified map documents.
+  // Every shipped biome has a separate JSON palette and prop library.
   // Validate those files as well as walkable geometry, not just map metadata.
   const themeSchema=z.object({
     biome:label,label,ambient:pos,vegetation:unit,
@@ -229,15 +247,12 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),
     })),
   });
-  for(const [mapId,doc] of Object.entries(MAP_DOCUMENTS)) {
-    for(const problem of validateMapDocument(doc)) issues.push("map document "+mapId+": "+problem);
-    if(doc.id!==mapId) issues.push("map document "+mapId+": mismatched ID");
-  }
   for(const [mapId,theme] of Object.entries(MAP_VISUAL_THEMES))
     check("visual theme "+mapId,theme,themeSchema);
     if (MAP_BLUEPRINTS.version !== 1) issues.push("map blueprints: unsupported version");
   if (!Object.keys(MAP_BLUEPRINTS.maps).length) issues.push("map blueprints: no maps");
   for (const [mapId, bp] of Object.entries(MAP_BLUEPRINTS.maps)) {
+    for(const problem of validateMapDocument(MAP_DOCUMENTS[mapId]))issues.push("map document "+mapId+": "+problem);
     if (!id.safeParse(mapId).success) issues.push("map " + mapId + ": invalid ID");
     for (const problem of validateBlueprint(bp)) issues.push("map " + mapId + ": " + problem);
     if (bp.templateMapId && !(bp.templateMapId in MAP_BLUEPRINTS.maps))

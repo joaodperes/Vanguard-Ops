@@ -1,4 +1,5 @@
 "use client";
+import { achievementTitle } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
@@ -70,7 +71,7 @@ export function Results() {
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
             {isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
-              : `${playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
+              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
           </h1>
           {!isSurvival && (
             <p className="text-white/50 mt-2">
@@ -145,7 +146,10 @@ export function Results() {
                   <div className="space-y-1.5">
                     {rewards.newAchievements.map((a: any) => (
                       <div key={a.id} className="flex items-center justify-between text-xs">
-                        <span className="text-white/80 flex items-center gap-1.5"><Star className="w-3 h-3 text-amber-400" /> {a.title}</span>
+                        <div className="min-w-0">
+                          <span className="text-white/80 flex items-center gap-1.5"><Star className="w-3 h-3 text-amber-400" /> {a.title}</span>
+                          {achievementTitle(a.id) && <p className="mt-1 text-amber-300">Title unlocked: {achievementTitle(a.id)}</p>}
+                        </div>
                         <span className="text-emerald-300">+{a.rewardXp} XP · +{a.rewardCredits} CR</span>
                       </div>
                     ))}

@@ -1,18 +1,25 @@
+import { calculateMatchRewards } from "./match-rewards";
+import { ORBITAL_REAPER_ID } from "./orbital-reactor";
+import { careerXpAfterMatch, CAREER_TITLES } from "./career";
+import { careerContractsView, recordCareerMatch } from "./career-contract-service";
+import { xpProgressInLevel } from "./progression";
 // Player progression service — shared helpers used by API routes
 import { db } from "@/lib/db";
-import { prestigeEligible, prestigeTokens, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
+import { collectorProgress, collectorSkinEntitlements } from "./collector";
+import { cosmeticShopOwnership, parseEquippedCharms, cosmeticById } from "./cosmetics";
+import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
 import { parseSavedLoadouts, type SavedLoadout } from "./saved-loadouts";
-import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
+import { OPERATOR_CONTRACTS, armoryChallengeProgress, allSkinChallengesForWeapon, weaponChallengeProgress, weaponMasteryProgress, parseWeaponConditionStats, emptyWeaponConditionStats, type WeaponConditionStats, type ArmoryChallengeView } from "./armory-challenges";
 import {
   WEAPONS,
   ATTACHMENTS,
   WEAPON_SKINS,
   PLAYER_SKINS,
   levelForXp,
-  totalXpForLevel,
   REWARDS,
   type ResolvedLoadout,
   resolveLoadout,
@@ -41,7 +48,7 @@ export interface MatchResultInput {
   headshots: number;
   assists?: number;
   won: boolean;
-  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
+  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
   score: number;
   // Personal Kill Confirmed objective stats (separate from kills).
   confirmations?: number;
@@ -162,12 +169,67 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
       // Atomic upsert respects the per-player/weapon unique constraint even if
       // profile and match-end requests reach this function concurrently.
       await tx.weaponPrestige.upsert({
-        where: { playerId_weaponId: key }, create: key, update: {},
+        where: { playerId_weaponId: key }, create: { ...key, legacyReward: false }, update: {},
       });
       earned.push(weapon.id);
     }
   });
   return earned;
+}
+
+/** Backfill mastery-title awards for existing weapon specialists.
+ * Creating the achievement and credit/XP payout in one transaction ensures
+ * reopening Profile never pays the same title twice. */
+async function grantExistingMasteryTitles(playerId:string):Promise<boolean> {
+  const rows=await db.weaponProgress.findMany({where:{playerId}});
+  const values=masteryAchievementStats(rows);
+  const existing=new Set((await db.playerAchievement.findMany({where:{playerId}})).map(a=>a.achievementId));
+  let granted=false;
+  for(const achievement of ACHIEVEMENTS.filter(a=>a.category==="mastery")) {
+    if(existing.has(achievement.id) || (values[achievement.metric as keyof typeof values]??0)<achievement.goal) continue;
+    try {
+      await db.$transaction(async tx=>{
+        await tx.playerAchievement.create({data:{playerId,achievementId:achievement.id}});
+        await tx.player.update({where:{id:playerId},data:{
+          xp:{increment:achievement.rewardXp},credits:{increment:achievement.rewardCredits},
+        }});
+      });
+      granted=true;
+    }catch(error){
+      // Concurrent profile refresh may have inserted this same unique award.
+      if((error as {code?:string})?.code!=="P2002")throw error;
+    }
+  }
+  return granted;
+}
+
+/** Server-awarded collection milestones stay correct after Shop / Armory purchases.
+ * Unique achievement rows guard against duplicate awards on concurrent refreshes. */
+async function grantCollectorAchievements(playerId:string):Promise<void> {
+  const p=await db.player.findUniqueOrThrow({where:{id:playerId},include:{
+    weaponUnlocks:true,attachmentUnlocks:true,skinUnlocks:true,
+    playerSkinUnlocks:true,achievements:true,weaponPrestiges:true,weaponProgress:true,
+  }});
+  const attachments:Record<string,string[]>={};
+  for(const row of p.attachmentUnlocks)(attachments[row.weaponId]??=[]).push(row.attachmentId);
+  const skins=collectorSkinEntitlements(p.skinUnlocks,p.weaponProgress,p.weaponPrestiges);
+  const score=collectorProgress({
+    level:levelForXp(p.xp),
+    unlockedWeapons:p.weaponUnlocks.map(row=>row.weaponId),
+    ownedAttachments:attachments,ownedWeaponSkins:skins,
+    ownedOperators:["default",p.selectedSkin,...p.playerSkinUnlocks.map(row=>row.skinId)],
+  });
+  const earned=new Set(p.achievements.map(x=>x.achievementId));
+  for(const ach of ACHIEVEMENTS.filter(a=>a.metric==="collection_percent"&&a.goal<=score.percent&&!earned.has(a.id))){
+    try{
+      await db.$transaction(async tx=>{
+        await tx.playerAchievement.create({data:{playerId,achievementId:ach.id}});
+        await tx.player.update({where:{id:playerId},data:{
+          xp:{increment:ach.rewardXp},credits:{increment:ach.rewardCredits},
+        }});
+      });
+    }catch(e){if((e as {code?:string})?.code!=="P2002")throw e;}
+  }
 }
 
 export interface PlayerProfileView {
@@ -183,6 +245,10 @@ export interface PlayerProfileView {
   survivalBestWave: number;
   kd: number;
   selectedSkin: string;
+  selectedTitle: string;
+  selectedNameplate: string;
+  ownedCosmetics: string[];
+  unlockedTitles: { id: string; title: string }[];
   xpProgress: { current: number; needed: number; level: number };
   unlocks: {
     weapons: string[];
@@ -207,34 +273,51 @@ export interface PlayerProfileView {
   // lifetime counts across all game modes.
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
-  prestige: { tokens: number; masteredWeapons: string[]; wonderWeapons: string[] };
+  career: Awaited<ReturnType<typeof careerContractsView>>;
+  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[] };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
-  const player = await getOrCreatePlayer(playerKey);
+  const initial = await getOrCreatePlayer(playerKey);
+  const granted = await grantExistingMasteryTitles(initial.id);
+  const player = granted ? await getOrCreatePlayer(playerKey) : initial;
   if (!player) return null;
   await grantWeaponPrestiges(player.id);
+  await grantCollectorAchievements(player.id);
   const [prestigeRows, wonderRows] = await Promise.all([
     db.weaponPrestige.findMany({ where: { playerId: player.id } }),
     db.wonderUnlock.findMany({ where: { playerId: player.id } }),
   ]);
   const masteredWeapons = prestigeRows.map(p => p.weaponId);
+  const legacyPrestigeWeapons = new Set(prestigeRows.filter(p => p.legacyReward).map(p => p.weaponId));
   const wonderWeapons = wonderRows.map(w => w.weaponId);
   if (!player.loadout) {
-    await db.loadout.create({ data: { playerId: player.id } });
+    // The first menu/tutorial can request the profile concurrently. A single
+    // upsert prevents those fresh-player requests racing to create the kit.
+    await db.loadout.upsert({ where: { playerId: player.id }, create: { playerId: player.id }, update: {} });
   }
-  const fresh = player.loadout
-    ? player
-    : await db.player.findUnique({
+  const fresh = await db.player.findUnique({
         where: { playerKey },
         include: { weaponUnlocks: true, skinUnlocks: true, attachmentUnlocks: true,
- playerSkinUnlocks: true, loadout: true },
+          playerSkinUnlocks: true, loadout: true, achievements: true },
       });
   const p = fresh!;
+  // Migrate existing account-wide reticles and per-weapon charms once into
+  // equipped loadout slots. Subsequent choices belong solely to each loadout.
+  if(p.loadout && !p.loadout.cosmeticsMigrated){
+    const old=parseEquippedCharms(p.equippedCharms);
+    const migration={primaryReticle:cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+      secondaryReticle:cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+      primaryCharm:old[p.loadout.primaryWeapon]??"none",secondaryCharm:old[p.loadout.secondaryWeapon]??"none",cosmeticsMigrated:true};
+    const updated=await db.loadout.updateMany({where:{playerId:p.id,cosmeticsMigrated:false},data:migration});
+    Object.assign(p.loadout,updated.count?migration:await db.loadout.findUniqueOrThrow({where:{playerId:p.id}}));
+  }
   const level = levelForXp(p.xp);
   // Use the shared XP-curve helpers so this stays in sync with game-data.ts.
-  const base = totalXpForLevel(level);
-  const next = totalXpForLevel(level + 1);
+  // Repair legacy cached levels without trusting them for entitlement checks.
+  if (p.level !== level) await db.player.updateMany({
+    where: { id: p.id, xp: p.xp }, data: { level },
+  });
 
   // Build per-weapon unlock maps from the (now weaponId-bearing) DB rows.
   const attachmentsByWeapon: Record<string, string[]> = {};
@@ -258,9 +341,12 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for(const w of WEAPONS){
     if(!skinsByWeapon[w.id])skinsByWeapon[w.id]=[];
     if(!skinsByWeapon[w.id].includes("default"))skinsByWeapon[w.id].push("default");
-    if (masteredWeapons.includes(w.id)) {
-      for (const camoId of PRESTIGE_CAMO_IDS) if (!skinsByWeapon[w.id].includes(camoId)) skinsByWeapon[w.id].push(camoId);
-    }
+    // Viridian Blight comes from Prestige, Eventide from Mastery 5/5.
+    // Awards earned before the split explicitly retain BOTH historical skins.
+    const mastered = historicById.get(w.id);
+    const rank5 = weaponMasteryProgress(mastered?.kills ?? 0, mastered?.headshots ?? 0, w.id).rank === 5;
+    if (masteredWeapons.includes(w.id) && !skinsByWeapon[w.id].includes("prestige_toxic")) skinsByWeapon[w.id].push("prestige_toxic");
+    if ((rank5 || legacyPrestigeWeapons.has(w.id)) && !skinsByWeapon[w.id].includes("prestige_cosmic")) skinsByWeapon[w.id].push("prestige_cosmic");
     for(const ch of WEAPON_CHALLENGES){
       if(ch.weaponId!==w.id || !legacyGlobal.has(ch.skinId))continue;
       const row=historicById.get(w.id);
@@ -282,6 +368,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const unlockedSkinsForSecondary = skinsByWeapon[secondaryId] ?? ["default"];
   const unlockedSkinsForMelee = skinsByWeapon[meleeId] ?? ["default"];
   const loadout = resolveLoadout({
+    perkId: p.loadout?.perkId ?? "battle_hardened",
     primaryWeapon: primaryId,
     secondaryWeapon: secondaryId,
     meleeWeapon: meleeId,
@@ -289,6 +376,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
     meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",
     playerSkin: p.loadout?.playerSkin ?? p.selectedSkin ?? "default",
+    primaryReticle:p.loadout?.primaryReticle,secondaryReticle:p.loadout?.secondaryReticle,
+    primaryCharm:p.loadout?.primaryCharm,secondaryCharm:p.loadout?.secondaryCharm,
     // Attachments, including poison bolts, only resolve if purchased for the
     // exact equipped weapon. Also discard incompatible legacy selections.
     attachments: sanitizeOwnedAttachments(primaryId, p.loadout?.attachments ?? "{}", attachmentsByWeapon[primaryId]),
@@ -311,6 +400,25 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for (const row of wpRows) {
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots, conditionStats: parseWeaponConditionStats(row.conditionStats) };
   }
+  const tokenReadyWeapons = tokenEligiblePrestiges(masteredWeapons,weaponProgress);
+  const unlockedTitles = [
+    ...unlockedAchievementTitles(p.achievements?.map(a => a.achievementId) ?? []),
+    ...CAREER_TITLES.filter(t => p.careerRank >= t.rank).map(t => ({ id: t.id, title: t.title })),
+  ];
+  // Retired intermediate-tier titles must not remain on nameplates or leave
+  // the selector pointing at an option that no longer exists. Awards stay intact.
+  const selectedTitle = unlockedTitles.some(t => t.id === p.selectedTitle) ? p.selectedTitle : "";
+  const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true}});
+  const ownedCosmetics=cosmeticShopOwnership(purchases.map(x=>x.itemKey));
+  const selectedNameplate=ownedCosmetics.includes(p.selectedNameplate)?p.selectedNameplate:"standard";
+  // Account ownership gates persisted cosmetic choices even for old backup data.
+  loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
+  loadout.secondaryReticle=ownedCosmetics.includes(loadout.secondaryReticle)?loadout.secondaryReticle:"classic";
+  loadout.primaryCharm=!loadout.weapon.wonder&&loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
+  loadout.secondaryCharm=!loadout.secondary.wonder&&loadout.secondary.category!=="melee"&&ownedCosmetics.includes(loadout.secondaryCharm)?loadout.secondaryCharm:"none";
+  if (selectedTitle !== p.selectedTitle) await db.player.updateMany({
+    where: { id: p.id, selectedTitle: p.selectedTitle }, data: { selectedTitle },
+  });
   return {
     playerKey: p.playerKey,
     name: p.name,
@@ -324,7 +432,10 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     survivalBestWave: p.survivalBestWave,
     kd: p.deaths === 0 ? p.kills : Math.round((p.kills / p.deaths) * 100) / 100,
     selectedSkin: p.selectedSkin,
-    xpProgress: { current: p.xp - base, needed: next - base, level },
+    selectedTitle,
+    selectedNameplate,ownedCosmetics,
+    unlockedTitles,
+    xpProgress: xpProgressInLevel(p.xp),
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
       weaponSkins: flatSkins,
@@ -337,7 +448,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     savedLoadouts: parseSavedLoadouts(p.loadout?.savedLoadouts),
     weaponProgress,
     operatorContracts,
-    prestige: { tokens: prestigeTokens(masteredWeapons.length, wonderWeapons.length), masteredWeapons, wonderWeapons },
+    career: await careerContractsView(p),
+    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons },
   };
 }
 
@@ -351,7 +463,7 @@ export function autoUnlockedItems(level: number) {
     weapons: WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     attachments: [] as string[],
     weaponSkins: [] as string[],
-    playerSkins: PLAYER_SKINS.filter((s) => s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
+    playerSkins: PLAYER_SKINS.filter((s) => !s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
   };
 }
 
@@ -494,105 +606,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const player = await getOrCreatePlayer(input.playerKey);
   const oldLevel = levelForXp(player.xp);
 
-  // ---- Per-kill XP scaled by victim difficulty ----
-  // The engine sends a killDifficulties[] array (one entry per kill, values:
-  // "easy" | "normal" | "hard" | "veteran" | "enemy_player"). Each tier awards
-  // a different amount of XP/credits — harder victims pay more. If the array
-  // is missing (legacy client), fall back to the flat per-kill reward.
-  const DIFF_XP: Record<string, number> = { easy: 10, normal: 15, hard: 22, veteran: 30, enemy_player: 30 };
-  const DIFF_CR: Record<string, number> = { easy: 4, normal: 6, hard: 10, veteran: 14, enemy_player: 14 };
-  const diffs = input.killDifficulties ?? [];
-  let killXp = 0;
-  let killCredits = 0;
-  if (diffs.length > 0 && diffs.length <= input.kills + 5) {
-    // Sum per-kill difficulty rewards. Cap at input.kills to avoid abuse.
-    for (let i = 0; i < Math.min(diffs.length, input.kills); i++) {
-      const d = diffs[i];
-      killXp += DIFF_XP[d] ?? DIFF_XP.normal;
-      killCredits += DIFF_CR[d] ?? DIFF_CR.normal;
-    }
-    // Headshots add a small bonus on top (per headshot, regardless of which kill).
-    killXp += input.headshots * REWARDS.headshotXpBonus;
-    killCredits += input.headshots * REWARDS.headshotCreditsBonus;
-  } else {
-    // Legacy path: flat per-kill reward.
-    killXp = input.kills * REWARDS.killXp + input.headshots * REWARDS.headshotXpBonus;
-    killCredits = input.kills * REWARDS.killCredits + input.headshots * REWARDS.headshotCreditsBonus;
-  }
-  // Team assists reward meaningful contributions without treating them as
-  // kills for win conditions, challenges or killstreak calculations.
-  const assists=Math.max(0,Math.min(200,Math.floor(input.assists??0)));
-  killXp += assists*REWARDS.assistXp;
-  killCredits += assists*REWARDS.assistCredits;
-  // Survival: kills are far more numerous, so cut kill XP/credits by 60%.
-  // Wave-clear bonus compensates (see below).
-  if (input.mode === "survival") {
-    killXp = Math.round(killXp * 0.4);
-    killCredits = Math.round(killCredits * 0.4);
-  }
-  const winXp = input.won ? REWARDS.winXpBonus : 0;
-  const winCredits = input.won ? REWARDS.winCreditsBonus : 0;
-  let xpGained = killXp + winXp + REWARDS.participationXp;
-  let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
-  // Reward playing the objective, not just farming kills.
-  // Request values are sanitized at the API boundary; cap again for direct callers.
-  if (input.mode === "killconfirmed") {
-    const confirms = Math.max(0, Math.min(200, Math.floor(input.confirmations ?? 0)));
-    const denies = Math.max(0, Math.min(200, Math.floor(input.denials ?? 0)));
-    xpGained += confirms * 10 + denies * 5;
-    creditsGained += confirms * 5 + denies * 2;
-  }
-
-  // --- 19a+19b: Kill-streak bonus (stacks with headshot bonus above) ---
-  // Each "multi-kill" (double-kill or better streak, tracked by the engine as
-  // multikillsCount and forwarded here as input.multikills) awards a flat
-  // +50 XP / +25 CR bonus on top of the per-kill rewards. This makes chained
-  // kills meaningfully more rewarding than the same kills spread out, and
-  // naturally stacks with the boosted headshot bonus (both are added to
-  // xpGained/creditsGained independently). 50 XP per multikill ≈ 2 normal
-  // kills' worth; 25 CR per multikill ≈ 3 normal kills' worth — a noticeable
-  // but not economy-breaking boost. The streak bonus shows up under "bonus"
-  // in the results screen (see bonusXp/bonusCredits calc below).
-  if (input.multikills && input.multikills > 0) {
-    xpGained += input.multikills * 50;
-    creditsGained += input.multikills * 25;
-  }
-
-  // --- Survival mode: wave-clear bonus that scales with progress ---
-  // Each wave survived awards +60 XP / +20 credits (compounding reward for deeper runs).
-  let survivalWaves = 0;
-  if (input.mode === "survival") {
-    survivalWaves = Math.max(0, Math.floor(input.survivalWaves ?? 0));
-    const rewardMul = survivalTier === "nightmare" ? 2 : survivalTier === "elite" ? 1.6 : survivalTier === "hard" ? 1.25 : 1;
-    const waveBonusXp = Math.round(survivalWaves * 60 * rewardMul);
-    const waveBonusCredits = Math.round(survivalWaves * 20 * rewardMul);
-    xpGained += waveBonusXp;
-    creditsGained += waveBonusCredits;
-    if (input.won && survivalTier === "default") {
-      xpGained += 12000;
-      creditsGained += 6000;
-    }
-  }
-
-  const newXp = player.xp + xpGained;
-  const newLevel = levelForXp(newXp);
-  const leveledUp = newLevel > oldLevel;
-
-  // Auto-grant items unlocked by the new level (free ones).
-  // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
-  // auto-granted by level — they're per-weapon (purchased or challenge-earned).
-  const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
-  if (leveledUp) {
-    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) {
-        if (w.wonder || w.unlockLevel !== lvl) continue;
-        if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
-        else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
-      }
-      for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
-      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
-    }
-  }
+  const rewards = calculateMatchRewards(input);
+  const { killXp, killCredits, winXp, winCredits, survivalWaves } = rewards;
+  let { xpGained, creditsGained } = rewards;
 
   // --- 17-C: Quest-completion counters ---
   // Local accumulators for how many challenges (by type) were newly awarded
@@ -695,6 +711,34 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
   const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
   const lifetimeHeadshots = (headshotAgg._sum.headshots ?? 0) + input.headshots;
+  // Only ordinary combat modes count toward PvP combat achievements.
+  // Survival-specific records may use suffixed mode IDs, so positively list
+  // the non-Survival modes rather than subtracting just "survival".
+  const combatModes = ["ffa","tdm","gungame","killconfirmed","ctf"];
+  const combatAgg = await db.matchRecord.aggregate({
+    where:{playerId:player.id,mode:{in:combatModes}},
+    _sum:{kills:true,headshots:true},_count:{_all:true},
+  });
+  const combatWins = await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const [ctfAggregate,ctfWonMatches] = await Promise.all([
+    db.matchRecord.aggregate({where:{playerId:player.id,mode:"ctf"},_sum:{score:true}}),
+    db.matchRecord.count({where:{playerId:player.id,mode:"ctf",won:true}}),
+  ]);
+  const countsThisMatch = input.mode!=="survival";
+  const weaponRows = await db.weaponProgress.findMany({where:{playerId:player.id}});
+  const projectedWeapons = new Map(weaponRows.map(row=>[row.weaponId,{
+    weaponId:row.weaponId,kills:row.kills,headshots:row.headshots,
+  }]));
+  const matchWeaponStats=input.perWeaponKills ?? {
+    [input.weaponId ?? player.loadout?.primaryWeapon ?? "rifle_ar"]:{kills:input.kills,headshots:input.headshots},
+  };
+  for (const [wid,delta] of Object.entries(matchWeaponStats)){
+    if(!WEAPONS.some(w=>w.id===wid)&&wid!==ORBITAL_REAPER_ID)continue;
+    const current=projectedWeapons.get(wid)??{weaponId:wid,kills:0,headshots:0};
+    projectedWeapons.set(wid,{weaponId:wid,kills:current.kills+Math.max(0,delta.kills),headshots:current.headshots+Math.max(0,delta.headshots)});
+  }
+  const masteryStats=masteryAchievementStats([...projectedWeapons.values()]
+    .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const totalAwardedThisMatch = dailyAwardedCount + weeklyAwardedCount + eliteAwardedCount;
   const survivalProgress = survivalProgressBefore ?? {defaultWins:0,hardBest:0,eliteBest:0,nightmareBest:0};
   if (input.mode === "survival") {
@@ -704,10 +748,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     if (survivalTier === "nightmare") survivalProgress.nightmareBest = Math.max(survivalProgress.nightmareBest,survivalWaves);
   }
   const lifetimeStats = {
-    kills: player.kills + input.kills,
-    wins: player.matchesWon + (input.won ? 1 : 0),
-    matches: player.matchesPlayed + 1,
-    level: newLevel,
+    kills: (combatAgg._sum.kills ?? 0) + (countsThisMatch?input.kills:0),
+    wins: combatWins + (countsThisMatch&&input.won?1:0),
+    matches: combatAgg._count._all + (countsThisMatch?1:0),
+    ctf_captures:(ctfAggregate._sum.score??0)+(input.mode==="ctf"?Math.max(0,Math.floor(input.score)):0),
+    ctf_wins:ctfWonMatches+(input.mode==="ctf"&&input.won?1:0),
+    level: levelForXp(player.xp + xpGained),
     credits_earned_total: player.credits + creditsGained,
     survival_waves: Math.max(player.survivalBestWave, survivalWaves),
     // 17-C: post-match lifetime quest counters (existing + this match's awards)
@@ -724,10 +770,10 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const getStatValue = (metric: string): number => {
     switch (metric) {
       case "kills": return lifetimeStats.kills;
-      case "headshots": return lifetimeHeadshots;
+      case "headshots": return (combatAgg._sum.headshots ?? 0) + (countsThisMatch?input.headshots:0);
       case "wins": return lifetimeStats.wins;
       case "matches": return lifetimeStats.matches;
-      case "level": return lifetimeStats.level;
+      case "level": return levelForXp(player.xp + xpGained);
       case "credits_earned_total": return lifetimeStats.credits_earned_total;
       case "survival_waves": return lifetimeStats.survival_waves;
       case "survival_default_wins": return survivalProgress.defaultWins;
@@ -740,7 +786,13 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
       case "total_challenges_completed": return lifetimeStats.total_challenges_completed;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak). Set by
       // Math.max above when this match's bestStreak exceeds the prior best.
-      case "best_killstreak": return lifetimeStats.best_killstreak;
+      case "ctf_captures": return lifetimeStats.ctf_captures;
+      case "ctf_wins": return lifetimeStats.ctf_wins;
+      case "nexus_reaper_kills": return projectedWeapons.get(ORBITAL_REAPER_ID)?.kills ?? 0;
+      case "best_killstreak": return Math.max(player.pvpBestKillstreak,countsThisMatch?(input.bestStreak??0):0);
+      case "mastery_recruits": return masteryStats.mastery_recruits;
+      case "mastery_specialists": return masteryStats.mastery_specialists;
+      case "mastery_elites": return masteryStats.mastery_elites;
       default: return 0;
     }
   };
@@ -759,6 +811,26 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // Elite is now a per-period promotion of daily/weekly challenges (handled
   // in the loops above). Old DB rows with type="elite" / dayKey="elite" are
   // left orphaned (no automatic cleanup) — they don't affect new logic.
+
+  const newXp = player.xp + xpGained;
+  const newLevel = levelForXp(newXp);
+  const leveledUp = newLevel > oldLevel;
+
+  // Auto-grant items unlocked by the new level (free ones).
+  // NOTE: weapons auto-grant by level. Attachments & weapon skins are no longer
+  // auto-granted by level — they're per-weapon (purchased or challenge-earned).
+  const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
+  if (leveledUp) {
+    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+      for (const w of WEAPONS) {
+        if (w.wonder || w.unlockLevel !== lvl) continue;
+        if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
+        else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
+      }
+      for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
+      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
+    }
+  }
 
   const bonusXp = xpGained - (killXp + winXp + REWARDS.participationXp);
   const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
@@ -866,11 +938,14 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   }
 
   await db.$transaction(async (tx) => {
+    const current = await tx.player.findUniqueOrThrow({ where: { id: player.id } });
     await tx.player.update({
       where: { id: player.id },
       data: {
-        xp: player.xp + xpGained,
-        credits: player.credits + creditsGained,
+        xp: { increment: xpGained },
+        credits: { increment: creditsGained },
+        level: levelForXp(current.xp + xpGained),
+        careerXp: careerXpAfterMatch(current.careerXp, current.careerRank, current.xp, xpGained),
         kills: player.kills + input.kills,
         deaths: player.deaths + input.deaths,
         matchesPlayed: player.matchesPlayed + 1,
@@ -884,6 +959,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         // 19a+19b: update lifetime best kill streak. Math.max so a lower
         // bestStreak this match doesn't overwrite a higher prior best.
         bestKillstreak: Math.max(player.bestKillstreak, input.bestStreak ?? 0),
+        pvpBestKillstreak: Math.max(player.pvpBestKillstreak, input.mode!=="survival" ? (input.bestStreak ?? 0) : 0),
       },
     });
     if (newUnlocks.weapons.length) await tx.weaponUnlock.createMany({ data: newUnlocks.weapons.map((id) => ({ playerId: player.id, weaponId: id })) });
@@ -936,6 +1012,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         weaponId: input.weaponId ?? "rifle_ar",
         waves: survivalWaves,
       },
+    });
+    // Active Career Contracts advance atomically with this completed match.
+    await recordCareerMatch(tx,player.id,current.xp,xpGained,{
+      mode:input.mode,won:input.won,kills:input.kills,headshots:input.headshots,
+      survivalWaves,weaponId:input.weaponId??equippedForTx,
+      perWeaponKills:input.perWeaponKills,
     });
   });
 
@@ -1171,17 +1253,40 @@ export async function getEliteQuestsView(playerKey: string): Promise<EliteQuestV
 
 export async function getAchievementsView(playerKey: string): Promise<AchievementView[]> {
   const player = await getOrCreatePlayer(playerKey);
+  await grantExistingMasteryTitles(player.id);
+  await grantCollectorAchievements(player.id);
   const earned = await db.playerAchievement.findMany({ where: { playerId: player.id } });
   const earnedMap = new Map(earned.map((a) => [a.achievementId, a.earnedAt]));
-  const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
-  const lifetimeHeadshots = headshotAgg._sum.headshots ?? 0;
+  const combatModes=["ffa","tdm","gungame","killconfirmed","ctf"];
+  const combatAgg=await db.matchRecord.aggregate({
+    where:{playerId:player.id,mode:{in:combatModes}},
+    _sum:{kills:true,headshots:true},_count:{_all:true},
+  });
+  const combatWins=await db.matchRecord.count({where:{playerId:player.id,mode:{in:combatModes},won:true}});
+  const [ctfAggregate,ctfWonMatches]=await Promise.all([
+    db.matchRecord.aggregate({where:{playerId:player.id,mode:"ctf"},_sum:{score:true}}),
+    db.matchRecord.count({where:{playerId:player.id,mode:"ctf",won:true}}),
+  ]);
+  const weaponRows=await db.weaponProgress.findMany({where:{playerId:player.id}});
+  const masteryStats=masteryAchievementStats(weaponRows
+    .filter(row=>row.weaponId!==ORBITAL_REAPER_ID));
   const survivalProgress = await getSurvivalProgressById(player.id);
+  const acquiredAttachments:Record<string,string[]>={};
+  for(const row of player.attachmentUnlocks)(acquiredAttachments[row.weaponId]??=[]).push(row.attachmentId);
+  const prestigeHistory=await db.weaponPrestige.findMany({where:{playerId:player.id}});
+  const acquiredSkins=collectorSkinEntitlements(player.skinUnlocks,weaponRows,prestigeHistory);
+  const collection=collectorProgress({
+    level:levelForXp(player.xp),unlockedWeapons:player.weaponUnlocks.map(w=>w.weaponId),
+    ownedAttachments:acquiredAttachments,ownedWeaponSkins:acquiredSkins,
+    ownedOperators:["default",player.selectedSkin,...player.playerSkinUnlocks.map(s=>s.skinId)],
+  });
   const statFor = (metric: string): number => {
     switch (metric) {
-      case "kills": return player.kills;
-      case "headshots": return lifetimeHeadshots;
-      case "wins": return player.matchesWon;
-      case "matches": return player.matchesPlayed;
+      case "collection_percent": return collection.percent;
+      case "kills": return combatAgg._sum.kills ?? 0;
+      case "headshots": return combatAgg._sum.headshots ?? 0;
+      case "wins": return combatWins;
+      case "matches": return combatAgg._count._all;
       case "level": return levelForXp(player.xp);
       case "credits_earned_total": return player.credits;
       case "survival_waves": return player.survivalBestWave;
@@ -1195,7 +1300,13 @@ export async function getAchievementsView(playerKey: string): Promise<Achievemen
       case "elite_challenges_completed": return player.eliteChallengesCompleted;
       case "total_challenges_completed": return player.totalChallengesCompleted;
       // 19a+19b: lifetime best kill streak (Player.bestKillstreak)
-      case "best_killstreak": return player.bestKillstreak;
+      case "ctf_captures": return ctfAggregate._sum.score ?? 0;
+      case "ctf_wins": return ctfWonMatches;
+      case "nexus_reaper_kills": return weaponRows.find(w=>w.weaponId===ORBITAL_REAPER_ID)?.kills ?? 0;
+      case "best_killstreak": return player.pvpBestKillstreak;
+      case "mastery_recruits": return masteryStats.mastery_recruits;
+      case "mastery_specialists": return masteryStats.mastery_specialists;
+      case "mastery_elites": return masteryStats.mastery_elites;
       default: return 0;
     }
   };

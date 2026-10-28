@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
+import { formatMatchClock } from "@/lib/match-clock";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
-import { GUN_GAME_PROGRESSION } from "@/lib/game-protocol";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
+import { matchHudInfo } from "@/lib/match-hud";
+import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Map as MapIcon, Shield, Swords, Target, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
 
 // ---- Category accent colors (matches the 3D band on the weapon model) ----
 // Used for the small dot/badge next to the weapon name in the HUD so the player
@@ -34,12 +36,13 @@ interface Props {
   mode: GameMode;
   crosshairColor?: string;
   crosshairSize?: number;
+  reticleStyle?: string;
   showPing?: boolean;
   isTouch?: boolean;
   scopeOverlay?: boolean;
 }
 
-export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
@@ -108,8 +111,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
-  const mins = Math.floor(hud.timeLeft / 60);
-  const secs = hud.timeLeft % 60;
+  const clockText = formatMatchClock(hud);
+  const matchInfo = matchHudInfo(mode, hud.survivalTier);
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -130,7 +133,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // In TDM mode the scoreboard is split into Red/Blue panels; we use this to
   // mark every teammate as an "ally" (Shield icon) since all players on your
   // team are friendlies.
-  const selfTeam = hud.scoreboard.find(r => r.isSelf)?.team;
+  const selfTeam = hud.playerTeam ?? hud.scoreboard.find(r => r.isSelf)?.team;
+  const ranking = killRank(hud.scoreboard, hud.kills);
+  const teamScores = teamScorePerspective(hud.teamScores, selfTeam);
+  const flagLine = hud.ctfFlags ? ctfFlagLine(hud.ctfFlags, selfTeam, !!hud.ctfCarrying) : null;
+  const clockEnding = !hud.unlimitedTime && !hud.ctfOvertime && hud.timeLeft > 0 && hud.timeLeft <= 30;
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none font-mono">
@@ -159,6 +166,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           hud={hud}
           crosshairColor={crosshairColor}
           crosshairSize={crosshairSize}
+          reticleStyle={reticleStyle}
           dynamicGap={dynamicGap}
           showHit={showHit}
           hitMarkerAge={hitMarkerAge}
@@ -223,86 +231,123 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>
       )}
 
-      {/* top center: timer + mode + scores (or survival wave panel) */}
-      {mode === "survival" ? (
-        <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-2"}`}>
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-amber-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Skull className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
-            <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
-            <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-xl"}`}>{hud.survivalWave ?? 0}</span>
-          </div>
-          {hud.survivalPrepLeft && hud.survivalPrepLeft > 0 ? (
-            <div className={`bg-amber-500/20 backdrop-blur rounded-lg border border-amber-500/40 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-              <Clock className={isTouch ? "w-3 h-3 text-amber-300 animate-pulse" : "w-4 h-4 text-amber-300 animate-pulse"} />
-              <span className={`text-amber-200 uppercase tracking-wider font-bold ${isTouch ? "text-[9px]" : "text-xs"}`}>Prep {hud.survivalPrepLeft}s</span>
-            </div>
+
+      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
+      <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
+        <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
+          {mode === "survival" ? (
+            <>
+              <div className={`bg-black/65 backdrop-blur rounded-lg border border-amber-500/30 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                <Skull className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
+                <span className={`text-white/60 uppercase ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
+                <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalWave ?? 0}</span>
+              </div>
+              <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                <Clock className="w-3 h-3 text-white/60" />
+                <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{clockText}</span>
+              </div>
+              <div className={`backdrop-blur rounded-lg border flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "bg-amber-950/70 border-amber-500/30" : "bg-black/65 border-rose-500/30"}`}>
+                <span className={`uppercase ${isTouch ? "text-[9px]" : "text-xs"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "text-amber-200" : "text-rose-200"}`}>
+                  {(hud.survivalPrepLeft ?? 0) > 0 ? "Prep" : "Enemies"}
+                </span>
+                <span className={`font-black tabular-nums ${isTouch ? "text-sm" : "text-lg"} ${(hud.survivalPrepLeft ?? 0) > 0 ? "text-amber-300" : "text-rose-300"}`}>
+                  {(hud.survivalPrepLeft ?? 0) > 0 ? Math.ceil(hud.survivalPrepLeft ?? 0) + "s" : hud.survivalEnemiesLeft ?? 0}
+                </span>
+              </div>
+            </>
           ) : (
-            <div className={`bg-black/55 backdrop-blur rounded-lg border border-rose-500/30 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-              <AlertTriangle className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />
-              <span className={`text-white/60 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>Enemies</span>
-              <span className={`text-rose-300 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalEnemiesLeft ?? 0}</span>
+            <>
+              <div className={`backdrop-blur rounded-lg border flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"} ${clockEnding ? "bg-rose-950/75 border-rose-500/50" : "bg-black/65 border-white/10"}`}>
+                <Clock className={`w-3 h-3 ${clockEnding ? "text-rose-300" : "text-white/60"}`} />
+                <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"} ${clockEnding ? "text-rose-300" : "text-white"}`}>{clockText}</span>
+                {hud.ctfOvertime && <span className="text-amber-300 text-[9px] font-black">OT</span>}
+              </div>
+              {mode === "ffa" ? (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}</span>
+                    {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && <span className="text-amber-300/70 text-[10px]">/{hud.scoreLimit}</span>}
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <Trophy className="w-3 h-3 text-amber-300" />
+                    <span className={`text-amber-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
+                  </div>
+                </>
+              ) : mode === "tdm" ? (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
+                    <span className="text-red-300 font-bold text-[10px]">R</span>
+                    <span className={`text-red-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.red}</span>
+                    <span className="text-white/30">–</span>
+                    <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.blue}</span>
+                    <span className="text-blue-300 font-bold text-[10px]">B</span>
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K/D</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
+                  </div>
+                </>
+              ) : mode === "killconfirmed" || mode === "ctf" ? (
+                <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
+                  <span className={`text-emerald-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Team</span>
+                  <span className={`text-emerald-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.own}</span>
+                  <span className="text-white/30">–</span>
+                  <span className={`text-rose-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.enemy}</span>
+                  <span className={`text-rose-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Enemy</span>
+                </div>
+              ) : (
+                <>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <span className="text-white/60 text-[10px] font-bold">K</span>
+                    <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}</span>
+                  </div>
+                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                    <Trophy className="w-3 h-3 text-purple-300" />
+                    <span className={`text-purple-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {mode === "ctf" && hud.ctfFlags && flagLine && (
+          <>
+            <div className={`flex items-center justify-center flex-wrap rounded-md border border-emerald-400/20 bg-black/60 backdrop-blur ${isTouch ? "gap-x-2 px-2 py-0.5" : "gap-x-3 px-3 py-1"}`}>
+              <span className="text-[10px] font-semibold uppercase text-emerald-300">Our flag <span className="text-white/85">{flagLine.own}</span></span>
+              <span className="text-white/30">·</span>
+              <span className="text-[10px] font-semibold uppercase text-rose-300">Enemy flag <span className="text-white/85">{flagLine.enemy}</span></span>
+              {hud.orbitalCharge !== undefined && (
+                <>
+                  <span className="text-white/30">·</span>
+                  <span className="text-[10px] font-bold uppercase text-violet-300">
+                    Reactor {hud.orbitalCharge}/10
+                    {hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
+                  </span>
+                </>
+              )}
             </div>
-          )}
-        </div>
-      ) : (
-      <div className={`absolute left-1/2 -translate-x-1/2 flex items-center ${isTouch ? "top-2 gap-1.5" : "top-4 gap-3"}`}>
-        <div className={`backdrop-blur rounded-lg border flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "bg-rose-950/70 border-rose-500/50" : "bg-black/55 border-white/10"}`}
-             style={(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? { animation: "countdownPulse 1s ease-in-out infinite" } : {}}>
-          <Clock className={isTouch ? "w-3 h-3 text-white/70" : "w-4 h-4 text-white/70"} />
-          <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : ""} ${(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 ? "text-rose-300" : "text-white"}`}>{hud.timeLeft <= 0 ? "∞" : `${mins}:${secs.toString().padStart(2, "0")}`}</span>
-          {(hud.timeLeft ?? 0) <= 30 && (hud.timeLeft ?? 0) > 0 && (
-            <span className="text-rose-400 text-[9px] font-bold uppercase tracking-wider ml-0.5">Final</span>
-          )}
-        </div>
-        {(mode === "tdm" || mode === "killconfirmed") ? (
-          <div className={`flex items-center bg-black/55 backdrop-blur rounded-lg border border-white/10 ${isTouch ? "gap-1.5 px-2 py-0.5" : "gap-3 px-4 py-1.5"}`}>
-            <span className={`text-red-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.red}</span>
-            {hud.scoreLimit && hud.scoreLimit > 0 && <span className={`text-white/30 ${isTouch ? "text-[9px]" : "text-xs"}`}>/{hud.scoreLimit}</span>}
-            <span className="text-white/40 text-[10px]">vs</span>
-            <span className={`text-blue-400 font-bold tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.teamScores.blue}</span>
-          </div>
-        ) : (
-          <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-2 py-0.5" : "px-4 py-1.5"}`}>
-            <Trophy className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
-            <span className={`text-white/80 uppercase tracking-wider ${isTouch ? "text-[9px]" : "text-xs"}`}>{mode === "gungame" ? "Gun Game" : "FFA"}</span>
+            {hud.ctfOvertime && <div className="text-[10px] text-amber-300 font-bold uppercase">Sudden death · Next capture wins</div>}
+            {hud.ctfZoneError && <div className="rounded px-2 py-1 bg-amber-950/80 border border-amber-400/40 text-amber-300 text-[10px] max-w-[85vw] text-center">{hud.ctfZoneError}</div>}
+            {hud.ctfNotice && now - hud.ctfNotice.at < 2400 && (
+              <div className="text-amber-200 font-black tracking-wide text-sm uppercase" style={{textShadow:"0 0 12px rgba(245,158,11,.7)"}}>{hud.ctfNotice.label}</div>
+            )}
+          </>
+        )}
+
+        {mode === "gungame" && hud.gungameTotal !== undefined && (
+          <GunGameProgress index={hud.gungameIndex ?? 0} total={hud.gungameTotal} currentWeaponId={hud.weaponId} compact={isTouch} />
+        )}
+
+        {mode === "survival" && (
+          <div className="max-w-[90vw] text-center text-[10px] tracking-wide text-amber-200 font-semibold uppercase">
+            {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
+            {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
+            {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
           </div>
         )}
-        <div className={`bg-black/55 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-0.5" : "gap-2 px-4 py-1.5"}`}>
-          {mode === "killconfirmed" ? <Target className="w-4 h-4 text-cyan-300" /> : <Skull className={isTouch ? "w-3 h-3 text-rose-400" : "w-4 h-4 text-rose-400"} />}
-          <span className={`text-white font-bold tabular-nums ${isTouch ? "text-xs" : ""}`}>{mode === "killconfirmed" ? hud.score : hud.kills}</span>
-          {hud.scoreLimit !== undefined && hud.scoreLimit > 0 && (
-            <>
-              <span className="text-white/30">/</span>
-              <span className={`text-amber-400/70 ${isTouch ? "text-[9px]" : "text-xs"}`}>{hud.scoreLimit}</span>
-            </>
-          )}
-          <span className="text-white/20 mx-0.5">·</span>
-          {mode === "killconfirmed" ? (
-            <span className={`text-cyan-300/75 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.denials ?? 0} denied</span>
-          ) : (
-            <>
-              <span className="text-white/30">/</span>
-              <span className={`text-white/50 ${isTouch ? "text-[10px]" : "text-xs"}`}>{hud.deaths}</span>
-            </>
-          )}
-        </div>
       </div>
-      )}
-
-      {mode === "survival" && (
-        <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-[90vw] max-w-xl ${isTouch?"top-11":"top-16"}`}>
-          <span className="text-[10px] tracking-widest font-bold uppercase text-amber-200">
-            {(hud.survivalTier ?? "default").toUpperCase()} SURVIVAL
-            {hud.survivalTier === "default" ? " · CLEAR 30" : " · ENDLESS"}
-          </span>
-          {(hud.survivalModifierNames?.length ?? 0) > 0 && (
-            <div className="text-[10px] text-rose-300 font-bold mt-1">
-              Mutators: {hud.survivalModifierNames!.join(" · ")}
-            </div>
-          )}
-          {hud.survivalBossWave && <div className="text-xs text-red-400 font-black uppercase tracking-widest mt-1 animate-pulse">Boss Wave · Heavy weapons / Shockwave</div>}
-        </div>
-      )}
 
       {/* Kill Confirmed pickup callout — only shown briefly on a local pickup. */}
       {mode === "killconfirmed" && hud.tagNotice && performance.now() - hud.tagNotice.at < 1300 && (
@@ -312,27 +357,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </span>
         </div>
       )}
-      {/* Gun Game progression indicator (gungame mode only) — sits below the top scoreboard */}
-      {mode === "gungame" && hud.gungameTotal !== undefined && (
-        <GunGameProgress
-          index={hud.gungameIndex ?? 0}
-          total={hud.gungameTotal}
-          currentWeaponId={hud.weaponId}
-          compact={isTouch}
-          weaponList={hud.gungameWeapons}
-          rank={1 + hud.scoreboard.filter(p => !p.isSelf && p.kills > hud.kills).length}
-          players={hud.scoreboard.length}
-        />
-      )}
-
-      {/* top left: killfeed + map name. On mobile the font is much smaller
+      {/* Top-left transient killfeed. No persistent map/ADS banner. */}
+      {/* On mobile the font is much smaller
           and padding tighter so it doesn't dominate the small screen. */}
-      <div className={`absolute left-4 flex flex-col gap-1 max-w-[60vw] ${isTouch ? "top-2" : "top-4"}`}>
-        <div className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 mb-1 ${isTouch ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`}>
-          <MapIcon className={isTouch ? "w-2.5 h-2.5 text-cyan-400" : "w-3 h-3 text-cyan-400"} />
-          <span className="text-cyan-300 font-bold tracking-wider uppercase">{displayMapLabel(hud.mapName ?? "Compound")}</span>
-          {hud.aiming && <span className="ml-auto text-amber-300 text-[9px] uppercase font-bold animate-pulse">ADS</span>}
-        </div>
+      <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-[84px]" : "top-[88px]"}`}>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
           <div key={i} className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`} style={{ animation: "killfeedSlide 0.3s ease-out" }}>
             <span className={teamColor(k.killerTeam)}>{k.killer}</span>
@@ -344,7 +372,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {/* Perk information stacks BELOW the radar, never across its markers.
           Minimap: top 56px, height 176px desktop / 128px touch. */}
-      <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[200px]" : "top-[248px]"}`}>
+      <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[234px]" : "top-[248px]"}`}>
         {hud.perkName && (
           <div className="px-2.5 py-1 rounded-md bg-black/75 border border-amber-500/20 text-amber-200 text-[11px] max-w-44 text-right">
             Perk: {hud.perkName}
@@ -374,7 +402,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </svg>
       </div>}
       {/* top right: exit + ping */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 pointer-events-auto">
+      <div className={`absolute right-4 flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
         {showPing && (
           <div className="bg-black/55 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 flex items-center gap-1">
             <Zap className="w-3 h-3" /> {hud.ping}ms
@@ -638,7 +666,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.preMatchCountdown}
           </div>
           <div className="text-white/50 text-xs uppercase tracking-[0.3em] font-semibold">
-            {mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}
+            {matchInfo.title}
             <span className="mx-2 text-white/20">·</span>
             <span className="text-cyan-300">{displayMapLabel(hud.mapName ?? "Compound")}</span>
           </div>
@@ -654,19 +682,19 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
       {showScoreboard && hud.alive !== undefined && hud.pointerLocked && (
-        (mode === "tdm" || mode === "killconfirmed") ? (
+        (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               {/* header bar */}
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "killconfirmed" ? "Kill Confirmed — tags recovered" : "Team Deathmatch"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : "Team Deathmatch · Kills"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               {/* team panels */}
               <div className="flex flex-col sm:flex-row gap-2 p-2 max-h-[50vh] overflow-y-auto custom-scroll">
-                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} />
-                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} />
+                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
               </div>
             </div>
           </div>
@@ -675,7 +703,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "survival" ? (hud.survivalTier === "default" ? "Standard Survival · 30 Waves" : `${(hud.survivalTier ?? "hard").toUpperCase()} Survival`) : mode === "gungame" ? "Gun Game" : "Free-For-All"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{matchInfo.title}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               <div className="max-h-[50vh] overflow-y-auto custom-scroll">
@@ -736,7 +764,7 @@ function teamDot(t: string) {
 // highlighted emerald (same as the FFA table). Every player whose team matches
 // `selfTeam` (i.e. friendlies — which in a team panel is either everyone or
 // no-one) gets a small Shield icon prefix so allies are visually distinct.
-function TeamPanel({ team, score, rows, selfTeam }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string }) {
+function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string }) {
   const accent = team === "red" ? "border-red-500/40" : "border-blue-500/40";
   const headerBg = team === "red" ? "bg-red-500/10" : "bg-blue-500/10";
   const headerText = team === "red" ? "text-red-400" : "text-blue-400";
@@ -756,7 +784,7 @@ function TeamPanel({ team, score, rows, selfTeam }: { team: "red" | "blue"; scor
             <th className="text-left px-3 py-1 font-medium">Player</th>
             <th className="text-center px-1 py-1 font-medium w-10">K</th>
             <th className="text-center px-1 py-1 font-medium w-10">D</th>
-            <th className="text-center px-3 py-1 font-medium w-12">Scr</th>
+            <th className="text-center px-3 py-1 font-medium w-12">{scoreLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -812,54 +840,23 @@ function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string
 }
 
 // ---- Gun Game progression indicator ----
-// Shows a horizontal tier list (one cell per weapon in GUN_GAME_PROGRESSION).
-// The current tier is highlighted in purple (the gungame accent color). A
-// compact label shows the current tier's weapon name (e.g., "Tier 5/18 — VK-12 Assault").
-function GunGameProgress({ index, total, currentWeaponId, compact, weaponList, rank, players }: { index: number; total: number; currentWeaponId: string; compact?: boolean; weaponList?: string[]; rank: number; players: number }) {
-  const current = weaponById(currentWeaponId);
-  const isFinalTier = index >= total - 1;
-  // Use the actual per-match weapon list (sent by the server / resolved locally)
-  // — NOT the static GUN_GAME_PROGRESSION fallback, which has a different length
-  // and would show a tier strip that doesn't match the real progression.
-  const progression = (weaponList && weaponList.length > 0) ? weaponList : GUN_GAME_PROGRESSION;
+// Shows only the current weapon tier, weapon name and a compact progress bar.
+// Rank and kills belong to the primary HUD row, not this secondary strip.
+function GunGameProgress({ index, total, currentWeaponId, compact }: { index: number; total: number; currentWeaponId: string; compact?: boolean }) {
+  const tier = total > 0 ? Math.max(1, Math.min(total, index + 1)) : 0;
+  const pct = total > 0 ? Math.min(100, tier / total * 100) : 0;
+  const final = total > 0 && tier === total;
   return (
-    <div className={`absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none ${compact ? "top-7 gap-1" : "top-[60px] gap-1.5"}`}>
-      {/* Compact "Tier N/total — Weapon" badge */}
-      <div className={`bg-black/60 backdrop-blur rounded-lg border border-purple-500/40 flex items-center gap-1.5 shadow-lg shadow-purple-900/30 ${compact ? "px-2 py-0.5" : "px-3 py-1"}`}>
-        <Swords className={compact ? "w-2.5 h-2.5 text-purple-300" : "w-3.5 h-3.5 text-purple-300"} />
-        <span className={`text-amber-300 uppercase tracking-wider font-bold ${compact ? "text-[8px]" : "text-[10px]"}`}>RANK #{rank}/{players}</span>
-        <span className="text-white/30">·</span>
-        <span className={`text-white/60 uppercase tracking-wider ${compact ? "text-[8px]" : "text-[10px]"}`}>Tier</span>
-        <span className={`text-purple-200 font-black tabular-nums ${compact ? "text-[11px]" : "text-sm"}`}>{index + 1}<span className="text-white/30 text-[9px]">/{total}</span></span>
-        <span className="text-white/30">·</span>
-        <span className={`text-white font-bold ${compact ? "text-[10px]" : "text-xs"}`}>{current.name}</span>
-        {total > 30 && <span className="text-purple-300 text-[9px]">Cycle {Math.floor(index / 30) + 1}/{Math.ceil(total / 30)}</span>}
-        {isFinalTier && (
-          <span className="ml-1 text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-500/40 font-bold animate-pulse">
-            Final
-          </span>
-        )}
+    <div className={`rounded-lg bg-black/60 backdrop-blur border border-purple-500/30 flex flex-col items-center ${compact ? "gap-0.5 px-2 py-1" : "gap-1 px-3 py-1.5"}`}>
+      <div className={`flex items-center justify-center gap-2 max-w-[85vw] ${compact ? "text-[10px]" : "text-xs"}`}>
+        <span className="font-black tabular-nums text-purple-200 whitespace-nowrap">Tier {tier}/{total}</span>
+        <span className="text-white/25">·</span>
+        <span className="font-semibold text-white/85 truncate">{weaponById(currentWeaponId).name}</span>
+        {final && <span className="text-amber-300 font-black uppercase text-[9px]">Final</span>}
       </div>
-      {/* Horizontal tier strip — one cell per progression slot (uses the ACTUAL
-          per-match weapon list so the strip length matches `total`). */}
-      <div className={`flex items-center gap-px max-w-[88vw] overflow-hidden bg-black/40 backdrop-blur rounded-md border border-white/10 ${compact ? "px-1 py-0.5" : "px-1.5 py-1"}`}>
-        {progression.map((wid, i) => {
-          const done = i < index;
-          const active = i === index;
-          const w = weaponById(wid);
-          return (
-            <div
-              key={i}
-              title={`${i + 1}. ${w.name}`}
-              style={{ flex: "1 1 0", minWidth: total > 45 ? 1 : 3, maxWidth: 10 }}
-              className={`rounded-sm transition-colors ${compact ? "w-1.5 h-2" : "w-2 h-3"} ${
-                active ? "bg-purple-400 shadow-[0_0_6px_#a855f7]"
-                : done ? "bg-purple-500/40"
-                : "bg-white/10"
-              }`}
-            />
-          );
-        })}
+      <div className={`rounded-full bg-white/15 overflow-hidden ${compact ? "w-36 h-1" : "w-52 h-1.5"}`}
+           role="progressbar" aria-label="Gun Game weapon progression" aria-valuemin={0} aria-valuemax={total} aria-valuenow={tier}>
+        <div className="h-full rounded-full bg-purple-400 transition-[width] duration-200" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -871,11 +868,12 @@ function GunGameProgress({ index, total, currentWeaponId, compact, weaponList, r
 // (acog/hunter/thermal/nvg) we render a scope circle + reticle, with tinted overlays
 // for thermal (amber) and NVG (green). Fades in/out with ADS progress.
 function ScopeOrCrosshair({
-  hud, crosshairColor, crosshairSize, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
+  hud, crosshairColor, crosshairSize, reticleStyle, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
 }: {
   hud: HudState;
   crosshairColor: string;
   crosshairSize: number;
+  reticleStyle: string;
   dynamicGap: number;   // gap from center (drives spread visualization)
   showHit: boolean;
   hitMarkerAge: number;
@@ -917,16 +915,8 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
-          {/* A recognizable sight housing in ADS instead of an unmodified crosshair. */}
-          {hasReflex && adsP > .3 && (
-            <div className="absolute rounded-full border-2"
-              style={{width:sightType==="holo"?92:62,height:sightType==="holo"?80:62,
-                transform:"translate(-50%,-50%)",opacity:Math.min(1,(adsP-.3)*2),
-                borderColor:sightType==="holo"?"rgba(166,223,205,.58)":"rgba(169,182,185,.55)",
-                background:"radial-gradient(circle,rgba(80,150,130,.045),rgba(4,17,22,.14))",
-                boxShadow:"0 0 0 6px rgba(18,24,29,.75), inset 0 0 7px rgba(175,230,228,.2)"}}
-            />
-          )}
+          {/* Reflex-window frame is part of the physical weapon mesh.
+              HUD renders only the reticle, never a contradictory round housing. */}
           {hasReflex && sightType==="holo" && adsP>.3 && (
             <div className="absolute rounded-full border pointer-events-none"
               style={{width:29,height:29,transform:"translate(-50%,-50%)",
@@ -936,6 +926,8 @@ function ScopeOrCrosshair({
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
             <div className="absolute rounded-full"
               style={{ width: 4, height: 4, background: reticleColor, boxShadow: `0 0 6px ${reticleColor}`, opacity: Math.min(1, adsP), transform: 'translate(-50%, -50%)' }} />
+          ) : reticleStyle!=="classic" ? (
+            <CosmeticCrosshair styleId={reticleStyle} color={crosshairColor} size={crosshairSize} gap={gap}/>
           ) : (
             <>
               {/* Center dot (2×2, centered on the 0×0 origin via translate) */}
@@ -1037,4 +1029,28 @@ function ScopeOrCrosshair({
       )}
     </>
   );
+}
+
+/** Cosmetic hipfire drawings share the same exact viewport centre and do NOT
+ * override the functional sight-specific ADS or magnified optic reticles. */
+export function CosmeticCrosshair({styleId,color,size,gap}:{
+  styleId:string;color:string;size:number;gap:number;
+}){
+  const half=Math.max(12,Math.round(size+gap+5));
+  const stroke=Math.max(1.3,Math.min(2.6,size/5));
+  const common={stroke:color,strokeWidth:stroke,strokeLinecap:"round" as const,fill:"none"};
+  const n=Math.max(4,gap),r=Math.max(4,size);
+  return <svg aria-hidden="true" className="absolute pointer-events-none" width={half*2} height={half*2}
+      viewBox={`${-half} ${-half} ${half*2} ${half*2}`}
+      style={{left:0,top:0,transform:"translate(-50%,-50%)",filter:`drop-shadow(0 0 2px ${color}66)`}}>
+      {styleId==="dot" ? <circle cx="0" cy="0" r={Math.max(1.6,r/4)} fill={color}/> :
+       styleId==="reticle_orbit"?<><circle r={n+r*.55} {...common}/><circle r="1.5" fill={color}/>
+         <path d={`M ${-n-r-3} 0 h 4 M ${n+r-1} 0 h 4 M 0 ${-n-r-3} v 4 M 0 ${n+r-1} v 4`} {...common}/></>:
+       styleId==="reticle_chevron"?<><path d={`M ${-r*.75} ${-n} L 0 ${-n-r*.7} L ${r*.75} ${-n}`} {...common}/>
+         <path d={`M ${-n-r} 0 h ${r*.7} M ${n+r*.3} 0 h ${r*.7}`} {...common}/><circle r="1.2" fill={color}/></>:
+       styleId==="reticle_nova"?<><path d={`M 0 ${-n-r} L ${r*.25} ${-r*.25} L ${n+r} 0 L ${r*.25} ${r*.25} L 0 ${n+r} L ${-r*.25} ${r*.25} L ${-n-r} 0 L ${-r*.25} ${-r*.25} Z`} {...common}/><circle r="1.3" fill={color}/></>:
+       styleId==="reticle_pulse"?<><path d={`M 0 ${-n-r} L ${n+r} 0 L 0 ${n+r} L ${-n-r} 0 Z`} {...common}/>
+         <path d={`M 0 ${-n} L ${n} 0 L 0 ${n} L ${-n} 0 Z`} {...common}/><circle r="1.4" fill={color}/></>:
+       <circle r="1.8" fill={color}/>}
+     </svg>;
 }

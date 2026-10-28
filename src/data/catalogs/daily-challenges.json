@@ -4,7 +4,7 @@
     "metric": "kills",
     "goal": 25,
     "rewardXp": 300,
-    "rewardCredits": 250,
+    "rewardCredits": 100,
     "title": "Bloodhound",
     "description": "Get 25 kills",
     "icon": "Crosshair"
@@ -14,7 +14,7 @@
     "metric": "kills",
     "goal": 50,
     "rewardXp": 600,
-    "rewardCredits": 500,
+    "rewardCredits": 200,
     "title": "Exterminator",
     "description": "Get 50 kills",
     "icon": "Crosshair"
@@ -24,7 +24,7 @@
     "metric": "headshots",
     "goal": 10,
     "rewardXp": 450,
-    "rewardCredits": 375,
+    "rewardCredits": 150,
     "title": "Sharpshooter",
     "description": "Land 10 headshots",
     "icon": "Target"
@@ -34,7 +34,7 @@
     "metric": "headshots",
     "goal": 25,
     "rewardXp": 900,
-    "rewardCredits": 750,
+    "rewardCredits": 300,
     "title": "Marksman",
     "description": "Land 25 headshots",
     "icon": "Target"
@@ -44,7 +44,7 @@
     "metric": "wins",
     "goal": 3,
     "rewardXp": 550,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Victor",
     "description": "Win 3 matches",
     "icon": "Trophy"
@@ -54,7 +54,7 @@
     "metric": "matches",
     "goal": 5,
     "rewardXp": 250,
-    "rewardCredits": 200,
+    "rewardCredits": 80,
     "title": "Active Duty",
     "description": "Play 5 matches",
     "icon": "Swords"
@@ -64,7 +64,7 @@
     "metric": "kill_confirmations",
     "goal": 12,
     "rewardXp": 500,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Dog Tag Collector",
     "description": "Recover 12 enemy tags in Kill Confirmed",
     "icon": "Shield"
@@ -74,7 +74,7 @@
     "metric": "kill_denials",
     "goal": 5,
     "rewardXp": 500,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Last-Second Save",
     "description": "Deny 5 enemy confirmations by retrieving allied tags",
     "icon": "Shield"
@@ -84,7 +84,7 @@
     "metric": "tdm_kills",
     "goal": 20,
     "rewardXp": 400,
-    "rewardCredits": 325,
+    "rewardCredits": 130,
     "title": "Team Player",
     "description": "Get 20 kills in TDM",
     "icon": "Shield"
@@ -94,7 +94,7 @@
     "metric": "ffa_kills",
     "goal": 20,
     "rewardXp": 400,
-    "rewardCredits": 325,
+    "rewardCredits": 130,
     "title": "Lone Wolf",
     "description": "Get 20 kills in FFA",
     "icon": "Users"
@@ -104,7 +104,7 @@
     "metric": "multikills",
     "goal": 5,
     "rewardXp": 550,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Killing Spree",
     "description": "Achieve 5 multi-kills",
     "icon": "Zap"
@@ -114,7 +114,7 @@
     "metric": "kills_with_shotgun",
     "goal": 10,
     "rewardXp": 400,
-    "rewardCredits": 325,
+    "rewardCredits": 130,
     "title": "Breacher",
     "description": "Get 10 kills with shotguns",
     "icon": "Crosshair"
@@ -124,7 +124,7 @@
     "metric": "kills_with_sniper",
     "goal": 8,
     "rewardXp": 550,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Longshot",
     "description": "Get 8 kills with snipers",
     "icon": "Crosshair"
@@ -134,7 +134,7 @@
     "metric": "survival_kills",
     "goal": 30,
     "rewardXp": 450,
-    "rewardCredits": 375,
+    "rewardCredits": 150,
     "title": "Last Stand",
     "description": "Get 30 kills in Survival",
     "icon": "Skull"
@@ -144,7 +144,7 @@
     "metric": "survival_waves",
     "goal": 5,
     "rewardXp": 550,
-    "rewardCredits": 450,
+    "rewardCredits": 180,
     "title": "Holdout",
     "description": "Survive 5 waves in one run",
     "icon": "Shield"
@@ -154,7 +154,7 @@
     "metric": "kills_with_secondary",
     "goal": 15,
     "rewardXp": 300,
-    "rewardCredits": 250,
+    "rewardCredits": 100,
     "title": "Sidearm Slinger",
     "description": "Get 15 kills with secondary weapons",
     "icon": "Crosshair"
@@ -164,7 +164,7 @@
     "metric": "kills_with_melee",
     "goal": 5,
     "rewardXp": 400,
-    "rewardCredits": 350,
+    "rewardCredits": 140,
     "title": "Blade Master",
     "description": "Get 5 kills with melee weapons",
     "icon": "Swords"

@@ -1,4 +1,8 @@
 "use client";
+// Archived Guide: retained for reference; intentionally not imported or routed
+// by the game. New-player onboarding lives in Tutorial.tsx.
+import { DIFFICULTY_REWARDS } from "@/lib/match-rewards";
+import { REWARDS, MAX_PLAYER_LEVEL } from "@/lib/game-data";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +48,7 @@ export function FAQ() {
             <FaqItem q="What are the game modes?">
               <ul className="space-y-1.5">
                 <li><strong className="text-amber-300">Free-For-All (FFA):</strong> Everyone vs everyone. No teams. First to the kill limit (or highest kills when time runs out) wins.</li>
+                <li><strong className="text-emerald-300">Capture the Flag (CTF):</strong> Red vs Blue (currently on Forest Warfare). Steal the enemy flag from its home and carry it to your marked delivery circle behind your base to score. Your own flag must be at home. A carrier moves 10% faster but glows to everyone with line of sight. A dropped flag can be reclaimed by an enemy, returned immediately by its team, or automatically reset at the configurable interval (instant, 10 seconds, 30 seconds, 1 minute, 2 minutes, or never). The default is first to three captures with a 10-minute limit; the host can disable either limit, but not both. A tie at the time limit starts sudden-death overtime: the next capture wins.</li>
                 <li><strong className="text-rose-300">Team Deathmatch (TDM):</strong> Red vs Blue. Kills count toward your team&rsquo;s score. First team to the kill limit wins.</li>
                 <li><strong className="text-cyan-300">Kill Confirmed:</strong> Red vs Blue. Defeated players drop a dogtag. Recover an enemy tag to score for your team; pick up friendly tags to deny enemy points. Tags expire after the room-selected tag lifetime (default 25 seconds). By default, friendly recoveries only deny an enemy point; hosts can enable +1 Denial Scoring so each recovered friendly tag also gives their team a point. The first team to the room score target (or the highest score at the time limit) wins.</li>
                 <li><strong className="text-emerald-300">Survival (PvE):</strong> Solo or duo with limited reinforcements. Clear 30 waves on Standard for a large XP/credits reward and unlock Hard (endless, mutators change every 5 waves). Clear Hard wave 20 for Elite (mutators every wave and a boss every 10 waves), then Elite wave 20 for Nightmare (mutators stack instead of rotate).</li>
@@ -65,14 +70,18 @@ export function FAQ() {
             <FaqItem q="How much XP/credits do I earn per kill?">
               <p>Rewards scale with the difficulty of the enemy you killed:</p>
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                <RewardRow label="Easy Bot" xp="10 XP" cr="5 CR" color="#22c55e" />
-                <RewardRow label="Normal Bot" xp="15 XP" cr="8 CR" color="#facc15" />
-                <RewardRow label="Hard Bot" xp="22 XP" cr="12 CR" color="#f97316" />
-                <RewardRow label="Veteran Bot" xp="30 XP" cr="18 CR" color="#ef4444" />
-                <RewardRow label="Enemy Player" xp="30 XP" cr="18 CR" color="#ec4899" />
-                <RewardRow label="Survival Kill" xp="×0.4" cr="×0.4" color="#06b6d4" />
+                <RewardRow label="Easy Bot" xp={`${DIFFICULTY_REWARDS.easy.xp} XP`} cr={`${DIFFICULTY_REWARDS.easy.credits} CR`} color="#22c55e" />
+                <RewardRow label="Normal Bot" xp={`${DIFFICULTY_REWARDS.normal.xp} XP`} cr={`${DIFFICULTY_REWARDS.normal.credits} CR`} color="#facc15" />
+                <RewardRow label="Hard Bot" xp={`${DIFFICULTY_REWARDS.hard.xp} XP`} cr={`${DIFFICULTY_REWARDS.hard.credits} CR`} color="#f97316" />
+                <RewardRow label="Veteran Bot" xp={`${DIFFICULTY_REWARDS.veteran.xp} XP`} cr={`${DIFFICULTY_REWARDS.veteran.credits} CR`} color="#ef4444" />
+                <RewardRow label="Enemy Player" xp={`${DIFFICULTY_REWARDS.enemy_player.xp} XP`} cr={`${DIFFICULTY_REWARDS.enemy_player.credits} CR`} color="#ec4899" />
+                <RewardRow label="Survival Kill" xp={`×${REWARDS.survivalKillMultiplier}`} cr={`×${REWARDS.survivalKillMultiplier}`} color="#06b6d4" />
               </div>
               <p className="mt-2">Survival kills award reduced rewards (×0.4) because players rack up very large kill counts. Enemy human players always count as &ldquo;veteran&rdquo; difficulty for rewards.</p>
+            </FaqItem>
+            <FaqItem q="What happens after the level cap?">
+              <p>Equipment levels end at level {MAX_PLAYER_LEVEL}. In Profile, Career ranks use fresh post-cap XP and credits. Rank 1 needs 20,000 fresh XP and 5,000 CR; each following rank adds 5,000 XP and 2,500 CR to its cost. Promotions preserve equipment, level and mastery and award nameplate titles at Career ranks 1, 5 and 10.</p>
+              <p className="mt-2">Each promotion starts a fresh XP goal. Historic XP and overflow from a full Career meter cannot fill later goals. Lifetime XP remains visible. Existing credits and purchases are preserved.</p>
             </FaqItem>
             <FaqItem q="What are daily challenges?">
               <p>Three rotating objectives refresh every 24 hours (at midnight). They include things like &ldquo;Get 25 kills&rdquo;, &ldquo;Land 10 headshots&rdquo;, or &ldquo;Win 3 matches&rdquo;. Completing a challenge awards bonus XP and credits. You can see today&rsquo;s challenges on the home screen.</p>
@@ -182,7 +191,7 @@ export function FAQ() {
               <p>Three tiers of rotating objectives with different scopes and reward sizes:</p>
               <ul className="space-y-0.5 mt-1.5">
                 <li><strong className="text-amber-300">Daily Challenges:</strong> 3 rotating objectives that refresh every midnight. Quick goals like &ldquo;Get 25 kills&rdquo; or &ldquo;Win 3 matches&rdquo;. Shown on the home screen.</li>
-                <li><strong className="text-purple-300">Weekly Challenges:</strong> 2 harder objectives that rotate every ISO week (Monday). Bigger goals + bigger rewards (1000–2000 XP, 500–1000 credits). Same set for all players each week. Shown on the home screen below the daily challenges.</li>
+                <li><strong className="text-purple-300">Weekly Challenges:</strong> 2 harder objectives that rotate every ISO week (Monday). Bigger goals + bigger rewards (1000–2000 XP, 200–400 credits). Same set for all players each week. Shown on the home screen below the daily challenges.</li>
                 <li><strong className="text-purple-300">Elite Variants:</strong> Each daily or weekly challenge has a small chance (~15% daily, ~25% weekly) of being &ldquo;promoted&rdquo; to an Elite variant per player per period. Elite variants have 3× the goal and 3× the reward, marked with a purple/pink &ldquo;Elite&rdquo; badge. They still reset on the same schedule as their parent (daily elite resets daily, weekly elite resets weekly). Promotion is deterministic per player — you&rsquo;ll see the same elite quests on reload within the same day/week.</li>
               </ul>
               <p className="mt-2">All challenges auto-award their rewards the moment they&rsquo;re completed — no manual claim needed.</p>

@@ -1,105 +1,53 @@
-# Map Studio 2 — unified map authoring
+# Map Studio — connected construction and editable assets
 
-Map Studio is a developer tool at **/map-editor**, not linked from the player menu. This guide describes the new editor on `feat/map-editor-unified-rebuild-gpt6-20261026`. The previous split-blueprint workflow has been superseded.
+Open `/map-editor`. The first-map guide, searchable Asset library, 2D plan and 3D view operate on the same browser draft. Select a recipe and click the viewport, or drag it from the palette. Playtest uses unsaved changes without awarding progression or changing multiplayer maps.
 
-## Authoring goals
+## Construction
 
-The editor is for designing playable FPS maps, not merely drawing decorations. It provides two views over the same document: a **3D object editor** for placement and physics-aware transformations, and a **2D orthographic plan** for fast positioning and floor layout. Both operate in world X/Y/Z coordinates; `w` and `d` are full extents. Use an overlapping region layout to build connected districts and multiple routes, with clear spawning and genuine stair access to raised surfaces.
+- New construction uses 1-unit dimensions, 1-unit walls and 5-unit storeys; building presets are 5 or 10 units tall. Existing maps are not automatically quantized. Grid off enables free dimensions and sub-unit repairs.
+- Draw wall: drag between endpoints in 2D; choose start/end with two clicks in 3D. Collision remains axis-aligned.
+- Join faces attracts touching faces without an imposed gap. Align edges matches edges/centres. 3u clearance deliberately spaces pieces. Buildings retain access-space checks. Magnetic and Surfaces operate independently; Alt bypasses them while stamping.
+- The 3D grid follows the selected snap interval. The 2D plan labels its major-line interval, which is an integer multiple of the snap setting when zoomed out.
+- Join nearest wall face, or Close gap on a warning, extends one face while preserving the opposite end. Intentional openings can remain as warnings.
 
-The toolbar offers rectangular, elliptical and triangular walkable regions, authored cover, platforms, independent stairs, hazards, FFA/red/blue spawns, props, eight reusable building kits and seven structure kits. **Drag a building or structure kit from the palette directly into either the 2D or 3D viewport**, or click its palette tile and stamp it in the scene. Browser-native drag/drop is intended for desktop; the click-to-stamp path also supports touch interfaces. The 3D inspector supports selection, axis-locked movement, quarter-turn rotations and resizing. Existing engine-authored collision and stairs can be moved, copied as authored geometry, hidden or restored using stable source-index overrides.
+## Connected stairs and assemblies
 
-The right-hand inspector adjusts exact coordinates/dimensions, labels, stair attachment, hazards, building use/facade/shape/roof access, biome, palette, ambient/vegetation and surface recipes. Undo/redo supports Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z. 2D objects can be dragged with accurate magnetic ghost outlines, alignment guides and placement-conflict feedback; 3D has orbit/pan, placement previews, axis controls, grid increments (0, 1, 2, 5 or 10 world units), and separate **Magnetic** and **Surfaces** toggles. The new structural magnet aligns nearby faces/edges/centers within 3.25 units, with a standard 3-unit building separation. **Surfaces** puts fully contained stamps onto the highest authored platform or building roof rather than leaving them at ground level; 3D ghost previews reflect the same elevation and flag invalid building placement in red. In 3D, eligible platform/roof top faces are raycast directly so a drop uses the elevated point actually under the cursor. Hold **Alt** while stamping or dropping a prefab to bypass magnetic and surface alignment. Vertical gizmo movement snaps to nearby physical decks or 5-unit storey levels, while otherwise allowing arbitrary elevation. Buildings from the palette use consistent 5- or 10-unit storey presets; existing saved building heights are not silently rewritten.
+Independent stairs use a top-landing anchor: x,z is the top edge; axis/sign describe the outward/downhill direction; w is width, d is horizontal run, y is the starting floor and h is rise. The plan, snapping and gizmos convert this to the same physical footprint used by collision.
 
-## One JSON file per map
-
-The sole current **source of truth for authored data** is a versioned JSON file per map:
-
-- `src/data/maps/bunker.json`
-- `src/data/maps/shipyard.json`
-- `src/data/maps/compound.json`
-- `src/data/maps/terminal.json`
-- `src/data/maps/skybridge.json`
-- `src/data/maps/arena_neon.json`
-
-Each version 2 map JSON contains the map ID, geometry blueprint, and visual theme:
+Choose Attach to platform or Attach to nearest platform. New stairs close to a platform also attach when Magnetic is enabled. A saved connection contains:
 
 ```json
-{
-  "version": 2,
-  "id": "training_ground",
-  "blueprint": {
-    "name": "TRAINING GROUND",
-    "shortName": "TRG",
-    "description": "Two flanking lanes and a raised central position.",
-    "pace": "balanced",
-    "templateMapId": "compound",
-    "regions": [
-      { "x": 0, "z": 0, "w": 140, "d": 100 },
-      { "x": 60, "z": 40, "w": 80, "d": 75 }
-    ],
-    "features": [
-      { "id": "middle_ledge", "kind": "platform", "x": 0, "z": 0, "w": 12, "d": 16, "h": 4 }
-    ],
-    "spawns": {
-      "ffa": [[-40, 0, -20], [40, 0, 20]],
-      "red": [[-40, 0, 20]],
-      "blue": [[40, 0, -20]]
-    }
-  },
-  "theme": {
-    "biome": "desert",
-    "label": "Dry training grounds",
-    "palette": {
-      "floor": "#887c67", "wall": "#7b6b56", "cover": "#786754",
-      "accent": "#ddae70", "platform": "#9d896e", "stair": "#a48e74",
-      "sky": "#94b6c4", "fog": "#a8b8b6", "grid": "#685949"
-    },
-    "ambient": 1.4,
-    "vegetation": 0.05,
-    "props": []
-  }
-}
+"attachment": { "platformId": "roof", "edge": "east", "offset": 0, "baseY": 0 }
 ```
 
-The source is imported and registered in `src/lib/map-documents.ts`. Compatibility adapters expose `MAP_BLUEPRINTS` and `MAP_VISUAL_THEMES` to the existing deterministic physics, visuals and authoritative multiplayer code. The old `src/data/map-blueprints.json` and `src/data/map-themes/*.json` are kept only as legacy migration snapshots and should **not** be edited for new published content.
+The landing follows platform movement, dimensions, height and quarter-turn rotation. Its rise/run and safe tread count are derived in both editor and shared runtime compilation. Adjust the landing edge, offset and starting floor in the Inspector. Detach landing permits manual placement. Moving stairs individually detaches them; assembly operations retain links. Explicit attachment disables that platform's automatic stairs to avoid duplicate flights; Auto stairs can be re-enabled deliberately.
 
-The six legacy TypeScript base environments still provide a common template and some inherited geometry. A map document is **not** a complete stand-alone game engine scene. Changes to gameplay semantics, new hazard kinds, true rotated colliders or new base templates still require coordinated engine/client/server work.
+Construction kits retain an assemblyId. Edit entire assembly applies move, rotate, resize, duplicate and delete to all pieces in one undo action. Copies receive fresh IDs and internal references. Ungroup assembly allows separate editing while preserving landing attachments.
 
-## Creating, importing and exporting
+## Precision and diagnostics
 
-1. Choose an existing map or create a unique ID and choose **New**. A new map starts as a copy of the selected map with a stable template ID.
-2. Author connected regions and real collision geometry. Place spawns clear of cover/hazards, then decorate with props and materials.
-3. Watch validation warnings. Safety markers and district links are approximations, not pathfinding or an exhaustive physics simulation.
-4. **Playtest** opens the actual offline FPS using the current unsaved draft with 0, 3 or 6 bots. It awards no progression and cannot publish to multiplayer. Return to the editor to continue.
-5. **Export map** downloads exactly one `<mapId>.json` file. Publish by replacing `src/data/maps/<mapId>.json` in the repository and rebuilding. **Backup all** exports a portable library containing every editor map.
-6. For a **new map ID**, add a static import and a `MAP_DOCUMENTS` entry in `src/lib/map-documents.ts`, review `MapId` in `src/lib/game-protocol.ts`, and test room creation, server selection and map loading before promotion.
+Exact bottom/top Y controls move a face without changing thickness for authored props, hazards and inherited boxes/stair flights. Authored geometry uses bottom-based Y; inherited boxes and hazards use centre-based Y. Legacy flights retain a safe maximum rise for their fixed tread count.
 
-Browser drafts are automatically stored under `vanguard-map-studio-v2`. First launch migrates older `vanguard-map-studio-v1` geometry and `vanguard-map-studio-themes-v1` theme drafts. The **Import** button also accepts a version-2 single map file, a version-2 backup, legacy blueprint JSON, a legacy Map Studio v1 bundle, or a legacy theme for the currently selected map. Import validation rejects structurally invalid data rather than silently replacing the shipped library. Always export a backup before major migrations.
+Warnings measure small wall gaps, buried landings, height mismatches, missing platform references, and blocked stair routes/headroom. Stair tests use compiled boxes and shared bot traversal rules. Select an affected object directly from its warning. Checks do not prove exhaustive reachability, balance or rendering performance; still walk the routes and test with bots.
 
-## Map design and physics details
+## Asset library
 
-Regions overlap to form a union. Rectangle regions are exact; ellipse/triangle edges become narrow AABB strips for the existing collision system. Region outlines are not inner walls. Platforms create north/south stairs unless `autoStairs: false`; standalone stairs can be attached to the nearest platform. A `cover` object's `y` is **bottom elevation** and `h` is its own height. Spawns are `[x,y,z]` points.
+The library holds editable recipes. Container, Red container and Blue container share one primitive and collision recipe; the variants supply different colors. Each placed copy stores its own supported dimensions, orientation and color. Editing a copy does not change other copies or the original preset.
 
-Authored hazards are `fire`, `spikes`, `jump_pad`, `moving_platform` and `destructible_wall`. Authored building prop collision is derived deterministically and shared between the editor, offline play and authoritative gameplay. Procedural city lots can be converted into editable authored buildings. The two Afterlight editions (`terminal`, `arena_neon`) share authored geometry/buildings while retaining different visual themes.
+Search Construction, Buildings, Props and My assets. Edit an object or geometry assembly, enter a name and choose Save to My assets. Recipes keep relative offsets and internal landing links; stamping allocates fresh IDs. Personal recipes persist in that browser under vanguard-studio-assets-v1. Export assets / Import assets transfer a version-1 recipe library. Updating a recipe does not retrospectively update placed copies.
 
-Existing built-in boxes and stair flights are backed by stable `legacyCoverOverrides`, `legacyEnvironmentOverrides`, `legacyCoverDisabled` and `legacyEnvironmentDisabled` source indices in each blueprint; these override their inherited geometry without editing the TypeScript originals. Rotation is quarter-turn only (0°, 90°, 180°, 270°). City building fixtures, openings and stairs follow their saved orientation; arbitrary-angle collision is not supported. Move mode exposes X/Y/Z locks and rejects unwanted plane motion. The 3D editor uses physics proxies, so it is not a pixel-perfect preview of game materials. Magnetic snapping is a geometry authoring aid, not a full CSG/wall-joining system: it does not weld meshes, generate doors between buildings, or replace in-game navigation testing. Legacy engine cover participates in alignment; old map files are not mutated in place.
+Current recipes use procedural game primitives. They do not import arbitrary model files, scripts or URLs. See `docs/asset-library-and-imports.md` for external art reuse.
 
-Design multiple flanks around high positions, keep line-of-sight interruptions, leave stairs clear, and distribute spawns across the footprint. Test across compact and larger player counts to catch unreachable platforms, spawn traps, cover collision discrepancies and overloaded scenery.
+## Canonical map files and migration
+
+Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon and orbital_nexus. Previous split JSON files remain migration snapshots. Underlying engine templates, Forest Warfare and reactor mechanics still contain TypeScript behavior.
+
+Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
+
+Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 maps, v2 backups, v1 blueprint JSON and old split bundles. Undo and JSON roundtrips preserve links and assemblies. Export map writes one file for review/rebuild; Backup all saves the editor library. New map IDs still need static registration and room/protocol review before publishing.
 
 ## Validation and promotion
 
-Run these checks before merging:
+Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck` and `bun run build`. Connection regressions cover all landing directions, multiple heights, ascent/descent, blocked headroom, rotation, resizing, copying and JSON roundtrips. Preserve client/server parity and Orbital reactor rules.
 
-```sh
-bun run content:validate
-bun run test:smoke
-bun run typecheck
-bun run build
-```
-
-Review `tests/map-documents.test.ts`, `tests/map-document-io.test.ts`, `tests/map-studio-playtest.test.ts` and existing map physics, bot and layout tests. Finally conduct manual browser playtests in both map editor and actual FPS sessions, and compare client and server collision and bot navigation. Publishing remains a Git-controlled build operation. No player-upload endpoint accepts mutable shared multiplayer maps.
-
-
-## Current environment notes
-
-Breakwater's floating moving cargo and independent crane platform have been removed; dock collision, supported crane routes and cover remain. Long-face container stripes appear on either X- or Z-oriented containers.
+Before promotion, verify real pointer/touch placement, player movement, inherited exact faces, undo/redo, draft recovery, map appearance and online behavior. See `docs/dev-test-checklist.md`; the previous guide is archived at `docs/archive/map-studio-before-connections.md`.

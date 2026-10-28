@@ -64,9 +64,10 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
     bodyLevel: .43, noiseLevel: .31, bodyType: "sawtooth", filter: "highpass",
   },
   wonder_hellfire: {
-    // Pure pressurized combustion hiss, with no shot crack or bass blast.
-    bodyHz: 100, bodyEndHz: 100, bodySeconds:.12,noiseHz:900,
-    noiseQ:.58,noiseSeconds:.17,bodyLevel:0,noiseLevel:.46,
+    // Long, overlapping pressurized combustion wash. No tonal firearm
+    // body or muzzle transient; the gradual noise envelope sounds like fire.
+    bodyHz: 100, bodyEndHz: 100, bodySeconds:.48,noiseHz:1050,
+    noiseQ:.48,noiseSeconds:.56,bodyLevel:0,noiseLevel:.38,
     bodyType:"sine",filter:"lowpass",
   },
 };
@@ -139,6 +140,13 @@ export function resolveShotAcoustics(
     * Math.max(0, 1 - Math.pow(distance / 90, 3));
   const level = (suppressed ? .48 : 1) * attenuation
     * Math.min(1.2, Math.max(0, options.volume ?? 1));
+  // Conventional bare muzzles have both a heavier pressure kick and a
+  // brighter transient. Keep these boosts OUT of suppressed and experimental
+  // electronic/quiet weapons so the silencer remains meaningfully muffled.
+  const conventional = category !== "melee" &&
+    !["rifle_electron", "crossbow_reclaimer", "pistol_arc", "wonder_hellfire"].includes(options.weaponId ?? "");
+  const bassBoost = conventional && !suppressed ? 1.34 : 1;
+  const trebleBoost = conventional && !suppressed ? 1.26 : 1;
   return {
     level,
     suppressed,
@@ -147,14 +155,14 @@ export function resolveShotAcoustics(
       : distance > 7 ? Math.max(1700, 8500 - distance * 85) : null,
     crackHz: impact.crackHz,
     crackSeconds: impact.crackSeconds,
-    crackLevel: impact.crackLevel * level * (suppressed ? .06 : 1),
+    crackLevel: impact.crackLevel * level * (suppressed ? .06 : trebleBoost),
     punchHz: impact.punchHz,
     punchSeconds: impact.punchSeconds,
-    punchLevel: impact.punchLevel * level * (suppressed ? .55 : 1),
+    punchLevel: impact.punchLevel * level * (suppressed ? .55 : bassBoost),
     blastHighpassHz: blast?.highpassHz ?? 0,
     blastLowpassHz: blast?.lowpassHz ?? 0,
     blastSeconds: blast?.seconds ?? 0,
-    blastLevel: (blast?.level ?? 0) * level * (suppressed ? .09 : 1),
+    blastLevel: (blast?.level ?? 0) * level * (suppressed ? .09 : 1.12),
   };
 }
 
@@ -175,7 +183,8 @@ export class WeaponAudio {
   private noiseBuffer: AudioBuffer | null = null;
   private volume: number;
   private activeVoices = 0;
-  private readonly maxVoices = 32; // prevent Web Audio overload during bot-heavy firefights
+  private readonly maxVoices = 32;
+  private lastFlameHissAt = -Infinity; // prevent Web Audio overload during bot-heavy firefights
   private disposed = false;
 
   constructor(masterVolume = 70) {
@@ -234,12 +243,21 @@ export class WeaponAudio {
     volume?: number;
   } = {}): void {
     // Reserve several voices for the player when the arena is extremely busy.
-    const voiceLimit = options.distance === undefined ? this.maxVoices + 8 : this.maxVoices;
+    // Remote firefights must not exhaust voices reserved for the local gun.
+    const voiceLimit = options.distance === undefined ? this.maxVoices + 8 : Math.max(4,this.maxVoices - 6);
     if (this.volume === 0 || this.disposed || this.activeVoices >= voiceLimit) return;
     if (!this.ctx) this.unlock();
     const ctx = this.ctx;
     const out = this.output;
     if (!ctx || !out || !this.noiseBuffer) return;
+    const isFlame = options.weaponId === "wonder_hellfire";
+    if (isFlame) {
+      // Continuous flamethrower sound: one overlapping wash every ~430ms,
+      // never eight distinct gunshot transients per second.
+      const at = ctx.currentTime;
+      if (at - this.lastFlameHissAt < .43) return;
+      this.lastFlameHissAt = at;
+    }
     const profile = SPECIAL_PROFILES[options.weaponId ?? ""] ?? PROFILES[category];
     if (!profile) return;
 
@@ -310,7 +328,8 @@ export class WeaponAudio {
     if (category === "melee") filter.frequency.exponentialRampToValueAtTime(440 * pitch, now + noiseTime);
     else if (category === "sniper") filter.frequency.exponentialRampToValueAtTime(650 * pitch, now + noiseTime);
     const burstGain = ctx.createGain();
-    shape(burstGain, profile.noiseLevel * level * .75, category === "melee" ? .037 : .0013, noiseTime);
+    shape(burstGain, profile.noiseLevel * level * .75,
+      isFlame ? .09 : category === "melee" ? .037 : .0013, noiseTime);
     burst.connect(filter).connect(burstGain).connect(destination);
     track(burst, [burst, filter, burstGain]);
     burst.start(now, Math.random() * .09);
@@ -319,7 +338,7 @@ export class WeaponAudio {
     // Open shotgun report: a short, wide-spectrum pressure burst. It is NOT
     // routed through the legacy lowpass noise filter; the Mauler's main noise
     // already sounds like a sharp bang rather than a suppressed "whump".
-    if (acoustics.blastLevel > .01) {
+    if (!isFlame && acoustics.blastLevel > .01) {
       const blast = ctx.createBufferSource();
       blast.buffer = this.noiseBuffer;
       const blastHigh = ctx.createBiquadFilter();
@@ -340,7 +359,7 @@ export class WeaponAudio {
 
     // Dry muzzle crack: broadband 1.2–9k transient lasting only 10–40ms.
     // This is intentionally absent from a genuinely suppressed shot.
-    if (acoustics.crackLevel > .02) {
+    if (!isFlame && acoustics.crackLevel > .02) {
       const crack = ctx.createBufferSource();
       crack.buffer = this.noiseBuffer;
       const crackHigh = ctx.createBiquadFilter();
@@ -348,7 +367,7 @@ export class WeaponAudio {
       crackHigh.frequency.value = acoustics.crackHz * pitch;
       const crackLow = ctx.createBiquadFilter();
       crackLow.type = "lowpass";
-      crackLow.frequency.value = Math.min(9500, ctx.sampleRate * .43);
+      crackLow.frequency.value = Math.min(12000, ctx.sampleRate * .43);
       const crackGain = ctx.createGain();
       shape(crackGain, acoustics.crackLevel * .85, .0007, acoustics.crackSeconds);
       crack.connect(crackHigh).connect(crackLow).connect(crackGain).connect(destination);
@@ -359,7 +378,7 @@ export class WeaponAudio {
 
     // Pressure pulse: fast, pitched-down low-frequency impact instead of
     // prolonged muffled rumble. Heavy guns get a lower, longer thump.
-    if (acoustics.punchLevel > .01) {
+    if (!isFlame && acoustics.punchLevel > .01) {
       const punch = ctx.createOscillator();
       punch.type = "sine";
       const punchGain = ctx.createGain();

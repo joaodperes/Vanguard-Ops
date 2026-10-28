@@ -42,6 +42,13 @@ Test desktop keyboard/mouse **and** touch/mobile:
 - Shotguns and relevant snipers insert rounds incrementally; verify interruption, remaining ammo and online/server parity.
 - Confirm damage falloff, accuracy, weapon attachments, per-weapon skins, ownership, saved loadouts, challenges, achievement rewards, Wonder recharge and deaths/respawns across match boundaries.
 - Test weapon-specific behaviors: grenade/launcher splash, Bullet Spitter acquisition and destruction, Event Horizon, Plagueheart poison, Deadlock, Hellfire, Stormweaver and Bogfather. Cover and team rules must agree offline/online.
+- At the Firing Range, inspect iron, red-dot and holographic ADS on the burst pistol, Hydra, Reclaimer, Plagueheart and LMGs: optics must stay attached to the receiver, the physical housing must agree with the HUD reticle, and the aim point must remain unobstructed. Confirm all gun bodies rise just below the crosshair without hiding targets.
+- Fire Plagueheart at the furthest practice bot. Only targets within 2.75m of the *impact* should be poisoned; targets merely close to the flight path must remain unaffected. Repeat on an online room with latency.
+- Confirm Stormweaver identifies as Shotgun in HUD/loadouts; seven pellets group tightly at short range, lightning arcs begin at a struck victim and jump between actual targets (never from the muzzle), and missed pellets become floor mines. Verify server/local hit parity.
+- Inspect Event Horizon default Eventide-inspired finish and explicit skin overrides, Deadlock's targeting modules, Hellfire red/orange/yellow chassis and forward-directed muzzle flames. Check axe blade silhouette and melee reach visually, then compare LMG vertical recoil while hipfiring and ADS.
+- Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface.
+- On a new guest and a new account, complete the tutorial's movement, ADS, target, reload and swap drills using desktop and touch controls. Escape must expose tutorial buttons; cancel a reload by swapping and verify it does not complete the reload task. Confirm the range awards no stats/XP/credits and does not change the equipped loadout.
+- Skip, finish, save/leave and reload the tutorial; verify per-player checkpoints, resume from Profile, replay after completion and no repeated menu prompts. Confirm existing players are not forced into training, the Guide is absent, the Deploy area is gone, Play still works and account logout is inside Profile.
 
 ## 4. Map and bot acceptance
 
@@ -71,6 +78,9 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Check Gun Game progression and Kill Confirmed enemy/friendly tag scoring.
 - Validate guest and account login, profile persistence, credits, challenge counters, unlocks, purchase rejection, weapon-specific attachment/skin memory and import/export. Repeat after refresh, relogin and, where feasible, a second device.
 - On a test copy of real data, review additive Prisma updates and legacy IDs; never use `db:reset` as a migration shortcut.
+- Confirm XP-earned perks save when the legacy cached level is stale, including named presets and multiplayer. Unequipping Well Prepared must remove the second primary.
+- In Profile, verify the PvP label reads "Non-Survival game modes" and title rewards appear on final achievement tiers in every section. Check existing final awards grant titles without new payouts, retired intermediate selections clear, locked titles cannot be equipped, and chosen titles persist into matches. Achievement IDs and earned records must remain intact.
+- Compare rewards against `docs/economy-and-career-progression.md`. At level 36, verify that only fresh post-cap XP advances Career, a promotion charges once and resets its meter, titles require their Career rank, and old backups cannot refund promotions.
 
 ## 6. Performance and sign-off
 
@@ -88,3 +98,13 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - [ ] Performance and networking acceptable for intended release
 - [ ] Database backup/migration and rollback are approved, if applicable
 - [ ] `main` deployment/branch validation completed after merge
+
+## Map Studio connected construction
+
+- Place each wall/room/rooftop recipe in 2D and 3D; verify ghosts and grid intervals agree with the committed geometry.
+- Attach stairs at every edge of 5u and 10u platforms; walk both ways, then move, resize, rotate, copy and undo the assembly. Test an elevated lower floor and missing headroom.
+- Reproduce a tiny wall gap and a buried stair landing; verify measured markers, object selection and Close gap. Keep intentional openings available.
+- Edit exact bottom/top faces of inherited boxes and stair groups without changing thickness.
+- Place red/blue containers, recolor/resize one copy, save it to My assets, export/import its recipe library and confirm fresh instance IDs.
+- Roundtrip all seven unified map documents, including Orbital Nexus. Confirm Afterlight day/night retain different footprints and serialize their visible shared props.
+- Verify new editor/browser changes on touch and small screens. Walk actual player routes and check multiplayer reactor/client-server parity before promotion.

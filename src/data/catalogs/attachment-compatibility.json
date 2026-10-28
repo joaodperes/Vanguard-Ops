@@ -3,41 +3,48 @@
     "sight": [
       "sight_acog",
       "sight_hunter",
-      "sight_thermal"
+      "sight_thermal",
+      "sight_compact_reflex"
     ],
     "barrel": [
       "barrel_poison",
       "barrel_bolt_fletching",
-      "barrel_bolt_piercing"
+      "barrel_bolt_piercing",
+      "barrel_bolt_agile"
     ],
     "magazine": [
       "mag_bolt_quiver",
       "mag_extended",
-      "mag_bolt_heavy"
+      "mag_bolt_heavy",
+      "mag_bolt_light_quiver"
     ]
   },
   "rifle_electron": {
     "sight": [
       "sight_red_dot",
       "sight_holo",
-      "sight_acog"
+      "sight_acog",
+      "sight_compact_reflex"
     ],
     "grip": [
       "grip_vertical",
       "grip_precision",
-      "grip_runner_ads"
+      "grip_runner_ads",
+      "grip_angled"
     ]
   },
   "pistol_arc": {
     "sight": [
       "sight_red_dot",
       "sight_laser",
-      "sight_holo"
+      "sight_holo",
+      "sight_compact_reflex"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "sniper_lr": {
@@ -50,12 +57,14 @@
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
-      "barrel_match"
+      "barrel_match",
+      "barrel_lightweight"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "sniper_scout": {
@@ -68,12 +77,14 @@
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
-      "barrel_match"
+      "barrel_match",
+      "barrel_lightweight"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_lightweight"
     ]
   },
   "sniper_heavy": {
@@ -86,12 +97,14 @@
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
-      "barrel_match"
+      "barrel_match",
+      "barrel_lightweight"
     ],
     "magazine": [
-      "mag_extended",
-      "mag_quickdraw",
-      "mag_balanced"
+      "mag_antimaterial_match",
+      "mag_antimaterial_fastbolt",
+      "mag_antimaterial_lightchamber",
+      "mag_antimaterial_stabilizer"
     ]
   }
 }

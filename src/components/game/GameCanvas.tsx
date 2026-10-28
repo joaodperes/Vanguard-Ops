@@ -4,10 +4,12 @@ import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "
 import type { LoadoutWire, GameMode, MapId, MapDef, BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
+import type { PracticeSample } from "@/lib/tutorial";
 import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
+import { useGame } from "@/lib/game-store";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +21,7 @@ interface Props {
   survivalTier?: SurvivalTier;
   online: boolean;
   firingRange?: boolean;
+  tutorial?: boolean;
   previewMap?: MapDef;
   playerName: string;
   playerKey: string;
@@ -29,9 +32,10 @@ interface Props {
   onMatchEnd: (r: MatchEndResult) => void;
   onExit: () => void;
   onExitWithStats?: (r: MatchEndResult) => void;  // called when user leaves mid-match (saves progression)
+  onPracticeSample?: (sample: PracticeSample) => void;
 }
 
-export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, firingRange = false, previewMap, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats }: Props) {
+export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, firingRange = false, tutorial = false, previewMap, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats, onPracticeSample }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<FPSEngine | null>(null);
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
@@ -46,9 +50,12 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
+  const practiceObserver = useRef(onPracticeSample);
+  useEffect(() => { practiceObserver.current = onPracticeSample; }, [onPracticeSample]);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    let disposed = false;
     let engine: FPSEngine;
     try {
       engine = new FPSEngine(containerRef.current, {
@@ -63,14 +70,19 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       botDifficulty,
       survivalTier,
       masterVolume: settings.masterVolume,
-      musicVolume: settings.musicVolume,
       footstepVolume: settings.footstepVolume,
       fxVolume: settings.fxVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
       roomConnect: roomConnect ?? undefined,
       startedAt: performance.now(),
-      onHud: (h) => setHud(h),
+      onHud: (h) => {
+        setHud(h);
+        if (firingRange && h.radar) practiceObserver.current?.({
+          x: h.radar.playerX, z: h.radar.playerZ, aiming: h.aiming,
+          kills: h.kills, ammo: h.ammo, reloading: h.reloading, weaponId: h.weaponId,
+        });
+      },
       onKillFeed: () => {},
       onMatchEnd: (r) => {
         if (firingRange) return; // No match-complete API / credits / progression for trials.
@@ -101,21 +113,29 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       onReady: () => setReady(true),
       });
     } catch (error) {
-      setStartupError(error instanceof Error ? error.message : String(error));
-      return;
+      queueMicrotask(() => {
+        if (!disposed) setStartupError(error instanceof Error ? error.message : String(error));
+      });
+      return () => { disposed = true; };
     }
-    setStartupError(null);
     engineRef.current = engine;
-    setEngineInstance(engine);
+    // Publish the external engine after setup; ignore the notification if this
+    // screen has already unmounted (including a failed/aborted startup).
+    queueMicrotask(() => {
+      if (disposed) return;
+      setStartupError(null);
+      setEngineInstance(engine);
+      setIsTouch(engine.isTouchMode());
+    });
     // A user has already selected a match, so try unlocking lobby audio now.
     // If autoplay policy defers it, the next lobby pointer gesture retries it.
     engine.unlockAudio();
-    setIsTouch(engine.isTouchMode());
     // Round 20a: Poll socket connection state for the lobby UI.
     const socketPoll = setInterval(() => {
       setSocketConnected(!!engine.getSocketConnected());
     }, 500);
     return () => {
+      disposed = true;
       clearInterval(socketPoll);
       if (outroTimer.current) clearTimeout(outroTimer.current);
       engine.dispose();
@@ -181,17 +201,17 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           </div>
         </div>
       )}
-      {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
+      {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
       {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
-            <div className="text-2xl font-bold tracking-widest text-white mb-1">{firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
+            <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
             <div className="text-sm text-white/60">WASD move · Mouse aim · L-Click fire · R-Click ADS · R reload · Shift sprint · Space jump</div>
             <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard</div>
-            <div className="text-xs text-amber-300/70 mt-2">{firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
+            <div className="text-xs text-amber-300/70 mt-2">{tutorial ? "Press Escape to use the tutorial controls" : firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
         </div>
       )}
@@ -202,10 +222,10 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           onClick={() => setTouchStarted(true)}
         >
           <div className="bg-black/70 backdrop-blur-sm border border-amber-500/30 rounded-xl px-8 py-6 text-center">
-            <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">{firingRange ? "TAP TO TEST" : "TAP TO PLAY"}</div>
+            <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">{tutorial ? "TAP TO TRAIN" : firingRange ? "TAP TO TEST" : "TAP TO PLAY"}</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
             <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
-            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
+            <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
       )}

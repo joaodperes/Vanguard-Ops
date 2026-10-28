@@ -15,6 +15,14 @@ on:
       - src/lib/factory-machinery.ts
       - src/data/map-themes/skybridge.json
       - tests/ridgefall-factory.test.ts
+      - tests/afterlight-ridgefall-polish.test.ts tests/afterlight-performance-roof-bots.test.ts
+      - tests/afterlight-performance-and-elevation.test.ts
+      - src/lib/cover-spatial-index.ts
+      - src/lib/city-high-ground.ts
+      - src/lib/bot-routing.ts
+      - src/lib/game-server.ts
+      - src/lib/sound.ts
+      - src/lib/weapon-audio.ts
       - src/data/map-themes/shipyard.json
       - tests/map-studio-*.test.ts
       - src/lib/map-visuals.ts
@@ -42,7 +50,7 @@ jobs:
       - name: Generate Prisma client
         run: bun run db:generate
       - name: Afterlight and navigation regression tests
-        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts tests/map-studio-object-authoring.test.ts tests/map-studio-elevation.test.ts tests/map-studio-legacy-actions.test.ts tests/map-studio-prefabs.test.ts tests/map-studio-playtest.test.ts tests/map-studio-creator-workflow.test.ts tests/map-studio-transform-and-breakwater.test.ts tests/ridgefall-factory.test.ts
+        run: bun test tests/map-art-variants.test.ts tests/map-playability.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts tests/map-studio-object-authoring.test.ts tests/map-studio-elevation.test.ts tests/map-studio-legacy-actions.test.ts tests/map-studio-prefabs.test.ts tests/map-studio-playtest.test.ts tests/map-studio-creator-workflow.test.ts tests/map-studio-transform-and-breakwater.test.ts tests/ridgefall-factory.test.ts tests/afterlight-ridgefall-polish.test.ts tests/afterlight-performance-and-elevation.test.ts
       - name: TypeScript validation
         run: bun run typecheck
       - name: Production build

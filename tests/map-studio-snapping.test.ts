@@ -10,7 +10,7 @@ const deck:StudioSnapTarget={key:"deck",kind:"platform",x:60,z:0,w:32,d:32,y:2,h
 const candidate=(x:number,z=0,w=20,d=20)=>({x,z,w,d});
 describe("structure-aware studio snapping",()=>{
   test("configurable grid and direct face magnetism",()=>{
-    const r=snapStudioFootprint(candidate(22.2),[wall],{grid:2});
+    const r=snapStudioFootprint(candidate(22.2),[wall],{grid:2,mode:"clearance"});
     expect(r.x).toBe(23); // 10 + 10 + 3 clearance
     expect(r.snappedX).toBe(23);
     expect(r.hints.length).toBeGreaterThan(0);

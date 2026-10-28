@@ -1,3 +1,4 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
@@ -34,6 +35,9 @@ export async function GET(req: NextRequest) {
       weaponProgress: true,
       weaponPrestiges: true,
       wonderUnlocks: true,
+      careerContracts: true,
+      careerRewards: true,
+      careerShopPurchases: true,
     },
   });
 
@@ -47,7 +51,15 @@ export async function GET(req: NextRequest) {
     playerKey: player.playerKey,
     player: {
       name: player.name,
-      level: player.level,
+      level: levelForXp(player.xp),
+      careerRank: player.careerRank,
+      careerXp: player.careerXp,
+      careerTokensSpent: player.careerTokensSpent,
+      selectedTitle: player.selectedTitle,
+      selectedReticle: player.selectedReticle,
+      selectedNameplate: player.selectedNameplate,
+      equippedCharms: player.equippedCharms,
+      pvpBestKillstreak: player.pvpBestKillstreak,
       xp: player.xp,
       credits: player.credits,
       kills: player.kills,
@@ -71,6 +83,13 @@ export async function GET(req: NextRequest) {
     playerSkinUnlocks: player.playerSkinUnlocks.map(u => ({ skinId: u.skinId })),
     loadout: player.loadout
       ? {
+          perkId: player.loadout.perkId,
+          primaryReticle:player.loadout.primaryReticle,secondaryReticle:player.loadout.secondaryReticle,
+          primaryCharm:player.loadout.primaryCharm,secondaryCharm:player.loadout.secondaryCharm,
+          secondaryWeaponSkin: player.loadout.secondaryWeaponSkin,
+          meleeWeaponSkin: player.loadout.meleeWeaponSkin,
+          weaponSetups: player.loadout.weaponSetups,
+          savedLoadouts: player.loadout.savedLoadouts,
           primaryWeapon: player.loadout.primaryWeapon,
           secondaryWeapon: player.loadout.secondaryWeapon,
           meleeWeapon: player.loadout.meleeWeapon,
@@ -83,8 +102,11 @@ export async function GET(req: NextRequest) {
       : null,
     achievements: player.achievements.map((a) => ({ achievementId: a.achievementId, earnedAt: a.earnedAt })),
     weaponProgress: player.weaponProgress.map((w) => ({ weaponId: w.weaponId, kills: w.kills, headshots: w.headshots, conditionStats: w.conditionStats })),
-    weaponPrestiges: player.weaponPrestiges.map(w => ({ weaponId: w.weaponId })),
+    weaponPrestiges: player.weaponPrestiges.map(w => ({ weaponId: w.weaponId, legacyReward: w.legacyReward })),
     wonderUnlocks: player.wonderUnlocks.map(w => ({ weaponId: w.weaponId })),
+    careerContracts: player.careerContracts.map(c=>({cycle:c.cycle,contractId:c.contractId,goal:c.goal,progress:c.progress,completed:c.completed})),
+    careerRewards: player.careerRewards.map(r=>({cycle:r.cycle})),
+    careerShopPurchases: player.careerShopPurchases.map(p=>({itemKey:p.itemKey,currency:p.currency,cost:p.cost})),
     // Match records can be large; include them for completeness but they're
     // optional on import (the import can skip them to save space).
     matchRecords: player.matchRecords.map((m) => ({

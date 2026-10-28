@@ -11,7 +11,7 @@ import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
 import {
-  MAP_LIST, TEAM_SIZES, roomCapacity,
+  MAP_LIST, teamSizesForMap, roomCapacity, mapAllowedForMode,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";
@@ -178,6 +178,11 @@ export function Play() {
   // ---- Create Room: launch the match via the engine ----
   const handleCreate = async () => {
     const mode = roomConfig.mode;
+    if (mode === "ctf" && roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) {
+      toast.error("Capture the Flag requires a capture target or a time limit.");
+      return;
+    }
+    const selectedMap = mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound";
     if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
       toast.error("This Survival tier is locked. Clear the previous milestone first.");
       return;
@@ -187,7 +192,7 @@ export function Play() {
     const cap = roomCapacity(mode, teamSize, roomConfig.survivalPlayers);
     const config: CreateRoomConfig = {
       mode,
-      mapId: roomConfig.mapId,
+      mapId: selectedMap,
       teamSize,
       fillWithBots: mode === "survival" ? false : roomConfig.fillWithBots,
       password: roomConfig.password.trim() ? roomConfig.password.trim() : null,
@@ -198,16 +203,17 @@ export function Play() {
       survivalPlayers: roomConfig.survivalPlayers,
       survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
       // Round 19i: Pass custom limits for FFA/TDM.
-      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.scoreLimit : undefined,
-      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed") ? roomConfig.timeLimit : undefined,
+      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.scoreLimit : undefined,
+      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.timeLimit : undefined,
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
+      ctfFlagResetMs: mode === "ctf" ? roomConfig.ctfFlagResetMs : undefined,
       denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
     };
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
       mode,
-      mapId: roomConfig.mapId,
+      mapId: selectedMap,
       online: true,
       botCount: config.fillWithBots ? Math.max(0, cap - 1) : 0,
       scoreLimit: cfg.defaultScoreLimit,
@@ -302,9 +308,9 @@ export function Play() {
               <div className="space-y-5">
                 {/* Game mode */}
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {(["ffa", "tdm", "killconfirmed", "survival", "gungame"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
                 </Section>
@@ -331,8 +337,8 @@ export function Play() {
                       </button>)}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-3">
-                      {TEAM_SIZES.map((ts) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {teamSizesForMap(roomConfig.mapId).map((ts) => {
                         const selected = roomConfig.teamSize === ts;
                         const total = ts * 2;
                         const label = roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${total} players` : `${ts}v${ts}`;
@@ -441,14 +447,14 @@ export function Play() {
                     </div>
                   </div>
                 )}
-                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed") && (
+                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf") && (
                   <Section icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
+                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
-                          {[0, 15, 25, 30, 40, 50, 60, 75, 100].map((s) => (
-                            <button key={s} onClick={() => setRoomConfig({ scoreLimit: s })}
+                          {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
+                            <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
                             </button>
@@ -459,13 +465,27 @@ export function Play() {
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Time Limit</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {[0, 180, 300, 360, 480, 600, 900].map((t) => (
-                            <button key={t} onClick={() => setRoomConfig({ timeLimit: t })}
+                            <button key={t} onClick={() => setRoomConfig({ timeLimit: t, ...(roomConfig.mode === "ctf" && t === 0 && roomConfig.scoreLimit === 0 ? { scoreLimit: 3 } : {}) })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {t === 0 ? "No limit" : `${t / 60}m`}
                             </button>
                           ))}
                         </div>
                       </div>
+                      {roomConfig.mode === "ctf" && (
+                        <div>
+                          <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Dropped Flag Reset</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {([{ms:0,label:"Instant"},{ms:10000,label:"10s"},{ms:30000,label:"30s"},{ms:60000,label:"1m"},{ms:120000,label:"2m"},{ms:-1,label:"No limit"}] as const).map(({ms,label}) => (
+                              <button key={ms} type="button" onClick={() => setRoomConfig({ctfFlagResetMs:ms})}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.ctfFlagResetMs === ms ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/35 text-xs mt-1">Only changes dropped-flag recovery; a match still requires a capture target or time limit.</p>
+                        </div>
+                      )}
                       {roomConfig.mode === "killconfirmed" && (
                         <div>
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
@@ -524,7 +544,7 @@ export function Play() {
                     ))}
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {MAP_LIST.filter((m) => mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter).map((m) => {
+                    {MAP_LIST.filter((m) => mapAllowedForMode(roomConfig.mode, m.id) && (roomConfig.mode === "ctf" || mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter)).map((m) => {
                       const selected = roomConfig.mapId === m.id;
                       const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
                       return (
@@ -715,7 +735,7 @@ function RoomBrowser({
   const { rooms, status, refresh } = lobby;
 
   const submitJoin = (room: RoomSummary) => {
-    const needsTeam = room.mode === "tdm" || room.mode === "killconfirmed";
+    const needsTeam = room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf";
     if (room.hasPassword || needsTeam) {
       setPending({ room, needsTeam });
       setPwInput("");
@@ -786,7 +806,7 @@ function RoomBrowser({
             </DialogTitle>
             <DialogDescription className="text-white/50">
               Joining <span className="text-white font-semibold">{pending?.room.name}</span>
-              {pending?.needsTeam ? " — pick a side for Team Deathmatch." : "."}
+              {pending?.needsTeam ? " — pick a side for the team objective match." : "."}
             </DialogDescription>
           </DialogHeader>
 
@@ -850,7 +870,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
   const cfg = MATCH_MODES[room.mode];
   const mapDef = MAP_LIST.find((m) => m.id === room.mapId);
   const full = room.humans >= room.capacity;
-  const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed") ? Shield : room.mode === "gungame" ? Swords : Skull;
+  const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") ? Shield : room.mode === "gungame" ? Swords : Skull;
   const inLobby = room.state === "lobby";
 
   return (
@@ -964,7 +984,7 @@ function SummaryRow({ label, value, accent }: { label: string; value: string; ac
 
 function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: boolean; onSelect: (m: GameMode) => void }) {
   const cfg = MATCH_MODES[mode];
-  const Icon = mode === "ffa" ? Users : mode === "tdm" ? Shield : mode === "killconfirmed" ? Target : mode === "survival" ? Skull : Swords;
+  const Icon = mode === "ffa" ? Users : mode === "tdm" || mode === "ctf" ? Shield : mode === "killconfirmed" ? Target : mode === "survival" ? Skull : Swords;
   return (
     <button
       onClick={() => onSelect(mode)}

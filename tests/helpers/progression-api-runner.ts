@@ -1,0 +1,236 @@
+// Isolated child process: DATABASE_URL always points to a disposable SQLite DB.
+import assert from "node:assert/strict";
+import { NextRequest } from "next/server";
+import { db } from "../../src/lib/db";
+import { POST as saveLoadout } from "../../src/app/api/loadout/route";
+import { POST as preset } from "../../src/app/api/loadout/presets/route";
+import { POST as claimCareer } from "../../src/app/api/profile/career/route";
+import { POST as shopCosmetic } from "../../src/app/api/shop/route";
+import { POST as equipCosmetic } from "../../src/app/api/profile/cosmetics/route";
+import { POST as shopPurchase } from "../../src/app/api/shop/route";
+import { POST as equipTitle } from "../../src/app/api/profile/title/route";
+import { GET as exportProfile } from "../../src/app/api/profile/export/route";
+import { POST as importProfile } from "../../src/app/api/profile/import/route";
+import { getOrCreatePlayer, buildProfileView, applyMatchResult } from "../../src/lib/player-service";
+import { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp } from "../../src/lib/progression";
+
+import { PERKS } from "../../src/lib/perks";
+import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
+
+const req = (body: unknown) => new NextRequest("http://localhost/api/test", {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+async function status(response: Response, expected: number) {
+  assert.equal(response.status, expected, await response.clone().text());
+}
+async function create(key: string, xp: number, credits = 36000) {
+  const p = await getOrCreatePlayer(key);
+  await db.player.update({ where: { id: p.id }, data: { xp, credits, level: 1 } });
+  await db.loadout.upsert({ where: { playerId: p.id }, create: { playerId: p.id }, update: {} });
+  return p;
+}
+async function suppressAwards(playerId: string) {
+  await db.playerAchievement.createMany({ data: ACHIEVEMENTS.map(a => ({ playerId, achievementId: a.id })) });
+}
+try {
+  const newPlayer = await getOrCreatePlayer("concurrent-onboarding-player");
+  const firstProfiles = await Promise.all(Array.from({ length: 4 }, () => buildProfileView(newPlayer.playerKey)));
+  assert(firstProfiles.every(p => p?.loadout.weapon.id === "rifle_ar"));
+  assert.equal(await db.loadout.count({ where: { playerId: newPlayer.id } }), 1);
+  const legacy = await db.player.findUniqueOrThrow({ where: { playerKey: "legacy-player" } });
+  assert.equal(legacy.xp, 130050);
+  assert.equal(legacy.credits, 36000);
+  assert.equal(legacy.careerRank, 0);
+  assert.equal(legacy.careerXp, 0);
+  const legacyView = (await buildProfileView(legacy.playerKey))!;
+  assert.equal(legacyView.level, 21);
+  assert.equal(legacyView.loadout.perkId, "steady");
+
+  // Reproduce the reported failure with deliberately stale Player.level = 1.
+  const p = await create("perk-player", totalXpForLevel(18));
+  for (const perk of PERKS.filter(p => p.unlockLevel <= 18)) {
+    await db.player.update({ where: { id: p.id }, data: { level: 1 } });
+    await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: perk.id })), 200);
+    assert.equal((await db.loadout.findUniqueOrThrow({ where: { playerId: p.id } })).perkId, perk.id);
+  }
+  await status(await preset(req({ playerKey: p.playerKey, action: "save", name: "Steady build" })), 200);
+  const saved = (await buildProfileView(p.playerKey))!.savedLoadouts[0];
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "battle_hardened" })), 200);
+  await db.player.update({ where: { id: p.id }, data: { level: 1 } });
+  await status(await saveLoadout(req({ playerKey: p.playerKey, presetId: saved.id })), 200);
+  assert.equal((await buildProfileView(p.playerKey))!.loadout.perkId, "steady");
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "athlete" })), 403);
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "forged" })), 403);
+  await db.player.update({ where: { id: p.id }, data: { xp: 0, level: 99 } });
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "steady" })), 403);
+
+  // Well Prepared uses the same earned level, including preset capture.
+  await db.player.update({ where: { id: p.id }, data: { xp: totalXpForLevel(28), level: 1 } });
+  const second = WEAPONS.find(w => w.id !== "rifle_ar" && w.category === "assault" && !w.wonder)!;
+  await db.weaponUnlock.create({ data: { playerId: p.id, weaponId: second.id } });
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "well_prepared", secondaryWeapon: second.id })), 200);
+  await db.player.update({ where: { id: p.id }, data: { level: 1 } });
+  await status(await preset(req({ playerKey: p.playerKey, action: "save", name: "Two primaries" })), 200);
+  await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: "battle_hardened" })), 200);
+  assert.equal((await buildProfileView(p.playerKey))!.loadout.secondary.id, "pistol_side");
+
+  // Prestige and Mastery finishes must equip without the OTHER achievement.
+  const masterySkinPlayer=await create("mastery-skins-player",totalXpForLevel(25));
+  await db.weaponProgress.upsert({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},
+    create:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar",kills:600,headshots:110},
+    update:{kills:600,headshots:110}});
+  await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.equal((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+  const prestigeSkinPlayer=await create("prestige-skins-player",totalXpForLevel(25));
+  await db.weaponPrestige.create({data:{playerId:prestigeSkinPlayer.id,weaponId:"rifle_ar",legacyReward:false}});
+  await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_toxic"})),200);
+  assert.equal((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_toxic");
+  await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.notEqual((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+
+  // Quest/achievement XP must be included in both returned and persisted level.
+  const q = await create("quest-player", totalXpForLevel(12) - 200);
+  const award = await applyMatchResult({ playerKey: q.playerKey, kills: 200, deaths: 1, headshots: 100, won: true, mode: "ffa", score: 200, weaponId: "rifle_ar" });
+  assert(award.newAchievements.length > 0);
+  const after = await db.player.findUniqueOrThrow({ where: { id: q.id } });
+  assert.equal(after.level, levelForXp(after.xp));
+  assert.equal(award.newLevel, after.level);
+  assert.equal((await buildProfileView(q.playerKey))!.level, award.newLevel);
+
+  const cap = totalXpForLevel(MAX_PLAYER_LEVEL);
+  const crossing = await create("crossing-player", cap - 1);
+  await suppressAwards(crossing.id);
+  const crossingResult = await applyMatchResult({ playerKey: crossing.playerKey, kills: 0, deaths: 0, headshots: 0, won: false, mode: "ffa", score: 0 });
+  const crossed = await db.player.findUniqueOrThrow({ where: { id: crossing.id } });
+  assert.equal(crossed.careerXp, crossingResult.xpGained - 1);
+  assert.equal(crossingResult.newLevel, MAX_PLAYER_LEVEL);
+
+  // Historic overflow XP does not complete a Career Contract.
+  const c=await create("career-player",cap+1000000);
+  await suppressAwards(c.id);
+  const initialCareer=(await buildProfileView(c.playerKey))!.career;
+  assert.equal(initialCareer.completed,0);
+  assert.equal(initialCareer.tokens,0);
+  assert.equal(initialCareer.contracts.length,5);
+  await status(await claimCareer(req({playerKey:c.playerKey})),403);
+  await status(await equipTitle(req({playerKey:c.playerKey,achievementId:"career_veteran"})),403);
+  const earned=await applyMatchResult({playerKey:c.playerKey,kills:10,deaths:0,headshots:5,won:false,mode:"ffa",score:10,weaponId:"rifle_ar"});
+  const progressAfterCareerMatch=(await buildProfileView(c.playerKey))!.career;
+  assert(progressAfterCareerMatch.contracts.some(contract=>contract.progress>0));
+  assert(progressAfterCareerMatch.contracts.some(contract=>contract.id==="fresh_xp"&&contract.progress===earned.xpGained));
+  // Force completion for this isolated API fixture; only a valid server claim
+  // converts 3 finished contract rows into one token.
+  for(const contract of progressAfterCareerMatch.contracts.slice(0,3)){
+    await db.careerContract.updateMany({
+      where:{playerId:c.id,cycle:0,contractId:contract.id},
+      data:{completed:true,progress:contract.goal},
+    });
+  }
+  const backup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${c.playerKey}`))).json();
+  await status(await claimCareer(req({playerKey:c.playerKey})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,1);
+  await status(await claimCareer(req({playerKey:c.playerKey})),403);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),409);
+  await status(await importProfile(req({playerKey:c.playerKey,data:backup})),200);
+  assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
+  assert.equal((await db.player.findUniqueOrThrow({where:{id:c.id}})).careerTokensSpent,1);
+
+  // Old exports still preserve legacy Career titles without minting tokens.
+  const recovered={...backup,playerKey:"restored-player",
+    player:{...backup.player,careerRank:1,careerXp:50,level:1},
+    loadout:{...backup.loadout,perkId:"steady"}};
+  await status(await importProfile(req({playerKey:recovered.playerKey,data:recovered})),200);
+  const restored=(await buildProfileView(recovered.playerKey))!;
+  assert.equal((await db.player.findUniqueOrThrow({where:{playerKey:recovered.playerKey}})).careerRank,1);
+  assert.equal(restored.loadout.perkId,"steady");
+  assert.equal(restored.level,MAX_PLAYER_LEVEL);
+  assert(restored.unlockedTitles.some(t=>t.id==="career_veteran"));
+
+  // Cosmetic ownership is account-wide, equip state belongs to each loadout slot.
+  const cosmeticsPlayer=await create("cosmetic-player",totalXpForLevel(MAX_PLAYER_LEVEL),75000);
+  let cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(cosmeticsView.loadout.primaryReticle,"classic");
+  assert.equal(cosmeticsView.loadout.primaryCharm,"none");
+  assert.equal(cosmeticsView.selectedNameplate,"standard");
+  const cosmeticEquip=(kind:"reticle"|"charm",id:string,slot:"primary"|"secondary",weaponId?:string)=>
+    equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind,cosmeticId:id,slot,weaponId}));
+  await status(await cosmeticEquip("reticle","dot","primary"),200);
+  await status(await cosmeticEquip("reticle","reticle_nova","primary"),403);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"dot"})),400);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),200);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),409);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"vanguard_dog_tag"})),200);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"steel_division"})),200);
+  await status(await cosmeticEquip("reticle","reticle_orbit","primary","rifle_ar"),200);
+  await status(await cosmeticEquip("reticle","dot","secondary","pistol_side"),200);
+  await status(await cosmeticEquip("charm","charm_tag","primary","rifle_ar"),200);
+  await status(await cosmeticEquip("charm","charm_tag","secondary","pistol_side"),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),200);
+  cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(cosmeticsView.loadout.primaryReticle,"reticle_orbit");
+  assert.equal(cosmeticsView.loadout.secondaryReticle,"dot");
+  assert.equal(cosmeticsView.loadout.primaryCharm,"charm_tag");
+  assert.equal(cosmeticsView.loadout.secondaryCharm,"charm_tag");
+  assert.equal(cosmeticsView.selectedNameplate,"plate_steel");
+  assert.equal(cosmeticsView.credits,75000-3500-6000-7500);
+  await status(await cosmeticEquip("charm","charm_tag","primary","not_a_weapon"),409);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryReticle:"reticle_nova"})),403);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_skull"})),403);
+  await status(await preset(req({playerKey:cosmeticsPlayer.playerKey,action:"save",name:"Cosmetic Kit"})),200);
+  const savedCosmeticPreset=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
+  assert.equal(savedCosmeticPreset.primaryReticle,"reticle_orbit");
+  assert.equal(savedCosmeticPreset.secondaryReticle,"dot");
+  assert.equal(savedCosmeticPreset.primaryCharm,"charm_tag");
+  await status(await cosmeticEquip("charm","none","primary"),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,"charm_tag");
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:savedCosmeticPreset.id})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryCharm,"charm_tag");
+  const cosmeticBackup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${cosmeticsPlayer.playerKey}`))).json();
+  assert.equal(cosmeticBackup.loadout.primaryReticle,"reticle_orbit");
+  assert.equal(cosmeticBackup.loadout.secondaryCharm,"charm_tag");
+  await status(await cosmeticEquip("reticle","classic","primary"),200);
+  await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,"reticle_orbit");
+
+  // Retired intermediate titles disappear without removing achievements or
+  // replaying payouts. Existing final awards immediately grant their new title.
+  const titles = await create("title-player", totalXpForLevel(30), 1234);
+  await db.playerAchievement.createMany({ data: ["mastery_1", "kills_2000", "level_30"].map(achievementId => ({ playerId: titles.id, achievementId })) });
+  await db.player.update({ where: { id: titles.id }, data: { selectedTitle: "mastery_1" } });
+  const titleView = (await buildProfileView(titles.playerKey))!;
+  assert.equal(titleView.selectedTitle, "");
+  assert.equal(titleView.credits, 1234);
+  assert(titleView.unlockedTitles.some(t => t.id === "kills_2000" && t.title === "Reaper"));
+  assert(titleView.unlockedTitles.some(t => t.id === "level_30" && t.title === "Vanguard Elite"));
+  assert(!titleView.unlockedTitles.some(t => t.id === "mastery_1"));
+  assert(await db.playerAchievement.findUnique({ where: { playerId_achievementId: { playerId: titles.id, achievementId: "mastery_1" } } }));
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "mastery_1" })), 400);
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "surv_nightmare_20" })), 403);
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "kills_2000" })), 200);
+  assert.equal((await buildProfileView(titles.playerKey))!.selectedTitle, "kills_2000");
+  await status(await equipTitle(req({ playerKey: titles.playerKey, achievementId: "" })), 200);
+  assert.equal((await buildProfileView(titles.playerKey))!.selectedTitle, "");
+  assert.equal((await buildProfileView(titles.playerKey))!.credits, 1234);
+
+  // Exercise actual awarding counters: Survival kills do not earn PvP titles,
+  // while the same kills in a non-Survival match do. Quest/level/Survival title
+  // rewards flow through the existing server-owned achievement pipeline.
+  const broad = await create("broad-title-player", totalXpForLevel(30), 0);
+  await db.player.update({ where: { id: broad.id }, data: {
+    dailyChallengesCompleted: 10, weeklyChallengesCompleted: 5,
+    eliteChallengesCompleted: 3, totalChallengesCompleted: 50,
+  } });
+  await applyMatchResult({ playerKey: broad.playerKey, mode: "survival", survivalTier: "nightmare", survivalWaves: 20,
+    kills: 2000, deaths: 1, headshots: 0, won: false, score: 2000, weaponId: "rifle_ar" });
+  const survivalTitles = (await buildProfileView(broad.playerKey))!.unlockedTitles.map(t => t.id);
+  for (const id of ["surv_20", "surv_nightmare_20", "quest_daily_10", "quest_weekly_5", "quest_elite_3", "quest_total_50", "level_30"])
+    assert(survivalTitles.includes(id), `Missing title ${id}`);
+  assert(!survivalTitles.includes("kills_2000"));
+  const combatAward = await applyMatchResult({ playerKey: broad.playerKey, mode: "tdm", kills: 2000, deaths: 0, headshots: 0,
+    won: true, score: 2000, weaponId: "rifle_ar" });
+  assert(combatAward.newAchievements.some(a => a.id === "kills_2000"));
+  assert((await buildProfileView(broad.playerKey))!.unlockedTitles.some(t => t.id === "kills_2000"));
+  console.log("All progression API scenarios passed");
+} finally { await db.$disconnect(); }

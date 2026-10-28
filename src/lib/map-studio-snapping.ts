@@ -4,6 +4,7 @@ export interface StudioFootprint {x:number;z:number;w:number;d:number;y?:number;
 export interface StudioSnapTarget extends StudioFootprint {
   key:string;kind:"building"|"platform"|"cover"|"stairs"|"other";
 }
+export type StudioSnapMode="join"|"align"|"clearance";
 export interface StudioSnapResult extends StudioFootprint {
   snappedX?:number;snappedZ?:number;surface?:string;
   hints:string[];
@@ -18,14 +19,15 @@ const gridRound=(n:number,grid:number)=>grid>0?Math.round(n/grid)*grid:n;
  * candidate per axis. No invisible long-distance teleporting. */
 export function snapStudioFootprint(
   candidate:StudioFootprint,targets:readonly StudioSnapTarget[],
-  options:{grid?:number;smart?:boolean;surface?:boolean;ignoreKey?:string;gap?:number;radius?:number}={}
+  options:{grid?:number;smart?:boolean;surface?:boolean;ignoreKey?:string;ignoreKeys?:readonly string[];gap?:number;radius?:number;mode?:StudioSnapMode}={}
 ):StudioSnapResult {
   const grid=options.grid??0,smart=options.smart!==false;
   const result:StudioSnapResult={...candidate,x:gridRound(candidate.x,grid),
     z:gridRound(candidate.z,grid),hints:[]};
   if(!smart&&!options.surface)return result;
-  const radius=options.radius??STUDIO_MAGNET_RADIUS,gap=options.gap??STUDIO_STRUCTURE_GAP;
-  const nearby=targets.filter(t=>t.key!==options.ignoreKey&&finite(t.w)&&finite(t.d));
+  const radius=options.radius??STUDIO_MAGNET_RADIUS,mode=options.mode??"join";
+  const gap=options.gap??(mode==="clearance"?STUDIO_STRUCTURE_GAP:0);
+  const nearby=targets.filter(t=>t.key!==options.ignoreKey&&!options.ignoreKeys?.includes(t.key)&&finite(t.w)&&finite(t.d));
   if(smart)for(const axis of ["x","z"] as const){
     const cross=axis==="x"?"z":"x",size=axis==="x"?"w":"d",otherSize=axis==="x"?"d":"w";
     let best:{value:number;distance:number;priority:number;key:string}|undefined;
@@ -35,12 +37,13 @@ export function snapStudioFootprint(
       if(Math.abs(result[cross]-t[cross])>crossRange)continue;
       const side=(candidate[size]+t[size])/2+gap;
       const align=[
-        {value:t[axis]-side,priority:0},{value:t[axis]+side,priority:0},
+        ...(mode!=="align"?[{value:t[axis]-side,priority:0},{value:t[axis]+side,priority:0}]:[]),
         {value:t[axis],priority:2},
         {value:t[axis]-(t[size]-candidate[size])/2,priority:1},
         {value:t[axis]+(t[size]-candidate[size])/2,priority:1},
-        {value:t[axis]-(t[size]+candidate[size])/2,priority:1},
-        {value:t[axis]+(t[size]+candidate[size])/2,priority:1},
+        ...(mode==="join"?[
+          {value:t[axis]-(t[size]+candidate[size])/2,priority:0},
+          {value:t[axis]+(t[size]+candidate[size])/2,priority:0}]:[]),
       ];
       for(const a of align){
         const distance=Math.abs(result[axis]-a.value);

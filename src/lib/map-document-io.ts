@@ -21,7 +21,9 @@ export function importMapDocuments(
   const next=clone(existing);
   let selectedId=activeId,migrated=false;
   const install=(doc:MapDocument)=>{
-    const failures=[...validateMapDocument(doc),...validateBlueprint(doc.blueprint)];
+    const structural=validateMapDocument(doc);
+    if(structural.length)throw Error("Invalid map: "+structural.slice(0,4).join("; "));
+    const failures=validateBlueprint(doc.blueprint);
     if(failures.length)throw Error(doc.id+": "+failures.slice(0,4).join("; "));
     next[doc.id]=clone(doc);selectedId=doc.id;
   };

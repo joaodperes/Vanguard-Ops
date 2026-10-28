@@ -51,3 +51,17 @@ export function spendFullWonderCharge(
  if(current.charges!==rules.maxCharges)return null;
  return {charges:0,nextAt:now+rules.rechargeMs};
 }
+
+/** One fuel-second is paid on demand by a real Hellfire shot.
+ * Releasing the trigger calls nothing, so reserve charges cannot drain while
+ * idle. A held 8Hz stream reuses its already-paid slice.
+ */
+export function spendHellfireFuelOnShot(
+  state: WonderChargeState, rules: WonderChargeRules, now: number, paidThrough: number,
+  stepMs=1000,
+): { state: WonderChargeState; paidThrough: number } | null {
+  const current=tickWonderCharges(state,rules,now);
+  if(now<paidThrough)return {state:current,paidThrough};
+  const next=spendWonderCharge(current,rules,now);
+  return next?{state:next,paidThrough:now+stepMs}:null;
+}

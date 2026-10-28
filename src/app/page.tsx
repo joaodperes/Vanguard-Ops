@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { achievementTitle, titledDisplayName } from "@/lib/achievement-titles";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
@@ -7,20 +9,22 @@ import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
 import { FiringRange } from "@/components/screens/FiringRange";
 import { Profile } from "@/components/screens/Profile";
+import { Shop } from "@/components/screens/Shop";
 import { Settings } from "@/components/screens/Settings";
 import { Results } from "@/components/screens/Results";
-import { FAQ } from "@/components/screens/FAQ";
+import { Tutorial } from "@/components/screens/Tutorial";
+import { loadTutorialProgress, shouldOfferTutorial } from "@/lib/tutorial";
 import { GameCanvas } from "@/components/game/GameCanvas";
-import { MenuMusic } from "@/components/game/MenuMusic";
 import type { LoadoutWire } from "@/lib/game-protocol";
-import { perkSelection, perkById } from "@/lib/perks";
-import { isPrimaryWeaponCategory } from "@/lib/game-data";
+import { perkById } from "@/lib/perks";
+import { isPrimaryWeaponCategory, weaponById } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
 export default function Page() {
   const { screen, profile, refreshProfile, playerKey, playConfig, setScreen, setMatchResult, matchResult, authState, setSession, setAuthState, setPlayerKey, roomConnect, setRoomConnect } = useGame();
   const [booted, setBooted] = useState(false);
+  const tutorialOffered = useRef(new Set<string>());
 
   useEffect(() => {
     // Check for an existing account session first.
@@ -61,6 +65,13 @@ export default function Page() {
     }).then(() => refreshProfile()).catch(() => {});
   }, [booted, authState, screen, playerKey]);
 
+  useEffect(() => {
+    if (screen === "tutorial") { tutorialOffered.current.add(playerKey); return; }
+    if (!booted || screen !== "menu" || !profile || profile.playerKey !== playerKey || tutorialOffered.current.has(playerKey)) return;
+    tutorialOffered.current.add(playerKey);
+    if (shouldOfferTutorial(profile, loadTutorialProgress(playerKey))) setScreen("tutorial");
+  }, [booted, screen, profile, playerKey, setScreen]);
+
   const handleMatchEnd = async (r: MatchEndResult) => {
     try {
       const res = await fetch("/api/match/complete", {
@@ -94,12 +105,15 @@ export default function Page() {
       if (rewards.leveledUp) toast.success(`Level Up! → Level ${rewards.newLevel}`);
       for (const perkId of rewards.newUnlocks?.perks ?? []) toast.success(`Perk available: ${perkById(perkId).name}`, { description: `Level ${perkById(perkId).unlockLevel} · Equip in Armory` });
       if (rewards.newAchievements?.length) {
-        for (const a of rewards.newAchievements) toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR` });
+        for (const a of rewards.newAchievements) {
+          const title = achievementTitle(a.id);
+          toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+        }
       }
       if (rewards.newPrestiges?.length) {
         for (const id of rewards.newPrestiges) {
           toast.success("WEAPON PRESTIGE EARNED", {
-            description: `Mastered ${id.replaceAll("_", " ")} · +1 Prestige Token · Eventide & Viridian Blight camos`,
+            description: `${weaponById(id).name} · Viridian Blight camo earned`,
             duration: 6500,
           });
         }
@@ -126,24 +140,30 @@ export default function Page() {
 
   // Show the auth screen until the user signs in or chooses guest.
   if (authState !== "authenticated" && authState !== "guest") {
-    return <><MenuMusic active /><Auth /></>;
+    return <Auth />;
   }
   if (screen === "auth") {
-    return <><MenuMusic active /><Auth /></>;
+    return <Auth />;
   }
 
   // Build loadout wire from profile
   const loadoutWire: LoadoutWire | null = profile?.loadout
     ? {
         weaponId: profile.loadout.weapon.id,
-        perkId: perkSelection(profile.level),
-        secondaryWeaponId: perkSelection(profile.level) === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
+        perkId: profile.loadout.perkId,
+        secondaryWeaponId: profile.loadout.perkId === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
           ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
         weaponSkinId: profile.loadout.weaponSkin.id,
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
         meleeWeaponSkinId: profile.loadout.meleeWeaponSkin?.id ?? "default",
         playerSkinId: profile.loadout.playerSkin.id,
+        nameplateId: profile.selectedNameplate,
+        primaryReticleId: profile.loadout.primaryReticle,
+        secondaryReticleId: profile.loadout.secondaryReticle,
+        primaryCharmId: profile.loadout.primaryCharm,
+        secondaryCharmId: profile.loadout.secondaryCharm,
+        meleeCharmId: "none",
         attachments: {
           sight: profile.loadout.attachments.sight,
           barrel: profile.loadout.attachments.barrel,
@@ -172,15 +192,15 @@ export default function Page() {
 
   return (
     <>
-      <MenuMusic active={screen !== "playing" && screen !== "range"} />
       <div className="dark min-h-screen bg-[#0a0a0a] text-white">
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
       {screen === "range" && <FiringRange />}
       {screen === "profile" && <Profile />}
+      {screen === "shop" && <Shop />}
       {screen === "settings" && <Settings />}
-      {screen === "faq" && <FAQ />}
+      {screen === "tutorial" && <Tutorial key={playerKey} />}
       {screen === "results" && <Results />}
       {screen === "playing" && loadoutWire && profile && (
         <GameCanvas
@@ -190,7 +210,7 @@ export default function Page() {
           botDifficulty={playConfig.botDifficulty}
           survivalTier={playConfig.survivalTier ?? "default"}
           online={playConfig.online}
-          playerName={profile.name}
+          playerName={titledDisplayName(profile.name,profile.selectedTitle)}
           playerKey={playerKey}
           scoreLimit={playConfig.scoreLimit}
           timeLimitMin={playConfig.timeLimit}

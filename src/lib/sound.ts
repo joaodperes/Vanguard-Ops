@@ -20,8 +20,6 @@
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
 
-import { MUSIC_THEMES, type MusicThemeId } from "./music-themes";
-
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
 // the same base sound; distance + suppressor modifiers are layered on top.
@@ -61,7 +59,12 @@ export type SfxName =
   | "ads_out"
   | "match_start"
   | "match_win"
-  | "match_lose";
+  | "match_lose"
+  | "flag_taken"
+  | "flag_scored"
+  | "flag_enemy_scored"
+  | "flag_returned"
+  | "flag_lost";
 
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
@@ -153,7 +156,6 @@ export class SoundManager {
   private outputGain: GainNode | null = null;
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
-  private musicVolume = 0.65;
   private footstepVolume = 0.85;
   private fxVolume = 1;
   private muted = false;
@@ -162,17 +164,11 @@ export class SoundManager {
   // Throttle distant shots per-category (so 5 bots firing smg simultaneously
   // don't slam the audio graph with 5 overlapping synth nodes).
   private lastDistantPlayed: Map<WeaponShotCategory, number> = new Map();
+  private lastRemoteFootstepAt=-Infinity;
   // Noise buffer cache (reused for shot/death sounds).
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
-  private ambientGain: GainNode | null = null;
-  private musicLayer: GainNode | null = null;
-  private retiredMusicLayers: { node: GainNode; removeAt: number }[] = [];
-  private ambientTheme: MusicThemeId = "compound";
-  private ambientStep = 0;
-  private nextAmbientAt = 0;
-  private ambientActive = false;
 
   constructor() {
     // Defer AudioContext creation until the first resume() call — browsers
@@ -186,7 +182,7 @@ export class SoundManager {
       try {
         const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
         this.ctx = new AC();
-        // Master scales all channels. Music, footsteps, and FX are independent.
+        // Master scales footsteps and effects independently.
         this.outputGain = this.ctx.createGain();
         this.outputGain.gain.value = this.muted ? 0 : this.masterVolume;
         this.outputGain.connect(this.ctx.destination);
@@ -202,12 +198,6 @@ export class SoundManager {
         this.convolver = this.ctx.createConvolver();
         this.convolver.buffer = this.makeImpulseResponse(0.18, 2.0);
         this.convolver.connect(this.masterGain);
-        this.ambientGain = this.ctx.createGain();
-        this.ambientGain.gain.value = 0;
-        this.ambientGain.connect(this.outputGain);
-        this.musicLayer = this.ctx.createGain();
-        this.musicLayer.gain.value = 1;
-        this.musicLayer.connect(this.ambientGain);
       } catch (e) {
         // Web Audio not available — silently degrade.
         this.ctx = null;
@@ -222,13 +212,6 @@ export class SoundManager {
     this.masterVolume = Math.max(0, Math.min(1, v));
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
-    }
-  }
-
-  setMusicVolume(v: number) {
-    this.musicVolume = Math.max(0, Math.min(1, v));
-    if (this.ambientGain && this.ctx) {
-      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * 0.19 : 0, this.ctx.currentTime, 0.08);
     }
   }
 
@@ -281,6 +264,7 @@ export class SoundManager {
   /** Play a named SFX. Honors master volume + mute. Throttles repeats. */
   play(name: SfxName, opts: { volume?: number; throttleMs?: number } = {}) {
     if (!this.ctx || !this.masterGain || this.muted) return;
+    if(this.ctx.state==="suspended")void this.ctx.resume().catch(()=>{});
     const now = this.ctx.currentTime;
     const vol = opts.volume ?? 1.0;
     const throttle = opts.throttleMs ?? 0;
@@ -317,72 +301,11 @@ export class SoundManager {
       case "match_win": this.synthMatchWin(vol); break;
       case "match_lose": this.synthMatchLose(vol); break;
       case "match_start": this.synthMatchStart(vol); break;
-    }
-  }
-
-  /** Schedule the appropriate menu, lobby or map arrangement. The active theme
-   * is swapped with a short gain crossfade, even when a chord is still decaying.
-   */
-  tickAmbientMusic(active: boolean, themeId: MusicThemeId = "compound"): void {
-    const ctx = this.ctx, bus = this.ambientGain;
-    if (!ctx || !bus) return;
-    if (themeId !== this.ambientTheme) {
-      this.ambientTheme = themeId;
-      // Fade the prior arrangement, including already scheduled sustaining notes.
-      if (this.musicLayer) {
-        this.musicLayer.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
-        this.retiredMusicLayers.push({ node: this.musicLayer, removeAt: ctx.currentTime + 3 });
-      }
-      this.musicLayer = ctx.createGain();
-      this.musicLayer.gain.value = 0;
-      this.musicLayer.connect(bus);
-      this.musicLayer.gain.setTargetAtTime(1, ctx.currentTime, 0.2);
-      this.ambientStep = 0;
-      this.nextAmbientAt = ctx.currentTime + 0.07;
-    }
-    // After the final old note ends, dispose its routing bus.
-    this.retiredMusicLayers = this.retiredMusicLayers.filter(({ node, removeAt }) => {
-      if (ctx.currentTime < removeAt) return true;
-      node.disconnect();
-      return false;
-    });
-    if (active !== this.ambientActive) {
-      this.ambientActive = active;
-      bus.gain.setTargetAtTime(active ? this.musicVolume * 0.19 : 0, ctx.currentTime, 0.25);
-      if (active) this.nextAmbientAt = ctx.currentTime + 0.06;
-    }
-    if (!active || this.muted || this.musicVolume === 0 || ctx.state !== "running") return;
-    if (this.nextAmbientAt < ctx.currentTime - 0.4) this.nextAmbientAt = ctx.currentTime + 0.06;
-    const interval = 60 / MUSIC_THEMES[themeId].bpm / 2;
-    for (let count = 0; count < 5 && this.nextAmbientAt < ctx.currentTime + 0.42; count++) {
-      this.scheduleAmbientStep(this.nextAmbientAt, this.ambientStep, themeId, interval);
-      this.ambientStep = (this.ambientStep + 1) % 32;
-      this.nextAmbientAt += interval;
-    }
-  }
-
-  private scheduleAmbientStep(time: number, step: number, themeId: MusicThemeId, interval: number): void {
-    const ctx = this.ctx!, bus = this.musicLayer!;
-    const theme = MUSIC_THEMES[themeId];
-    const root = theme.roots[Math.floor(step / 8)];
-    const note = theme.melody[step % theme.melody.length];
-    const freq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
-    const voice = (midi: number, level: number, seconds: number, type: OscillatorType) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq(midi);
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(level, time + Math.min(0.11, seconds * 0.25));
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + seconds);
-      osc.connect(gain).connect(bus);
-      osc.start(time); osc.stop(time + seconds + 0.02);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-    };
-    if (note !== null) voice(root + note, theme.leadLevel, interval * theme.noteLength, theme.wave);
-    if (step % 8 === 0) {
-      const padDuration = interval * 7.2;
-      for (const offset of theme.chord) voice(root + offset, theme.padLevel, padDuration, "sine");
-      voice(root - 12, theme.bassLevel, interval * 4, "sine");
+      case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
+      case "flag_scored": this.synthFlagFanfare("score", vol); break;
+      case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
+      case "flag_returned": this.synthFlagFanfare("return", vol); break;
+      case "flag_lost": this.synthFlagFanfare("loss", vol); break;
     }
   }
 
@@ -390,6 +313,11 @@ export class SoundManager {
   playFootstepAtDistance(distance: number, sprinting = false): void {
     const volume = footstepVolumeAtDistance(distance, sprinting);
     if (volume < 0.004) return;
+    const now=this.ctx?.currentTime??0;
+    // Ambient bot traffic should not allocate dozens of overlapping noise
+    // graphs and steal audio work from the player's own steps or shots.
+    if((now*1000)-this.lastRemoteFootstepAt<95)return;
+    this.lastRemoteFootstepAt=now*1000;
     this.play("footstep", { volume });
   }
 
@@ -698,6 +626,62 @@ export class SoundManager {
     osc.start(t); osc.stop(t + 1.05);
   }
 
+  /**
+   * Team-wide CTF cues. Layered, short brass-like motifs rather than ping
+   * oscillators: friendly scoring is a major fanfare; an enemy capture is a
+   * descending minor fanfare. Each client plays the same event locally, so
+   * there is no dependence on voice chat or spatial hearing distance.
+   */
+  private synthFlagFanfare(kind: "pickup" | "score" | "enemy_score" | "return" | "loss", vol: number) {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime;
+    const notes: Record<typeof kind, number[]> = {
+      pickup: [392, 523.25, 659.25],
+      score: [523.25, 659.25, 783.99, 1046.5],
+      enemy_score: [440, 369.99, 311.13, 220],
+      return: [523.25, 659.25, 783.99],
+      loss: [392, 329.63, 261.63],
+    };
+    const isScore = kind === "score" || kind === "enemy_score";
+    const step = isScore ? .125 : .10;
+    const peak = vol * (isScore ? .29 : .22);
+    notes[kind].forEach((freq, i) => {
+      const at = t0 + i * step;
+      // Richer harmonics provide a recognizable stinger even on small speakers.
+      const osc = ctx.createOscillator();
+      osc.type = kind === "enemy_score" || kind === "loss" ? "sawtooth" : "triangle";
+      osc.frequency.setValueAtTime(freq, at);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(kind === "enemy_score" ? 1250 : 2400, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(.0001, at);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, peak), at + .014);
+      gain.gain.exponentialRampToValueAtTime(.0001, at + (isScore ? .32 : .25));
+      osc.connect(filter).connect(gain).connect(this.masterGain!);
+      osc.start(at);
+      osc.stop(at + (isScore ? .34 : .27));
+      osc.onended = () => { osc.disconnect(); filter.disconnect(); gain.disconnect(); };
+    });
+    if (isScore) {
+      // Final resolution distinguishes a true team objective from a pickup.
+      const at = t0 + notes[kind].length * step;
+      const chord = kind === "score" ? [523.25, 783.99, 1046.5] : [220, 261.63, 311.13];
+      chord.forEach(freq => {
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(.0001, at);
+        gain.gain.exponentialRampToValueAtTime(vol * .13, at + .025);
+        gain.gain.exponentialRampToValueAtTime(.0001, at + .34);
+        osc.connect(gain).connect(this.masterGain!);
+        osc.start(at); osc.stop(at + .36);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      });
+    }
+  }
+
   /** Match win: ascending triumphant arpeggio (C-E-G-C major chord roll). */
   private synthMatchWin(vol: number) {
     const ctx = this.ctx!;
@@ -902,10 +886,6 @@ export class SoundManager {
       this.footstepGain = null;
       this.noiseBuffer = null;
       this.convolver = null;
-      this.ambientGain = null;
-      this.musicLayer = null;
-      this.retiredMusicLayers = [];
-      this.ambientActive = false;
     }
   }
 }

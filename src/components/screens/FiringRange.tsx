@@ -1,5 +1,7 @@
 "use client";
 
+import { titledDisplayName } from "@/lib/achievement-titles";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import { RANGE_MOVING_TARGETS, RANGE_SPAWN } from "@/lib/firing-range";
@@ -148,7 +150,7 @@ function RangeSession({ profile, requestedId, onExit }: {
         botCount={0}
         botDifficulty="easy"
         online={false}
-        playerName={profile.name}
+        playerName={titledDisplayName(profile.name,profile.selectedTitle)}
         playerKey={profile.playerKey}
         scoreLimit={0}
         timeLimitMin={0}

@@ -10,13 +10,15 @@ Run the safe schema update **before starting the new app/server build**.
   Prestige cosmetics are not part of that checklist.
 - Completing all seven awards that particular weapon's Prestige exactly once.
   Bought legacy skins count as completed (preserves historical entitlement).
-- The award automatically makes **Eventide** (scrolling starfield) and
-  **Viridian Blight** (animated fluorescent sludge) equipable on that weapon,
-  with no credit price.
-- Each weapon Prestige contributes one token. Token balance is **unique weapon
-  Prestige awards minus unique Wonder Weapon purchases**, not a separately
-  incremented balance. Thus reloading a profile, completing a challenge again,
-  or re-importing a backup never generates repeat tokens.
+- **Prestige** awards **Viridian Blight** (animated toxic green) independently. Only the seven ordinary skin challenges count toward Prestige.
+- **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
+  players can equip it even without completing Prestige.
+- Completing both tracks on the same weapon grants a one-use **Wonder Weapon
+  unlock entitlement**, equal to uniquely dual-completed weapons minus already
+  purchased Wonder Weapons. This is displayed as 'Wonder unlocks available',
+  not as a separate reusable Shop currency. Old Prestige awards retain both
+  cosmetics, even if they predate the split. Repeated completions, reloads or
+  imports do not mint entitlements.
 - Weapon Prestige does not reset rank, kills, or attachments.
 
 ## Wonder Weapons
@@ -26,12 +28,12 @@ Run the safe schema update **before starting the new app/server build**.
 | Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
 | Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
 | Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Deadlock | ADS-validated guided bullet; cover breaks tag | 2 | 29s | -1.6s |
-| Hellfire | Short-range cone and persistent burning trails | 2 | 28s | -1.7s |
+| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
+| Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
 | Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
-| Bogfather | Damaging and movement-slowing sludge pools | 2 | 35s | -1.7s |
+| Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
-A Wonder Weapon costs **one token** and is permanently owned. It equips into
+A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
 the Primary slot, has no attachments or reserve ammo, and cannot manually
 reload. The recharge clock continues through death and while the gun is
 holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
@@ -97,7 +99,7 @@ The startup sync intentionally omits `--accept-data-loss`.
    bun run build
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
-   mastered weapon, confirm token +2 camos, spend it once, check purchase
+   mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
    rejection on replay and no free refill through swap, death or ammo cache.
 4. Verify all seven Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
@@ -113,3 +115,11 @@ change and also needs migration if not already applied.
 **Status:** The implementation is on `dev`. Confirm green validation for the exact candidate commit, complete manual gameplay checks and apply reviewed database updates before deployment.
 
 For the four later additions (Deadlock, Hellfire, Stormweaver and Bogfather), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for their mechanics, limitations and playtest requirements.
+
+## Independent Wonder Weapon Unlock challenge
+
+The Armory Challenges tab also tracks **Wonder Weapon Unlock** as an independent
+0/2 to 2/2 milestone. Its two objectives are **Weapon Prestige (1/1)** and
+**Weapon Mastery (5/5)**. It never counts as one of the seven cosmetic Prestige
+challenges or delays Viridian Blight. Completing both awards a single Wonder
+Weapon unlock entitlement (not a Prestige token or another Shop currency).

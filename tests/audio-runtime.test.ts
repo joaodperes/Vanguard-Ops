@@ -67,44 +67,36 @@ class FakeAudioContext {
   async close(): Promise<void> { this.state = "closed"; }
 }
 
-interface AudioInternals {
-  outputGain: FakeGain;
-  masterGain: FakeGain;
-  footstepGain: FakeGain;
-  ambientGain: FakeGain;
-  musicLayer: FakeGain;
-  retiredMusicLayers: { node: FakeGain; removeAt: number }[];
-  ambientTheme: string;
-}
+interface AudioInternals { outputGain: FakeGain; masterGain: FakeGain; footstepGain: FakeGain; }
+let musicAudioInstances = 0;
+class FakeHtmlAudio { constructor() { musicAudioInstances++; } }
 const previousWindow = (globalThis as any).window;
+const previousAudio = (globalThis as any).Audio;
 beforeEach(() => {
   (globalThis as any).window = { AudioContext: FakeAudioContext };
-  FakeAudioContext.last = null;
+  (globalThis as any).Audio = FakeHtmlAudio;
+  FakeAudioContext.last = null; musicAudioInstances = 0;
 });
 afterEach(() => {
   if (previousWindow === undefined) delete (globalThis as any).window;
   else (globalThis as any).window = previousWindow;
+  if (previousAudio === undefined) delete (globalThis as any).Audio;
+  else (globalThis as any).Audio = previousAudio;
 });
-
 describe("SoundManager browser audio graph", () => {
-  test("uses separate routed buses, keeping master volume above all channels", () => {
-    const sm = new SoundManager();
-    sm.setMasterVolume(0.75);
-    sm.setMusicVolume(0.3);
-    sm.setFootstepVolume(0.5);
-    sm.setFxVolume(0.2);
+  test("routes FX and footsteps through WebAudio without music", () => {
+    const sm=new SoundManager();
+    sm.setMasterVolume(.75);
+    sm.setFootstepVolume(.5); sm.setFxVolume(.2);
     sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
+    const a=sm as unknown as AudioInternals;
+    const ctx=FakeAudioContext.last!;
     expect(a.outputGain.connections).toContain(ctx.destination);
     expect(a.masterGain.connections).toContain(a.outputGain);
     expect(a.footstepGain.connections).toContain(a.outputGain);
-    expect(a.ambientGain.connections).toContain(a.outputGain);
-    expect(a.musicLayer.connections).toContain(a.ambientGain);
-    expect(a.outputGain.gain.value).toBe(0.75);
-    expect(a.masterGain.gain.value).toBe(0.2);
-    expect(a.footstepGain.gain.value).toBe(0.5);
-    expect(a.ambientGain.gain.value).toBe(0);
+    expect(a.outputGain.gain.value).toBe(.75);
+    expect(a.masterGain.gain.value).toBe(.2);
+    expect(a.footstepGain.gain.value).toBe(.5);
     sm.dispose();
   });
 
@@ -134,48 +126,11 @@ describe("SoundManager browser audio graph", () => {
     sm.dispose();
   });
 
-  test("starts the menu track and crossfades to a distinct lobby/map arrangement", () => {
+  test("no HTML audio element is ever constructed for background music", () => {
     const sm = new SoundManager(); sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
-    sm.tickAmbientMusic(true, "menu");
-    const firstLayer = a.musicLayer;
-    const menuNote = ctx.oscillators.find(o => o.type === "sine" && o.startedAt !== null);
-    expect(menuNote).toBeDefined();
-    expect(a.ambientTheme).toBe("menu");
-    expect(a.ambientGain.gain.value).toBeCloseTo(0.65 * 0.19);
-    const afterMenu = ctx.oscillators.length;
-
-    ctx.currentTime = 1.7;
-    sm.tickAmbientMusic(true, "lobby");
-    expect(a.ambientTheme).toBe("lobby");
-    expect(a.musicLayer).not.toBe(firstLayer);
-    expect(a.retiredMusicLayers.some(x => x.node === firstLayer)).toBe(true);
-    expect(firstLayer.gain.targets).toContain(0);
-    expect(ctx.oscillators.length).toBeGreaterThan(afterMenu);
-
-    ctx.currentTime = 2.4;
-    sm.tickAmbientMusic(true, "bunker");
-    expect(a.ambientTheme).toBe("bunker");
-    expect(a.musicLayer.connections).toContain(a.ambientGain);
-    sm.tickAmbientMusic(false, "bunker");
-    expect(a.ambientGain.gain.value).toBe(0);
+    sm.play("swap", { volume: 0.3 });
+    expect(musicAudioInstances).toBe(0);
     sm.dispose();
-  });
-
-  test("music at zero stops scheduling notes but leaves the other buses audible", () => {
-    const sm = new SoundManager(); sm.resume();
-    const a = sm as unknown as AudioInternals;
-    const ctx = FakeAudioContext.last!;
-    sm.setMusicVolume(0);
-    sm.tickAmbientMusic(true, "shipyard");
-    expect(ctx.oscillators.length).toBe(0);
-    expect(a.ambientGain.gain.value).toBe(0);
-    expect(a.footstepGain.gain.value).toBe(0.85);
-    expect(a.masterGain.gain.value).toBe(1);
-    sm.setMusicVolume(0.5);
-    sm.tickAmbientMusic(true, "shipyard");
-    expect(ctx.oscillators.length).toBeGreaterThan(0);
-    sm.dispose();
+    expect(musicAudioInstances).toBe(0);
   });
 });

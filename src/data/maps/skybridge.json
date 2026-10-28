@@ -2,7 +2,7 @@
   "version": 2,
   "id": "skybridge",
   "blueprint": {
-    "name": "RIDGEFALL",
+    "name": "Ridgefall",
     "shortName": "RFL",
     "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
     "pace": "tactical",
@@ -491,7 +491,7 @@
       {
         "id": "shipping-security-frame-west",
         "x": -6.3,
-        "z": -65,
+        "z": -57.5,
         "w": 4,
         "d": 2,
         "h": 8,
@@ -501,7 +501,7 @@
       {
         "id": "shipping-security-frame-east",
         "x": 6.3,
-        "z": -65,
+        "z": -57.5,
         "w": 4,
         "d": 2,
         "h": 8,
@@ -511,7 +511,7 @@
       {
         "id": "freight-security-left-wing",
         "x": -30,
-        "z": -65,
+        "z": -57.5,
         "w": 44,
         "d": 2,
         "h": 8,
@@ -521,7 +521,7 @@
       {
         "id": "freight-security-right-wing",
         "x": 30,
-        "z": -65,
+        "z": -57.5,
         "w": 44,
         "d": 2,
         "h": 8,
@@ -571,11 +571,11 @@
         "type": "destructible_wall",
         "x": 0,
         "y": 3,
-        "z": -65,
+        "z": -57.5,
         "w": 8,
         "d": 2,
         "h": 6,
-        "hp": 220
+        "hp": 165
       }
     ],
     "spawns": {
@@ -709,7 +709,7 @@
   },
   "theme": {
     "biome": "factory_interior",
-    "label": "Ridgefall steelworks — furnished industrial production hall with blast furnace, transfer belts, presses, gantries and maintenance bays",
+    "label": "Ridgefall steelworks \u2014 steel furnaces, conveyors, production cells and busy overhead utilities",
     "palette": {
       "floor": "#424a4f",
       "wall": "#5b6870",
@@ -915,46 +915,6 @@
         "d": 3,
         "h": 1.7,
         "color": "#616f76"
-      },
-      {
-        "kind": "sign",
-        "x": 0,
-        "z": -113,
-        "w": 16,
-        "d": 1,
-        "h": 3,
-        "color": "#ffb34b",
-        "text": "RIDGEFALL STEELWORKS"
-      },
-      {
-        "kind": "sign",
-        "x": 0,
-        "z": 109,
-        "w": 13,
-        "d": 1,
-        "h": 3,
-        "color": "#fca44a",
-        "text": "MAINTENANCE / BAY 4"
-      },
-      {
-        "kind": "sign",
-        "x": -92,
-        "z": -42,
-        "w": 11,
-        "d": 1,
-        "h": 3,
-        "color": "#fca44a",
-        "text": "FURNACE HALL"
-      },
-      {
-        "kind": "sign",
-        "x": 92,
-        "z": -43,
-        "w": 11,
-        "d": 1,
-        "h": 3,
-        "color": "#fca44a",
-        "text": "LOADING ZONE"
       },
       {
         "kind": "furnace",
@@ -1179,6 +1139,230 @@
         "d": 35,
         "h": 1.2,
         "y": 13
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -68,
+        "z": -28,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -68,
+        "z": 16,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -95,
+        "z": -36,
+        "w": 1.3,
+        "d": 23,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -95,
+        "z": 34,
+        "w": 1.3,
+        "d": 20,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 68,
+        "z": -34,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 68,
+        "z": 18,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 95,
+        "z": -34,
+        "w": 1.3,
+        "d": 22,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 95,
+        "z": 34,
+        "w": 1.3,
+        "d": 22,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -33,
+        "z": -52,
+        "w": 28,
+        "d": 1.5,
+        "h": 1.15,
+        "y": 12.9
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 33,
+        "z": -52,
+        "w": 28,
+        "d": 1.5,
+        "h": 1.15,
+        "y": 12.9
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -32,
+        "z": 48,
+        "w": 27,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 31,
+        "z": 48,
+        "w": 27,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": -93,
+        "w": 42,
+        "d": 1.2,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": 95,
+        "w": 42,
+        "d": 1.2,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -105,
+        "z": 0,
+        "w": 1.4,
+        "d": 22,
+        "h": 1.15,
+        "y": 13.2
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 105,
+        "z": 0,
+        "w": 1.4,
+        "d": 22,
+        "h": 1.15,
+        "y": 13.2
+      },
+      {
+        "kind": "terminal",
+        "x": -58,
+        "z": 14,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "FURNACE PRESSURE"
+      },
+      {
+        "kind": "terminal",
+        "x": -36,
+        "z": 25,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "PRESS STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 36,
+        "z": 25,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "ASSEMBLY STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 56,
+        "z": 12,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "LOAD MONITOR"
+      },
+      {
+        "kind": "terminal",
+        "x": -15,
+        "z": 72,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "GENERATOR STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 15,
+        "z": 72,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "COOLANT FLOW"
+      },
+      {
+        "kind": "terminal",
+        "x": -50,
+        "z": -75,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "SORTING CONTROL"
+      },
+      {
+        "kind": "terminal",
+        "x": 50,
+        "z": -75,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "FREIGHT CONTROL"
       }
     ],
     "surfaces": {

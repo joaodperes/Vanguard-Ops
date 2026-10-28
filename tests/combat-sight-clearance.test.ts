@@ -16,22 +16,30 @@ describe("every weapon's physical ADS model vs camera eye and crosshair",()=>{
   for(const w of standard){
     const receiver=(WEAPON_VISUALS[w.id]?.receiver?.[1]??.18);
     const c=adsClearance(w,"iron",receiver);
-    const apertureY=c.bodyY+c.sightLift+.08*1.3;
+    const apertureY=c.bodyY+c.sightMountY*1.2; // physical rigid optic
     expect(c.sightVisible).toBe(true);
-    expect(Math.abs(apertureY)).toBeLessThan(.02);
+    expect(apertureY).toBeGreaterThan(-.22);
+    expect(apertureY).toBeLessThan(0);
+    expect(c.sightMountY).toBeLessThan(.15); // receiver-level notch, not a raised ladder
     expect(c.bodyCeiling).toBeLessThan(0);
-    expect(c.bodyY).toBeLessThan(apertureY-.20);
+    expect(c.bodyY).toBeLessThan(apertureY-.06);
   }
  });
- test("Hydra Twin, Reclaimer, RL-7, Breach-2, Swarm-3 and Stormweaver use deep clearance",()=>{
+ test("Hydra Twin, Reclaimer, RL-7, Breach-2, Swarm-3 and Stormweaver use receiver-aware clearance",()=>{
   for(const id of ["rifle_hydra","crossbow_reclaimer","launcher_rocket","launcher_breach",
     "launcher_swarm","wonder_stormweaver","wonder_deadlock"]){
     const w=weaponById(id);
     const c=adsClearance(w,w.baseSightType??"iron",
       WEAPON_VISUALS[id]?.receiver?.[1]);
-    expect(c.bodyY).toBeLessThanOrEqual(-.4);
+    expect(c.bodyY).toBeLessThanOrEqual(-.20);
     expect(c.bodyCeiling).toBeLessThan(0);
   }
+ });
+ test("Plagueheart rests just below the crosshair rather than at the screen bottom",()=>{
+   const w=weaponById("wonder_corrosion");
+   const c=adsClearance(w,"iron",WEAPON_VISUALS[w.id].receiver[1]);
+   expect(c.bodyY).toBeGreaterThan(-.30);
+   expect(c.bodyCeiling).toBeLessThan(0);
  });
  test("weapon art never changes the direction of camera-centre ballistic rays",()=>{
   // Rendering offsets are independent of yaw/pitch. ADS therefore retains
@@ -70,7 +78,7 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(heavy.magSize).toBe(2);
   expect(heavy.damage).toBeGreaterThan(basic.damage*2);
   expect(ATTACHMENTS.filter(a=>a.exclusiveWeaponIds?.includes("crossbow_reclaimer")&&
-    a.slot==="magazine").map(a=>a.id)).toEqual(["mag_bolt_quiver","mag_bolt_heavy"]);
+    a.slot==="magazine").map(a=>a.id)).toEqual(["mag_bolt_quiver","mag_bolt_heavy","mag_bolt_light_quiver"]);
  });
  test("Reclaimer bolt reload hand and arrow follow TOP rail, not vertically",()=>{
   const start=sampleReloadMotion(.35,"bolt"),finish=sampleReloadMotion(.70,"bolt");
@@ -79,9 +87,29 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(Math.abs(start.hand[2]-finish.hand[2])).toBeGreaterThan(.05);
   expect(start.prop[1]).toBeGreaterThan(0);
  });
- test("Hellfire sprays for five fully charged seconds, Storm mines are four seconds",()=>{
-  expect(HELLFIRE_BURST_MS).toBe(5000);
-  expect(weaponById("wonder_hellfire").wonder?.maxCharges).toBe(5);
+ test("Hellfire has eight chargeable seconds, Storm mines are four seconds",()=>{
+  expect(HELLFIRE_BURST_MS).toBe(8000);
+  expect(weaponById("wonder_hellfire").wonder?.maxCharges).toBe(8);
   expect(weaponById("wonder_stormweaver").description).toContain("4 seconds");
+ });
+});
+
+describe("Wonder skins and silhouettes stay readable in ADS",()=>{
+ test("Event Horizon uses a compact pistol frame instead of a large rifle",()=>{
+  const p=WEAPON_VISUALS.wonder_singularity;
+  expect(p.stock).toBe("none");
+  expect(p.magazine).toBe("grip");
+  expect(p.receiver[0]).toBeLessThan(.14);
+ });
+ test("Deadlock no longer has colored scope/rail spires",()=>{
+  const p=WEAPON_VISUALS.wonder_deadlock;
+  expect(p.features).not.toContain("scope");
+  expect(p.features).not.toContain("rail");
+ });
+ test("Plagueheart and base Reclaimer have muted nonblue trims",()=>{
+  const plague=WEAPON_VISUALS.wonder_corrosion.signature;
+  const reclaimer=WEAPON_VISUALS.crossbow_reclaimer.signature;
+  expect((plague>>8)&255).toBeGreaterThan((plague)&255);
+  expect((reclaimer&255) - ((reclaimer>>8)&255)).toBeLessThan(20);
  });
 });

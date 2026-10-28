@@ -1,3 +1,4 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
@@ -32,9 +33,9 @@ export async function POST(req: NextRequest) {
     if (presets.length >= MAX_SAVED_LOADOUTS) {
       return NextResponse.json({ error: "You can save up to five loadouts" }, { status: 409 });
     }
-    const perkId = body.perkId ?? DEFAULT_PERK_ID;
+    const perkId = active.perkId ?? DEFAULT_PERK_ID;
     const perk = perkById(perkId);
-    if (perk.id !== perkId || perk.unlockLevel > player.level) {
+    if (perk.id !== perkId || perk.unlockLevel > levelForXp(player.xp)) {
       return NextResponse.json({ error: "That perk is not unlocked" }, { status: 403 });
     }
     updated = [...presets, captureSavedLoadout(active, randomUUID(), name, perkId)];

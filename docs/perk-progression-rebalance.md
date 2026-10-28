@@ -84,5 +84,7 @@ reload each gun independently, customize its *secondary* attachments, then
 remove Well Prepared and confirm the backup becomes a pistol. Check old
 purchased high-tier weapons on an account under their new required level.
 
-**Status:** Code and regression tests have been committed to `dev`; the
-build and smoke tests have not been executed in this environment.
+The later save fix derives all perk entitlements from XP rather than the stale
+`Player.level` cache and includes named presets and the socket server. See
+[Economy and Career progression](economy-and-career-progression.md) for the
+updated curve, payout values, Career track and validation scope.

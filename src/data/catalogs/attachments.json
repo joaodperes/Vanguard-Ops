@@ -723,5 +723,210 @@
     "exclusiveWeaponIds": [
       "crossbow_reclaimer"
     ]
+  },
+  {
+    "id": "sight_compact_reflex",
+    "name": "Compact Reflex Sight",
+    "slot": "sight",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Compact 1x red-dot optic; faster ADS and tighter aim.",
+    "effects": {
+      "adsTime": -12,
+      "adsSpread": -6
+    },
+    "sightType": "red_dot"
+  },
+  {
+    "id": "mag_lightweight",
+    "name": "Lightweight Magazine",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Improves movement at the cost of ammunition capacity.",
+    "effects": {
+      "moveSpeed": 6,
+      "magSize": -15
+    }
+  },
+  {
+    "id": "barrel_bolt_agile",
+    "name": "Agile Bolt Assembly",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Crossbow quick handling with shorter effective range.",
+    "effects": {
+      "adsTime": -14,
+      "moveSpeed": 4,
+      "range": -10
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "mag_bolt_light_quiver",
+    "name": "Light Quiver",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Crossbow reload and mobility upgrade at the cost of damage.",
+    "effects": {
+      "reloadTime": -15,
+      "moveSpeed": 5,
+      "damage": -8
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "barrel_launcher_stabilizer",
+    "name": "Launcher Handling Kit",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Faster rocket handling and ADS, but reduced effective range.",
+    "effects": {
+      "adsTime": -12,
+      "range": -8
+    }
+  },
+  {
+    "id": "mag_launcher_reinforced",
+    "name": "Reinforced Warhead Rack",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Heavier ordnance for stronger direct hits, slower reload/movement.",
+    "effects": {
+      "damage": 8,
+      "reloadTime": 18,
+      "moveSpeed": -5
+    }
+  },
+  {
+    "id": "mag_antimaterial_match",
+    "name": "Match Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Annihilator precision ammunition, slower reload.",
+    "effects": {
+      "adsSpread": -10,
+      "range": 14,
+      "reloadTime": 12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_fastbolt",
+    "name": "Fast-Bolt Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Annihilator faster chamber cycling, stronger recoil.",
+    "effects": {
+      "reloadTime": -25,
+      "recoil": 15
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_lightchamber",
+    "name": "Light Chamber",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Annihilator lightweight ammo; faster movement, lower damage.",
+    "effects": {
+      "moveSpeed": 7,
+      "damage": -12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_stabilizer",
+    "name": "Stabilized Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Annihilator controlled recoil, slower ADS.",
+    "effects": {
+      "recoil": -20,
+      "adsTime": 12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "barrel_launcher_blast",
+    "name": "Blast Chamber",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Launches heavier explosive ordnance with +10% damage, but range drops 15% and reload slows 12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "damage": 10,
+      "range": -15,
+      "reloadTime": 12
+    }
+  },
+  {
+    "id": "barrel_launcher_range",
+    "name": "Long-Range Launch Tube",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Extends launcher effective range by 18%, at the cost of 12% slower ADS and 6% slower movement.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "range": 18,
+      "adsTime": 12,
+      "moveSpeed": -6
+    }
+  },
+  {
+    "id": "grip_launcher_loader",
+    "name": "Quick Loader Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Reload time -16%, but ADS time +8% for heavy launcher reloading hardware.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "reloadTime": -16,
+      "adsTime": 8
+    }
+  },
+  {
+    "id": "grip_launcher_carry",
+    "name": "Lightweight Carry Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 2200,
+    "description": "Movement speed +6%, but launcher reload time +12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "moveSpeed": 6,
+      "reloadTime": 12
+    }
   }
 ]

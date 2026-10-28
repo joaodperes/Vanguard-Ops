@@ -75,7 +75,7 @@ describe("melee identity and identical F profiles",()=>{
   test("range, power and rate form distinct identities",()=>{
     const [knife,shiv,machete,baton,axe,hammer]=ids.map(id=>weaponById(id).stats);
     expect(knife.damage).toBeGreaterThanOrEqual(100);
-    expect(shiv.range).toBe(knife.range);
+    expect(shiv.range).toBeLessThan(knife.range);
     expect(shiv.damage).toBeLessThan(knife.damage/2);
     expect(shiv.fireRate).toBeGreaterThan(knife.fireRate);
     expect(machete.range).toBeGreaterThan(knife.range);
@@ -85,10 +85,15 @@ describe("melee identity and identical F profiles",()=>{
     expect(hammer.range).toBeGreaterThan(axe.range);
     expect(hammer.damage).toBeGreaterThan(axe.damage);
     expect(hammer.fireRate).toBeLessThan(axe.fireRate);
-    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats).reach).toBeLessThan(2.5);
-    const candidates=[{id:"enemy",pos:[0,0,1.2] as const,alive:true}];
-    expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,knife.range)).toBeNull();
+    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
+    const candidates=[{id:"enemy",pos:[0,0,1.12] as const,alive:true}];
+    expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,shiv.range)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,machete.range)?.id).toBe("enemy");
+    const distant=[{id:"distant",pos:[0,0,2.0] as const,alive:true}];
+    for(const id of ids)
+      expect(chooseQuickMeleeTarget([0,0,0],0,distant,()=>true,quickMeleeProfile(weaponById(id).stats).reach)).toBeNull();
+    expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.52] as const,alive:true}],()=>true,axe.range)?.id).toBe("axe-target");
+    expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.52] as const,alive:true}],()=>true,machete.range)).toBeNull();
   });
   test("axe has curved cutting geometry that hammer does not",()=>{
     const build=(id:string)=>{

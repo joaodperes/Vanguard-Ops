@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
 import { weaponCategoryLabel } from "@/lib/display-labels";
-import { PERKS, PERK_STORAGE_KEY, DEFAULT_PERK_ID, perkSelection, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
+import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
 import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
 import {
   WEAPONS,
@@ -34,12 +34,14 @@ interface LoadoutSelectorProps {
   // Optional callback invoked after a successful save. Defaults to refreshing
   // the profile via the game store.
   onSaved?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
+  children?: React.ReactNode; // named saved-loadout dropdown nested in Current Loadout
 }
 
-export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, children }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
@@ -51,7 +53,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
   const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
   const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
   const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
-  useEffect(() => { const selected = perkSelection(level); setPerkId(selected); setSavedPerk(selected); }, [level]);
+  useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -86,6 +88,12 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
     ...(profile?.prestige?.wonderWeapons ?? []),
   ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
 
+  const dirtyForPreset = !!current && (
+    primary !== current.weapon.id || secondary !== current.secondary.id ||
+    melee !== current.melee.id || perkId !== savedPerk
+  );
+  useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
+
   if (!profile || !current) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
   }
@@ -109,20 +117,8 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
   const save = async () => {
     if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
     setSaving(true);
-    // Perks are account-agnostic, free passive choices persisted locally.
-    const saveLocalPerk = () => {
-      try { localStorage.setItem(PERK_STORAGE_KEY, perkId); } catch {}
-      setSavedPerk(perkId);
-    };
     const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
     const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
-    if (primary === current?.weapon.id && savedSecondary === current?.secondary.id && melee === current?.melee.id) {
-      saveLocalPerk();
-      toast.success("Perk equipped");
-      setSaving(false);
-      onSaved?.();
-      return;
-    }
     try {
       const res = await fetch("/api/loadout", {
         method: "POST",
@@ -136,8 +132,8 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
         }),
       });
       if (res.ok) {
-        saveLocalPerk();
-        toast.success("Loadout saved");
+        setSavedPerk(perkId);
+        toast.success("Loadout confirmed");
         await refreshProfile();
         onSaved?.();
       } else {
@@ -167,7 +163,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50"
           size="sm"
         >
-          <Save className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Saving…" : "Save Loadout"}
+          <Check className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Confirming…" : "Confirm Loadout"}
         </Button>
       </div>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -253,6 +249,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
           )}
         </div>
       </div>
+      {children}
     </div>
   );
 }

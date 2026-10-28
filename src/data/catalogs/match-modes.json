@@ -92,5 +92,29 @@
     ],
     "teamBased": false,
     "accentColor": "#a855f7"
+  },
+  "ctf": {
+    "id": "ctf",
+    "label": "Capture the Flag",
+    "description": "Steal the enemy flag, escort your carrier to your base to score, and defend your own flag.",
+    "icon": "Flag",
+    "defaultScoreLimit": 3,
+    "scoreOptions": [
+      0,
+      1,
+      2,
+      3,
+      5,
+      7
+    ],
+    "defaultTimeLimit": 10,
+    "timeOptions": [
+      5,
+      8,
+      10,
+      15
+    ],
+    "teamBased": true,
+    "accentColor": "#69b55e"
   }
 }

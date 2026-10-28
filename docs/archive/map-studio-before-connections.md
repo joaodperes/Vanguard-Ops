@@ -2,6 +2,16 @@
 
 Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
 
+## Object movement and rotation
+
+3D editing saves every quarter-turn (0°, 90°, 180°, 270°) with the object instead of resetting it when moving or reselecting. For authored geometry, theme props, standalone hazards and overridden built-in objects, the saved extents remain axis-aligned for physics. City-building doorways, external/internal stairs and furniture rotate with the saved orientation. In Move mode, explicitly choose **Lock direction X / Y / Z**: the gizmo exposes only that direction, and commits reject movement along the other two axes, including accidental plane dragging.
+
+The two prominent authoring modes are **Construction kits** (regions, walls, stairs, grouped kits and spawns) and **Paint tools** (buildings and themed scenery). Use **Dismiss guide** to hide the tutorial between visits; **Show guide** reopens it.
+
+### Breakwater polish
+
+Containers now show stripes on **both long faces** whether they run along the X or Z axis. The floating moving cargo platform and independent authored crane platform have been removed, while the dock layout, normal cover, existing supported crane routes and container stacks remain.
+
 ## Quick Build — dev workflow
 
 Map Studio now includes a first-map guide, direct cursor placement, eight reusable city building kits, and seven geometry kits (alley, room, rooftop, market stalls, checkpoint, stairwell, courtyard).
@@ -102,6 +112,8 @@ Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp
 **Important gameplay detail:** rock/tree/building silhouettes are shared with collision where appropriate; storefronts are **exterior buildings**, not modeled enterable interiors. To create an enterable interior, author real physical geometry and door paths; do not draw fake walkable doorways. The theme is not a replacement for the gameplay blueprint.
 
 **Route-design rules:** keep two or more viable flanks around perches, short and interrupted sightlines around open courts, obstacles sized for cover rather than 100-unit hallway walls, and accessible elevated positions with real stairs. Sniper perches should overlook contested space but should not lock every route. Retain truly compact maps for shotgun/SMG combat as well as vast outdoor maps. Before publishing, playtest spawn safety and A-to-B travel times in 1v1, 3v3 and 7v7. The map builder suppresses new features intersecting known spawns, but this is a fail-safe, not an excuse to author invalid positions.
+
+The built-in **Orbital Nexus** map (`orbital_nexus`) is CTF-only. Flags live on the ground at X=±76 and deliveries at X=±86, with flat three-lane bot navigation rather than Forest Warfare tree stairs. Its blueprint includes mirrored cover, command decks, a breachable north bulkhead and ten jump pads; its `orbital_nexus.json` theme provides the orbital palette and decorative props. Decorative gas-giant/reactor geometry is rendered separately and does not add invisible shared collision.
 
 For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
 
@@ -213,3 +225,14 @@ Surface material patterns, physical repeat scale and roughness are now authored 
 ## Afterlight interior and façade design
 
 Both Afterlight lighting variants share deterministic architectural plans. City lots now vary across additional shops and public uses (including clinics, gyms, florist shops, workshops and galleries), six façade materials, building height/footprint, furnishing plans and whether the roof can be climbed. Enterable street levels have collision-backed rear-room walls with a real center doorway and type-specific furniture such as beds, counters, bookshelves and reception desks. Only buildings with `roofAccess: true` have interior/exterior rooftop stairways. The no-access buildings have a solid, sealed roof. Visible partitions and furniture use the same `cityBuildingBoxes` / `cityInteriorFixtures` geometry as game collision. Avoid cluttering the front center entrance or the east-side roof hatch aisle; inspect both lighting variants for signs, room usability and frame rate.
+
+### Orbital Nexus reactor and gravity
+
+Orbital Nexus is a CTF-only arena with 60% of normal gravity (before its temporary Reaper boost), ten jump pads, and **32-unit-high boundary walls** to contain extended airborne traversal. The reactor counts **10 legitimate enemy eliminations** with either the killer or the victim inside a **38-unit-radius** circle in the arena's center (XZ distance, independent of elevation). Kills between two fighters both outside the zone, friendly fire, and environmental deaths do not charge it. The HUD displays only `Reactor 0/10` through `Reactor 10/10`: there are no activation totals, negative no-charge messages, charged banners, or center-claim pop-ups. The reactor itself changes color and animates when full.
+
+At full charge, the first eligible living human or bot who reaches the raised center deck at Y=3.2 claims the **Nexus Reaper** in melee slot 3. Both teams' bots compete for the reward; flag carriers continue to prioritize scoring, and immediate threats interrupt their route. Claiming the weapon resets the reactor to 0/10, and dying forfeits it. The Reaper's blade reaches **3.5 units** and every swing also emits a **purple 4.75-unit-radius pulse**, dealing **58 damage** to other valid enemy targets (never hitting the same enemy twice with the blade and pulse). The pulse can hit enemies to the sides/behind even when the blade misses; cover and spawn protection still apply. Purple rings visualize human and bot attacks in online and offline games.
+
+**Only while Nexus Reaper is actually selected/equipped** (not merely owned or accessed with the quick-melee hotkey), the holder gets 25% faster movement, 47% less sprint stamina drain, 30% less Orbital Nexus gravity, and 55% more momentum added at aligned running jump takeoff. The bonuses end immediately when switching weapons or losing the Reaper. Reaper blade/pulse eliminations contribute to a separate three-tier permanent achievement (10/35/100 kills; final reward title *Nexus Reaper*); they do not advance standard Armory mastery. The temporary weapon remains absent from the purchasable Armory catalog.
+
+
+**Troubleshooting live reactor charge:** The Socket.IO match server on port 3003 owns multiplayer scoring. Updating frontend files or getting a green GitHub Actions build does **not** update an already-running game-server instance. In local development, Next.js instrumentation starts the server once and keeps a singleton running: restart the Next.js development server after modifying `game-server.ts`, `orbital-reactor.ts`, or the game protocol. In deployment, redeploy/restart **both** the web frontend and the Socket.IO server from the same commit, then start a **new room**. Newer clients require `orbitalRulesVersion` in the server snapshots; when the server is outdated the HUD displays **"Reactor: server update required"** rather than a misleading `0/5`. On compatible servers each qualifying elimination updates `orbitalReactor`; unqualified eliminations do not display distracting pop-up warnings. CI validates the matching source protocol; it cannot verify or restart an external, live deployment.

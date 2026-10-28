@@ -4,7 +4,7 @@
 export type MeleeStyle = "stab"|"vertical"|"horizontal"|"slam";
 export function meleeStyle(weaponId:string):MeleeStyle{
   if(weaponId==="knife_tactical"||weaponId==="shiv")return "stab";
-  if(weaponId==="axe")return "horizontal";
+  if(weaponId==="axe"||weaponId==="orbital_reaper")return "horizontal";
   if(weaponId==="hammer")return "slam";
   return "vertical"; // machete, baton
 }

@@ -42,7 +42,7 @@ export default function MapDraftPlaytest(){
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none bg-amber-500/85 text-black text-xs font-bold rounded px-3 py-1">
       LOCAL DRAFT PLAYTEST · Offline · {preview.botCount} bots · No rewards or publishing
     </div>
-    <GameCanvas key={preview.mapId} loadout={loadout} mode="ffa" botCount={preview.botCount} botDifficulty="normal"
+    <GameCanvas key={preview.mapId} loadout={loadout} mode={preview.mapId==="orbital_nexus"||preview.mapId==="forest_warfare"?"ctf":"ffa"} botCount={preview.botCount} botDifficulty="normal"
       online={false} previewMap={preview.map} mapId={preview.mapId} playerName="Map Creator"
       playerKey="map-studio-preview" scoreLimit={999} timeLimitMin={30}
       onMatchEnd={exit} onExit={exit}/>

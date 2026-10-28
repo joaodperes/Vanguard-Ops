@@ -1,0 +1,787 @@
+{
+  "version": 2,
+  "id": "orbital_nexus",
+  "blueprint": {
+    "templateMapId": "bunker",
+    "name": "Orbital Nexus",
+    "shortName": "ONX",
+    "description": "An orbital research station over a violet gas giant: mirrored flag vaults, reactor crossfire, launch pads and three interconnected attack lanes.",
+    "pace": "balanced",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 188,
+        "d": 82
+      },
+      {
+        "x": 0,
+        "z": -44,
+        "w": 112,
+        "d": 24
+      },
+      {
+        "x": 0,
+        "z": 44,
+        "w": 112,
+        "d": 24
+      },
+      {
+        "x": -82,
+        "z": 0,
+        "w": 24,
+        "d": 104
+      },
+      {
+        "x": 82,
+        "z": 0,
+        "w": 24,
+        "d": 104
+      }
+    ],
+    "features": [
+      {
+        "id": "reactor-command-deck",
+        "kind": "platform",
+        "x": 0,
+        "z": 0,
+        "w": 14,
+        "d": 14,
+        "h": 3.2
+      },
+      {
+        "id": "red-overlook",
+        "kind": "platform",
+        "x": -28,
+        "z": -25,
+        "w": 12,
+        "d": 10,
+        "h": 3.2
+      },
+      {
+        "id": "red-console",
+        "kind": "cover",
+        "x": -48,
+        "z": 0,
+        "w": 4,
+        "d": 8,
+        "h": 2.8
+      },
+      {
+        "id": "red-cargo-n",
+        "kind": "cover",
+        "x": -43,
+        "z": -20,
+        "w": 4.5,
+        "d": 4.5,
+        "h": 1.6
+      },
+      {
+        "id": "red-cargo-s",
+        "kind": "cover",
+        "x": -43,
+        "z": 20,
+        "w": 4.5,
+        "d": 4.5,
+        "h": 1.6
+      },
+      {
+        "id": "red-baffle-n",
+        "kind": "cover",
+        "x": -64,
+        "z": -13,
+        "w": 2,
+        "d": 8,
+        "h": 2.5
+      },
+      {
+        "id": "red-baffle-s",
+        "kind": "cover",
+        "x": -64,
+        "z": 13,
+        "w": 2,
+        "d": 8,
+        "h": 2.5
+      },
+      {
+        "id": "red-vent-n",
+        "kind": "cover",
+        "x": -18,
+        "z": -16,
+        "w": 4.5,
+        "d": 3,
+        "h": 1.2
+      },
+      {
+        "id": "red-vent-s",
+        "kind": "cover",
+        "x": -18,
+        "z": 16,
+        "w": 4.5,
+        "d": 3,
+        "h": 1.2
+      },
+      {
+        "id": "red-vault-trim",
+        "kind": "accent",
+        "x": -76,
+        "z": 0,
+        "w": 5,
+        "d": 5,
+        "h": 0.18
+      },
+      {
+        "id": "blue-overlook",
+        "kind": "platform",
+        "x": 28,
+        "z": -25,
+        "w": 12,
+        "d": 10,
+        "h": 3.2
+      },
+      {
+        "id": "blue-console",
+        "kind": "cover",
+        "x": 48,
+        "z": 0,
+        "w": 4,
+        "d": 8,
+        "h": 2.8
+      },
+      {
+        "id": "blue-cargo-n",
+        "kind": "cover",
+        "x": 43,
+        "z": -20,
+        "w": 4.5,
+        "d": 4.5,
+        "h": 1.6
+      },
+      {
+        "id": "blue-cargo-s",
+        "kind": "cover",
+        "x": 43,
+        "z": 20,
+        "w": 4.5,
+        "d": 4.5,
+        "h": 1.6
+      },
+      {
+        "id": "blue-baffle-n",
+        "kind": "cover",
+        "x": 64,
+        "z": -13,
+        "w": 2,
+        "d": 8,
+        "h": 2.5
+      },
+      {
+        "id": "blue-baffle-s",
+        "kind": "cover",
+        "x": 64,
+        "z": 13,
+        "w": 2,
+        "d": 8,
+        "h": 2.5
+      },
+      {
+        "id": "blue-vent-n",
+        "kind": "cover",
+        "x": 18,
+        "z": -16,
+        "w": 4.5,
+        "d": 3,
+        "h": 1.2
+      },
+      {
+        "id": "blue-vent-s",
+        "kind": "cover",
+        "x": 18,
+        "z": 16,
+        "w": 4.5,
+        "d": 3,
+        "h": 1.2
+      },
+      {
+        "id": "blue-vault-trim",
+        "kind": "accent",
+        "x": 76,
+        "z": 0,
+        "w": 5,
+        "d": 5,
+        "h": 0.18
+      },
+      {
+        "id": "reactor-barricade-n",
+        "kind": "cover",
+        "x": 0,
+        "z": -19,
+        "w": 9,
+        "d": 1.4,
+        "h": 1.2
+      },
+      {
+        "id": "reactor-barricade-s",
+        "kind": "cover",
+        "x": 0,
+        "z": 19,
+        "w": 9,
+        "d": 1.4,
+        "h": 1.2
+      },
+      {
+        "id": "nexus-cover-expansion-1",
+        "kind": "cover",
+        "x": -36,
+        "z": 18,
+        "w": 5,
+        "d": 5,
+        "h": 1.45
+      },
+      {
+        "id": "nexus-cover-expansion-2",
+        "kind": "cover",
+        "x": 36,
+        "z": -18,
+        "w": 5,
+        "d": 5,
+        "h": 1.45
+      },
+      {
+        "id": "nexus-cover-expansion-3",
+        "kind": "cover",
+        "x": -36,
+        "z": -18,
+        "w": 5,
+        "d": 5,
+        "h": 1.45
+      },
+      {
+        "id": "nexus-cover-expansion-4",
+        "kind": "cover",
+        "x": 36,
+        "z": 18,
+        "w": 5,
+        "d": 5,
+        "h": 1.45
+      },
+      {
+        "id": "nexus-cover-expansion-5",
+        "kind": "cover",
+        "x": -56,
+        "z": 5,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.35
+      },
+      {
+        "id": "nexus-cover-expansion-6",
+        "kind": "cover",
+        "x": 56,
+        "z": 5,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.35
+      },
+      {
+        "id": "nexus-cover-expansion-7",
+        "kind": "cover",
+        "x": -56,
+        "z": -5,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.35
+      },
+      {
+        "id": "nexus-cover-expansion-8",
+        "kind": "cover",
+        "x": 56,
+        "z": -5,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.35
+      },
+      {
+        "id": "nexus-cover-expansion-9",
+        "kind": "cover",
+        "x": -10,
+        "z": 33,
+        "w": 6,
+        "d": 2,
+        "h": 1.5
+      },
+      {
+        "id": "nexus-cover-expansion-10",
+        "kind": "cover",
+        "x": 10,
+        "z": 33,
+        "w": 6,
+        "d": 2,
+        "h": 1.5
+      },
+      {
+        "id": "nexus-cover-expansion-11",
+        "kind": "cover",
+        "x": -10,
+        "z": -33,
+        "w": 6,
+        "d": 2,
+        "h": 1.5
+      },
+      {
+        "id": "nexus-cover-expansion-12",
+        "kind": "cover",
+        "x": 10,
+        "z": -33,
+        "w": 6,
+        "d": 2,
+        "h": 1.5
+      },
+      {
+        "id": "nexus-cover-expansion-13",
+        "kind": "cover",
+        "x": -76,
+        "z": 17,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.15
+      },
+      {
+        "id": "nexus-cover-expansion-14",
+        "kind": "cover",
+        "x": 76,
+        "z": 17,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.15
+      },
+      {
+        "id": "nexus-cover-expansion-15",
+        "kind": "cover",
+        "x": -76,
+        "z": -17,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.15
+      },
+      {
+        "id": "nexus-cover-expansion-16",
+        "kind": "cover",
+        "x": 76,
+        "z": -17,
+        "w": 5,
+        "d": 2.5,
+        "h": 1.15
+      }
+    ],
+    "hazards": [
+      {
+        "id": "nexus-breach-door",
+        "type": "destructible_wall",
+        "x": 0,
+        "y": 1.5,
+        "z": -34,
+        "w": 6,
+        "h": 3,
+        "d": 1,
+        "hp": 210
+      },
+      {
+        "id": "nexus-north-launch",
+        "type": "jump_pad",
+        "x": 0,
+        "y": 0.15,
+        "z": -27,
+        "w": 3,
+        "h": 0.3,
+        "d": 3,
+        "launchX": 0,
+        "launchY": 17,
+        "launchZ": 7
+      },
+      {
+        "id": "nexus-south-launch",
+        "type": "jump_pad",
+        "x": 0,
+        "y": 0.15,
+        "z": 27,
+        "w": 3,
+        "h": 0.3,
+        "d": 3,
+        "launchX": 0,
+        "launchY": 17,
+        "launchZ": -7
+      },
+      {
+        "id": "nexus-jump-expansion-1",
+        "type": "jump_pad",
+        "x": -49,
+        "z": -34,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": 4,
+        "launchY": 11,
+        "launchZ": 5
+      },
+      {
+        "id": "nexus-jump-expansion-2",
+        "type": "jump_pad",
+        "x": -49,
+        "z": 34,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": 4,
+        "launchY": 11,
+        "launchZ": -5
+      },
+      {
+        "id": "nexus-jump-expansion-3",
+        "type": "jump_pad",
+        "x": 49,
+        "z": -34,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": -4,
+        "launchY": 11,
+        "launchZ": 5
+      },
+      {
+        "id": "nexus-jump-expansion-4",
+        "type": "jump_pad",
+        "x": 49,
+        "z": 34,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": -4,
+        "launchY": 11,
+        "launchZ": -5
+      },
+      {
+        "id": "nexus-jump-expansion-5",
+        "type": "jump_pad",
+        "x": -23,
+        "z": -32,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": 7,
+        "launchY": 13,
+        "launchZ": 7
+      },
+      {
+        "id": "nexus-jump-expansion-6",
+        "type": "jump_pad",
+        "x": 23,
+        "z": -32,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": -7,
+        "launchY": 13,
+        "launchZ": 7
+      },
+      {
+        "id": "nexus-jump-expansion-7",
+        "type": "jump_pad",
+        "x": -23,
+        "z": 32,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": 7,
+        "launchY": 13,
+        "launchZ": -7
+      },
+      {
+        "id": "nexus-jump-expansion-8",
+        "type": "jump_pad",
+        "x": 23,
+        "z": 32,
+        "y": 0.15,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.3,
+        "launchX": -7,
+        "launchY": 13,
+        "launchZ": -7
+      }
+    ],
+    "spawns": {
+      "ffa": [
+        [
+          -84,
+          0,
+          -24
+        ],
+        [
+          -84,
+          0,
+          24
+        ],
+        [
+          84,
+          0,
+          -24
+        ],
+        [
+          84,
+          0,
+          24
+        ],
+        [
+          -32,
+          0,
+          42
+        ],
+        [
+          32,
+          0,
+          -42
+        ],
+        [
+          0,
+          0,
+          38
+        ],
+        [
+          0,
+          0,
+          -40
+        ]
+      ],
+      "red": [
+        [
+          -86,
+          0,
+          -24
+        ],
+        [
+          -86,
+          0,
+          24
+        ],
+        [
+          -78,
+          0,
+          -32
+        ],
+        [
+          -78,
+          0,
+          32
+        ],
+        [
+          -72,
+          0,
+          32
+        ],
+        [
+          -72,
+          0,
+          -32
+        ]
+      ],
+      "blue": [
+        [
+          86,
+          0,
+          -24
+        ],
+        [
+          86,
+          0,
+          24
+        ],
+        [
+          78,
+          0,
+          -32
+        ],
+        [
+          78,
+          0,
+          32
+        ],
+        [
+          72,
+          0,
+          32
+        ],
+        [
+          72,
+          0,
+          -32
+        ]
+      ]
+    }
+  },
+  "theme": {
+    "biome": "orbital",
+    "label": "Orbital station above a luminous gas giant",
+    "palette": {
+      "floor": "#202a40",
+      "wall": "#323d62",
+      "cover": "#64728f",
+      "accent": "#4ce8fb",
+      "platform": "#465876",
+      "stair": "#8596b0",
+      "sky": "#07091d",
+      "fog": "#151d39",
+      "grid": "#305578"
+    },
+    "ambient": 1.62,
+    "vegetation": 0,
+    "props": [
+      {
+        "kind": "terminal",
+        "x": -74,
+        "z": -11,
+        "w": 3,
+        "d": 2,
+        "h": 2.5,
+        "color": "#ff5b82"
+      },
+      {
+        "kind": "terminal",
+        "x": 74,
+        "z": 11,
+        "w": 3,
+        "d": 2,
+        "h": 2.5,
+        "color": "#59dfff"
+      },
+      {
+        "kind": "terminal",
+        "x": -30,
+        "z": 13,
+        "w": 2.6,
+        "d": 1.9,
+        "h": 2.4,
+        "color": "#4ce8fb"
+      },
+      {
+        "kind": "terminal",
+        "x": 30,
+        "z": -13,
+        "w": 2.6,
+        "d": 1.9,
+        "h": 2.4,
+        "color": "#c77bff"
+      },
+      {
+        "kind": "lamp",
+        "x": -73,
+        "z": -34,
+        "h": 8,
+        "color": "#ff647e"
+      },
+      {
+        "kind": "lamp",
+        "x": -73,
+        "z": 34,
+        "h": 8,
+        "color": "#ff647e"
+      },
+      {
+        "kind": "lamp",
+        "x": -32,
+        "z": 36,
+        "h": 7,
+        "color": "#a991ff"
+      },
+      {
+        "kind": "lamp",
+        "x": -32,
+        "z": -36,
+        "h": 7,
+        "color": "#a991ff"
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -63,
+        "z": 0,
+        "y": 12,
+        "w": 1.5,
+        "d": 42,
+        "h": 1,
+        "color": "#4c86c1"
+      },
+      {
+        "kind": "lamp",
+        "x": 73,
+        "z": -34,
+        "h": 8,
+        "color": "#63e7ff"
+      },
+      {
+        "kind": "lamp",
+        "x": 73,
+        "z": 34,
+        "h": 8,
+        "color": "#63e7ff"
+      },
+      {
+        "kind": "lamp",
+        "x": 32,
+        "z": 36,
+        "h": 7,
+        "color": "#a991ff"
+      },
+      {
+        "kind": "lamp",
+        "x": 32,
+        "z": -36,
+        "h": 7,
+        "color": "#a991ff"
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 63,
+        "z": 0,
+        "y": 12,
+        "w": 1.5,
+        "d": 42,
+        "h": 1,
+        "color": "#4c86c1"
+      }
+    ],
+    "surfaces": {
+      "floor": {
+        "pattern": "metal",
+        "tileSize": 7,
+        "roughness": 0.6
+      },
+      "wall": {
+        "pattern": "concrete",
+        "tileSize": 4,
+        "roughness": 0.42
+      },
+      "cover": {
+        "pattern": "metal",
+        "tileSize": 3,
+        "roughness": 0.55
+      },
+      "stair": {
+        "pattern": "grate",
+        "tileSize": 3,
+        "roughness": 0.57
+      },
+      "platform": {
+        "pattern": "grate",
+        "tileSize": 5,
+        "roughness": 0.5
+      }
+    }
+  }
+}

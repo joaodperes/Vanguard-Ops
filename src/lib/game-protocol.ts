@@ -8,15 +8,29 @@ import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
+import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT } from "./forest-warfare";
+import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
-export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon";
+export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 5, 7] as const;
+export const TEAM_SIZES = [3, 5, 7, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
+
+/** Only the two expansive Afterlight City variants support 32 combatants.
+ * Other maps retain their previous 14-player maximum. */
+export function isAfterlightCityMap(mapId: MapId | string): boolean {
+  return mapId === "terminal" || mapId === "arena_neon";
+}
+export function teamSizesForMap(mapId: MapId | string): readonly TeamSize[] {
+  return isAfterlightCityMap(mapId) ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
+}
+export function teamSizeAllowed(mapId: MapId | string, teamSize: number): teamSize is TeamSize {
+  return teamSizesForMap(mapId).some(size => size === teamSize);
+}
 
 // Total combatant capacity for a room given mode + team size.
 // FFA: teamSize*2 total slots (no teams, just a player cap).
@@ -69,6 +83,7 @@ export interface CreateRoomConfig {
   scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
   tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
+  ctfFlagResetMs?: number;  // CTF dropped flag return timer; -1 means never
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
@@ -960,6 +975,8 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  orbital_nexus: [],
+  forest_warfare: [],
   compound: [
     // Fuel service yard east of the northern security checkpoint.
     { id: "compound_spikes_service", type: "spikes", pos: [38, 0, -28], size: [1.8, .4, 1.8], damage: 24, period: 4.5, activeFor: 1.6 },
@@ -1004,6 +1021,42 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  orbital_nexus: {
+    id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
+    description:"CTF aboard an orbital station above a violet gas giant.",
+    size:100,wallHeight:32,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
+    spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",
+    theme:{floor:0x202a40,floorPattern:0x305578,wall:0x323d62,cover:0x64728f,
+      coverAccent:0x4ce8fb,stair:0x8596b0,platform:0x465876,
+      sky:"#07091d",fog:"#151d39",fogNear:45,fogFar:400,ambient:1.62,gridColor:0x305578},
+    lights:[
+      {pos:[-76,8,0],color:0xff567b,intensity:2.5,distance:38},
+      {pos:[76,8,0],color:0x57deff,intensity:2.5,distance:38},
+      {pos:[0,13,0],color:0x9f64ff,intensity:2.7,distance:48},
+    ],
+  },
+  forest_warfare: {
+    id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
+    description: "Long woodland valley with ancient climbable trees, dense cover, and raised woodland platforms.",
+    size: FOREST_HALF_EXTENT, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
+    regions: FOREST_REGIONS,
+    surfaces: {
+      floor: { pattern: "grass", tileSize: 7, roughness: 1 },
+      wall: { pattern: "stone", tileSize: 4, roughness: 1 },
+      cover: { pattern: "moss", tileSize: 4, roughness: 1 },
+      stair: { pattern: "planks", tileSize: 3, roughness: 1 },
+      platform: { pattern: "planks", tileSize: 5, roughness: 1 },
+    },
+    biome: "forest_warfare", accentColor: "#75bc5d",
+    theme: { floor: 0x37532b, floorPattern: 0x284422, wall: 0x304829,
+      cover: 0x656e5b, coverAccent: 0x78ae54, stair: 0x6b452b,
+      platform: 0x5d3d26, sky: "#8aa99a", fog: "#8aa99a", fogNear: 90, fogFar: 450,
+      ambient: 1.35, gridColor: 0x405c31 },
+    lights: [
+      { pos: [-94,19,0], color: 0xffc6a9, intensity: 1.5, distance: 38 },
+      { pos: [94,19,0], color: 0xb6e2ff, intensity: 1.5, distance: 38 },
+    ],
+  },
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
@@ -1158,6 +1211,8 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
 export const MAPS: Record<string, MapDef> = {
+  orbital_nexus: applyMapFootprint(BASE_MAPS.orbital_nexus),
+  forest_warfare: applyMapFootprint(BASE_MAPS.forest_warfare),
   compound: applyMapFootprint(BASE_MAPS.compound),
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
@@ -1181,6 +1236,8 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
+export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
+  mode === "ctf" ? id === "forest_warfare" || id === "orbital_nexus" : id !== "forest_warfare" && id !== "orbital_nexus";
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
@@ -1190,7 +1247,9 @@ export function getMap(id: MapId | string | undefined): MapDef {
 /** Client-side, offline-only compilation for unsaved Map Studio drafts.
  * Never modifies MAPS or the server map catalog and cannot affect matchmaking. */
 export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme):MapDef {
-  const templateId=(blueprint.templateMapId||mapId) as MapId;
+  // Shipped maps can have an old fallback template ID (Orbital used bunker).
+  // Their draft must start from the SAME native base as the published map.
+  const templateId=(mapId in BASE_MAPS?mapId:(blueprint.templateMapId||mapId)) as MapId;
   const template=BASE_MAPS[templateId]??BASE_MAPS.compound;
   const base=templateId==="terminal"?{
     ...BASE_MAPS.arena_neon,id:"terminal" as MapId,theme:BASE_MAPS.terminal.theme,
@@ -1222,6 +1281,13 @@ export interface LoadoutWire {
   secondaryWeaponSkinId?: string;
   meleeWeaponSkinId?: string;
   playerSkinId: string;
+  /** Chosen cosmetics; ignored for combat stats. */
+  primaryReticleId?: string;
+  secondaryReticleId?: string;
+  primaryCharmId?: string;
+  secondaryCharmId?: string;
+  meleeCharmId?: string;
+  nameplateId?: string;
   // Primary-slot attachments. Always present (defaults to all-null on the server).
   attachments: { sight: string | null; barrel: string | null; grip: string | null; magazine: string | null };
   // Secondary-slot attachments (sidearms support attachments just like primaries).
@@ -1245,6 +1311,8 @@ export interface PlayerNet {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  charmId?: string;
+  nameplateId?: string;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1302,6 +1370,7 @@ export interface SnapshotPlayer {
   id: string; name: string; team: string; isBot: boolean;
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
+  charmId?: string; nameplateId?: string;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
@@ -1332,9 +1401,14 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }> }
+  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
+  | { t: "orbitalReactor"; charge: number }
+  | { t: "orbitalAbsorb"; pos: Vec3 }
+  | { t: "orbitalReward"; playerId: string; active: boolean }
+  | { t: "orbitalPulse"; playerId: string; pos: Vec3 }
+  | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
@@ -1370,6 +1444,7 @@ export interface MatchConfig {
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
   tagLifetimeMs: number;   // Kill Confirmed tag lifetime
+  ctfFlagResetMs: number; // CTF dropped flag return timer
   denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
   survivalTier?: SurvivalTier;
 }
@@ -1377,10 +1452,11 @@ export interface MatchConfig {
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "killconfirmed" ? 600 : 360,
+  scoreLimit: mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
+  ctfFlagResetMs: 30000,
   denialScoreEnabled: false,
   survivalTier: mode === "survival" ? "default" : undefined,
 });

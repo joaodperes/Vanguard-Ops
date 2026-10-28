@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {MAPS} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
-import {mapProps,visualThemeForMap,cityBuildingBoxes,cityBandstandBoxes,cityInteriorFixtures} from "../src/lib/map-visuals";
+import {mapProps,visualThemeForMap,cityBuildingBoxes,cityBandstandBoxes,cityInteriorFixtures,cityHasUsableInteriorStairs} from "../src/lib/map-visuals";
 import {botMoveBlocked,botPositionEmbedded} from "../src/lib/bot-physics";
 
 describe("Afterlight architectural maps",()=>{
@@ -45,8 +45,14 @@ describe("Afterlight architectural maps",()=>{
       const inner=boxes.filter(c=>c.kind==="stair" && c.pos[0]>p.x && c.pos[0]<p.x+w/2);
       if(p.roofAccess){
         expect(outer.length).toBeGreaterThanOrEqual(11);
-        expect(inner.length).toBe(p.shape==="round"?0:Math.ceil(h/.39));
-        expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:6);
+        expect(inner.length).toBe(cityHasUsableInteriorStairs(p)?Math.ceil(h/.39):0);
+        if(!cityHasUsableInteriorStairs(p)){
+          // No interior staircase means a solid roof: never a lethal hole.
+          expect(boxes.some(c=>c.kind==="platform"&&
+            Math.abs(c.pos[0]-p.x)<.01&&Math.abs(c.pos[2]-p.z)<.01&&
+            c.size[0]>=(p.w??20)/2-.1&&c.size[2]>=(p.d??20)/2-.1)).toBe(p.shape!=="round");
+        }
+        expect(boxes.filter(c=>c.kind==="platform").length).toBeGreaterThanOrEqual(p.shape==="round"?4:cityHasUsableInteriorStairs(p)?6:2);
         const crest=outer[outer.length-1];
         expect(Math.abs(crest.pos[1]+crest.size[1]-h)).toBeLessThan(.1);
       }else{

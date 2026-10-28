@@ -72,5 +72,26 @@
     "color": "#3f0a0a",
     "accent": "#ef4444",
     "emissive": "#ef4444"
+  },
+  {
+    "id": "shop_urban",
+    "name": "Urban Ghost",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "epic",
+    "shopCurrency": "credits",
+    "color": "#516478",
+    "accent": "#9bc1cc"
+  },
+  {
+    "id": "shop_phantom",
+    "name": "Starlight Vanguard",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "legendary",
+    "shopCurrency": "career",
+    "color": "#37235b",
+    "accent": "#ba96ff",
+    "emissive": "#7c3aed"
   }
 ]

@@ -6,7 +6,7 @@ import { rayBox, type CoverBox, type Vec3 } from "./game-protocol";
 import { rayCombatantHit } from "./combat-hitboxes";
 
 export const STORM_PELLETS = 7;
-export const STORM_SPREAD = .135;
+export const STORM_SPREAD = .065;
 export const STORM_CHAIN_JUMPS = 2;
 export const STORM_MINE_JUMPS = 2;
 export const STORM_MINE_ARM_MS = 450;
@@ -15,7 +15,7 @@ export const STORM_MINE_TRIGGER_RADIUS = 2.65;
 export const STORM_MINE_CHAIN_RADIUS = 9;
 export const STORM_MAX_MINES_PER_OWNER = 12;
 export const STORM_MINE_TARGET_COOLDOWN_MS = 1200;
-export const STORM_DIRECT_DAMAGE = 16;
+export const STORM_DIRECT_DAMAGE = 22;
 export const STORM_MINE_DAMAGE = 24;
 export const STORM_MAX_DIRECT_HITS_PER_TARGET = 3;
 export const STORM_CHAIN_DECAY = .63;

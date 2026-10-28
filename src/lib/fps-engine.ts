@@ -24,8 +24,8 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendFullWonderCharge, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
-import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_BURST_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
+import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -33,17 +33,25 @@ import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotio
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
+import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
+import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
+import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
-import { corrosionImpactDamage, corrosionTickDamage, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
+import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
-import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, type SurvivalTier } from "./survival";
-import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump } from "@/lib/movement-rules";
+import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
+import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
+import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
+import { advanceMatchElapsed } from "./match-clock";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -57,9 +65,13 @@ import {
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
+import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
+import { cosmeticById } from "@/lib/cosmetics";
+import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
   withinEnvironment, spikesActive, closestCoverHit,
@@ -111,7 +123,6 @@ export interface EngineOptions {
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
   masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
-  musicVolume?: number;        // 0..100, relative to master
   footstepVolume?: number;     // 0..100, relative to master
   fxVolume?: number;           // 0..100, relative to master (including WeaponAudio)
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
@@ -151,12 +162,24 @@ export interface HudState {
   deaths: number;
   score: number;
   teamScores: { red: number; blue: number };
+  playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
+  ctfFlags?: CtfFlags;
+  orbitalCharge?: number;
+  orbitalReaper?: boolean;
+  orbitalWarning?: string;
+  ctfCarrying?: boolean;
+  ctfOvertime?: boolean;
+  ctfFlagResetMs?: number;
+  ctfNotice?: { label: string; at: number };
+  ctfZoneError?: string;
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
   confirmations?: number;
   denials?: number;
   denialScoreEnabled?: boolean;
   tagNotice?: { action: "confirm" | "deny"; at: number };
   timeLeft: number;
+  unlimitedTime: boolean;
+  elapsedSeconds: number;
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
   lastDeath?: { killer:string; weaponId:string; attachments:string[] };
@@ -288,9 +311,12 @@ interface BotAI {
   strafeDir: number;
   moveSpeed: number;
   sprinting?: boolean;
+  aiming?: boolean;
   attachments: Record<AttachmentSlot, string | null>;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
+  highGroundPatrol?:HighGroundGoal|null;
+  highGroundExpiresAt?:number;
   // reaction delay before first shot at a newly-acquired target (ms timestamp)
   acquiredTargetAt: number;
   // ---- Humanization fields ----
@@ -347,6 +373,8 @@ interface Combatant {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  charmId?: string;
+  nameplateId?: string;
   kills: number;
   deaths: number;
   score: number;
@@ -482,6 +510,54 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
+  private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
+  private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
+  // Decorative interior detail is distance-culled; collision never is.
+  private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
+  private nextCityDetailUpdate=0;
+  private cityFrameMs=16.7;
+  private nextCityQualityCheck=0;
+  private cityResolutionScale=1.35;
+  private updateCityRenderBudget(now:number,elapsedMs:number){
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return;
+    // Exclude parked tabs and abnormal tab-switch catch-up times.
+    if(elapsedMs<=0||elapsedMs>=120)return;
+    this.cityFrameMs=this.cityFrameMs*.94+elapsedMs*.06;
+    if(now<this.nextCityQualityCheck)return;
+    this.nextCityQualityCheck=now+1800;
+    const next=this.cityFrameMs>28?Math.max(.75,this.cityResolutionScale-.15):
+      this.cityFrameMs<18?Math.min(1.35,this.cityResolutionScale+.10):this.cityResolutionScale;
+    if(Math.abs(next-this.cityResolutionScale)>.005){
+      this.cityResolutionScale=next;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,next));
+    }
+  }
+  private updateCityDetailVisibility(now:number){
+    if(now<this.nextCityDetailUpdate)return;
+    this.nextCityDetailUpdate=now+350;
+    const x=this.camera.position.x,z=this.camera.position.z;
+    for(const item of this.cityInteriorDetailGroups)
+      item.node.visible=Math.abs(item.x-x)<52&&Math.abs(item.z-z)<52;
+  }
+  private highGroundGoals():HighGroundGoal[]{
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
+    if(this.highGroundCache?.source!==this.map.props)
+      this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
+    return this.highGroundCache!.goals;
+  }
+  /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
+  private coverIndex():CoverSpatialIndex|null{
+    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
+    if(this.staticCoverIndex?.source!==this.map.cover)
+      this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
+    return this.staticCoverIndex!.index;
+  }
+  private coverNear(x:number,z:number,pad=3):CoverBox[]{
+    return this.coverIndex()?.near(x,z,pad)??this.map.cover;
+  }
+  private coverAlong(a:Vec3,b:Vec3,pad=2):CoverBox[]{
+    return this.coverIndex()?.along(a[0],a[2],b[0],b[2],pad)??this.map.cover;
+  }
   private surfaceMaterials: MapSurfaceMaterials | null = null;
   private gardenMaterial: THREE.MeshStandardMaterial | null = null;
   private environmentTime = 0;
@@ -549,7 +625,11 @@ export class FPSEngine {
   private stormMines = new Map<string,{mesh:THREE.Group; pos:Vec3;expiresAt:number;armedAt:number;offline:boolean;ownerId:string;ownerTeam:string}>();
   private stormMineCooldown = new Map<string,number>();
   private smartTags = new Map<string,number>();
+  // End of the current ONE-second fuel slice. A released trigger never burns
+  // another charge, and unused fuel remains in wonderStates.
   private hellfireActiveUntil = 0;
+  private localBurning = new Map<string, number>();
+  private onlineBurning = new Map<string, number>();
   private flamePlumes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
   private stormArcMeshes: {mesh:THREE.Mesh;born:number;life:number}[] = [];
   private localWonderSequence = 0;
@@ -630,6 +710,24 @@ export class FPSEngine {
   // combatants
   private combatants = new Map<string, Combatant>();
   private selfId = "self";
+  private ctfFlags: CtfFlags = createCtfFlags();
+  private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
+  private ctfNotice: { label: string; at: number } | undefined;
+  private ctfCaptures = 0;
+  private ctfResetDurationMs = 30000;
+  private ctfOvertime = false;
+  private orbitalCharge=0;
+  private orbitalServerVersion:number|undefined;
+  private orbitalSnapshotSeen=false;
+  private orbitalWeaponActive=false;
+  private orbitalBotHolders=new Map<string,string>();
+  private orbitalCore:THREE.Mesh|undefined;
+  private orbitalRings:THREE.Mesh[]=[];
+  private orbitalMotes:{mesh:THREE.Mesh;origin:Vec3;start:number}[]=[];
+  private orbitalPulseRings:{mesh:THREE.Mesh;at:number}[]=[];
+  private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
+  private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
+  private ctfRulesVerified = false;
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
@@ -659,6 +757,8 @@ export class FPSEngine {
   private denialScoreEnabled = false;
   private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
+  private hasTimeLimit = true;
+  private elapsedSeconds = 0;
   private matchEnded = false;
   private matchFinishingLabel: string | null = null;
   private quickMeleeLastAt = -10000;
@@ -864,6 +964,8 @@ export class FPSEngine {
     this.container = container;
     this.opts = opts;
     this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
+    this.ctfFlags = createCtfFlags(this.map.id);
+    this.ctfBases = {red:ctfBase("red",this.map.id),blue:ctfBase("blue",this.map.id)};
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
@@ -935,15 +1037,17 @@ export class FPSEngine {
     this.weaponAudio = new WeaponAudio(80);
     this.setAudioMix({
       masterVolume: opts.masterVolume ?? DEFAULT_AUDIO_MIX.masterVolume,
-      musicVolume: opts.musicVolume ?? DEFAULT_AUDIO_MIX.musicVolume,
       footstepVolume: opts.footstepVolume ?? DEFAULT_AUDIO_MIX.footstepVolume,
       fxVolume: opts.fxVolume ?? DEFAULT_AUDIO_MIX.fxVolume,
     });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
-    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
+    this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ctf" ? 3 : opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
+    this.ctfResetDurationMs = ctfResetMs(opts.roomConnect?.config?.ctfFlagResetMs);
+    this.ctfRulesVerified = !opts.online;
+    this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
     this.matchStartedAt = opts.startedAt ?? performance.now();
     this.autoAdsOnFire = opts.autoAdsOnFire ?? false;
     this.invertY = opts.invertY ?? false;
@@ -969,6 +1073,7 @@ export class FPSEngine {
     }
     this.buildArena();
     this.buildMapProps();
+    if (this.opts.mode === "ctf") this.buildCtfFlagModels();
     this.buildEnvironment();
     this.buildViewmodel();
     this.createQuickMeleeModel();
@@ -1012,9 +1117,12 @@ export class FPSEngine {
   // ---- Three.js setup ----
   private initThree() {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Dense city maps need a stable pixel budget; never render them at 2x DPI.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.map.biome==="city"||this.map.biome==="city_day"?1.35:2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.shadowMap.enabled = true;
+    // Thousands of city interior and stair boxes would otherwise issue an
+    // additional expensive shadow pass every frame. Keep shadows elsewhere.
+    this.renderer.shadowMap.enabled = this.map.biome!=="city"&&this.map.biome!=="city_day";
     // Nearest comparison avoids implementation-defined LINEAR depth texture
     // filtering in WebGL browsers (and the resulting console warnings).
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
@@ -1077,7 +1185,7 @@ export class FPSEngine {
       const grid=new THREE.GridHelper(this.map.size*2,64,theme.gridColor,theme.gridColor);
       (grid.material as THREE.Material).opacity=0.4;
       (grid.material as THREE.Material).transparent=true;
-      grid.position.y=0.02; this.scene.add(grid);
+      grid.position.y=0.02; if (this.map.id !== "forest_warfare") this.scene.add(grid);
     }
 
     // Ridgefall is an indoor factory. Render a ceiling over each connected
@@ -1136,9 +1244,47 @@ export class FPSEngine {
 
     // cover / platforms / stairs
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
-    for (const c of this.map.cover) {
-      if (c.environmentId) continue; // handled by animated environment meshes
+    // The city once submitted one Mesh + draw call for EVERY wall section,
+    // furniture AABB and step, and then rendered them a second time for
+    // shadows. Instance equal-material solids; physics still reads every
+    // individual CoverBox from this.map.cover unchanged.
+    const cityBatch=this.map.biome==="city"||this.map.biome==="city_day";
+    if(cityBatch){
+      // Keep all physics colliders, but don't ALSO draw a coplanar proxy for
+      // fully detailed city furniture, bandstand columns or shop exteriors.
+      const hiddenCityBoxes = hiddenCityColliderKeys(this.map.props ?? []);
+      const materials:Record<string,THREE.Material>={
+        accent:accentMat,solid:wallMat,stair:stairMat,platform:platformMat,cover:coverMat,
+      };
+      const buckets=new Map<string,typeof this.map.cover>();
+      for(const c of this.map.cover){
+        if(c.environmentId || hiddenCityBoxes.has(cityCoverKey(c)))continue;
+        const kind=c.kind??"cover";
+        const key=kind in materials?kind:"cover";
+        const list=buckets.get(key)??[];
+        list.push(c);buckets.set(key,list);
+      }
+      const transform=new THREE.Object3D();
+      const unit=new THREE.BoxGeometry(1,1,1);
+      for(const [kind,boxes] of buckets){
+        if(!boxes.length)continue;
+        const instanced=new THREE.InstancedMesh(unit,materials[kind],boxes.length);
+        instanced.frustumCulled=false; // instance bounding volume spans the whole map
+        instanced.castShadow=false;instanced.receiveShadow=true;
+        for(let i=0;i<boxes.length;i++){
+          const c=boxes[i];
+          transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
+          transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
+          transform.updateMatrix();
+          instanced.setMatrixAt(i,transform.matrix);
+        }
+        instanced.instanceMatrix.needsUpdate=true;
+        this.scene.add(instanced);
+      }
+    }else for(const c of this.map.cover) {
+      if (c.environmentId) continue;
       const kind = c.kind ?? "cover";
+      if (this.map.id === "forest_warfare" && kind !== "stair") continue;
       const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
       if(kind !== "accent"){
@@ -1149,7 +1295,6 @@ export class FPSEngine {
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
       this.scene.add(m);
-      // Accent stripe on tall platforms (visual cue for climbable tops)
       if (kind === "platform" && c.size[1] >= 1.5) {
         const stripeGeo = new THREE.BoxGeometry(c.size[0] * 2 + 0.05, 0.08, c.size[2] * 2 + 0.05);
         const stripe = new THREE.Mesh(stripeGeo, accentMat);
@@ -1187,7 +1332,484 @@ export class FPSEngine {
    * visually distinct but never create a corridor wall; the world colliders
    * for solid props are generated separately on client AND server.
    */
+  // Decorative geometry uses the same positions as the shared authoritative cover.
+  // Meshes do not generate independent collision, so visuals and hitboxes stay aligned.
+  private buildForestWarfare() {
+    const bark = new THREE.MeshStandardMaterial({ color: 0x68462a, roughness: 1 });
+    const barkLight = new THREE.MeshStandardMaterial({ color: 0x92663b, roughness: 1 });
+    const leafA = new THREE.MeshStandardMaterial({ color: 0x387b3e, roughness: 1 });
+    const leafB = new THREE.MeshStandardMaterial({ color: 0x5d9947, roughness: 1 });
+    const leafC = new THREE.MeshStandardMaterial({ color: 0x244f32, roughness: 1 });
+    const stone = new THREE.MeshStandardMaterial({ color: 0x727a72, roughness: 0.95 });
+    const cliff = new THREE.MeshStandardMaterial({ color: 0x5c6e5b, roughness: 1 });
+    const moss = new THREE.MeshStandardMaterial({ color: 0x436d3b, roughness: 1 });
+    const place = (mesh: THREE.Mesh,x:number,y:number,z:number) => {
+      mesh.position.set(x,y,z);
+      mesh.castShadow=true; mesh.receiveShadow=true; this.scene.add(mesh);
+      return mesh;
+    };
+    // Exact visual counterpart of every outside-edge collision slab: no
+    // invisible cliffs and no unrendered collidable border walls.
+    for (const wall of FOREST_PERIMETER) {
+      const [x,y,z]=wall.pos, [hx,hy,hz]=wall.size;
+      place(new THREE.Mesh(new THREE.BoxGeometry(hx*2,hy*2,hz*2),cliff),x,y,z);
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(hx*2+.16,.18,hz*2+.16),moss);
+      cap.position.set(x,y+hy+.08,z);cap.receiveShadow=true;this.scene.add(cap);
+    }
+    // Every new low barrier has the same rendered box and physics AABB.
+    for (const cover of FOREST_BASE_COVER) {
+      const rock=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),stone);
+      rock.rotation.y=0;place(rock,...cover.pos);
+      const lichen=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2+.06,.08,cover.size[2]*2+.06),moss);
+      place(lichen,cover.pos[0],cover.pos[1]+cover.size[1]+.03,cover.pos[2]);
+    }
+    for (const cover of FOREST_TREE_PARAPETS) {
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),barkLight);
+      place(rail,...cover.pos);
+    }
+    for (const prop of FOREST_OBJECTS) {
+      const {x,z,w,d,h,kind}=prop;
+      if(kind==="tree") {
+        place(new THREE.Mesh(new THREE.CylinderGeometry(w*.85,w,5.3,8),bark),x,2.65,z);
+        for(let i=0;i<3;i++){
+          const foliage=new THREE.Mesh(new THREE.ConeGeometry(3.0-i*.33,4.6,8),[leafC,leafA,leafB][i]);
+          place(foliage,x,h*.52+i*1.5,z);
+        }
+      } else if(kind==="bush") {
+        for(const [ox,oz,scale] of [[0,0,1],[-.9,.28,.68],[.8,-.45,.62]]){
+          const shrub=new THREE.Mesh(new THREE.IcosahedronGeometry(1.5*scale,1),scale===1?leafA:leafB);
+          shrub.scale.y=.6;place(shrub,x+ox,.8*scale,z+oz);
+        }
+      } else if(kind==="rock") {
+        const boulder=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),stone);
+        boulder.scale.set(w*1.07,h*.88,d*1.08);
+        boulder.rotation.y=(x+z)*.14;place(boulder,x,h*.76,z);
+      } else {
+        const log=new THREE.Mesh(new THREE.CylinderGeometry(.88,.95,w*2,10),barkLight);
+        log.rotation.z=Math.PI/2;place(log,x,.95,z);
+        const ring=new THREE.Mesh(new THREE.CylinderGeometry(.90,.90,.13,10),bark);
+        ring.rotation.z=Math.PI/2;place(ring,x+w,.95,z);
+      }
+    }
+    // Landmark trees are intentionally MUCH taller and broader than ordinary
+    // woodland trees. Crown leaves sit above the players' eye lines when
+    // fighting on the accessible, 24m-wide circular treetop clearing.
+    for(const [team,sign] of [["red",-1],["blue",1]] as const){
+      const x=94*sign;
+      place(new THREE.Mesh(new THREE.CylinderGeometry(2.65,3.1,11.8,16),bark),x,5.9,0);
+      const deck=new THREE.Mesh(new THREE.CylinderGeometry(13,13,.48,48),barkLight);
+      place(deck,x,11.76,0); // top face exactly y=12, same as shared collision
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(12.7,.25,8,48),bark);
+      ring.rotation.x=Math.PI/2;place(ring,x,12.08,0);
+      // Large high boughs frame the platform but never occlude a
+      // standing defender's view across the treetop.
+      for(let i=0;i<14;i++) {
+        const angle=i*2*Math.PI/14;
+        const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(4.1+(i%3)*.4,1),i%2?leafB:leafA);
+        place(canopy,x+Math.cos(angle)*16.2,24.5+(i%3)*.6,Math.sin(angle)*16.2);
+      }
+      // Heavy branches physically meet the high canopy clusters. Kept above
+      // player head height so the open flag deck remains a clear combat space.
+      for(const branchIndex of [1,4,8,12]){
+        const angle=branchIndex*2*Math.PI/14;
+        const x2=x+Math.cos(angle)*16.2,z2=Math.sin(angle)*16.2;
+        const start=new THREE.Vector3(x,18,0),end=new THREE.Vector3(x2,24.5+(branchIndex%3)*.6,z2);
+        const direction=end.clone().sub(start);
+        const branch=new THREE.Mesh(new THREE.CylinderGeometry(.45,1.05,direction.length(),10),bark);
+        branch.position.copy(start.add(end).multiplyScalar(.5));
+        branch.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+        branch.castShadow=true;this.scene.add(branch);
+      }
+      const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
+      place(crown,x,28.5,0);
+      // Nonblocking colored base objective ring; wide approaches from both
+      // directions give the return carrier a clear, recognizable destination.
+      const base=ctfBase(team,this.map.id);
+      const marker=new THREE.Mesh(new THREE.RingGeometry(3.0,4.25,40),
+        new THREE.MeshBasicMaterial({
+          color:team==="red"?0xff5959:0x55c8ff,
+          side:THREE.DoubleSide,transparent:true,opacity:.8,depthTest:true,
+        }));
+      marker.rotation.x=-Math.PI/2;
+      marker.position.set(base[0],.07,base[2]);
+      this.scene.add(marker);
+      this.ctfMarkers[team] = marker;
+    }
+  }
+
+
+  /** Orbital Nexus spectacle, separate from server-authoritative collision. */
+  private buildOrbitalScenery() {
+    const luminous=(color:number,opacity=1)=>new THREE.MeshBasicMaterial({
+      color,transparent:opacity<1,opacity,depthWrite:false,side:THREE.DoubleSide,
+    });
+    // Gas giant looming behind the station and a deterministic star field.
+    const planet=new THREE.Mesh(new THREE.SphereGeometry(57,36,24),
+      new THREE.MeshBasicMaterial({color:0x59418e,fog:false}));
+    planet.position.set(8,69,-205);this.scene.add(planet);
+    const atmosphere=new THREE.Mesh(new THREE.TorusGeometry(67,1.2,8,84),luminous(0xab7dfb,.58));
+    atmosphere.position.copy(planet.position);atmosphere.rotation.set(.24,.35,.2);this.scene.add(atmosphere);
+    const vertices:number[]=[];
+    for(let i=0;i<150;i++){const a=i*2.3999632,r=135+(i%17)*5;
+      vertices.push(Math.cos(a)*r,45+(i*37%115),Math.sin(a)*r);}
+    const sky=new THREE.BufferGeometry();
+    sky.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
+    this.scene.add(new THREE.Points(sky,new THREE.PointsMaterial({color:0xc6ddff,size:.85,fog:false})));
+    // Containment rings float safely above the open command deck.
+    const coreMat=new THREE.MeshStandardMaterial({
+      color:0x7859cd,emissive:0x9654e9,emissiveIntensity:1.2,metalness:.45,roughness:.24,
+    });
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),coreMat);
+    core.position.set(0,11,0);this.scene.add(core);this.orbitalCore=core;
+    for(const [radius,height,rotation,color] of [
+      [6,11,.27,0x61e7ff],[8,11,1.13,0xd484ff],[5,13,.72,0x4ee9e5]
+    ] as const){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,.17,10,64),luminous(color,.9));
+      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
+    }
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.85,10,14),luminous(0x5ac5ff,.22));
+    beam.position.y=8;this.scene.add(beam);
+    for(const team of ["red","blue"] as const){
+      const sign=team==="red"?-1:1,color=team==="red"?0xff5479:0x52ddff;
+      const base=ctfBase(team,this.map.id);
+      const marker=new THREE.Mesh(new THREE.RingGeometry(3,4.2,48),luminous(color,.9));
+      marker.rotation.x=-Math.PI/2;marker.position.set(base[0],.07,base[2]);
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+      const vaultHalo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),luminous(color,.72));
+      vaultHalo.position.set(sign*76,4,0);vaultHalo.rotation.x=Math.PI/2;this.scene.add(vaultHalo);
+      const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),luminous(color,.68));
+      beacon.position.set(sign*76,6.6,0);this.scene.add(beacon);
+    }
+  }
+
+
+  private spawnOrbitalMote(pos:Vec3) {
+    if(this.map.id!=="orbital_nexus"||this.orbitalMotes.length>=12)return;
+    const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),
+      new THREE.MeshBasicMaterial({color:0x93e7ff,transparent:true,opacity:.92,
+        blending:THREE.AdditiveBlending,depthWrite:false}));
+    mesh.position.set(pos[0],pos[1]+1.1,pos[2]);
+    this.scene.add(mesh);
+    this.orbitalMotes.push({mesh,origin:[...pos],start:performance.now()});
+  }
+  private showOrbitalPulse(pos:Vec3) {
+    if(this.map.id!=="orbital_nexus")return;
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.45,1,56),
+      new THREE.MeshBasicMaterial({color:0xb26bff,transparent:true,opacity:.92,
+        blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+    ring.rotation.x=-Math.PI/2;
+    ring.position.set(pos[0],pos[1]+.22,pos[2]);
+    this.scene.add(ring);
+    this.orbitalPulseRings.push({mesh:ring,at:performance.now()});
+  }
+  private animateOrbitalReactor(now:number) {
+    if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    this.orbitalPulseRings=this.orbitalPulseRings.filter(p=>{
+      const t=(now-p.at)/580;
+      if(t>=1){
+        this.scene.remove(p.mesh);p.mesh.geometry.dispose();
+        (p.mesh.material as THREE.Material).dispose();return false;
+      }
+      p.mesh.scale.setScalar(.2+ORBITAL_PULSE_RADIUS*t);
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
+      return true;
+    });
+    this.orbitalMotes=this.orbitalMotes.filter(m=>{
+      const t=Math.max(0,(now-m.start)/1050);
+      if(t>=1){
+        this.scene.remove(m.mesh);m.mesh.geometry.dispose();
+        (m.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      const eased=t*t*(3-2*t),inv=1-eased;
+      m.mesh.position.set(m.origin[0]*inv,
+        (m.origin[1]+1.1)*inv+11*eased+Math.sin(t*Math.PI)*2,
+        m.origin[2]*inv);
+      m.mesh.scale.setScalar(.5+(1-t)*.9);
+      (m.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
+      return true;
+    });
+    const progress=this.orbitalCharge/ORBITAL_KILLS_REQUIRED;
+    const ready=this.orbitalCharge>=ORBITAL_KILLS_REQUIRED;
+    const color=new THREE.Color(0x53dbff).lerp(new THREE.Color(0xa247ff),progress);
+    const material=this.orbitalCore.material as THREE.MeshStandardMaterial;
+    material.color.copy(color);material.emissive.copy(color);material.emissiveIntensity=.85+progress*.95;
+    this.orbitalCore.scale.setScalar(1+progress*.38+(ready?.1*Math.sin(now*.009):0));
+    this.orbitalRings.forEach((ring,i)=>{
+      if(ready){ring.rotation.x+=.027*(i+1);ring.rotation.y+=.021*(i%2?-1:1);}
+      const mat=ring.material as THREE.MeshBasicMaterial;
+      mat.opacity=ready?.4+.6*Math.abs(Math.sin(now*.014+i*1.7)):.55+progress*.25;
+      mat.color.copy(color);
+    });
+  }
+  /** Match-only melee override, never saved to the player's loadout. */
+  private grantOrbitalReaper(active:boolean){
+    if(this.orbitalWeaponActive===active)return;
+    this.orbitalWeaponActive=active;
+    this.meleeWeaponId=active?ORBITAL_REAPER_ID:(this.opts.loadout.meleeWeaponId??"knife_tactical");
+    this.meleeEff=computeEffectiveStats(weaponById(this.meleeWeaponId),
+      {sight:null,barrel:null,grip:null,magazine:null});
+    this.meleeSight=sightDefForType(this.meleeEff.sightType);
+    this.meleeAmmoInMag=this.meleeEff.magSize;
+    if(this.currentSlot==="melee"){
+      this.weaponId=this.meleeWeaponId;
+      this.eff=this.meleeEff;
+      this.sightDef=this.meleeSight;
+      this.ammoInMag=this.meleeAmmoInMag;
+      this.buildViewmodel();
+      if(this.opts.online && this.alive && active && this.socket?.connected)
+        this.socket.emit("message",{t:"weaponSwap",slot:"melee"});
+    }
+    if(this.quickMeleeModel){
+      this.camera.remove(this.quickMeleeModel);
+      this.quickMeleeModel.traverse(child=>{
+        if(child instanceof THREE.Mesh){
+          child.geometry.dispose();
+          if(Array.isArray(child.material))child.material.forEach(m=>m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this.quickMeleeModel=null;
+    }
+    this.createQuickMeleeModel();
+    // The weapon model is the pickup cue; no charged/claim pop-up.
+  }
+  /** Local kill scoring mirrors the multiplayer server's killer-or-victim
+   * zone rule. Always pass the actual attacker position for credited kills.
+   */
+  private recordOrbitalKill(victimPos:Vec3,killerPos?:Vec3){
+    if(this.opts.online||this.map.id!=="orbital_nexus")return;
+    const prev=this.orbitalCharge;
+    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
+    if(this.orbitalCharge===prev)return;
+    this.spawnOrbitalMote(victimPos);
+    // Reactor progression is visible in the HUD; no charged/claim banners.
+  }
+  /** Every Reaper swing emits a 360° purple shockwave, including complete
+   * blade misses. Only one damage instance per victim per swing is permitted.
+   * Applies to offline player and bots; multiplayer uses server hit results.
+   */
+  private offlineOrbitalStrikeDamage(
+    targetId:string,damage:number,attacker:Combatant|null,
+  ) {
+    if(targetId===this.selfId){
+      if(attacker){
+        const aliveBefore=this.alive;
+        this.takeDamage(damage,attacker.name,attacker.team,false,
+          ORBITAL_REAPER_ID,attacker.pos);
+        if(aliveBefore&&!this.alive)attacker.kills++;
+      }
+      return;
+    }
+    const victim=this.combatants.get(targetId);
+    if(!victim?.alive)return;
+    if(!attacker){
+      this.applyDamageLocal(victim,damage,false,ORBITAL_REAPER_ID);
+      return;
+    }
+    if((victim.spawnProtectedUntil??0)>Date.now())return;
+    victim.health-=damage;
+    if(victim.health>0)return;
+    victim.alive=false;victim.deaths++;
+    attacker.kills++;
+    this.recordOrbitalKill(victim.pos,attacker.pos);
+    this.releaseOrbitalBotWeapon(victim);
+    if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
+    const entry:KillFeedEntry={
+      killer:attacker.name,victim:victim.name,weapon:ORBITAL_REAPER_ID,
+      headshot:false,killerTeam:attacker.team,victimTeam:victim.team,
+    };
+    this.killFeed.unshift(entry);
+    if(this.killFeed.length>6)this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    this.scheduleRespawn(victim);
+    this.checkWin();
+  }
+  private offlineOrbitalPulse(
+    origin:Vec3,team:string,attacker:Combatant|null,excluded:string[]=[],
+  ) {
+    this.showOrbitalPulse(origin);
+    const candidates=[...this.combatants.values()].map(c=>({
+      id:c.id,pos:c.pos as readonly number[],alive:c.alive,
+      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===team,
+    }));
+    if(attacker)candidates.push({
+      id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+      alive:this.alive,protected:this.selfSpawnProtectedUntil>Date.now(),
+      friendly:this.opts.team===team,
+    });
+    const targets=orbitalPulseTargets(origin,candidates,pos=>{
+      const dist=Math.hypot(pos[0]-origin[0],pos[2]-origin[2]);
+      if(dist<.001)return false;
+      const eye:Vec3=[origin[0],origin[1]+1.1,origin[2]];
+      const dir:Vec3=[(pos[0]-origin[0])/dist,0,(pos[2]-origin[2])/dist];
+      return this.map.cover.some(box=>{
+        const hit=rayBox(eye,dir,box.pos,box.size);
+        return hit!==null&&hit>.08&&hit<dist-.15;
+      });
+    },excluded);
+    for(const id of targets)this.offlineOrbitalStrikeDamage(id,ORBITAL_PULSE_DAMAGE,attacker);
+  }
+  private offlineOrbitalBotSwing(attacker:Combatant){
+    const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
+      .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
+        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===attacker.team}));
+    candidates.push({id:this.selfId,
+      pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive,
+      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.team===attacker.team});
+    const profile=quickMeleeProfile(weaponById(ORBITAL_REAPER_ID).stats,ORBITAL_REAPER_ID);
+    const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
+      (candidate,dist)=>{
+        const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
+        const dir:Vec3=[(candidate.pos[0]-attacker.pos[0])/dist,0,
+          (candidate.pos[2]-attacker.pos[2])/dist];
+        return !this.map.cover.some(box=>{
+          const hit=rayBox(eye,dir,box.pos,box.size);
+          return hit!==null&&hit>.08&&hit<dist-.15;
+        });
+      },profile.reach,profile.halfArcDegrees);
+    if(target)this.offlineOrbitalStrikeDamage(target.id,profile.damage,attacker);
+    this.offlineOrbitalPulse(attacker.pos,attacker.team,attacker,target?[target.id]:[]);
+  }
+  private refreshOfflineOrbitalBotModel(bot:Combatant){
+    if(!bot.group||this.opts.online)return;
+    this.scene.remove(bot.group);
+    bot.group.traverse(child=>{
+      if(child instanceof THREE.Mesh){
+        child.geometry.dispose();
+        const mat=child.material;
+        if(Array.isArray(mat))mat.forEach(m=>m.dispose());
+        else mat.dispose();
+      }else if(child instanceof THREE.Sprite){
+        const mat=child.material as THREE.SpriteMaterial;
+        mat.map?.dispose();mat.dispose();
+      }
+    });
+    bot.group=undefined;
+    bot.parts=undefined;
+    this.addCombatantMesh(bot);
+  }
+  private releaseOrbitalBotWeapon(bot:Combatant){
+    const original=this.orbitalBotHolders.get(bot.id);
+    if(!original)return;
+    this.orbitalBotHolders.delete(bot.id);
+    bot.weaponId=original;
+    if(bot.ai){bot.ai.ammoInMag=weaponById(original).stats.magSize;bot.ai.nextDecisionAt=0;}
+    this.refreshOfflineOrbitalBotModel(bot);
+  }
+  private tickOrbitalPickup(){
+    if(this.opts.online||this.preMatchCountdown>0||
+      this.orbitalCharge<ORBITAL_KILLS_REQUIRED||this.map.id!=="orbital_nexus")return;
+    const contenders:{id:string;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
+    if(!this.orbitalWeaponActive&&this.alive){
+      const pos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+      if(orbitalCanClaim(this.orbitalCharge,pos,this.map.id,true))
+        contenders.push({id:this.selfId,pos,self:true});
+    }
+    for(const bot of this.combatants.values()){
+      if(!bot.ai||this.orbitalBotHolders.has(bot.id)||!orbitalCanClaim(
+        this.orbitalCharge,bot.pos,this.map.id,bot.alive))continue;
+      contenders.push({id:bot.id,pos:bot.pos,self:false,bot});
+    }
+    contenders.sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+      a.id.localeCompare(b.id));
+    const winner=contenders[0];if(!winner)return;
+    this.orbitalCharge=0;
+    if(winner.self)this.grantOrbitalReaper(true);
+    else if(winner.bot){
+      const bot=winner.bot;
+      this.orbitalBotHolders.set(bot.id,bot.weaponId);
+      bot.weaponId=ORBITAL_REAPER_ID;
+      bot.ai!.ammoInMag=1;
+      bot.ai!.reloadingUntil=0;
+      bot.ai!.nextDecisionAt=0;
+      this.refreshOfflineOrbitalBotModel(bot);
+      // No claim announcement; the glowing weapon model indicates ownership.
+    }
+  }
+
+  private buildCtfFlagModels() {
+    const create=(color:number):THREE.Group=>{
+      const group=new THREE.Group();
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,2.3,8),
+        new THREE.MeshStandardMaterial({color:0xddddc7,metalness:.5,roughness:.4}));
+      pole.position.y=1.15;pole.castShadow=true;group.add(pole);
+      const cloth=new THREE.Mesh(new THREE.PlaneGeometry(1.35,.75),
+        new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.86,emissive:color,emissiveIntensity:.12}));
+      cloth.position.set(.65,1.85,0);cloth.castShadow=true;group.add(cloth);
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(.16,9,8),
+        new THREE.MeshStandardMaterial({color:0xf4e8b3}));
+      tip.position.y=2.33;group.add(tip);
+      this.scene.add(group);
+      return group;
+    };
+    this.ctfFlagMeshes={red:create(0xef4444),blue:create(0x22baf5)};
+  }
+
+  private updateCtfFlagsVisuals() {
+    if(!this.ctfFlagMeshes)return;
+    for(const team of ["red","blue"] as const){
+      const flag=this.ctfFlags[team],mesh=this.ctfFlagMeshes[team];
+      let pos:Vec3=flag.pos;
+      if(flag.carrierId){
+        if(flag.carrierId===this.selfId)pos=[this.pos.x,this.pos.y+1.25,this.pos.z];
+        else{
+          const carrier=this.combatants.get(flag.carrierId);
+          if(!carrier){mesh.visible=false;continue;}
+          pos=[carrier.pos[0],carrier.pos[1]+1.25,carrier.pos[2]];
+        }
+      }
+      // A carrier never sees their own attached flag model/pole obstructing ADS.
+      mesh.visible=flag.carrierId!==this.selfId;
+      mesh.position.set(pos[0],pos[1],pos[2]);
+    }
+  }
+
+  /** Map explicit CTF actions to feedback for the listener's team. */
+  private announceCtfEvent(action: CtfAction, flag: FlagTeam, playerId: string): void {
+    if (this.opts.team !== "red" && this.opts.team !== "blue") return;
+    const feedback = ctfFeedback(action, flag, playerId, this.selfId, this.opts.team);
+    this.ctfNotice = { label: feedback.label, at: performance.now() };
+    if (feedback.sound) this.sound.play(feedback.sound, {
+      volume: action === "capture" ? .88 : .7,
+      throttleMs: 220,
+    });
+  }
+
+  private dropOfflineCtfCarrier(id: string, pos: Vec3): void {
+    const flag = ctfDrop(this.ctfFlags, id, pos);
+    if (flag) this.announceCtfEvent("drop", flag, id);
+  }
+
+  private tickOfflineCtf() {
+    if (this.opts.mode!=="ctf"||this.matchEnded)return;
+    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map.id))
+      this.announceCtfEvent("auto_return", flag, "server");
+    const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
+    if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
+      actors.push({id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z],self:true});
+    for(const bot of this.combatants.values())
+      if(bot.alive&&(bot.team==="red"||bot.team==="blue"))
+        actors.push({id:bot.id,team:bot.team,pos:bot.pos,self:false,bot});
+    for(const actor of actors){
+      const event=ctfTouch(this.ctfFlags,actor,this.map.id);
+      if(!event)continue;
+      this.announceCtfEvent(event.kind, event.flag, actor.id);
+      if(event.kind==="capture"){
+        this.teamScores[actor.team]++;
+        if(actor.self)this.ctfCaptures++;
+        else if(actor.bot)actor.bot.score++;
+        if (this.ctfOvertime) this.finalizeMatchLocal();
+        else this.checkWin();
+        if(this.matchEnded)return;
+      }
+    }
+  }
+
   private buildMapProps() {
+    this.cityInteriorDetailGroups=[];
+    if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
+    if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -1313,10 +1935,37 @@ export class FPSEngine {
         const display=new THREE.MeshStandardMaterial({color:daylight?0xe1b887:0xf0a6b1,roughness:.45,emissive:daylight?0x161109:0x632638,emissiveIntensity:.24});
         const fabric=new THREE.MeshStandardMaterial({color:use==="clinic"?0xc9dbde:0xc2b5a4,roughness:.93});
         const wallPaint=new THREE.MeshStandardMaterial({color:daylight?0xc6b8a2:0x86808e,roughness:.94});
-        // Continuous floor and room rugs connect the fixtures into purposeful
-        // interiors instead of freestanding featureless boxes.
-        cube(group,asphalt,0,.03,0,w-.9,.06,d-.9);
-        cube(group,fabric,-w*.22,.07,-d*.34,Math.min(5,w*.40),.045,Math.min(4,d*.30));
+        const detailFirstChild=group.children.length;
+        // Individual interiors have distinct floor materials, shop displays,
+        // wall treatments and purpose-specific visual props. All SOLID items
+        // come from cityInteriorFixtures and share collision with the server.
+        const interiorFloor=new THREE.MeshStandardMaterial({color:
+          ["cafe","bakery","diner"].includes(use)?0x8d715b:
+          ["house","apartments","hotel"].includes(use)?0x746655:
+          ["clinic","gym"].includes(use)?0x91a1a2:
+          ["florist","gallery"].includes(use)?0x777a66:
+          ["workshop","supermarket"].includes(use)?0x54585a:0x69727b,
+          roughness:["clinic","supermarket"].includes(use)?.52:.88});
+        cube(group,interiorFloor,0,.035,0,w-.9,.07,d-.9);
+        if(["house","apartments","hotel","library"].includes(use)){
+          cube(group,fabric,-w*.23,.08,-d*.35,Math.min(4.6,w*.33),.045,Math.min(3.6,d*.27));
+        }
+        // Wall-mounted identity cues never obstruct doorways or walking lanes.
+        const accentMat=new THREE.MeshStandardMaterial({color:
+          ["clinic","office"].includes(use)?0x76c6c9:
+          ["bakery","cafe","diner"].includes(use)?0xdfac73:
+          ["gym","workshop"].includes(use)?0xdbb24f:
+          ["gallery","florist"].includes(use)?0xb4b985:0xc6a48c,
+          roughness:.72,emissive:daylight?0x070706:0x16100a,emissiveIntensity:.20});
+        for(const side of [-1,1]){
+          cube(group,accentMat,side*w*.29,Math.min(3.3,h*.64),-d/2+.53,
+            Math.min(2.9,w*.20),.85,.12);
+        }
+        if(["supermarket","library","office","gym","clinic"].includes(use)){
+          for(const side of [-1,1]){
+            cube(group,accentMat,side*w*.40,.10,-d*.02,.10,.06,d*.66);
+          }
+        }
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
         for(const item of cityInteriorFixtures({...p,w,d})){
@@ -1370,7 +2019,53 @@ export class FPSEngine {
             const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
             leaves.position.set(x,fh*.71,z);
             leaves.scale.set(.8,1.1,.8);group.add(leaves);
+          }else if(style==="espresso"){
+            part(metal,0,.28,0,fw*.94,.54,fd*.94);
+            part(wood,0,.63,0,fw,.14,fd);
+            part(display,-fw*.20,.97,0,fw*.28,.61,fd*.45);
+            part(metal,fw*.25,.84,0,.19,.34,.24);
+            part(seating,fw*.18,1.05,fd*.13,.28,.15,.22);
+          }else if(style==="oven"){
+            part(asphalt,0,fh*.42,0,fw,fh*.84,fd);
+            part(metal,0,fh*.84,0,fw,.16,fd);
+            part(display,0,fh*.43,fd/2+.015,fw*.76,fh*.48,.08);
+            for(const side of [-1,1])part(wood,side*fw*.3,fh*.83,fd*.28,.22,.08,.21);
+          }else if(style==="checkout"){
+            part(wood,0,fh*.40,0,fw,fh*.8,fd);
+            part(metal,0,fh*.89,0,fw,.17,fd);
+            part(display,-fw*.22,fh*1.03,-fd*.15,fw*.25,.28,.16);
+            part(asphalt,fw*.30,fh*.95,0,.19,.28,fd*.45);
+          }else if(style==="treadmill"){
+            part(asphalt,0,.13,0,fw,.24,fd);
+            part(asphalt,0,.28,0,fw*.81,.07,fd*.83);
+            for(const side of [-1,1])part(metal,side*fw*.44,fh*.52,-fd*.42,.13,fh*.82,.14);
+            part(display,0,fh*.89,-fd*.44,fw*.71,.18,.15);
+          }else if(style==="exam_bed"){
+            part(metal,0,.26,0,fw*.93,.48,fd*.91);
+            part(fabric,0,.62,0,fw,.22,fd);
+            part(display,0,.80,-fd*.32,fw*.82,.12,fd*.20);
+            part(metal,0,fh*.59,fd*.44,fw*.89,.55,.11);
+          }else if(style==="sculpture"){
+            part(wood,0,.23,0,fw*.92,.44,fd*.92);
+            const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
+            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
+          }else if(style==="server_rack"){
+            part(asphalt,0,fh*.48,0,fw,fh*.96,fd);
+            for(let i=0;i<6;i++){
+              part(metal,0,fh*(.15+i*.11),fd/2+.02,fw*.85,.12,.09);
+              part(display,-fw*.30,fh*(.16+i*.11),fd/2+.08,.10,.06,.035);
+            }
+          }else if(style==="television"){
+            part(wood,0,.25,0,fw*.87,.49,fd);
+            part(asphalt,0,fh*.73,0,fw*.88,fh*.45,.22);
+            part(display,0,fh*.75,fd*.12,fw*.74,fh*.32,.06);
           }
+        }
+        if(this.map.biome==="city"||this.map.biome==="city_day"){
+          const details=new THREE.Group();
+          for(const obj of group.children.slice(detailFirstChild))details.add(obj);
+          group.add(details);
+          this.cityInteriorDetailGroups.push({node:details,x:p.x,z:p.z});
         }
         const faceZ=d/2+.48;
         const doorWidth=Math.min(5,w*.31);
@@ -1452,7 +2147,7 @@ export class FPSEngine {
             cube(group,display,side*(doorWidth/2+.72),2.86,d/2+1.37,.20,.48,.11);
         }
                 // Purpose-specific fascia: no misleading painted door on a solid wall.
-        if(p.text){
+        if(p.text && p.text.trim().toUpperCase() !== "RESIDENCE"){
           const canvas=document.createElement("canvas");
           canvas.width=512;canvas.height=96;
           const ctx=canvas.getContext("2d");
@@ -1539,13 +2234,19 @@ export class FPSEngine {
         cube(group,masonry,0,1.1,0,2,2.2,1.3);
         cube(group,glass,0,1.48,.7,1.5,.75,.08);
       }else if(p.kind==="lamp"){
-        cube(group,masonry,0,2.7,0,.25,5.4,.25);
-        cube(group,trim,0,5.4,0,1.1,.35,.7);
-        const glow=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6),
-          new THREE.MeshBasicMaterial({color:palette.coverAccent}));
-        glow.position.y=5.15;group.add(glow);
-        const pl=new THREE.PointLight(palette.coverAccent,.65,15);
-        pl.position.y=5;group.add(pl);
+        const postH=p.h??6.4;
+        cube(group,masonry,0,postH/2,0,.19,postH,.19);
+        cube(group,trim,.53,postH-.16,0,1.22,.17,.30);
+        const glow=new THREE.Mesh(new THREE.SphereGeometry(.28,8,6),
+          new THREE.MeshBasicMaterial({color:p.color??"#ffd39c"}));
+        glow.position.set(1.04,postH-.30,0);group.add(glow);
+        // Long streets can have many posts; cap costly dynamic point lights
+        // while keeping every lamp's glowing head visible.
+        if((this.map.biome!=="city"&&this.map.biome!=="city_day") ||
+          (Math.abs(Math.round(p.x*7+p.z*11))%11)===0){
+          const pl=new THREE.PointLight(0xffce90,.52,12);
+          pl.position.set(.95,postH-.32,0);group.add(pl);
+        }
       }else if(p.kind==="sign"){
         cube(group,masonry,0,2.15,0,.3,4.3,.3);
         cube(group,trim,0,4.35,0,w,1.4,.35);
@@ -1755,6 +2456,7 @@ export class FPSEngine {
         c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
         if (c.health <= 0) {
           c.alive = false; c.health = 0; c.deaths++;
+          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(c.id, [...c.pos] as Vec3);
           c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
           const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
           this.killFeed.unshift(entry);
@@ -1812,6 +2514,28 @@ export class FPSEngine {
     return tex;
   }
 
+  /** Contrasting procedural twill across the complete carbon-fiber finish. */
+  private createCarbonTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256; canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#111820"; ctx.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 16) for (let x = 0; x < 256; x += 16) {
+      const alt = ((x + y) / 16) % 2 === 0;
+      ctx.fillStyle = alt ? "#647788" : "#344554";
+      ctx.fillRect(x + 1, y + 1, 13, 13);
+      ctx.strokeStyle = alt ? "#8995a3" : "#495968";
+      ctx.lineWidth = 2;
+      for (let i = 2; i <= 11; i += 4) {
+        ctx.beginPath(); ctx.moveTo(x + i, y + 1); ctx.lineTo(x + i + 5, y + 14); ctx.stroke();
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2); tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   private buildViewmodel() {
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
@@ -1838,7 +2562,7 @@ export class FPSEngine {
     // camera's local coordinate system and lifetime with the weapon model.
     this.clearFirstPersonRig();
 
-    const skin = weaponSkinById(this.getCurrentSkinId());
+    const skin = weaponSkinById(this.weaponId==="wonder_turret"?"default":this.getCurrentSkinId());
     // Viewmodel uses MeshBasicMaterial (unlit, always full-bright) so the weapon is
     // guaranteed visible against any background — MeshStandardMaterial rendered too
     // dark without an environment map. We fake shading by using a lighter main colour
@@ -1846,7 +2570,7 @@ export class FPSEngine {
     const baseCol = new THREE.Color(skin.color);
     // Lighten the base colour toward a mid steel-grey so the weapon reads against any
     // background (the raw skin colour #2b2f36 is too dark to see in-game).
-    let lightCol = baseCol.clone().lerp(new THREE.Color(0xaab4c0), 0.7);
+    let lightCol = this.weaponId===ORBITAL_REAPER_ID?new THREE.Color(0xb578ff):baseCol.clone().lerp(new THREE.Color(0xaab4c0), skin.id === "gold" ? 0.16 : 0.7);
     // ---- Per-weapon body tint (Issue 7 + Issue c round 2) ----
     // Each weapon gets a VIBRANT unique hue so the player can tell at a glance
     // which weapon they're holding, even within the same category. Previously the
@@ -1855,7 +2579,7 @@ export class FPSEngine {
     // clearly visible. Default skins use the weapon's signature tint; unlocked
     // skins override this with the skin's color.
     const isDefaultSkin = skin.id === "default";
-    const fullLegendaryFinish = skin.rarity === "legendary";
+    const fullLegendaryFinish = coatsAllWeaponParts(skin) || skin.id === "carbon";
     if (isDefaultSkin) {
       const weaponTints: Record<string, number> = {
         rifle_electron: 0x097b99, // exposed cyan reactor
@@ -1885,8 +2609,9 @@ export class FPSEngine {
         launcher_breach: 0x4d4034, // steel brown
         launcher_swarm: 0x364753,  // gunmetal blue
         wonder_corrosion: 0x3b5535, // muted toxic olive, no cyan trim
-        wonder_deadlock: 0x4b4250,
-        wonder_singularity: 0x3b4655,
+        wonder_deadlock: 0x603076,
+        wonder_hellfire: 0xe54512,
+        wonder_singularity: 0x302164,
         wonder_turret: 0x4d565c,
       };
       const tint = weaponTints[this.weaponId];
@@ -1896,16 +2621,23 @@ export class FPSEngine {
         lightCol = new THREE.Color(tint).lerp(new THREE.Color(0xaab4c0), 0.35);
       }
     }
-    const darkCol = baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
+    const darkCol = skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
     const emissiveCol = skin.emissive ? new THREE.Color(skin.emissive) : null;
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
     }) as unknown as THREE.MeshStandardMaterial; // keep type for muzzle flash tinting
-    if (skin.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(this.weaponId)) {
-      // Cosmetic exceptions: Event Horizon, Plagueheart, Deadlock and Bullet
-      // Spitter retain their SELECTED skin instead of bright default overlays.
-      this.prestigeTexture = this.createPrestigeTexture(skin.prestige ??
-        (this.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
+    if (skin.id === "carbon") {
+      this.prestigeTexture = this.createCarbonTexture();
+      const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
+      material.map = this.prestigeTexture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    }
+    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
+      // Only explicitly selected Prestige skins override an existing cosmetic.
+      // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
+      // take precedence. Hellfire stays red/orange instead of toxic green.
+      this.prestigeTexture = this.createPrestigeTexture(skin.prestige ?? "cosmic");
       const material = this.weaponMat as unknown as THREE.MeshBasicMaterial;
       material.map = this.prestigeTexture;
       material.color.set(0xffffff);
@@ -1915,9 +2647,8 @@ export class FPSEngine {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
     }
-    // Standard skins keep their mechanical accent colors. Legendaries (Gold,
-    // Inferno, Eventide, Viridian) cover every gun component with their finish,
-    // including attachments and unique barrel/receiver inserts.
+    // Gold retains dark hardware and distinctive inserts; Inferno and animated
+    // Prestige finishes deliberately coat the entire model.
     const accentMat = fullLegendaryFinish
       ? this.weaponMat
       : new THREE.MeshBasicMaterial({ color: darkCol });
@@ -1966,7 +2697,16 @@ export class FPSEngine {
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
       muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart,
-        fullLegendaryFinish ? this.weaponMat : undefined);
+        fullLegendaryFinish ? this.weaponMat : undefined,
+        !isDefaultSkin ? (skin.id === "gold" ? accentMat : this.weaponMat) : undefined);
+    }
+    // A purchased charm lives on the weapon model rather than the HUD. It
+    // inherits all aim, reload, sway and recoil transforms automatically.
+    const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
+      this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
+    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
+      const charm=createWeaponCharm(equippedCharm,true);
+      if(charm)addPart(charm,...weaponCharmMountPoint(this.weaponId,"firstPerson"));
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -1977,7 +2717,7 @@ export class FPSEngine {
     // single most impactful visual cue for weapon identification.
     // The band is ONLY added for ranged weapons (not melee — melee weapons
     // already have distinct shapes: knife/shiv/machete/hammer).
-    if (category !== "melee") {
+    if (category !== "melee" && !weaponById(this.weaponId).wonder) {
       const categoryAccentColors: Record<string, number> = {
         assault: 0xff3b3b,    // red
         smg: 0xffd93b,        // yellow
@@ -2070,15 +2810,28 @@ export class FPSEngine {
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
       } else {
-        // Open-top iron notch: brackets surround the reticle, never occlude it.
-        // The physical aperture lines up with the centered HUD aiming point in ADS.
-        const rim=new THREE.Mesh(new THREE.TorusGeometry(.043,.005,5,24,Math.PI*1.25),accentMat);
-        rim.rotation.z=Math.PI*.875;
-        scopeGroup.add(rim);
-        const bead=new THREE.Mesh(new THREE.BoxGeometry(.006,.015,.006),accentMat);
-        bead.position.set(0,-.043,-.012);scopeGroup.add(bead);
+        // Low-profile rear notch pressed directly onto the existing receiver.
+        // No elevated scope riser, tower, floating aperture or 'ladder'.
+        for (const side of [-1,1]) {
+          const ear = new THREE.Mesh(new THREE.BoxGeometry(.014,.036,.026),accentMat);
+          ear.position.set(side*.029,.013,0);
+          scopeGroup.add(ear);
+        }
+        const rearBase = new THREE.Mesh(new THREE.BoxGeometry(.075,.012,.040),accentMat);
+        rearBase.position.y=-.009;
+        scopeGroup.add(rearBase);
       }
-      addPart(scopeGroup, 0, 0.08, -0.1);
+      const mountHeight = adsClearance(
+        wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
+      ).sightMountY;
+      // Scope bodies and low rear notches are part of the same rigid gun pose.
+      addPart(scopeGroup, 0, mountHeight, -0.1);
+      if (st === "iron") {
+        // Matching front blade: mounted on the actual barrel toward the muzzle,
+        // not raised on stilts above the player's weapon.
+        const front = new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
+        addPart(front, 0, mountHeight+.01, muzzleZ+.08);
+      }
       this.sightMesh = scopeGroup;
     }
     // Poison tips are part of the BOLT, not a muzzle suppressor.
@@ -2297,18 +3050,17 @@ export class FPSEngine {
     // The HUD reticle and ballistic aim stay at the exact camera center.
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.
-    // Scoped weapons dip farther because the HUD provides their actual scope
-    // image and the 3D scope mesh is suppressed while aiming.
+    // Magnified scopes use a HUD reticle; 1x sights remain part of the gun.
     const wDef = weaponById(this.weaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
-    const clearance=adsClearance(wDef,this.sightDef.type);
+    const receiverHeight = WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18;
+    const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.22 }
-      : { x: 0, y: clearance.bodyY, z: -.38 };
-    // Bullet rays remain camera-centered. Sights move independently of gun
-    // bodies: raising the whole gun caused blocked ADS on Hydra/Reclaimer.
+      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
+      : { x: 0, y: clearance.bodyY, z: -.43 };
+    // Rigid ADS: the optic has a real mount, not a screen-space sight lift.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
@@ -2471,6 +3223,7 @@ export class FPSEngine {
     const hideEntireViewmodel = !this.reloading && !this.equipmentAction && (isSniperScoped || (isMagnifiedSight && this.adsProgress > 0.5));
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
+      if(p.obj.name==="weapon_charm")swingWeaponCharm(p.obj,now);
       if (quickMeleeActive || hideEntireViewmodel) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
@@ -2486,16 +3239,15 @@ export class FPSEngine {
       p.obj.position.z -= pivotZ;
       p.obj.position.applyQuaternion(this._vmTotalQuat);
       p.obj.position.x += pivotX + ox;
-      p.obj.position.y += pivotY + oy +
-        (p.obj===this.sightMesh?clearance.sightLift*this.adsProgress:0);
+      p.obj.position.y += pivotY + oy;
       p.obj.position.z += pivotZ + oz;
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
       p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }
-    // Sight mesh visibility: hidden during ADS (for ALL sight types) so it
-    // never blocks the camera. The HUD reticle/scope overlay handles aiming.
+    // Open iron and reflex frames remain physically visible in ADS.
+    // Only magnified HUD optics are hidden to prevent the solid tube blocking view.
     if (this.sightMesh) {
       this.sightMesh.visible = !quickMeleeActive && !hideEntireViewmodel && !hideSightDuringADS;
     }
@@ -2604,7 +3356,7 @@ export class FPSEngine {
     const group=new THREE.Group();
     const skin=weaponSkinById(this.opts.loadout.meleeWeaponSkinId??"default");
     const metal=new THREE.MeshStandardMaterial({
-      color:skin.id==="default"?0xb5c6d2:skin.color,
+      color:this.orbitalWeaponActive?0xb578ff:(skin.id==="default"?0xb5c6d2:skin.color),
       emissive:skin.emissive??0x000000,
       emissiveIntensity:skin.emissive?.25:0,metalness:.76,roughness:.32,
     });
@@ -2707,10 +3459,9 @@ export class FPSEngine {
   /** Apply settings without reconstructing the game/audio contexts.
    * WeaponAudio has its own Web Audio output, so scale FX by master there too.
    */
-  setAudioMix(mix: { masterVolume: number; musicVolume: number; footstepVolume: number; fxVolume: number }) {
+  setAudioMix(mix: { masterVolume: number; footstepVolume: number; fxVolume: number }) {
     const levels = audioGainLevels(mix);
     this.sound.setMasterVolume(levels.master);
-    this.sound.setMusicVolume(levels.music);
     this.sound.setFootstepVolume(levels.footsteps);
     this.sound.setFxVolume(levels.fx);
     this.weaponAudio.setVolume(levels.weaponOutputPercent);
@@ -2759,7 +3510,7 @@ export class FPSEngine {
   private quickMelee() {
     if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
     const now = performance.now();
-    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats);
+    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
     if (now - this.quickMeleeLastAt < melee.cooldownMs ||
         (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
     this.quickMeleeLastAt = now;
@@ -2784,7 +3535,9 @@ export class FPSEngine {
         const to: Vec3 = [c.pos[0], c.pos[1] + 1.1, c.pos[2]];
         const d: Vec3 = [(to[0]-eye[0])/dist, (to[1]-eye[1])/dist, (to[2]-eye[2])/dist];
         return !this.map.cover.some(box => { const t = rayBox(eye, d, box.pos, box.size); return t !== null && t > 0.08 && t < dist - 0.2; });
-      }, melee.reach);
+      }, melee.reach, melee.halfArcDegrees);
+    if(!this.opts.online&&this.meleeWeaponId===ORBITAL_REAPER_ID)
+      this.offlineOrbitalPulse(from,this.opts.team as string,null,candidate?[candidate.id]:[]);
     if(candidate){
       const target=this.combatants.get(candidate.id);
       if(target){
@@ -3202,7 +3955,7 @@ export class FPSEngine {
     if (this.matchEnded) return null;
     if (!this.matchStartedAt) return null;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
+    const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     const others = [...this.combatants.values()].filter((c) => c.id !== this.selfId);
     const standings = [...others, {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string,
@@ -3335,7 +4088,7 @@ export class FPSEngine {
     const botWeapons = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
     const isGungame = this.opts.mode === "gungame";
     for (let n = 0; n < this.opts.botCount; n++) {
-      const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
+      const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
       const id = "bot_" + n;
       const sp = this.pickSpawn(team);
       const wid = isGungame ? this.gungameWeapons[0] : botWeapons[i % botWeapons.length];
@@ -3351,7 +4104,7 @@ export class FPSEngine {
       this.addCombatantMesh(c);
       i++;
     }
-    if (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") {
+    if (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") {
       const redCount = [...this.combatants.values()].filter((c) => c.team === "red").length;
       const blueCount = [...this.combatants.values()].filter((c) => c.team === "blue").length;
       (this.opts as any).team = redCount <= blueCount ? "red" : "blue";
@@ -3363,7 +4116,7 @@ export class FPSEngine {
   // veteran = 0.80..0.95). "mixed" rolls a random difficulty per bot. Higher skill =
   // faster reaction, tighter aim, fewer misses. The resolved difficulty is stored on
   // the BotAI so per-kill rewards can scale with the victim's tier.
-  private makeBotAI(sp: Vec3): BotAI {
+  private makeBotAI(sp: Vec3, overrideDifficulty?: Exclude<BotDifficulty, "mixed">): BotAI {
     const skillRange: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
       easy: [0.28, 0.45],
       normal: [0.45, 0.65],
@@ -3372,7 +4125,9 @@ export class FPSEngine {
     };
     // Resolve "mixed" by rolling a random tier for this bot.
     let diff: Exclude<BotDifficulty, "mixed">;
-    if (this.botDifficulty === "mixed") {
+    if (overrideDifficulty) {
+      diff = overrideDifficulty;
+    } else if (this.botDifficulty === "mixed") {
       const opts: Exclude<BotDifficulty, "mixed">[] = ["easy", "normal", "hard", "veteran"];
       diff = opts[Math.floor(Math.random() * opts.length)];
     } else {
@@ -3390,7 +4145,7 @@ export class FPSEngine {
       strafeDir: Math.random() < 0.5 ? 1 : -1,
       moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
-      wantsHighGround: Math.random() < 0.3,
+      wantsHighGround: Math.random() < (this.map.biome==="city"||this.map.biome==="city_day"?.7:.3),
       acquiredTargetAt: 0,
       skill,
       burstShotsLeft: 0,
@@ -3459,7 +4214,7 @@ export class FPSEngine {
       const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
-      const ai=this.makeBotAI(sp);
+      const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
@@ -3524,17 +4279,25 @@ export class FPSEngine {
       emissiveIntensity: 0.3,
     });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
-    const weaponFinish = weaponSkinById(c.weaponSkinId);
-    const fullWorldLegendary = weaponFinish.rarity === "legendary";
+    const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
+    const fullWorldLegendary = coatsAllWeaponParts(weaponFinish) || weaponFinish.id === "carbon";
+    const worldDefaultTint = weaponFinish.id === "default"
+      ? c.weaponId === "wonder_hellfire" ? "#db3a14"
+        : c.weaponId === "wonder_deadlock" ? "#51246e"
+        : weaponFinish.color
+      : weaponFinish.color;
     const weaponMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(weaponFinish.color),
+      color: new THREE.Color(worldDefaultTint),
       roughness: weaponFinish.roughness, metalness: weaponFinish.metalness,
       emissive: new THREE.Color(weaponFinish.emissive ?? "#000000"),
       emissiveIntensity: weaponFinish.emissiveIntensity ?? 0,
     });
-    if (weaponFinish.prestige || ["wonder_hellfire","wonder_stormweaver"].includes(c.weaponId)) {
-      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ??
-        (c.weaponId==="wonder_hellfire"?"toxic":"cosmic"));
+    if (weaponFinish.id === "carbon") {
+      weaponMat.map = this.createCarbonTexture();
+      weaponMat.color.set(0xffffff);
+    }
+    if (weaponFinish.prestige || (["wonder_singularity","wonder_stormweaver"].includes(c.weaponId) && weaponFinish.id==="default")) {
+      weaponMat.map = this.createPrestigeTexture(weaponFinish.prestige ?? "cosmic");
       weaponMat.color.set(0xffffff);
     }
 
@@ -3658,7 +4421,12 @@ export class FPSEngine {
       buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
         mesh.position.set(x, y, z);
         visual.add(mesh);
-      }, fullWorldLegendary ? weaponMat : undefined);
+      }, fullWorldLegendary ? weaponMat : undefined,
+        weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
+      if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
+        const charm=createWeaponCharm(c.charmId);
+        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
+      }
       weaponStub.add(visual);
     }
     // Place the gun ahead of the chest rather than through it. The right-hand
@@ -3682,7 +4450,7 @@ export class FPSEngine {
     root.add(weaponStub);
 
     // ---- Name sprite ----
-    const sprite = this.makeTextSprite(c.name + (c.isSelf ? " (You)" : ""), c.team);
+    const sprite = this.makeTextSprite(c.name + (c.isSelf ? " (You)" : ""), c.team, c.nameplateId);
     sprite.position.y = PLAYER_HEIGHT + 0.55;
     root.add(sprite);
     c.nameSprite = sprite;
@@ -3769,16 +4537,25 @@ export class FPSEngine {
     c.walkPhase = 0;
   }
 
-  private makeTextSprite(text: string, team: string): THREE.Sprite {
+  private makeTextSprite(text: string, team: string, plateId?: string): THREE.Sprite {
     const canvas = document.createElement("canvas");
     canvas.width = 256; canvas.height = 64;
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = team === "red" ? "#ff6b6b" : team === "blue" ? "#6ba6ff" : "#dddddd";
+    const plate=cosmeticById(plateId??"standard","nameplate");
+    if(plate&&plate.id!=="standard"){
+      ctx.fillStyle="#0b1025";
+      ctx.fillRect(8,6,240,52);
+      ctx.strokeStyle=plate.color;ctx.lineWidth=3;ctx.strokeRect(9,7,238,50);
+      ctx.fillStyle=plate.color;
+      ctx.font="24px sans-serif";ctx.textAlign="left";ctx.fillText(plate.symbol,18,41);
+    }
+    ctx.fillStyle = plate?.id!=="standard" ? plate?.color??"#eeeeee" :
+      team === "red" ? "#ff6b6b" : team === "blue" ? "#6ba6ff" : "#dddddd";
     ctx.font = "bold 28px sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 4;
-    ctx.strokeText(text, 128, 32);
-    ctx.fillText(text, 128, 32);
+    ctx.strokeText(text, plate?.id!=="standard"?142:128, 32);
+    ctx.fillText(text, plate?.id!=="standard"?142:128, 32);
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
     const s = new THREE.Sprite(mat);
@@ -3867,7 +4644,10 @@ export class FPSEngine {
     switch (msg.t) {
       case "joined":
         this.selfId = msg.selfId;
+        this.scoreLimit = msg.config.scoreLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
+        this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
+        this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
         (this.opts as any).team = msg.team;
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -3878,6 +4658,16 @@ export class FPSEngine {
           // the client requested (findOpenRoom matches by mode only — fix that later).
         }
         for (const p of msg.players) this.ensureCombatant(p);
+        // The engine initially uses an FFA preview spawn before the server assigns
+        // a team. For CTF, snap to the authoritative home-tree spawn on join.
+        if (msg.mode === "ctf") {
+          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
+          if (spawn) {
+            this.pos.set(spawn[0], spawn[1], spawn[2]);
+            this.vel.set(0, 0, 0);
+            this.cameraFeetY = spawn[1];
+          }
+        }
         break;
       case "snapshot":
         // Authoritative poison status is sent to everyone, not just the
@@ -3885,6 +4675,12 @@ export class FPSEngine {
         this.onlinePoisoned.clear();
         for (const effect of msg.poisoned ?? []) {
           this.onlinePoisoned.set(effect.id, msg.serverNow
+            ? gravityClientTime(effect.expiresAt, msg.serverNow, Date.now())
+            : effect.expiresAt);
+        }
+        this.onlineBurning.clear();
+        for (const effect of msg.burning ?? []) {
+          this.onlineBurning.set(effect.id, msg.serverNow
             ? gravityClientTime(effect.expiresAt, msg.serverNow, Date.now())
             : effect.expiresAt);
         }
@@ -3952,6 +4748,29 @@ export class FPSEngine {
           for (const [id,t] of this.bulletSpitters) if (!t.offline && !activeIds.has(id)) this.removeBulletSpitter(id);
         }
         this.teamScores = msg.teamScores;
+        if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
+        if (this.opts.mode === "ctf") {
+          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
+          if(this.map.id==="orbital_nexus"){
+          if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
+           this.orbitalServerVersion=msg.orbitalRulesVersion;
+           this.orbitalSnapshotSeen=true;
+          if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
+        }
+        if (msg.ctfBases) {
+            this.ctfBases = msg.ctfBases;
+            for (const team of ["red","blue"] as const) {
+              const marker=this.ctfMarkers[team],base=msg.ctfBases[team];
+              if (marker) marker.position.set(base[0],.07,base[2]);
+            }
+          }
+        }
+        if (this.opts.mode === "ctf" && msg.ctfFlags) {
+          // Snapshots update visuals only: discrete server events distinguish
+          // capture, drop and return without a timing-dependent guess.
+          this.ctfFlags = msg.ctfFlags;
+          this.ctfOvertime = !!msg.ctfOvertime;
+        }
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
           const stats = msg.tagStats?.[this.selfId];
@@ -3970,6 +4789,10 @@ export class FPSEngine {
           for (const id of [...this.scavengerPickups.keys()]) this.removeScavengerPickup(id);
         }
         this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.timeLeft;
+        // Server snapshots remain authoritative for catch-up, but a delayed
+        // or older server must not repeatedly reset the running elapsed clock.
+        if (typeof msg.elapsedSeconds === "number" && Number.isFinite(msg.elapsedSeconds))
+          this.elapsedSeconds = Math.max(this.elapsedSeconds, msg.elapsedSeconds);
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
@@ -4064,6 +4887,7 @@ export class FPSEngine {
           if (msg.victimId === this.selfId) {
             this.deaths += 1;
             this.alive = false;
+            this.grantOrbitalReaper(false);
             this.killChain = { count: 0, lastKillAt: -Infinity };
             this.recentKills = [];
             this.shotBloom = 0;
@@ -4321,6 +5145,29 @@ export class FPSEngine {
           this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
         }
         break;
+      case "orbitalAbsorb":
+        this.spawnOrbitalMote(msg.pos);
+        break;
+      case "orbitalPulse":
+        this.showOrbitalPulse(msg.pos);
+        break;
+      case "orbitalReactor":
+        if(this.map.id==="orbital_nexus"){
+          const old=this.orbitalCharge;
+          this.orbitalCharge=msg.charge;
+          void old; // Charge updates are reflected in the HUD only.
+        }
+        break;
+      case "orbitalReward":
+        if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
+        // No Reaper claim pop-ups.
+        break;
+      case "ctfEvent":
+        if (this.opts.mode === "ctf") {
+          if (msg.action === "capture" && msg.playerId === this.selfId) this.ctfCaptures++;
+          this.announceCtfEvent(msg.action, msg.flag, msg.playerId);
+        }
+        break;
       case "matchEnd":
         this.finalizeMatch(msg.standings, msg.winnerTeam);
         break;
@@ -4332,7 +5179,9 @@ export class FPSEngine {
       case "roomJoined":
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
+        this.scoreLimit = msg.config.scoreLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
+        this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
@@ -4340,6 +5189,16 @@ export class FPSEngine {
           this.map = makeEnvironmentMap(getMap(msg.mapId));
         }
         for (const p of msg.players) this.ensureCombatant(p);
+        // The engine initially uses an FFA preview spawn before the server assigns
+        // a team. For CTF, snap to the authoritative home-tree spawn on join.
+        if (msg.mode === "ctf") {
+          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
+          if (spawn) {
+            this.pos.set(spawn[0], spawn[1], spawn[2]);
+            this.vel.set(0, 0, 0);
+            this.cameraFeetY = spawn[1];
+          }
+        }
         // Track lobby state from the server's response.
         this.lobbyRoomName = msg.roomName;
         this.lobbyIsHost = !!msg.isHost;
@@ -4376,10 +5235,17 @@ export class FPSEngine {
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
+          this.hasTimeLimit = msg.config.timeLimit > 0 && this.opts.mode !== "gungame" && this.opts.mode !== "survival";
+          this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
+          this.elapsedSeconds = 0;
         }
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
+        this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
+        this.orbitalCharge=0;
+        this.orbitalServerVersion=undefined;this.orbitalSnapshotSeen=false;
+        this.grantOrbitalReaper(false);
         // Reset per-kill tracking for the fresh match.
         this.killDifficulties = [];
         // Reset per-weapon kill tracking too (so a previous match's gungame
@@ -4510,6 +5376,7 @@ export class FPSEngine {
         id: p.id, name: p.name, team: p.team, isBot: p.isBot, isSelf: p.id === this.selfId,
         pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
+        charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
@@ -4519,7 +5386,7 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && p.weaponId !== c.weaponId) {
+      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
         this.scene.remove(c.group);
         c.group.traverse((child) => {
           if (child instanceof THREE.Mesh) {
@@ -4534,6 +5401,8 @@ export class FPSEngine {
           }
         });
         c.weaponId = p.weaponId;
+        c.charmId = p.charmId;
+        c.nameplateId = p.nameplateId;
         c.group = undefined;
         c.parts = undefined;
         this.addCombatantMesh(c);
@@ -4716,8 +5585,9 @@ export class FPSEngine {
       if (!rules) continue;
       const next = tickWonderCharges(state, rules, now);
       this.wonderStates.set(id, next);
-      const ammo=id==="wonder_hellfire"&&this.hellfireActiveUntil>now
-        ? Math.ceil((this.hellfireActiveUntil-now)/1000) : next.charges;
+      // Show stored reserve only. Including the current prepaid slice caused
+      // the HUD to drop by one AFTER trigger release when that slice expired.
+      const ammo=next.charges;
       if (this.primaryWeaponId === id) this.primaryAmmoInMag = ammo;
       if (this.weaponId === id) this.ammoInMag = ammo;
     }
@@ -4826,10 +5696,20 @@ export class FPSEngine {
   private recoverBolt() {
     const special = weaponById("crossbow_reclaimer").special;
     if (special?.kind !== "bolt") return;
-    if(this.getCurrentAttachments().magazine==="mag_bolt_heavy" &&
-       this.weaponId==="crossbow_reclaimer"){
-      this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+1);
-      this.saveAmmoToSlot(this.currentSlot);
+    // Heavy ammo belongs to the CROSSBOW SLOT, not the currently held gun.
+    // Pickups while holding a sidearm must still replenish collected arrows.
+    const heavyPrimary=this.primaryWeaponId==="crossbow_reclaimer" &&
+      this.opts.loadout.attachments?.magazine==="mag_bolt_heavy";
+    const heavySecondary=this.secondaryWeaponId==="crossbow_reclaimer" &&
+      this.opts.loadout.secondaryAttachments?.magazine==="mag_bolt_heavy";
+    if(heavyPrimary||heavySecondary){
+      if(heavyPrimary){
+        this.primaryAmmoInMag=Math.min(this.primaryEff.magSize,this.primaryAmmoInMag+1);
+        if(this.currentSlot==="primary")this.ammoInMag=this.primaryAmmoInMag;
+      }else{
+        this.secondaryAmmoInMag=Math.min(this.secondaryEff.magSize,this.secondaryAmmoInMag+1);
+        if(this.currentSlot==="secondary")this.ammoInMag=this.secondaryAmmoInMag;
+      }
       this.sound.play("reload",{volume:.28});
       return;
     }
@@ -4877,7 +5757,7 @@ export class FPSEngine {
       if (hit !== null && hit >= 0 && hit < t) t = hit;
     }
     for (const c of this.combatants.values()) {
-      if (!c.alive || (this.opts.mode === "tdm" && c.team === this.opts.team)) continue;
+      if (!c.alive || ((this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") && c.team === this.opts.team)) continue;
       const hit = rayCombatantHit(origin, dir, c.pos);
       if (hit && hit.t < t) t = hit.t;
     }
@@ -4891,22 +5771,30 @@ export class FPSEngine {
   private spawnFlameSpray(origin:Vec3,dir:Vec3){
     // Flare originates at the WEAPON muzzle, not a hitscan projectile leaving
     // the camera. Overlapping translucent tongues form a continuous fire cone.
-    const near=this.camera.position.distanceTo(new THREE.Vector3(...origin))<1.5;
-    const start=near
-      ? this.camera.localToWorld(new THREE.Vector3(.14,-.18,-.65))
-      : new THREE.Vector3(origin[0]+dir[2]*.16+dir[0]*.65,
-          origin[1]-.16+dir[1]*.65,origin[2]-dir[0]*.16+dir[2]*.65);
     const forward=new THREE.Vector3(...dir).normalize();
-    for(let i=0;i<3;i++){
-      const length=1.25+Math.random()*1.8;
-      const advance=.35+i*.70;
-      const centre=start.clone().addScaledVector(forward,advance+length*.35);
-      centre.x+=(Math.random()-.5)*.18;centre.y+=(Math.random()-.5)*.16;
-      const mesh=new THREE.Mesh(new THREE.ConeGeometry(.18+advance*.1,length,9,1),
-        new THREE.MeshBasicMaterial({color:i===0?0xffe69c:i===1?0xff991f:0xe94311,
-          transparent:true,opacity:i===0?.58:.39,depthWrite:false,
+    // The true animated muzzle for our own weapon; remote players start just
+    // ahead of their networked eye instead of incorrectly using our gun.
+    const ownShot=this.weaponId==="wonder_hellfire" &&
+      this.camera.position.distanceTo(new THREE.Vector3(...origin))<.2;
+    this.camera.updateMatrixWorld(true);
+    const start=ownShot
+      ? this.muzzleFlash.getWorldPosition(new THREE.Vector3())
+      : new THREE.Vector3(...origin).addScaledVector(forward,.48);
+    for(let i=0;i<5;i++){
+      // Visible flame fan follows the same broad forward arc as damage.
+      const angle=(-.95+i*.475)+(Math.random()-.5)*.20;
+      const spread=new THREE.Vector3(forward.x,forward.y*.45,forward.z).applyAxisAngle(new THREE.Vector3(0,1,0),angle).normalize();
+      const length=1.15+Math.random()*1.25;
+      const advance=i*.40;
+      const centre=start.clone().addScaledVector(spread,advance+length*.5);
+      centre.x+=(Math.random()-.5)*.07;centre.y+=(Math.random()-.5)*.07;
+      const mesh=new THREE.Mesh(new THREE.ConeGeometry(.14+advance*.19,length,9,1),
+        new THREE.MeshBasicMaterial({color:i===0?0xfff0a3:i===1?0xff981f:0xf03b13,
+          transparent:true,opacity:i===0?.65:.46,depthWrite:false,
           side:THREE.DoubleSide}));
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward);
+      // Three.js cones widen toward -Y. Point -Y toward the enemy so the
+      // flames expand AWAY from the player, with the narrow end at the muzzle.
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),spread.clone().negate());
       mesh.position.copy(centre);this.scene.add(mesh);
       this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
@@ -5097,8 +5985,10 @@ export class FPSEngine {
     if(kind==="flame"){
       for(const c of enemies()){
         const target:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
-        if(inFlameCone(origin,dir,target,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,target))
+        if(inFlameCone(origin,dir,target,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,target)){
           this.applyDamageLocal(c,this.eff.damage,false,w.id);
+          if(c.alive)this.localBurning.set(c.id,performance.now()+1100);
+        }
       }
       return; // Burning spray never paints persistent damaging floors.
     }
@@ -5118,7 +6008,8 @@ export class FPSEngine {
       for(const pelletDir of stormPelletDirections(dir)){
         const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.map.cover,
           this.stormVictims(this.selfId,this.opts.team));
-        this.spawnWonderBeam(origin,impact.victim?stormTargetPoint(impact.victim):impact.point,"storm");
+        // Pellet travel is not chain lightning: arcs begin only on impact,
+        // between struck targets (or between a triggered mine and its victim).
         if(impact.victim){
           const victim=this.combatants.get(impact.victim.id);
           if(!victim?.alive)continue;
@@ -5184,12 +6075,12 @@ export class FPSEngine {
     if (w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
       if(w.wonder.kind==="flame"){
-        if(this.hellfireActiveUntil<=now){
-          const charged=spendFullWonderCharge(state,w.wonder,now);
-          if(!charged){this.sound.play("empty_click",{volume:.4});return;}
-          this.wonderStates.set(w.id,charged);
-          this.hellfireActiveUntil=now+HELLFIRE_BURST_MS;
-        }
+        // Only accepted trigger-held shots call this function.
+        const spent=spendHellfireFuelOnShot(state,w.wonder,now,
+          this.hellfireActiveUntil,HELLFIRE_FUEL_STEP_MS);
+        if(!spent){this.sound.play("empty_click",{volume:.4});return;}
+        this.wonderStates.set(w.id,spent.state);
+        this.hellfireActiveUntil=spent.paidThrough;
       }else{
         const next=spendWonderCharge(state,w.wonder,now);
         if(!next){this.sound.play("empty_click",{volume:.4});return;}
@@ -5203,9 +6094,7 @@ export class FPSEngine {
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (w.wonder) this.ammoInMag = w.wonder.kind==="flame"
-      ? Math.ceil(Math.max(0,this.hellfireActiveUntil-now)/1000)
-      : this.wonderStates.get(w.id)!.charges;
+    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
@@ -5327,13 +6216,13 @@ export class FPSEngine {
   private tryMeleeAttack(w: WeaponDef, now: number) {
     // Swing cooldown: based on the melee weapon's fireRate (1.6 rps machete →
     // ~625ms between swings; 3.5 rps shiv → ~285ms; 0.7 rps hammer → ~1430ms).
-    const swingGap=quickMeleeProfile(w.stats).cooldownMs;
+    const swingGap=quickMeleeProfile(w.stats,w.id).cooldownMs;
     if (now - this.lastShotAt < swingGap ||
         (w.id===this.meleeWeaponId && now-this.quickMeleeLastAt < swingGap)) return;
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0;
     this.meleeSwingAt = now;
-    this.meleeSwingDur = quickMeleeProfile(w.stats).swingMs;
+    this.meleeSwingDur = quickMeleeProfile(w.stats,w.id).swingMs;
     // Actual swing event, not button press (respects melee cooldown).
     this.weaponAudio.play("melee", { weaponId: this.weaponId, volume: 0.85 });
 
@@ -5353,7 +6242,9 @@ export class FPSEngine {
           const t=rayBox(eye,dir,box.pos,box.size);
           return t!==null&&t>.08&&t<dist-.15;
         });
-      },this.eff.range);
+      },quickMeleeProfile(w.stats,w.id).reach,quickMeleeProfile(w.stats,w.id).halfArcDegrees);
+    if(!this.opts.online&&w.id===ORBITAL_REAPER_ID)
+      this.offlineOrbitalPulse(from,this.opts.team as string,null,nearest?[nearest.id]:[]);
     if(nearest&&!this.opts.online){
       const victim=this.combatants.get(nearest.id);
       if(victim){
@@ -5396,7 +6287,7 @@ export class FPSEngine {
     }
     // cover blocking
     let blockedT = Infinity;
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range],2)) {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
@@ -5464,7 +6355,7 @@ export class FPSEngine {
     // Remember the player's meaningful non-lethal contributions so a
     // friendly offline bot finishing the same enemy can award an assist.
     if (!this.opts.online && victim.team !== this.opts.team &&
-        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="survival")) {
+        (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf"||this.opts.mode==="survival")) {
       const old=this.offlineAssistDamage.get(victim.id);
       this.offlineAssistDamage.set(victim.id,{
         damage:(old && performance.now()-old.at<=10000?old.damage:0)+Math.max(0,Math.min(damage,victim.health)),
@@ -5476,7 +6367,11 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      if (this.opts.mode !== "killconfirmed") victim.score = victim.kills;
+      if (victim.team!==this.opts.team)
+        this.recordOrbitalKill(victim.pos,[this.pos.x,this.pos.y,this.pos.z]);
+      this.releaseOrbitalBotWeapon(victim);
+      if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
+      if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
       // Offline: only a Scavenger player's kills create private ammo packs.
@@ -5608,6 +6503,9 @@ export class FPSEngine {
     } else {
       this.perWeaponKills.set(weaponId, { kills: 1, headshots: headshot ? 1 : 0 });
     }
+    // Temporary Reaper kills earn their unique achievement, not regular
+    // Armory challenge or permanent weapon mastery progression.
+    if(weaponId===ORBITAL_REAPER_ID)return;
     // Applied at elimination, including online kills acknowledged by the server.
     const actions = this.perWeaponActions.get(weaponId) ?? {};
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
@@ -5784,7 +6682,7 @@ export class FPSEngine {
     if (this.matchEnded) return;
     this.matchEnded = true;
     const isSurvival = this.opts.mode === "survival";
-    const objectiveScore = this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
+    const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
     // this.selfId BEFORE adding the self entry — otherwise the player appears
     // twice in the standings (showing up as both 1st and 2nd place in the
@@ -5850,7 +6748,7 @@ export class FPSEngine {
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const won = isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
-      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed") ? winnerTeam === this.opts.team
+      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
@@ -5858,7 +6756,7 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
       durationSec, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
@@ -6017,7 +6915,7 @@ export class FPSEngine {
     const travelMs = wonder?.kind === "singularity"
       ? gravityTravelMs(dist) : weaponId==="launcher_breach"
       ? Math.min(700,Math.max(270,dist*9))
-      : weaponId==="launcher_swarm" ? Math.min(750,Math.max(200,dist*7))
+      : weaponId==="launcher_swarm" ? Math.min(600,Math.max(170,dist*5.25))
       : Math.min(450,Math.max(140,dist*4));
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
@@ -6188,16 +7086,20 @@ export class FPSEngine {
     this.raf = requestAnimationFrame(this.loop);
     this.timer.update();
     const dt = Math.min(0.05, this.timer.getDelta());
+    const frameStart=performance.now();
     this.update(dt);
+    if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.renderer.render(this.scene, this.camera);
+    this.updateCityRenderBudget(frameStart,dt*1000);
   };
 
   private update(dt: number) {
-    // The music scheduler runs only after audio was unlocked by a user gesture.
-    this.sound.tickAmbientMusic(!this.matchEnded, this.lobbyActive ? "lobby" : this.map.id);
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
+    if (this.opts.mode === "ctf") this.updateCtfFlagsVisuals();
+    this.animateOrbitalReactor(performance.now());
+    this.tickOrbitalPickup();
     // ---- Lobby state: suppress all gameplay while the room is in the lobby
     // phase. The GameCanvas renders a Lobby overlay on top; we still render the
     // 3D scene underneath but don't process input, run AI, or count down the timer.
@@ -6248,6 +7150,10 @@ export class FPSEngine {
       }
       return;
     }
+    // Count game time locally in *every* mode, including online Survival,
+    // Gun Game and user-configured unlimited-time matches. Reconcile upward
+    // with authoritative snapshots instead of letting stale zeroes freeze it.
+    this.elapsedSeconds = advanceMatchElapsed(this.elapsedSeconds, dt, !this.matchEnded);
     if (!this.opts.firingRange && !this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
       // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
       // timeLeft = 0 means "no limit" — the match runs until the kill target
@@ -6255,7 +7161,12 @@ export class FPSEngine {
       // because `0 - dt <= 0` was always true.
       if (this.timeLeft > 0 && this.opts.mode !== "gungame") {
         this.timeLeft -= dt;
-        if (this.timeLeft <= 0) { this.timeLeft = 0; this.finalizeMatchLocal(); }
+        if (this.timeLeft <= 0) {
+          this.timeLeft = 0;
+          if (this.opts.mode === "ctf" && this.teamScores.red === this.teamScores.blue)
+            this.ctfOvertime = true;
+          else this.finalizeMatchLocal();
+        }
       }
     }
     if (!this.matchEnded) {
@@ -6523,8 +7434,12 @@ export class FPSEngine {
             const closestX = p.start.x + segDx * t;
             const closestY = p.start.y + segDy * t;
             const closestZ = p.start.z + segDz * t;
-            const dx = cx - closestX, dy = cy - closestY, dz = cz - closestZ;
-            const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
+            // Plagueheart poisons an area around the actual impact only.
+            // Rockets alone retain proximity damage along their flight path.
+            const d = corrosion
+              ? corrosionImpactDistance([p.end.x,p.end.y,p.end.z],[cx,cy,cz])
+              : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
             if (d <= p.splashRadius) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
               // ~10% at edge. This rewards direct hits much more than near-misses,
@@ -6532,7 +7447,6 @@ export class FPSEngine {
               // Plus a direct-hit bonus: if the combatant is within 1.5 units of the
               // closest point, apply full damage + 20% bonus (guaranteed kill on 100HP).
               const falloff = launcherSplashFactor(p.weaponId,d,p.splashRadius);
-              const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
               const splashDmg = corrosion ? corrosionImpactDamage(p.damage, falloff) : p.damage * falloff;
               this.applyDamageLocal(c, splashDmg, false, p.weaponId);
               if (corrosion && c.alive) {
@@ -6597,6 +7511,8 @@ export class FPSEngine {
     if (!this.opts.online && this.opts.mode === "killconfirmed" && !this.matchEnded) {
       this.collectOfflineKillConfirmedTags();
     }
+    if (!this.opts.online && !this.matchEnded)this.tickOrbitalPickup();
+    if (!this.opts.online && this.opts.mode === "ctf" && !this.matchEnded) this.tickOfflineCtf();
     if (this.opts.online && this.socket?.connected && this.alive) {
       this.socket.emit("message", {
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
@@ -6669,9 +7585,15 @@ export class FPSEngine {
     }
   }
 
-  private updatePoisonVisual(id: string, pos: Vec3, poisoned: boolean, now: number) {
+  private updatePoisonVisual(id: string, pos: Vec3, status: "poison" | "burn" | null, now: number) {
     let fx = this.poisonBubbles.get(id);
-    if (!poisoned) {
+    // One pool of procedural effects; when the damage type changes, replace
+    // its geometry so acid green never disguises orange flame damage.
+    if (fx && status && fx.userData.status !== status) {
+      this.updatePoisonVisual(id,pos,null,now);
+      fx = undefined;
+    }
+    if (!status) {
       if (fx) {
         this.scene.remove(fx);
         const geometries = new Set<THREE.BufferGeometry>();
@@ -6688,12 +7610,16 @@ export class FPSEngine {
     }
     if (!fx) {
       fx = new THREE.Group();
+      fx.userData.status = status;
+      const burning=status==="burn";
       const aura = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 10),
-        new THREE.MeshBasicMaterial({ color: 0x49ff68, transparent: true, opacity: 0.16, depthWrite: false }));
+        new THREE.MeshBasicMaterial({ color: burning?0xff4715:0x49ff68,
+          transparent: true, opacity: burning?.21:.16, depthWrite: false }));
       aura.position.y = 0.98;
       fx.add(aura);
-      const geo = new THREE.SphereGeometry(0.105, 8, 6);
-      const mat = new THREE.MeshBasicMaterial({ color: 0x80ff61, transparent: true, opacity: 0.78, depthWrite: false });
+      const geo = burning ? new THREE.ConeGeometry(.065,.21,6) : new THREE.SphereGeometry(0.105, 8, 6);
+      const mat = new THREE.MeshBasicMaterial({ color: burning?0xffad2d:0x80ff61,
+        transparent: true, opacity: burning?.9:.78, depthWrite: false });
       for (let i = 0; i < 9; i++) {
         const bubble = new THREE.Mesh(geo, mat);
         bubble.userData.poisonBubble = i;
@@ -6710,11 +7636,12 @@ export class FPSEngine {
         continue;
       }
       const i = index - 2;
-      const t = (now * 0.00055 + i * 0.173) % 1;
+      const burning=status==="burn";
+      const t = (now * (burning?0.0013:0.00055) + i * 0.173) % 1;
       const angle = i * 2.39996 + now * 0.0008;
       child.position.set(Math.cos(angle) * (0.35 + i % 3 * 0.14), 0.18 + t * 1.7,
         Math.sin(angle) * (0.35 + i % 3 * 0.14));
-      child.scale.setScalar(0.6 + 0.6 * (1 - t));
+      child.scale.setScalar((burning?.42:.6) + .6 * (1 - t));
     }
   }
 
@@ -6725,19 +7652,28 @@ export class FPSEngine {
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
     const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
     for (const id of this.poisonBubbles.keys()) {
-      if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], false, now);
+      if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], null, now);
     }
     for (const c of this.combatants.values()) {
-      const poisoned = c.alive && (this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
-        || c.alive && (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now;
-      this.updatePoisonVisual(c.id, c.pos, poisoned, now);
+      const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
+        || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
+      const burning = c.alive && ((this.onlineBurning.get(c.id) ?? 0) > Date.now()
+        || (this.localBurning.get(c.id) ?? 0) > now);
+      this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
-        if (poisoned) {
+        if (burning) {
+          c.skinMaterial.emissive.setHex(0xff4b12);
+          c.skinMaterial.emissiveIntensity = 1.1;
+        } else if (poisoned) {
           c.skinMaterial.emissive.setHex(0x30ff56);
           c.skinMaterial.emissiveIntensity = 1.05;
+        } else if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id)) {
+          // Normal depth-tested material: hidden carriers never glow through cover.
+          c.skinMaterial.emissive.setHex(0xffe56a);
+          c.skinMaterial.emissiveIntensity = 1.0;
         } else if (isThermalAds && isEnemy && !c.isSelf) {
           // Bright amber emissive — "thermal signature"
           c.skinMaterial.emissive.setHex(0xff6600);
@@ -6804,7 +7740,7 @@ export class FPSEngine {
       // Always visible (even through walls) so the player can locate their team.
       // Hidden for: self, enemies, dead players, and non-TDM modes.
       if (c.friendlyMarker) {
-        const isFriendly = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed")
+        const isFriendly = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf")
           && c.team === this.opts.team
           && c.id !== this.selfId
           && c.alive;
@@ -6859,6 +7795,7 @@ export class FPSEngine {
     // the transformed grips so hands stay attached while firing and aiming.
     const recoilAge = c.lastFireRecoil ? now - c.lastFireRecoil : 9999;
     const recoil = recoilAge < 100 ? (1 - recoilAge / 100) * 0.15 : 0;
+    p.weaponStub.traverse(obj=>{if(obj.name==="weapon_charm")swingWeaponCharm(obj,now);});
     p.weaponStub.position.copy(p.weaponBase);
     p.weaponStub.position.z -= recoil * 0.5;
     p.weaponStub.position.y += Math.sin(c.walkPhase ?? 0) * 0.006;
@@ -6912,6 +7849,7 @@ export class FPSEngine {
     // Can't sprint with a sniper/sniper-equivalent out at full ADS — must release.
     // ALSO gated on stamina: can't start a sprint with 0 stamina; must regen above
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
+    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map.id,this.weaponId);
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
     const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
@@ -6926,7 +7864,8 @@ export class FPSEngine {
     }
     // ---- Stamina drain / regen ----
     if (this.sprinting) {
-      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) * dt);
+      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) *
+        (reaperMovement?ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER:1) * dt);
       this.lastSprintAt = performance.now();
       if (this.stamina <= 0) {
         // Exhausted — force-stop the sprint (will resume only after regen above threshold).
@@ -6946,6 +7885,8 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(reaperMovement)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
+    if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
     const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
@@ -6980,15 +7921,17 @@ export class FPSEngine {
       this.lastGroundedAt = -Infinity;
       this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);
       this.onGround = false;
-      // Tiny forward sprint-hop boost for that arcade momentum feel.
-      if (this.sprinting) {
-        this.vel.x += fwd.x * MOVEMENT.sprintJumpBoost;
-        this.vel.z += fwd.z * MOVEMENT.sprintJumpBoost;
-      }
+      // Running takeoffs carry additional horizontal momentum, whether the
+      // player is sprinting or moving at ordinary running speed.
+      [this.vel.x, this.vel.z] = runJumpTakeoffVelocity(
+        this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
+        reaperMovement?ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER:1,
+      );
       if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= MOVEMENT.gravity * dt;
+    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id,
+      reaperMovement?this.weaponId:undefined) * dt;
 
     const next = this.pos.clone();
     next.x += this.vel.x * dt;
@@ -7010,7 +7953,7 @@ export class FPSEngine {
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
     const r = PLAYER_RADIUS;
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3)) {
       const cx = cov.pos[0], cz = cov.pos[2];
       const hx = cov.size[0], hz = cov.size[2];
       const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
@@ -7036,7 +7979,7 @@ export class FPSEngine {
     if (Math.abs(next.z - desiredHorizontalZ) > 0.001) this.vel.z = 0;
 
     // ---- Vertical collision: stand on top of platforms/stairs ----
-    const groundY = groundHeightAt(this.map.cover, next.x, next.z, next.y, r);
+    const groundY = groundHeightAt(this.coverNear(next.x,next.z,2.5), next.x, next.z, next.y, r);
     if (next.y <= groundY) {
       next.y = groundY;
       this.vel.y = 0;
@@ -7121,18 +8064,66 @@ export class FPSEngine {
       const tagDistance = nearestTag ? Math.hypot(nearestTag.pos[0] - c.pos[0], nearestTag.pos[2] - c.pos[2]) : Infinity;
       const threatDistance = enemy ? Math.hypot(enemy.pos[0] - c.pos[0], enemy.pos[2] - c.pos[2]) : Infinity;
       const pursueTag = !!nearestTag && tagDistance < 20 && threatDistance > 12;
+      const roster=[...this.combatants.values()].filter(b=>!!b.ai).map(b=>({
+        id:b.id,team:b.team,pos:b.pos,alive:b.alive,
+        carryingFlag:this.ctfFlags.red.carrierId===b.id||this.ctfFlags.blue.carrierId===b.id,
+        hasReward:this.orbitalBotHolders.has(b.id),
+      }));
+      const orbitalObjective=orbitalBotShouldContest(this.map.id,this.orbitalCharge,
+        roster.find(b=>b.id===c.id)!,roster,threatDistance)
+        ?orbitalBotDeckGoal(c.pos,c.team):null;
+      const ctfObjective = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
+        ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
+            [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
+            Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id).goal,c.pos,this.map.id)
+        : null;
+      // Ground-level bots otherwise acquire distant opponents through map
+      // walls on every decision tick and never enter patrol mode. Let designated
+      // climbers first approach their real stair entry when combat is not
+      // immediate; close or clearly visible threats still take precedence.
+      const city=(this.map.biome==="city"||this.map.biome==="city_day");
+      const safeToClimb=city&&ai.wantsHighGround&&!pursueTag&&!ctfObjective&&
+        threatDistance>27;
+      if(safeToClimb&&!ai.highGroundPatrol){
+        const variation=c.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
+        ai.highGroundPatrol=chooseCityHighGroundGoal(c.pos,this.highGroundGoals(),variation);
+        if(ai.highGroundPatrol){
+          ai.highGroundExpiresAt=now+24000;
+          ai.routeWaypoint=null;ai.nextRouteAt=0;
+        }
+      }
+      const climbing=safeToClimb&&!!ai.highGroundPatrol&&c.pos[1]<ai.highGroundPatrol.roof[1]-.65;
       const prevTarget = ai.targetId;
-      ai.targetId = pursueTag ? null : (enemy ? enemy.id : null);
+      ai.targetId = pursueTag || orbitalObjective || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
       if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
+      if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
+      if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
       if (!ai.targetId) {
-        if (nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
-        else if (Math.hypot(ai.wanderTarget[0] - c.pos[0], ai.wanderTarget[2] - c.pos[2]) < 2.5)
-          ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
-            this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+        if(orbitalObjective||ctfObjective||nearestTag){
+          ai.highGroundPatrol=null;
+          ai.wanderTarget=[...(orbitalObjective??ctfObjective??nearestTag!.pos)] as Vec3;
+        }else{
+          if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
+            c.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
+          if(!ai.highGroundPatrol && ai.wantsHighGround &&
+            (this.map.biome==="city"||this.map.biome==="city_day" ? Math.random()<.92 : Math.random()<.55)){
+            const variation=c.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
+            const goal=chooseCityHighGroundGoal(c.pos,this.highGroundGoals(),variation);
+            if(goal){
+              ai.highGroundPatrol=goal;ai.highGroundExpiresAt=now+20000;
+              ai.routeWaypoint=null;ai.nextRouteAt=0;
+            }
+          }
+          if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
+          else if(Math.hypot(ai.wanderTarget[0]-c.pos[0],ai.wanderTarget[2]-c.pos[2])<2.5)
+            ai.wanderTarget=chooseBotPatrolPoint(c.team,this.opts.mode,c.pos,
+              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa);
+        }
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
@@ -7181,20 +8172,34 @@ export class FPSEngine {
         ai.sprayDriftPitch *= 0.92;
       }
 
-      ai.sprinting = dist > 26 && ai.ammoInMag > 0 && now > ai.reloadingUntil;
-      const speed = ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
-      const ideal = 14;
+      const clearShot = this.hasLineOfSight(
+        [c.pos[0], c.pos[1] + 1.45, c.pos[2]],
+        [tgt.pos[0], tgt.pos[1] + 1.45, tgt.pos[2]],
+      );
+      const reactionReady = now - ai.acquiredTargetAt >= botReactionDelay(ai.difficulty);
+      const aimSettled = now - ai.acquiredTargetAt >=
+        botReactionDelay(ai.difficulty) + eff.adsTime * 750;
+      const stance = botCombatDecision(w.category, dist, clearShot,
+        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil);
+      ai.sprinting = stance.sprinting;
+      ai.aiming = stance.aiming;
+      const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
+        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+      const ideal = stance.idealDistance;
+      const chaseThreshold=w.id===ORBITAL_REAPER_ID?3:ideal+3;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
-      if (dist > ideal + 3) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
+      if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
       else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
       // Obstacle-aware chase navigation around the dense Bunker centre.
-      if((dist > ideal + 3 || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
+      if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,this.map.regions) ?? botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,
+            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000) ??
+            botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
         }
         const waypoint=ai.routeWaypoint;
@@ -7272,19 +8277,24 @@ export class FPSEngine {
       const missChance = (1 - ai.skill) * 0.45 + 0.03;
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
+      const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
 
-      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused) {
+      if (!ai.sprinting && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
-        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
-        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (eff.spread * 2 + distSpread + missSpread);
+        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        const pellets = eff.pellets ?? 1;
-        for (let i = 0; i < pellets; i++) {
-          const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(eff.spread))) : dir;
-          this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
+        if(w.id===ORBITAL_REAPER_ID){
+          this.offlineOrbitalBotSwing(c);
+        }else{
+          const pellets = eff.pellets ?? 1;
+          for (let i = 0; i < pellets; i++) {
+            const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
+            this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
+          }
         }
-        this.spawnTracer(origin, dir, c.weaponSkinId);
+        if(w.id!==ORBITAL_REAPER_ID)this.spawnTracer(origin, dir, c.weaponSkinId);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         ai.ammoInMag--;
@@ -7294,7 +8304,7 @@ export class FPSEngine {
         // Enemy fire sound: distance-attenuated + muffled if suppressed.
         // Bots in offline mode have null barrel attachments (no suppressors),
         // but the check is wired correctly so a future loadout pass would Just Work.
-        this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
+        if(w.id!==ORBITAL_REAPER_ID)this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
         // Accumulate spray drift from this shot (recovers when not firing).
         const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
         ai.sprayDriftPitch += driftKick;  // climb up
@@ -7337,10 +8347,14 @@ export class FPSEngine {
         ai.burstEndsAt = now + durationMs;
       }
     } else {
-      ai.sprinting = false;
-      const dx = ai.wanderTarget[0] - c.pos[0], dz = ai.wanderTarget[2] - c.pos[2];
-      const d = Math.hypot(dx, dz);
-      if (d > 1.5) {
+      ai.aiming = false;
+      const patrolGoal=ai.highGroundPatrol;
+      const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
+        this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
+      const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
+      const d=Math.hypot(dx,dz);
+      ai.sprinting = botPatrolSprint(d);
+      if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
         // ±35° (sign from ai.strafeDir) so the bot angles around the obstacle
@@ -7348,10 +8362,13 @@ export class FPSEngine {
         // so the bot faces where it's going.
         let fx = dx / d, fz = dz / d;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
-        if(patrolBlocked || Math.abs(ai.wanderTarget[1] - c.pos[1]) > 1.3 || this.opts.mapId === "bunker") {
+        if((patrolBlocked || (patrolGoal&&d>5) ||
+            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker") &&
+            (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,ai.wanderTarget,this.map.cover,this.map.size,3,this.map.environment,this.map.regions);
-            ai.nextRouteAt=now+850;
+            ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
+              this.map.environment,this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000);
+            ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
           const waypoint=ai.routeWaypoint;
           if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
@@ -7380,7 +8397,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
         const mvx = fx * moveSpeed;
         const mvz = fz * moveSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -7422,14 +8439,14 @@ export class FPSEngine {
       c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
         c.pos[1] + vy * dt,
         c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * dt;
-      const ground = botGroundHeight(this.map.cover, c.pos[0], c.pos[2], c.pos[1]);
+      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id,c.weaponId) * dt;
+      const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;
         c.ai.envJumpVelocityY = undefined;
       }
     } else {
-      c.pos[1] = botNextFeetY(this.map.cover, c.pos, dt);
+      c.pos[1] = botNextFeetY(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos, dt);
     }
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     // ---- Task 16-a: stuck detection & recovery ----
@@ -7452,6 +8469,7 @@ export class FPSEngine {
         // Reset stuck patrol toward enemy territory, not the same team spawn.
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
           this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+        ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
         ai.targetId = null;        // wander instead of engaging
       ai.routeWaypoint=null;ai.nextRouteAt=0;
         ai.strafeDir = -ai.strafeDir;
@@ -7503,7 +8521,7 @@ export class FPSEngine {
     const len = Math.hypot(dx, dy, dz);
     if (len < 0.01) return true;
     const dir: Vec3 = [dx / len, dy / len, dz / len];
-    for (const cov of this.map.cover) {
+    for (const cov of this.coverAlong(from,to,2)) {
       if (cov.kind === "accent" || cov.kind === "stair") continue;
       const t = rayBox(from, dir, cov.pos, cov.size);
       if (t !== null && t < len) return false;
@@ -7565,20 +8583,25 @@ export class FPSEngine {
           const won = this.advanceCombatantGungameTier(attacker);
           if (won) { this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1); this.finalizeMatchLocal(); return; }
         }
-        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1);
+        this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1,
+          attacker.weaponId,attacker.pos);
       } else {
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
           const recent=this.offlineAssistDamage.get(nearest.victim.id);
           if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
-              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed") &&
+              (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf") &&
               recent && recent.damage>=15 && performance.now()-recent.at<=10000)
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          if (this.opts.mode !== "killconfirmed") nearest.victim.score = nearest.victim.kills;
+          if(attacker.team!==nearest.victim.team)
+            this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
+          this.releaseOrbitalBotWeapon(nearest.victim);
+          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
+          if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") nearest.victim.score = nearest.victim.kills;
           attacker.kills += 1;
-          if (this.opts.mode !== "killconfirmed") attacker.score = attacker.kills;
+          if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") attacker.score = attacker.kills;
           if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(nearest.victim.id, nearest.victim.team, nearest.victim.pos);
           if (this.opts.mode === "tdm") this.teamScores[attacker.team as "red" | "blue"] += 1;
           const entry: KillFeedEntry = { killer: attacker.name, victim: nearest.victim.name, weapon: attacker.weaponId, headshot: nearest.head, killerTeam: attacker.team, victimTeam: nearest.victim.team };
@@ -7597,7 +8620,10 @@ export class FPSEngine {
     }
   }
 
-  private takeDamage(dmg: number, attackerName: string, attackerTeam: string, head: boolean, weaponId = "rifle_ar") {
+  private takeDamage(
+    dmg:number,attackerName:string,attackerTeam:string,head:boolean,
+    weaponId="rifle_ar",attackerPos?:Vec3,
+  ) {
     if (!this.alive || this.selfSpawnProtectedUntil > Date.now()) return;
     this.health -= dmg;
     this.damageFlashAt = performance.now();
@@ -7606,6 +8632,12 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      // Falling, environmental hazards and friendly damage must not charge
+      // the reactor; only a legitimate opposing-team kill contributes.
+      if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)
+        this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z],attackerPos);
+      this.grantOrbitalReaper(false);
+      if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
       this.killChain = { count: 0, lastKillAt: -Infinity };
       this.recentKills = [];
       this.shotBloom = 0;
@@ -7638,6 +8670,9 @@ export class FPSEngine {
   }
 
   private emitHud(now: number) {
+    const orbitalWarning=this.orbitalSnapshotSeen
+      ?orbitalServerWarning(this.map.id,this.opts.online,this.orbitalServerVersion)
+      :undefined;
     const radarNow = Date.now();
     for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
     const scoreboard: ScoreRow[] = [];
@@ -7647,9 +8682,9 @@ export class FPSEngine {
       }
     } else {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     this.opts.onHud({
@@ -7677,14 +8712,33 @@ export class FPSEngine {
       respawnIn: this.alive ? 0 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
       kills: this.kills,
       deaths: this.deaths,
-      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
+      score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
+      playerTeam: this.opts.team as string,
+      ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
+      orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
+      orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
+      orbitalWarning,
+      ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
+      ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
+      ctfCarrying: this.opts.mode === "ctf" &&
+        (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId),
+      ctfNotice: this.ctfNotice,
+      ctfZoneError: orbitalWarning ?? (this.opts.mode === "ctf" && this.opts.online && !this.ctfRulesVerified
+        ? "Multiplayer server has outdated CTF scoring rules. Restart/update the game server."
+        : this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
+          (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId) &&
+          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],4.7,3) &&
+          !flagAtHome(this.ctfFlags[this.opts.team])
+          ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
       confirmations: this.confirmations,
       denials: this.denials,
       denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,
       timeLeft: Math.max(0, Math.ceil(this.timeLeft)),
+      unlimitedTime: !this.hasTimeLimit || (this.opts.mode === "ctf" && this.ctfOvertime),
+      elapsedSeconds: Math.max(0,Math.floor(this.elapsedSeconds)),
       scoreboard,
       killFeed: this.killFeed,
       lastDeath: this.lastDeath,
@@ -7824,7 +8878,7 @@ export class FPSEngine {
   // insurance for the rare edge case where multiple boxes interact and a wrong
   // sign would compound.
   private collideBots(pos: Vec3, currentY: number): Vec3 {
-    return resolveBotOverlap(this.map.cover, pos, currentY);
+    return resolveBotOverlap(this.coverNear(pos[0],pos[2],3), pos, currentY);
   }
 
   // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -7839,7 +8893,7 @@ export class FPSEngine {
   // skipped. The player is pushed ONLY on the bot's side — we don't mutate
   // `this.pos` (the player's own collision handles their side).
   private separateBots(bot: Combatant, currentY: number): void {
-    const minDist = 2 * PLAYER_RADIUS + 0.2;
+    const minDist = this.opts.mode === "ctf" ? 3.1 : 2 * PLAYER_RADIUS + 0.2;
     const minDistSq = minDist * minDist;
     const yTol = PLAYER_HEIGHT * 0.8;
     const others: { pos: Vec3; alive: boolean }[] = [];
@@ -7863,7 +8917,7 @@ export class FPSEngine {
       const push = overlap * 0.5 * 0.5;
       const before: Vec3 = [...bot.pos];
       const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
-      if (!blocksBotMotion(this.map.cover, before, after, currentY)) {
+      if (!blocksBotMotion(this.coverAlong(before,after,2), before, after, currentY)) {
         bot.pos = after;
       }
     }
@@ -7875,7 +8929,7 @@ export class FPSEngine {
   // "bot clips into wall then pops out" flicker, and prevents tunneling at
   // high speeds). The check is conservative — it samples the destination only.
   private botMoveBlocked(from: Vec3, to: Vec3, currentY: number): boolean {
-    if (blocksBotMotion(this.map.cover, from, to, currentY)) return true;
+    if (blocksBotMotion(this.coverAlong(from,to,2), from, to, currentY)) return true;
     for (const o of this.map.environment ?? []) {
       if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, this.environmentTime))) continue;
       if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
@@ -7895,7 +8949,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
-    for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], false, 0);
+    for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);

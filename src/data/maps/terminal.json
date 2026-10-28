@@ -198,7 +198,6 @@
     "ambient": 1.85,
     "vegetation": 0,
     "props": [],
-    "inheritPropsFrom": "arena_neon",
     "surfaces": {
       "floor": {
         "pattern": "pavers",

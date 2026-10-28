@@ -3,7 +3,7 @@
  * server read these blueprints. Coordinates are world-space X/Z; box width/depth
  * are FULL extents in JSON (unlike CoverBox's half-extents).
  */
-import { MAP_DOCUMENTS } from "./map-documents";
+import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, Vec3 } from "./game-protocol";
 
 export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
@@ -13,7 +13,11 @@ export interface MapFeature extends MapRegion {
   axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
   /** Saved quarter-turn orientation for Map Studio (collision extents remain axis-aligned). */
   turns?: 0 | 1 | 2 | 3;
+  assemblyId?: string;
+  /** Persistent landing connection. Edge is in world space; baseY is the lower floor. */
+  attachment?: {platformId:string;edge:PlatformEdge;offset?:number;baseY?:number};
 }
+export type PlatformEdge="north"|"south"|"east"|"west";
 export interface MapBlueprint {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
   regions: MapRegion[]; features: MapFeature[]; hazards?: MapHazard[];
@@ -56,12 +60,7 @@ export interface MapHazard {
   turns?: 0 | 1 | 2 | 3;
 }
 export interface MapBlueprintFile { version: number; units: string; maps: Record<string, MapBlueprint> }
-/** Compatibility contract for the existing deterministic map compiler. */
-export const MAP_BLUEPRINTS: MapBlueprintFile = {
-  version: 1,
-  units: "world units; X east/west, Z north/south, Y elevation; widths/depths are FULL extents",
-  maps: Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,doc])=>[id,doc.blueprint])),
-};
+export const MAP_BLUEPRINTS:MapBlueprintFile={version:1,units:"world units; X/Z centres except stair landing anchors; widths/depths are FULL extents",maps:Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,d])=>[id,d.blueprint]))};
 
 export function insideRegion(x:number,z:number,r:MapRegion,padding=0):boolean {
   const rx=r.w/2-padding,rz=r.d/2-padding;
@@ -177,9 +176,57 @@ export function nearestPlatformSnap(stair:MapFeature,features:readonly MapFeatur
   if(!candidates.length)return null;
   candidates.sort((a,b)=>Math.hypot(a.x-stair.x,a.z-stair.z)-Math.hypot(b.x-stair.x,b.z-stair.z));
   const c=candidates[0];
-  const targetElevation=(c.p.y??0)+c.p.h;
-  return {...stair,x:c.x,z:c.z,y:0,h:targetElevation,w:Math.min(stair.w,c.axis==="z"?c.p.w:c.p.d),
-    d:Math.ceil(targetElevation/.42)*.76,axis:c.axis,sign:c.sign};
+  const edge:PlatformEdge=c.axis==="z"?(c.sign===1?"south":"north"):(c.sign===1?"east":"west");
+  return attachStairsToPlatform(stair,c.p,edge);
+}
+
+/** Shared authoring/runtime bounds: stairs are anchored at their landing, not their centre. */
+export function featureFootprint(f:MapFeature):MapRegion & {y:number;h:number} {
+  if(f.kind!=="stairs")return {x:f.x,z:f.z,w:f.w,d:f.d,y:f.y??0,h:f.h};
+  const axis=f.axis??"z",offset=(f.sign??1)*f.d/2;
+  return {x:f.x+(axis==="x"?offset:0),z:f.z+(axis==="z"?offset:0),
+    w:axis==="x"?f.d:f.w,d:axis==="x"?f.w:f.d,y:f.y??0,h:f.h};
+}
+export function attachStairsToPlatform(stair:MapFeature,platform:MapFeature,edge:PlatformEdge):MapFeature {
+  const top=(platform.y??0)+platform.h;
+  const baseY=(stair.y??0)<top-.3?(stair.y??0):0;
+  return resolveStairAttachments([{...stair,attachment:{platformId:platform.id,edge,baseY}},platform])[0];
+}
+export function rotatePlatformEdge(edge:PlatformEdge,turns:number):PlatformEdge {
+  const order:PlatformEdge[]=["north","west","south","east"];
+  return order[((order.indexOf(edge)+Math.round(turns))%4+4)%4];
+}
+/** Derive all stair geometry from the saved connection in BOTH game simulations. */
+export function resolveStairAttachments(features:readonly MapFeature[]):MapFeature[] {
+  return features.map(f=>{
+    if(f.kind!=="stairs"||!f.attachment)return f;
+    const a=f.attachment,p=features.find(q=>q.id===a.platformId&&q.kind==="platform");
+    if(!p)return f; // Preserve the broken reference for diagnostics; never silently retarget it.
+    const axis=a.edge==="east"||a.edge==="west"?"x":"z";
+    const sign:1|-1=a.edge==="east"||a.edge==="south"?1:-1;
+    const width=Math.min(f.w,axis==="z"?p.w:p.d),baseY=a.baseY??0;
+    const offset=Math.max(-((axis==="z"?p.w:p.d)-width)/2,
+      Math.min(((axis==="z"?p.w:p.d)-width)/2,a.offset??0));
+    const h=(p.y??0)+p.h-baseY;
+    return {...f,x:p.x+(axis==="x"?sign*p.w/2:offset),z:p.z+(axis==="z"?sign*p.d/2:offset),
+      y:baseY,h:Math.max(.3,h),w:width,d:Math.ceil(Math.max(.3,h)/.42)*.76,axis,sign};
+  });
+}
+/** An editor rotation moves a saved connection to the corresponding new face. */
+export function reconcileFeatureAttachments(next:readonly MapFeature[],previous:readonly MapFeature[]=[]):MapFeature[] {
+  return resolveStairAttachments(next.map(f=>{
+    if(!f.attachment)return f;
+    const old=previous.find(p=>p.id===f.attachment!.platformId),p=next.find(p=>p.id===f.attachment!.platformId);
+    const delta=(p?.turns??0)-(old?.turns??0);
+    const previousStair=previous.find(q=>q.id===f.id);
+    if(previousStair?.attachment&&previousStair.attachment.edge!==f.attachment.edge)return f;
+    if(!old||!delta)return f;
+    const edge=rotatePlatformEdge(f.attachment.edge,delta);
+    let dx=f.attachment.edge==="north"||f.attachment.edge==="south"?(f.attachment.offset??0):0;
+    let dz=dx===0&&(f.attachment.edge==="east"||f.attachment.edge==="west")?(f.attachment.offset??0):0;
+    for(let i=0;i<((delta%4+4)%4);i++){const x=dx;dx=dz;dz=-x;}
+    return {...f,attachment:{...f.attachment,edge,offset:edge==="north"||edge==="south"?dx:dz}};
+  }));
 }
 export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol").EnvironmentObject {
   const base={id:h.id,pos:[h.x,h.y,h.z] as Vec3,size:[h.w/2,h.h/2,h.d/2] as Vec3};
@@ -205,6 +252,13 @@ export function validateBlueprint(b: MapBlueprint): string[] {
     if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h,f.y??0].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
       issues.push(`Feature ${f.id||i} has invalid geometry`);
     if(!insideRegions(f.x,f.z,b.regions??[])) issues.push(`Feature ${f.id||i} is outside walkable space`);
+    if(f.assemblyId!==undefined&&(typeof f.assemblyId!=="string"||!f.assemblyId||f.assemblyId.length>160))issues.push(`Feature ${f.id} invalid assembly`);
+    if(f.attachment){
+      const a=f.attachment,p=(b.features??[]).find(p=>p.id===a.platformId&&p.kind==="platform");
+      if(f.kind!=="stairs"||!p||!["north","south","east","west"].includes(a.edge)||
+        !Number.isFinite(a.offset??0)||!Number.isFinite(a.baseY??0))issues.push(`Feature ${f.id} invalid stair connection`);
+      else if((p.y??0)+p.h-(a.baseY??0)<.3)issues.push(`Stairs ${f.id} need a landing above their starting floor`);
+    }
   }
   for(const [i,r] of (b.regions??[]).entries())if(r.shape && !["rect","circle","triangle"].includes(r.shape))
     issues.push(`Region ${i+1} invalid shape`);

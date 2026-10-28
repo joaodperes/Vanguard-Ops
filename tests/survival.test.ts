@@ -1,11 +1,24 @@
 import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_SURVIVAL_GOAL, normalizeSurvivalTier, survivalWavesCleared,
-  survivalIsBossWave, survivalWaveMutators, survivalUnlocked,
+  survivalIsBossWave, survivalWaveMutators, survivalBotDifficulty, survivalUnlocked,
   survivalRecordMode, ZERO_SURVIVAL_PROGRESS,
 } from "../src/lib/survival";
 
 describe("survival difficulty progression", () => {
+  test("standard ramps skill over 30 waves without a second bot difficulty selector",()=>{
+    expect(survivalBotDifficulty("default",1)).toBe("easy");
+    expect(survivalBotDifficulty("default",10)).toBe("normal");
+    expect(survivalBotDifficulty("default",20)).toBe("hard");
+    expect(survivalBotDifficulty("default",28)).toBe("veteran");
+    expect(survivalBotDifficulty("hard",7)).toBe("hard");
+    expect(survivalBotDifficulty("nightmare",1)).toBe("veteran");
+    const standard=survivalWaveMutators("default",10);
+    const hard=survivalWaveMutators("hard",10);
+    expect(standard.spawnMul).toBeLessThan(hard.spawnMul);
+    expect(standard.damageMul).toBeLessThan(hard.damageMul);
+    expect(standard.healthMul).toBeLessThan(hard.healthMul);
+  });
   test("standard caps at a thirty-wave victory", () => {
     expect(DEFAULT_SURVIVAL_GOAL).toBe(30);
     expect(survivalWavesCleared(30,true)).toBe(29);

@@ -13,6 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
+import { tokenEligiblePrestiges } from "@/lib/weapon-prestige";
 import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeProgress } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
@@ -52,14 +53,17 @@ export async function POST(req: NextRequest) {
     await grantWeaponPrestiges(player.id);
     try {
       await db.$transaction(async tx => {
-        const [awards, purchases, owned] = await Promise.all([
-          tx.weaponPrestige.count({ where: { playerId: player.id } }),
+        const [prestigeRows, masteryRows, purchases, owned] = await Promise.all([
+          tx.weaponPrestige.findMany({ where: { playerId: player.id }, select: { weaponId: true } }),
+          tx.weaponProgress.findMany({ where: { playerId: player.id }, select: { weaponId: true, kills: true, headshots: true } }),
           tx.wonderUnlock.count({ where: { playerId: player.id } }),
           tx.wonderUnlock.findUnique({ where: {
             playerId_weaponId: { playerId: player.id, weaponId: def.id },
           } }),
         ]);
         if (owned) throw new Error("ALREADY_OWNED");
+        const mastery = Object.fromEntries(masteryRows.map(row=>[row.weaponId,{kills:row.kills,headshots:row.headshots}]));
+        const awards = tokenEligiblePrestiges(prestigeRows.map(row=>row.weaponId),mastery).length;
         if (awards <= purchases) throw new Error("NO_PRESTIGE_TOKENS");
         await tx.wonderUnlock.create({ data: { playerId: player.id, weaponId: def.id } });
       });
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
       if (e?.message === "ALREADY_OWNED" || e?.code === "P2002")
         return NextResponse.json({ error: "Wonder Weapon already owned" }, { status: 400 });
       if (e?.message === "NO_PRESTIGE_TOKENS")
-        return NextResponse.json({ error: "Earn a weapon Prestige token first" }, { status: 403 });
+        return NextResponse.json({ error: "Complete Weapon Prestige and Mastery Rank 5 to earn a token" }, { status: 403 });
       throw e;
     }
     return NextResponse.json({ ok: true, profile: await buildProfileView(playerKey) });

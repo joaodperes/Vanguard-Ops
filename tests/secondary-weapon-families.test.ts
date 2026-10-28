@@ -59,14 +59,15 @@ describe("secondary family catalog and permanent IDs", () => {
       for (const skin of ["arctic", "crimson", "emerald", "gold"]) {
         expect(skinChallengesForWeaponAndSkin(id, skin).length).toBeGreaterThan(0);
       }
-      if (w.category === "launcher") {
-        expect(w.attachments).toEqual([]);
-        for (const slot of ALL_ATTACHMENT_SLOTS) expect(compatibleAttachments(id, slot)).toEqual([]);
-      } else {
-        for (const slot of ALL_ATTACHMENT_SLOTS) {
-          const ids = compatibleAttachments(id, slot);
-          expect(ids.length).toBeGreaterThanOrEqual(2);
-          expect(attachmentChallenge(id, ids[0])).not.toBeNull();
+      for (const slot of ALL_ATTACHMENT_SLOTS) {
+        const ids = compatibleAttachments(id, slot);
+        expect(ids.length).toBeGreaterThanOrEqual(4);
+        expect(attachmentChallenge(id, ids[0])).not.toBeNull();
+        if (w.category === "launcher") {
+          expect(ids).not.toContain("barrel_suppressor");
+          if (slot === "barrel" || slot === "grip") {
+            expect(ids.some(id => id.startsWith(slot + "_launcher_"))).toBe(true);
+          }
         }
       }
     }

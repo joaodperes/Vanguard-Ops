@@ -302,8 +302,10 @@ export const WEAPON_MASTERY_TIERS: WeaponMasteryTier[] = [
   { rank: 4, title: "Veteran", kills: 300, headshots: 55 },
   { rank: 5, title: "Elite", kills: 600, headshots: 110 },
 ];
-export function weaponMasteryProgress(kills: number, headshots: number) {
-  const rank = WEAPON_MASTERY_TIERS.filter(t => kills >= t.kills && headshots >= t.headshots).length;
+export function weaponMasteryProgress(kills: number, headshots: number, weaponId?: string) {
+  // Melee strikes cannot headshot, so they earn the same rank from kills alone.
+  const isMelee = !!weaponId && WEAPONS.some(w => w.id === weaponId && w.category === "melee");
+  const rank = WEAPON_MASTERY_TIERS.filter(t => kills >= t.kills && (isMelee || headshots >= t.headshots)).length;
   return {
     rank, title: rank ? WEAPON_MASTERY_TIERS[rank - 1].title : "Unranked",
     next: WEAPON_MASTERY_TIERS[rank] ?? null,

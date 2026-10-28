@@ -68,6 +68,15 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(resolveShotAcoustics("melee").crackLevel).toBe(0);
   });
 
+  test("Hellfire has no ballistic crack, shotgun blast or pressure pulse", () => {
+    const flame=resolveShotAcoustics("lmg",{weaponId:"wonder_hellfire"});
+    const ordinary=resolveShotAcoustics("lmg",{weaponId:"lmg_hv"});
+    expect(flame.crackLevel).toBe(0);
+    expect(flame.punchLevel).toBe(0);
+    expect(flame.blastLevel).toBe(0);
+    expect(ordinary.crackLevel).toBeGreaterThan(.5);
+  });
+
   test("nearby enemies remain identifiable, distant gunfire fades and darkens", () => {
     const near = resolveShotAcoustics("pistol", { distance: 5 });
     const mid = resolveShotAcoustics("pistol", { distance: 30 });
@@ -85,4 +94,16 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(muted.punchLevel).toBe(0);
     expect(muted.blastLevel).toBe(0);
   });
+  test("bare muzzle reports gain bass and treble without making suppressed weapons louder", () => {
+    const open = resolveShotAcoustics("assault", { weaponId: "rifle_ar" });
+    const suppressed = resolveShotAcoustics("assault", { weaponId: "rifle_ar", suppressed: true });
+    expect(open.punchLevel).toBeGreaterThan(.65);
+    expect(open.crackLevel).toBeGreaterThan(1.1);
+    expect(suppressed.punchLevel).toBeLessThan(open.punchLevel * .3);
+    expect(suppressed.crackLevel).toBeLessThan(open.crackLevel * .04);
+    expect(resolveShotAcoustics("sniper").punchLevel).toBeGreaterThan(open.punchLevel);
+    expect(resolveShotAcoustics("assault", { weaponId: "rifle_electron" }).crackLevel)
+      .toBeLessThan(open.crackLevel * .5);
+  });
+
 });

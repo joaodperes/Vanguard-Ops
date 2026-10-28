@@ -7,8 +7,8 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all six maps have dedicated tactical cover and playable outer spawns", () => {
-    expect(MAP_LIST).toHaveLength(6);
+  test("all eight maps have dedicated tactical cover and playable outer spawns", () => {
+    expect(MAP_LIST).toHaveLength(8);
     for (const map of MAP_LIST) {
       expect(TACTICAL_COVER[map.id].length).toBeGreaterThanOrEqual(16);
       expect(OUTER_SPAWNS[map.id].ffa.length).toBeGreaterThanOrEqual(6);
@@ -21,6 +21,10 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
+        if(map.id==="forest_warfare") {
+          for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
+          continue;
+        }
         if(map.id==="skybridge"){
           // Ridgefall's old outdoor spawn coordinates were deliberately removed.
           // The compiled factory must use only the new indoor JSON spawn set.
@@ -32,7 +36,18 @@ describe("authored map combat layouts", () => {
         // MAP_LIST already scales every spawn, wall and hazard together.
         // Check the *actual* appended spawn positions, not unscaled design
         // coordinates against the compact/tactical arena bounds.
-        const points = map.spawns[team].slice(-authored.length);
+        // Afterlight expands its city spawn pool; inherited outer spawns remain
+        // valid but no longer necessarily appear at the end of the list.
+        const points = (map.id==="arena_neon"||map.id==="terminal")
+          ? authored.map(design=>{
+              const factor=MAP_FOOTPRINT[map.id].scale;
+              const found=map.spawns[team].find(point=>
+                Math.abs(point[0]-design[0]*factor)<.005&&
+                Math.abs(point[2]-design[2]*factor)<.005);
+              if(!found)throw new Error(`${map.id} missing inherited outer spawn ${design}`);
+              return found;
+            })
+          : map.spawns[team].slice(-authored.length);
         expect(points).toHaveLength(authored.length);
         for (let i = 0; i < points.length; i++) {
           const point = points[i];
@@ -71,7 +86,7 @@ describe("authored map combat layouts", () => {
     const ids = new Set<string>();
     for (const map of MAP_LIST) {
       const doors = map.environment?.filter(e => e.type === "destructible_wall") ?? [];
-      if (map.id === "arena_neon" || map.id === "terminal") {
+      if (map.id === "arena_neon" || map.id === "terminal" || map.id === "forest_warfare") {
         expect(doors).toHaveLength(0);
         expect(map.environment?.length ?? 0).toBe(0);
         continue;

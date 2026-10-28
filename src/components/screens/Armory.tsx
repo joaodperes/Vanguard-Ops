@@ -6,11 +6,12 @@ import { formatWeaponNumber } from "@/lib/weapon-numbers";
 import { shotSpread } from "@/lib/weapon-accuracy";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
+import { COSMETICS } from "@/lib/cosmetics";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
   weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats,
-  weaponSkinById,
+  weaponSkinById, weaponById,
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
@@ -20,9 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2 } from "lucide-react";
+import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { wonderUnlockChallenge } from "@/lib/weapon-prestige";
+import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 
 // ----------------------------------------------------------------------------
@@ -94,6 +97,12 @@ const CATEGORY_LABELS: Record<WeaponCategory, string> = {
 export function Armory() {
   const { profile, setScreen, refreshProfile, playerKey, setRangeWeaponId } = useGame();
   const tryInRange = (id?: string) => { setRangeWeaponId(id ?? null); setScreen("range"); };
+  const [presetName, setPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [editingPreset, setEditingPreset] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [unconfirmedLoadout, setUnconfirmedLoadout] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<WeaponProgressMap>({});
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
@@ -150,7 +159,7 @@ export function Armory() {
       if (!res.ok) {
         toast.error(data.error || "Purchase failed");
       } else {
-        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "-1 Prestige Token" : `-${cost} CR` });
+        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "1 Wonder entitlement redeemed" : `-${cost} CR` });
         await refreshProfile();
         // Re-fetch weapon progress to refresh challenge completion tiles.
         try {
@@ -266,6 +275,40 @@ export function Armory() {
     }
   };
 
+  const managePreset = async (action: "save" | "rename" | "delete", id?: string) => {
+    if (presetBusy) return;
+    const name = action === "save" ? presetName.trim() : editName.trim();
+    if (action !== "delete" && !name) { toast.error("Enter a loadout name"); return; }
+    setPresetBusy(true);
+    try {
+      const response = await fetch("/api/loadout/presets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, action, id, name }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save loadout");
+      await refreshProfile();
+      setPresetName("");
+      setEditingPreset(null);
+      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : "Loadout deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update loadout"); }
+    finally { setPresetBusy(false); }
+  };
+
+  const equipPreset = async (id: string) => {
+    if (presetBusy) return;
+    setPresetBusy(true);
+    try {
+      const response = await fetch("/api/loadout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, presetId: id }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not equip loadout");
+      await refreshProfile();
+      toast.success("Saved loadout equipped");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not equip loadout"); }
+    finally { setPresetBusy(false); }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
@@ -299,11 +342,78 @@ export function Armory() {
             <Crosshair className="w-4 h-4 mr-1.5" /> Enter Firing Range
           </Button>
         </div>
-        {/* Current Loadout — top section (replaces the old Loadout tab) */}
+        {/* Single current-loadout box owns both confirmation and named snapshots. */}
         <div className="mb-6">
-          <LoadoutSelector onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })} />
+          <LoadoutSelector onDirtyChange={setUnconfirmedLoadout} onCustomize={(weapon, slot) => setCustomizing({ weapon, slot })}>
+            <details className="mt-5 rounded-xl border border-amber-500/25 bg-black/30 group" aria-label="Saved loadouts">
+              <summary className="cursor-pointer select-none p-4 text-amber-200 font-semibold flex items-center gap-2">
+                <Save className="w-4 h-4" /> Saved Loadouts
+                <span className="text-xs text-white/40 font-normal">({(profile?.savedLoadouts ?? []).length} / 5)</span>
+                <ChevronDown className="w-4 h-4 ml-auto group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="px-4 pb-4">
+                <p className="text-xs text-white/50 mb-3">Profile snapshots include weapons, skins, attachments and the selected perk. Confirm any changed weapon or perk selection above before saving a profile snapshot.</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+            <input
+              value={presetName}
+              onChange={e => setPresetName(e.target.value)}
+              placeholder="Name this loadout"
+              maxLength={24}
+              aria-label="New loadout name"
+              className="flex-1 min-w-40 rounded-lg bg-black/40 border border-white/20 text-white px-3 py-2 text-sm outline-none focus:border-amber-400"
+            />
+            <Button
+              disabled={presetBusy || unconfirmedLoadout || !presetName.trim() || (profile?.savedLoadouts ?? []).length >= 5}
+              onClick={() => managePreset("save")}
+              className="bg-amber-500 hover:bg-amber-400 text-black"
+            ><Save className="w-4 h-4 mr-1.5" /> Save Current</Button>
+          </div>
+          {(profile?.savedLoadouts ?? []).length === 0 ? (
+            <div className="text-sm text-white/40 py-3">No saved loadouts yet. Equip your preferred kit in the Armory, then save it here.</div>
+          ) : (
+            <div className="space-y-3">
+              <select aria-label="Choose saved loadout" value={(profile?.savedLoadouts ?? []).some(p=>p.id===selectedPresetId) ? selectedPresetId : (profile?.savedLoadouts?.[0]?.id ?? "")}
+                onChange={e => { setSelectedPresetId(e.target.value); setEditingPreset(null); }}
+                className="w-full rounded-lg bg-zinc-900 border border-white/20 p-2 text-white text-sm">
+                {(profile?.savedLoadouts ?? []).map(preset => <option key={preset.id} value={preset.id}>{preset.name} · {perkById(preset.perkId).name}</option>)}
+              </select>
+              {(profile?.savedLoadouts ?? []).filter(p=>p.id===(selectedPresetId && profile?.savedLoadouts?.some(x=>x.id===selectedPresetId) ? selectedPresetId : profile?.savedLoadouts?.[0]?.id)).map(preset => (
+                <div key={preset.id} className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-2">
+                  {editingPreset === preset.id ? (
+                    <div className="flex gap-2">
+                      <input value={editName} maxLength={24} onChange={e => setEditName(e.target.value)}
+                        aria-label="Rename saved loadout"
+                        className="min-w-0 flex-1 rounded bg-zinc-800 border border-white/20 text-white px-2 py-1 text-sm" />
+                      <Button size="sm" disabled={presetBusy || !editName.trim()} onClick={() => managePreset("rename", preset.id)}><Check className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingPreset(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-amber-200 font-semibold text-sm truncate">{preset.name}</h3>
+                      <div className="flex gap-1">
+                        <button aria-label={`Rename ${preset.name}`} title="Rename" className="p-1.5 text-white/60 hover:text-white"
+                          onClick={() => { setEditingPreset(preset.id); setEditName(preset.name); }}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button aria-label={`Delete ${preset.name}`} title="Delete" disabled={presetBusy}
+                          className="p-1.5 text-white/60 hover:text-rose-400" onClick={() => managePreset("delete", preset.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
+                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id)}
+                    className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+              </div>
+            </details>
+          </LoadoutSelector>
         </div>
 
+        <div id="armory-weapons" />
         <Tabs defaultValue="weapons">
           <TabsList className="bg-zinc-900/60 border border-white/10">
             <TabsTrigger value="weapons" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Zap className="w-4 h-4 mr-1.5" /> Weapons</TabsTrigger>
@@ -314,8 +424,8 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Finish every regular cosmetic challenge on a weapon to earn two animated Prestige camos and one token. Spend a Prestige token to permanently unlock a Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
-              <p className="text-xs text-violet-300 mt-2">Mastered weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Available tokens: {profile?.prestige?.tokens ?? 0}</p>
+              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Wonder-qualified weapons: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
@@ -344,7 +454,7 @@ export function Armory() {
                       {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
                     </Button>
                     : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
-                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Unlock · 1 Prestige Token" : "Requires 1 Prestige Token"}
+                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Redeem · 1 Wonder unlock" : "Requires 1 Wonder unlock"}
                       </Button>}
                 </div>;
               })}
@@ -417,10 +527,10 @@ export function Armory() {
             <div className="text-white/40 text-xs mb-3 flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Operative skins change your in-game appearance.</div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
-                const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (s.unlockLevel <= level && s.unlockCost === 0);
+                const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (!s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0);
                 const contract = profile?.operatorContracts.find(c => c.rewardId === s.id);
                 const challengeReady = s.id === "default" || !!contract?.completed;
-                const canBuy = !isOwned && challengeReady && credits >= s.unlockCost;
+                const canBuy = !s.shopCurrency && !isOwned && challengeReady && credits >= s.unlockCost;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const equipped = profile?.loadout.playerSkin.id === s.id;
                 return (
@@ -462,7 +572,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
@@ -717,6 +827,20 @@ interface CustomizeModalProps {
 function CustomizeModal(props: CustomizeModalProps) {
   const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
+  const {profile: account,playerKey,refreshProfile} = useGame();
+  const [cosmeticBusy,setCosmeticBusy]=useState(false);
+  async function equipCosmetic(kind:"reticle"|"charm",cosmeticId:string){
+    if(!w||!slot||slot==="melee"||cosmeticBusy)return;
+    setCosmeticBusy(true);
+    try{
+      const r=await fetch("/api/profile/cosmetics",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,kind,cosmeticId,slot,weaponId:w.id})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Could not equip cosmetic");
+      await refreshProfile();
+      toast.success(kind==="reticle"?"Loadout reticle updated":"Loadout charm updated");
+    }catch(e){toast.error(e instanceof Error?e.message:"Could not equip cosmetic");}
+    finally{setCosmeticBusy(false);}
+  }
   const [previewAttachment, setPreviewAttachment] = useState<{ slot: AttachmentSlot; id: string | null } | null>(null);
   const [activeAttachmentSlot, setActiveAttachmentSlot] = useState<AttachmentSlot | null>(null);
   // Track which weapon the modal is currently showing. When the parent passes
@@ -766,6 +890,8 @@ function CustomizeModal(props: CustomizeModalProps) {
   // users opened the knife's modal, saw "Unlocked" on a skin, but couldn't
   // find an Equip button.
   const canEquipSkin = true;
+  const mastery = weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id);
+  const wonderChallenge = wonderUnlockChallenge(w.id,prestiged,progress?.kills ?? 0,progress?.headshots ?? 0);
   const rarityColor = w.unlockCost >= 3500 ? RARITY_COLORS.legendary : w.unlockCost >= 2000 ? RARITY_COLORS.epic : w.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
 
   return (
@@ -801,6 +927,12 @@ function CustomizeModal(props: CustomizeModalProps) {
             <TabsTrigger value="challenges" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Target className="w-3.5 h-3.5 mr-1.5" /> Challenges
             </TabsTrigger>
+            {w.category!=="melee" && <TabsTrigger value="reticles" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+              <Crosshair className="w-3.5 h-3.5 mr-1.5" /> Reticles
+            </TabsTrigger>}
+            {w.category!=="melee" && !w.wonder && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Charms
+            </TabsTrigger>}
           </TabsList>
 
           <div className="grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,180px)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 min-h-0 flex-1">
@@ -878,7 +1010,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
             <div className="text-white/40 text-xs mb-3">
-              Complete a weapon-specific challenge, then purchase the skin for its existing credit price before equipping.
+              Standard skins: complete the weapon-specific challenge, then purchase with credits. Viridian Blight: finish all Prestige challenges. Eventide: reach Weapon Mastery 5/5. Both are earned separately.
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
@@ -948,6 +1080,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                           </span>
                         )}
                       </div>
+                      <div className="text-white/50 text-[11px] leading-snug mt-1">{s.artBrief}</div>
                       {isBaseline ? (
                         <div className="text-white/40 text-[11px]">Standard issue</div>
                       ) : isUnlockable ? (
@@ -978,7 +1111,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                         </>
                       ) : isHardLocked ? (
                         <div className="text-white/40 text-[10px] italic flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />{s.prestige ? "Prestige this weapon to earn" : "No unlock path"}
+                          <Lock className="w-2.5 h-2.5" />{s.shopCurrency ? `Exclusive · ${s.shopCurrency === "career" ? "Career Token" : "Credit"} Shop` : s.prestige === "cosmic" ? "Reach Weapon Mastery 5/5 to earn" : s.prestige === "toxic" ? "Complete Weapon Prestige to earn" : "No unlock path"}
                         </div>
                       ) : null}
                     </div>
@@ -1004,31 +1137,93 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
           </TabsContent>
 
+          {/* RETICLES TAB — chosen independently per equipped loadout slot. */}
+          <TabsContent value="reticles" className="mt-4">
+            <p className="text-xs text-white/50 mb-3">Pick the hipfire reticle for this loadout slot. Optic/ADS reticles remain unchanged. Color and size are adjusted in Settings.</p>
+            {!canEditAttachments && <p className="text-sm text-amber-300 mb-3">Equip {w.name} in the {slot} slot before customizing it.</p>}
+            <div className="grid sm:grid-cols-2 gap-2">
+              {COSMETICS.filter(c=>c.kind==="reticle").map(c=>{
+                const owned=account?.ownedCosmetics.includes(c.id)??["classic","dot"].includes(c.id);
+                const selected=canEditAttachments&&(slot==="primary"?profile.primaryReticle:profile.secondaryReticle)===c.id;
+                return <div key={c.id} className={`p-3 rounded-lg border ${selected?"border-amber-400/60 bg-amber-500/10":"border-white/10 bg-black/30"}`}>
+                  <div className="flex gap-2 items-center"><span className="text-2xl w-9 text-center" style={{color:c.color}}>{c.symbol}</span>
+                    <div className="flex-1 min-w-0"><div className="text-sm text-white font-semibold">{c.name}</div><p className="text-xs text-white/45">{c.description}</p></div></div>
+                  <Button size="sm" className="mt-2 w-full" disabled={!canEditAttachments||!owned||selected||cosmeticBusy} onClick={()=>void equipCosmetic("reticle",c.id)}>
+                    {selected?"Equipped":owned?"Equip":"Locked · Shop"}
+                  </Button>
+                </div>;
+              })}
+            </div>
+          </TabsContent>
+          {/* CHARMS TAB — permanent account cosmetics, selected per weapon. */}
+          <TabsContent value="charms" className="mt-4">
+            {!canEditAttachments && <p className="text-sm text-amber-300 mb-3">Equip {w.name} in the {slot} slot before customizing it.</p>}
+            <p className="text-xs text-white/50 mb-3">Charms are cosmetic pendants mounted to the weapon model and visible in first person and to other players. Buy designs once in the Shop, then equip them independently in each saved loadout slot.</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {COSMETICS.filter(c=>c.kind==="charm").map(c=>{
+                const owned=account?.ownedCosmetics.includes(c.id)??c.id==="none";
+                const selected=canEditAttachments&&(slot==="primary"?profile.primaryCharm:profile.secondaryCharm)===c.id;
+                return <div key={c.id} className={`p-3 rounded-lg border ${selected?"border-amber-400/60 bg-amber-500/10":"border-white/10 bg-black/30"}`}>
+                  <div className="flex gap-2 items-center"><span className="text-2xl w-9 text-center" style={{color:c.color}}>{c.symbol}</span>
+                    <div className="flex-1 min-w-0"><div className="text-sm text-white font-semibold">{c.name}</div>
+                      <p className="text-xs text-white/45">{c.description}</p></div></div>
+                  <Button size="sm" className="mt-2 w-full" disabled={!canEditAttachments||!owned||selected||cosmeticBusy}
+                    onClick={()=>void equipCosmetic("charm",c.id)}>
+                    {selected?"Equipped":owned?"Equip":"Locked · Shop"}
+                  </Button>
+                </div>;
+              })}
+            </div>
+          </TabsContent>
+
           {/* CHALLENGES TAB — per-weapon skin challenges with progress */}
           <TabsContent value="challenges" className="mt-4">
             <div className={`mb-3 rounded-lg border p-3 text-xs ${prestiged ? "border-violet-400/40 bg-violet-500/10" : "border-white/10 bg-black/30"}`}>
               <div className="flex justify-between gap-2 items-center mb-2">
                 <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
-                  {prestiged ? "✦ PRESTIGED — Eventide + Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
+                  {prestiged ? "✦ PRESTIGED — Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
                 </span>
-                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">+1 token on completion</span>}
+                {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">Reward: Viridian Blight</span>}
               </div>
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
                 <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Both animated Prestige finishes can be equipped from Skins." : "Complete every cosmetic challenge to earn a permanent weapon Prestige and one Wonder Weapon token."}</p>
+              <p className="text-white/50">{prestiged ? "Viridian Blight earned." : "Complete every regular cosmetic challenge to earn Viridian Blight."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-amber-300">Weapon Mastery · {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).title}</span>
-                <span className="text-white/50">Rank {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).rank}/5</span>
+                <span className="font-semibold text-amber-300">Weapon Mastery · {mastery.title}</span>
+                <span className="text-white/50">Rank {mastery.rank}/5 · Reward: Eventide</span>
               </div>
               <div className="mt-1 text-white/50">
-                {progress?.kills ?? 0} kills · {progress?.headshots ?? 0} headshots
-                {weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next &&
-                  ` · Next: ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.kills} kills / ${weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0).next!.headshots} headshots`}
+                {progress?.kills ?? 0} kills {w.category === "melee" ? "(melee mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
+                {mastery.next && ` · Next: ${mastery.next.kills} kills (${Math.max(0, mastery.next.kills - (progress?.kills ?? 0))} remaining)${w.category === "melee" ? "" : ` · ${mastery.next.headshots} headshots ${(progress?.headshots ?? 0) >= mastery.next.headshots ? "✓" : `(${mastery.next.headshots - (progress?.headshots ?? 0)} remaining)`}`}`}
               </div>
+              
             </div>
+            {/* Wonder is a separate challenge, outside the seven Prestige trials. */}
+            {!w.wonder && (
+              <div className={`mb-3 rounded-lg border p-3 text-xs ${wonderChallenge.completed?"border-emerald-500/40 bg-emerald-500/10":"border-violet-500/30 bg-violet-500/5"}`} aria-label="Wonder Weapon Unlock challenge">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-violet-200 text-sm font-bold flex items-center gap-2"><Sparkles className="w-4 h-4" />{wonderChallenge.title}</span>
+                  <span className={wonderChallenge.completed?"text-emerald-300 font-semibold":"text-white/60"}>
+                    {wonderChallenge.completed?"✓ Completed":`${wonderChallenge.progress}/${wonderChallenge.goal} objectives`}
+                  </span>
+                </div>
+                <p className="mt-1 text-white/55">Reward: {wonderChallenge.reward}. Complete both objectives independently; this challenge does not count toward Prestige.</p>
+                <div className="mt-3 h-1.5 rounded bg-black/50 overflow-hidden">
+                  <div className={wonderChallenge.completed?"h-full bg-emerald-400":"h-full bg-violet-400"} style={{width:`${wonderChallenge.progress/wonderChallenge.goal*100}%`}} />
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {wonderChallenge.requirements.map(req=>(
+                    <div key={req.id} className={`flex items-center justify-between gap-2 rounded-md border p-2 ${req.completed?"border-emerald-500/30 text-emerald-200":"border-white/10 text-white/70"}`}>
+                      <span>{req.completed?"✓":"○"} {req.title}</span>
+                      <span className="font-mono tabular-nums shrink-0">{req.progress}/{req.goal}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {challengeViews.filter(c => !c.completed).length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>
             ) : (

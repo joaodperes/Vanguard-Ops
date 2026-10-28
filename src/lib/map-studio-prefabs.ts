@@ -2,8 +2,7 @@
  * Store them as normal MapProp values: a saved prefab has the same appearance
  * and collision in the editor, client and authoritative game simulation. */
 import type { MapProp } from "./map-visuals";
-import type { MapFeature } from "./map-blueprints";
-
+import {attachStairsToPlatform,type MapFeature} from "./map-blueprints";
 import {STUDIO_STOREY_HEIGHT} from "./map-studio-snapping";
 
 export const STUDIO_BUILDING_PRESETS = [
@@ -53,8 +52,8 @@ export function studioStructurePrefab(id:StudioStructurePresetId,x:number,z:numb
   };
   switch(id){
     case "alley":
-      add("cover",-9,0,1.4,32,5,"West alley wall");
-      add("cover",9,0,1.4,32,5,"East alley wall");break;
+      add("cover",-9,0,1,32,5,"West alley wall");
+      add("cover",9,0,1,32,5,"East alley wall");break;
     case "room":
       add("cover",0,-11,24,1,5,"Rear wall");
       add("cover",-12,0,1,22,5,"Left wall");
@@ -63,18 +62,18 @@ export function studioStructurePrefab(id:StudioStructurePresetId,x:number,z:numb
       add("cover",8,11,8,1,5,"Entry east");break;
     case "rooftop":
       add("platform",0,0,22,24,5,"Roof deck",false);
-      out.push({id:"roof_stairs",kind:"stairs",x:x+15,z:z-10,w:4,d:14,h:5,label:"Roof access",axis:"z",sign:1});break;
+      out.push(attachStairsToPlatform({id:"roof_stairs",kind:"stairs",x:x+15,z,w:4,d:14,h:5,label:"Roof access",axis:"x",sign:1},out[0],"east"));break;
     case "market":
-      for(const [dx,dz] of [[-8,-7],[8,-7],[-8,7],[8,7]])add("cover",dx,dz,6,5,2.5,"Market stall");
+      for(const [dx,dz] of [[-8,-7],[8,-7],[-8,7],[8,7]])add("cover",dx,dz,6,5,3,"Market stall");
       break;
     case "checkpoint":
-      add("cover",-7,0,7,2,2.3,"Left barricade");
-      add("cover",7,0,7,2,2.3,"Right barricade");
-      add("cover",0,-6,13,2,1.2,"Rear checkpoint cover");break;
+      add("cover",-7,0,7,2,2,"Left barricade");
+      add("cover",7,0,7,2,2,"Right barricade");
+      add("cover",0,-6,13,2,1,"Rear checkpoint cover");break;
     case "stairs":
       out.push({id:"stairwell",kind:"stairs",x,z,w:5,d:14,h:5,label:"Stairwell",axis:"z",sign:1});break;
     case "courtyard":
-      for(const [dx,dz] of [[-9,-9],[9,-9],[-9,9],[9,9]])add("cover",dx,dz,4,4,1.5,"Courtyard planter");
+      for(const [dx,dz] of [[-9,-9],[9,-9],[-9,9],[9,9]])add("cover",dx,dz,4,4,2,"Courtyard planter");
       break;
     default:throw Error("Unknown structure preset: "+id);
   }

@@ -155,6 +155,39 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 3
+                  },
+                  "assemblyId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "attachment": {
+                    "type": "object",
+                    "required": [
+                      "platformId",
+                      "edge"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "platformId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "edge": {
+                        "enum": [
+                          "north",
+                          "south",
+                          "east",
+                          "west"
+                        ]
+                      },
+                      "offset": {
+                        "type": "number"
+                      },
+                      "baseY": {
+                        "type": "number"
+                      }
+                    }
                   }
                 },
                 "additionalProperties": false

@@ -2,7 +2,7 @@
   "version": 2,
   "id": "bunker",
   "blueprint": {
-    "name": "BLACKSITE",
+    "name": "Blacksite",
     "shortName": "BLK",
     "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
     "pace": "compact",

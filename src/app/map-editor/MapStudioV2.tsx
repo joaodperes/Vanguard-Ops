@@ -5,7 +5,11 @@ import MapStudio3D,{type StudioSelection,type StudioMode,type StudioTransform} f
 import {MAP_DOCUMENTS,validateMapDocument,type MapDocument} from "@/lib/map-documents";
 import {importMapDocuments,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
 import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
-  type MapRegion,type MapFeature,type MapHazard} from "@/lib/map-blueprints";
+  featureFootprint,reconcileFeatureAttachments,resolveStairAttachments,attachStairsToPlatform,
+  type PlatformEdge,type MapRegion,type MapFeature,type MapHazard} from "@/lib/map-blueprints";
+import {constructionDimension,wallBetween,transformFeatureAssembly,copyFeatureAssembly,joinFeatureFaces} from "@/lib/map-studio-construction";
+import {STUDIO_ASSETS,assetBounds,instantiateStudioAsset,saveStudioAsset,importStudioAssets,type StudioAsset} from "@/lib/map-studio-assets";
+import {elevationSpan,yAtElevationFace} from "@/lib/map-studio-elevation";
 import {mapProps,visualThemeForMap,type MapProp,type MapVisualTheme,type PropKind,type SurfacePattern} from "@/lib/map-visuals";
 import {getMap} from "@/lib/game-protocol";
 import {studioMapIssues,studioRegionLinks,studioBuildingPlacementIssues} from "@/lib/map-studio-diagnostics";
@@ -15,17 +19,17 @@ import {legacyCoverToFeature,legacyFlightToFeature,legacyEnvironmentToHazard,tog
 import {stairFlightBounds,transformStairFlight,maxLegacyFlightRise} from "@/lib/legacy-stair-flights";
 import {Undo2,Redo2,Download,Upload,Play,Copy,Trash2,RotateCcw,Plus} from "lucide-react";
 import {snapStudioFootprint,snapStudioElevation,STUDIO_STOREY_HEIGHT,
-  type StudioSnapTarget,type StudioSnapResult} from "@/lib/map-studio-snapping";
+  type StudioSnapMode,type StudioSnapTarget,type StudioSnapResult} from "@/lib/map-studio-snapping";
 
 type Team="ffa"|"red"|"blue";
-type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
+type Tool="select"|"region"|"circle"|"triangle"|"wall"|"asset"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
-type PaletteStamp={tool:"prop"|"kit";buildingKit?:StudioBuildingPresetId;structureKit?:StudioStructurePresetId};
+type PaletteStamp={tool:"prop"|"kit"|"asset";buildingKit?:StudioBuildingPresetId;structureKit?:StudioStructurePresetId;assetId?:string};
 const PALETTE_MIME="application/x-vanguard-map-prefab";
 const teams:Team[]=["ffa","red","blue"];
 const tools:{heading:string;items:[Tool,string][]}[]=[
   {heading:"Floor and districts",items:[["region","Rectangle"],["circle","Ellipse"],["triangle","Triangle"]]},
-  {heading:"Combat geometry",items:[["cover","Cover"],["platform","Platform"],["stairs","Stairs"],["kit","Structure kit"]]},
+  {heading:"Combat geometry",items:[["wall","Draw wall"],["cover","Cover"],["platform","Platform"],["stairs","Stairs"],["kit","Structure kit"]]},
   {heading:"Objects",items:[["prop","Prop / building"],["hazard","Hazard"]]},
   {heading:"Player starts",items:[["ffa","FFA"],["red","Red team"],["blue","Blue team"]]},
 ];
@@ -63,6 +67,15 @@ function Picker({label,value,options,save}:{label:string;value:string;options:re
     </select></label>;
 }
 function caption(s:StudioSelection){return s.type+(s.team?" "+s.team:"")+" #"+(s.index+1);}
+function AssetThumb({asset}:{asset:StudioAsset}){
+  const color=asset.props[0]?.color??(asset.category==="Buildings"?"#b99577":"#69a99a");
+  return <svg viewBox="0 0 80 45" className="mb-1 h-10 w-full rounded bg-black/25" aria-hidden="true">
+    <path d="M15 30 43 40 68 26 40 17Z" fill="#17292c"/>
+    <path d="M20 27V12L44 20V36Z" fill={color}/><path d="M44 20 63 10V26L44 36Z" fill={color} opacity=".65"/>
+    <path d="M20 12 39 3 63 10 44 20Z" fill={color} opacity=".9"/>
+    {asset.features.some(f=>f.kind==="stairs")&&<path d="M10 34H17V29H24V24H31V19H38" fill="none" stroke="#e7e1be" strokeWidth="3"/>}
+  </svg>;
+}
 
 export default function MapEditorClient(){
   const [library,setLibrary]=useState<MapDocumentLibrary>(()=>clone(MAP_DOCUMENTS));
@@ -70,11 +83,17 @@ export default function MapEditorClient(){
   const [selection,setSelection]=useState<StudioSelection|null>(null);
   const [tool,setTool]=useState<Tool>("select");
   const [view,setView]=useState<"3d"|"2d">("3d"),[mode,setMode]=useState<StudioMode>("select");
-  const [grid,setGrid]=useState(2),[zoom,setZoom]=useState(1);
+  const [grid,setGrid]=useState(1),[zoom,setZoom]=useState(1);
+  const [snapMode,setSnapMode]=useState<StudioSnapMode>("join"),[editAssembly,setEditAssembly]=useState(true);
+  const [guide,setGuide]=useState(true),[assetSearch,setAssetSearch]=useState("");
+  const [customAssets,setCustomAssets]=useState<StudioAsset[]>([]),[assetId,setAssetId]=useState("container");
+  const [assetName,setAssetName]=useState(""),assetFileRef=useRef<HTMLInputElement>(null);
+  const assets=useMemo(()=>[...STUDIO_ASSETS,...customAssets],[customAssets]);
   const [smartSnap,setSmartSnap]=useState(true),[surfaceSnap,setSurfaceSnap]=useState(true);
   const [paletteDragging,setPaletteDragging]=useState<PaletteStamp|null>(null);
   const [moveAxis,setMoveAxis]=useState<"x"|"y"|"z">("x");
   const [stamp,setStamp]=useState(false),[showCollision,setShowCollision]=useState(false);
+  const [wallStart,setWallStart]=useState<Point|null>(null);
   const [showIssues,setShowIssues]=useState(true),[showRoutes,setShowRoutes]=useState(false);
   const [propKind,setPropKind]=useState<PropKind>("building");
   const [buildingKit,setBuildingKit]=useState<StudioBuildingPresetId>("house");
@@ -101,9 +120,9 @@ export default function MapEditorClient(){
   // Include inherited engine blocks: snapped placements must match the real map,
   // not just newly authored geometry. Override positions preserve stable indices.
   const snapTargets=useMemo<StudioSnapTarget[]>(()=>{
-    const features:StudioSnapTarget[]=plan.features.map((f,i)=>({
+    const features:StudioSnapTarget[]=resolveStairAttachments(plan.features).map((f,i)=>({
       key:"feature:"+i,kind:f.kind==="platform"?"platform":f.kind==="stairs"?"stairs":"cover",
-      x:f.x,z:f.z,w:f.w,d:f.d,y:f.y??0,h:f.h,
+      ...featureFootprint(f),
     }));
     const authored:StudioSnapTarget[]=theme.props.filter(p=>p.kind==="building").map(p=>{
       const i=theme.props.indexOf(p);
@@ -117,20 +136,25 @@ export default function MapEditorClient(){
     const legacy:StudioSnapTarget[]=originals.flatMap((b,i)=>{
       if(hidden.has(i))return [];
       const box=overrideBox(b,plan.legacyCoverOverrides?.[String(i)]);
-      if(box.size[0]*2<2||box.size[2]*2<2)return [];
+      if(box.size[0]<=0||box.size[2]<=0)return [];
       return [{key:"legacy:"+i,kind:box.kind==="platform"?"platform" as const:"cover" as const,
         x:box.pos[0],z:box.pos[2],w:box.size[0]*2,d:box.size[2]*2,
         y:box.pos[1]-box.size[1],h:box.size[1]*2}];
     });
     return [...features,...authored,...inherited,...legacy];
   },[plan,theme.props,generated,base]);
-  const issues=useMemo(()=>studioMapIssues(plan,theme.props,legacySpawns),[plan,theme.props,legacySpawns]);
+  const legacyBoxes=useMemo(()=>(base.editorLegacyCoverSource??base.cover).flatMap((b,i)=>
+    plan.legacyCoverDisabled?.includes(i)?[]:[overrideBox(b,plan.legacyCoverOverrides?.[String(i)])]),[base,plan]);
+  const issues=useMemo(()=>studioMapIssues(plan,theme.props,legacySpawns,legacyBoxes),[plan,theme.props,legacySpawns,legacyBoxes]);
   const routes=useMemo(()=>studioRegionLinks(plan),[plan]);
   const faults=useMemo(()=>[...validateMapDocument(current),...validateBlueprint(plan)],[current,plan]);
   const dirty=JSON.stringify(current)!==JSON.stringify(MAP_DOCUMENTS[id]??null);
 
   useEffect(()=>{
     try{
+      setGuide(localStorage.getItem("vanguard-studio-guide")!=="hidden");
+      const savedAssets=localStorage.getItem("vanguard-studio-assets-v1");
+      if(savedAssets)setCustomAssets(importStudioAssets(JSON.parse(savedAssets)));
       const newer=localStorage.getItem("vanguard-map-studio-v2");
       if(newer){
         const saved=JSON.parse(newer) as Record<string,MapDocument>;
@@ -148,6 +172,7 @@ export default function MapEditorClient(){
       }
     }catch(e){setMessage("Could not recover a saved draft: "+String(e));}
   },[]);
+  useEffect(()=>{try{localStorage.setItem("vanguard-studio-assets-v1",JSON.stringify({version:1,assets:customAssets}));}catch{}},[customAssets]);
   useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-v2",JSON.stringify(library));}catch{}},[library]);
   const commit=(next:MapDocumentLibrary,note?:string)=>{
     undoRef.current=[...undoRef.current.slice(-49),library];redoRef.current=[];
@@ -155,11 +180,14 @@ export default function MapEditorClient(){
   };
   const edit=(action:(d:MapDocumentLibrary)=>void,note?:string)=>{
     const next=clone(library);action(next);
+    for(const key of Object.keys(next))next[key].blueprint.features=reconcileFeatureAttachments(next[key].blueprint.features,library[key]?.blueprint.features);
     if(afterlight&&next.arena_neon&&next.terminal){
       const other=id==="terminal"?"arena_neon":"terminal";
-      const old=next[other].blueprint,b=next[id].blueprint;
-      next[other].blueprint={...clone(b),name:old.name,shortName:old.shortName,
-        description:old.description,templateMapId:old.templateMapId};
+      const b=next[id].blueprint;
+      // Preserve the editions' deliberately different footprints and spawn sets.
+      for(const key of ["features","hazards","legacyCoverOverrides","legacyCoverDisabled","legacyEnvironmentOverrides","legacyEnvironmentDisabled","cityBuildingDisabled"] as const)
+        if(JSON.stringify(b[key])!==JSON.stringify(library[id].blueprint[key]))Object.assign(next[other].blueprint,{[key]:b[key]===undefined?undefined:clone(b[key])});
+      next.terminal.theme.props=clone(next.arena_neon.theme.props);
     }
     commit(next,note);
   };
@@ -179,6 +207,7 @@ export default function MapEditorClient(){
   });
   const getStampSize=(kind:Tool,rect?:{w:number;d:number},choice?:PaletteStamp)=>{
     if(rect)return rect;
+    if(kind==="asset"){const asset=assets.find(a=>a.id===(choice?.assetId??assetId));if(asset)return assetBounds(asset);}
     if(kind==="prop"){
       const k=choice?.buildingKit??buildingKit;
       if(propKind==="building"||choice?.buildingKit){
@@ -194,13 +223,26 @@ export default function MapEditorClient(){
     return {w:kind==="stairs"?4:kind==="hazard"?6:12,d:kind==="stairs"?10:kind==="hazard"?6:12};
   };
   const resolveAt=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,
-    bypass=false,ignoreKey?:string):StudioSnapResult=>{
+    bypass=false,ignoreKey?:string,source?:MapFeature):StudioSnapResult & {feature?:MapFeature}=>{
     const size=getStampSize(kind,rect,choice);
-    const magnetic=["prop","cover","platform","stairs","kit","hazard"].includes(kind);
-    return snapStudioFootprint({...p,...size},snapTargets,{
+    const magnetic=["prop","asset","wall","cover","platform","stairs","kit","hazard"].includes(kind);
+    const geometry=kind==="stairs"?{...(source??{id:"preview",kind:"stairs" as const,h:5,axis:"z" as const,sign:1 as const}),...p,w:size.w,d:size.d}:null;
+    const footprint=geometry?featureFootprint(geometry):{...p,...size};
+    const offsetX=geometry?footprint.x-p.x:kind==="asset"&&"x" in size?Number(size.x):0;
+    const offsetZ=geometry?footprint.z-p.z:kind==="asset"&&"z" in size?Number(size.z):0;
+    const ignoreKeys=source?.assemblyId&&editAssembly?plan.features.flatMap((f,i)=>f.assemblyId===source.assemblyId?["feature:"+i]:[]):[];
+    const result=snapStudioFootprint({...footprint,x:p.x+offsetX,z:p.z+offsetZ},snapTargets,{
       grid,smart:magnetic&&smartSnap&&!bypass,ignoreKey,
-      surface:surfaceSnap&&magnetic&&!bypass,
+      ignoreKeys,mode:kind==="prop"&&propKind==="building"?"clearance":snapMode,
+      surface:surfaceSnap&&magnetic&&!bypass&&kind!=="stairs",
     });
+    const final={...result,x:result.x-offsetX,z:result.z-offsetZ,w:size.w,d:size.d};
+    if(geometry&&!source&&smartSnap&&!bypass){
+      const attached=nearestPlatformSnap({...geometry,x:final.x,z:final.z,y:0},plan.features);
+      if(attached&&Math.hypot(attached.x-final.x,attached.z-final.z)<=8)
+        return {...final,x:attached.x,z:attached.z,y:attached.y,w:attached.w,d:attached.d,feature:attached,hints:[...final.hints,"Landing attached to "+attached.attachment!.platformId]};
+    }
+    return geometry?{...final,feature:{...geometry,x:final.x,z:final.z,y:final.y??geometry.y??0}}:final;
   };
   const buildingIssue=(x:number,z:number,y=0,kit=buildingKit,excludeIndex=-1,source?:MapProp)=>{
     const house={...(source??studioBuildingPrefab(kit,x,z)),x,z,y};
@@ -209,7 +251,23 @@ export default function MapEditorClient(){
       [...theme.props.filter((_,i)=>i!==excludeIndex),...generated],
       spawns)[0]?.message??null;
   };
+  const assetIssue=(x:number,z:number,y=0,chosenAssetId=assetId)=>{
+    const asset=assets.find(a=>a.id===chosenAssetId);if(!asset)return null;
+    let previewIndex=0;const pieces=instantiateStudioAsset(asset,x,z,()=>"preview_"+(++previewIndex),y);
+    for(const prop of pieces.props){
+      const issue=studioBuildingPlacementIssues(prop,plan,[...theme.props,...generated,...pieces.props.filter(p=>p!==prop)],
+        [...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns])[0];
+      if(issue)return issue.message;
+    }return null;
+  };
   const place=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,bypass=false)=>{
+    if(kind==="wall"){
+      const point={x:grid?Math.round(p.x/grid)*grid:p.x,z:grid?Math.round(p.z/grid)*grid:p.z};
+      if(!wallStart){setWallStart(point);setMessage("Wall start set. Click its end point.");return;}
+      const feature=wallBetween(wallStart,point,unique("wall"));
+      editPlan(bp=>{bp.features.push(feature);},"Drew a wall between its end faces");
+      setWallStart(null);if(!stamp)setTool("select");return;
+    }
     const placed=resolveAt(kind,p,rect,choice,bypass);
     const {x,z}=placed,y=placed.y??0,w=rect?.w,d=rect?.d;
     const selectedKind=choice?.buildingKit?"building":propKind;
@@ -217,6 +275,13 @@ export default function MapEditorClient(){
     if(kind==="prop"&&selectedKind==="building"){
       const problem=buildingIssue(x,z,y,chosenKit);
       if(problem){setMessage("Cannot place building: "+problem);return;}
+    }
+    const asset=kind==="asset"?assets.find(a=>a.id===(choice?.assetId??assetId)):undefined;
+    const assetPieces=asset?instantiateStudioAsset(asset,x,z,()=>unique("asset"),y):undefined;
+    for(const prop of assetPieces?.props??[]){
+      const problems=studioBuildingPlacementIssues(prop,plan,[...theme.props,...generated,...assetPieces!.props.filter(p=>p!==prop)],
+        [...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue,...legacySpawns]);
+      if(problems.length){setMessage("Cannot place asset: "+problems[0].message);return;}
     }
     let chosen:StudioSelection|null=null;
     edit(all=>{
@@ -228,13 +293,25 @@ export default function MapEditorClient(){
       }else if(["cover","platform","stairs"].includes(kind)){
         chosen={type:"feature",index:bp.features.length};
         const type=kind as MapFeature["kind"];
-        bp.features.push({id:unique("feature"),kind:type,x,z,y,w:w??(type==="stairs"?4:12),
-          d:d??(type==="stairs"?10:12),h:type==="cover"?2.8:STUDIO_STOREY_HEIGHT,
-          label:"New "+type,...(type==="stairs"?{axis:"z" as const,sign:1 as const}:{})});
+        let feature:MapFeature={id:unique("feature"),kind:type,x,z,y,w:constructionDimension(w??(type==="stairs"?4:12),grid),
+          d:constructionDimension(d??(type==="stairs"?10:12),grid),h:type==="cover"?3:STUDIO_STOREY_HEIGHT,
+          label:"New "+type,...(type==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
+        if(type==="stairs"&&placed.feature)feature={...placed.feature,id:feature.id,label:feature.label};
+        if(type==="stairs"&&smartSnap&&!bypass){
+          const attached=nearestPlatformSnap(feature,bp.features);
+          if(attached&&Math.hypot(attached.x-feature.x,attached.z-feature.z)<=8)feature=attached;
+        }
+        bp.features.push(feature);
+        if(feature.attachment){const parent=bp.features.find(p=>p.id===feature.attachment!.platformId);if(parent)parent.autoStairs=false;}
       }else if(kind==="kit"){
         chosen={type:"feature",index:bp.features.length};
-        bp.features.push(...studioStructurePrefab(choice?.structureKit??structureKit,x,z).map(f=>
-          ({...f,id:unique("kit"),y:(f.y??0)+y})));
+        const recipe:StudioAsset={id:"kit",name:"Kit",category:"Construction",features:studioStructurePrefab(choice?.structureKit??structureKit,0,0),props:[]};
+        bp.features.push(...instantiateStudioAsset(recipe,x,z,()=>unique("kit"),y).features);
+      }else if(kind==="asset"&&assetPieces){
+        chosen=assetPieces.features.length?{type:"feature",index:bp.features.length}:
+          {type:"prop",index:all[afterlight?"arena_neon":id].theme.props.length};
+        bp.features.push(...assetPieces.features);
+        all[afterlight?"arena_neon":id].theme.props.push(...assetPieces.props);
       }else if(kind==="hazard"){
         bp.hazards??=[];chosen={type:"hazard",index:bp.hazards.length};
         bp.hazards.push({id:unique("hazard"),type:hazardKind,x,z,y:y+1,w:w??6,d:d??6,h:2,
@@ -259,7 +336,7 @@ export default function MapEditorClient(){
     const key=s.type+":"+s.index;
     const snapped=item?resolveAt(s.type==="feature"?(item as MapFeature).kind as Tool:
       s.type==="prop"?"prop":"hazard",
-      {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key):null;
+      {x:item.x+dx,z:item.z+dz},{w:item.w??5,d:item.d??5},undefined,bypass,key,s.type==="feature"?item as MapFeature:undefined):null;
     if(s.type==="prop"&&(item as MapProp|undefined)?.kind==="building"&&snapped){
       const problem=buildingIssue(snapped.x,snapped.z,snapped.y??item?.y??0,
         buildingKit,s.index,item as MapProp);
@@ -267,6 +344,10 @@ export default function MapEditorClient(){
     }
     edit(d=>{
       const bp=d[id].blueprint;
+      if(s.type==="feature"&&snapped){
+        const original=bp.features[s.index],fp=featureFootprint({...original,x:snapped.x,z:snapped.z});
+        bp.features=transformFeatureAssembly(bp.features,original.id,{...fp,turns:original.turns??0},!!(editAssembly&&original.assemblyId));return;
+      }
       const target=s.type==="region"?bp.regions[s.index]:s.type==="feature"?bp.features[s.index]:
         s.type==="hazard"?bp.hazards?.[s.index]:
         s.type==="prop"?d[afterlight?"arena_neon":id].theme.props[s.index]:null;
@@ -280,7 +361,10 @@ export default function MapEditorClient(){
   };
   const snapTransform=(s:StudioSelection,t:StudioTransform):StudioTransform=>{
     if(s.type!=="prop"&&s.type!=="feature"&&s.type!=="hazard")return t;
-    const snapped=snapStudioFootprint(t,snapTargets,{grid,smart:smartSnap,ignoreKey:s.type+":"+s.index});
+    const feature=s.type==="feature"?plan.features[s.index]:undefined;
+    const ignoreKeys=feature?.assemblyId&&editAssembly?plan.features.flatMap((f,i)=>f.assemblyId===feature.assemblyId?["feature:"+i]:[]):[];
+    const snapped=snapStudioFootprint(t,snapTargets,{grid,smart:smartSnap,mode:s.type==="prop"?"clearance":snapMode,
+      ignoreKey:s.type+":"+s.index,ignoreKeys});
     if(moveAxis==="y")return {...t,y:smartSnap?
       snapStudioElevation(t.y,t,snapTargets.filter(a=>a.key!==s.type+":"+s.index)):t.y};
     return {...t,x:moveAxis==="x"?snapped.x:t.x,z:moveAxis==="z"?snapped.z:t.z};
@@ -292,12 +376,15 @@ export default function MapEditorClient(){
     setTool(choice.tool);
     if(choice.buildingKit){setPropKind("building");setBuildingKit(choice.buildingKit);}
     if(choice.structureKit)setStructureKit(choice.structureKit);
+    if(choice.assetId)setAssetId(choice.assetId);
   };
   const dropPalette=(data:string,p:Point,bypass=false)=>{
     setPaletteDragging(null);
     try{
       const parsed=JSON.parse(data) as PaletteStamp;
-      if(parsed.tool==="prop"&&parsed.buildingKit&&STUDIO_BUILDING_PRESETS.some(k=>k.id===parsed.buildingKit)){
+      if(parsed.tool==="asset"&&assets.some(a=>a.id===parsed.assetId)){
+        setAssetId(parsed.assetId!);place("asset",p,undefined,parsed,bypass);
+      }else if(parsed.tool==="prop"&&parsed.buildingKit&&STUDIO_BUILDING_PRESETS.some(k=>k.id===parsed.buildingKit)){
         setPropKind("building");setBuildingKit(parsed.buildingKit);
         place("prop",p,undefined,parsed,bypass);
       }else if(parsed.tool==="kit"&&parsed.structureKit&&STUDIO_STRUCTURE_PRESETS.some(k=>k.id===parsed.structureKit)){
@@ -309,6 +396,7 @@ export default function MapEditorClient(){
   const editSelected=(key:string,value:string|number|boolean)=>{
     if(!selection)return;
     const s=selection;
+    if(typeof value==="number"&&["w","d","h"].includes(key))value=constructionDimension(value,grid);
     edit(d=>{
       const bp=d[id].blueprint;
       if(s.type==="spawn"&&s.team){
@@ -318,11 +406,21 @@ export default function MapEditorClient(){
       const item=s.type==="region"?bp.regions[s.index]:s.type==="feature"?bp.features[s.index]:
         s.type==="hazard"?bp.hazards?.[s.index]:
         s.type==="prop"?d[afterlight?"arena_neon":id].theme.props[s.index]:null;
-      if(item)Object.assign(item,{[key]:value});
+      if(s.type==="feature"&&item&&["x","z","y","h","w","d"].includes(key)){
+        const f=item as MapFeature,next={...f,[key]:value};
+        const fp=featureFootprint(next);
+        bp.features=transformFeatureAssembly(bp.features,f.id,{...fp,turns:f.turns??0},!!(editAssembly&&f.assemblyId));
+      }else if(item)Object.assign(item,{[key]:value});
     });
   };
-  const transform=(s:StudioSelection,t:StudioTransform)=>{
+  const transform=(s:StudioSelection,t:StudioTransform,precision=false)=>{
     if(s.type==="generatedBuilding")return;
+    if(mode==="resize"&&grid>0&&!precision)t={...t,w:constructionDimension(t.w,grid),d:constructionDimension(t.d,grid),h:constructionDimension(t.h,grid)};
+    if(s.type==="feature"){
+      const f=plan.features[s.index];
+      if(f)editPlan(bp=>{bp.features=transformFeatureAssembly(bp.features,f.id,t,!!(editAssembly&&f.assemblyId));},"Edited "+(editAssembly&&f.assemblyId?"assembly":"piece"));
+      return;
+    }
     if(s.type==="legacyStairs"){
       const flight=base.editorLegacyStairFlights?.find(f=>f.start===s.index);
       const source=base.editorLegacyCoverSource??base.cover;
@@ -383,7 +481,7 @@ export default function MapEditorClient(){
     edit(d=>{
       const bp=d[id].blueprint;
       if(s.type==="region"){const item=bp.regions[s.index];if(item){chosen={type:"region",index:bp.regions.length};bp.regions.push({...item,x:item.x+12});}}
-      if(s.type==="feature"){const item=bp.features[s.index];if(item){chosen={type:"feature",index:bp.features.length};bp.features.push({...item,id:unique("feature"),x:item.x+10});}}
+      if(s.type==="feature"){const item=bp.features[s.index];if(item){chosen={type:"feature",index:bp.features.length};bp.features.push(...copyFeatureAssembly(bp.features,item.id,()=>unique("copy"),!!(editAssembly&&item.assemblyId)));}}
       if(s.type==="hazard"){const item=bp.hazards?.[s.index];if(item){chosen={type:"hazard",index:bp.hazards!.length};bp.hazards!.push({...item,id:unique("hazard"),x:item.x+10});}}
       if(s.type==="prop"){const list=d[afterlight?"arena_neon":id].theme.props,item=list[s.index];if(item){chosen={type:"prop",index:list.length};list.push({...item,x:item.x+10,lotId:undefined});}}
       if(s.type==="spawn"&&s.team){const p=bp.spawns[s.team][s.index];if(p){chosen={type:"spawn",team:s.team,index:bp.spawns[s.team].length};bp.spawns[s.team].push([p[0]+10,p[1],p[2]]);}}
@@ -403,7 +501,10 @@ export default function MapEditorClient(){
     edit(d=>{
       const bp=d[id].blueprint;
       if(s.type==="region")bp.regions.splice(s.index,1);
-      if(s.type==="feature")bp.features.splice(s.index,1);
+      if(s.type==="feature"){
+        const f=bp.features[s.index];
+        bp.features=bp.features.filter((q,i)=>i!==s.index&&!(editAssembly&&f.assemblyId&&q.assemblyId===f.assemblyId));
+      }
       if(s.type==="hazard")bp.hazards?.splice(s.index,1);
       if(s.type==="prop")d[afterlight?"arena_neon":id].theme.props.splice(s.index,1);
       if(s.type==="spawn"&&s.team)bp.spawns[s.team].splice(s.index,1);
@@ -434,7 +535,7 @@ export default function MapEditorClient(){
     const draft=clone(current);
     draft.id=name;draft.blueprint.name=name.replaceAll("_"," ").toUpperCase();
     draft.blueprint.shortName=name.slice(0,3).toUpperCase();
-    draft.blueprint.templateMapId=(["bunker","shipyard","compound","terminal","skybridge","arena_neon"].includes(id)?id:plan.templateMapId)??"compound";
+    draft.blueprint.templateMapId=(MAP_DOCUMENTS[id]?id:plan.templateMapId)??"compound";
     draft.theme=clone(theme);delete draft.theme.inheritPropsFrom;
     commit({...library,[name]:draft},"Created "+name+". Register the exported file in map-documents.ts to publish.");
     setId(name);setNewId("");setSelection(null);
@@ -483,10 +584,13 @@ export default function MapEditorClient(){
     const {from,kind,sel}=gesture.current,to=fromPointer(e);
     if(kind==="move"&&sel)move(sel,to.x-from.x,to.z-from.z,e.altKey);
     if(kind==="place"){
-      if(teams.includes(tool as Team))place(tool,to,undefined,undefined,e.altKey);
-      else if(tool==="prop"||tool==="kit")place(tool,to,undefined,undefined,e.altKey);
+      if(tool==="wall"){
+        const wall=wallBetween(from,to,unique("wall"));editPlan(bp=>{bp.features.push(wall);},"Drew wall");
+        setSelection({type:"feature",index:plan.features.length});if(!stamp)setTool("select");
+      }else if(teams.includes(tool as Team))place(tool,to,undefined,undefined,e.altKey);
+      else if(tool==="prop"||tool==="kit"||tool==="asset")place(tool,to,undefined,undefined,e.altKey);
       else place(tool,{x:(from.x+to.x)/2,z:(from.z+to.z)/2},
-        {w:Math.max(12,Math.abs(to.x-from.x)),d:Math.max(12,Math.abs(to.z-from.z))},undefined,e.altKey);
+        {w:Math.max(1,Math.abs(to.x-from.x)||(tool==="stairs"?4:12)),d:Math.max(1,Math.abs(to.z-from.z)||(tool==="stairs"?10:12))},undefined,e.altKey);
     }
     gesture.current=null;setGhost(null);
     try{svgRef.current?.releasePointerCapture(e.pointerId);}catch{}
@@ -503,7 +607,41 @@ export default function MapEditorClient(){
   const region=selection?.type==="region"?plan.regions[selection.index]:undefined;
   const item=feature??hazard??prop??region;
   const spawn=selection?.type==="spawn"&&selection.team?plan.spawns[selection.team][selection.index]:undefined;
+  const legacyItem:StudioTransform|undefined=(()=>{
+    if(!selection)return;
+    if(selection.type==="legacyStairs"){
+      const flight=base.editorLegacyStairFlights?.find(f=>f.start===selection.index);
+      if(flight)return {...stairFlightBounds(flight.indices.map(i=>overrideBox((base.editorLegacyCoverSource??base.cover)[i],plan.legacyCoverOverrides?.[String(i)]))),turns:plan.legacyCoverOverrides?.[String(flight.start)]?.turns??0};
+    }
+    if(selection.type!=="legacyCover"&&selection.type!=="legacyEnvironment")return;
+    const source=selection.type==="legacyCover"?(base.editorLegacyCoverSource??base.cover)[selection.index]:(base.editorLegacyEnvironmentSource??base.environment??[])[selection.index];
+    if(!source)return;
+    const changes=selection.type==="legacyCover"?plan.legacyCoverOverrides:plan.legacyEnvironmentOverrides;
+    const b=overrideBox(source,changes?.[String(selection.index)]);
+    return {x:b.pos[0],y:b.pos[1],z:b.pos[2],w:b.size[0]*2,h:b.size[1]*2,d:b.size[2]*2,turns:changes?.[String(selection.index)]?.turns??0};
+  })();
+  const itemSpan=item&&!region?elevationSpan("y" in item?item.y??0:0,"h" in item?item.h??5:5,hazard?"center":"bottom"):null;
   const libraryDirty=dirty?"Unsaved export":"Shipped source";
+  const saveAsset=()=>{
+    const features=feature?plan.features.filter(f=>f.id===feature.id||(editAssembly&&feature.assemblyId&&f.assemblyId===feature.assemblyId)):[];
+    if(!features.length&&!prop){setMessage("Select an object or assembly to save");return;}
+    const asset=saveStudioAsset(assetName||feature?.label||prop?.text||"Custom asset",features,prop?[prop]:[],unique("custom"));
+    setCustomAssets(old=>[...old,asset]);setAssetName("");setMessage("Saved editable recipe to My assets. Export assets to move it to another browser.");
+  };
+  const importAssets=async(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const input=e.currentTarget,file=input.files?.[0];if(!file)return;
+    try{const incoming=importStudioAssets(JSON.parse(await file.text()));
+      setCustomAssets(old=>[...old.filter(a=>!incoming.some(b=>a.id===b.id)),...incoming]);setMessage("Imported "+incoming.length+" editable asset recipes");
+    }catch(error){setMessage("Asset import failed: "+String(error));}input.value="";
+  };
+  const joinNearest=()=>{
+    if(!feature)return;
+    const candidates=plan.features.filter(f=>f.id!==feature.id&&f.kind==="cover").flatMap(f=>{
+      const joined=joinFeatureFaces(feature,f);return joined?[{joined,distance:Math.hypot(joined.x-feature.x,joined.z-feature.z)}]:[];
+    }).sort((a,b)=>a.distance-b.distance);
+    if(!candidates.length){setMessage("No nearby separated wall face to join");return;}
+    editPlan(bp=>{bp.features[selection!.index]=candidates[0].joined;},"Extended one wall face to meet its neighbor");
+  };
   // The selected object's real footprint follows the cursor while dragging.
   // Commit only on pointer-up, so undo always represents a whole gesture.
   const movingSel=ghost&&gesture.current?.kind==="move"?gesture.current.sel:null;
@@ -515,23 +653,29 @@ export default function MapEditorClient(){
     movingSel.type==="feature"?(movingItem as MapFeature).kind as Tool:
       movingSel.type==="prop"?"prop":movingSel.type==="hazard"?"hazard":"region",
     {x:movingItem.x+ghost.to.x-ghost.from.x,z:movingItem.z+ghost.to.z-ghost.from.z},
-    {w:movingItem.w??5,d:movingItem.d??5},undefined,false,movingSel.type+":"+movingSel.index):null;
+    {w:movingItem.w??5,d:movingItem.d??5},undefined,false,movingSel.type+":"+movingSel.index,movingSel.type==="feature"?movingItem as MapFeature:undefined):null;
   const ghostSnap=ghost&&tool!=="select"?resolveAt(tool,
-    tool==="prop"||tool==="kit"?ghost.to:
+    tool==="prop"||tool==="kit"||tool==="asset"?ghost.to:
       {x:(ghost.from.x+ghost.to.x)/2,z:(ghost.from.z+ghost.to.z)/2},
-    tool==="prop"||tool==="kit"?undefined:
-      {w:Math.max(12,Math.abs(ghost.to.x-ghost.from.x)),
-        d:Math.max(12,Math.abs(ghost.to.z-ghost.from.z))},
+    tool==="prop"||tool==="kit"||tool==="asset"?undefined:
+      {w:Math.max(1,Math.abs(ghost.to.x-ghost.from.x)||(tool==="stairs"?4:12)),
+        d:Math.max(1,Math.abs(ghost.to.z-ghost.from.z)||(tool==="stairs"?10:12))},
     paletteDragging??undefined):null;
   const liveGhost=moveGhost??ghostSnap;
-  const previewIssue=ghostSnap&&tool==="prop"&&(paletteDragging?.buildingKit||propKind==="building")?
+  const ghostFeature=ghostSnap?.feature??(movingSel?.type==="feature"?plan.features[movingSel.index]:undefined);
+  const ghostDisplay=liveGhost&&((ghostFeature?.kind==="stairs")||tool==="stairs")?
+    {...liveGhost,...featureFootprint({...ghostFeature,id:"ghost",kind:"stairs",h:ghostFeature?.h??5,
+      x:liveGhost.x,z:liveGhost.z,w:liveGhost.w,d:liveGhost.d})}:liveGhost;
+  const visualGrid=grid>0?grid*Math.max(1,Math.ceil(Math.max(bounds.w,bounds.d)/(grid*120))):20;
+  const previewIssue=ghostSnap&&tool==="asset"?assetIssue(ghostSnap.x,ghostSnap.z,ghostSnap.y??0,paletteDragging?.assetId??assetId):
+    ghostSnap&&tool==="prop"&&(paletteDragging?.buildingKit||propKind==="building")?
     buildingIssue(ghostSnap.x,ghostSnap.z,ghostSnap.y??0,paletteDragging?.buildingKit??buildingKit):
     moveGhost&&movingSel?.type==="prop"&&(movingItem as MapProp|undefined)?.kind==="building"?
       buildingIssue(moveGhost.x,moveGhost.z,moveGhost.y??(movingItem as MapProp|undefined)?.y??0,
         buildingKit,movingSel.index,movingItem as MapProp):null;
   const previewColor=previewIssue?"#fb7185":"#34d399";
 
-  return <main className="flex h-screen min-h-[540px] flex-col overflow-hidden bg-[#080b10] text-zinc-100">
+  return <main className="flex h-dvh min-h-[540px] flex-col overflow-y-auto bg-[#080b10] text-zinc-100 lg:overflow-hidden">
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#10151c] px-3 py-2">
       <Link href="/" className={btn}>Vanguard</Link>
       <strong className="mr-2 text-sm uppercase tracking-[.15em] text-amber-300">Map Studio 2</strong>
@@ -540,6 +684,7 @@ export default function MapEditorClient(){
       </select>
       <input className={control+" w-28"} value={newId} onChange={e=>setNewId(e.target.value)} placeholder="new_map_id" aria-label="New map ID"/>
       <button className={btn} onClick={createMap}><Plus className="h-3 w-3"/> New</button>
+      <button className={btn} onClick={()=>{setGuide(v=>!v);localStorage.setItem("vanguard-studio-guide",guide?"hidden":"shown");}}>{guide?"Hide guide":"Show guide"}</button>
       <div className="ml-auto flex flex-wrap gap-1">
         <button className={btn} disabled={!undoRef.current.length} onClick={undo}><Undo2 className="h-3.5 w-3.5"/> Undo</button>
         <button className={btn} disabled={!redoRef.current.length} onClick={redo}><Redo2 className="h-3.5 w-3.5"/> Redo</button>
@@ -550,8 +695,12 @@ export default function MapEditorClient(){
         <button className={btn+" bg-amber-500 text-black hover:bg-amber-400"} disabled={faults.length>0} onClick={testDraft}><Play className="h-3.5 w-3.5"/> Playtest</button>
       </div>
     </header>
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <aside className="w-full shrink-0 overflow-y-auto border-b border-white/10 bg-[#10151c] p-3 lg:w-56 lg:border-b-0 lg:border-r">
+    {guide&&<section className="shrink-0 border-b border-emerald-400/20 bg-emerald-950/30 px-4 py-2 text-xs text-zinc-200" aria-label="First map guide">
+      <strong className="text-emerald-300">Build your first space</strong> · 1. Choose a wall, room or rooftop in the Asset library. · 2. Click to place; keep Join faces enabled for construction. · 3. Attach stairs to a platform, then move or resize the assembly. · 4. Check measured warnings and Playtest.
+      <p className="mt-1 text-zinc-400">Construction uses 1u dimensions, 1u walls and 5u storeys. Grid off enables free precision. Each placed recipe is independently editable.</p>
+    </section>}
+    <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+      <aside className="max-h-[30vh] w-full shrink-0 overflow-y-auto border-b border-white/10 bg-[#10151c] p-3 lg:max-h-none lg:w-56 lg:border-b-0 lg:border-r">
         <h2 className="text-xs font-bold uppercase tracking-widest text-amber-300">Create</h2>
         <button className={btn+" my-2 w-full "+(tool==="select"?"border-amber-400":"")} onClick={()=>{setTool("select");setMode("select");}}>Select and inspect</button>
         {tools.map(group=><section key={group.heading} className="mb-3">
@@ -569,27 +718,27 @@ export default function MapEditorClient(){
         {tool==="kit"&&<Picker label="Kit" value={structureKit} options={STUDIO_STRUCTURE_PRESETS.map(p=>p.id)}
           save={v=>setStructureKit(v as StudioStructurePresetId)}/>}
         <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400"><input type="checkbox" checked={stamp} onChange={e=>setStamp(e.target.checked)}/> Repeat placement</label>
-        <div className="mt-3 rounded-md border border-emerald-400/25 bg-emerald-950/20 p-2">
-          <div className="mb-1 text-xs font-semibold text-emerald-300">Drag a prefab onto the map</div>
-          <p className="mb-2 text-[10px] text-zinc-400">Or click a building kit and click the viewport. Alt bypasses magnetic snapping.</p>
-          <div className="grid grid-cols-2 gap-1">
-            {STUDIO_BUILDING_PRESETS.map(p=><button key={p.id} draggable
-              onDragStart={e=>startPaletteDrag(e,{tool:"prop",buildingKit:p.id})}
-              onDragEnd={()=>{setPaletteDragging(null);setGhost(null);}}
-              onClick={()=>{setTool("prop");setPropKind("building");setBuildingKit(p.id);}}
-              className={btn+" cursor-grab text-left text-[10px] "+(buildingKit===p.id&&tool==="prop"?"border-emerald-400":"")}>
-              {p.label} · {p.h}u
-            </button>)}
+        <section className="mt-3 rounded-md border border-emerald-400/25 bg-emerald-950/20 p-2" aria-label="Asset library">
+          <h3 className="text-sm font-semibold text-emerald-300">Asset library</h3>
+          <p className="my-2 text-xs text-zinc-300">Drag or select a recipe, then click to place. Customize each copy in the Inspector.</p>
+          <input aria-label="Search assets" placeholder="Search walls, rooms, containers…" className={control} value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}/>
+          {(["Construction","Buildings","Props","My assets"] as const).map(category=><details key={category} open={category==="Construction"||!!assetSearch}>
+            <summary className="my-2 cursor-pointer text-xs font-semibold">{category}</summary>
+            <div className="grid grid-cols-2 gap-1">
+              {assets.filter(a=>a.category===category&&(a.name+" "+a.description).toLowerCase().includes(assetSearch.toLowerCase())).map(a=><button key={a.id} draggable
+                onDragStart={e=>startPaletteDrag(e,{tool:"asset",assetId:a.id})} onDragEnd={()=>{setPaletteDragging(null);setGhost(null);}}
+                onClick={()=>{setTool("asset");setAssetId(a.id);setWallStart(null);}}
+                className={"rounded border p-1.5 text-left text-xs hover:bg-white/10 "+(tool==="asset"&&assetId===a.id?"border-emerald-300":"border-white/15")}>
+                <AssetThumb asset={a}/>{a.name}
+              </button>)}
+            </div>
+          </details>)}
+          <input type="file" className="hidden" accept=".json,application/json" ref={assetFileRef} onChange={importAssets}/>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <button className={btn} onClick={()=>assetFileRef.current?.click()}>Import assets</button>
+            <button className={btn} onClick={()=>saveFile("asset-library.json",{version:1,assets:customAssets})}>Export assets</button>
           </div>
-          <p className="mb-1 mt-2 text-[10px] uppercase text-zinc-400">Structure assemblies</p>
-          <div className="grid grid-cols-2 gap-1">
-            {STUDIO_STRUCTURE_PRESETS.map(p=><button key={p.id} draggable
-              onDragStart={e=>startPaletteDrag(e,{tool:"kit",structureKit:p.id})}
-              onDragEnd={()=>{setPaletteDragging(null);setGhost(null);}}
-              onClick={()=>{setTool("kit");setStructureKit(p.id);}}
-              className={btn+" cursor-grab text-left text-[10px] "+(structureKit===p.id&&tool==="kit"?"border-emerald-400":"")}>{p.label}</button>)}
-          </div>
-        </div>
+        </section>
         <h3 className="mt-5 border-t border-white/10 pt-3 text-xs font-semibold uppercase text-zinc-400">Object layers</h3>
         {([
           ["Regions",plan.regions.map((_,index)=>({type:"region",index}))],
@@ -616,25 +765,30 @@ export default function MapEditorClient(){
             <button key={v} className={btn+(mode===v?" border-amber-400 text-amber-300":"")} onClick={()=>{setMode(v);setTool("select");}}>{v}</button>)}
           {view==="3d"&&mode==="move"&&(["x","y","z"] as const).map(axis=><button key={axis} className={btn+(moveAxis===axis?" border-cyan-400 text-cyan-300":"")} onClick={()=>setMoveAxis(axis)}>{axis.toUpperCase()}</button>)}
         </div>
-        <div className="absolute right-2 top-2 z-10 flex items-center gap-2 rounded-lg bg-black/80 p-2 text-xs">
+        <div className="absolute right-2 top-14 z-10 flex max-w-[95%] flex-wrap items-center gap-2 rounded-lg bg-black/80 p-2 text-xs">
           <label className="flex items-center gap-1"><input type="checkbox" checked={smartSnap}
             onChange={e=>setSmartSnap(e.target.checked)}/> Magnetic</label>
           <label className="flex items-center gap-1"><input type="checkbox" checked={surfaceSnap}
             onChange={e=>setSurfaceSnap(e.target.checked)}/> Surfaces</label>
           <span>Grid</span>
-          <select value={grid} onChange={e=>setGrid(Number(e.target.value))} className="bg-zinc-900">
+          <select aria-label="Construction grid" value={grid} onChange={e=>setGrid(Number(e.target.value))} className="bg-zinc-900">
             {[0,1,2,5,10].map(n=><option key={n} value={n}>{n===0?"off":n+"u"}</option>)}
           </select>
+          <select aria-label="Alignment mode" className="bg-zinc-900" value={snapMode} onChange={e=>setSnapMode(e.target.value as StudioSnapMode)}>
+            <option value="join">Join faces</option><option value="align">Align edges</option><option value="clearance">3u clearance</option>
+          </select>
+          {view==="2d"&&<span className="text-zinc-400">Major lines: {visualGrid}u</span>}
           {view==="2d"&&<input aria-label="2D zoom" type="range" min=".5" max="2" step=".1" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/>}
         </div>
         {view==="3d"?
           <MapStudio3D mapId={id} map={plan} theme={theme} selected={selection} mode={mode} moveAxis={moveAxis} snap={grid}
+            placementAsset={tool==="asset"?assets.find(a=>a.id===assetId):undefined}
             surfacePlacement={surfaceSnap}
             tool={tool} legacySpawns={legacySpawns} showCollision={showCollision}
             placementProp={tool==="prop"?(propKind==="building"?studioBuildingPrefab(buildingKit,0,0):{kind:propKind,x:0,z:0,w:5,d:5,h:5}):undefined}
             placementKit={tool==="kit"?(()=>{const p=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structureKit);return p?{w:p.width,d:p.depth}:undefined;})():undefined}
             warnings={showIssues?issues:[]} regionLinks={showRoutes?routes:[]}
-            placementProblem={tool==="prop"&&propKind==="building"?
+            placementProblem={tool==="asset"?(x,z,y)=>assetIssue(x,z,y):tool==="prop"&&propKind==="building"?
               (x,z,y)=>buildingIssue(x,z,y):undefined}
             onResolvePlacement={(name,p,options)=>resolveAt(name as Tool,p,undefined,undefined,options?.bypass)}
             onSnapTransform={snapTransform} onDropAt={dropPalette}
@@ -652,11 +806,11 @@ export default function MapEditorClient(){
           onDrop={e=>{e.preventDefault();const data=e.dataTransfer.getData(PALETTE_MIME);
             if(data)dropPalette(data,fromPointer(e),e.altKey);setGhost(null);setPaletteDragging(null);}}>
           <rect x={bounds.x} y={bounds.z} width={bounds.w} height={bounds.d} fill="#131b25"/>
-          {Array.from({length:Math.min(150,Math.ceil(bounds.w/20)+2)},(_,i)=>{
-            const x=Math.floor(bounds.x/20)*20+i*20;return <line key={"x"+i} x1={x} x2={x} y1={bounds.z} y2={bounds.z+bounds.d} stroke="#475569" strokeWidth=".25"/>;
+          {Array.from({length:Math.min(150,Math.ceil(bounds.w/visualGrid)+2)},(_,i)=>{
+            const x=Math.floor(bounds.x/visualGrid)*visualGrid+i*visualGrid;return <line key={"x"+i} x1={x} x2={x} y1={bounds.z} y2={bounds.z+bounds.d} stroke="#475569" strokeWidth=".25"/>;
           })}
-          {Array.from({length:Math.min(150,Math.ceil(bounds.d/20)+2)},(_,i)=>{
-            const z=Math.floor(bounds.z/20)*20+i*20;return <line key={"z"+i} x1={bounds.x} x2={bounds.x+bounds.w} y1={z} y2={z} stroke="#475569" strokeWidth=".25"/>;
+          {Array.from({length:Math.min(150,Math.ceil(bounds.d/visualGrid)+2)},(_,i)=>{
+            const z=Math.floor(bounds.z/visualGrid)*visualGrid+i*visualGrid;return <line key={"z"+i} x1={bounds.x} x2={bounds.x+bounds.w} y1={z} y2={z} stroke="#475569" strokeWidth=".25"/>;
           })}
           {plan.regions.map((r,i)=>{
             const select=(e:React.PointerEvent<SVGElement>)=>objectDown(e,{type:"region",index:i});
@@ -667,15 +821,15 @@ export default function MapEditorClient(){
               <rect key={i} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d} {...props}/>;
           })}
           {showRoutes&&routes.map((l,i)=><line key={i} x1={l.ax} y1={l.az} x2={l.bx} y2={l.bz} stroke="#5eead4" strokeDasharray="3 2" strokeWidth=".9" pointerEvents="none"/>)}
-          {plan.features.map((f,i)=><rect key={f.id} x={f.x-f.w/2} y={f.z-f.d/2} width={f.w} height={f.d}
+          {plan.features.map((f,i)=>{const fp=featureFootprint(f);return <rect key={f.id} x={fp.x-fp.w/2} y={fp.z-fp.d/2} width={fp.w} height={fp.d}
             fill={f.kind==="stairs"?theme.palette.stair:f.kind==="platform"?theme.palette.platform:theme.palette.cover}
             stroke={selection?.type==="feature"&&selection.index===i?"#fbbf24":"#1f2937"} strokeWidth="1"
-            onPointerDown={e=>objectDown(e,{type:"feature",index:i})}/>)}
+            onPointerDown={e=>objectDown(e,{type:"feature",index:i})}/>;})}
           {(plan.hazards??[]).map((h,i)=><rect key={h.id} x={h.x-h.w/2} y={h.z-h.d/2} width={h.w} height={h.d}
             fill="#fb7185" fillOpacity=".65" stroke={selection?.type==="hazard"&&selection.index===i?"white":"#9333ea"}
             onPointerDown={e=>objectDown(e,{type:"hazard",index:i})}/>)}
           {theme.props.map((p,i)=><rect key={i} x={p.x-(p.w??5)/2} y={p.z-(p.d??5)/2} width={p.w??5} height={p.d??5}
-            fill={p.kind==="building"?"#a3ad9d":"#34d399"} fillOpacity=".64"
+            fill={p.color??(p.kind==="building"?"#a3ad9d":"#34d399")} fillOpacity=".64"
             stroke={selection?.type==="prop"&&selection.index===i?"#fbbf24":"#065f46"}
             strokeWidth="1" onPointerDown={e=>objectDown(e,{type:"prop",index:i})}/>)}
           {teams.flatMap(team=>plan.spawns[team].map((p,i)=><circle key={team+i} cx={p[0]} cy={p[2]} r={2}
@@ -683,10 +837,10 @@ export default function MapEditorClient(){
             onPointerDown={e=>objectDown(e,{type:"spawn",index:i,team})}/>))}
           {showIssues&&issues.map((p,i)=><circle key={i} cx={p.x} cy={p.z} r={2.5}
             fill="none" stroke={p.severity==="error"?"#ef4444":"#fbbf24"} strokeWidth=".8" pointerEvents="none"/>)}
-          {ghost&&<rect x={liveGhost?liveGhost.x-liveGhost.w/2:Math.min(ghost.from.x,ghost.to.x)}
-            y={liveGhost?liveGhost.z-liveGhost.d/2:Math.min(ghost.from.z,ghost.to.z)}
-            width={liveGhost?liveGhost.w:Math.max(2,Math.abs(ghost.to.x-ghost.from.x))}
-            height={liveGhost?liveGhost.d:Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
+          {ghost&&<rect x={liveGhost?ghostDisplay!.x-ghostDisplay!.w/2:Math.min(ghost.from.x,ghost.to.x)}
+            y={liveGhost?ghostDisplay!.z-ghostDisplay!.d/2:Math.min(ghost.from.z,ghost.to.z)}
+            width={liveGhost?ghostDisplay!.w:Math.max(2,Math.abs(ghost.to.x-ghost.from.x))}
+            height={liveGhost?ghostDisplay!.d:Math.max(2,Math.abs(ghost.to.z-ghost.from.z))}
             fill={previewColor} fillOpacity=".2" stroke={previewColor} strokeDasharray="2 2" pointerEvents="none"/>}
           {liveGhost?.snappedX!==undefined&&<line x1={liveGhost.snappedX} x2={liveGhost.snappedX}
             y1={bounds.z} y2={bounds.z+bounds.d} stroke={previewColor} strokeDasharray="3 3"
@@ -705,7 +859,7 @@ export default function MapEditorClient(){
             tool==="select"?"Click an object, then drag to move.":"Drag to draw or drop a prefab."} · Magnetic alignment · Alt to bypass
         </p>
       </section>
-      <aside className="w-full shrink-0 overflow-auto border-t border-white/10 bg-[#10151c] p-4 lg:w-72 lg:border-l lg:border-t-0">
+      <aside className="max-h-[60vh] w-full shrink-0 overflow-auto border-t border-white/10 bg-[#10151c] p-4 lg:max-h-none lg:w-72 lg:border-l lg:border-t-0">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-300">Inspector</h2>
         {selection?.type==="generatedBuilding"?<div className="space-y-2 text-xs">
           <p className="text-zinc-300">Generated city building. Convert it into authored geometry to move or edit it.</p>
@@ -713,21 +867,44 @@ export default function MapEditorClient(){
         </div>:item?<div className="space-y-2">
           <p className="text-sm text-amber-300">{selection&&caption(selection)}</p>
           <div className="grid grid-cols-2 gap-2">
-            {(["x","z","w","d"] as const).map(key=><NumberInput key={key} label={key.toUpperCase()} value={item[key]??0}
+            {(["x","z","w","d"] as const).map(key=><NumberInput key={key} label={key==="w"?"Width":key==="d"?"Depth / run":key.toUpperCase()} value={item[key]??(key==="w"||key==="d"?5:0)}
               save={n=>editSelected(key,n)}/>)}
-            {"h" in item&&<NumberInput label="Height" value={item.h??0} save={n=>editSelected("h",n)}/>}
-            {"y" in item&&<NumberInput label="Y elevation" value={item.y??0} save={n=>editSelected("y",n)}/>}
+            {!region&&<NumberInput label="Height" value={"h" in item?item.h??5:5} save={n=>editSelected("h",n)}/>}
+            {!region&&<NumberInput label="Base / center Y" value={"y" in item?item.y??0:0} save={n=>editSelected("y",n)}/>}
           </div>
+          {itemSpan&&<div className="grid grid-cols-2 gap-2 rounded border border-white/10 p-2">
+            <NumberInput label="Exact bottom Y" value={itemSpan.bottom} save={n=>editSelected("y",yAtElevationFace(n,itemSpan.height,hazard?"center":"bottom","bottom"))}/>
+            <NumberInput label="Exact top Y" value={itemSpan.top} save={n=>editSelected("y",yAtElevationFace(n,itemSpan.height,hazard?"center":"bottom","top"))}/>
+          </div>}
+          {feature?.assemblyId&&<div className="space-y-2 rounded border border-emerald-400/20 p-2 text-xs">
+            <label className="flex gap-2"><input type="checkbox" checked={editAssembly} onChange={e=>setEditAssembly(e.target.checked)}/> Edit entire assembly</label>
+            <p className="text-zinc-400">Move, resize, rotate, copy and delete all linked pieces together.</p>
+            <button className={btn} onClick={()=>editPlan(bp=>{for(const f of bp.features)if(f.assemblyId===feature.assemblyId)delete f.assemblyId;},"Ungrouped assembly; stair attachments remain")}>Ungroup assembly</button>
+          </div>}
           {region&&<Picker label="Region shape" value={region.shape??"rect"} options={["rect","circle","triangle"]} save={n=>editSelected("shape",n)}/>}
           {feature&&<>
             <TextInput label="Label" value={feature.label??""} save={n=>editSelected("label",n)}/>
             <Picker label="Kind" value={feature.kind} options={["cover","accent","platform","stairs"]} save={n=>editSelected("kind",n)}/>
             {feature.kind==="stairs"&&<>
-              <Picker label="Axis" value={feature.axis??"z"} options={["x","z"]} save={n=>editSelected("axis",n)}/>
-              <Picker label="Downhill sign" value={String(feature.sign??1)} options={["1","-1"]}
-                save={n=>editSelected("sign",Number(n))}/>
-              <button className={btn+" w-full"} onClick={()=>{const result=nearestPlatformSnap(feature,plan.features);if(result)editPlan(p=>{p.features[selection!.index]=result;});}}>Snap to nearest platform</button>
+              {feature.attachment?<>
+                <p className="rounded bg-emerald-950/50 p-2 text-xs text-emerald-200">Landing attached. Editing the platform preserves this connection; moving this stair alone detaches it.</p>
+                <Picker label="Landing edge" value={feature.attachment.edge} options={["north","south","east","west"]} save={edge=>editPlan(bp=>{bp.features[selection!.index].attachment!.edge=edge as PlatformEdge;})}/>
+                <NumberInput label="Offset along edge" value={feature.attachment.offset??0} save={n=>editPlan(bp=>{bp.features[selection!.index].attachment!.offset=n;})}/>
+                <NumberInput label="Starting floor Y" value={feature.attachment.baseY??0} save={n=>editPlan(bp=>{bp.features[selection!.index].attachment!.baseY=n;})}/>
+                <button className={btn+" w-full"} onClick={()=>editPlan(bp=>{delete bp.features[selection!.index].attachment;},"Detached stair landing")}>Detach landing</button>
+              </>:<>
+                <Picker label="Flight axis" value={feature.axis??"z"} options={["x","z"]} save={n=>editSelected("axis",n)}/>
+                <Picker label="Downhill direction" value={String(feature.sign??1)} options={["1","-1"]} save={n=>editSelected("sign",Number(n))}/>
+              </>}
+              <label className="block text-xs text-zinc-300">Attach to platform
+                <select aria-label="Attach to platform" className={control} value={feature.attachment?.platformId??""} onChange={e=>{
+                  const platform=plan.features.find(p=>p.id===e.target.value);if(!platform)return;
+                  const attached=nearestPlatformSnap(feature,[platform]);if(attached)editPlan(bp=>{bp.features[selection!.index]=attached;bp.features.find(p=>p.id===platform.id)!.autoStairs=false;});
+                }}><option value="">Choose platform…</option>{plan.features.filter(f=>f.kind==="platform").map(p=><option key={p.id} value={p.id}>{p.label??p.id}</option>)}</select>
+              </label>
+              <button className={btn+" w-full"} onClick={()=>{const result=nearestPlatformSnap(feature,plan.features);if(result)editPlan(p=>{p.features[selection!.index]=result;const parent=p.features.find(f=>f.id===result.attachment?.platformId);if(parent)parent.autoStairs=false;});}}>Attach to nearest platform</button>
             </>}
+            {feature.kind==="cover"&&<button className={btn+" w-full"} onClick={joinNearest}>Join nearest wall face</button>}
             {feature.kind==="cover"&&<button className={btn+" w-full"} onClick={()=>{const result=snapCoverToPlatform(feature,plan.features);if(result)editPlan(p=>{p.features[selection!.index]=result;});}}>Snap cover to platform top</button>}
             {feature.kind==="platform"&&<label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={feature.autoStairs!==false} onChange={e=>editSelected("autoStairs",e.target.checked)}/> Auto stairs</label>}
           </>}
@@ -741,6 +918,7 @@ export default function MapEditorClient(){
           {prop&&<>
             <Picker label="Prop kind" value={prop.kind} options={kinds} save={n=>editSelected("kind",n)}/>
             <TextInput label="Signage / label" value={prop.text??""} save={n=>editSelected("text",n)}/>
+            <label className="block text-xs text-zinc-300">Object color<input aria-label="Object color" type="color" className="mt-1 h-9 w-full" key={prop.color??"default"} defaultValue={prop.color??theme.palette.cover} onBlur={e=>{if(e.target.value!==prop.color)editSelected("color",e.target.value);}}/></label>
             {prop.kind==="building"&&<>
               <Picker label="Use" value={prop.use??"house"} options={["house","cafe","supermarket","bakery","apartments","office","hotel","library","diner","clinic","workshop","gallery","florist","gym"]}
                 save={n=>editSelected("use",n)}/>
@@ -753,6 +931,10 @@ export default function MapEditorClient(){
             <button className={btn} onClick={duplicate}><Copy className="h-3.5 w-3.5"/> Duplicate</button>
             <button className={btn+" text-rose-300"} onClick={remove}><Trash2 className="h-3.5 w-3.5"/> Delete</button>
           </div>
+          {(feature||prop)&&<div className="space-y-2 border-t border-white/10 pt-2">
+            <input aria-label="Asset recipe name" placeholder="Name this asset recipe" value={assetName} onChange={e=>setAssetName(e.target.value)} className={control}/>
+            <button className={btn+" w-full"} onClick={saveAsset}>Save to My assets</button>
+          </div>}
         </div>:spawn?<div className="space-y-3">
           <p className="text-sm text-amber-300">{selection&&caption(selection)}</p>
           <div className="grid grid-cols-3 gap-1">
@@ -762,7 +944,13 @@ export default function MapEditorClient(){
           <button className={btn+" ml-2 text-rose-300"} onClick={remove}>Delete</button>
         </div>:selection?.type.startsWith("legacy")?<div className="space-y-2 text-xs text-zinc-300">
           <p>{caption(selection)} · Existing engine geometry</p>
-          <p>Use the 3D Move / Rotate / Resize gizmos. Overrides retain stable engine indices.</p>
+          <p>Exact face positions preserve thickness. Overrides retain stable engine indices.</p>
+          {legacyItem&&<>
+            <div className="grid grid-cols-2 gap-2">{(["x","z","w","h","d"] as const).map(key=><NumberInput key={key} label={key.toUpperCase()} value={legacyItem[key]}
+              save={n=>transform(selection,{...legacyItem,[key]:n},true)}/>)}</div>
+            <NumberInput label="Exact bottom Y" value={legacyItem.y-legacyItem.h/2} save={n=>transform(selection,{...legacyItem,y:yAtElevationFace(n,legacyItem.h,"center","bottom")},true)}/>
+            <NumberInput label="Exact top Y" value={legacyItem.y+legacyItem.h/2} save={n=>transform(selection,{...legacyItem,y:yAtElevationFace(n,legacyItem.h,"center","top")},true)}/>
+          </>}
           <button className={btn+" w-full"} onClick={duplicate}>Duplicate as editable geometry</button>
           <button className={btn+" w-full"} onClick={restore}><RotateCcw className="h-3.5 w-3.5"/> Reset original</button>
           <button className={btn+" w-full text-rose-300"} onClick={remove}>Hide original</button>
@@ -806,7 +994,10 @@ export default function MapEditorClient(){
           <p className="my-2 text-zinc-400">{faults.length} structural problems · {issues.filter(i=>i.severity==="error").length} placement errors · {issues.filter(i=>i.severity==="warning").length} warnings</p>
           <div className="max-h-40 space-y-1 overflow-auto">
             {faults.map((m,i)=><p className="text-rose-300" key={i}>{m}</p>)}
-            {issues.slice(0,25).map((p,i)=><p key={i} className={p.severity==="error"?"text-rose-300":"text-amber-300"}>{p.message}</p>)}
+            {issues.slice(0,25).map((p,i)=><div key={i} className={p.severity==="error"?"text-rose-300":"text-amber-300"}>
+              <p>{p.message}</p>{p.featureId&&<button className={btn+" mt-1"} onClick={()=>{const index=plan.features.findIndex(f=>f.id===p.featureId);if(index>=0){setSelection({type:"feature",index});setTool("select");}}}>Select object</button>}
+              {p.canJoin&&<button className={btn+" ml-1 mt-1"} onClick={()=>editPlan(bp=>{const a=bp.features.findIndex(f=>f.id===p.featureId),b=bp.features.find(f=>f.id===p.relatedFeatureId);if(a>=0&&b){const joined=joinFeatureFaces(bp.features[a],b);if(joined)bp.features[a]=joined;}},"Closed measured wall gap")}>Close gap</button>}
+            </div>)}
             {!faults.length&&!issues.length&&<p className="text-emerald-300">Automated checks clear. Still playtest movement and spawns.</p>}
           </div>
           <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={showCollision} onChange={e=>setShowCollision(e.target.checked)}/> Collision boxes</label>
@@ -823,7 +1014,7 @@ export default function MapEditorClient(){
     </div>
     <footer className="flex shrink-0 items-center gap-4 border-t border-white/10 bg-[#10151c] px-3 py-1 text-[11px] text-zinc-400">
       <span className="whitespace-nowrap text-amber-300">{libraryDirty} · {id}</span>
-      <span className="truncate">{message}</span>
+      <span role="status" className="truncate">{message}</span>
       <span className="ml-auto hidden whitespace-nowrap md:block">Auto-save · Single JSON per map · No direct multiplayer publishing</span>
     </footer>
   </main>;
