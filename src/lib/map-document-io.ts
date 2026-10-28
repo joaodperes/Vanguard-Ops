@@ -1,3 +1,4 @@
+import {legacyObjectiveMap} from "./map-objectives";
 import type { MapDocument } from "./map-documents";
 import { validateMapDocument } from "./map-documents";
 import { validateBlueprint } from "./map-blueprints";
@@ -21,6 +22,13 @@ export function importMapDocuments(
   const next=clone(existing);
   let selectedId=activeId,migrated=false;
   const install=(doc:MapDocument)=>{
+    doc=clone(doc);
+    if(doc?.blueprint&&doc.blueprint.objectives===undefined){
+      const defaults=legacyObjectiveMap(doc.id);
+      if(defaults.objectives){
+        const prior=doc.blueprint;doc.blueprint={...clone(defaults),...prior,objectives:clone(defaults.objectives)};
+      }
+    }
     const structural=validateMapDocument(doc);
     if(structural.length)throw Error("Invalid map: "+structural.slice(0,4).join("; "));
     const failures=validateBlueprint(doc.blueprint);

@@ -3,16 +3,18 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {GameCanvas} from "@/components/game/GameCanvas";
-import {compileMapStudioDraft,type MapDef,type MapId,type LoadoutWire} from "@/lib/game-protocol";
+import {compileMapStudioDraft,type MapDef,type MapId,type GameMode,type LoadoutWire} from "@/lib/game-protocol";
 import type {MapBlueprint} from "@/lib/map-blueprints";
 import type {MapVisualTheme} from "@/lib/map-visuals";
+import {supportsMapMode,DEFAULT_COMBAT_MODES} from "@/lib/map-objectives";
+import {validateBlueprint} from "@/lib/map-blueprints";
 import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS,isPrimaryWeaponCategory} from "@/lib/game-data";
 
-type Draft={mapId:string;blueprint:MapBlueprint;theme:MapVisualTheme;botCount?:number};
+type Draft={mapId:string;blueprint:MapBlueprint;theme:MapVisualTheme;botCount?:number;mode?:GameMode};
 const STORAGE_KEY="vanguard-map-studio-playtest-v1";
 
 export default function MapDraftPlaytest(){
-  const [preview,setPreview]=useState<{map:MapDef;mapId:MapId;botCount:number}|null>(null);
+  const [preview,setPreview]=useState<{map:MapDef;mapId:MapId;botCount:number;mode:GameMode}|null>(null);
   const [error,setError]=useState<string|null>(null);
   useEffect(()=>{
     try{
@@ -21,8 +23,11 @@ export default function MapDraftPlaytest(){
       const draft=JSON.parse(raw) as Draft;
       if(!draft.mapId||!draft.blueprint?.regions?.length||!draft.blueprint.spawns||
           !draft.theme?.palette)throw Error("The draft is missing a map, regions, spawns or visual theme.");
+      const issues=validateBlueprint(draft.blueprint);if(issues.length)throw Error(issues.join("; "));
       const map=compileMapStudioDraft(draft.mapId,draft.blueprint,draft.theme);
-      setPreview({map,mapId:draft.mapId as MapId,botCount:[0,3,6].includes(draft.botCount??0)?draft.botCount??0:0});
+      const mode=draft.mode??(map.modes??DEFAULT_COMBAT_MODES)[0];
+      if(!supportsMapMode(map,mode))throw Error("Map does not provide the objectives required for "+mode);
+      setPreview({map,mode,mapId:draft.mapId as MapId,botCount:[0,3,6].includes(draft.botCount??0)?draft.botCount??0:0});
     }catch(e){setError(e instanceof Error?e.message:String(e));}
   },[]);
   const primary=WEAPONS.find(w=>isPrimaryWeaponCategory(w.category))??WEAPONS[0];
@@ -42,7 +47,7 @@ export default function MapDraftPlaytest(){
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none bg-amber-500/85 text-black text-xs font-bold rounded px-3 py-1">
       LOCAL DRAFT PLAYTEST · Offline · {preview.botCount} bots · No rewards or publishing
     </div>
-    <GameCanvas key={preview.mapId} loadout={loadout} mode={preview.mapId==="orbital_nexus"||preview.mapId==="forest_warfare"?"ctf":"ffa"} botCount={preview.botCount} botDifficulty="normal"
+    <GameCanvas key={preview.mapId} loadout={loadout} mode={preview.mode} botCount={preview.botCount} botDifficulty="normal"
       online={false} previewMap={preview.map} mapId={preview.mapId} playerName="Map Creator"
       playerKey="map-studio-preview" scoreLimit={999} timeLimitMin={30}
       onMatchEnd={exit} onExit={exit}/>

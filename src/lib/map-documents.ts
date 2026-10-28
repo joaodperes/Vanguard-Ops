@@ -9,6 +9,7 @@ import orbital_nexus from "../data/maps/orbital_nexus.json";
 import arena_neon from "../data/maps/arena_neon.json";
 import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
+import {validateObjectives} from "./map-objectives";
 import {mapTexture} from "./map-textures";
 
 export interface MapDocument {
@@ -39,6 +40,7 @@ export function validateMapDocument(value: unknown): string[] {
   if (!plan || typeof plan !== "object") issues.push("Missing blueprint");
   else {
     if (!Array.isArray(plan.regions) || plan.regions.length === 0) issues.push("Missing walkable regions");
+    issues.push(...validateObjectives(plan));
     if (!Array.isArray(plan.features)) issues.push("Missing features array");
     for (const team of ["ffa","red","blue"] as const)
       if (!Array.isArray(plan.spawns?.[team])) issues.push("Missing "+team+" spawns");

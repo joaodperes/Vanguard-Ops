@@ -1,3 +1,4 @@
+import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
@@ -50,7 +51,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
@@ -165,6 +166,7 @@ export interface HudState {
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   orbitalCharge?: number;
+  orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
   orbitalWarning?: string;
   ctfCarrying?: boolean;
@@ -964,8 +966,8 @@ export class FPSEngine {
     this.container = container;
     this.opts = opts;
     this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
-    this.ctfFlags = createCtfFlags(this.map.id);
-    this.ctfBases = {red:ctfBase("red",this.map.id),blue:ctfBase("blue",this.map.id)};
+    this.ctfFlags = createCtfFlags(this.map);
+    this.ctfBases = {red:ctfBase("red",this.map),blue:ctfBase("blue",this.map)};
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
@@ -1422,18 +1424,6 @@ export class FPSEngine {
       }
       const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
       place(crown,x,28.5,0);
-      // Nonblocking colored base objective ring; wide approaches from both
-      // directions give the return carrier a clear, recognizable destination.
-      const base=ctfBase(team,this.map.id);
-      const marker=new THREE.Mesh(new THREE.RingGeometry(3.0,4.25,40),
-        new THREE.MeshBasicMaterial({
-          color:team==="red"?0xff5959:0x55c8ff,
-          side:THREE.DoubleSide,transparent:true,opacity:.8,depthTest:true,
-        }));
-      marker.rotation.x=-Math.PI/2;
-      marker.position.set(base[0],.07,base[2]);
-      this.scene.add(marker);
-      this.ctfMarkers[team] = marker;
     }
   }
 
@@ -1443,6 +1433,7 @@ export class FPSEngine {
     const luminous=(color:number,opacity=1)=>new THREE.MeshBasicMaterial({
       color,transparent:opacity<1,opacity,depthWrite:false,side:THREE.DoubleSide,
     });
+    if(this.map.id==="orbital_nexus"){
     // Gas giant looming behind the station and a deterministic star field.
     const planet=new THREE.Mesh(new THREE.SphereGeometry(57,36,24),
       new THREE.MeshBasicMaterial({color:0x59418e,fog:false}));
@@ -1455,36 +1446,28 @@ export class FPSEngine {
     const sky=new THREE.BufferGeometry();
     sky.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
     this.scene.add(new THREE.Points(sky,new THREE.PointsMaterial({color:0xc6ddff,size:.85,fog:false})));
+    }
+    const reactor=reactorObjective(this.map);if(!reactor)return;
+    const [rx,ry,rz]=reactor.pos;
     // Containment rings float safely above the open command deck.
     const coreMat=new THREE.MeshStandardMaterial({
       color:0x7859cd,emissive:0x9654e9,emissiveIntensity:1.2,metalness:.45,roughness:.24,
     });
     const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),coreMat);
-    core.position.set(0,11,0);this.scene.add(core);this.orbitalCore=core;
+    core.position.set(rx,ry+7.8,rz);this.scene.add(core);this.orbitalCore=core;
     for(const [radius,height,rotation,color] of [
       [6,11,.27,0x61e7ff],[8,11,1.13,0xd484ff],[5,13,.72,0x4ee9e5]
     ] as const){
       const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,.17,10,64),luminous(color,.9));
-      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
+      ring.position.set(rx,ry+height-3.2,rz);ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
     }
     const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.85,10,14),luminous(0x5ac5ff,.22));
-    beam.position.y=8;this.scene.add(beam);
-    for(const team of ["red","blue"] as const){
-      const sign=team==="red"?-1:1,color=team==="red"?0xff5479:0x52ddff;
-      const base=ctfBase(team,this.map.id);
-      const marker=new THREE.Mesh(new THREE.RingGeometry(3,4.2,48),luminous(color,.9));
-      marker.rotation.x=-Math.PI/2;marker.position.set(base[0],.07,base[2]);
-      this.scene.add(marker);this.ctfMarkers[team]=marker;
-      const vaultHalo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),luminous(color,.72));
-      vaultHalo.position.set(sign*76,4,0);vaultHalo.rotation.x=Math.PI/2;this.scene.add(vaultHalo);
-      const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),luminous(color,.68));
-      beacon.position.set(sign*76,6.6,0);this.scene.add(beacon);
-    }
+    beam.position.set(rx,ry+4.8,rz);this.scene.add(beam);
   }
 
 
   private spawnOrbitalMote(pos:Vec3) {
-    if(this.map.id!=="orbital_nexus"||this.orbitalMotes.length>=12)return;
+    if(!reactorObjective(this.map)||this.orbitalMotes.length>=12)return;
     const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),
       new THREE.MeshBasicMaterial({color:0x93e7ff,transparent:true,opacity:.92,
         blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1493,7 +1476,7 @@ export class FPSEngine {
     this.orbitalMotes.push({mesh,origin:[...pos],start:performance.now()});
   }
   private showOrbitalPulse(pos:Vec3) {
-    if(this.map.id!=="orbital_nexus")return;
+    if(!reactorObjective(this.map))return;
     const ring=new THREE.Mesh(new THREE.RingGeometry(.45,1,56),
       new THREE.MeshBasicMaterial({color:0xb26bff,transparent:true,opacity:.92,
         blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
@@ -1503,7 +1486,7 @@ export class FPSEngine {
     this.orbitalPulseRings.push({mesh:ring,at:performance.now()});
   }
   private animateOrbitalReactor(now:number) {
-    if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    if(!reactorObjective(this.map)||!this.orbitalCore)return;
     this.orbitalPulseRings=this.orbitalPulseRings.filter(p=>{
       const t=(now-p.at)/580;
       if(t>=1){
@@ -1522,15 +1505,16 @@ export class FPSEngine {
         return false;
       }
       const eased=t*t*(3-2*t),inv=1-eased;
-      m.mesh.position.set(m.origin[0]*inv,
-        (m.origin[1]+1.1)*inv+11*eased+Math.sin(t*Math.PI)*2,
-        m.origin[2]*inv);
+      const target=this.orbitalCore!.position;
+      m.mesh.position.set(m.origin[0]*inv+target.x*eased,
+        (m.origin[1]+1.1)*inv+target.y*eased+Math.sin(t*Math.PI)*2,
+        m.origin[2]*inv+target.z*eased);
       m.mesh.scale.setScalar(.5+(1-t)*.9);
       (m.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
       return true;
     });
-    const progress=this.orbitalCharge/ORBITAL_KILLS_REQUIRED;
-    const ready=this.orbitalCharge>=ORBITAL_KILLS_REQUIRED;
+    const progress=this.orbitalCharge/(reactorObjective(this.map)?.killsRequired??10);
+    const ready=this.orbitalCharge>=(reactorObjective(this.map)?.killsRequired??Infinity);
     const color=new THREE.Color(0x53dbff).lerp(new THREE.Color(0xa247ff),progress);
     const material=this.orbitalCore.material as THREE.MeshStandardMaterial;
     material.color.copy(color);material.emissive.copy(color);material.emissiveIntensity=.85+progress*.95;
@@ -1578,9 +1562,9 @@ export class FPSEngine {
    * zone rule. Always pass the actual attacker position for credited kills.
    */
   private recordOrbitalKill(victimPos:Vec3,killerPos?:Vec3){
-    if(this.opts.online||this.map.id!=="orbital_nexus")return;
+    if(this.opts.online||!reactorObjective(this.map))return;
     const prev=this.orbitalCharge;
-    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
+    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map,killerPos);
     if(this.orbitalCharge===prev)return;
     this.spawnOrbitalMote(victimPos);
     // Reactor progression is visible in the HUD; no charged/claim banners.
@@ -1631,12 +1615,12 @@ export class FPSEngine {
     this.showOrbitalPulse(origin);
     const candidates=[...this.combatants.values()].map(c=>({
       id:c.id,pos:c.pos as readonly number[],alive:c.alive,
-      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===team,
+      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===team,
     }));
     if(attacker)candidates.push({
       id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
       alive:this.alive,protected:this.selfSpawnProtectedUntil>Date.now(),
-      friendly:this.opts.team===team,
+      friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&this.opts.team===team,
     });
     const targets=orbitalPulseTargets(origin,candidates,pos=>{
       const dist=Math.hypot(pos[0]-origin[0],pos[2]-origin[2]);
@@ -1653,10 +1637,10 @@ export class FPSEngine {
   private offlineOrbitalBotSwing(attacker:Combatant){
     const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
       .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
-        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===attacker.team}));
+        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===attacker.team}));
     candidates.push({id:this.selfId,
       pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive,
-      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.team===attacker.team});
+      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&this.opts.team===attacker.team});
     const profile=quickMeleeProfile(weaponById(ORBITAL_REAPER_ID).stats,ORBITAL_REAPER_ID);
     const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
       (candidate,dist)=>{
@@ -1699,19 +1683,19 @@ export class FPSEngine {
   }
   private tickOrbitalPickup(){
     if(this.opts.online||this.preMatchCountdown>0||
-      this.orbitalCharge<ORBITAL_KILLS_REQUIRED||this.map.id!=="orbital_nexus")return;
+      this.orbitalCharge<(reactorObjective(this.map)?.killsRequired??Infinity)||!reactorObjective(this.map))return;
     const contenders:{id:string;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(!this.orbitalWeaponActive&&this.alive){
       const pos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
-      if(orbitalCanClaim(this.orbitalCharge,pos,this.map.id,true))
+      if(orbitalCanClaim(this.orbitalCharge,pos,this.map,true))
         contenders.push({id:this.selfId,pos,self:true});
     }
     for(const bot of this.combatants.values()){
       if(!bot.ai||this.orbitalBotHolders.has(bot.id)||!orbitalCanClaim(
-        this.orbitalCharge,bot.pos,this.map.id,bot.alive))continue;
+        this.orbitalCharge,bot.pos,this.map,bot.alive))continue;
       contenders.push({id:bot.id,pos:bot.pos,self:false,bot});
     }
-    contenders.sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+    contenders.sort((a,b)=>objectiveDistance(this.map,a.pos)-objectiveDistance(this.map,b.pos)||
       a.id.localeCompare(b.id));
     const winner=contenders[0];if(!winner)return;
     this.orbitalCharge=0;
@@ -1783,7 +1767,7 @@ export class FPSEngine {
 
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
-    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map.id))
+    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map))
       this.announceCtfEvent("auto_return", flag, "server");
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
@@ -1792,7 +1776,7 @@ export class FPSEngine {
       if(bot.alive&&(bot.team==="red"||bot.team==="blue"))
         actors.push({id:bot.id,team:bot.team,pos:bot.pos,self:false,bot});
     for(const actor of actors){
-      const event=ctfTouch(this.ctfFlags,actor,this.map.id);
+      const event=ctfTouch(this.ctfFlags,actor,this.map);
       if(!event)continue;
       this.announceCtfEvent(event.kind, event.flag, actor.id);
       if(event.kind==="capture"){
@@ -1806,10 +1790,32 @@ export class FPSEngine {
     }
   }
 
+  private buildObjectiveMarkers(){
+    if(this.opts.mode!=="ctf")return;
+    for(const team of ["red","blue"] as const){
+      const zone=teamObjective(this.map,"capture_zone",team);if(!zone)continue;
+      const marker=new THREE.Mesh(new THREE.RingGeometry(zone.radius*.65,zone.radius,48),
+        new THREE.MeshBasicMaterial({color:team==="red"?0xff5959:0x55c8ff,side:THREE.DoubleSide,transparent:true,opacity:.8}));
+      marker.rotation.x=-Math.PI/2;marker.position.set(zone.pos[0],zone.pos[1]+.07,zone.pos[2]);
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+      const flag=teamObjective(this.map,"flag",team);
+      if(this.map.biome==="orbital"&&flag){
+        const color=team==="red"?0xff5479:0x52ddff;
+        const halo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.72,depthWrite:false,side:THREE.DoubleSide}));
+        halo.position.set(flag.pos[0],flag.pos[1]+3.8,flag.pos[2]);halo.rotation.x=Math.PI/2;this.scene.add(halo);
+        const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.68,depthWrite:false}));
+        beacon.position.set(flag.pos[0],flag.pos[1]+6.4,flag.pos[2]);this.scene.add(beacon);
+      }
+    }
+  }
   private buildMapProps() {
+    this.buildObjectiveMarkers();
+    if(this.map.id==="orbital_nexus"||reactorObjective(this.map))this.buildOrbitalScenery();
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
-    if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
+
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -4749,19 +4755,19 @@ export class FPSEngine {
         }
         this.teamScores = msg.teamScores;
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
-        if (this.opts.mode === "ctf") {
-          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
-          if(this.map.id==="orbital_nexus"){
+        if(reactorObjective(this.map)){
           if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
            this.orbitalServerVersion=msg.orbitalRulesVersion;
            this.orbitalSnapshotSeen=true;
           if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
         }
+        if (this.opts.mode === "ctf") {
+          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
         if (msg.ctfBases) {
             this.ctfBases = msg.ctfBases;
             for (const team of ["red","blue"] as const) {
               const marker=this.ctfMarkers[team],base=msg.ctfBases[team];
-              if (marker) marker.position.set(base[0],.07,base[2]);
+              if (marker) marker.position.set(base[0],base[1]+.07,base[2]);
             }
           }
         }
@@ -5152,7 +5158,7 @@ export class FPSEngine {
         this.showOrbitalPulse(msg.pos);
         break;
       case "orbitalReactor":
-        if(this.map.id==="orbital_nexus"){
+        if(reactorObjective(this.map)){
           const old=this.orbitalCharge;
           this.orbitalCharge=msg.charge;
           void old; // Charge updates are reflected in the HUD only.
@@ -5242,7 +5248,7 @@ export class FPSEngine {
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
-        this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
+        this.ctfFlags = createCtfFlags(this.map); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
         this.orbitalCharge=0;
         this.orbitalServerVersion=undefined;this.orbitalSnapshotSeen=false;
         this.grantOrbitalReaper(false);
@@ -6367,7 +6373,7 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
-      if (victim.team!==this.opts.team)
+      if (this.opts.mode==="ffa"||this.opts.mode==="gungame"||victim.team!==this.opts.team)
         this.recordOrbitalKill(victim.pos,[this.pos.x,this.pos.y,this.pos.z]);
       this.releaseOrbitalBotWeapon(victim);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
@@ -7849,7 +7855,7 @@ export class FPSEngine {
     // Can't sprint with a sniper/sniper-equivalent out at full ADS — must release.
     // ALSO gated on stamina: can't start a sprint with 0 stamina; must regen above
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
-    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map.id,this.weaponId);
+    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map,this.weaponId);
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
     const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
@@ -7930,7 +7936,7 @@ export class FPSEngine {
       if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id,
+    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map,
       reaperMovement?this.weaponId:undefined) * dt;
 
     const next = this.pos.clone();
@@ -8069,14 +8075,14 @@ export class FPSEngine {
         carryingFlag:this.ctfFlags.red.carrierId===b.id||this.ctfFlags.blue.carrierId===b.id,
         hasReward:this.orbitalBotHolders.has(b.id),
       }));
-      const orbitalObjective=orbitalBotShouldContest(this.map.id,this.orbitalCharge,
+      const orbitalObjective=orbitalBotShouldContest(this.map,this.orbitalCharge,
         roster.find(b=>b.id===c.id)!,roster,threatDistance)
-        ?orbitalBotDeckGoal(c.pos,c.team):null;
+        ?orbitalBotDeckGoal(c.pos,c.team,this.map):null;
       const ctfObjective = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
         ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id).goal,c.pos,this.map.id)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map).goal,c.pos,this.map)
         : null;
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated
@@ -8184,7 +8190,7 @@ export class FPSEngine {
       ai.sprinting = stance.sprinting;
       ai.aiming = stance.aiming;
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
-        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+        (orbitalReaperEquipped(this.map,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
       const chaseThreshold=w.id===ORBITAL_REAPER_ID?3:ideal+3;
       // Determine the desired movement vector for this frame.
@@ -8439,7 +8445,7 @@ export class FPSEngine {
       c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
         c.pos[1] + vy * dt,
         c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id,c.weaponId) * dt;
+      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map,c.weaponId) * dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;
@@ -8595,7 +8601,7 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          if(attacker.team!==nearest.victim.team)
+          if(this.opts.mode==="ffa"||this.opts.mode==="gungame"||attacker.team!==nearest.victim.team)
             this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
           this.releaseOrbitalBotWeapon(nearest.victim);
           if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
@@ -8634,7 +8640,8 @@ export class FPSEngine {
       this.health = 0; this.alive = false; this.deaths += 1;
       // Falling, environmental hazards and friendly damage must not charge
       // the reactor; only a legitimate opposing-team kill contributes.
-      if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)
+      if ((attackerTeam==="red"||attackerTeam==="blue"||attackerTeam==="ffa"&&attackerPos!==undefined)&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||attackerTeam!==this.opts.team))
         this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z],attackerPos);
       this.grantOrbitalReaper(false);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
@@ -8671,7 +8678,7 @@ export class FPSEngine {
 
   private emitHud(now: number) {
     const orbitalWarning=this.orbitalSnapshotSeen
-      ?orbitalServerWarning(this.map.id,this.opts.online,this.orbitalServerVersion)
+      ?orbitalServerWarning(this.map,this.opts.online,this.orbitalServerVersion)
       :undefined;
     const radarNow = Date.now();
     for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
@@ -8716,8 +8723,9 @@ export class FPSEngine {
       teamScores: this.teamScores,
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
-      orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
-      orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
+      orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
+      orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
+      orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
@@ -8728,7 +8736,7 @@ export class FPSEngine {
         ? "Multiplayer server has outdated CTF scoring rules. Restart/update the game server."
         : this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
           (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId) &&
-          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],4.7,3) &&
+          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],teamObjective(this.map,"capture_zone",this.opts.team)?.radius??4.7,teamObjective(this.map,"capture_zone",this.opts.team)?.verticalTolerance??3) &&
           !flagAtHome(this.ctfFlags[this.opts.team])
           ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,

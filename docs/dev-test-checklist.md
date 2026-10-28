@@ -108,3 +108,11 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Place red/blue containers, recolor/resize one copy, save it to My assets, export/import its recipe library and confirm fresh instance IDs.
 - Roundtrip all seven unified map documents, including Orbital Nexus. Confirm Afterlight day/night retain different footprints and serialize their visible shared props.
 - Verify new editor/browser changes on touch and small screens. Walk actual player routes and check multiplayer reactor/client-server parity before promotion.
+
+## Map objective authoring regression review
+
+- On a non-CTF map draft, place both flags and both capture zones, enable CTF and playtest with bots. Steal, drop, return and capture at the saved zones. Move a base and change its radius/Y; verify the visible ring and scoring agree.
+- Place/move a reactor away from the world origin, alter kills required and charge radius, then test offline and online on a rebuilt server. Only eligible kills in the saved zone charge it; claim uses its saved elevation and radius. Confirm a single winner on simultaneous contact and temporary reward loss on death.
+- Test the optional reactor in a non-CTF mode, including HUD progress, enemy eligibility, melee pulse and bot behavior. Verify removed reactors do not award rewards or render effects.
+- Inspect entrance/upper landing routing and walk the physical stairs after moving markers. Check 2D/3D selection, exact position/rule edits, undo/redo, export/import, explicit removals and migration of old drafts.
+- Confirm unchanged Forest Warfare tree routes and Orbital Nexus CTF/gravity/reactor behavior, plus pointer/touch and performance review. Automated validation does not replace this live sign-off.

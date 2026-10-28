@@ -10,6 +10,8 @@ import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type Ma
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
 import { expandCitySpawnPositions } from "./city-spawn-layout";
 
+import {legacyObjectiveMap} from "./map-objectives";
+
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
@@ -35,7 +37,11 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const plan=sourcePlan?{...sourcePlan,features:resolveStairAttachments(sourcePlan.features)}:null;
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
-    ...base,size:Math.round(base.size*factor*1000)/1000,
+    ...base,
+    objectives:structuredClone(plan?.objectives??base.objectives??legacyObjectiveMap(base.id).objectives??[]),
+    modes:[...(plan?.modes??base.modes??legacyObjectiveMap(base.id).modes??["ffa","tdm","survival","gungame","killconfirmed"])],
+    gravityScale:plan?.gravityScale??base.gravityScale??legacyObjectiveMap(base.id).gravityScale??1,
+    size:Math.round(base.size*factor*1000)/1000,
     // Old maps included a full rectangular perimeter. Leaving these walls
     // behind turns the new outdoor districts into inaccessible rings.
     // Region-union walls replace these, without blocking core-to-flank travel.

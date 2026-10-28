@@ -15,7 +15,7 @@ import {lockedPosition,normalizeTurns,rotatedExtents,type StudioAxis} from "@/li
 import type {StudioMapIssue,StudioRegionLink} from "@/lib/map-studio-diagnostics";
 
 export type StudioSelection={
-  type:"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
+  type:"objective"|"region"|"feature"|"hazard"|"prop"|"spawn"|"legacyCover"|"legacyStairs"|"legacyEnvironment"|"generatedBuilding";
   index:number;team?:"ffa"|"red"|"blue";
 };
 export type StudioMode="select"|"move"|"rotate"|"resize";
@@ -446,6 +446,14 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
         createBox(g,0,0,0,h.w,h.h,h.d,h.type==="fire"?"#ef4444":h.type==="spikes"?"#fb7185":
           h.type==="jump_pad"?"#38bdf8":"#f97316",.55),h.turns);
     }
+    for(const [index,o] of (map.objectives??[]).entries()){
+      add({type:"objective",index},{x:o.pos[0],y:o.pos[1],z:o.pos[2],w:o.radius*2,h:1,d:o.radius*2},g=>{
+        const color=o.kind==="reactor"?"#a78bfa":"team" in o&&o.team==="red"?"#f87171":"#38bdf8";
+        const ring=new THREE.Mesh(new THREE.RingGeometry(o.radius*.8,o.radius,40),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:.7}));
+        ring.rotation.x=-Math.PI/2;ring.position.y=.12;g.add(ring);
+        createBox(g,0,1,0,.3,2,.3,color);
+      });
+    }
     for(const team of ["ffa","red","blue"] as const){
       const arr=map.spawns[team];
       for(let i=0;i<arr.length;i++){
@@ -623,8 +631,8 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       if(mesh.material && !Array.isArray(mesh.material) && "emissive" in mesh.material)
         (mesh.material as THREE.MeshStandardMaterial).emissive.set("#554214");
     });
-    if(mode==="select")return;
-    if(mode==="rotate"&&(selected.type==="region"||selected.type==="spawn"))return;
+    if(mode==="select"||selected?.type==="objective"&&mode!=="move")return;
+    if(mode==="rotate"&&(selected.type==="region"||selected.type==="spawn"||selected.type==="objective"))return;
     transform.attach(group);
     transform.setMode(mode==="move"?"translate":mode==="resize"?"scale":"rotate");
     // Do not use built-in translationSnap: it also snaps Y.
@@ -636,7 +644,7 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
     transform.showX=mode==="move"?moveAxis==="x":mode!=="rotate";
     transform.showZ=mode==="move"?moveAxis==="z":mode!=="rotate";
     transform.showY=mode==="rotate" || (mode==="move"?moveAxis==="y":
-      selected.type!=="region"&&selected.type!=="spawn");
+      selected.type!=="region"&&selected.type!=="spawn"&&selected.type!=="objective");
   },[selected,mode,moveAxis,snap,map,theme,mapId]);
 
   return <div className="relative w-full h-[63vh] min-h-[420px] max-h-[880px] bg-zinc-950">

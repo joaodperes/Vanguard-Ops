@@ -624,7 +624,86 @@
           -32
         ]
       ]
-    }
+    },
+    "objectives": [
+      {
+        "id": "red_flag",
+        "kind": "flag",
+        "team": "red",
+        "pos": [
+          -76,
+          0.2,
+          0
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "blue_flag",
+        "kind": "flag",
+        "team": "blue",
+        "pos": [
+          76,
+          0.2,
+          0
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "red_capture",
+        "kind": "capture_zone",
+        "team": "red",
+        "pos": [
+          -86,
+          0,
+          0
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      },
+      {
+        "id": "blue_capture",
+        "kind": "capture_zone",
+        "team": "blue",
+        "pos": [
+          86,
+          0,
+          0
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      },
+      {
+        "id": "reactor",
+        "kind": "reactor",
+        "pos": [
+          0,
+          3.2,
+          0
+        ],
+        "radius": 3.5,
+        "verticalTolerance": 2.6,
+        "chargeRadius": 38,
+        "killsRequired": 10,
+        "approaches": [
+          [
+            0,
+            0,
+            -13
+          ],
+          [
+            0,
+            0,
+            13
+          ]
+        ]
+      }
+    ],
+    "modes": [
+      "ctf"
+    ],
+    "gravityScale": 0.6
   },
   "theme": {
     "biome": "orbital",

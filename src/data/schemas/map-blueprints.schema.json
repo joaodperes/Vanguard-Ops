@@ -454,6 +454,32 @@
                 "type": "string",
                 "pattern": "^city:-?[0-9]+:-?[0-9]+$"
               }
+            },
+            "objectives": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/objective"
+              }
+            },
+            "modes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "ffa",
+                  "tdm",
+                  "survival",
+                  "gungame",
+                  "killconfirmed",
+                  "ctf"
+                ]
+              }
+            },
+            "gravityScale": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 3
             }
           },
           "additionalProperties": false
@@ -462,5 +488,189 @@
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "objectivePoint": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "objective": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "kind",
+            "pos",
+            "radius",
+            "verticalTolerance",
+            "team"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "kind": {
+              "const": "flag"
+            },
+            "pos": {
+              "$ref": "#/$defs/objectivePoint"
+            },
+            "radius": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 256
+            },
+            "verticalTolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 64
+            },
+            "approaches": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            },
+            "team": {
+              "enum": [
+                "red",
+                "blue"
+              ]
+            },
+            "approachLandings": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "kind",
+            "pos",
+            "radius",
+            "verticalTolerance",
+            "team"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "kind": {
+              "const": "capture_zone"
+            },
+            "pos": {
+              "$ref": "#/$defs/objectivePoint"
+            },
+            "radius": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 256
+            },
+            "verticalTolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 64
+            },
+            "approaches": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            },
+            "team": {
+              "enum": [
+                "red",
+                "blue"
+              ]
+            },
+            "approachLandings": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "kind",
+            "pos",
+            "radius",
+            "verticalTolerance",
+            "chargeRadius",
+            "killsRequired"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "kind": {
+              "const": "reactor"
+            },
+            "pos": {
+              "$ref": "#/$defs/objectivePoint"
+            },
+            "radius": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 256
+            },
+            "verticalTolerance": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 64
+            },
+            "approaches": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            },
+            "chargeRadius": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 512
+            },
+            "killsRequired": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "approachLandings": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/objectivePoint"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
 }

@@ -22,8 +22,11 @@ import {Undo2,Redo2,Download,Upload,Play,Copy,Trash2,RotateCcw,Plus} from "lucid
 import {snapStudioFootprint,snapStudioElevation,STUDIO_STOREY_HEIGHT,
   type StudioSnapMode,type StudioSnapTarget,type StudioSnapResult} from "@/lib/map-studio-snapping";
 
+import {OBJECTIVE_KINDS,MODE_OBJECTIVES,DEFAULT_COMBAT_MODES,type MapObjective} from "@/lib/map-objectives";
+import type {GameMode} from "@/lib/game-protocol";
+
 type Team="ffa"|"red"|"blue";
-type Tool="select"|"region"|"circle"|"triangle"|"wall"|"asset"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
+type Tool="select"|"region"|"circle"|"triangle"|"wall"|"asset"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue"|"objective";
 type Point={x:number;z:number};
 type PaletteStamp={tool:"prop"|"kit"|"asset";buildingKit?:StudioBuildingPresetId;structureKit?:StudioStructurePresetId;assetId?:string};
 const PALETTE_MIME="application/x-vanguard-map-prefab";
@@ -31,6 +34,7 @@ const teams:Team[]=["ffa","red","blue"];
 const tools:{heading:string;items:[Tool,string][]}[]=[
   {heading:"Floor and districts",items:[["region","Rectangle"],["circle","Ellipse"],["triangle","Triangle"]]},
   {heading:"Combat geometry",items:[["wall","Draw wall"],["cover","Cover"],["platform","Platform"],["stairs","Stairs"],["kit","Structure kit"]]},
+  {heading:"Objectives",items:[["objective","Objective marker"]]},
   {heading:"Objects",items:[["prop","Prop / building"],["hazard","Hazard"]]},
   {heading:"Player starts",items:[["ffa","FFA"],["red","Red team"],["blue","Blue team"]]},
 ];
@@ -82,6 +86,9 @@ export default function MapEditorClient(){
   const [library,setLibrary]=useState<MapDocumentLibrary>(()=>clone(MAP_DOCUMENTS));
   const [id,setId]=useState("compound"),[newId,setNewId]=useState("");
   const [selection,setSelection]=useState<StudioSelection|null>(null);
+  const [objectiveKind,setObjectiveKind]=useState<MapObjective["kind"]>("flag");
+  const [objectiveTeam,setObjectiveTeam]=useState<"red"|"blue">("red");
+  const [playtestMode,setPlaytestMode]=useState<GameMode>("ffa");
   const [tool,setTool]=useState<Tool>("select");
   const [view,setView]=useState<"3d"|"2d">("3d"),[mode,setMode]=useState<StudioMode>("select");
   const [grid,setGrid]=useState(1),[zoom,setZoom]=useState(1);
@@ -262,6 +269,9 @@ export default function MapEditorClient(){
     }return null;
   };
   const place=(kind:Tool,p:Point,rect?:{w:number;d:number},choice?:PaletteStamp,bypass=false)=>{
+    if(kind==="objective"&&(plan.objectives??[]).some(o=>o.kind===objectiveKind&&(o.kind==="reactor"||"team" in o&&o.team===objectiveTeam))){
+      setMessage("That objective role already exists. Select its marker to move or edit it.");return;
+    }
     if(kind==="wall"){
       const point={x:grid?Math.round(p.x/grid)*grid:p.x,z:grid?Math.round(p.z/grid)*grid:p.z};
       if(!wallStart){setWallStart(point);setMessage("Wall start set. Click its end point.");return;}
@@ -313,6 +323,12 @@ export default function MapEditorClient(){
           {type:"prop",index:all[afterlight?"arena_neon":id].theme.props.length};
         bp.features.push(...assetPieces.features);
         all[afterlight?"arena_neon":id].theme.props.push(...assetPieces.props);
+      }else if(kind==="objective"){
+        bp.objectives??=[];
+        chosen={type:"objective",index:bp.objectives.length};
+        const common={id:unique(objectiveKind),pos:[x,y,z] as [number,number,number],verticalTolerance:objectiveKind==="capture_zone"?3:2.6};
+        bp.objectives.push(objectiveKind==="reactor"?{...common,kind:"reactor",radius:3.5,chargeRadius:38,killsRequired:10}:
+          {...common,kind:objectiveKind,team:objectiveTeam,radius:objectiveKind==="flag"?2.4:4.7});
       }else if(kind==="hazard"){
         bp.hazards??=[];chosen={type:"hazard",index:bp.hazards.length};
         bp.hazards.push({id:unique("hazard"),type:hazardKind,x,z,y:y+1,w:w??6,d:d??6,h:2,
@@ -355,6 +371,9 @@ export default function MapEditorClient(){
       if(target){
         target.x=snapped?.x??target.x+dx;target.z=snapped?.z??target.z+dz;
         if(snapped?.surface&&"y" in target)target.y=snapped.y;
+      }
+      if(s.type==="objective"){
+        const o=bp.objectives?.[s.index];if(o){o.pos[0]+=dx;o.pos[2]+=dz;o.approaches=o.approaches?.map(p=>[p[0]+dx,p[1],p[2]+dz]);o.approachLandings=o.approachLandings?.map(p=>[p[0]+dx,p[1],p[2]+dz]);}
       }
       if(s.type==="spawn"&&s.team){const spawn=bp.spawns[s.team][s.index];
         if(spawn){spawn[0]+=dx;spawn[2]+=dz;}}
@@ -400,6 +419,12 @@ export default function MapEditorClient(){
     if(typeof value==="number"&&["w","d","h"].includes(key))value=constructionDimension(value,grid);
     edit(d=>{
       const bp=d[id].blueprint;
+      if(s.type==="objective"){
+        const o=bp.objectives?.[s.index];if(o){
+          if(["0","1","2"].includes(key)){const axis=Number(key),delta=Number(value)-o.pos[axis];o.pos[axis]=Number(value);o.approaches=o.approaches?.map(p=>p.map((v,i)=>i===axis?v+delta:v) as [number,number,number]);o.approachLandings=o.approachLandings?.map(p=>p.map((v,i)=>i===axis?v+delta:v) as [number,number,number]);}
+          else Object.assign(o,{[key]:value});
+        }return;
+      }
       if(s.type==="spawn"&&s.team){
         const p=bp.spawns[s.team][s.index];if(p)p[Number(key)]=Number(value);
         return;
@@ -457,6 +482,10 @@ export default function MapEditorClient(){
     }
     edit(d=>{
       const bp=d[id].blueprint,turns=((t.turns%4+4)%4) as 0|1|2|3;
+      if(s.type==="objective"){
+        const o=bp.objectives?.[s.index];if(o){const [x,y,z]=o.pos;o.pos=[t.x,t.y,t.z];
+          o.approaches=o.approaches?.map(p=>[p[0]+t.x-x,p[1]+t.y-y,p[2]+t.z-z]);o.approachLandings=o.approachLandings?.map(p=>[p[0]+t.x-x,p[1]+t.y-y,p[2]+t.z-z]);}return;
+      }
       if(s.type==="spawn"&&s.team){bp.spawns[s.team][s.index]=[t.x,t.y,t.z];return;}
       const item=s.type==="region"?bp.regions[s.index]:s.type==="feature"?bp.features[s.index]:
         s.type==="hazard"?bp.hazards?.[s.index]:
@@ -477,7 +506,7 @@ export default function MapEditorClient(){
   };
   const duplicate=()=>{
     if(!selection)return;
-    const s=selection;if(s.type==="generatedBuilding"){promote();return;}
+    const s=selection;if(s.type==="objective"){setMessage("Each objective role is unique. Place a different type or team from Objectives and modes.");return;}if(s.type==="generatedBuilding"){promote();return;}
     let chosen:StudioSelection|null=null;
     edit(d=>{
       const bp=d[id].blueprint;
@@ -506,6 +535,7 @@ export default function MapEditorClient(){
         const f=bp.features[s.index];
         bp.features=bp.features.filter((q,i)=>i!==s.index&&!(editAssembly&&f.assemblyId&&q.assemblyId===f.assemblyId));
       }
+      if(s.type==="objective")bp.objectives?.splice(s.index,1);
       if(s.type==="hazard")bp.hazards?.splice(s.index,1);
       if(s.type==="prop")d[afterlight?"arena_neon":id].theme.props.splice(s.index,1);
       if(s.type==="spawn"&&s.team)bp.spawns[s.team].splice(s.index,1);
@@ -541,7 +571,7 @@ export default function MapEditorClient(){
     commit({...library,[name]:draft},"Created "+name+". Register the exported file in map-documents.ts to publish.");
     setId(name);setNewId("");setSelection(null);
   };
-  const exportMap=()=>{saveFile(id+".json",current);setMessage("Exported "+id+".json — publish to src/data/maps/"+id+".json");};
+  const exportMap=()=>{if(faults.length){setMessage("Fix validation errors first: "+faults.slice(0,2).join("; "));return;}saveFile(id+".json",current);setMessage("Exported "+id+".json — publish to src/data/maps/"+id+".json");};
   const importFile=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     try{
@@ -555,7 +585,7 @@ export default function MapEditorClient(){
     if(faults.length){setMessage("Fix validation errors first: "+faults.slice(0,2).join("; "));return;}
     try{
       localStorage.setItem("vanguard-map-studio-v2",JSON.stringify(library));
-      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId:id,blueprint:plan,theme,botCount:bots}));
+      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId:id,blueprint:plan,theme,botCount:bots,mode:(plan.modes??DEFAULT_COMBAT_MODES).includes(playtestMode)?playtestMode:(plan.modes??DEFAULT_COMBAT_MODES)[0]}));
       window.location.assign("/map-editor/playtest");
     }catch(error){setMessage("Playtest failed: "+String(error));}
   };
@@ -602,6 +632,7 @@ export default function MapEditorClient(){
     const w=Math.max(90,maxX-minX)/zoom,d=Math.max(90,maxZ-minZ)/zoom;
     return {x:(minX+maxX-w)/2,z:(minZ+maxZ-d)/2,w,d};
   },[plan.regions,zoom]);
+  const objective=selection?.type==="objective"?plan.objectives?.[selection.index]:undefined;
   const feature=selection?.type==="feature"?plan.features[selection.index]:undefined;
   const hazard=selection?.type==="hazard"?plan.hazards?.[selection.index]:undefined;
   const prop=selection?.type==="prop"?theme.props[selection.index]:undefined;
@@ -740,10 +771,21 @@ export default function MapEditorClient(){
             <button className={btn} onClick={()=>saveFile("asset-library.json",{version:1,assets:customAssets})}>Export assets</button>
           </div>
         </section>
+        <section className="mt-4 space-y-2 border-t border-white/10 pt-3">
+          <h3 className="text-xs font-semibold uppercase text-zinc-400">Objectives and modes</h3>
+          <Picker label="Objective type" value={objectiveKind} options={OBJECTIVE_KINDS} save={v=>{setObjectiveKind(v as MapObjective["kind"]);setTool("objective");}}/>
+          {objectiveKind!=="reactor"&&<Picker label="Objective team" value={objectiveTeam} options={["red","blue"]} save={v=>{setObjectiveTeam(v as "red"|"blue");setTool("objective");}}/>}
+          <button className={btn+" w-full"} onClick={()=>{setTool("objective");setMode("select");}}>Place {objectiveKind.replaceAll("_"," ")}</button>
+          <p className="text-[10px] text-zinc-400">One flag and capture zone per team; one optional reactor. Place markers on reachable surfaces. Select markers to edit rules and approaches.</p>
+          <div className="grid grid-cols-2 gap-1">{(Object.keys(MODE_OBJECTIVES) as GameMode[]).map(m=><label key={m} className="text-xs text-zinc-300"><input type="checkbox" checked={(plan.modes??DEFAULT_COMBAT_MODES).includes(m)} onChange={e=>editPlan(bp=>{const modes=bp.modes??[...DEFAULT_COMBAT_MODES];bp.modes=e.target.checked?[...modes,m]:modes.filter(v=>v!==m);})}/> {m}</label>)}</div>
+          <Picker label="Playtest mode" value={(plan.modes??DEFAULT_COMBAT_MODES).includes(playtestMode)?playtestMode:(plan.modes??DEFAULT_COMBAT_MODES)[0]??"ffa"} options={plan.modes??DEFAULT_COMBAT_MODES} save={v=>setPlaytestMode(v as GameMode)}/>
+          <NumberInput label="Gravity scale" value={plan.gravityScale??1} save={v=>editPlan(bp=>{bp.gravityScale=v;})}/>
+        </section>
         <h3 className="mt-5 border-t border-white/10 pt-3 text-xs font-semibold uppercase text-zinc-400">Object layers</h3>
         {([
           ["Regions",plan.regions.map((_,index)=>({type:"region",index}))],
           ["Geometry",plan.features.map((_,index)=>({type:"feature",index}))],
+          ["Objectives",(plan.objectives??[]).map((_,index)=>({type:"objective",index}))],
           ["Hazards",(plan.hazards??[]).map((_,index)=>({type:"hazard",index}))],
           ["Props",theme.props.map((_,index)=>({type:"prop",index}))],
           ["Spawns",teams.flatMap(team=>plan.spawns[team].map((_,index)=>({type:"spawn",index,team})))],
@@ -833,6 +875,10 @@ export default function MapEditorClient(){
             fill={p.color??(p.kind==="building"?"#a3ad9d":"#34d399")} fillOpacity=".64"
             stroke={selection?.type==="prop"&&selection.index===i?"#fbbf24":"#065f46"}
             strokeWidth="1" onPointerDown={e=>objectDown(e,{type:"prop",index:i})}/>)}
+          {(plan.objectives??[]).map((o,i)=><g key={o.id} onPointerDown={e=>objectDown(e,{type:"objective",index:i})}>
+            <circle cx={o.pos[0]} cy={o.pos[2]} r={o.radius} fill={o.kind==="reactor"?"#a78bfa":"team" in o&&o.team==="red"?"#f87171":"#38bdf8"} fillOpacity=".25" stroke={selection?.type==="objective"&&selection.index===i?"#fbbf24":"white"}/>
+            <text x={o.pos[0]} y={o.pos[2]} fontSize="2.8" textAnchor="middle" fill="white">{o.kind}</text>
+          </g>)}
           {teams.flatMap(team=>plan.spawns[team].map((p,i)=><circle key={team+i} cx={p[0]} cy={p[2]} r={2}
             fill={team==="ffa"?"#fbbf24":team==="red"?"#f87171":"#38bdf8"} stroke="#111"
             onPointerDown={e=>objectDown(e,{type:"spawn",index:i,team})}/>))}
@@ -936,6 +982,20 @@ export default function MapEditorClient(){
             <input aria-label="Asset recipe name" placeholder="Name this asset recipe" value={assetName} onChange={e=>setAssetName(e.target.value)} className={control}/>
             <button className={btn+" w-full"} onClick={saveAsset}>Save to My assets</button>
           </div>}
+        </div>:objective?<div className="space-y-3">
+          <p className="text-sm text-amber-300">{objective.kind.replaceAll("_"," ")} · {objective.id}</p>
+          {"team" in objective&&<Picker label="Team" value={objective.team} options={["red","blue"]} save={v=>editSelected("team",v)}/>}
+          <div className="grid grid-cols-3 gap-1">{objective.pos.map((v,i)=><NumberInput key={i} label={["X","Y","Z"][i]} value={v} save={n=>editSelected(String(i),n)}/>)}</div>
+          <NumberInput label="Trigger radius" value={objective.radius} save={n=>editSelected("radius",n)}/>
+          <NumberInput label="Vertical tolerance" value={objective.verticalTolerance} save={n=>editSelected("verticalTolerance",n)}/>
+          {objective.kind==="reactor"&&<>
+            <NumberInput label="Charge radius" value={objective.chargeRadius} save={n=>editSelected("chargeRadius",n)}/>
+            <NumberInput label="Kills required" value={objective.killsRequired} save={n=>editSelected("killsRequired",n)}/>
+          </>}
+          <p className="text-xs text-zinc-400">Approach points guide bots to stair entrances. Moving the objective moves its approaches too; geometry is edited separately.</p>
+          {(objective.approaches??[]).map((p,i)=><div key={i} className="grid grid-cols-3 gap-1">{p.map((v,a)=><NumberInput key={a} label={`Entry ${i+1} ${["X","Y","Z"][a]}`} value={v} save={n=>editPlan(bp=>{bp.objectives![selection!.index].approaches![i][a]=n;})}/>)}{objective.approachLandings?.[i]?.map((v,a)=><NumberInput key={"landing"+a} label={`Landing ${i+1} ${["X","Y","Z"][a]}`} value={v} save={n=>editPlan(bp=>{bp.objectives![selection!.index].approachLandings![i][a]=n;})}/>)}<button className={btn} onClick={()=>editPlan(bp=>{bp.objectives![selection!.index].approaches!.splice(i,1);bp.objectives![selection!.index].approachLandings?.splice(i,1);})}>Remove</button></div>)}
+          <button className={btn} onClick={()=>editPlan(bp=>{const o=bp.objectives![selection!.index];o.approaches??=[];o.approaches.push([o.pos[0],0,o.pos[2]+10]);if(o.approachLandings)o.approachLandings.push([...o.pos]);})}>Add approach point</button>
+          <button className={btn+" text-rose-300"} onClick={remove}>Delete objective</button>
         </div>:spawn?<div className="space-y-3">
           <p className="text-sm text-amber-300">{selection&&caption(selection)}</p>
           <div className="grid grid-cols-3 gap-1">

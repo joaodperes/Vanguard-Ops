@@ -3,6 +3,7 @@
  * server read these blueprints. Coordinates are world-space X/Z; box width/depth
  * are FULL extents in JSON (unlike CoverBox's half-extents).
  */
+import {validateObjectives,type ObjectiveMap} from "./map-objectives";
 import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, Vec3 } from "./game-protocol";
 
@@ -18,7 +19,7 @@ export interface MapFeature extends MapRegion {
   attachment?: {platformId:string;edge:PlatformEdge;offset?:number;baseY?:number};
 }
 export type PlatformEdge="north"|"south"|"east"|"west";
-export interface MapBlueprint {
+export interface MapBlueprint extends ObjectiveMap {
   name: string; shortName: string; description: string; pace: "compact" | "balanced" | "tactical"; templateMapId?: string;
   regions: MapRegion[]; features: MapFeature[]; hazards?: MapHazard[];
   /** Indexes refer to the stable engine-authored portion of the compiled map.
@@ -314,6 +315,7 @@ export function validateBlueprint(b: MapBlueprint): string[] {
       if(!p.every(Number.isFinite)||!insideRegions(p[0],p[2],b.regions??[],1.1))
         issues.push(`${team} spawn at ${p[0]},${p[2]} outside walkable space`);
   }
+  issues.push(...validateObjectives(b,p=>insideRegions(p[0],p[2],b.regions??[])));
   return issues;
 }
 

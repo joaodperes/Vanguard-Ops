@@ -1,4 +1,5 @@
 // Capture the Flag rules shared by the authoritative server and offline engine.
+import {teamObjective,objectiveApproach,objectiveMap,type ObjectiveSource} from "./map-objectives";
 import type { Vec3 } from "./game-protocol";
 
 export type FlagTeam = "red" | "blue";
@@ -23,16 +24,14 @@ export function ctfResetMs(value: number | undefined): number {
   return value !== undefined && (CTF_RESET_OPTIONS as readonly number[]).includes(value) ? value : CTF_DROP_RETURN_MS;
 }
 
-export const ctfHome = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
-  mapId==="orbital_nexus" ? [team==="red"?-76:76,0.2,0] :
-  [team==="red"?-CTF_TREE_X:CTF_TREE_X,CTF_TREE_TOP+.2,0];
-export const ctfBase = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
-  mapId==="orbital_nexus" ? [team==="red"?-86:86,0,0] :
-  [team==="red"?-(CTF_TREE_X+13):CTF_TREE_X+13,0,CTF_BASE_Z];
+export const ctfHome = (team:FlagTeam,mapId:ObjectiveSource="forest_warfare"):Vec3 =>
+  [...(teamObjective(mapId,"flag",team)?.pos??[0,0,0])];
+export const ctfBase = (team:FlagTeam,mapId:ObjectiveSource="forest_warfare"):Vec3 =>
+  [...(teamObjective(mapId,"capture_zone",team)?.pos??[0,0,0])];
 export const otherFlag = (team: FlagTeam): FlagTeam => team === "red" ? "blue" : "red";
-export const ctfResetFlag = (team: FlagTeam, mapId="forest_warfare"): CtfFlag =>
+export const ctfResetFlag = (team: FlagTeam, mapId:ObjectiveSource="forest_warfare"): CtfFlag =>
   ({team,pos:ctfHome(team,mapId),carrierId:null,dropped:false});
-export const createCtfFlags = (mapId="forest_warfare"): CtfFlags =>
+export const createCtfFlags = (mapId:ObjectiveSource="forest_warfare"): CtfFlags =>
   ({red:ctfResetFlag("red",mapId),blue:ctfResetFlag("blue",mapId)});
 export const flagAtHome = (flag: CtfFlag): boolean => !flag.dropped && flag.carrierId === null;
 export const ctfWithin = (a: Vec3, b: Vec3, radius: number, vertical = 2.6): boolean =>
@@ -47,7 +46,7 @@ export function ctfDrop(flags: CtfFlags, carrierId: string, pos: Vec3, now = Dat
   return null;
 }
 /** Timed recovery is server-authoritative online and uses the same rule offline. */
-export function ctfReturnExpired(flags: CtfFlags, now = Date.now(), resetMs = CTF_DROP_RETURN_MS, mapId = "forest_warfare"): FlagTeam[] {
+export function ctfReturnExpired(flags: CtfFlags, now = Date.now(), resetMs = CTF_DROP_RETURN_MS, mapId:ObjectiveSource = "forest_warfare"): FlagTeam[] {
   const returned: FlagTeam[] = [];
   if (resetMs === -1) return returned; // Never reset; touching remains available.
   for (const team of ["red", "blue"] as const) {
@@ -58,20 +57,20 @@ export function ctfReturnExpired(flags: CtfFlags, now = Date.now(), resetMs = CT
   }
   return returned;
 }
-export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; pos: Vec3 }, mapId="forest_warfare"):
+export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; pos: Vec3 }, mapId:ObjectiveSource="forest_warfare"):
   { kind: "pickup" | "return" | "capture"; flag: FlagTeam } | null {
   const own = flags[player.team], enemyTeam = otherFlag(player.team), enemy = flags[enemyTeam];
   // A returning carrier captures only when their own flag is safely home.
   if (enemy.carrierId === player.id && flagAtHome(own) &&
-      ctfWithin(player.pos, ctfBase(player.team,mapId), CTF_CAPTURE_RADIUS, 3)) {
+      ctfWithin(player.pos, ctfBase(player.team,mapId), teamObjective(mapId,"capture_zone",player.team)?.radius??CTF_CAPTURE_RADIUS, teamObjective(mapId,"capture_zone",player.team)?.verticalTolerance??3)) {
     flags[enemyTeam] = ctfResetFlag(enemyTeam,mapId);
     return { kind: "capture", flag: enemyTeam };
   }
-  if (own.dropped && ctfWithin(player.pos, own.pos, CTF_PICKUP_RADIUS)) {
+  if (own.dropped && ctfWithin(player.pos, own.pos, teamObjective(mapId,"flag",player.team)?.radius??CTF_PICKUP_RADIUS, teamObjective(mapId,"flag",player.team)?.verticalTolerance??2.6)) {
     flags[player.team] = ctfResetFlag(player.team,mapId);
     return { kind: "return", flag: player.team };
   }
-  if (!enemy.carrierId && ctfWithin(player.pos, enemy.pos, CTF_PICKUP_RADIUS)) {
+  if (!enemy.carrierId && ctfWithin(player.pos, enemy.pos, teamObjective(mapId,"flag",enemyTeam)?.radius??CTF_PICKUP_RADIUS, teamObjective(mapId,"flag",enemyTeam)?.verticalTolerance??2.6)) {
     enemy.carrierId = player.id; enemy.dropped = false; delete enemy.droppedAt;
     return { kind: "pickup", flag: enemyTeam };
   }
@@ -91,7 +90,7 @@ export function ctfEngageThreat(enemyDistance:number, weaponId:string):boolean {
 }
 export function ctfBotIntent(
   flags:CtfFlags, team:FlagTeam, id:string, pos:Vec3, weaponId:string,
-  squadIds:readonly string[] = [], carriers:Readonly<Record<string,Vec3>> = {}, mapId="forest_warfare",
+  squadIds:readonly string[] = [], carriers:Readonly<Record<string,Vec3>> = {}, mapId:ObjectiveSource="forest_warfare",
 ):CtfBotIntent {
   const own=flags[team], enemyTeam=otherFlag(team), enemy=flags[enemyTeam];
   const home=ctfHome(team,mapId), enemyHome=ctfHome(enemyTeam,mapId);
@@ -124,40 +123,34 @@ export function ctfBotIntent(
     }
     return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,lane*6]};
   }
-  if(mapId==="orbital_nexus"){
-    // Flat station objectives use the upper and lower assault corridors.
-    if(sniper||rank%4===0)return {role:"defend_flag",goal:[home[0]-side*11,0,lane*5]};
-    const flankZ=rank%2===0?28:-28;
-    if(Math.abs(pos[0]-enemyHome[0])>31)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*40,0,flankZ]};
-    return {role:"attack",goal:[...enemyHome]};
+  if(!teamObjective(mapId,"flag",team)?.approachLandings?.length){
+    if(sniper||rank%4===0)return {role:"defend_flag",goal:[home[0]-side*5,Math.max(0,home[1]-.2),home[2]+lane*2]};
+    return {role:"attack",goal:[enemyHome[0],Math.max(0,enemyHome[1]-.2),enemyHome[2]]};
   }
   // Default: long-range defenders stay on different edges of the high deck.
   if(sniper) {
     const angle=((hash%12)/12)*Math.PI*2;
     return {role:"defend_flag",goal:[
-      home[0]+Math.cos(angle)*8.2,home[1],Math.sin(angle)*8.2,
+      home[0]+Math.cos(angle)*8.2,home[1],home[2]+Math.sin(angle)*8.2,
     ]};
   }
   if(rank%3===0)return {role:"defend_stairs",goal:[
-    home[0]+lane*1.8,0,(hash%2?28:-28)+(rank%3)*2,
+    home[0]+lane*1.8,0,home[2]+(hash%2?28:-28)+(rank%3)*2,
   ]};
   // Alternate approach lanes across the valley before converging on the stairs.
   const approach=enemyHome[0]-Math.sign(enemyHome[0])*33;
   if(Math.abs(pos[0]-enemyHome[0])>42)return {role:"attack",goal:[
-    approach,0,lane*7.5,
+    approach,0,enemyHome[2]+lane*7.5,
   ]};
   return {role:"attack",goal:[...enemyHome]};
 }
-/** Elevated flag and sniper goals route via the ACTUAL tree center's stairs. */
-export function ctfStairWaypoint(goal:Vec3,pos:Vec3,mapId="forest_warfare"):Vec3 {
-  if(mapId==="orbital_nexus")return [...goal];
-  if(goal[1]<=CTF_TREE_TOP/2||pos[1]>=CTF_TREE_TOP-.7)return [...goal];
-  const x=Math.sign(goal[0])*CTF_TREE_X;
-  const side=pos[2]<0?-1:1;
-  const climbing=Math.abs(pos[0]-x)<7 && Math.abs(pos[2])>8 && Math.abs(pos[2])<36;
-  return climbing?[x,CTF_TREE_TOP,side*8.7]:[x,0,side*34.5];
+/** Elevated flags and defenders use the objective's saved stair entrances/landings. */
+export function ctfStairWaypoint(goal:Vec3,pos:Vec3,mapId:ObjectiveSource="forest_warfare"):Vec3 {
+  const objective=(objectiveMap(mapId).objectives??[]).find(o=>o.kind==="flag"&&
+    Math.hypot(o.pos[0]-goal[0],o.pos[2]-goal[2])<12&&Math.abs(o.pos[1]-goal[1])<2);
+  return objective?objectiveApproach({...objective,pos:goal},pos):[...goal];
 }
-export function ctfBotGoal(flags:CtfFlags,team:FlagTeam,id:string,pos:Vec3,mapId="forest_warfare"):Vec3 {
+export function ctfBotGoal(flags:CtfFlags,team:FlagTeam,id:string,pos:Vec3,mapId:ObjectiveSource="forest_warfare"):Vec3 {
   // Compatibility helper for non-squad simulation and existing navigation tests.
   const own=flags[team],enemy=flags[otherFlag(team)];
   if(enemy.carrierId===id) return ctfBase(team,mapId);

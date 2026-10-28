@@ -1,9 +1,10 @@
 /** Shared match-only Orbital Nexus reactor and melee-reward rules. */
+import {reactorObjective,objectiveApproach,objectiveMap,objectiveDistance,type ObjectiveSource} from "./map-objectives";
 import type {Vec3} from "./game-protocol";
 import type {WeaponDef} from "./game-data";
 export const ORBITAL_REAPER_ID="orbital_reaper";
 /** Bump when the authoritative reactor protocol or eligibility rule changes. */
-export const ORBITAL_RULES_VERSION=4;
+export const ORBITAL_RULES_VERSION=5;
 export const ORBITAL_KILLS_REQUIRED=10;
 /** Flat X/Z radius around the central reactor; flag bases remain outside it. */
 export const ORBITAL_CHARGE_RADIUS=38;
@@ -15,8 +16,8 @@ export const ORBITAL_REAPER_SPEED_MULTIPLIER=1.25;
 export const ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER=.53;
 export const ORBITAL_REAPER_GRAVITY_MULTIPLIER=.7;
 export const ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER=1.55;
-export function orbitalReaperEquipped(mapId:string,weaponId:string):boolean {
-  return mapId==="orbital_nexus"&&weaponId===ORBITAL_REAPER_ID;
+export function orbitalReaperEquipped(mapId:ObjectiveSource,weaponId:string):boolean {
+  return !!reactorObjective(mapId)&&weaponId===ORBITAL_REAPER_ID;
 }
 /** Pulse hits every eligible enemy in a circular zone, even if the blade
  * misses. No team damage, no spawn protection bypass, no double strike.
@@ -39,9 +40,9 @@ export const ORBITAL_PLATFORM_Y=3.2;
  * after gameplay updates. Show an explicit error instead of a false 0/5.
  */
 export function orbitalServerWarning(
-  mapId:string,online:boolean,serverVersion:number|undefined,
+  mapId:ObjectiveSource,online:boolean,serverVersion:number|undefined,
 ):string|undefined {
-  if(!online||mapId!=="orbital_nexus")return undefined;
+  if(!online||!reactorObjective(mapId))return undefined;
   return serverVersion===ORBITAL_RULES_VERSION?undefined:
     "REACTOR UNAVAILABLE — multiplayer server is running outdated rules. Restart/redeploy the game server and start a new match.";
 }
@@ -60,41 +61,41 @@ export const ORBITAL_REAPER:WeaponDef={
  * Kill attribution / team checks are enforced by offline and server callers.
  */
 export function orbitalRecordKill(
-  charge:number,victimPos:readonly number[],mapId:string,killerPos?:readonly number[],
+  charge:number,victimPos:readonly number[],mapId:ObjectiveSource,killerPos?:readonly number[],
 ):number {
-  if(mapId!=="orbital_nexus"||victimPos.length!==3||!victimPos.every(Number.isFinite))return charge;
+  if(!reactorObjective(mapId)||victimPos.length!==3||!victimPos.every(Number.isFinite))return charge;
+  const reactor=reactorObjective(mapId)!;
   const within=(pos:readonly number[])=>pos.length===3&&pos.every(Number.isFinite)&&
-    Math.hypot(pos[0],pos[2])<=ORBITAL_CHARGE_RADIUS;
+    objectiveDistance(mapId,pos)<=reactor.chargeRadius;
   return within(victimPos)||(killerPos!==undefined&&within(killerPos))
-    ?Math.min(ORBITAL_KILLS_REQUIRED,charge+1):charge;
+    ?Math.min(reactor.killsRequired,charge+1):charge;
 }
-export function orbitalCanClaim(charge:number,pos:Vec3,mapId:string,alive:boolean):boolean {
-  return mapId==="orbital_nexus"&&alive&&charge>=ORBITAL_KILLS_REQUIRED&&
-    Math.hypot(pos[0],pos[2])<=ORBITAL_PICKUP_RADIUS&&
-    pos[1]>=ORBITAL_PLATFORM_Y-.65&&pos[1]<=ORBITAL_PLATFORM_Y+2.6;
+export function orbitalCanClaim(charge:number,pos:Vec3,mapId:ObjectiveSource,alive:boolean):boolean {
+  const reactor=reactorObjective(mapId);
+  return !!reactor&&alive&&charge>=reactor.killsRequired&&
+    objectiveDistance(mapId,pos)<=reactor.radius&&
+    pos[1]>=reactor.pos[1]-.65&&pos[1]<=reactor.pos[1]+reactor.verticalTolerance;
 }
-export const orbitalGravity=(id:string,weaponId?:string)=>id==="orbital_nexus"?(.6*(weaponId===ORBITAL_REAPER_ID?ORBITAL_REAPER_GRAVITY_MULTIPLIER:1)):1;
+export const orbitalGravity=(id:ObjectiveSource,weaponId?:string)=>(objectiveMap(id).gravityScale??1)*
+  (reactorObjective(id)&&weaponId===ORBITAL_REAPER_ID?ORBITAL_REAPER_GRAVITY_MULTIPLIER:1);
 
 /** Each team sends its nearest eligible bot; flag carriers stay on objective. */
 export interface OrbitalBotCandidate {
  id:string;team:string;pos:Vec3;alive:boolean;carryingFlag?:boolean;hasReward?:boolean;
 }
 export function orbitalBotShouldContest(
- mapId:string,charge:number,bot:OrbitalBotCandidate,roster:readonly OrbitalBotCandidate[],
+ mapId:ObjectiveSource,charge:number,bot:OrbitalBotCandidate,roster:readonly OrbitalBotCandidate[],
  threatDistance:number,
 ):boolean {
- if(mapId!=="orbital_nexus"||charge<ORBITAL_KILLS_REQUIRED||
+ if(!reactorObjective(mapId)||charge<(reactorObjective(mapId)?.killsRequired??Infinity)||
  !bot.alive||bot.carryingFlag||bot.hasReward||threatDistance<=12)return false;
  const eligible=roster.filter(c=>c.team===bot.team&&c.alive&&!c.carryingFlag&&!c.hasReward)
-  .sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+  .sort((a,b)=>objectiveDistance(mapId,a.pos)-objectiveDistance(mapId,b.pos)||
    a.id.localeCompare(b.id));
  return eligible[0]?.id===bot.id;
 }
 /** The reactor deck stairs start near Z ±13; avoid running under the platform. */
-export function orbitalBotDeckGoal(pos:Vec3,team:string):Vec3 {
- const side=pos[2]===0?(team==="red"?-1:1):Math.sign(pos[2]);
- const entry=side*13;
- if(pos[1]>=ORBITAL_PLATFORM_Y-.65||
-   (Math.abs(pos[0])<=2.4&&Math.abs(pos[2]-entry)<=3))return [0,ORBITAL_PLATFORM_Y,0];
- return [0,0,entry];
+export function orbitalBotDeckGoal(pos:Vec3,team:string,mapId:ObjectiveSource="orbital_nexus"):Vec3 {
+ const reactor=reactorObjective(mapId);
+ return reactor?objectiveApproach(reactor,pos):[...pos];
 }

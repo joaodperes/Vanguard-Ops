@@ -3,6 +3,7 @@
 // Imported by BOTH the Next.js client (`@/lib/game-protocol`) and the
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
+import {supportsMapMode,type ObjectiveMap} from "./map-objectives";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
@@ -171,7 +172,7 @@ export type EnvironmentObject =
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
   | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
 
-export interface MapDef {
+export interface MapDef extends ObjectiveMap {
   id: MapId;
   name: string;
   shortName: string;
@@ -1237,7 +1238,7 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? id === "forest_warfare" || id === "orbital_nexus" : id !== "forest_warfare" && id !== "orbital_nexus";
+  !!MAPS[id] && supportsMapMode(MAPS[id],mode);
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];

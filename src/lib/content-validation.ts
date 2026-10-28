@@ -16,6 +16,8 @@ import {
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
 import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
+import {MAPS} from "./game-protocol";
+import {validateObjectives} from "./map-objectives";
 import {mapTexture} from "./map-textures";
 import { MAP_VISUAL_THEMES } from "./map-visuals";
 
@@ -260,5 +262,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (bp.templateMapId && !(bp.templateMapId in MAP_BLUEPRINTS.maps))
       issues.push("map " + mapId + ": unknown base template " + bp.templateMapId);
   }
+  for(const [mapId,map] of Object.entries(MAPS))
+    for(const problem of validateObjectives(map))issues.push("runtime map "+mapId+": "+problem);
   return issues;
 }

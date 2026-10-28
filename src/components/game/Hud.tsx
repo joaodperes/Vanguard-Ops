@@ -233,6 +233,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
 
       {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
+      {mode!=="ctf"&&hud.orbitalCharge!==undefined&&<div className="absolute top-20 left-1/2 -translate-x-1/2 rounded bg-black/65 px-3 py-1 text-xs text-violet-300">Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}{hud.orbitalReaper?" · REAPER EQUIPPED":""}</div>}
       <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
         <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
           {mode === "survival" ? (
@@ -322,7 +323,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <>
                   <span className="text-white/30">·</span>
                   <span className="text-[10px] font-bold uppercase text-violet-300">
-                    Reactor {hud.orbitalCharge}/10
+                    Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}
                     {hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
                   </span>
                 </>

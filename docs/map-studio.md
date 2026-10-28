@@ -40,7 +40,7 @@ Current recipes use procedural game primitives. They do not import arbitrary mod
 
 ## Canonical map files and migration
 
-Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon and orbital_nexus. Previous split JSON files remain migration snapshots. Underlying engine templates, Forest Warfare and reactor mechanics still contain TypeScript behavior.
+Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon and orbital_nexus. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
 
 Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
 
@@ -55,3 +55,42 @@ Before promotion, verify real pointer/touch placement, player movement, inherite
 ## Bundled texture library
 
 Under Visual theme → Surface recipes, choose a bundled texture for floor, wall, cover, stair or platform. Each slot includes a preview, world-unit tile scale, roughness and a procedural fallback. Six Kenney CC0 prototype panel textures are bundled locally; no runtime CDN requests are made. Texture IDs survive map export/import. The 3D construction view remains a physics proxy; use Playtest to inspect the textured game rendering.
+
+## Map objectives and supported modes
+
+Under **Objectives and modes**, select a flag, capture zone or reactor, choose the team when applicable, and place its marker on a reachable surface. Markers appear in both 2D and 3D and in the Objectives layer. Select one to move it with the gizmo or edit exact X/Y/Z, horizontal trigger radius and vertical tolerance. Reactor records also expose charge radius and kills required. These are gameplay triggers; placing a marker does not construct a platform or stairs.
+
+Enable the map's supported modes using the checkboxes. CTF requires exactly one red flag, blue flag, red capture zone and blue capture zone. Missing or duplicate roles, unsupported objective kinds, invalid tuning and positions outside the walkable footprint block playtest and single-map export. Other modes do not require these CTF records. The current runtime supports one optional reactor per map; it awards the existing temporary Nexus Reaper and resets its charge after one eligible claimant wins. Multiple reactors with independent state or another reward mechanic require an explicit runtime extension.
+
+Choose **Playtest mode** to run that mode against the current draft, including its unsaved objective definitions. This works for a new draft ID without a map-name check. Draft previews remain offline and do not publish content or award progression. New deployed map IDs still require the existing static registration/protocol review.
+
+For an elevated flag or reactor, add approach points at actual stair entrances. Bots choose the nearest entrance before approaching the objective. Optional `approachLandings` holds matching upper waypoints for a second leg (used by Forest Warfare's existing tree stairs); each landing corresponds to the entry at the same index. Moving the objective moves both entry and landing points, but does not move physical geometry. Inspect and traverse the route after editing. Trigger validation does not prove collision-free access or balanced flag placement.
+
+The blueprint fields are shared by the editor, compiled maps, offline rules and authoritative server:
+
+```json
+{
+  "modes": ["ctf", "tdm"],
+  "gravityScale": 1,
+  "objectives": [
+    {
+      "id": "central_reactor",
+      "kind": "reactor",
+      "pos": [20, 5, -10],
+      "radius": 3.5,
+      "verticalTolerance": 2.6,
+      "chargeRadius": 38,
+      "killsRequired": 10,
+      "approaches": [[20, 0, -23], [20, 0, 3]]
+    }
+  ]
+}
+```
+
+This is a reactor-only fragment, not a complete CTF setup: include all four team records when enabling CTF. A flag/capture-zone record uses `team: "red"` or `"blue"` instead of the reactor's charge fields. CTF contacts use horizontal radius and symmetric vertical tolerance. Reactor charging uses horizontal distance from its saved center and counts an eligible enemy kill when either fighter is in range, regardless of elevation; claiming requires standing within its radius from 0.65 units below its saved Y to `verticalTolerance` above it. Claim ties use distance to that center and then stable player ID. Base map gravity is independent of reactor presence; equipped Reaper movement effects still require the reactor mechanic.
+
+Orbital Nexus objective positions, charge settings and 0.6 gravity are now stored in its canonical map JSON. Forest Warfare remains a native geometry template; its existing objective positions and stair waypoints live in `src/data/maps/forest-objectives.json`. Old orbital/forest imports that omit objective data receive their compatibility defaults; explicit empty arrays are preserved. Maps without a `modes` field retain the five previous non-CTF modes.
+
+### Extending the system
+
+`src/lib/map-objectives.ts` owns the typed objective grammar, mode requirement table, lookups, route helper and structural validation. New modes using existing flag/zone/reactor mechanics can share these definitions without adding coordinate checks for map names. Add the mode to `GameMode`, `MODE_OBJECTIVES`, its catalog/lobby and actual scoring/match handlers. For a new objective mechanic, add a discriminated kind and its schema/validator/editor fields, implement shared rules with client rendering and authoritative server state/events, and add regression tests. Arbitrary scripts, URLs and unknown behavior fields are rejected. Current `orbital*` wire event names are retained for compatibility; rules version 5 requires restarting/redeploying both client and server together.
