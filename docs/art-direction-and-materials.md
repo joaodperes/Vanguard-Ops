@@ -78,3 +78,7 @@ bun run build
 ```
 
 `tests/map-surface-materials.test.ts` asserts complete surface recipes, correct biome texture patterns and world-space UV scaling. A green CI result is **not** a visual sign-off: compare live in-game scenes in daylight and night lighting, including walking up to a wall and inspecting 100-metre stretches without stretched or over-repeated motifs.
+
+## Bundled texture addition
+
+Six original Kenney Prototype Textures (dark variants 01, 04, 06, 08, 10, 13) are now bundled under public/textures/kenney. The original CC0 license and exact upstream Git blob provenance are retained there. These are optional panel/prototyping textures, selectable per surface in Map Studio. Existing procedural themes remain the default. Browser rendering downsamples to 128px and tiles in world units, with a procedural fallback while loading or on failure. A disposed material is never updated by a late image load. Additional approved art can extend the allowlisted catalog in src/lib/map-textures.ts and the theme schema.

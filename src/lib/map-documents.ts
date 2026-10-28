@@ -9,6 +9,7 @@ import orbital_nexus from "../data/maps/orbital_nexus.json";
 import arena_neon from "../data/maps/arena_neon.json";
 import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
+import {mapTexture} from "./map-textures";
 
 export interface MapDocument {
   version: 2;
@@ -60,6 +61,7 @@ export function validateMapDocument(value: unknown): string[] {
       if(!p||typeof p.kind!=="string"||![p.x,p.z,p.y??0,p.w??5,p.h??5,p.d??5].every(Number.isFinite)||
         (p.w??5)<=0||(p.h??5)<=0||(p.d??5)<=0||p.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(p.color))issues.push("Invalid prop geometry or color");
     }
+    for(const recipe of Object.values(theme.surfaces??{}))if(recipe?.textureId!==undefined&&!mapTexture(recipe.textureId))issues.push("Unknown bundled texture ID");
   }
   return issues;
 }

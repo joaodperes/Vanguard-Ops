@@ -10,6 +10,7 @@ import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
 import {constructionDimension,wallBetween,transformFeatureAssembly,copyFeatureAssembly,joinFeatureFaces} from "@/lib/map-studio-construction";
 import {STUDIO_ASSETS,assetBounds,instantiateStudioAsset,saveStudioAsset,importStudioAssets,type StudioAsset} from "@/lib/map-studio-assets";
 import {elevationSpan,yAtElevationFace} from "@/lib/map-studio-elevation";
+import {MAP_TEXTURES,mapTexture} from "@/lib/map-textures";
 import {mapProps,visualThemeForMap,type MapProp,type MapVisualTheme,type PropKind,type SurfacePattern} from "@/lib/map-visuals";
 import {getMap} from "@/lib/game-protocol";
 import {studioMapIssues,studioRegionLinks,studioBuildingPlacementIssues} from "@/lib/map-studio-diagnostics";
@@ -975,7 +976,11 @@ export default function MapEditorClient(){
           {current.theme.surfaces&&<details>
             <summary className="cursor-pointer text-xs text-zinc-400">Surface materials</summary>
             {(["floor","wall","cover","stair","platform"] as const).map(slot=><div key={slot} className="mt-2">
-              <Picker label={slot+" pattern"} value={current.theme.surfaces![slot].pattern}
+              <label className="block text-xs">{slot} texture<select aria-label={slot+" texture"} className={control} value={current.theme.surfaces![slot].textureId??""} onChange={e=>editTheme(t=>{
+                if(!t.surfaces)return;const recipe=t.surfaces[slot];if(e.target.value)recipe.textureId=e.target.value;else delete recipe.textureId;
+              })}><option value="">Procedural pattern</option>{MAP_TEXTURES.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+              {mapTexture(current.theme.surfaces![slot].textureId)&&<img alt={slot+" selected texture preview"} className="h-20 w-20 border border-white/20" style={{imageRendering:"pixelated"}} src={mapTexture(current.theme.surfaces![slot].textureId)!.path}/>}
+              <Picker label={slot+" fallback pattern"} value={current.theme.surfaces![slot].pattern}
                 options={["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]}
                 save={v=>editTheme(t=>{if(t.surfaces)t.surfaces[slot].pattern=v as SurfacePattern;})}/>
               <div className="grid grid-cols-2 gap-2">

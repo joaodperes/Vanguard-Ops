@@ -19,3 +19,5 @@ Reuse is technically feasible, but these formats need a conversion pipeline. Ext
 Textures are an economical first import because existing walls/platforms retain editable dimensions and shared collision. Mesh instances can expose tint, scale and material variants; reshaping a mesh or UV mapping requires source-model editing. Whole brush/BSP maps and gameplay entities require a separate importer and collision/gameplay adaptation.
 
 No LibreQuake textures, meshes, binaries or code are bundled by this change. The editor currently imports validated Vanguard recipes. Actual third-party art selection/conversion remains a separate content task.
+
+The texture library now supports six bundled Kenney CC0 panel textures, selectable per surface by stable textureId. These are actual bundled PNG resources, not asset recipes. Original license/provenance are included under public/textures/kenney. External URLs and unknown IDs are rejected. LibreQuake files are still not included.

@@ -44,7 +44,7 @@ export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","mos
 export type SurfacePattern = typeof SURFACE_PATTERNS[number];
 export type SurfaceSlot = "floor" | "wall" | "cover" | "stair" | "platform";
 /** Physical texture scale is in WORLD units, not arbitrary geometry UV units. */
-export interface SurfaceRecipe { pattern: SurfacePattern; tileSize: number; roughness: number }
+export interface SurfaceRecipe { pattern: SurfacePattern; tileSize: number; roughness: number; textureId?:string }
 export type MapSurfaceRecipes = Record<SurfaceSlot, SurfaceRecipe>;
 export interface MapVisualTheme {
   biome: string; label: string; inheritPropsFrom?: string;

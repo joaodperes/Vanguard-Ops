@@ -16,6 +16,7 @@ import {
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
 import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
+import {mapTexture} from "./map-textures";
 import { MAP_VISUAL_THEMES } from "./map-visuals";
 
 const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
@@ -232,6 +233,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       z.enum(["floor","wall","cover","stair","platform"]),
       z.object({
         pattern:z.enum(["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]),tileSize:pos.max(100),roughness:unit,
+        textureId:z.string().refine(id=>!!mapTexture(id),"Unknown bundled texture").optional(),
       }).strict(),
     ).refine(s=>["floor","wall","cover","stair","platform"].every(k=>k in s),
       "Every map requires floor/wall/cover/stair/platform surface recipes").optional(),

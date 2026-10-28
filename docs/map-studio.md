@@ -51,3 +51,7 @@ Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 m
 Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck` and `bun run build`. Connection regressions cover all landing directions, multiple heights, ascent/descent, blocked headroom, rotation, resizing, copying and JSON roundtrips. Preserve client/server parity and Orbital reactor rules.
 
 Before promotion, verify real pointer/touch placement, player movement, inherited exact faces, undo/redo, draft recovery, map appearance and online behavior. See `docs/dev-test-checklist.md`; the previous guide is archived at `docs/archive/map-studio-before-connections.md`.
+
+## Bundled texture library
+
+Under Visual theme → Surface recipes, choose a bundled texture for floor, wall, cover, stair or platform. Each slot includes a preview, world-unit tile scale, roughness and a procedural fallback. Six Kenney CC0 prototype panel textures are bundled locally; no runtime CDN requests are made. Texture IDs survive map export/import. The 3D construction view remains a physics proxy; use Playtest to inspect the textured game rendering.
