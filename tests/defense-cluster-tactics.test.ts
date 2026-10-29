@@ -73,10 +73,10 @@ describe("cluster shell and delayed area damage",()=>{
    expect(s.path.points[0][2]).toBeCloseTo(shots[0].path.impact[2]);
   }
   expect(clusterLifetime(shots)).toBeGreaterThan(shots[0].path.flightMs+400);
-  expect(clusterDamage(0,shots[1])).toBe(42);
+  expect(clusterDamage(0,shots[1])).toBe(75);
   expect(clusterDamage(shots[1].radius,shots[1])).toBe(0);
  });
- test("wall collision stops the main shell and each bomblet, even at point blank",()=>{
+ test("wall ricochets keep the main shell and bomblets on the safe side, even at point blank",()=>{
   const wall:CoverBox={pos:[0,2,2],size:[10,2,.1]};
   const shots=clusterShots([0,1.62,0],[0,0,1],[wall]);
   for(const s of shots)for(const p of s.path.points)expect(p[2]).toBeLessThan(1.901);

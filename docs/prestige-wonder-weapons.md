@@ -31,7 +31,7 @@ Run the safe schema update **before starting the new app/server build**.
 | Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
 | Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
 | Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
-| Thunderclap | Arcing cluster shell with six delayed bomblets | 2 | 32s | -1.6s |
+| Thunderclap | Bouncing 120-damage / 6m shell with six delayed 75-damage / 4.5m bomblets | 2 | 32s | -1.6s |
 | Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; shield restores on respawn | — |
 | Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 

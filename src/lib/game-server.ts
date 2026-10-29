@@ -2909,7 +2909,7 @@ async function handle(socket: any, msg: C2S) {
 
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
-          shots:clusterShots(msg.origin,shotDir,room.map.cover)};
+          shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map.id)};
         room.clusterVolleys.set(volley.id,{...volley,done:new Set(),dealt:new Map()});
         io.to(room.id).emit("message",{t:"clusterVolley",volley,serverNow:now} as S2C);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:p.id,skinId:msg.skinId,suppressed:false} as S2C);

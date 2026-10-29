@@ -1378,9 +1378,9 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "Wonder grenade launcher. An arcing shell bursts into six delayed cluster grenades. Cover blocks each blast. Two charges regenerate over time.",
+    "description": "Wonder grenade launcher. A bouncing shell bursts after 1.4s into six bouncing cluster grenades. Powerful wide-area blasts; solid cover blocks damage. Follows map gravity. Two charges regenerate over time.",
     "stats": {
-      "damage": 60,
+      "damage": 120,
       "fireRate": 0.8,
       "magSize": 2,
       "reloadTime": 0,
@@ -1398,10 +1398,10 @@
       "maxCharges": 2,
       "rechargeMs": 32000,
       "killBonusMs": 1600,
-      "radius": 3.4
+      "radius": 6
     },
     "explosive": {
-      "radius": 3.4
+      "radius": 6
     }
   },
   {

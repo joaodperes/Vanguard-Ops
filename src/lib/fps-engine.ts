@@ -3,7 +3,7 @@
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
-import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
+import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { createRiotShieldModel } from "./riot-shield-model";
@@ -6092,7 +6092,8 @@ export class FPSEngine {
       model.visible=this.alive&&this.riotShieldHp>0;
       model.scale.set(panel.width/full.width,panel.height/full.height,1);
       model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
-      model.rotation.set(0,-panel.yawOffset,0);
+      // Camera forward is -Z; the same panel angle is required, not its mirror.
+      model.rotation.set(0,panel.yawOffset,0);
     }
     for(const c of this.combatants.values()){
       if(!c.group||c.isSelf)continue;
@@ -6142,8 +6143,7 @@ export class FPSEngine {
         }else{
           let mesh=v.meshes.get(i);
           if(!mesh){mesh=new THREE.Mesh(new THREE.SphereGeometry(i===0?.13:.09,8,6),new THREE.MeshBasicMaterial({color:i===0?0xffb535:0xff6030}));v.meshes.set(i,mesh);this.scene.add(mesh);}
-          const t=age/s.path.flightMs*(s.path.points.length-1),j=Math.min(s.path.points.length-2,Math.floor(t)),f=t-j;
-          const a=s.path.points[j],b=s.path.points[j+1];mesh.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);
+          mesh.position.set(...clusterPositionAt(s.path,age));
         }
       });
       if(now>v.launchedAt+clusterLifetime(v.shots)+100)this.removeClusterVolley(id);
@@ -6277,7 +6277,7 @@ export class FPSEngine {
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
     if(w.wonder?.kind==="cluster"){
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
-      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover)},true);
+      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map.id)},true);
       return;
     }
     // These kinds implement new hitscan / area rules, never rocket splash.

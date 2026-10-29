@@ -4,15 +4,15 @@ Implemented on `dev`. No database schema change; both new weapons use the existi
 
 ## Thunderclap (`wonder_cluster`)
 
-An arcing grenade launcher with two charges, 32 seconds to regenerate each charge, and a 1.6-second reduction from ordinary kills. One 60-damage shell bursts into six 42-damage bomblets. The main blast has a 3.4 m radius and each child a 2.6 m radius, with distance falloff. Children launch at the main impact and detonate on their own collision/fuse timings. A victim can receive at most 135 damage from one complete volley.
+An arcing grenade launcher with two charges, 32 seconds to regenerate each charge, and a 1.6-second reduction from ordinary kills. One 120-damage shell bursts into six 75-damage bomblets. The main blast has a 6 m radius and each child a 4.5 m radius, with distance falloff down to 35% at the inside edge. The shell has a 1.4-second fuse; children launch when it bursts and have staggered 0.9–1.15-second fuses. Both stages ricochet from walls, floors, ceilings, stairs, platforms and other solid collision boxes, losing normal and tangential speed at each bounce. A victim can receive at most 240 damage from one complete volley.
 
-`cluster-grenades.ts` calculates deterministic, segment-tested ballistic paths against cover and the floor. Damage occurs at each detonation point and time, never along the projectile's flight segment. Cover blocks damage. The shooter is excluded and team rules follow existing launcher rules. The authoritative server owns paths, timers, charge spending and damage; snapshots carry active volleys for late joiners. Client graphics use those paths without predicting multiplayer damage. Flight and detonation timers continue while the owner is dead. Offline simulation uses the same paths and damage helpers.
+`bouncing-projectile.ts` calculates deterministic, swept-radius ballistic paths against solid cover and the floor. It uses face normals, restitution, friction and multiple contacts per step to avoid tunneling through thin walls or clipping corners. `cluster-grenades.ts` uses the normal movement gravity (22.5 m/s²) multiplied by the map gravity: Orbital Nexus uses 60%, independently of operator/Reaper modifiers. Its damage/radius come from the weapon catalog; child damage/radius are derived from that profile. Geometry is sampled at launch, consistent with the existing deterministic throw-path system; moving-object contacts are not continuously re-simulated in flight. Damage occurs at each detonation point and time, never along the projectile's flight segment. Cover blocks damage. The shooter is excluded and team rules follow existing launcher rules. The authoritative server owns paths, timers, charge spending and damage; snapshots carry active volleys for late joiners. Client graphics interpolate collision timestamps, including each turn at a ricochet, without predicting multiplayer damage. Flight and detonation timers continue while the owner is dead. Offline simulation uses the same paths and damage helpers.
 
 ## Bulwark + P-9 (`wonder_riot_shield`)
 
 The shield and P-9 occupy one Primary slot and consume one permanent Wonder unlock. A separately selected secondary remains independent. No ordinary attachments or charms are supported.
 
-- Shield starts at **250 HP**. At hip level it covers the left front; the normal P-9 can fire from the right hand. The P-9 uses its normal damage, cadence, magazine and reload, with reduced movement speed for the combination.
+- Shield starts at **250 HP**. At hip level it covers the left front; its inner edge points forward (`/` from above), and the first-person angle is aligned with the collision/world-model plane; the normal P-9 can fire from the right hand. The P-9 uses its normal damage, cadence, magazine and reload, with reduced movement speed for the combination.
 - Hold the ordinary ADS control (right mouse or touch ADS) to brace the shield across the front. This blocks frontal bullet rays, including the transparent viewport, and prevents P-9 fire. Releasing ADS lowers it. Auto-ADS-on-fire never raises this shield automatically, and bracing does not zoom the camera.
 - Back, sides and rays outside the physical rectangle remain vulnerable. Melee, explosions, poison, flame and chained/area energy effects bypass the bullet panel.
 - The breaking bullet is absorbed; following bullets hit health. A broken shield disappears, is labeled BROKEN in the HUD, and no longer prevents the P-9 firing.
@@ -49,10 +49,16 @@ Manual acceptance: compare hip/brace/fire/broken/swap/reload/respawn with a seco
 
 ### Checks performed during this change
 
-- Final checks passed: content validation, all 479 Bun smoke tests, TypeScript and the production build.
+- Final checks passed: content validation, all 492 Bun smoke tests, TypeScript and the production build.
 - A headless Chromium firing-range session rendered hip/raised Bulwark, fired its P-9, spent and completed a cluster volley, and inspected Annihilator reload placement. The audio context was running and no JavaScript exceptions occurred. A timed browser check produced three countdown ticks and exactly one GO cue.
 - A live Socket.IO match with two clients verified a frontal rifle shot changed shield HP 250 → 215 while health stayed 100, raised P-9 fire was rejected, lowered fire was accepted, and swapping did not repair the panel.
-- A separate two-client volley test observed seven paths, delayed damage after a 428 ms main-shell flight, and rejection of a third shot after spending both charges.
+- A separate two-client volley test observed seven paths, delayed damage after the main-shell fuse, and rejection of a third shot after spending both charges.
 - Actual loadout API calls against an isolated test database returned 403 for unowned Wonders, 200 for each owned Primary selection, and 403 for either Wonder in the Secondary slot.
 
 These checks cover mechanics and rendering. Extended balance, touch feel, listening on real speakers/headphones, and high-bot-count performance still need human playtesting.
+
+### Thunderclap physics and shield-angle regression checks
+
+`tests/cluster-bounce-and-shield-angle.test.ts` covers high-speed thin-wall impacts, floor energy loss, raised platforms, ceilings, two-face corners, decorative versus solid objects, map-dependent gravity, exact offline/server path equality, timestamp-aware visual interpolation, and the non-mirrored first-person shield angle at multiple headings. Ricochets do not reset the fuse. A banked shot still damages only around each final detonation point, with cover checks and the existing charge/ownership rules.
+
+The follow-up tuning was checked in a real two-client match (1.4-second shell fuse, seven paths, stronger lethal close blast, third-shot charge rejection), an Orbital Nexus server session with exact offline/server path equality at 13.5 m/s², and browser rendering with no JavaScript errors. A collision sweep of 32 volleys across all eight maps found no samples embedded in solid geometry. A launch-time spatial index keeps collision selection local and is rebuilt for each volley so mutable map cover is never cached across shots. The broadphase has its own parity regression against the full collision set.
