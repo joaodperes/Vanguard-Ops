@@ -435,7 +435,7 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. These special weapons have a recharge timer that cannot be bypassed by dying, swapping guns or picking up ammo.</p>
+              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. Charge-based Wonders recharge over time. Bulwark uses a P-9 magazine and a separate 250 HP shield that restores on respawn.</p>
               <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Wonder-qualified weapons: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -449,9 +449,9 @@ export function Armory() {
                   </div>
                   <p className="text-white/60 text-sm">{w.description}</p>
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
-                    <span>{w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
-                    <span>{w.wonder!.rechargeMs / 1000}s per {w.wonder!.kind === "flame" ? "fuel-second" : "charge"}</span>
-                    <span>-{w.wonder!.killBonusMs / 1000}s per regular kill</span>
+                    <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
+                    <span>{w.wonder!.kind === "shield" ? "Hold ADS: frontal cover, P-9 lowered" : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
+                    <span>{w.wonder!.kind === "shield" ? "Shield restores on respawn" : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
                   {!owned && (
                     <Button onClick={() => tryInRange(w.id)} variant="outline" className="w-full border-amber-400/40 text-amber-200 hover:bg-amber-500/10">

@@ -1,3 +1,4 @@
+import { weaponById } from "../src/lib/game-data";
 import { describe, expect, test } from "bun:test";
 import { fullWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
 import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
@@ -37,16 +38,16 @@ describe("Wonder charge economy", () => {
     expect(shorter.charges).toBe(1);
     expect(accelerateWonderCharge(fullWonderCharges(rules), rules, 9000).charges).toBe(2);
   });
-  test("all Wonder Weapons have finite charges and no manual reload", () => {
+  test("charge Wonders have finite charges; Bulwark keeps its P-9 magazine", () => {
     const wonders = WEAPONS.filter(w => w.wonder);
-    expect(wonders).toHaveLength(7);
+    expect(wonders).toHaveLength(9);
     // Plagueheart deliberately stores three charges; the runtime charge model supports it.
     expect(wonders.find(w => w.id === "wonder_corrosion")?.wonder?.maxCharges).toBe(3);
     for (const w of wonders) {
       expect(w.wonder!.maxCharges).toBeGreaterThanOrEqual(1);
       expect(w.wonder!.maxCharges).toBeLessThanOrEqual(w.id==="wonder_hellfire"?8:5);
-      expect(w.stats.magSize).toBe(w.wonder!.maxCharges);
-      expect(w.stats.reloadTime).toBe(0);
+      if(w.wonder!.kind!=="shield"){expect(w.stats.magSize).toBe(w.wonder!.maxCharges);expect(w.stats.reloadTime).toBe(0);}
+      else{expect(w.stats.magSize).toBe(weaponById("pistol_side").stats.magSize);expect(w.stats.reloadTime).toBeGreaterThan(0);}
       expect(w.attachments).toEqual([]);
     }
   });

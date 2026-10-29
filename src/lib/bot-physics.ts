@@ -147,3 +147,11 @@ export function botNextFeetY(cover: CoverBox[], pos: Vec3, dt: number): number {
   const support = botGroundHeight(cover, pos[0], pos[2], pos[1]);
   return support > pos[1] ? support : Math.max(support, pos[1] - 11 * dt);
 }
+
+/** Ordinary tactical jumps must not hit low ceilings or start while airborne. */
+export function botHasJumpClearance(cover:CoverBox[],pos:Vec3):boolean {
+  if(Math.abs(botGroundHeight(cover,pos[0],pos[2],pos[1])-pos[1])>.08)return false;
+  return !cover.some(c=>c.kind!=="accent"&&Math.abs(pos[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS&&
+    Math.abs(pos[2]-c.pos[2])<c.size[2]+PLAYER_RADIUS&&
+    c.pos[1]-c.size[1]>pos[1]+.1&&c.pos[1]-c.size[1]<pos[1]+3.15);
+}

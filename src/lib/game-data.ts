@@ -78,7 +78,7 @@ export interface WeaponDef {
   explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
   disabled?: boolean;
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3 | 4 | 5; rechargeMs: number; killBonusMs: number; radius: number };
+  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge" | "cluster" | "shield"; maxCharges: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -98,6 +98,9 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+/** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
+export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
+
 /** Single source for offline and authoritative server projectile blast radii. */
 export function projectileSplashRadius(weapon: WeaponDef): number {
   return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
@@ -405,7 +408,7 @@ export function resolveLoadout(input: {
   const requestedPrimary = weaponById(input.primaryWeapon);
   const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
   const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
-  const secondary = requestedSecondary.disabled ? weaponById("pistol_side") : requestedSecondary;
+  const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {

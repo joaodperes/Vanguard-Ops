@@ -31,11 +31,13 @@ Run the safe schema update **before starting the new app/server build**.
 | Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
 | Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
 | Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
+| Thunderclap | Arcing cluster shell with six delayed bomblets | 2 | 32s | -1.6s |
+| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; shield restores on respawn | — |
 | Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
 A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
-the Primary slot, has no attachments or reserve ammo, and cannot manually
-reload. The recharge clock continues through death and while the gun is
+the Primary slot and has no attachments. Charge-based Wonders have no reserve ammo and cannot manually
+reload. Bulwark is the explicit exception: its P-9 uses a normal magazine/reload while shield HP is independent. See [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md). The recharge clock continues through death and while the gun is
 holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
 The server separately tracks and refuses premature online shots; the client
 tracks the clock for accurate firing, HUD and offline gameplay. Gun Game

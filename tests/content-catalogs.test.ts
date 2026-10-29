@@ -29,7 +29,7 @@ describe("JSON catalog contract", () => {
     expect(validateGameContent({ weapons: [broken, ...WEAPONS.slice(1)] }).some(e => e.includes("weapons [0.unlockLevel]"))).toBe(true);
   });
   test("unchanged JSON catalogs retain player-facing stable identifiers", () => {
-    expect(WEAPONS.length).toBe(49);
+    expect(WEAPONS.length).toBe(51);
     expect(ATTACHMENTS.length).toBe(49);
     expect(WEAPON_SKINS.length).toBe(18);
     expect(PLAYER_SKINS.length).toBe(16);

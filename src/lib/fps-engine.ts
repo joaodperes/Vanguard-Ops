@@ -3,6 +3,11 @@
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
+import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
+import { usesWonderCharges } from "./game-data";
+import { createRiotShieldModel } from "./riot-shield-model";
+import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
@@ -26,6 +31,8 @@ import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
+import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
+import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -236,6 +243,8 @@ export interface HudState {
   primaryWeaponId: string;
   secondaryWeaponId: string;
   meleeWeaponId: string;
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
   wonderRechargeMs?: number;
   turretDeployPending?: boolean;
   turretDeployFailed?: boolean;
@@ -355,6 +364,9 @@ interface BotAI {
   routeWaypoint?: Vec3 | null;
   lastPosX: number;
   lastPosZ: number;
+  nextCombatJumpAt?:number;
+  cornerUntil?:number;
+  nextCornerAt?:number;
   envJumpVelocityY?: number;
   envLaunchX?: number;
   envLaunchZ?: number;
@@ -408,6 +420,9 @@ interface Combatant {
   spawnProtectedUntil?: number;
   // Shield mesh for spawn protection visual (created in addCombatantMesh,
   // toggled in updateCombatantMeshes).
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
+  riotShieldModel?: THREE.Group;
   shieldMesh?: THREE.Mesh;
 }
 
@@ -596,6 +611,10 @@ export class FPSEngine {
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
+  private riotShieldHp=RIOT_SHIELD_HP;
+  private riotShieldModel:THREE.Group|null=null;
+  private lastCountdownSecond=0;
+  private clusterVolleys=new Map<string,ClusterVolley & {offline:boolean;done:Set<number>;dealt:Map<string,number>;meshes:Map<number,THREE.Mesh>}>();
   private wonderStates = new Map<string, WonderChargeState>();
   // Online deployment is NOT charged locally until server confirms placement.
   // This prevents rejected network/weapon-state packets from starting a
@@ -1030,8 +1049,8 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    if (primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
-    this.primaryAmmoInMag = primW.wonder ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
+    if (usesWonderCharges(primW) && primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
+    this.primaryAmmoInMag = usesWonderCharges(primW) ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
@@ -2541,6 +2560,8 @@ export class FPSEngine {
   }
 
   private buildViewmodel() {
+    if(this.riotShieldModel){this.disposeRiotModel(this.riotShieldModel);this.riotShieldModel=null;}
+    if(this.weaponId===RIOT_SHIELD_ID){this.riotShieldModel=createRiotShieldModel(true);this.camera.add(this.riotShieldModel);}
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
     // this cleanup, every weapon swap stacks another full set of meshes on the
@@ -2982,6 +3003,9 @@ export class FPSEngine {
       for (const x of [-.045,.045]) add(new THREE.CylinderGeometry(.011,.011,.09,8),cyan,[x,.065,-.065]);
     } else if (id === "vent") {
       add(new THREE.BoxGeometry(.095,.09,.16),cyan,[0,0,0]);
+    } else if (id === "side_bolt") {
+      add(new THREE.CylinderGeometry(.018,.018,.14,10),amber,[0,0,0],Math.PI/2);
+      add(new THREE.ConeGeometry(.018,.055,10),steel,[0,0,-.09],-Math.PI/2);
     } else if (id === "bolt") {
       add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0],Math.PI/2);
       add(new THREE.ConeGeometry(.024,.065,7),amber,[0,0,-.18],-Math.PI/2);
@@ -3071,6 +3095,8 @@ export class FPSEngine {
     // the camera. This also exposes the hammer/axe head during idle movement.
     const meleePose = this.touchMode ? { x: 0.25, y: -0.11, z: -0.47 } : { x: 0.35, y: -0.085, z: -0.49 };
     let target = wDef.category === "melee" ? meleePose : (this.aiming ? adsTarget : hipTarget);
+    if(this.weaponId===RIOT_SHIELD_ID)target=this.shieldRaised()?{x:.4,y:-.6,z:-.35}:hipTarget;
+    this.updateRiotModels();
     // Subtle head-bob while moving on the ground (skipped while aiming for stability).
     let bobY = 0;
     if (!this.aiming && this.onGround && this.vel.lengthSq() > 1) {
@@ -3710,7 +3736,8 @@ export class FPSEngine {
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
-      this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
+      if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null)target.riotShieldHp=damageRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,TURRET_DAMAGE);
+      else this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
     }
   }
 
@@ -4149,7 +4176,7 @@ export class FPSEngine {
       strafeDir: Math.random() < 0.5 ? 1 : -1,
       moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
-      wantsHighGround: Math.random() < (this.map.biome==="city"||this.map.biome==="city_day"?.7:.3),
+      wantsHighGround: Math.random() < botTactics(diff).highGround,
       acquiredTargetAt: 0,
       skill,
       burstShotsLeft: 0,
@@ -4674,7 +4701,11 @@ export class FPSEngine {
           }
         }
         break;
+      case "clusterVolley":
+        this.addClusterVolley({...msg.volley,launchedAt:gravityClientTime(msg.volley.launchedAt,msg.serverNow,Date.now())},false);
+        break;
       case "snapshot":
+        for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
         // Authoritative poison status is sent to everyone, not just the
         // attacker. Convert server timestamps so client clock skew is safe.
         this.onlinePoisoned.clear();
@@ -4692,6 +4723,7 @@ export class FPSEngine {
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
+            this.riotShieldHp=p.riotShieldHp??RIOT_SHIELD_HP;
             this.selfSpawnProtectedUntil = p.spawnProtectedUntil ?? 0;
             // Server now regenerates health authoritatively every combat tick.
             // Never let local predicted HP exceed the canonical value.
@@ -4944,11 +4976,11 @@ export class FPSEngine {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
-          this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           // Round 20: Refill ALL weapon slots on respawn (not just the active one).
-          this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
+          this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
           this.secondaryAmmoInMag = this.secondaryEff.magSize;
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
@@ -5133,7 +5165,9 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
+          if(msg.weaponId===CLUSTER_ID){
+            // The server-authored volley owns every shell and bomblet visual.
+          } else if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else if (msg.weaponId==="wonder_stormweaver") {
@@ -5261,8 +5295,8 @@ export class FPSEngine {
         this.perWeaponActions = new Map();
         this.wonderStates.clear();
         const matchPrimary = weaponById(this.primaryWeaponId);
-        if (matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
-        this.primaryAmmoInMag = matchPrimary.wonder ? matchPrimary.wonder.maxCharges : this.primaryEff.magSize;
+        if (usesWonderCharges(matchPrimary) && matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
+        this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
         if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
@@ -5417,6 +5451,7 @@ export class FPSEngine {
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
+    c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;
     c.perkId = p.perkId;
     return c;
   }
@@ -5492,15 +5527,16 @@ export class FPSEngine {
     this.wasJumpHeld = !!this.keys["Space"];
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
+    this.riotShieldHp=RIOT_SHIELD_HP;
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
+    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     // Round 19o: refill ALL slots on respawn (not just the active one).
-    this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
+    this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     // Round 20h: Local player spawn protection (offline only — online is
@@ -5555,7 +5591,7 @@ export class FPSEngine {
     // this game; restore the actual magazine values used by weapon swapping.
     const beforePrimary = this.primaryAmmoInMag;
     const beforeSecondary = this.secondaryAmmoInMag;
-    if (this.primaryWeaponId && !weaponById(this.primaryWeaponId).wonder && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
+    if (this.primaryWeaponId && !usesWonderCharges(weaponById(this.primaryWeaponId)) && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
         weaponById(this.primaryWeaponId).category !== "melee") {
       this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
         this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
@@ -5981,7 +6017,9 @@ export class FPSEngine {
         for(const victim of tagged){
           const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
           this.spawnWonderBeam(origin,to,"smart");
-          this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+          const path=this.normalize([to[0]-origin[0],to[1]-origin[1],to[2]-origin[2]]);
+          if(rayRiotShield(origin,path,victim)!==null)victim.riotShieldHp=damageRiotShield(victim.riotShieldHp??RIOT_SHIELD_HP,this.eff.damage);
+          else this.applyDamageLocal(victim,this.eff.damage,false,w.id);
         }
       }else{
         this.localFireRay(origin,dir,w.stats.headshotMult);
@@ -6038,6 +6076,79 @@ export class FPSEngine {
     }
   }
 
+  private shieldRaised():boolean{
+    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting && this.riotShieldHp>0;
+  }
+  private disposeRiotModel(model:THREE.Object3D){
+    model.removeFromParent();
+    const mats=new Set<THREE.Material>();
+    model.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);}});
+    for(const m of mats)m.dispose();
+  }
+  private updateRiotModels(){
+    const panel=shieldPanel(this.shieldRaised()), full=shieldPanel(true);
+    if(this.riotShieldModel){
+      const model=this.riotShieldModel;
+      model.visible=this.alive&&this.riotShieldHp>0;
+      model.scale.set(panel.width/full.width,panel.height/full.height,1);
+      model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
+      model.rotation.set(0,-panel.yawOffset,0);
+    }
+    for(const c of this.combatants.values()){
+      if(!c.group||c.isSelf)continue;
+      if(c.weaponId===RIOT_SHIELD_ID&&(!c.riotShieldModel||c.riotShieldModel.parent!==c.group)){
+        c.riotShieldModel=createRiotShieldModel();c.group.add(c.riotShieldModel);
+      }
+      const model=c.riotShieldModel;if(!model)continue;
+      model.visible=c.alive&&c.weaponId===RIOT_SHIELD_ID&&(c.riotShieldHp??RIOT_SHIELD_HP)>0;
+      const p=shieldPanel(!!c.riotShieldRaised);
+      model.position.set(-p.right,p.centerY,p.forward);model.rotation.y=p.yawOffset;
+      model.scale.set(p.width/full.width,p.height/full.height,1);
+    }
+  }
+  private addClusterVolley(volley:ClusterVolley,offline:boolean){
+    if(this.clusterVolleys.has(volley.id))return;
+    const done=new Set<number>();
+    // A late join must not replay old detonations.
+    if(!offline)volley.shots.forEach((s,i)=>{if(Date.now()>volley.launchedAt+s.delayMs+s.path.flightMs)done.add(i);});
+    this.clusterVolleys.set(volley.id,{...volley,offline,done,dealt:new Map(),meshes:new Map()});
+  }
+  private removeClusterVolley(id:string){
+    const v=this.clusterVolleys.get(id);if(!v)return;
+    for(const mesh of v.meshes.values()){mesh.removeFromParent();mesh.geometry.dispose();(mesh.material as THREE.Material).dispose();}
+    this.clusterVolleys.delete(id);
+  }
+  private tickClusterVolleys(){
+    const now=Date.now();
+    for(const [id,v] of this.clusterVolleys){
+      v.shots.forEach((s,i)=>{
+        const age=now-v.launchedAt-s.delayMs;
+        if(age<0||v.done.has(i))return;
+        if(age>=s.path.flightMs){
+          v.done.add(i);
+          const mesh=v.meshes.get(i);if(mesh){mesh.removeFromParent();mesh.geometry.dispose();(mesh.material as THREE.Material).dispose();v.meshes.delete(i);}
+          this.spawnExplosion(new THREE.Vector3(...s.path.impact),undefined,s.radius,CLUSTER_ID);
+          if(v.offline&&!this.matchEnded){
+            const point=s.path.impact;
+            for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
+            for(const target of this.combatants.values()){
+              if(!target.alive||target.id===v.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
+              const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
+              if(dmg<=0||!this.hasLineOfSight(point,center))continue;
+              v.dealt.set(target.id,(v.dealt.get(target.id)??0)+dmg);this.applyDamageLocal(target,dmg,false,CLUSTER_ID);
+            }
+          }
+        }else{
+          let mesh=v.meshes.get(i);
+          if(!mesh){mesh=new THREE.Mesh(new THREE.SphereGeometry(i===0?.13:.09,8,6),new THREE.MeshBasicMaterial({color:i===0?0xffb535:0xff6030}));v.meshes.set(i,mesh);this.scene.add(mesh);}
+          const t=age/s.path.flightMs*(s.path.points.length-1),j=Math.min(s.path.points.length-2,Math.floor(t)),f=t-j;
+          const a=s.path.points[j],b=s.path.points[j+1];mesh.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);
+        }
+      });
+      if(now>v.launchedAt+clusterLifetime(v.shots)+100)this.removeClusterVolley(id);
+    }
+  }
   // ---- Shooting ----
   // fireOneShot is called from the main loop's firing block (above). It handles
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
@@ -6045,7 +6156,7 @@ export class FPSEngine {
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
-    if (w.disabled) return;
+    if (w.disabled || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
@@ -6079,7 +6190,7 @@ export class FPSEngine {
       this.socket.emit("message", { t: "deployTurret" } as const);
       return;
     }
-    if (w.wonder) {
+    if (usesWonderCharges(w) && w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
       if(w.wonder.kind==="flame"){
         // Only accepted trigger-held shots call this function.
@@ -6094,14 +6205,14 @@ export class FPSEngine {
         this.wonderStates.set(w.id,next);
       }
     }
-    if (special?.kind !== "heat" && !w.wonder && this.ammoInMag <= 0) {
+    if (special?.kind !== "heat" && !usesWonderCharges(w) && this.ammoInMag <= 0) {
       this.sound.play("empty_click", { volume: 0.4 });
       this.startReload();
       return;
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
+    if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
@@ -6127,6 +6238,7 @@ export class FPSEngine {
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
+      aiming:this.aiming,
       suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
       volume: w.wonder?.kind==="flame" ? .47 : .9,
     });
@@ -6138,7 +6250,7 @@ export class FPSEngine {
     // for weapons that actually have a reload (melee/launcher have reloadTime 0
     // and are handled separately).
     const justEmptied = this.ammoInMag <= 0;
-    if (!w.wonder && special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
+    if (!usesWonderCharges(w) && special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
       this.startReload();
     }
 
@@ -6163,6 +6275,11 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
+    if(w.wonder?.kind==="cluster"){
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
+      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover)},true);
+      return;
+    }
     // These kinds implement new hitscan / area rules, never rocket splash.
     if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
       if(w.wonder.kind==="flame")this.spawnFlameSpray(origin,dir);
@@ -6172,7 +6289,7 @@ export class FPSEngine {
     }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
-    const isRocket = !!w.explosive || !!w.wonder;
+    const isRocket = !!w.explosive || usesWonderCharges(w);
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -6276,10 +6393,12 @@ export class FPSEngine {
   }
 
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
-    let nearest: { c: Combatant; t: number; head: boolean } | null = null;
+    let nearest: { c: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+      const panel=rayRiotShield(origin,dir,c);
+      if(panel!==null&&panel<=maxWeaponHitRange(this.eff.range,this.eff)&&(!nearest||panel<nearest.t))nearest={c,t:panel,head:false,shield:true};
       const hit = rayCombatantHit(origin, dir, c.pos);
       if (hit && hit.t <= maxWeaponHitRange(this.eff.range, this.eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { c, t: hit.t, head: hit.head };
@@ -6305,6 +6424,7 @@ export class FPSEngine {
         this.hitMarkerAt = performance.now();
         return null;
       }
+      if(nearest.shield){nearest.c.riotShieldHp=damageRiotShield(nearest.c.riotShieldHp??RIOT_SHIELD_HP,this.eff.damage);this.sound.play("melee_hit",{volume:.45});return null;}
       const baseDmg = this.eff.damage * (nearest.head ? headshotMult : 1);
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
@@ -7047,7 +7167,7 @@ export class FPSEngine {
 
   private startReload() {
     if (this.equipmentAction) return;
-    if (weaponById(this.weaponId).wonder) return;
+    if (usesWonderCharges(weaponById(this.weaponId))) return;
     const special = weaponById(this.weaponId).special;
     if (special?.kind === "heat") {
       const heat = this.heatStates.get(this.weaponId)?.heat ?? 0;
@@ -7132,6 +7252,8 @@ export class FPSEngine {
     // HUD renders a big centered countdown number from `preMatchCountdown`.
     // When it hits 0, a "GO!" SFX plays and normal gameplay resumes.
     if (this.preMatchCountdown > 0) {
+      const second=Math.ceil(this.preMatchCountdown);
+      if(second!==this.lastCountdownSecond){this.lastCountdownSecond=second;this.sound.play("countdown_tick",{volume:.8});}
       this.preMatchCountdown -= dt;
       // Keep the camera at spawn so the player can look around (mouse-look is
       // still active via the pointer-lock handler, but movement keys are
@@ -7253,6 +7375,7 @@ export class FPSEngine {
     if (!this.alive) this.equipmentAction = null;
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
+    this.tickClusterVolleys();
     this.updateSpecialResources(dt, performance.now());
     if (this.turretDeployPending && performance.now() - this.turretDeployRequestedAt > 3000) {
       // No authoritative placement arrived (e.g. dropped packet / disconnect).
@@ -7298,7 +7421,7 @@ export class FPSEngine {
     const inputActive = this.pointerLocked || this.touchMode;
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    const wantsAds = this.manualAiming || (this.autoAdsOnFire && wantFire && this.alive);
+    const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds && (!this.sprinting || allowSprintAds);
     if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
@@ -7306,7 +7429,7 @@ export class FPSEngine {
       const now = performance.now();
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
       if(wantFire && (this.mousePressedThisFrame || this.touchPressedThisFrame) &&
-         this.ammoInMag<=0 && !this.reloading && !w.wonder &&
+         this.ammoInMag<=0 && !this.reloading && !usesWonderCharges(w) &&
          w.category!=="melee" && w.special?.kind!=="heat"){
         this.sound.play("empty_click",{volume:.36});
         this.startReload();
@@ -7365,7 +7488,7 @@ export class FPSEngine {
     this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
     // The optical zoom field determines actual magnification across all player FOV settings.
     // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
-    this.camera.fov = adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
+    this.camera.fov = this.weaponId===RIOT_SHIELD_ID?this.baseFov:adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
     this.camera.updateProjectionMatrix();
     this.positionViewmodel();
     // Update the laser indicator (visible only when a laser sight is equipped)
@@ -7810,10 +7933,12 @@ export class FPSEngine {
     // Third-person aim pitch is the same sign as the existing head pitch.
     p.weaponStub.rotation.x = c.pitch * 0.35 - recoil * 0.3;
 
+    if(c.weaponId===RIOT_SHIELD_ID&&c.riotShieldRaised&&(c.riotShieldHp??RIOT_SHIELD_HP)>0){p.weaponStub.position.y-=.42;p.weaponStub.rotation.x+=.85;}
     const rightGrip = p.weaponHoldRight.clone()
       .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
     const leftGrip = p.weaponHoldLeft.clone()
       .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
+    if(c.weaponId===RIOT_SHIELD_ID&&(c.riotShieldHp??RIOT_SHIELD_HP)>0){const panel=shieldPanel(!!c.riotShieldRaised);leftGrip.set(-panel.right+.12,.95,panel.forward-.07);}
     poseBotArm(p.upperArmR, p.lowerArmR, rightGrip, -1);
     poseBotArm(p.upperArmL, p.lowerArmL, leftGrip, 1);
     // Head tracks pitch (look up/down with aim)
@@ -8188,9 +8313,13 @@ export class FPSEngine {
       const aimSettled = now - ai.acquiredTargetAt >=
         botReactionDelay(ai.difficulty) + eff.adsTime * 750;
       const stance = botCombatDecision(w.category, dist, clearShot,
-        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil);
+        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty);
       ai.sprinting = stance.sprinting;
       ai.aiming = stance.aiming;
+      if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
+        ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
+        ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
+      }
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
         (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
@@ -8199,7 +8328,7 @@ export class FPSEngine {
       let mvx = 0, mvz = 0;
       if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
-      else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
+      else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; }
       // Obstacle-aware chase navigation around the dense Bunker centre.
       if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
@@ -8362,7 +8491,7 @@ export class FPSEngine {
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
       const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
-      ai.sprinting = botPatrolSprint(d);
+      ai.sprinting = botPatrolSprint(d,ai.difficulty);
       if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
@@ -8403,12 +8532,15 @@ export class FPSEngine {
         } else {
           c.yaw = this.lerpAngle(c.yaw, Math.atan2(dx, dz), 0.15);
         }
+        const scan=botCornerScan(ai.difficulty,patrolBlocked,now,ai);
+        if((ai.cornerUntil??0)>now){ai.sprinting=false;c.yaw=this.lerpAngle(c.yaw,Math.atan2(fx,fz)+scan,.28);}
+        const cornerSpeed=(ai.cornerUntil??0)>now?.35:1;
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
         const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
-        const mvx = fx * moveSpeed;
-        const mvz = fz * moveSpeed;
+        const mvx = fx * moveSpeed * cornerSpeed;
+        const mvz = fz * moveSpeed * cornerSpeed;
         const moveLen = Math.hypot(mvx, mvz);
         const SUBSTEP = 0.15;
         const steps = Math.max(1, Math.ceil(moveLen / SUBSTEP));
@@ -8512,7 +8644,7 @@ export class FPSEngine {
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
-      if (d > 55) continue;
+      if (d > botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
       if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(this.opts.mode === "survival" && e.pos[1] > c.pos[1] + 1.25)) continue;
@@ -8539,16 +8671,19 @@ export class FPSEngine {
   }
 
   private botFireRay(attacker: Combatant, origin: Vec3, dir: Vec3, eff: EffectiveStats, headshotMult: number) {
-    let nearest: { victim: Combatant; t: number; head: boolean } | null = null;
+    let nearest: { victim: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     const selfC: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
       weaponId: "", weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
+    selfC.weaponId=this.weaponId;selfC.yaw=this.yaw;selfC.riotShieldHp=this.riotShieldHp;selfC.riotShieldRaised=this.shieldRaised();
     const candidates = [...this.combatants.values(), selfC];
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
+      const panel=rayRiotShield(origin,dir,e);
+      if(panel!==null&&panel<=maxWeaponHitRange(eff.range,eff)&&(!nearest||panel<nearest.t))nearest={victim:e,t:panel,head:false,shield:true};
       const hit = rayCombatantHit(origin, dir, e.pos);
       if (hit && hit.t <= maxWeaponHitRange(eff.range, eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
@@ -8560,6 +8695,11 @@ export class FPSEngine {
       if (t !== null && t < blockedT) blockedT = t;
     }
     if (nearest && nearest.t < blockedT) {
+      if(nearest.shield){
+        if(nearest.victim.id===this.selfId){this.riotShieldHp=damageRiotShield(this.riotShieldHp,eff.damage);this.sound.play("melee_hit",{volume:.55});}
+        else nearest.victim.riotShieldHp=damageRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,eff.damage);
+        return;
+      }
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
       let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff);
       // Survival: bots hit harder as waves progress, BUT base damage is reduced
@@ -8830,7 +8970,8 @@ export class FPSEngine {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
       } : {}),
-      ...(weaponById(this.weaponId).wonder ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
+      ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised()}:{}),
+      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
@@ -9005,6 +9146,8 @@ export class FPSEngine {
     }
     this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
+    for(const id of [...this.clusterVolleys.keys()])this.removeClusterVolley(id);
+    if(this.riotShieldModel)this.disposeRiotModel(this.riotShieldModel);
     this.weaponAudio.dispose();
     if(this.gardenMaterial){
       this.gardenMaterial.map?.dispose();

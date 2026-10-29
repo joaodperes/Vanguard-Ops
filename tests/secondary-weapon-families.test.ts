@@ -24,7 +24,7 @@ describe("secondary family catalog and permanent IDs", () => {
     for (const count of counts.values()) expect(count % 3).toBe(0);
     expect(SECONDARY.map(cat => counts.get(cat))).toEqual([6, 3, 3]);
     expect(regular.some(w => (w.category as string) === "sidearm")).toBe(false);
-    expect(WEAPONS.filter(w => w.wonder)).toHaveLength(7);
+    expect(WEAPONS.filter(w => w.wonder)).toHaveLength(9);
   });
   test("old persisted IDs keep their identity and original slot", () => {
     for (const [id, category] of Object.entries(ORIGINAL)) {

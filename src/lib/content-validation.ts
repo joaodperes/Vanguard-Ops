@@ -53,7 +53,7 @@ const weapon = z.object({
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
-    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge"]),
+    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
     maxCharges: z.number().int().min(1).max(8),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),

@@ -90,7 +90,9 @@
               "smart",
               "flame",
               "storm",
-              "sludge"
+              "sludge",
+              "cluster",
+              "shield"
             ]
           },
           "maxCharges": {
@@ -99,7 +101,10 @@
               2,
               3,
               4,
-              5
+              5,
+              6,
+              7,
+              8
             ]
           },
           "rechargeMs": {

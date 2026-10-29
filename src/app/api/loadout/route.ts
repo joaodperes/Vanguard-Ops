@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
     }
-    if (!isPrimaryWeaponCategory(w.category)) {
+    if (!w.wonder && !isPrimaryWeaponCategory(w.category)) {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
   }
@@ -153,6 +153,7 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
     }
+    if(w.wonder) return NextResponse.json({error:"Wonder Weapons use the Primary slot"},{status:403});
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
     if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
