@@ -1,6 +1,6 @@
 # Vanguard Ops
 
-A browser-based 3D first-person shooter built with Next.js, React, Three.js, Socket.IO and Prisma. Play offline against bots or create/join multiplayer rooms. Modes include FFA, TDM, Gun Game, Kill Confirmed and Survival, with progression, unlocks, loadouts and a developer map editor.
+A browser-based 3D first-person shooter built with Next.js, React, Three.js, Socket.IO and Prisma. Play offline against bots or create/join multiplayer rooms. Modes include Free-for-All, Team Deathmatch, Gun Game, Kill Confirmed, Capture the Flag and Survival, with progression, unlocks, loadouts and an in-browser Map Studio.
 
 ## Local development
 
@@ -37,7 +37,7 @@ bun run build
 
 `test:smoke` runs the Bun regression suite in `tests/`; `test:maps`, `test:bots` and `test:movement` select smaller suites. The validation workflow checks `dev` and `main` pushes and pull requests after the updated workflow is present on those branches. Automated checks do not replace manual browser, multiplayer, bot-pathing, performance or production-data checks.
 
-Use the [canonical QA and promotion checklist](docs/dev-test-checklist.md) before proposing a `dev` → `main` merge.
+Use the [canonical QA and promotion checklist](docs/dev-test-checklist.md) before proposing a `dev` → `main` merge. The game has six general-purpose maps and two Capture the Flag-only maps (Forest Warfare and Orbital Nexus); the day/night Afterlight editions have separate IDs.
 
 ## Project layout
 

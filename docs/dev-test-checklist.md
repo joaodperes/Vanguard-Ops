@@ -5,9 +5,10 @@
 ## 1. Prepare the candidate
 
 - Record the branch, head SHA, release scope and any schema/content changes. Check that the branch contains all intended feature merges.
-- Review `git diff main...dev` and investigate divergent commits and merge conflicts before release; test the **resulting merged tree**, not just the source branch independently.
+- Review `git diff main...dev`, and check both `git log main..dev` and `git log dev..main` for branch-only changes. In particular, `dev` is not necessarily a fast-forward of `main`. Resolve divergent commits and merge conflicts before release; test the **resulting merged tree**, not just either source branch independently.
 - Back up player data if `prisma/schema.prisma`, saved loadouts, progression counters or any persistence contracts changed. Check `DATABASE_URL` and resolve SQLite paths relative to `prisma/schema.prisma`. Never run `db:reset` on real accounts.
-- Include any required schema update/migration and deployment order in the release plan.
+- Include any required schema update/migration and deployment order in the release plan. `bun run build` does not migrate a production SQLite database; verify the deployed schema and plan a backup, forward update and rollback separately.
+- Review any still-open feature PRs targeting `dev` and decide whether to include or defer them *before* freezing the `main` release candidate.
 
 ## 2. Run automated validation
 
@@ -46,13 +47,13 @@ Test desktop keyboard/mouse **and** touch/mobile:
 - Fire Plagueheart at the furthest practice bot. Only targets within 2.75m of the *impact* should be poisoned; targets merely close to the flight path must remain unaffected. Repeat on an online room with latency.
 - Confirm Stormweaver identifies as Shotgun in HUD/loadouts; seven pellets group tightly at short range, lightning arcs begin at a struck victim and jump between actual targets (never from the muzzle), and missed pellets become floor mines. Verify server/local hit parity.
 - Inspect Event Horizon default Eventide-inspired finish and explicit skin overrides, Deadlock's targeting modules, Hellfire red/orange/yellow chassis and forward-directed muzzle flames. Check axe blade silhouette and melee reach visually, then compare LMG vertical recoil while hipfiring and ADS.
-- Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface.
+- Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface. Browse attachments on unequipped weapons; completed attachment challenges should no longer show their requirement block but should retain the purchase action. Verify weapon-card purchase/equip buttons align at desktop and mobile widths. Enter the Firing Range from its dedicated Armory button, not individual weapon cards.
 - On a new guest and a new account, complete the tutorial's movement, ADS, target, reload and swap drills using desktop and touch controls. Escape must expose tutorial buttons; cancel a reload by swapping and verify it does not complete the reload task. Confirm the range awards no stats/XP/credits and does not change the equipped loadout.
 - Skip, finish, save/leave and reload the tutorial; verify per-player checkpoints, resume from Profile, replay after completion and no repeated menu prompts. Confirm existing players are not forced into training, the Guide is absent, the Deploy area is gone, Play still works and account logout is inside Profile.
 
 ## 4. Map and bot acceptance
 
-Check all six current map IDs and both Afterlight lighting editions:
+Check all eight playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and two Capture the Flag-only maps:
 
 | Map ID | Current map / primary risk |
 | --- | --- |
@@ -62,6 +63,8 @@ Check all six current map IDs and both Afterlight lighting editions:
 | `terminal` | Afterlight City (Day) — dense streets, interior rooms, roof access and park |
 | `arena_neon` | Afterlight City (Night) — same current regions/spawns as Day; different lighting |
 | `skybridge` | Ridgefall — **enclosed industrial steelworks factory**, gantries, freight gate and multi-height paths |
+| `forest_warfare` | Forest Warfare — **CTF only**; raised treetop flag positions, climbable access and flag-carrier paths |
+| `orbital_nexus` | Orbital Nexus — **CTF only**; opposing flag routes, launch pads, reactor objective and platform clearance |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -69,6 +72,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Compare **the same map, difficulty and loadout** offline and in an online room. Test elevated targets, latency, reconnects, room creation/joining, player/team caps and authoritative damage.
 - In both Afterlight editions, check identical footprint/spawn layout, street interiors, actual door openings, roof hatch/exterior stairs and park pavilion geometry. Confirm day/night materials do not change gameplay collision.
 - On Ridgefall, inspect actual factory routes and freight/security gate. Old snowfield, rocky-outpost and outdoor-cliff checklists are historical, not release criteria.
+- For Forest Warfare and Orbital Nexus, test flag pickup, return, capture, carrier paths, timed drops and team-wide feedback. On Orbital Nexus also verify the reactor objective and launch pads in online and offline CTF matches.
 - For authored changes, export Map Studio content and validate `src/data/map-blueprints.json`, matching theme JSON and client/server geometry. See [Map Studio](map-studio.md).
 
 ## 5. Survival, rewards and persistence
@@ -90,7 +94,8 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 
 ### Release sign-off
 
-- [ ] `dev`/merge-candidate SHAs and conflicts reviewed
+- [ ] Both sides of `dev`/`main` divergence, merge-candidate SHAs and conflicts reviewed
+- [ ] Open feature PRs targeting `dev` explicitly included or deferred
 - [ ] Content validation, Bun suite, TypeScript and production build pass on merge result
 - [ ] Desktop, mobile, offline and multiplayer checks pass
 - [ ] All current map layouts, bots, collisions and modes reviewed
