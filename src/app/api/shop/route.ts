@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
 import { buildProfileView,getOrCreatePlayer } from "@/lib/player-service";
 import { shopItemById,shopItemKey } from "@/lib/shop-catalog";
+import { isShopItemFeatured } from "@/lib/shop-rotation";
 import { WEAPONS,levelForXp } from "@/lib/game-data";
 import { MAX_PLAYER_LEVEL } from "@/lib/progression";
 import { ownsWeapon } from "@/lib/collection-ownership";
@@ -15,6 +16,7 @@ export async function POST(req:NextRequest){
   if(!playerKey)return NextResponse.json({error:"playerKey required"},{status:400});
   const item=shopItemById(typeof body.itemId==="string"?body.itemId:"");
   if(!item)return NextResponse.json({error:"Unknown shop item"},{status:404});
+  if(!isShopItemFeatured(item.id))return NextResponse.json({error:"Not available in today\'s Shop rotation"},{status:403});
   const player=await getOrCreatePlayer(playerKey);
   const weaponId=item.kind==="weaponSkin"&&typeof body.weaponId==="string"?body.weaponId:"";
   const weapon=WEAPONS.find(w=>w.id===weaponId && !w.wonder);
