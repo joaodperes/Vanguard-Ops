@@ -137,6 +137,39 @@ export function createWeaponCharm(id:string,firstPerson=false):THREE.Group|null{
     }
     add(pendant,new THREE.CylinderGeometry(.003,.003,.038,6),silver,0,.001,0,"satellite_antenna");
     add(pendant,new THREE.SphereGeometry(.009,6,6),main,0,.024,0,"antenna_tip");
+  }else if(id==="charm_bolt"){
+    const shape=new THREE.Shape();
+    shape.moveTo(.003,.026);shape.lineTo(-.036,-.036);shape.lineTo(-.007,-.032);
+    shape.lineTo(-.024,-.111);shape.lineTo(.041,-.023);shape.lineTo(.012,-.025);shape.closePath();
+    add(pendant,new THREE.ExtrudeGeometry(shape,{depth:.013,bevelEnabled:false}),main,0,.015,0,"lightning_token");
+    add(pendant,new THREE.BoxGeometry(.012,.006,.018),silver,0,-.032,.011,"lightning_glint");
+  }else if(id==="charm_anchor"){
+    add(pendant,new THREE.CylinderGeometry(.006,.006,.098,8),silver,0,-.044,0,"anchor_shaft");
+    add(pendant,new THREE.TorusGeometry(.015,.006,8,12),main,0,.018,0,"anchor_loop");
+    add(pendant,new THREE.BoxGeometry(.068,.010,.015),silver,0,-.010,0,"anchor_stock");
+    const arms=new THREE.Shape();
+    arms.moveTo(-.043,-.060);arms.lineTo(-.030,-.095);arms.lineTo(0,-.103);
+    arms.lineTo(.030,-.095);arms.lineTo(.043,-.060);arms.lineTo(.057,-.066);
+    arms.lineTo(.047,-.110);arms.lineTo(0,-.126);arms.lineTo(-.047,-.110);
+    arms.lineTo(-.057,-.066);arms.closePath();
+    add(pendant,new THREE.ExtrudeGeometry(arms,{depth:.011,bevelEnabled:false}),main,0,.020,0,"anchor_flukes");
+  }else if(id==="charm_rocket"){
+    add(pendant,new THREE.CylinderGeometry(.022,.025,.095,9),main,0,-.042,0,"rocket_body");
+    add(pendant,new THREE.ConeGeometry(.025,.043,9),silver,0,.026,0,"rocket_nose");
+    for(let i=0;i<3;i++){
+      const fin=add(pendant,new THREE.BoxGeometry(.025,.040,.009),main,
+        Math.cos(i*Math.PI*2/3)*.028,-.077,Math.sin(i*Math.PI*2/3)*.028,"rocket_fin");
+      fin.rotation.y=-i*Math.PI*2/3;
+    }
+    add(pendant,new THREE.CylinderGeometry(.010,.014,.008,8),bright,0,-.092,0,"rocket_exhaust");
+  }else if(id==="charm_moon"){
+    const crescent=new THREE.Shape();
+    crescent.absarc(0,-.046,.055,-Math.PI/2,Math.PI*1.5,false);
+    const hole=new THREE.Path();
+    hole.absarc(.025,-.025,.050,-Math.PI/2,Math.PI*1.5,true);
+    crescent.holes.push(hole);
+    add(pendant,new THREE.ExtrudeGeometry(crescent,{depth:.012,bevelEnabled:false,curveSegments:24}),main,0,0,0,"moon_crescent");
+    add(pendant,new THREE.SphereGeometry(.009,7,6),bright,-.036,-.014,.020,"moon_star");
   }else{
     return null;
   }
