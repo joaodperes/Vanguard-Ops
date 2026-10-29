@@ -98,7 +98,7 @@ const CATEGORY_LABELS: Record<WeaponCategory, string> = {
 
 export function Armory() {
   const { profile, setScreen, refreshProfile, playerKey, setRangeWeaponId } = useGame();
-  const tryInRange = (id?: string) => { setRangeWeaponId(id ?? null); setScreen("range"); };
+  const enterFiringRange = () => { setRangeWeaponId(null); setScreen("range"); };
   const [presetName, setPresetName] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [editingPreset, setEditingPreset] = useState<string | null>(null);
@@ -342,7 +342,7 @@ export function Armory() {
           <div>
             <h2 className="text-white font-bold tracking-wide flex items-center gap-2"><TestTube2 className="w-5 h-5 text-amber-300" /> Firing Range</h2>
           </div>
-          <Button onClick={() => tryInRange()} className="bg-amber-500 text-black hover:bg-amber-400 font-semibold">
+          <Button onClick={enterFiringRange} className="bg-amber-500 text-black hover:bg-amber-400 font-semibold">
             <Crosshair className="w-4 h-4 mr-1.5" /> Enter Firing Range
           </Button>
         </div>
@@ -453,11 +453,6 @@ export function Armory() {
                     <span>{w.wonder!.kind === "shield" ? "Hold ADS: frontal cover, P-9 lowered" : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
                     <span>{w.wonder!.kind === "shield" ? "Shield restores on respawn" : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
-                  {!owned && (
-                    <Button onClick={() => tryInRange(w.id)} variant="outline" className="w-full border-amber-400/40 text-amber-200 hover:bg-amber-500/10">
-                      <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free in Range
-                    </Button>
-                  )}
                   {owned
                     ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
                       onClick={() => equipWeapon(w, "primary")}
@@ -489,7 +484,6 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
-              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "primary" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.weapon.id ?? ""}
@@ -508,7 +502,6 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
-              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "secondary" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.secondary.id ?? ""}
@@ -526,7 +519,6 @@ export function Armory() {
               challenges={challenges}
               busy={busy}
               onPurchase={purchase}
-              onTry={tryInRange}
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "melee" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.melee.id ?? ""}
@@ -643,7 +635,6 @@ interface WeaponSlotSectionProps {
   busy: string | null;
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onCustomize: (w: WeaponDef) => void;
-  onTry: (id: string) => void;
   onEquip: (w: WeaponDef, slot: WeaponSlot) => void;
   equippedId: string;
   defaultOpen?: boolean;
@@ -732,7 +723,7 @@ interface WeaponCardProps extends WeaponSlotSectionProps {
 }
 
 function WeaponCard(props: WeaponCardProps) {
-  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, onTry, slot, onEquip, equippedId } = props;
+  const { weapon: w, level, credits, ownedWeaponIds, busy, onPurchase, onCustomize, slot, onEquip, equippedId } = props;
   const isOwned = ownedWeaponIds.has(w.id);
   const lockedByLevel = level < w.unlockLevel;
   const canBuy = !isOwned && !lockedByLevel && credits >= w.unlockCost;
@@ -780,11 +771,6 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
-      {!isOwned && (
-        <Button onClick={() => onTry(w.id)} variant="outline" className="w-full mb-2 border-amber-500/35 text-amber-200 hover:bg-amber-500/10">
-          <TestTube2 className="w-4 h-4 mr-1.5" /> Try Free
-        </Button>
-      )}
       {!isOwned && (
         <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
           {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
