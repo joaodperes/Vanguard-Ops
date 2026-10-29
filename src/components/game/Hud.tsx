@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
+import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
@@ -112,6 +113,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
   const clockText = formatMatchClock(hud);
+  const scoreboardRuleLabels = scoreboardRules(mode, hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier);
 
   // damage direction indicator
@@ -691,10 +693,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : "Team Deathmatch · Kills"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
-              {/* team panels */}
+              <div className="px-4 py-2 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/65">
+                  {scoreboardRuleLabels.map((label) => <span key={label}>{label}</span>)}
+                </div>
+                {/* team panels */}
               <div className="flex flex-col sm:flex-row gap-2 p-2 max-h-[50vh] overflow-y-auto custom-scroll">
-                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
-                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
               </div>
             </div>
           </div>
@@ -706,7 +711,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <span className="text-white font-bold tracking-wider uppercase text-sm">{matchInfo.title}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
-              <div className="max-h-[50vh] overflow-y-auto custom-scroll">
+              <div className="px-4 py-2 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/65">
+                  {scoreboardRuleLabels.map((label) => <span key={label}>{label}</span>)}
+                </div>
+                <div className="max-h-[50vh] overflow-y-auto custom-scroll">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-white/40 text-xs uppercase">
@@ -764,7 +772,7 @@ function teamDot(t: string) {
 // highlighted emerald (same as the FFA table). Every player whose team matches
 // `selfTeam` (i.e. friendlies — which in a team panel is either everyone or
 // no-one) gets a small Shield icon prefix so allies are visually distinct.
-function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string }) {
+function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string; limit?: number }) {
   const accent = team === "red" ? "border-red-500/40" : "border-blue-500/40";
   const headerBg = team === "red" ? "bg-red-500/10" : "bg-blue-500/10";
   const headerText = team === "red" ? "text-red-400" : "text-blue-400";
@@ -776,7 +784,7 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | 
       <div className={`px-3 py-2 ${headerBg} flex items-center gap-2`}>
         <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`} />
         <span className={`${headerText} font-bold uppercase tracking-wider text-xs`}>{team === "red" ? "Red Team" : "Blue Team"}</span>
-        <span className="ml-auto text-white font-black text-lg tabular-nums">{score}</span>
+        <span className="ml-auto text-white font-black text-lg tabular-nums">{score}{limit !== undefined && limit > 0 && <span className="text-white/50 text-xs font-normal">/{limit}</span>}</span>
       </div>
       <table className="w-full text-sm">
         <thead>

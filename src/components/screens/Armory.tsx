@@ -1211,7 +1211,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                     {wonderChallenge.completed?"✓ Completed":`${wonderChallenge.progress}/${wonderChallenge.goal} objectives`}
                   </span>
                 </div>
-                <p className="mt-1 text-white/55">Reward: {wonderChallenge.reward}. Complete both objectives independently; this challenge does not count toward Prestige.</p>
+                <p className="mt-1 text-white/55">Reward: {wonderChallenge.reward}.</p>
                 <div className="mt-3 h-1.5 rounded bg-black/50 overflow-hidden">
                   <div className={wonderChallenge.completed?"h-full bg-emerald-400":"h-full bg-violet-400"} style={{width:`${wonderChallenge.progress/wonderChallenge.goal*100}%`}} />
                 </div>
@@ -1365,7 +1365,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(a.effects).map(([k, v]) => (
                     <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${isBonusGood(k, v!) ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-rose-500/15 text-rose-300 border border-rose-500/20"}`}>
-                      {v! > 0 ? "+" : ""}{v}{k === "magSize" ? "rds" : "%"} {effectLabelShort(k)}
+                      {v! > 0 ? "+" : ""}{v}% {effectLabelShort(k)}
                     </span>
                   ))}
                 </div>

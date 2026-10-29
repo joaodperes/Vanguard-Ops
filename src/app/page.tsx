@@ -1,6 +1,6 @@
 "use client";
 
-import { achievementTitle, titledDisplayName } from "@/lib/achievement-titles";
+import { achievementTitle, achievementRequirement, titledDisplayName } from "@/lib/achievement-titles";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
@@ -108,7 +108,8 @@ export default function Page() {
       if (rewards.newAchievements?.length) {
         for (const a of rewards.newAchievements) {
           const title = achievementTitle(a.id);
-          toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+          const requirement = achievementRequirement(a.id, a.description);
+          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
         }
       }
       if (rewards.newPrestiges?.length) {

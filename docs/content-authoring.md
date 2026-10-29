@@ -94,6 +94,8 @@ Append to `attachments.json`:
 
 Add its ID to `category-attachments.json` under the appropriate category and slot, and to `attachment-compatibility.json` for weapons with explicit overrides. A new attachment not listed in the relevant allowlist will not appear just because its definition exists. **Per-weapon overrides win per slot**: `attachment-compatibility.json` takes precedence over the category/slot list in `category-attachments.json`, and lists are not merged. When modifying a category list, retain the intended existing options; when an override exists, update that override too. `weaponCategories` is advisory; the allowlists are applied by the runtime. For new scopes, add a `sight-definitions.json` entry and use `sightType` on a compatible sight attachment.
 
+**Attachment economy and balance:** standard early attachments typically cost 200–350 CR, mid-tier utility costs 375–550 CR and specialist/late-game variants cost about 500–850 CR. Higher level gates and contextual challenges provide progression without a tenfold price jump for comparable stats. Attachment purchases are per weapon (not account-wide). Where two compatible attachments share a slot, avoid a strictly dominated option: each should offer a meaningful handling, precision, damage, range or mobility trade-off in its `effects` and description. Compare using `computeEffectiveStats`, not copy alone.
+
 **Progression:** each eligible weapon/attachment pair receives a contextual permanent attachment challenge through `src/lib/armory-challenges.ts`. Challenges make purchases *eligible*, not owned; the original credit purchase is still required. Check compatibility and eligibility on both client and server.
 
 ## Add a weapon skin or operator skin

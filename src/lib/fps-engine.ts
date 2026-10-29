@@ -173,6 +173,7 @@ export interface HudState {
   ctfNotice?: { label: string; at: number };
   ctfZoneError?: string;
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
+  timeLimitSec?: number; // Room's configured duration (not the countdown)
   confirmations?: number;
   denials?: number;
   denialScoreEnabled?: boolean;
@@ -757,6 +758,7 @@ export class FPSEngine {
   private denialScoreEnabled = false;
   private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
+  private configuredTimeLimitSec = 360;
   private hasTimeLimit = true;
   private elapsedSeconds = 0;
   private matchEnded = false;
@@ -1045,6 +1047,7 @@ export class FPSEngine {
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ctf" ? 3 : opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
+    this.configuredTimeLimitSec = opts.mode === "gungame" || opts.mode === "survival" ? 0 : this.timeLeft;
     this.ctfResetDurationMs = ctfResetMs(opts.roomConnect?.config?.ctfFlagResetMs);
     this.ctfRulesVerified = !opts.online;
     this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
@@ -4645,6 +4648,7 @@ export class FPSEngine {
       case "joined":
         this.selfId = msg.selfId;
         this.scoreLimit = msg.config.scoreLimit;
+        this.configuredTimeLimitSec = msg.config.timeLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
@@ -5180,6 +5184,7 @@ export class FPSEngine {
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
         this.scoreLimit = msg.config.scoreLimit;
+        this.configuredTimeLimitSec = msg.config.timeLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
@@ -5235,6 +5240,7 @@ export class FPSEngine {
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
+          this.configuredTimeLimitSec = msg.config.timeLimit;
           this.hasTimeLimit = msg.config.timeLimit > 0 && this.opts.mode !== "gungame" && this.opts.mode !== "survival";
           this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
           this.elapsedSeconds = 0;
@@ -8732,7 +8738,8 @@ export class FPSEngine {
           !flagAtHome(this.ctfFlags[this.opts.team])
           ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
-      confirmations: this.confirmations,
+      timeLimitSec: this.configuredTimeLimitSec,
+      confirmations: this.confirmations;
       denials: this.denials,
       denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,

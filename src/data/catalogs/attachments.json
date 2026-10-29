@@ -478,7 +478,7 @@
     "slot": "barrel",
     "unlockLevel": 8,
     "unlockCost": 300,
-    "description": "Faster recovery and lower recoil, with a small range penalty.",
+    "description": "Agile close-range barrel: faster aim and tighter hipfire with lower recoil, at the cost of effective range.",
     "weaponCategories": [
       "smg",
       "shotgun",
@@ -489,7 +489,9 @@
     ],
     "effects": {
       "recoil": -14,
-      "range": -7
+      "range": -7,
+      "adsTime": -16,
+      "spread": -8
     }
   },
   {
@@ -729,7 +731,7 @@
     "name": "Compact Reflex Sight",
     "slot": "sight",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 420,
     "description": "Compact 1x red-dot optic; faster ADS and tighter aim.",
     "effects": {
       "adsTime": -12,
@@ -742,7 +744,7 @@
     "name": "Lightweight Magazine",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 420,
     "description": "Improves movement at the cost of ammunition capacity.",
     "effects": {
       "moveSpeed": 6,
@@ -754,7 +756,7 @@
     "name": "Agile Bolt Assembly",
     "slot": "barrel",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 550,
     "description": "Crossbow quick handling with shorter effective range.",
     "effects": {
       "adsTime": -14,
@@ -770,7 +772,7 @@
     "name": "Light Quiver",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 600,
     "description": "Crossbow reload and mobility upgrade at the cost of damage.",
     "effects": {
       "reloadTime": -15,
@@ -786,7 +788,7 @@
     "name": "Launcher Handling Kit",
     "slot": "barrel",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 525,
     "description": "Faster rocket handling and ADS, but reduced effective range.",
     "effects": {
       "adsTime": -12,
@@ -798,7 +800,7 @@
     "name": "Reinforced Warhead Rack",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 700,
     "description": "Heavier ordnance for stronger direct hits, slower reload/movement.",
     "effects": {
       "damage": 8,
@@ -811,7 +813,7 @@
     "name": "Match Cartridge",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 600,
     "description": "Annihilator precision ammunition, slower reload.",
     "effects": {
       "adsSpread": -10,
@@ -827,7 +829,7 @@
     "name": "Fast-Bolt Cartridge",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 550,
     "description": "Annihilator faster chamber cycling, stronger recoil.",
     "effects": {
       "reloadTime": -25,
@@ -842,7 +844,7 @@
     "name": "Light Chamber",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 550,
     "description": "Annihilator lightweight ammo; faster movement, lower damage.",
     "effects": {
       "moveSpeed": 7,
@@ -857,7 +859,7 @@
     "name": "Stabilized Cartridge",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 550,
     "description": "Annihilator controlled recoil, slower ADS.",
     "effects": {
       "recoil": -20,
@@ -872,7 +874,7 @@
     "name": "Blast Chamber",
     "slot": "barrel",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 650,
     "description": "Launches heavier explosive ordnance with +10% damage, but range drops 15% and reload slows 12%.",
     "weaponCategories": [
       "launcher"
@@ -888,7 +890,7 @@
     "name": "Long-Range Launch Tube",
     "slot": "barrel",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 600,
     "description": "Extends launcher effective range by 18%, at the cost of 12% slower ADS and 6% slower movement.",
     "weaponCategories": [
       "launcher"
@@ -904,7 +906,7 @@
     "name": "Quick Loader Support",
     "slot": "grip",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 500,
     "description": "Reload time -16%, but ADS time +8% for heavy launcher reloading hardware.",
     "weaponCategories": [
       "launcher"
@@ -919,7 +921,7 @@
     "name": "Lightweight Carry Support",
     "slot": "grip",
     "unlockLevel": 18,
-    "unlockCost": 2200,
+    "unlockCost": 500,
     "description": "Movement speed +6%, but launcher reload time +12%.",
     "weaponCategories": [
       "launcher"
