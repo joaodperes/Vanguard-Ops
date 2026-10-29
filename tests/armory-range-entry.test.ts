@@ -10,6 +10,6 @@ describe("Armory firing range entry", () => {
     expect(source).toContain("Enter Firing Range");
     expect(source).toContain("onClick={enterFiringRange}");
     expect(source).toContain("setRangeWeaponId(null)");
-    expect(source).not.toMatch(/Try Free|\\bonTry\\b|tryInRange/);
+    expect(source).not.toMatch(/Try Free|\bonTry\b|tryInRange/);
   });
 });
