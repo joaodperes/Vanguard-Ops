@@ -196,12 +196,12 @@ try {
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryReticle:"reticle_nova"})),403);
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_moon"})),403);
   await status(await preset(req({playerKey:cosmeticsPlayer.playerKey,action:"save",name:"Cosmetic Kit"})),200);
-  const saved=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
-  assert.equal(saved.primaryReticle,todayReticle.cosmeticId);
-  assert.equal(saved.primaryCharm,todayCharm.cosmeticId);
+  const cosmeticSaved=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
+  assert.equal(cosmeticSaved.primaryReticle,todayReticle.cosmeticId);
+  assert.equal(cosmeticSaved.primaryCharm,todayCharm.cosmeticId);
   await status(await cosmeticEquip("charm","none","primary"),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,todayCharm.cosmeticId);
-  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:saved.id})),200);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:cosmeticSaved.id})),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryCharm,todayCharm.cosmeticId);
   const cosmeticBackup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${cosmeticsPlayer.playerKey}`))).json();
   await status(await cosmeticEquip("reticle","classic","primary"),200);
