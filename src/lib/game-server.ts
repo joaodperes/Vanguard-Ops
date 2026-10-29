@@ -27,6 +27,7 @@ import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER
 import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
+import { canStartWeaponReload } from "./weapon-mechanics";
 import { chooseBotPatrolPoint } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
 import {CoverSpatialIndex} from "./cover-spatial-index";
@@ -2240,7 +2241,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // ---- Reload decisions (smart: reload early when safe) ----
     const enemyVisible = dist < 35;
     const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
-    const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
+    const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
+      canStartWeaponReload(weapon.stats, ai.ammoInMag) && Math.random() < 0.02;
     if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       const durationMs = weapon.stats.reloadStyle === "incremental"
         ? Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *

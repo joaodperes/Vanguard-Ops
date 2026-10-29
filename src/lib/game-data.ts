@@ -62,6 +62,7 @@ export interface WeaponStats {
   falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
   minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
   reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
+  reloadOnlyWhenEmpty?: boolean; // en-bloc magazine: partial reloads are disallowed
   reloadPerRound?: number; // seconds per round before attachments/perks
   adsTime: number;       // seconds to aim down sights
   moveSpeed: number;     // movement multiplier

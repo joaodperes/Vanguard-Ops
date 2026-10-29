@@ -70,6 +70,7 @@ import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
+import { canStartWeaponReload } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -7062,7 +7063,8 @@ export class FPSEngine {
     }
     if (this.weaponId==="crossbow_reclaimer" &&
         this.getCurrentAttachments().magazine==="mag_bolt_heavy") return; // scavenged heavy arrows only
-    if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive) return;
+    if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive ||
+        !canStartWeaponReload(weaponById(this.weaponId).stats, this.ammoInMag)) return;
     if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
@@ -8341,7 +8343,8 @@ export class FPSEngine {
       // visible/close (smart reload). Higher-skill bots are smarter about this.
       const enemyVisible = dist < 35;
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
-      const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
+      const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
+        canStartWeaponReload(w.stats, ai.ammoInMag) && Math.random() < 0.02;
       if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = w.stats.reloadStyle === "incremental"
           ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *

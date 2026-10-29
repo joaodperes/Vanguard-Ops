@@ -3,6 +3,7 @@ import {
   WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
+import { canStartWeaponReload } from "../src/lib/weapon-mechanics";
 
 describe("weapon range and damage falloff", () => {
   test("close shots do full damage and shots at the far edge use each weapon's floor", () => {
@@ -29,6 +30,26 @@ describe("weapon range and damage falloff", () => {
     expect(machine.range).toBeLessThan(magnum.range);
     expect(maxWeaponHitRange(machine.range, machine)).toBeLessThan(maxWeaponHitRange(magnum.range, magnum));
     expect(machine.minDamageMultiplier!).toBeLessThan(magnum.minDamageMultiplier!);
+  });
+});
+
+describe("DMR handling balance", () => {
+  test("Executioner is an 8-round slower DMR and can reload only empty", () => {
+    const executioner = weaponById("dmr_heavy").stats;
+    const whisper = weaponById("dmr_whisper").stats;
+    expect(executioner.magSize).toBe(8);
+    expect(executioner.fireRate).toBeLessThan(3);
+    expect(executioner.fireRate).toBeLessThan(whisper.fireRate);
+    expect(executioner.reloadOnlyWhenEmpty).toBe(true);
+    expect(canStartWeaponReload(executioner, 1)).toBe(false);
+    expect(canStartWeaponReload(executioner, 0)).toBe(true);
+    expect(canStartWeaponReload(whisper, 1)).toBe(true);
+  });
+  test("Whisper no longer one-taps 100 HP heads and fires faster", () => {
+    const stats = weaponById("dmr_whisper").stats;
+    expect(stats.damage * stats.headshotMult).toBeLessThan(100);
+    expect(stats.damage * stats.headshotMult * 2).toBeGreaterThanOrEqual(100);
+    expect(stats.fireRate).toBeGreaterThan(2.7);
   });
 });
 

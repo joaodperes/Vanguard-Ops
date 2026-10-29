@@ -10,6 +10,8 @@ describe("weapon charms remain visible on gun models",()=>{
       const [x,y,z]=weaponCharmMountPoint(id,"firstPerson");
       expect(x).toBeLessThan(-half);
       expect(y).toBeGreaterThan(0);
+      expect(y).toBeLessThan(.065);
+      expect(Math.abs(x)).toBeLessThan(Math.max(.115,half+.045));
       expect(z).toBeLessThan(-.1);
       expect(weaponCharmMountPoint(id,"thirdPerson")[0]).toBeGreaterThan(half);
     }

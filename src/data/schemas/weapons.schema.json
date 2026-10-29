@@ -211,6 +211,9 @@
           },
           "reloadStyle": {
             "const": "incremental"
+          },
+          "reloadOnlyWhenEmpty": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

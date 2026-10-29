@@ -134,7 +134,7 @@
     "category": "dmr",
     "unlockLevel": 19,
     "unlockCost": 1600,
-    "description": "Recover standard bolts for quicker reloads. Quiver: 10 auto-fired lighter bolts without pickup. Heavy arrows: only two devastating bolts; reclaim fired arrows to replenish.",
+    "description": "Recover standard bolts for quicker reloads.",
     "special": {
       "kind": "bolt",
       "pickupRadius": 2,
@@ -280,10 +280,10 @@
     "category": "dmr",
     "unlockLevel": 35,
     "unlockCost": 2700,
-    "description": "Low-recoil semi-auto precision rifle. Extremely accurate but deliberately paced.",
+    "description": "Low-recoil semi-auto precision rifle. Extremely accurate; a full-health opponent takes two headshots.",
     "stats": {
       "damage": 62,
-      "fireRate": 2.7,
+      "fireRate": 3.1,
       "magSize": 14,
       "reloadTime": 2,
       "spread": 0.003,
@@ -293,7 +293,7 @@
       "adsTime": 0.32,
       "moveSpeed": 0.9,
       "auto": false,
-      "headshotMult": 1.9,
+      "headshotMult": 1.48,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
     }
@@ -963,11 +963,12 @@
     "category": "dmr",
     "unlockLevel": 25,
     "unlockCost": 1200,
-    "description": "Heavy DMR. Near-sniper damage with semi-auto fire rate. Devastating at range.",
+    "description": "Heavy 8-round en-bloc DMR. Devastating at range; the clip can only be reloaded when empty.",
     "stats": {
       "damage": 85,
-      "fireRate": 3,
-      "magSize": 15,
+      "fireRate": 2.3,
+      "magSize": 8,
+      "reloadOnlyWhenEmpty": true,
       "reloadTime": 2.8,
       "spread": 0.004,
       "adsSpread": 0.001,

@@ -102,6 +102,7 @@ export function Armory() {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [editingPreset, setEditingPreset] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
   const [presetBusy, setPresetBusy] = useState(false);
   const [unconfirmedLoadout, setUnconfirmedLoadout] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -276,10 +277,10 @@ export function Armory() {
     }
   };
 
-  const managePreset = async (action: "save" | "rename" | "delete", id?: string) => {
+  const managePreset = async (action: "save" | "rename" | "delete" | "replace", id?: string) => {
     if (presetBusy) return;
-    const name = action === "save" ? presetName.trim() : editName.trim();
-    if (action !== "delete" && !name) { toast.error("Enter a loadout name"); return; }
+    const name = action === "save" ? presetName.trim() : action === "rename" ? editName.trim() : undefined;
+    if ((action === "save" || action === "rename") && !name) { toast.error("Enter a loadout name"); return; }
     setPresetBusy(true);
     try {
       const response = await fetch("/api/loadout/presets", {
@@ -290,7 +291,8 @@ export function Armory() {
       await refreshProfile();
       setPresetName("");
       setEditingPreset(null);
-      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : "Loadout deleted");
+      setReplaceTargetId(null);
+      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : action === "replace" ? "Saved loadout replaced with current equipment" : "Loadout deleted");
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update loadout"); }
     finally { setPresetBusy(false); }
   };
@@ -353,7 +355,7 @@ export function Armory() {
                 <ChevronDown className="w-4 h-4 ml-auto group-open:rotate-180 transition-transform" />
               </summary>
               <div className="px-4 pb-4">
-                <p className="text-xs text-white/50 mb-3">Profile snapshots include weapons, skins, attachments and the selected perk. Confirm any changed weapon or perk selection above before saving a profile snapshot.</p>
+                <p className="text-xs text-white/50 mb-3">Saved loadouts preserve weapons, skins, attachments, perks, reticles and charms. Confirm weapon or perk changes above before saving or replacing a slot.</p>
             <div className="flex flex-wrap gap-2 mb-4">
             <input
               value={presetName}
@@ -374,7 +376,7 @@ export function Armory() {
           ) : (
             <div className="space-y-3">
               <select aria-label="Choose saved loadout" value={(profile?.savedLoadouts ?? []).some(p=>p.id===selectedPresetId) ? selectedPresetId : (profile?.savedLoadouts?.[0]?.id ?? "")}
-                onChange={e => { setSelectedPresetId(e.target.value); setEditingPreset(null); }}
+                onChange={e => { setSelectedPresetId(e.target.value); setEditingPreset(null); setReplaceTargetId(null); }}
                 className="w-full rounded-lg bg-zinc-900 border border-white/20 p-2 text-white text-sm">
                 {(profile?.savedLoadouts ?? []).map(preset => <option key={preset.id} value={preset.id}>{preset.name} · {perkById(preset.perkId).name}</option>)}
               </select>
@@ -402,6 +404,13 @@ export function Armory() {
                     </div>
                   )}
                   <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
+                  <div className="text-xs text-white/40">Reticles: {COSMETICS.find(c=>c.id===preset.primaryReticle)?.name ?? "Classic Cross"} / {COSMETICS.find(c=>c.id===preset.secondaryReticle)?.name ?? "Classic Cross"} · Charms: {COSMETICS.find(c=>c.id===preset.primaryCharm)?.name ?? "No Charm"} / {COSMETICS.find(c=>c.id===preset.secondaryCharm)?.name ?? "No Charm"}</div>
+                  {replaceTargetId === preset.id ? (
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black" disabled={presetBusy || unconfirmedLoadout} onClick={() => void managePreset("replace",preset.id)}>Confirm Replace</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setReplaceTargetId(null)}>Cancel</Button>
+                    </div>
+                  ) : <Button size="sm" variant="outline" className="w-full border-white/20 text-white/80" disabled={presetBusy || unconfirmedLoadout} onClick={() => setReplaceTargetId(preset.id)}>Replace With Current Equipment</Button>}
                   <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id)}
                     className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
                 </div>
@@ -1010,9 +1019,6 @@ function CustomizeModal(props: CustomizeModalProps) {
 
           {/* SKINS TAB — all standard skins are available on every weapon */}
           <TabsContent value="skins" className="mt-4">
-            <div className="text-white/40 text-xs mb-3">
-              Standard skins: complete the weapon-specific challenge, then purchase with credits. Viridian Blight: finish all Prestige challenges. Eventide: reach Weapon Mastery 5/5. Both are earned separately.
-            </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {WEAPON_SKINS.map((s) => {
                 const isUnlocked = unlockedSkinsForWeapon.has(s.id);
@@ -1159,7 +1165,6 @@ function CustomizeModal(props: CustomizeModalProps) {
           {/* CHARMS TAB — permanent account cosmetics, selected per weapon. */}
           <TabsContent value="charms" className="mt-4">
             {!canEditAttachments && <p className="text-sm text-amber-300 mb-3">Equip {w.name} in the {slot} slot before customizing it.</p>}
-            <p className="text-xs text-white/50 mb-3">Charms are cosmetic pendants mounted to the weapon model and visible in first person and to other players. Buy designs once in the Shop, then equip them independently in each saved loadout slot.</p>
             <div className="grid sm:grid-cols-2 gap-2">
               {COSMETICS.filter(c=>c.kind==="charm").map(c=>{
                 const owned=account?.ownedCosmetics.includes(c.id)??c.id==="none";

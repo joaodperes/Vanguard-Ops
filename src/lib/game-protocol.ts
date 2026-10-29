@@ -1471,8 +1471,8 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
 // This replaces the old GUN_GAME_PROGRESSION (which was a fixed list of 18
 // weapon IDs). The old list is kept as GUN_GAME_TYPE_PROGRESSION_FALLBACK for
 // backward compat / offline mode where the engine still reads a flat list.
-// 30 unique stages per cycle: 28 different firearms, then RL-7 Rocket Launcher
-// and a final melee elimination. Presets prioritize their preferred range, but
+// 30 unique stages per cycle: 28 different firearms, then a random regular
+// launcher and a random standard melee weapon. Presets prioritize their preferred range, but
 // automatically fill from other weapon categories when too few unique weapons
 // exist; they never repeat the same gun just to satisfy a category count.
 export const GUN_GAME_TYPE_PROGRESSION: string[] = [
@@ -1508,7 +1508,7 @@ export const GUN_GAME_TYPE_PROGRESSION: string[] = [
   "melee"
 ];
 
-// Offline/back-compat fallback is equally unique, including the rocket finish.
+// Offline/back-compat fallback is equally unique; dynamic rounds randomize both finishers.
 export const GUN_GAME_PROGRESSION: string[] = [
   "pistol_arc",
   "smg_kp",

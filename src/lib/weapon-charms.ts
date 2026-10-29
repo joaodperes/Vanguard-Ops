@@ -2,11 +2,11 @@ import * as THREE from "three";
 import { cosmeticById } from "./cosmetics";
 import { WEAPON_VISUALS } from "./weapon-models";
 
-/** Shared bounds keep charms visible on the receiver without obscuring sights. */
+/** Mount closer to each receiver and slightly below its side, avoiding sights. */
 export function weaponCharmMountPoint(weaponId:string,view:"firstPerson"|"thirdPerson"):[number,number,number]{
   const width=WEAPON_VISUALS[weaponId]?.receiver[0]??.13;
-  const edge=Math.max(.115,width/2+.045);
-  return [view==="firstPerson"?-edge:edge,.065,-.22];
+  const edge=Math.max(.09,width/2+.025);
+  return [view==="firstPerson"?-edge:edge,.025,-.22];
 }
 
 /** Model dimensions relative to the previous release: first person 1.22,

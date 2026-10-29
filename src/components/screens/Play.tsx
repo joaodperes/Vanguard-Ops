@@ -412,9 +412,6 @@ export function Play() {
                         );
                       })}
                     </div>
-                    <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-white/50 leading-relaxed">
-                      <span className="font-semibold text-white/70">With bots enabled:</span> harder difficulties award more XP/credits per bot kill (Easy 10/5 → Veteran 30/18). Mixed rolls a random tier per bot. No bots keeps all player slots open.
-                    </div>
                   </Section>
                 )}
 

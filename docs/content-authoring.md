@@ -67,9 +67,11 @@ Append an object to `weapons.json`. Required top-level fields: `id`, `name`, `de
 }
 ```
 
-`category` must be one of: `assault`, `smg`, `shotgun`, `dmr`, `sniper`, `lmg`, `pistol`, `pdw`, `launcher`, `melee`. Optional stats include `burst`, `pellets`, `reloadStyle` (only `incremental`), `reloadPerRound`, `falloffEndMultiplier`, `minDamageMultiplier`. Omit `attachments` to use all four slots; specify `[]` for no slots. `baseSightType` must refer to a key in `sight-definitions.json`.
+`category` must be one of: `assault`, `smg`, `shotgun`, `dmr`, `sniper`, `lmg`, `pistol`, `pdw`, `launcher`, `melee`. Optional stats include `burst`, `pellets`, `reloadStyle` (only `incremental`), `reloadPerRound`, `reloadOnlyWhenEmpty` (en-bloc reloads, only when the magazine is empty), `falloffEndMultiplier`, `minDamageMultiplier`. Omit `attachments` to use all four slots; specify `[]` for no slots. `baseSightType` must refer to a key in `sight-definitions.json`.
 
 Special mechanics are **not** arbitrary JSON scripts. Only pre-coded `special.kind` (`heat`, `arc`, `bolt`) and `wonder.kind` (`singularity`, `corrosion`, `turret`, `smart`, `flame`, `storm`, `sludge`) are recognized. Introducing a new special behavior needs coordinated changes to `src/lib/weapon-mechanics.ts`, `fps-engine.ts`, `game-server.ts`, client HUD/viewmodel, tests and any progression restrictions. Wonder weapons use Prestige unlock tokens, cannot equip ordinary attachments and do not use paid skin challenges. Regular `launcher` weapons require `explosive: { "radius": 3.5 }` (any positive radius) so offline and server damage agree. New launchers intentionally ship with `"attachments": []`; the RL-7 keeps its existing attachment support and an 8m blast. The currently supported `wonder.maxCharges` range is **1–3**; set `stats.magSize` to the same value and `stats.reloadTime` to 0.
+
+**Gun Game:** each 30-tier cycle uses 28 distinct regular firearms, followed by a randomly chosen non-Wonder launcher and then a randomly chosen non-Wonder melee weapon. The final melee kill is the only win condition. Multiplayer and local matches use the same catalog-driven picker.
 
 **New weapon checklist:** add weapon JSON; choose existing category and appearance behavior; verify slot compatibility; check fallback contextual skin challenges (or author explicit weapon challenges); verify Gun Game inclusion/exclusions and bot selection if relevant; playtest offline and online; validate production build.
 
