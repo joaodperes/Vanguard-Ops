@@ -156,3 +156,15 @@ test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
  e.fireNovelWonderOffline(weaponById("wonder_hellfire"),[0,1.1,0],[0,0,1]);
  expect(victim.health).toBe(75);expect(victim.riotShieldHp).toBe(225);
 });
+
+test("death does not freeze cluster timers or leave a shield on the death camera",()=>{
+ const e:any=Object.create(FPSEngine.prototype);let ticks=0;
+ Object.assign(e,{opts:{mode:"ffa",online:false},pos:new THREE.Vector3(),camera:new THREE.PerspectiveCamera(),yaw:0,pitch:0,
+  alive:false,matchEnded:false,lobbyActive:false,preMatchCountdown:0,elapsedSeconds:0,timeLeft:0,
+  riotShieldModel:new THREE.Group(),riotShieldHp:250,weaponId:RIOT_SHIELD_ID,aiming:false,combatants:new Map(),
+  vmParts:[],tracers:[],projectiles:[],respawnAt:performance.now()+5000,lastHudAt:performance.now(),
+  tickDeathBombs(){},tickBulletSpitters(){},animateOrbitalReactor(){},tickOrbitalPickup(){},
+  tickOfflineMines(){},pulseMineBeacons(){},updateEnvironment(){},tickGravityWells(){},
+  tickClusterVolleys(){ticks++;},updateCombatantMeshes(){}});
+ e.update(.05);expect(ticks).toBe(1);expect(e.riotShieldModel.visible).toBe(false);
+});

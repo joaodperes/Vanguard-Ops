@@ -6,7 +6,7 @@ Implemented on `dev`. No database schema change; both new weapons use the existi
 
 An arcing grenade launcher with two charges, 32 seconds to regenerate each charge, and a 1.6-second reduction from ordinary kills. One 60-damage shell bursts into six 42-damage bomblets. The main blast has a 3.4 m radius and each child a 2.6 m radius, with distance falloff. Children launch at the main impact and detonate on their own collision/fuse timings. A victim can receive at most 135 damage from one complete volley.
 
-`cluster-grenades.ts` calculates deterministic, segment-tested ballistic paths against cover and the floor. Damage occurs at each detonation point and time, never along the projectile's flight segment. Cover blocks damage. The shooter is excluded and team rules follow existing launcher rules. The authoritative server owns paths, timers, charge spending and damage; snapshots carry active volleys for late joiners. Client graphics use those paths without predicting multiplayer damage. Offline simulation uses the same paths and damage helpers.
+`cluster-grenades.ts` calculates deterministic, segment-tested ballistic paths against cover and the floor. Damage occurs at each detonation point and time, never along the projectile's flight segment. Cover blocks damage. The shooter is excluded and team rules follow existing launcher rules. The authoritative server owns paths, timers, charge spending and damage; snapshots carry active volleys for late joiners. Client graphics use those paths without predicting multiplayer damage. Flight and detonation timers continue while the owner is dead. Offline simulation uses the same paths and damage helpers.
 
 ## Bulwark + P-9 (`wonder_riot_shield`)
 
@@ -49,7 +49,7 @@ Manual acceptance: compare hip/brace/fire/broken/swap/reload/respawn with a seco
 
 ### Checks performed during this change
 
-- Final checks passed: content validation, all 478 Bun smoke tests, TypeScript and the production build.
+- Final checks passed: content validation, all 479 Bun smoke tests, TypeScript and the production build.
 - A headless Chromium firing-range session rendered hip/raised Bulwark, fired its P-9, spent and completed a cluster volley, and inspected Annihilator reload placement. The audio context was running and no JavaScript exceptions occurred. A timed browser check produced three countdown ticks and exactly one GO cue.
 - A live Socket.IO match with two clients verified a frontal rifle shot changed shield HP 250 → 215 while health stayed 100, raised P-9 fire was rejected, lowered fire was accepted, and swapping did not repair the panel.
 - A separate two-client volley test observed seven paths, delayed damage after a 428 ms main-shell flight, and rejection of a third shot after spending both charges.

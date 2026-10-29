@@ -7306,6 +7306,8 @@ export class FPSEngine {
     if (!this.matchEnded) this.updateEnvironment(dt);
     if (this.opts.firingRange && !this.matchEnded) this.tickFiringRangeTargets(dt);
     this.tickGravityWells(dt);
+    // Thrown ordnance keeps its authoritative schedule while its owner is dead.
+    this.tickClusterVolleys();
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
     // at the death position and suppress movement, firing, and viewmodel
@@ -7313,6 +7315,7 @@ export class FPSEngine {
     // move, shoot, or play weapon animations. This prevents the jarring
     // effect of the gun continuing to sway/recoil while the player is dead.
     if (!this.alive && !this.matchEnded) {
+      this.updateRiotModels(); // hide the local panel and continue remote stance updates
       // Keep the camera at the death position (don't follow movement — there is none).
       this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
       this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
@@ -7375,7 +7378,6 @@ export class FPSEngine {
     if (!this.alive) this.equipmentAction = null;
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
-    this.tickClusterVolleys();
     this.updateSpecialResources(dt, performance.now());
     if (this.turretDeployPending && performance.now() - this.turretDeployRequestedAt > 3000) {
       // No authoritative placement arrived (e.g. dropped packet / disconnect).
