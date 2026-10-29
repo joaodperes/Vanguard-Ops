@@ -1,11 +1,36 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 // Release checks should not regress silently when changing workflow path filters.
 describe("merge-readiness configuration", () => {
   const root = join(import.meta.dir, "..");
   const read = (path: string) => readFileSync(join(root, path), "utf8");
+
+  test("both branches run the complete test suite without release-only bypasses", () => {
+    const workflow = read(".github/workflows/dev-validation.yml");
+    expect(workflow).toContain("        run: bun run test:smoke");
+    expect(workflow).toContain("        run: bun test tests/map-blueprints.test.ts");
+    expect(workflow).not.toContain("Curated release tree:");
+    expect(workflow).not.toContain("release/main-*");
+  });
+
+  test("root README documents game modes, controls, installation and MIT licensing", () => {
+    const readme = read("README.md");
+    for (const phrase of ["How to play", "Game modes", "Capture the Flag", "Survival", "Controls", "Running locally", "MIT License"]) {
+      expect(readme).toContain(phrase);
+    }
+    expect(readme).not.toContain("release/README.md");
+    expect(read("LICENSE")).toContain("MIT License");
+  });
+
+  test("obsolete curated release files are absent, but test and QA guides remain", () => {
+    for (const file of ["scripts/prepare-main-release.sh", "docs/release-promotion.md", "release/README.md", "package-lock.json"]) {
+      expect(existsSync(join(root, file))).toBe(false);
+    }
+    expect(existsSync(join(root, "docs/dev-test-checklist.md"))).toBe(true);
+    expect(existsSync(join(root, "tests/armory-challenges.test.ts"))).toBe(true);
+  });
 
   test("production build does not opt out of TypeScript safety", () => {
     const nextConfig = read("next.config.ts");

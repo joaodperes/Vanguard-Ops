@@ -9,7 +9,7 @@
 - Back up player data if `prisma/schema.prisma`, saved loadouts, progression counters or any persistence contracts changed. Check `DATABASE_URL` and resolve SQLite paths relative to `prisma/schema.prisma`. Never run `db:reset` on real accounts.
 - Include any required schema update/migration and deployment order in the release plan. `bun run build` does not migrate a production SQLite database; verify the deployed schema and plan a backup, forward update and rollback separately.
 - Review any still-open feature PRs targeting `dev` and decide whether to include or defer them *before* freezing the `main` release candidate.
-- Follow [curated main release preparation](release-promotion.md): build a main-based release candidate from the tested dev source, retaining the MIT LICENSE and player README but excluding `tests/`, `docs/`, agent notes and dev-only workflows. Never force-reset `main` to `dev`.
+- Open a normal pull request from `dev` to `main` once ready. Retain the MIT license, player README, full tests, CI and useful docs on both branches; remove only genuinely obsolete notes or generated artifacts. Do not force-reset `main` to `dev` or bypass divergence review.
 
 ## 2. Run automated validation
 
@@ -97,6 +97,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 
 - [ ] Both sides of `dev`/`main` divergence, merge-candidate SHAs and conflicts reviewed
 - [ ] Open feature PRs targeting `dev` explicitly included or deferred
+- [ ] README and LICENSE present; all tests, CI and essential docs retained in merge candidate
 - [ ] Content validation, Bun suite, TypeScript and production build pass on merge result
 - [ ] Desktop, mobile, offline and multiplayer checks pass
 - [ ] All current map layouts, bots, collisions and modes reviewed

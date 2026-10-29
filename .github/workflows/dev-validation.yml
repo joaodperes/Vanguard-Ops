@@ -13,7 +13,6 @@ on:
       - dev
       - main
       - feature/wonder-weapon-expansion
-      - 'release/main-*'
 
 permissions:
   contents: read
@@ -39,27 +38,11 @@ jobs:
       - name: Map geometry and bot regression tests
         id: maps
         continue-on-error: true
-        run: |
-          if [ -d tests ]; then
-            bun test tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
-          elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" == release/main-* || "$GITHUB_BASE_REF" == "main" ]]; then
-            echo "Curated release tree: map tests run on source dev before promotion."
-          else
-            echo "Unexpected missing test suite on development branch" >&2
-            exit 1
-          fi
+        run: bun test tests/map-blueprints.test.ts tests/map-layout.test.ts tests/map-footprint.test.ts tests/bot-routing.test.ts
       - name: All automated regression tests
         id: tests
         continue-on-error: true
-        run: |
-          if [ -d tests ]; then
-            bun run test:smoke
-          elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" == release/main-* || "$GITHUB_BASE_REF" == "main" ]]; then
-            echo "Curated release tree: all regression tests run on source dev before promotion."
-          else
-            echo "Unexpected missing test suite on development branch" >&2
-            exit 1
-          fi
+        run: bun run test:smoke
       - name: TypeScript validation
         id: types
         continue-on-error: true

@@ -1,38 +1,91 @@
 # Vanguard Ops
 
-**Game overview and instructions:** See [the release README](release/README.md) for how to play, controls, game modes, progression, and local/production setup.
+**Vanguard Ops** is a browser-based, first-person 3D shooter with offline bot matches, multiplayer rooms, customizable weapon loadouts, and persistent progression. Built with Next.js, React, Three.js, Socket.IO and Prisma.
 
-A browser-based 3D first-person shooter built with Next.js, React, Three.js, Socket.IO and Prisma. Play offline against bots or create/join multiplayer rooms. Modes include Free-for-All, Team Deathmatch, Gun Game, Kill Confirmed, Capture the Flag and Survival, with progression, unlocks, loadouts and an in-browser Map Studio.
+Players can jump straight into combat against AI, create a room for friends, or browse existing rooms. Every match earns progress toward equipment, cosmetics, quests, achievements and long-term career rewards. All weapons can be tested in the Firing Range before buying them.
 
-## The game
+## How to play
 
-Choose an offline bot match or create/join a multiplayer room, with modes including Free-for-All, Team Deathmatch, Kill Confirmed, Capture the Flag, Gun Game and Survival. Gain credits and XP, unlock weapons, attach upgrades, complete per-weapon skin challenges and save loadouts. Try any weapon or compatible attachments in the Firing Range without purchasing them. New players can follow an interactive tutorial; touch controls are supported.
+1. **Enter the game.** Continue as a guest or register/sign in to keep your account's progression across devices. New players can run through the interactive tutorial.
+2. **Pick a match.** Open **Play** to create a room or join another player's room. Choose a mode, supported map, team size, bot fill and bot difficulty as appropriate. Room hosts start the match when ready. Offline play is available against bots.
+3. **Fight and complete objectives.** Earn XP, credits and weapon-specific progress from matches. Different modes use kills, collected tags, captured flags or survived waves to determine success.
+4. **Upgrade your loadout.** Open **Armory** to unlock weapons and attachments, select primary/secondary/melee weapons, equip a perk, unlock skins through challenges and save named loadouts. Visit **Shop** for available cosmetics and **Profile** for progress, challenges and achievements.
+5. **Practice freely.** Enter **Firing Range** from the Armory. Select standard weapons, Wonder Weapons and compatible attachments without buying them. Range activity does not award progression or overwrite your saved loadout.
 
-## Local development
+## Game modes
 
-Requirements: Node.js compatible with the checked-in Next.js release, [Bun](https://bun.sh/), and a writable SQLite database. Use the checked-in `bun.lock`.
+| Mode | Objective |
+| --- | --- |
+| **Free-for-All (FFA)** | Every operator for themselves; reach the kill limit. |
+| **Team Deathmatch (TDM)** | Two teams compete on eliminations. |
+| **Kill Confirmed** | Collect enemy tags to score; recover friendly tags to deny points. |
+| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Forest Warfare and Orbital Nexus are CTF-specific maps; Orbital Nexus includes a reactor objective. |
+| **Gun Game** | Advance through a rotating weapon sequence by earning eliminations. |
+| **Survival** | Fight escalating enemy waves, including co-op and progressively harder tiers. |
+
+Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare and Orbital Nexus. Modes have different supported-map rules.
+
+## Controls
+
+| Action | Desktop |
+| --- | --- |
+| Move / look | **WASD** / mouse |
+| Fire / aim down sights | **Left mouse** / **right mouse** |
+| Sprint / jump | **Shift** / **Space** |
+| Reload | **R** |
+| Primary / secondary / melee | **1 / 2 / 3** |
+| Quick swap / quick melee | **Q / F** |
+| Release cursor / pause | **Esc** |
+
+Touch devices provide a movement stick and on-screen firing, aiming, swapping, reloading, jumping and melee controls. Some weapons have special mechanics; consult their Armory descriptions.
+
+## Progression and equipment
+
+- **Weapons and attachments:** Earn credits through gameplay. Purchase equipment once its level and challenge requirements are met. Attachments are owned separately for each weapon; a challenge being complete makes the attachment eligible to purchase, not automatically owned.
+- **Skins and mastery:** Complete per-weapon challenges to earn finishes. Weapon Mastery advances through kill/headshot milestones (melee uses kill-only targets). Reaching high mastery and completing cosmetics challenges unlocks additional Prestige rewards and Wonder Weapon opportunities.
+- **Loadouts and perks:** Equip a primary, secondary, melee weapon and one passive perk. Save several named loadouts for different modes and playstyles.
+- **Achievements and Career:** Track challenges, titles and long-term progression in Profile.
+
+Credits are an in-game reward currency; the current game does not sell credits for real money.
+
+## Running locally
+
+**Prerequisites:** Bun, a compatible Node.js runtime, and a writable SQLite database.
 
 ```bash
 bun install --frozen-lockfile
 ```
 
-Set `DATABASE_URL` in an untracked local `.env` before using Prisma:
+Create an untracked `.env` file with your database location:
 
 ```dotenv
 DATABASE_URL="file:./db/custom.db"
 ```
 
-**SQLite path:** Prisma resolves relative `file:` paths against the `prisma/` schema directory; the example refers to `prisma/db/custom.db`, not the repository-root `db/custom.db`. Choose and back up the intended database. Never commit `.env` or player data.
+Prisma resolves a relative SQLite file URL against the `prisma/` directory, so this example points to `prisma/db/custom.db`.
 
 ```bash
 bun run dev
 ```
 
-The dev script generates Prisma Client, runs `prisma db push` for local development and starts Next.js on **port 3000**. Do **not** treat the development push as an approved production migration. Review schema changes and back up persistent data before deployment.
+Open `http://localhost:3000`. The multiplayer Socket.IO server starts on **port 3003** from the Next.js Node runtime; make that port reachable for remote clients when hosting matches.
 
-The Socket.IO game server starts from `src/instrumentation.ts` on **port 3003** in the Node runtime. Multiplayer requires that endpoint to be reachable through your local or reverse-proxy configuration; offline bot play can operate without it. See [LAN and Tailscale](docs/lan-and-tailscale.md).
+### Production build
 
-## Validation
+```bash
+bun install --frozen-lockfile
+bun run db:generate
+bun run content:validate
+bun run typecheck
+bun run build
+bun run start
+```
+
+The production server uses Next.js standalone output. **Back up your database before deployment and review any Prisma schema changes**; building the application does not apply production database migrations. Configure `DATABASE_URL` and network/proxy routing for your environment. Never commit credentials or player databases.
+
+## Validation and contributing
+
+Use the checked-in Bun lockfile (`bun.lock`) as the dependency source of truth. From the repository root:
 
 ```bash
 bun run content:validate
@@ -41,34 +94,18 @@ bun run typecheck
 bun run build
 ```
 
-`test:smoke` runs the Bun regression suite in `tests/`; `test:maps`, `test:bots` and `test:movement` select smaller suites. The validation workflow checks `dev` and `main` pushes and pull requests after the updated workflow is present on those branches. Automated checks do not replace manual browser, multiplayer, bot-pathing, performance or production-data checks.
+The `dev` and `main` GitHub Actions workflows run these checks on pushes and pull requests. Tests verify content, maps, player progression, multiplayer and weapon mechanics, but passing tests is not a substitute for manual playtesting or a safe production database migration. See [the QA and merge checklist](docs/dev-test-checklist.md) before releasing.
 
-Use the [canonical QA and promotion checklist](docs/dev-test-checklist.md) before proposing a `dev` → `main` merge. The game has six general-purpose maps and two Capture the Flag-only maps (Forest Warfare and Orbital Nexus); the day/night Afterlight editions have separate IDs.
+## Technology and project structure
 
-## Project layout
+- **Client and UI:** Next.js, React, Tailwind CSS and Three.js
+- **Multiplayer:** Socket.IO with server-authoritative game simulation
+- **Data and progression:** Prisma with SQLite
+- **Game content:** JSON catalogs in `src/data/catalogs/`; map layouts and themes in `src/data/`
+- **Deployment:** `Caddyfile` and a separate `mini-services/game-server/` entry point for supported hosting setups
 
-- `src/app/`: Next.js pages and API routes; developer Map Studio at `/map-editor`
-- `src/components/`: HUD, controls, screens and menus
-- `src/lib/`: game engine, game server, gameplay rules and persistence
-- `src/data/catalogs/`: authoritative JSON game catalogs
-- `src/data/map-blueprints.json` and `src/data/map-themes/`: maps and visuals
-- `prisma/schema.prisma`: SQLite schema
-- `tests/`: Bun regression tests
-- `docs/`: authoring and QA; `docs/archive/`: superseded designs and plans
+Development continues on the `dev` branch and validated changes are promoted to `main` through a normal pull request. Automated tests and technical documentation are retained on both branches, because they support ongoing maintenance and do not become part of the browser game bundle.
 
-## Guides
+## License
 
-- [How to play and production overview](release/README.md)
-- [Clean main release preparation](docs/release-promotion.md)
-- [MIT License](LICENSE)
-
-- [Content authoring](docs/content-authoring.md)
-- [Map Studio](docs/map-studio.md)
-- [Art direction and materials](docs/art-direction-and-materials.md)
-- [QA and merge checks](docs/dev-test-checklist.md)
-- [Prestige and Wonder Weapons](docs/prestige-wonder-weapons.md)
-- [Agent and developer instructions](AGENTS.md)
-
-## Branch and release policy
-
-`dev` is the integration branch. Use a feature branch unless a maintainer explicitly requests direct `dev` changes. Review the exact merge result, CI, data migrations and real gameplay before promoting to `main`. Archival proposals are not active specifications.
+The project's original source code is distributed under the **MIT License**. See [LICENSE](LICENSE). Third-party packages remain subject to their own licenses.

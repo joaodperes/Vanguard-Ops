@@ -27,7 +27,7 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - If any check has not actually run, state that clearly instead of claiming it passed.
 - Keep generated reports and test commits on a feature branch unless an authorized maintainer explicitly requests direct `dev` changes; request review before merging into `dev` or promoting to `main`.
 - Use `docs/dev-test-checklist.md` as the canonical QA and promotion checklist; dated plans and superseded proposals belong under `docs/archive/`.
-- Release promotion uses `scripts/prepare-main-release.sh` and `docs/release-promotion.md` to create a curated, main-based PR. Never merge raw dev history directly into a clean main release, and never remove dev-only tests from `dev`.
+- Promote tested `dev` changes to `main` through a normal pull request after reviewing branch divergence, verifying the merge result and signing off on gameplay and data migration. Keep tests, CI and useful engineering documentation on both branches; they do not enter the browser bundle.
 
 ## JSON object recipes
 - Map: author in `/map-editor`, export to `src/data/map-blueprints.json`; check open plazas, multiple flanks, spawn clearance and stairs. Theme palette and scenery are in individual `src/data/map-themes/<mapId>.json` files. Add a static theme import to `src/lib/map-visuals.ts` for new map IDs. Do not reintroduce inherited sealed perimeter walls.
