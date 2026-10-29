@@ -293,7 +293,7 @@
       "adsTime": 0.32,
       "moveSpeed": 0.9,
       "auto": false,
-      "headshotMult": 1.48,
+      "headshotMult": 1.4,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
     }

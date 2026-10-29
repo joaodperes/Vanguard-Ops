@@ -48,6 +48,8 @@ describe("DMR handling balance", () => {
   test("Whisper no longer one-taps 100 HP heads and fires faster", () => {
     const stats = weaponById("dmr_whisper").stats;
     expect(stats.damage * stats.headshotMult).toBeLessThan(100);
+    const withHeavyBarrel = computeEffectiveStats(weaponById("dmr_whisper"), { sight: null, barrel: "barrel_heavy", grip: null, magazine: null });
+    expect(withHeavyBarrel.damage * stats.headshotMult).toBeLessThan(100);
     expect(stats.damage * stats.headshotMult * 2).toBeGreaterThanOrEqual(100);
     expect(stats.fireRate).toBeGreaterThan(2.7);
   });
