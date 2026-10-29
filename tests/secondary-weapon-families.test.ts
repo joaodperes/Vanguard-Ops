@@ -112,7 +112,5 @@ describe("catalog-driven launcher ballistics", () => {
     expect(low.at(-1)).not.toBe(high.at(-1));
     const bad = [...low]; bad[bad.length-2] = "pistol_side";
     expect(canCompleteGunGame(bad.length-1,bad,bad.at(-1)!)).toBe(false);
-    {
-    }
   });
 });
