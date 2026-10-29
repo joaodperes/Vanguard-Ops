@@ -15,7 +15,7 @@ Only two reusable currencies are shown:
 
 Wonder Weapons are earned through a different mechanism: the same weapon must finish all seven standard skin challenges (Viridian Blight reward) **and** Mastery 5/5 (Eventide reward). The combined milestone grants a **one-use Wonder Weapon entitlement**, displayed as 'Wonder unlocks available', **not** a tradeable currency. Existing earned prestige cosmetics and Wonder Weapon purchases remain grandfathered.
 
-The initial Credit Shop offers **Cobalt Alloy** (12,000 CR, applied per regular weapon) and **Urban Ghost** (25,000 CR, operative skin). The Career Shop offers **Void Circuit** (1 token, per regular weapon) and **Starlight Vanguard** (2 tokens, operative skin). The shop uses server-owned prices and atomic purchase records; there are no purchased advantages to combat stats. **Reticles, charms, and nameplates are implemented in the same two Shop tabs.** Existing Classic Cross / Precision Dot reticles and all color/size settings remain free. Newly purchased reticles alter only the hipfire HUD drawing; optical ADS sights retain their standard functional overlays. The Shop offers Orbit Ring and Vanguard Chevron for 3,500 CR each, and Nova Star / Quantum Pulse for 1 Career Token each. Choose a hipfire reticle separately for each active weapon slot in **Armory → Customize → Reticles**. Settings only changes global color and size.
+The initial Credit Shop offers **Cobalt Alloy** (3,000 CR, applied to one selected regular weapon) and **Urban Ghost** (25,000 CR, operative skin). The Career Shop offers **Void Circuit** (1 token, per regular weapon) and **Starlight Vanguard** (2 tokens, operative skin). The shop uses server-owned prices and atomic purchase records; there are no purchased advantages to combat stats. **Reticles, charms, and nameplates are implemented in the same two Shop tabs.** Existing Classic Cross / Precision Dot reticles and all color/size settings remain free. Newly purchased reticles alter only the hipfire HUD drawing; optical ADS sights retain their standard functional overlays. The Shop offers Orbit Ring and Vanguard Chevron for 3,500 CR each, and Nova Star / Quantum Pulse for 1 Career Token each. Choose a hipfire reticle separately for each active weapon slot in **Armory → Customize → Reticles**. Settings only changes global color and size.
 
 **Weapon charms** are small, actual Three.js hanging objects attached to a ranged weapon's body and animated with its sway; the weapon model carries the pendant in both first and third person. Buy each design once account-wide, then choose it per loadout slot in **Armory → Customize → Charms**. Named loadout presets also save primary/secondary reticle and charm selections. Vanguard Dog Tag costs 6,000 CR, Skull Token 9,500 CR; Nebula Orb and Reactor Core cost 1 Career Token each. `No Charm` is a free option. The expanded catalog also offers Brass Casing (4,200 CR), Lucky Dice (5,800 CR), Field Compass (7,200 CR), Scout Drone (8,900 CR), Phoenix Feather (11,500 CR), Void Prism (1 Career Token), Solar Emblem (1 Career Token) and Orbital Satellite (2 Career Tokens). Charms render at a reduced scale in first- and third-person views, without altering stats or hitboxes; melee and Wonder Weapons cannot equip them.
 
@@ -39,4 +39,33 @@ Named loadout presets persist weapon choices, primary/secondary/melee skin IDs, 
 
 **Database schema update is required** for existing SQLite installations because new Prisma models and columns were added. Back up the database and run `bun run db:setup` on the target before using the updated app. CI verifies TypeScript, content validation, database API regression tests, and production build.
 
-The Shop has six persistent category filters—All, Weapon finishes, Operatives, Reticles, Charms, and Nameplates—inside the two existing currency tabs. “All” groups products by type; item ownership, prices, currencies, and per-weapon skin selection are unchanged. Filtering never changes purchase entitlements.
+The Shop has six persistent category filters—All, Weapon finishes, Operatives, Reticles, Charms, and Nameplates—inside the two existing currency tabs. “All” groups the daily featured products by type. Filtering never changes purchase entitlements.
+
+## Shared daily Shop rotation
+
+The **Credit Shop** and **Career Token Shop** each feature **three offers per category**
+(weapon finishes, operative skins, reticles, charms, nameplates): 15 offers per
+currency, 30 total. Rotation uses the current UTC date, rotates exactly at 00:00
+UTC, and does not depend on player identity, account status, local time or server
+process state. The same offers appear for everyone; **already-owned products
+remain in the pool** and display Owned. The backend rejects purchases of items
+not in the current rotation, even from outdated clients. Purchased items remain
+permanently available in the Armory/Profile after disappearing from the store.
+
+The expanded pool adds six weapon finishes (Frostbite, Dune Striker, Voltage Grid,
+Emberline, Aurora Veil, Royal Obsidian), six operatives (Ash Wraith, Sandstorm
+Scout, Tidebreaker, Solar Sentinel, Ion Phantom, Verdant Guard), four reticles
+(Spire Sight, Trident, Eclipse Halo, Helix), four nameplates (Boreal Unit, Dusk
+Raider, Nebula Commander, Orbital Vanguard), and four charms (Thunderbolt,
+Deepwater Anchor, Micro Rocket, Lunar Crescent). Every currency/category has
+at least four options, ensuring the selection changes daily.
+
+**Weapon finishes remain weapon-specific**, not global cosmetics. The Shop
+selects the weapon *before* purchasing; ownership is keyed by
+(player, weapon, skin) and repeat purchases for that same weapon are blocked,
+but a finish can be purchased for a different weapon on a later rotation.
+Cobalt Alloy was reduced from 12,000 to 3,000 Credits, with additional Credit
+Shop finishes priced 2,600–3,400 Credits. Career finishes cost one token per
+weapon. Operatives, charms, reticles and nameplates remain account-wide designs
+(their equipped selections still use their existing rules). Old purchases and
+loadout selections are unaffected; no schema migration is required.
