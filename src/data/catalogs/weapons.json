@@ -1411,7 +1411,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "250 HP riot shield and P-9 as one primary Wonder. Shield covers the left front while firing. Hold ADS for full frontal bullet cover; P-9 cannot fire while raised. Rear and flanks remain vulnerable. Shield restores on respawn; secondary stays independent.",
+    "description": "250 HP riot shield and P-9 as one primary Wonder. Shield covers the left front while firing. Hold ADS for full frontal bullet cover; P-9 cannot fire while raised.",
     "stats": {
       "damage": 41,
       "fireRate": 5,
