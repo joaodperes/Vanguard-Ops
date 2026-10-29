@@ -22,6 +22,7 @@ export const COSMETICS:readonly CosmeticDefinition[]=[
   {id:"charm_prism",name:"Void Prism",kind:"charm",color:"#a78bfa",symbol:"◊",description:"Violet crystal suspended inside a clasp."},
   {id:"charm_solar",name:"Solar Emblem",kind:"charm",color:"#fbbf24",symbol:"☼",description:"Golden miniature sunburst medallion."},
   {id:"charm_satellite",name:"Orbital Satellite",kind:"charm",color:"#67e8f9",symbol:"✧",description:"Tiny satellite with twin solar panels."},
+  {id:"reticle_spire",name:"Spire Sight",kind:"reticle",color:"#93c5fd",symbol:"^",description:"Upright precision sight."},
   {id:"standard",name:"Standard Nameplate",kind:"nameplate",color:"#94a3b8",symbol:"▭",description:"Unadorned readable player label. Always free."},
   {id:"plate_steel",name:"Steel Division",kind:"nameplate",color:"#cbd5e1",symbol:"⬒",description:"Riveted graphite frame and silver trim."},
   {id:"plate_crimson",name:"Crimson Command",kind:"nameplate",color:"#fb7185",symbol:"◆",description:"Deep scarlet command banner with steel edges."},
