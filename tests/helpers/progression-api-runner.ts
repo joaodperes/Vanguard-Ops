@@ -225,6 +225,27 @@ try {
   await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),409);
   await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:wrongWeapon})),403);
   assert.equal((await buildProfileView(skinPlayer.playerKey))!.credits,10000-creditFinish.cost);
+  // An already-unlocked finish cannot be purchased/charged again by a rotation.
+  const already=await create("already-unlocked-skin-player",totalXpForLevel(MAX_PLAYER_LEVEL),10000);
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:already.id,weaponId:todayWeapon}},create:{playerId:already.id,weaponId:todayWeapon},update:{}});
+  await db.skinUnlock.create({data:{playerId:already.id,weaponId:todayWeapon,skinId:creditFinish.skinId!}});
+  await status(await shopPurchase(req({playerKey:already.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),409);
+  assert.equal((await buildProfileView(already.playerKey))!.credits,10000);
+
+  // Operative skin choices are saved with the named loadout, not account-wide.
+  const operator=await create("operative-loadout-player",totalXpForLevel(12),10000);
+  await db.playerSkinUnlock.createMany({data:["red","blue"].map(skinId=>({playerId:operator.id,skinId}))});
+  await status(await saveLoadout(req({playerKey:operator.playerKey,playerSkin:"red"})),200);
+  await status(await preset(req({playerKey:operator.playerKey,action:"save",name:"Crimson kit"})),200);
+  const crimson=(await buildProfileView(operator.playerKey))!.savedLoadouts.find(p=>p.name==="Crimson kit")!;
+  await status(await saveLoadout(req({playerKey:operator.playerKey,playerSkin:"blue"})),200);
+  await status(await preset(req({playerKey:operator.playerKey,action:"save",name:"Azure kit"})),200);
+  const azure=(await buildProfileView(operator.playerKey))!.savedLoadouts.find(p=>p.name==="Azure kit")!;
+  await status(await saveLoadout(req({playerKey:operator.playerKey,presetId:crimson.id})),200);
+  assert.equal((await buildProfileView(operator.playerKey))!.loadout.playerSkin.id,"red");
+  await status(await saveLoadout(req({playerKey:operator.playerKey,presetId:azure.id})),200);
+  assert.equal((await buildProfileView(operator.playerKey))!.loadout.playerSkin.id,"blue");
+
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.
