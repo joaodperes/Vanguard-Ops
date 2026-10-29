@@ -6,7 +6,7 @@ import { formatWeaponNumber } from "@/lib/weapon-numbers";
 import { shotSpread } from "@/lib/weapon-accuracy";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
-import { attachmentViewPermissions } from "@/lib/armory-attachment-browse";
+import { attachmentViewPermissions, showPendingAttachmentChallenge } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
@@ -1355,6 +1355,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
             matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
           }) : null;
           const canBuy = canPurchase && !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
+          const showChallenge = showPendingAttachmentChallenge(isOwned, chProgress?.completed);
           const sightInfo = a.sightType ? SIGHT_DEFS[a.sightType] : null;
           const rarityColor = a.unlockCost >= 1600 ? RARITY_COLORS.epic : a.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
           const busyKey = `${a.id}:${weaponId}`;
@@ -1373,7 +1374,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                   <span>{isOwned ? "Owned for this weapon" : `Price: ${a.unlockCost} CR`}</span>
                   {!canPurchase && !isOwned && <span className="text-amber-300/80">Weapon purchase required</span>}
                 </div>
-                {!isOwned && chProgress && !chProgress.completed && (
+                {showChallenge && chProgress && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
                     <div className="text-[10px] font-bold uppercase tracking-wide mb-1 text-amber-300">Locked · Challenge</div>
                     {chProgress.description}
