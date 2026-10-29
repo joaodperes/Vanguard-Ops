@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
+import { SiteNav } from "@/components/game/SiteNav";
 import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
 import { FiringRange } from "@/components/screens/FiringRange";
@@ -193,6 +194,7 @@ export default function Page() {
   return (
     <>
       <div className="dark min-h-screen bg-[#0a0a0a] text-white">
+      {screen !== "playing" && <SiteNav />}
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}
