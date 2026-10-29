@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CareerProgress } from "@/components/game/CareerProgress";
-import { OperatorPreview } from "@/components/game/OperatorPreview";
 import { useGame } from "@/lib/game-store";
 import { achievementTitle } from "@/lib/achievement-titles";
 import { displayLabel } from "@/lib/display-labels";
@@ -185,28 +184,6 @@ export function Profile() {
                 <span className="truncate">{profile.name}</span>
                 {profile.selectedTitle&&<span className="text-xs font-medium opacity-70">· {profile.unlockedTitles.find(t=>t.id===profile.selectedTitle)?.title}</span>}
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
-                <select id="equipped-mastery-title" value={profile.selectedTitle ?? ""} disabled={titleBusy}
-                  onChange={e=>void equipTitle(e.target.value)}
-                  className="rounded-lg border border-amber-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
-                  <option value="">No title</option>
-                  {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
-                </select>
-                <span className="text-[11px] text-white/45">Finish achievement chains for titles in kills, leveling, quests, Survival and mastery. Previously earned Career Rank titles remain available. Equip one beside your name in matches.</span>
-                {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <label htmlFor="equipped-nameplate" className="text-xs text-violet-200">Nameplate design</label>
-                <select id="equipped-nameplate" value={profile.selectedNameplate} disabled={nameplateBusy}
-                  onChange={e=>void equipNameplate(e.target.value)}
-                  className="rounded-lg border border-violet-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
-                  {COSMETICS.filter(c=>c.kind==="nameplate").map(c=><option key={c.id} value={c.id}
-                    disabled={!profile.ownedCosmetics.includes(c.id)}>{c.name}{profile.ownedCosmetics.includes(c.id)?"":" · Shop"}</option>)}
-                </select>
-                <span className="text-xs text-white/45">Decorative profile and in-match name frame. Unlock more in the Shop.</span>
-                {cosmeticError&&<span role="alert" className="text-xs text-rose-400">{cosmeticError}</span>}
-              </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">
                   <Star className="w-3 h-3" /> LVL {lvl}
@@ -235,12 +212,12 @@ export function Profile() {
           </div>
         </div>
 
-        <OperatorPreview equippedId={profile.loadout.playerSkin.id}/>
-        <CareerProgress />
 
         <Tabs defaultValue="stats">
           <TabsList className="bg-zinc-900/60 border border-white/10 w-full sm:w-fit justify-start overflow-x-auto">
             <TabsTrigger value="stats" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><TrendingUp className="w-4 h-4 mr-1.5" /> Stats</TabsTrigger>
+            <TabsTrigger value="customization" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Sparkles className="w-4 h-4 mr-1.5" /> Customization</TabsTrigger>
+            <TabsTrigger value="career" className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-200 text-white/60"><Crown className="w-4 h-4 mr-1.5" /> Career Contracts</TabsTrigger>
             <TabsTrigger value="achievements" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Award className="w-4 h-4 mr-1.5" /> Achievements <span className="ml-1 text-[10px] tabular-nums">({earnedAchievements}/{totalAchievements})</span></TabsTrigger>
             <TabsTrigger value="matches" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Clock className="w-4 h-4 mr-1.5" /> History</TabsTrigger>
             <TabsTrigger value="collection" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Crosshair className="w-4 h-4 mr-1.5" /> Collection</TabsTrigger>
@@ -270,6 +247,36 @@ export function Profile() {
                 <Progress label="Operative Skins" value={ownedPS} total={totalPSkins} color="from-emerald-500 to-cyan-500" />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="customization" className="mt-5">
+            <section aria-label="Profile customization" className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
+              <h2 className="text-white font-bold text-sm mb-4">Title &amp; Nameplate</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
+                <select id="equipped-mastery-title" value={profile.selectedTitle ?? ""} disabled={titleBusy}
+                  onChange={e=>void equipTitle(e.target.value)}
+                  className="rounded-lg border border-amber-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  <option value="">No title</option>
+                  {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
+                </select>
+                {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <label htmlFor="equipped-nameplate" className="text-xs text-violet-200">Nameplate design</label>
+                <select id="equipped-nameplate" value={profile.selectedNameplate} disabled={nameplateBusy}
+                  onChange={e=>void equipNameplate(e.target.value)}
+                  className="rounded-lg border border-violet-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  {COSMETICS.filter(c=>c.kind==="nameplate").map(c=><option key={c.id} value={c.id}
+                    disabled={!profile.ownedCosmetics.includes(c.id)}>{c.name}{profile.ownedCosmetics.includes(c.id)?"":" · Shop"}</option>)}
+                </select>
+                {cosmeticError&&<span role="alert" className="text-xs text-rose-400">{cosmeticError}</span>}
+              </div>
+
+            </section>
+          </TabsContent>
+          <TabsContent value="career" className="mt-5">
+            <CareerProgress />
           </TabsContent>
 
           {/* ACHIEVEMENTS — split into Quest, PvP, and PvE sections */}

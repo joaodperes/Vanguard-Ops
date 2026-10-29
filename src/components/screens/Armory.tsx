@@ -27,6 +27,7 @@ import { LoadoutSelector } from "@/components/screens/Loadout";
 import { wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
+import { OperatorPreview } from "@/components/game/OperatorPreview";
 
 // ----------------------------------------------------------------------------
 // Per-weapon progress + challenges view (fetched from /api/weapon-progress).
@@ -524,7 +525,7 @@ export function Armory() {
 
           {/* PLAYER SKINS */}
           <TabsContent value="pskins" className="mt-5">
-            <div className="text-white/40 text-xs mb-3 flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Operative skins change your in-game appearance.</div>
+            <OperatorPreview equippedId={profile?.loadout.playerSkin.id??"default"} level={level} ownedIds={profile?.unlocks.playerSkins??[]} />
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
                 const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (!s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0);
