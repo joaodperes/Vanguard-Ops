@@ -10,6 +10,10 @@ describe("new cosmetic equipment and credit/career shop catalogs",()=>{
     for(const [kind,id] of Object.entries(DEFAULT_COSMETICS))
       expect(cosmeticById(id,kind as "reticle"|"charm"|"nameplate")).toBeDefined();
   });
+  test("cosmetic descriptions do not display redundant always-free copy",()=>{
+    expect(COSMETICS.every(c => !/always free/i.test(c.description))).toBe(true);
+    expect(cosmeticShopOwnership([])).toEqual(expect.arrayContaining(["classic","dot","none","standard"]));
+  });
   test("every premium reticle, charm and nameplate has exactly one priced Shop entry",()=>{
     for(const cosmetic of COSMETICS.filter(x=>!["classic","dot","none","standard"].includes(x.id))){
       const entries=SHOP_ITEMS.filter(item=>item.cosmeticId===cosmetic.id);

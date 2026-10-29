@@ -3,8 +3,8 @@ import {SHOP_ITEMS} from "./shop-catalog";
 export type CosmeticKind = "reticle" | "charm" | "nameplate";
 export interface CosmeticDefinition { id:string; name:string; kind:CosmeticKind; color:string; symbol:string; description:string; }
 export const COSMETICS:readonly CosmeticDefinition[]=[
-  {id:"classic",name:"Classic Cross",kind:"reticle",color:"#22c55e",symbol:"+",description:"Standard four-armed hipfire sight. Always free."},
-  {id:"dot",name:"Precision Dot",kind:"reticle",color:"#22c55e",symbol:"•",description:"Minimal central-dot hipfire sight. Always free."},
+  {id:"classic",name:"Classic Cross",kind:"reticle",color:"#22c55e",symbol:"+",description:"Standard four-armed hipfire sight."},
+  {id:"dot",name:"Precision Dot",kind:"reticle",color:"#22c55e",symbol:"•",description:"Minimal central-dot hipfire sight."},
   {id:"reticle_orbit",name:"Orbit Ring",kind:"reticle",color:"#06b6d4",symbol:"◎",description:"Thin concentric targeting ring."},
   {id:"reticle_chevron",name:"Vanguard Chevron",kind:"reticle",color:"#fb923c",symbol:"⌃",description:"Angular chevron with two side ticks."},
   {id:"reticle_nova",name:"Nova Star",kind:"reticle",color:"#c084fc",symbol:"✧",description:"Elegant four-point luminous targeting star."},
@@ -34,7 +34,7 @@ export const COSMETICS:readonly CosmeticDefinition[]=[
   {id:"charm_anchor",name:"Deepwater Anchor",kind:"charm",color:"#38bdf8",symbol:"T",description:"Blue steel anchor pendant."},
   {id:"charm_rocket",name:"Micro Rocket",kind:"charm",color:"#fb7185",symbol:">",description:"Tiny finned rocket."},
   {id:"charm_moon",name:"Lunar Crescent",kind:"charm",color:"#d8b4fe",symbol:"C",description:"Violet crescent pendant."},
-  {id:"standard",name:"Standard Nameplate",kind:"nameplate",color:"#94a3b8",symbol:"▭",description:"Unadorned readable player label. Always free."},
+  {id:"standard",name:"Standard Nameplate",kind:"nameplate",color:"#94a3b8",symbol:"▭",description:"Unadorned readable player label."},
   {id:"plate_steel",name:"Steel Division",kind:"nameplate",color:"#cbd5e1",symbol:"⬒",description:"Riveted graphite frame and silver trim."},
   {id:"plate_crimson",name:"Crimson Command",kind:"nameplate",color:"#fb7185",symbol:"◆",description:"Deep scarlet command banner with steel edges."},
   {id:"plate_eventide",name:"Eventide Crest",kind:"nameplate",color:"#c4b5fd",symbol:"✦",description:"Celestial purple frame with star accents."},
