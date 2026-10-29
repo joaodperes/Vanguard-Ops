@@ -73,3 +73,17 @@ export type ShopCategory = (typeof SHOP_CATEGORIES)[number]["id"];
 export function shopItemsForCategory(currency:ShopCurrency,category:ShopCategory):ShopItem[]{
   return SHOP_ITEMS.filter(item=>item.currency===currency&&(category==="all"||item.kind===category));
 }
+
+/** Purchase states are mutually exclusive, with ownership taking precedence. */
+export type ShopPurchaseStatus = "owned" | "weapon-locked" | "career-locked" |
+  "credits-short" | "tokens-short" | "available";
+export function shopPurchaseStatus(item:ShopItem,options:{
+  owned:boolean;weaponOwned:boolean;careerUnlocked:boolean;credits:number;careerTokens:number;
+}):ShopPurchaseStatus{
+  if(options.owned)return "owned";
+  if(item.kind==="weaponSkin"&&!options.weaponOwned)return "weapon-locked";
+  if(item.currency==="career"&&!options.careerUnlocked)return "career-locked";
+  if(item.currency==="credits"&&options.credits<item.cost)return "credits-short";
+  if(item.currency==="career"&&options.careerTokens<item.cost)return "tokens-short";
+  return "available";
+}

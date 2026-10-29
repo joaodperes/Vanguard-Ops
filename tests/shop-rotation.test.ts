@@ -1,6 +1,6 @@
 import {describe,test,expect} from "bun:test";
 import {DAILY_SHOP_SLOTS,dailyShopRotation,isShopItemFeatured,isShopOfferFeatured} from "../src/lib/shop-rotation";
-import {SHOP_CATEGORIES,SHOP_ITEMS,shopItemById,shopItemKey} from "../src/lib/shop-catalog";
+import {SHOP_CATEGORIES,SHOP_ITEMS,shopItemById,shopItemKey,shopPurchaseStatus} from "../src/lib/shop-catalog";
 import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS} from "../src/lib/game-data";
 import {cosmeticById} from "../src/lib/cosmetics";
 
@@ -33,6 +33,18 @@ describe("shared rotating Shop",()=>{
       expect(next).toHaveLength(3);
       expect(now.map(i=>i.id).sort()).not.toEqual(next.map(i=>i.id).sort());
     }
+  });
+  test("purchase status distinguishes weapon, career, currency and owned",()=>{
+    const weapon=SHOP_ITEMS.find(i=>i.kind==="weaponSkin"&&i.currency==="credits")!;
+    const career=SHOP_ITEMS.find(i=>i.kind==="charm"&&i.currency==="career")!;
+    const ordinary={owned:false,weaponOwned:true,careerUnlocked:true,credits:50000,careerTokens:5};
+    expect(shopPurchaseStatus(weapon,{...ordinary,weaponOwned:false})).toBe("weapon-locked");
+    expect(shopPurchaseStatus(weapon,{...ordinary,owned:true,weaponOwned:false})).toBe("owned");
+    expect(shopPurchaseStatus(career,{...ordinary,careerUnlocked:false})).toBe("career-locked");
+    expect(shopPurchaseStatus(weapon,{...ordinary,credits:0})).toBe("credits-short");
+    expect(shopPurchaseStatus(career,{...ordinary,careerTokens:0})).toBe("tokens-short");
+    expect(shopPurchaseStatus(weapon,ordinary)).toBe("available");
+    expect(shopPurchaseStatus(career,ordinary)).toBe("available");
   });
   test("every offer is a real collectible and weapon skins are purchased per gun",()=>{
     for(const id of dailyShopRotation(first).itemIds){
