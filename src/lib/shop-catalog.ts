@@ -6,7 +6,7 @@ export interface ShopItem {
 }
 /** Server-authoritative fixed pricing. Existing aim settings remain free. */
 export const SHOP_ITEMS: readonly ShopItem[] = [
-  { id:"cobalt_alloy",name:"Cobalt Alloy",description:"Per-weapon deep-blue alloy finish.",currency:"credits",cost:12000,kind:"weaponSkin",skinId:"shop_copper" },
+  { id:"cobalt_alloy",name:"Cobalt Alloy",description:"Per-weapon deep-blue alloy finish.",currency:"credits",cost:3000,kind:"weaponSkin",skinId:"shop_copper" },
   { id:"urban_ghost",name:"Urban Ghost",description:"Stealthy blue-grey operative uniform.",currency:"credits",cost:25000,kind:"playerSkin",skinId:"shop_urban" },
   { id:"void_circuit",name:"Void Circuit",description:"Per-weapon violet Career-exclusive finish.",currency:"career",cost:1,kind:"weaponSkin",skinId:"shop_void" },
   { id:"starlight_vanguard",name:"Starlight Vanguard",description:"Career-exclusive violet-and-lavender operative.",currency:"career",cost:2,kind:"playerSkin",skinId:"shop_phantom" },
@@ -30,6 +30,30 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   { id:"void_prism",name:"Void Prism",description:"Violet faceted crystal. Career exclusive.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_prism" },
   { id:"solar_emblem",name:"Solar Emblem",description:"Gold sunburst medallion. Career exclusive.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_solar" },
   { id:"orbital_satellite",name:"Orbital Satellite",description:"Miniature satellite. Career exclusive.",currency:"career",cost:2,kind:"charm",cosmeticId:"charm_satellite" },
+  {id:"frostbite",name:"Frostbite",description:"Frostbite cosmetic.",currency:"credits",cost:2600,kind:"weaponSkin",skinId:"shop_frostbite"},
+  {id:"dune_striker",name:"Dune Striker",description:"Dune Striker cosmetic.",currency:"credits",cost:2900,kind:"weaponSkin",skinId:"shop_dune"},
+  {id:"voltage_grid",name:"Voltage Grid",description:"Voltage Grid cosmetic.",currency:"credits",cost:3400,kind:"weaponSkin",skinId:"shop_voltage"},
+  {id:"emberline",name:"Emberline",description:"Emberline cosmetic.",currency:"career",cost:1,kind:"weaponSkin",skinId:"shop_emberline"},
+  {id:"aurora_veil",name:"Aurora Veil",description:"Aurora Veil cosmetic.",currency:"career",cost:1,kind:"weaponSkin",skinId:"shop_aurora"},
+  {id:"royal_obsidian",name:"Royal Obsidian",description:"Royal Obsidian cosmetic.",currency:"career",cost:1,kind:"weaponSkin",skinId:"shop_royal"},
+  {id:"ash_wraith",name:"Ash Wraith",description:"Ash Wraith cosmetic.",currency:"credits",cost:9500,kind:"playerSkin",skinId:"shop_wraith"},
+  {id:"sandstorm_scout",name:"Sandstorm Scout",description:"Sandstorm Scout cosmetic.",currency:"credits",cost:10500,kind:"playerSkin",skinId:"shop_sandstorm"},
+  {id:"tidebreaker",name:"Tidebreaker",description:"Tidebreaker cosmetic.",currency:"credits",cost:11500,kind:"playerSkin",skinId:"shop_tide"},
+  {id:"solar_sentinel",name:"Solar Sentinel",description:"Solar Sentinel cosmetic.",currency:"career",cost:1,kind:"playerSkin",skinId:"shop_sentinel"},
+  {id:"ion_phantom",name:"Ion Phantom",description:"Ion Phantom cosmetic.",currency:"career",cost:1,kind:"playerSkin",skinId:"shop_ion"},
+  {id:"verdant_guard",name:"Verdant Guard",description:"Verdant Guard cosmetic.",currency:"career",cost:1,kind:"playerSkin",skinId:"shop_verdant"},
+  {id:"spire_sight",name:"Spire Sight",description:"Spire Sight cosmetic.",currency:"credits",cost:2800,kind:"reticle",cosmeticId:"reticle_spire"},
+  {id:"trident_reticle",name:"Trident",description:"Trident cosmetic.",currency:"credits",cost:3100,kind:"reticle",cosmeticId:"reticle_trident"},
+  {id:"eclipse_halo",name:"Eclipse Halo",description:"Eclipse Halo cosmetic.",currency:"career",cost:1,kind:"reticle",cosmeticId:"reticle_eclipse"},
+  {id:"helix_reticle",name:"Helix",description:"Helix cosmetic.",currency:"career",cost:1,kind:"reticle",cosmeticId:"reticle_helix"},
+  {id:"boreal_unit",name:"Boreal Unit",description:"Boreal Unit cosmetic.",currency:"credits",cost:6200,kind:"nameplate",cosmeticId:"plate_boreal"},
+  {id:"dusk_raider",name:"Dusk Raider",description:"Dusk Raider cosmetic.",currency:"credits",cost:7800,kind:"nameplate",cosmeticId:"plate_dusk"},
+  {id:"nebula_commander",name:"Nebula Commander",description:"Nebula Commander cosmetic.",currency:"career",cost:1,kind:"nameplate",cosmeticId:"plate_nebula"},
+  {id:"orbital_vanguard",name:"Orbital Vanguard",description:"Orbital Vanguard cosmetic.",currency:"career",cost:1,kind:"nameplate",cosmeticId:"plate_orbital"},
+  {id:"thunderbolt",name:"Thunderbolt",description:"Thunderbolt cosmetic.",currency:"credits",cost:4900,kind:"charm",cosmeticId:"charm_bolt"},
+  {id:"deepwater_anchor",name:"Deepwater Anchor",description:"Deepwater Anchor cosmetic.",currency:"credits",cost:5400,kind:"charm",cosmeticId:"charm_anchor"},
+  {id:"micro_rocket",name:"Micro Rocket",description:"Micro Rocket cosmetic.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_rocket"},
+  {id:"lunar_crescent",name:"Lunar Crescent",description:"Lunar Crescent cosmetic.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_moon"},
 ] as const;
 export function shopItemById(id:string):ShopItem|undefined { return SHOP_ITEMS.find(x=>x.id===id); }
 export function shopItemKey(item:ShopItem,weaponId?:string):string {
