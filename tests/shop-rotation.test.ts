@@ -1,7 +1,7 @@
 import {describe,test,expect} from "bun:test";
-import {DAILY_SHOP_SLOTS,dailyShopRotation,isShopItemFeatured} from "../src/lib/shop-rotation";
+import {DAILY_SHOP_SLOTS,dailyShopRotation,isShopItemFeatured,isShopOfferFeatured} from "../src/lib/shop-rotation";
 import {SHOP_CATEGORIES,SHOP_ITEMS,shopItemById,shopItemKey} from "../src/lib/shop-catalog";
-import {WEAPON_SKINS,PLAYER_SKINS} from "../src/lib/game-data";
+import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS} from "../src/lib/game-data";
 import {cosmeticById} from "../src/lib/cosmetics";
 
 describe("shared rotating Shop",()=>{
@@ -16,6 +16,8 @@ describe("shared rotating Shop",()=>{
     expect(today).not.toEqual(dailyShopRotation(second));
     expect(new Set(today.itemIds).size).toBe(today.itemIds.length);
     expect(isShopItemFeatured(today.itemIds[0],first)).toBe(true);
+    expect(today.offers).toHaveLength(today.itemIds.length);
+    expect(today.offers.map(o=>o.itemId)).toEqual(today.itemIds);
   });
   test("exactly three offers per type in both currencies; each type changes daily",()=>{
     const a=new Set(dailyShopRotation(first).itemIds),b=new Set(dailyShopRotation(second).itemIds);
@@ -40,6 +42,15 @@ describe("shared rotating Shop",()=>{
       else if(item.kind==="playerSkin")expect(PLAYER_SKINS.some(s=>s.id===item.skinId)).toBe(true);
       else expect(cosmeticById(item.cosmeticId??"",item.kind)).toBeDefined();
     }
+    const offered=dailyShopRotation(first).offers.filter(o=>shopItemById(o.itemId)?.kind==="weaponSkin");
+    expect(offered).toHaveLength(6);
+    for(const offer of offered){
+      expect(WEAPONS.some(w=>w.id===offer.weaponId&&!w.wonder&&!w.disabled&&w.category!=="melee")).toBe(true);
+      expect(isShopOfferFeatured(offer.itemId,offer.weaponId,first)).toBe(true);
+      expect(isShopOfferFeatured(offer.itemId,"__arbitrary_weapon__",first)).toBe(false);
+      expect(isShopOfferFeatured(offer.itemId,undefined,first)).toBe(false);
+    }
+    expect(dailyShopRotation(first).offers).toEqual(dailyShopRotation(first).offers);
     const finish=SHOP_ITEMS.find(i=>i.kind==="weaponSkin")!;
     expect(shopItemKey(finish,"rifle_ar")).not.toBe(shopItemKey(finish,"pistol_side"));
     expect(shopItemKey(finish,"rifle_ar")).toBe(shopItemKey(finish,"rifle_ar"));
