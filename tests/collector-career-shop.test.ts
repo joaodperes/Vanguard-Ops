@@ -29,9 +29,9 @@ describe("Career Tokens and exclusive cosmetic economy",()=>{
     expect(careerContractDelta("wins",evidence,1000)).toBe(1);
     expect(careerContractDelta("fresh_xp",evidence,1000)).toBe(1000);
   });
-  test("reticles are not shop merchandise; products use only two currencies",()=>{
+  test("shop products use two currencies and weapon-specific keys",()=>{
     expect(new Set(SHOP_ITEMS.map(i=>i.currency))).toEqual(new Set(["credits","career"]));
-    expect(SHOP_ITEMS.some(i=>i.id.includes("reticle"))).toBe(false);
+    expect(SHOP_ITEMS.filter(i=>i.kind==="reticle").length).toBeGreaterThan(4);
     expect(SHOP_ITEMS.every(i=>i.cost>0)).toBe(true);
     for(const i of SHOP_ITEMS){
       expect(shopItemById(i.id)).toEqual(i);
