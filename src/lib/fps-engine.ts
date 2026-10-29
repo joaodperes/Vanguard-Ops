@@ -8739,7 +8739,7 @@ export class FPSEngine {
           ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
       timeLimitSec: this.configuredTimeLimitSec,
-      confirmations: this.confirmations;
+      confirmations: this.confirmations,
       denials: this.denials,
       denialScoreEnabled: this.denialScoreEnabled,
       tagNotice: this.tagNotice,
