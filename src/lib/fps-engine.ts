@@ -60,7 +60,7 @@ import {
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
-  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots,
+  SIGHT_DEFS, sightDefForType, hasMountedSight, adsFieldOfView, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
@@ -7363,9 +7363,9 @@ export class FPSEngine {
     // ADS smoothing
     const targetAds = this.aiming ? 1 : 0;
     this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
-    // Per-sight FOV reduction (iron/red_dot = small zoom, ACOG = bigger, Hunter = biggest).
-    // The HUD renders the matching reticle overlay; the camera FOV provides the zoom.
-    this.camera.fov = this.baseFov - this.adsProgress * this.sightDef.adsFovReduction;
+    // The optical zoom field determines actual magnification across all player FOV settings.
+    // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
+    this.camera.fov = adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
     this.camera.updateProjectionMatrix();
     this.positionViewmodel();
     // Update the laser indicator (visible only when a laser sight is equipped)

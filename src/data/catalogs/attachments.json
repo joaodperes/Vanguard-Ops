@@ -120,12 +120,12 @@
   },
   {
     "id": "sight_thermal",
-    "name": "Thermal 2x Scope",
+    "name": "Thermal 6x Scope",
     "slot": "sight",
     "sightType": "thermal",
     "unlockLevel": 12,
     "unlockCost": 300,
-    "description": "2x thermal. Highlights heat signatures through fog/darkness.",
+    "description": "6x thermal imaging for long-distance heat signatures. Slower ADS with long-range precision.",
     "recommendedFor": [
       "dmr",
       "sniper",
@@ -137,9 +137,9 @@
       "assault"
     ],
     "effects": {
-      "range": 15,
-      "adsSpread": -10,
-      "adsTime": 10
+      "range": 25,
+      "adsSpread": -18,
+      "adsTime": 26
     }
   },
   {
@@ -171,12 +171,12 @@
   },
   {
     "id": "sight_hunter",
-    "name": "Hunter 6x Scope",
+    "name": "Hunter 2x Scope",
     "slot": "sight",
     "sightType": "hunter",
     "unlockLevel": 16,
     "unlockCost": 300,
-    "description": "6x magnification. Sniper-grade optic, very slow ADS, extreme range.",
+    "description": "2x precision optic. Quick ADS and a clear, modest zoom for mid-range targets.",
     "recommendedFor": [
       "sniper",
       "dmr"
@@ -186,9 +186,9 @@
       "dmr"
     ],
     "effects": {
-      "range": 30,
-      "adsTime": 20,
-      "adsSpread": -20
+      "range": 12,
+      "adsTime": 8,
+      "adsSpread": -12
     }
   },
   {

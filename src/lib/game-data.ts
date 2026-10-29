@@ -165,6 +165,17 @@ export const SIGHT_DEFS: Record<SightType, SightDef> = sightDefinitionsData as u
 
 export const SIGHT_LIST: SightDef[] = Object.values(SIGHT_DEFS);
 
+/** Convert true optical magnification into a camera FOV at any player-selected base FOV.
+ * 1x sights preserve the existing ADS framing instead of adding artificial optical zoom.
+ */
+export function adsFieldOfView(baseFov: number, sight: Pick<SightDef, "zoom" | "adsFovReduction">, progress = 1): number {
+  const p = Math.max(0, Math.min(1, progress));
+  const scopedFov = sight.zoom > 1
+    ? 2 * Math.atan(Math.tan(baseFov * Math.PI / 360) / sight.zoom) * 180 / Math.PI
+    : baseFov - sight.adsFovReduction;
+  return baseFov + (scopedFov - baseFov) * p;
+}
+
 export function sightDefForType(type: SightType): SightDef {
   return SIGHT_DEFS[type] ?? SIGHT_DEFS.iron;
 }

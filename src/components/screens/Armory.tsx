@@ -6,6 +6,7 @@ import { formatWeaponNumber } from "@/lib/weapon-numbers";
 import { shotSpread } from "@/lib/weapon-accuracy";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
+import { attachmentViewPermissions } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
@@ -599,6 +600,7 @@ export function Armory() {
         open={!!customizing}
         onOpenChange={(o) => { if (!o) setCustomizing(null); }}
         profile={profile?.loadout ?? null}
+        weaponOwned={!!customizing && ownedWeaponIds.has(customizing.weapon.id)}
         level={level}
         credits={credits}
         attachmentsByWeapon={attachmentsByWeapon}
@@ -794,12 +796,12 @@ function WeaponCard(props: WeaponCardProps) {
           {equippedId === w.id ? <><Check className="w-4 h-4 mr-1.5" />Equipped</> : "Equip weapon"}
         </Button>
       )}
-      {isOwned && (
+      {(
         <Button
           onClick={() => onCustomize(w)}
           className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
         >
-          <Wrench className="w-4 h-4 mr-1.5" /> Customize
+          <Wrench className="w-4 h-4 mr-1.5" /> {isOwned ? "Customize" : "View Customization"}
           {supportedSlots.length > 0 && (
             <span className="ml-1.5 text-[10px] opacity-70 normal-case">
               · {supportedSlots.length} slot{supportedSlots.length === 1 ? "" : "s"}
@@ -821,6 +823,7 @@ interface CustomizeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: ResolvedLoadout | null;
+  weaponOwned: boolean;
   level: number;
   credits: number;
   attachmentsByWeapon: Record<string, string[]>;
@@ -835,7 +838,7 @@ interface CustomizeModalProps {
 }
 
 function CustomizeModal(props: CustomizeModalProps) {
-  const { weapon: w, slot, open, onOpenChange, profile, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
+  const { weapon: w, slot, open, onOpenChange, profile, weaponOwned, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
   const {profile: account,playerKey,refreshProfile} = useGame();
   const [cosmeticBusy,setCosmeticBusy]=useState(false);
@@ -878,7 +881,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   // uses loadout.meleeAttachments which is always empty).
   const currentlyEquippedWeapon = slot === "primary" ? profile.weapon.id
     : slot === "secondary" ? profile.secondary.id : profile.melee.id;
-  const canEditAttachments = w.id === currentlyEquippedWeapon;
+  const { canEquip: canEditAttachments, canPurchase: canPurchaseAttachments } = attachmentViewPermissions(w.id, currentlyEquippedWeapon, weaponOwned);
   // Never show the attachment configuration of a different weapon just because
   // it occupies the same primary/secondary slot in the saved loadout.
   const equippedAttsForSlot: Record<AttachmentSlot, string | null> = !canEditAttachments
@@ -899,7 +902,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   // Previously this was restricted to primary-only, which was confusing:
   // users opened the knife's modal, saw "Unlocked" on a skin, but couldn't
   // find an Equip button.
-  const canEquipSkin = true;
+  const canEquipSkin = canEditAttachments;
   const mastery = weaponMasteryProgress(progress?.kills ?? 0, progress?.headshots ?? 0, w.id);
   const wonderChallenge = wonderUnlockChallenge(w.id,prestiged,progress?.kills ?? 0,progress?.headshots ?? 0);
   const rarityColor = w.unlockCost >= 3500 ? RARITY_COLORS.legendary : w.unlockCost >= 2000 ? RARITY_COLORS.epic : w.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
@@ -949,11 +952,12 @@ function CustomizeModal(props: CustomizeModalProps) {
           <div className="min-h-0 overflow-y-auto pr-1 lg:pr-2">
           {/* ATTACHMENTS TAB */}
           <TabsContent value="attachments" className="mt-4">
-            {!canEditAttachments ? (
-              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-4 text-sm text-amber-100/80">
-                Equip {w.name} in your loadout before changing its attachments. Attachments shown on your currently equipped weapon are not shared with this one.
-              </div>
-            ) : supportedSlots.length === 0 ? (
+            {!canEditAttachments && (
+              <p className="mb-3 text-xs text-white/50">
+                Previewing compatible attachments for {w.name}. {weaponOwned ? "Equip the weapon to apply them." : "Purchase the weapon to unlock attachment purchases and equipment changes."}
+              </p>
+            )}
+            {supportedSlots.length === 0 ? (
               <div className="text-white/40 text-sm italic py-6 text-center">
                 This weapon does not accept attachments.
               </div>
@@ -961,7 +965,7 @@ function CustomizeModal(props: CustomizeModalProps) {
               <div className="space-y-3">
                 {activeAttachmentSlot === null ? (
                   <>
-                    <div className="mb-3 text-xs text-white/50 leading-relaxed">Select a slot to browse its compatible attachments. The equipped item is shown on each row.</div>
+                    <div className="mb-3 text-xs text-white/50 leading-relaxed">Select a slot to browse compatible attachments, challenge progress and prices.</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {supportedSlots.filter(aSlot => compatibleAttachments(w.id, aSlot).length > 0).map((aSlot) => {
                         const equippedId = equippedAttsForSlot[aSlot];
@@ -979,9 +983,9 @@ function CustomizeModal(props: CustomizeModalProps) {
                             </div>
                             <div className="flex items-center gap-2">
                               {equipped ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <X className="w-4 h-4 text-white/35 shrink-0" />}
-                              <span className={`text-sm font-semibold truncate ${equipped ? "text-white" : "text-white/45"}`}>{equipped?.name ?? "None equipped"}</span>
+                              <span className={`text-sm font-semibold truncate ${equipped ? "text-white" : "text-white/45"}`}>{canEditAttachments ? (equipped?.name ?? "None equipped") : "Browse available options"}</span>
                             </div>
-                            <div className="text-[11px] text-white/40 mt-2">Click to change attachment</div>
+                            <div className="text-[11px] text-white/40 mt-2">{canEditAttachments ? "Click to browse or change" : "Click to inspect attachments"}</div>
                           </button>
                         );
                       })}
@@ -999,6 +1003,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                         attSlot={activeAttachmentSlot}
                         weaponId={w.id}
                         equippedId={equippedAttsForSlot[activeAttachmentSlot]}
+                        canEquip={canEditAttachments}
+                        canPurchase={canPurchaseAttachments}
                         unlockedForWeapon={unlockedForWeapon}
                         progress={progress}
                         level={level}
@@ -1126,8 +1132,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                       <Badge variant="outline" className="border-amber-500/40 text-amber-300 text-[9px] shrink-0">
                         <Check className="w-2.5 h-2.5 mr-0.5" />Equipped
                       </Badge>
-                    ) : isOwned && canEquipSkin ? (
-                      <Button size="sm" onClick={() => onEquipSkin(s.id)}
+                    ) : isOwned ? (
+                      <Button size="sm" disabled={!canEquipSkin} onClick={() => onEquipSkin(s.id)}
                         className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0">
                         Equip
                       </Button>
@@ -1295,6 +1301,8 @@ interface ModalAttachmentSlotProps {
   attSlot: AttachmentSlot;
   weaponId: string;
   equippedId: string | null;
+  canEquip: boolean;
+  canPurchase: boolean;
   unlockedForWeapon: string[];
   progress: { weaponId: string; kills: number; headshots: number; conditionStats?: Partial<WeaponConditionStats> } | null;
   level: number;
@@ -1307,7 +1315,7 @@ interface ModalAttachmentSlotProps {
   onClearPreview: () => void;
 }
 
-function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip, onPreview, onClearPreview }: ModalAttachmentSlotProps) {
+function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurchase, unlockedForWeapon, progress, credits, busy, onPurchase, onEquip, onPreview, onClearPreview }: ModalAttachmentSlotProps) {
   // compatibleAttachments already filters by weaponCategories — so this list
   // contains ONLY attachments that fit this weapon. If empty, the slot is
   // hidden entirely by the parent (AttachmentSlotSection).
@@ -1323,8 +1331,8 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
         <span className="text-white/30 normal-case ml-1">· {attachments.length} compatible</span>
       </div>
       <div className="space-y-1.5">
-        {/* "None" option — unequip the slot */}
-        <button
+        {/* "None" only changes a currently equipped weapon; browsing remains read-only. */}
+        {canEquip && <button
           onClick={() => onEquip(null)} onMouseEnter={() => onPreview(null)} onMouseLeave={onClearPreview} onFocus={() => onPreview(null)}
           className={`w-full text-left rounded-lg border px-2.5 py-2 flex items-center gap-2 transition-colors ${
             equippedId === null ? "border-amber-500 bg-amber-500/15 text-amber-300" : "border-white/10 bg-black/30 text-white/60 hover:bg-white/5"
@@ -1335,7 +1343,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
           </div>
           <span className="text-xs font-semibold">None</span>
           {equippedId === null && <Check className="w-3.5 h-3.5 ml-auto" />}
-        </button>
+        </button>}
         {attachments.map((a) => {
           const isOwned = unlockedForWeapon.includes(a.id);
           const ch = attachmentChallenge(weaponId, a.id);
@@ -1344,11 +1352,11 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
             conditionStats: progress?.conditionStats,
             matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
           }) : null;
-          const canBuy = !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
+          const canBuy = canPurchase && !isOwned && !!chProgress?.completed && credits >= a.unlockCost;
           const sightInfo = a.sightType ? SIGHT_DEFS[a.sightType] : null;
           const rarityColor = a.unlockCost >= 1600 ? RARITY_COLORS.epic : a.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
           const busyKey = `${a.id}:${weaponId}`;
-          const isEquipped = equippedId === a.id;
+          const isEquipped = canEquip && equippedId === a.id;
           return (
             <div key={a.id} onMouseEnter={() => onPreview(a.id)} onMouseLeave={onClearPreview} onFocus={() => onPreview(a.id)} className={`relative rounded-lg border px-2.5 py-2 flex items-start gap-2.5 transition-colors ${isEquipped ? "border-amber-500/60 bg-amber-500/10" : isOwned ? "border-white/10 bg-black/30 hover:border-white/20" : "border-white/10 bg-black/30 opacity-80"}`}>
               <div className="absolute top-0 left-0 bottom-0 w-0.5 rounded-l" style={{ background: rarityColor, opacity: 0.7 }} />
@@ -1359,9 +1367,13 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
                 <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
-                {!isOwned && chProgress && !chProgress.completed && (
+                <div className="text-[11px] text-white/65 mb-2 flex flex-wrap gap-x-3 gap-y-1">
+                  <span>{isOwned ? "Owned for this weapon" : `Price: ${a.unlockCost} CR`}</span>
+                  {!canPurchase && !isOwned && <span className="text-amber-300/80">Weapon purchase required</span>}
+                </div>
+                {!isOwned && chProgress && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300 mb-1">Locked · Challenge</div>
+                    <div className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${chProgress.completed ? "text-emerald-300" : "text-amber-300"}`}>{chProgress.completed ? "Challenge complete" : "Locked · Challenge"}</div>
                     {chProgress.description}
                     <span className="block mt-1 font-mono text-amber-200 font-bold">{chProgress.progress}/{chProgress.goal} {chProgress.metric.replaceAll("_", " ")}</span>
                     
@@ -1377,12 +1389,13 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
                 {isEquipped ? (
-                  <Button size="sm" variant="outline" onClick={() => onEquip(null)}
+                  <Button size="sm" variant="outline" disabled={!canEquip} onClick={() => onEquip(null)}
                     className="border-amber-500/40 text-amber-300 text-[10px] h-7 px-2">Unequip</Button>
                 ) : isOwned ? (
                   <Button
                     size="sm"
                     onClick={() => onEquip(a.id)}
+                    disabled={!canEquip}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2"
                   >
                     Equip
@@ -1394,7 +1407,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, unlockedForWeapon,
                     onClick={() => onPurchase("attachment", a.id, a.unlockCost, a.name, weaponId)}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 disabled:opacity-50"
                   >
-                    {busy === busyKey ? "…" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
+                    {busy === busyKey ? "…" : !canPurchase ? "Weapon required" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
                   </Button>
                 )}
               </div>
