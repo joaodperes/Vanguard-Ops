@@ -1051,6 +1051,10 @@ export function CosmeticCrosshair({styleId,color,size,gap}:{
        styleId==="reticle_nova"?<><path d={`M 0 ${-n-r} L ${r*.25} ${-r*.25} L ${n+r} 0 L ${r*.25} ${r*.25} L 0 ${n+r} L ${-r*.25} ${r*.25} L ${-n-r} 0 L ${-r*.25} ${-r*.25} Z`} {...common}/><circle r="1.3" fill={color}/></>:
        styleId==="reticle_pulse"?<><path d={`M 0 ${-n-r} L ${n+r} 0 L 0 ${n+r} L ${-n-r} 0 Z`} {...common}/>
          <path d={`M 0 ${-n} L ${n} 0 L 0 ${n} L ${-n} 0 Z`} {...common}/><circle r="1.4" fill={color}/></>:
+       styleId==="reticle_spire"?<><path d="M 0 -19 V -7 M -15 0 h 7 M 8 0 h 7" {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_trident"?<><path d="M -14 -17 L -8 -6 L 0 -14 L 8 -6 L 14 -17 M 0 -14 V -22" {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_eclipse"?<><circle r={n+r*.55} strokeDasharray="8 5" {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_helix"?<><path d="M -19 -9 L -8 0 L -19 9 M 19 -9 L 8 0 L 19 9" {...common}/><circle r="1.5" fill={color}/></>:
        <circle r="1.8" fill={color}/>}
      </svg>;
 }
