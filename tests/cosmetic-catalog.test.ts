@@ -1,6 +1,6 @@
 import {describe,test,expect} from "bun:test";
 import { COSMETICS,cosmeticById,cosmeticShopOwnership,parseEquippedCharms,DEFAULT_COSMETICS } from "../src/lib/cosmetics";
-import {SHOP_ITEMS,shopItemKey} from "../src/lib/shop-catalog";
+import {SHOP_ITEMS,SHOP_CATEGORIES,shopItemKey,shopItemsForCategory} from "../src/lib/shop-catalog";
 import {WEAPONS} from "../src/lib/game-data";
 
 describe("new cosmetic equipment and credit/career shop catalogs",()=>{
@@ -23,6 +23,35 @@ describe("new cosmetic equipment and credit/career shop catalogs",()=>{
       expect(cosmeticShopOwnership([])).not.toContain(cosmetic.id);
     }
     expect(new Set(COSMETICS.map(x=>x.id)).size).toBe(COSMETICS.length);
+  });
+  test("new weapon charms are unique shop purchases across both currencies",()=>{
+    const addedIds=["charm_casing","charm_dice","charm_compass","charm_drone","charm_phoenix","charm_prism","charm_solar","charm_satellite"];
+    expect(new Set(addedIds).size).toBe(8);
+    for(const id of addedIds){
+      const cosmetic=cosmeticById(id,"charm");
+      expect(cosmetic).toBeDefined();
+      const purchases=SHOP_ITEMS.filter(item=>item.cosmeticId===id);
+      expect(purchases).toHaveLength(1);
+      expect(purchases[0].cost).toBeGreaterThan(0);
+      expect(shopItemKey(purchases[0])).toBe(purchases[0].id);
+      expect(cosmeticShopOwnership([purchases[0].id])).toContain(id);
+      expect(cosmeticShopOwnership([])).not.toContain(id);
+    }
+    expect(addedIds.filter(id=>SHOP_ITEMS.find(i=>i.cosmeticId===id)?.currency==="credits")).toHaveLength(5);
+    expect(addedIds.filter(id=>SHOP_ITEMS.find(i=>i.cosmeticId===id)?.currency==="career")).toHaveLength(3);
+  });
+  test("shop categories group every product exactly once per currency",()=>{
+    expect(SHOP_CATEGORIES.map(c=>c.id)).toEqual(["all","weaponSkin","playerSkin","reticle","charm","nameplate"]);
+    for(const currency of ["credits","career"] as const){
+      const all=shopItemsForCategory(currency,"all");
+      const groups=SHOP_CATEGORIES.filter(c=>c.id!=="all").flatMap(c=>shopItemsForCategory(currency,c.id));
+      expect(groups).toHaveLength(all.length);
+      expect(new Set(groups.map(i=>i.id)).size).toBe(all.length);
+      expect(groups.every(i=>i.currency===currency)).toBe(true);
+      for(const c of SHOP_CATEGORIES.filter(x=>x.id!=="all")){
+        expect(shopItemsForCategory(currency,c.id).every(i=>i.kind===c.id)).toBe(true);
+      }
+    }
   });
   test("charm map tolerates malformed backups but never arbitrary IDs",()=>{
     expect(parseEquippedCharms("broken")).toEqual({});

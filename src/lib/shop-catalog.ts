@@ -22,8 +22,30 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   { id:"crimson_command",name:"Crimson Command",description:"Scarlet banner and steel profile frame.",currency:"credits",cost:10000,kind:"nameplate",cosmeticId:"plate_crimson" },
   { id:"eventide_crest",name:"Eventide Crest",description:"Career-exclusive violet starfield nameplate.",currency:"career",cost:1,kind:"nameplate",cosmeticId:"plate_eventide" },
   { id:"vanguard_legend",name:"Vanguard Legend",description:"Career-exclusive gold champion nameplate.",currency:"career",cost:2,kind:"nameplate",cosmeticId:"plate_legend" },
+  { id:"brass_casing",name:"Brass Casing",description:"Miniature brass cartridge with copper tip.",currency:"credits",cost:4200,kind:"charm",cosmeticId:"charm_casing" },
+  { id:"lucky_dice",name:"Lucky Dice",description:"Ivory lucky-six die on a short chain.",currency:"credits",cost:5800,kind:"charm",cosmeticId:"charm_dice" },
+  { id:"field_compass",name:"Field Compass",description:"Pocket compass with a red pointer.",currency:"credits",cost:7200,kind:"charm",cosmeticId:"charm_compass" },
+  { id:"scout_drone",name:"Scout Drone",description:"Tiny quadrotor hanging from your rifle.",currency:"credits",cost:8900,kind:"charm",cosmeticId:"charm_drone" },
+  { id:"phoenix_feather",name:"Phoenix Feather",description:"Bright copper-orange wing feather.",currency:"credits",cost:11500,kind:"charm",cosmeticId:"charm_phoenix" },
+  { id:"void_prism",name:"Void Prism",description:"Violet faceted crystal. Career exclusive.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_prism" },
+  { id:"solar_emblem",name:"Solar Emblem",description:"Gold sunburst medallion. Career exclusive.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_solar" },
+  { id:"orbital_satellite",name:"Orbital Satellite",description:"Miniature satellite. Career exclusive.",currency:"career",cost:2,kind:"charm",cosmeticId:"charm_satellite" },
 ] as const;
 export function shopItemById(id:string):ShopItem|undefined { return SHOP_ITEMS.find(x=>x.id===id); }
 export function shopItemKey(item:ShopItem,weaponId?:string):string {
   return item.id+(item.kind==="weaponSkin"?":"+(weaponId??""):"");
+}
+
+// Stable Shop sections shared by Credit and Career Token tabs.
+export const SHOP_CATEGORIES = [
+  {id:"all",label:"All"},
+  {id:"weaponSkin",label:"Weapon finishes"},
+  {id:"playerSkin",label:"Operatives"},
+  {id:"reticle",label:"Reticles"},
+  {id:"charm",label:"Charms"},
+  {id:"nameplate",label:"Nameplates"},
+] as const;
+export type ShopCategory = (typeof SHOP_CATEGORIES)[number]["id"];
+export function shopItemsForCategory(currency:ShopCurrency,category:ShopCategory):ShopItem[]{
+  return SHOP_ITEMS.filter(item=>item.currency===currency&&(category==="all"||item.kind===category));
 }
