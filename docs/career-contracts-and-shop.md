@@ -15,7 +15,7 @@ Only two reusable currencies are shown:
 
 Wonder Weapons are earned through a different mechanism: the same weapon must finish all seven standard skin challenges (Viridian Blight reward) **and** Mastery 5/5 (Eventide reward). The combined milestone grants a **one-use Wonder Weapon entitlement**, displayed as 'Wonder unlocks available', **not** a tradeable currency. Existing earned prestige cosmetics and Wonder Weapon purchases remain grandfathered.
 
-The initial Credit Shop offers **Cobalt Alloy** (3,000 CR, applied to one selected regular weapon) and **Urban Ghost** (25,000 CR, operative skin). The Career Shop offers **Void Circuit** (1 token, per regular weapon) and **Starlight Vanguard** (2 tokens, operative skin). The shop uses server-owned prices and atomic purchase records; there are no purchased advantages to combat stats. **Reticles, charms, and nameplates are implemented in the same two Shop tabs.** Existing Classic Cross / Precision Dot reticles and all color/size settings remain free. Newly purchased reticles alter only the hipfire HUD drawing; optical ADS sights retain their standard functional overlays. The Shop offers Orbit Ring and Vanguard Chevron for 3,500 CR each, and Nova Star / Quantum Pulse for 1 Career Token each. Choose a hipfire reticle separately for each active weapon slot in **Armory → Customize → Reticles**. Settings only changes global color and size.
+The initial Credit Shop offers **Cobalt Alloy** (3,000 CR, applied to the featured weapon) and **Urban Ghost** (25,000 CR, operative skin). The Career Shop offers **Void Circuit** (1 token, per regular weapon) and **Starlight Vanguard** (2 tokens, operative skin). The shop uses server-owned prices and atomic purchase records; there are no purchased advantages to combat stats. **Reticles, charms, and nameplates are implemented in the same two Shop tabs.** Existing Classic Cross / Precision Dot reticles and all color/size settings remain free. Newly purchased reticles alter only the hipfire HUD drawing; optical ADS sights retain their standard functional overlays. The Shop offers Orbit Ring and Vanguard Chevron for 3,500 CR each, and Nova Star / Quantum Pulse for 1 Career Token each. Choose a hipfire reticle separately for each active weapon slot in **Armory → Customize → Reticles**. Settings only changes global color and size.
 
 **Weapon charms** are small, actual Three.js hanging objects attached to a ranged weapon's body and animated with its sway; the weapon model carries the pendant in both first and third person. Buy each design once account-wide, then choose it per loadout slot in **Armory → Customize → Charms**. Named loadout presets also save primary/secondary reticle and charm selections. Vanguard Dog Tag costs 6,000 CR, Skull Token 9,500 CR; Nebula Orb and Reactor Core cost 1 Career Token each. `No Charm` is a free option. The expanded catalog also offers Brass Casing (4,200 CR), Lucky Dice (5,800 CR), Field Compass (7,200 CR), Scout Drone (8,900 CR), Phoenix Feather (11,500 CR), Void Prism (1 Career Token), Solar Emblem (1 Career Token) and Orbital Satellite (2 Career Tokens). Charms render at a reduced scale in first- and third-person views, without altering stats or hitboxes; melee and Wonder Weapons cannot equip them.
 
@@ -27,7 +27,7 @@ The existing **reticle selection stays free**. A nameplate design is a decorativ
 
 ## Operator appearance preview
 
-Profile contains a solo, rotating 3D operative preview with a dropdown for all appearances, including unowned ones. It mirrors the game's blocky articulated humanoid proportions, body color and accent/visor palettes; the weapon and animations are simplified. This is a preview only: it does not equip or unlock cosmetics. In actual matches, other players and bots share the same operative mesh code and individual selected/spawned skins.
+Armory → Operatives contains a rotating 3D operative preview without weapon geometry. The selector distinguishes equipped, owned, locked and unpurchased skins; equipping and named preset switching use the active loadout.
 
 ## Collector
 
@@ -61,11 +61,11 @@ Deepwater Anchor, Micro Rocket, Lunar Crescent). Every currency/category has
 at least four options, ensuring the selection changes daily.
 
 **Weapon finishes remain weapon-specific**, not global cosmetics. The Shop
-selects the weapon *before* purchasing; ownership is keyed by
-(player, weapon, skin) and repeat purchases for that same weapon are blocked,
-but a finish can be purchased for a different weapon on a later rotation.
+assigns each finish to a specific weapon in its daily offer, identically for every player. No player-selected weapon picker exists. The server validates the exact item/weapon pair. Purchased or earned skins are keyed per (player, weapon, skin), cannot be bought again, and may reappear for another weapon on later days.
 Cobalt Alloy was reduced from 12,000 to 3,000 Credits, with additional Credit
 Shop finishes priced 2,600–3,400 Credits. Career finishes cost one token per
 weapon. Operatives, charms, reticles and nameplates remain account-wide designs
 (their equipped selections still use their existing rules). Old purchases and
 loadout selections are unaffected; no schema migration is required.
+
+The Shop uses a left-hand vertical category menu and does not show redundant “3/3 today” counters. Purchase buttons distinguish weapon locked, Career locked, insufficient Credits, insufficient Career Tokens, and already unlocked. A shared top navigation bar serves non-match pages. Profile separates Stats, Customization (title/nameplate), and Career Contracts tabs.
