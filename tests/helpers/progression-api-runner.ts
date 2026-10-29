@@ -175,6 +175,17 @@ try {
   assert.equal(cosmeticsView.loadout.secondaryCharm,"charm_tag");
   assert.equal(cosmeticsView.selectedNameplate,"plate_steel");
   assert.equal(cosmeticsView.credits,75000-3500-6000-7500);
+  // New catalog charms use the same server-authoritative purchase, ownership
+  // and loadout equip path; they do not overwrite the other weapon slot.
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"field_compass"})),200);
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"field_compass"})),409);
+  await status(await cosmeticEquip("charm","charm_compass","primary","rifle_ar"),200);
+  cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert(cosmeticsView.ownedCosmetics.includes("charm_compass"));
+  assert.equal(cosmeticsView.loadout.primaryCharm,"charm_compass");
+  assert.equal(cosmeticsView.loadout.secondaryCharm,"charm_tag");
+  assert.equal(cosmeticsView.credits,75000-3500-6000-7500-7200);
+  await status(await cosmeticEquip("charm","charm_tag","primary","rifle_ar"),200);
   await status(await cosmeticEquip("charm","charm_tag","primary","not_a_weapon"),409);
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryReticle:"reticle_nova"})),403);
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_skull"})),403);
