@@ -771,22 +771,25 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
-      {!isOwned && (
-        <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
-          {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
-        </Button>
-      )}
-      {isOwned && (
-        <Button variant="outline" disabled={equippedId === w.id || busy === "equip:" + w.id}
-          onClick={() => onEquip(w, slot)}
-          className={`w-full mb-2 font-semibold ${equippedId === w.id ? "border-emerald-500/40 text-emerald-300" : "border-amber-400/40 text-amber-300 hover:bg-amber-500/10"}`}>
-          {equippedId === w.id ? <><Check className="w-4 h-4 mr-1.5" />Equipped</> : "Equip weapon"}
-        </Button>
-      )}
-      {(
+      {/* Both owned and locked cards reserve the same two action rows. Keeping
+          the spacing on the container (rather than only on Equip) aligns Buy,
+          Equip, and Customize across adjacent cards regardless of ownership. */}
+      <div className="mt-auto flex flex-col gap-2">
+        {!isOwned ? (
+          <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)}
+            className="h-9 w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
+            {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
+          </Button>
+        ) : (
+          <Button variant="outline" disabled={equippedId === w.id || busy === "equip:" + w.id}
+            onClick={() => onEquip(w, slot)}
+            className={`h-9 w-full font-semibold ${equippedId === w.id ? "border-emerald-500/40 text-emerald-300" : "border-amber-400/40 text-amber-300 hover:bg-amber-500/10"}`}>
+            {equippedId === w.id ? <><Check className="w-4 h-4 mr-1.5" />Equipped</> : "Equip weapon"}
+          </Button>
+        )}
         <Button
           onClick={() => onCustomize(w)}
-          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+          className="h-9 w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
         >
           <Wrench className="w-4 h-4 mr-1.5" /> {w.category === "melee" ? "Skins & Challenges" : isOwned ? "Customize" : "View Customization"}
           {w.category === "melee" && <span className="ml-1.5 text-[10px] opacity-70 normal-case">· 7 skin trials</span>}
@@ -796,7 +799,7 @@ function WeaponCard(props: WeaponCardProps) {
             </span>
           )}
         </Button>
-      )}
+      </div>
     </div>
   );
 }
