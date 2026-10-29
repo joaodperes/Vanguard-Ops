@@ -312,7 +312,7 @@ export function Armory() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
+      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setScreen("menu")} className="text-white/70 hover:text-white hover:bg-white/5">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> Back

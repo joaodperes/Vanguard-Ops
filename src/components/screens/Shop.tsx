@@ -101,7 +101,7 @@ export function Shop(){
                 <p className="text-sm text-white/55 mt-1 flex-1">{item.description}</p>
                 <Button type="button" className={`w-full mt-4 ${statusStyles[status]}`}
                   disabled={busy!==""||status!=="available"} onClick={()=>void buy(offer)}>
-                  {status==="owned"?<><Check className="w-4 h-4 mr-1"/>Owned</>
+                  {status==="owned"?<><Check className="w-4 h-4 mr-1"/>Already unlocked</>
                     :status==="weapon-locked"?<><Lock className="w-4 h-4 mr-1"/>Weapon locked</>
                     :status==="career-locked"?<><Lock className="w-4 h-4 mr-1"/>Career locked · LVL 40</>
                     :status==="credits-short"?<><Coins className="w-4 h-4 mr-1"/>Not enough credits</>
