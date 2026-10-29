@@ -62,3 +62,7 @@ These checks cover mechanics and rendering. Extended balance, touch feel, listen
 `tests/cluster-bounce-and-shield-angle.test.ts` covers high-speed thin-wall impacts, floor energy loss, raised platforms, ceilings, two-face corners, decorative versus solid objects, map-dependent gravity, exact offline/server path equality, timestamp-aware visual interpolation, and the non-mirrored first-person shield angle at multiple headings. Ricochets do not reset the fuse. A banked shot still damages only around each final detonation point, with cover checks and the existing charge/ownership rules.
 
 The follow-up tuning was checked in a real two-client match (1.4-second shell fuse, seven paths, stronger lethal close blast, third-shot charge rejection), an Orbital Nexus server session with exact offline/server path equality at 13.5 m/s², and browser rendering with no JavaScript errors. A collision sweep of 32 volleys across all eight maps found no samples embedded in solid geometry. A launch-time spatial index keeps collision selection local and is rebuilt for each volley so mutable map cover is never cached across shots. The broadphase has its own parity regression against the full collision set.
+
+## Explosion rendering budget
+
+Thunderclap and other explosions now use pooled, bounded visual effects and a fixed light count, preventing combat-time lighting shader recompilation. Damage and grenade physics remain unchanged. See [Explosion effect performance](explosion-effects-performance.md) for measurements, budgets and verification.

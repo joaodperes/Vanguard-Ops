@@ -9,6 +9,7 @@ import { usesWonderCharges } from "./game-data";
 import { createRiotShieldModel } from "./riot-shield-model";
 import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
+import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
 import { containerSideStripes } from "./container-details";
@@ -758,7 +759,7 @@ export class FPSEngine {
   // spawns an explosion at the impact point.
   private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
-  private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number; radius: number }[] = [];
+  private explosionEffects!: ExplosionEffects;
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
   private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; weaponId: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
@@ -1090,6 +1091,7 @@ export class FPSEngine {
       // The constructor never returns if WebGL fails. Release resources
       // already allocated before renderer initialization.
       try { this.renderer?.dispose(); this.renderer?.forceContextLoss(); } catch {}
+      try { this.explosionEffects?.dispose(); } catch {}
       try { this.sound.dispose(); } catch {}
       try { this.weaponAudio.dispose(); } catch {}
       throw error;
@@ -1155,6 +1157,7 @@ export class FPSEngine {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(theme.sky);
     this.scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
+    this.explosionEffects=new ExplosionEffects(this.scene);
 
     this.camera = new THREE.PerspectiveCamera(this.baseFov, this.container.clientWidth / this.container.clientHeight, 0.05, Math.max(500, this.map.size * 3));
 
@@ -7050,21 +7053,16 @@ export class FPSEngine {
     this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash });
   }
 
-  // Spawn an explosion effect at a world position: an expanding emissive sphere
-  // + a brief point light flash. The effect auto-fades and is removed after ~500ms.
+  // Reuse bounded visuals and one permanent light; never vary the scene's light count per blast.
   private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS, weaponId = "") {
-    const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x597940 : weaponId === "launcher_swarm" ? 0x3df9ef : 0xff6622, transparent: true, opacity: 0.85 }),
-    );
-    sphere.position.copy(pos);
-    this.scene.add(sphere);
-    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x557040 : weaponId === "launcher_swarm" ? 0x21f1db : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
-    light.position.copy(pos);
-    this.scene.add(light);
-    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : weaponId === "launcher_swarm" ? 750 : 500, radius });
-    // Explosion SFX.
-    this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
+    const now=performance.now(),listener=this.camera.position;
+    const style=wonderKind??(weaponId==="launcher_swarm"?"swarm":"ordinary");
+    this.explosionEffects.spawn(pos,style,radius,now,listener);
+    if(this.explosionEffects.soundDue(pos,listener,now)){
+      const dx=pos.x-listener.x,dz=pos.z-listener.z,horizontal=Math.hypot(dx,dz)||1;
+      this.weaponAudio.play("launcher",{weaponId:"launcher_rocket",volume:.95,
+        distance:pos.distanceTo(listener),pan:(dx*Math.cos(this.yaw)-dz*Math.sin(this.yaw))/horizontal});
+    }
   }
 
   /** Persistent visual vortex: purple heart, concentric orbiting rings and glow.
@@ -7308,6 +7306,7 @@ export class FPSEngine {
     this.tickGravityWells(dt);
     // Thrown ordnance keeps its authoritative schedule while its owner is dead.
     this.tickClusterVolleys();
+    this.explosionEffects?.update(performance.now(),this.camera.position);
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
     // at the death position and suppress movement, firing, and viewmodel
@@ -7607,27 +7606,6 @@ export class FPSEngine {
       const t = age / p.travelMs;
       p.mesh.position.lerpVectors(p.start, p.end, t);
       if (weaponById(p.weaponId).wonder?.kind === "singularity") p.mesh.rotation.z += dt * 5;
-      return true;
-    });
-
-    // ---- Update explosions: expand + fade out, then remove ----
-    this.explosions = this.explosions.filter((e) => {
-      const age = now - e.born;
-      if (age > e.life) {
-        this.scene.remove(e.mesh);
-        this.scene.remove(e.light);
-        (e.mesh.geometry as THREE.BufferGeometry).dispose();
-        (e.mesh.material as THREE.Material).dispose();
-        return false;
-      }
-      const t = age / e.life;
-      // The singularity shockwave reaches EXACTLY the damage radius (not a
-      // fixed-size 13m visual on a 9.5m hit area).
-      const scale = e.life > 500 ? 0.3 + t * (e.radius / 0.3 - 0.3) : 0.3 + t * 2.2;
-      e.mesh.scale.setScalar(scale);
-      (e.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - t);
-      // Light fades faster.
-      e.light.intensity = 4 * (1 - t) * (1 - t);
       return true;
     });
 
@@ -9151,6 +9129,7 @@ export class FPSEngine {
     for(const id of [...this.clusterVolleys.keys()])this.removeClusterVolley(id);
     if(this.riotShieldModel)this.disposeRiotModel(this.riotShieldModel);
     this.weaponAudio.dispose();
+    this.explosionEffects?.dispose();
     if(this.gardenMaterial){
       this.gardenMaterial.map?.dispose();
       this.gardenMaterial.dispose();

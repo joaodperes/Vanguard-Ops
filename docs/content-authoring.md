@@ -342,3 +342,7 @@ can skip drills or the full tutorial; WebGL startup failures retain an exit.
 ## Defensive Wonders and tactical difficulty
 
 Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated contact timestamps and detonation-only blast damage. Its helper derives shell/child damage and radii from the catalog and uses movement gravity times the map multiplier. Bulwark + P-9 (`shield`) is a Primary Wonder with a normal P-9 magazine and independent 250 HP bullet panel; bracing disables pistol fire. Neither may enter the Secondary slot even though their ballistic categories are launcher/pistol. New Wonder kinds need coordinated ownership/slot, ammo, rendering, protocol and damage integration; see [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md).
+
+## Explosion effects and rendering cost
+
+Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for transient blasts. Do not add/remove a realtime point light for every fragment: light-count changes generate shader variants across lit scene materials. The cosmetic pool is bounded independently of damage; even a culled/rejected visual must still resolve its full authoritative/offline combat effects. See [Explosion effect performance](explosion-effects-performance.md).
