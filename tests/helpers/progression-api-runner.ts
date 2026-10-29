@@ -134,9 +134,11 @@ try {
   await status(await claimCareer(req({playerKey:c.playerKey})),403);
   const featured = new Set(dailyShopRotation().itemIds);
   const careerFinish = shopItemsForCategory("career","weaponSkin").find(i=>featured.has(i.id))!;
-  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:"rifle_ar"})),200);
+  const careerWeapon = dailyShopRotation().offers.find(o=>o.itemId===careerFinish.id)?.weaponId!;
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:c.id,weaponId:careerWeapon}},create:{playerId:c.id,weaponId:careerWeapon},update:{}});
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:careerWeapon})),200);
   assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
-  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:"rifle_ar"})),409);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:careerWeapon})),409);
   await status(await importProfile(req({playerKey:c.playerKey,data:backup})),200);
   assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
   assert.equal((await db.player.findUniqueOrThrow({where:{id:c.id}})).careerTokensSpent,1);
@@ -211,16 +213,18 @@ try {
   // Store finishes remain specific to a weapon even when the global rotation
   // continues to advertise the same finish to every player.
   const creditFinish=shopItemsForCategory("credits","weaponSkin").find(i=>featured.has(i.id))!;
+  const todayWeapon=dailyShopRotation().offers.find(o=>o.itemId===creditFinish.id)?.weaponId!;
+  const wrongWeapon=todayWeapon==="rifle_ar"?"pistol_side":"rifle_ar";
   const skinPlayer=await create("rotating-skin-player",totalXpForLevel(MAX_PLAYER_LEVEL),10000);
-  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"rifle_ar"})),200);
-  let skinView=(await buildProfileView(skinPlayer.playerKey))!;
-  assert(skinView.unlocks.skinsByWeapon.rifle_ar?.includes(creditFinish.skinId!));
-  assert(!skinView.unlocks.skinsByWeapon.pistol_side?.includes(creditFinish.skinId!));
-  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"rifle_ar"})),409);
-  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"pistol_side"})),200);
-  skinView=(await buildProfileView(skinPlayer.playerKey))!;
-  assert(skinView.unlocks.skinsByWeapon.pistol_side?.includes(creditFinish.skinId!));
-  assert.equal(skinView.credits,10000-creditFinish.cost*2);
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:skinPlayer.id,weaponId:todayWeapon}},create:{playerId:skinPlayer.id,weaponId:todayWeapon},update:{}});
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:wrongWeapon})),403);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),200);
+  const skinView=(await buildProfileView(skinPlayer.playerKey))!;
+  assert(skinView.unlocks.skinsByWeapon[todayWeapon]?.includes(creditFinish.skinId!));
+  assert(!skinView.unlocks.skinsByWeapon[wrongWeapon]?.includes(creditFinish.skinId!));
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),409);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:wrongWeapon})),403);
+  assert.equal((await buildProfileView(skinPlayer.playerKey))!.credits,10000-creditFinish.cost);
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.
