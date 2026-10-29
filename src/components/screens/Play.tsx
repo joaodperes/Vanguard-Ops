@@ -11,7 +11,7 @@ import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
 import {
-  MAP_LIST, teamSizesForMap, roomCapacity, mapAllowedForMode,
+  MAP_LIST, getMap, recommendedTeamSize, teamSizesForMap, roomCapacity, mapAllowedForMode,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";
@@ -338,7 +338,7 @@ export function Play() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {teamSizesForMap(roomConfig.mapId).map((ts) => {
+                      {teamSizesForMap(roomConfig.mapId,roomConfig.mode).map((ts) => {
                         const selected = roomConfig.teamSize === ts;
                         const total = ts * 2;
                         const label = roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `${total} players` : `${ts}v${ts}`;
@@ -354,7 +354,7 @@ export function Play() {
                           >
                             <div className={`text-2xl font-black ${selected ? "text-rose-200" : "text-white"}`}>{label}</div>
                             <div className="text-[10px] uppercase tracking-wider text-white/40 mt-1">
-                              {roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Free-for-all" : `${total} total slots`}
+                              {ts === recommendedTeamSize(roomConfig.mapId,roomConfig.mode) ? "Recommended" : roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Free-for-all" : `${total} total slots`}
                             </div>
                           </button>
                         );
@@ -574,8 +574,9 @@ export function Play() {
                                 <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
                                 {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
                                 <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
-                                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
-                                {roomConfig.mode === "ctf" && teamSizesForMap(m.id).includes(16) && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">Up to 16v16</span>}
+                                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {roomConfig.mode === "ctf" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" ? `${getMap(m.id,roomConfig.mode).spawns.red.length}/${getMap(m.id,roomConfig.mode).spawns.blue.length} team spawns` : `${m.spawns.ffa.length} spawns`}</span>
+                                {roomConfig.mode !== "survival" && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">{roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)!*2} players` : `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)}v${teamSizesForMap(m.id,roomConfig.mode).at(-1)}`}</span>}
+                                {roomConfig.mode === "ctf" && (m.id === "compound" || m.id === "skybridge") && <span className="rounded bg-cyan-400/15 px-1.5 py-0.5 font-bold text-cyan-200">CTF trial</span>}
                               </div>
                             </div>
                           </div>

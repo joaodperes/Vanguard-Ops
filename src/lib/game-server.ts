@@ -1,3 +1,4 @@
+import {chooseSpawn} from "./spawn-selection";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -55,7 +56,7 @@ import type {
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  roomCapacity, mapAllowedForMode, teamSizeAllowed, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
+  roomCapacity, mapAllowedForMode, teamSizeAllowed, teamSizesForMap, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
   weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot,
@@ -246,59 +247,24 @@ function resolveGungameWeapons(preset?: string, multiplier?: number): string[] {
 }
 
 function pickSpawn(team: string, room: Room): Vec3 {
-  const list = team === "red" ? room.map.spawns.red : team === "blue" ? room.map.spawns.blue : room.map.spawns.ffa;
-  // ---- Spawn safety filter: skip spawn points whose XZ is INSIDE a cover box ----
-  // (Some maps — notably Neon Plaza — have spawns inside the central tower or
-  // corner platforms. Without this filter, the player spawns embedded in a wall
-  // and can't move.)
-  const safeList = list.filter((sp) => {
-    for (const cov of room.map.cover) {
-      const cx = cov.pos[0], cz = cov.pos[2];
-      const hx = cov.size[0], hz = cov.size[2];
-      const minY = cov.pos[1] - cov.size[1];
-      const maxY = cov.pos[1] + cov.size[1];
-      if (Math.abs(sp[0] - cx) < hx + PLAYER_RADIUS && Math.abs(sp[2] - cz) < hz + PLAYER_RADIUS) {
-        if (maxY > sp[1] + 0.5 && minY < sp[1] + PLAYER_HEIGHT) {
-          return false;  // unsafe — skip
-        }
-      }
-    }
-    return true;
-  });
-  const candidateList = safeList.length > 0 ? safeList : list;
-  // pick spawn farthest from ALL living players (enemies AND allies — avoid spawning on anyone)
-  const others = [...room.players.values(), ...room.bots.values()].filter((p) => p.alive);
-  const scored = candidateList.map((sp) => {
-    let minD = Infinity;
-    for (const e of others) {
-      const d = Math.hypot(e.pos[0] - sp[0], e.pos[2] - sp[2]);
-      if (d < minD) minD = d;
-    }
-    // tiny random jitter to break ties so different respawns don't always pick the same point
-    return { sp, score: minD + Math.random() * 2 };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  // Round 20: Enforce minimum spawn separation. Never spawn within 8 units
-  // of another living player if avoidable. If ALL spawn points are within 8
-  // units (small map / many players), pick the farthest one.
-  const MIN_SPAWN_DIST = 8;
-  const farScored = scored.filter((p) => p.score >= MIN_SPAWN_DIST);
-  const chosen = (farScored.length > 0 ? farScored : scored)[0].sp;
-  // Snap Y to ground level at that XZ (so elevated spawns sit on top of platforms)
-  const groundY = botGroundHeight(room.map.cover, chosen[0], chosen[2], chosen[1]);
-  return [chosen[0], Math.max(chosen[1], groundY), chosen[2]];
+  return chooseSpawn(room,room.map,team,[...room.players.values(),...room.bots.values()].filter(p=>p.alive));
 }
 
 function assignTeam(mode: GameMode, room: Room, requested?: "red" | "blue" | "auto"): string {
   if (mode === "ffa" || mode === "gungame") return "ffa";
   if (mode === "survival") return "blue"; // all humans on the same side
-  // TDM: honor an explicit red/blue request if that team isn't full.
+  const occupants=[...room.players.values(),...room.bots.values()];
+  // A full bot-filled room assigns joining humans by HUMAN counts, otherwise
+  // equal total teams repeatedly replace red bots until red has no bot left.
+  const replacingBot=room.fillWithBots && occupants.length>=room.capacity;
+  // Honor an explicit side when there is an open or replaceable bot slot.
   if (requested === "red" || requested === "blue") {
-    if (!teamIsFull(room, requested)) return requested;
+    if (!teamIsFull(room, requested) || (replacingBot && [...room.bots.values()].some(b=>b.team===requested))) return requested;
     // requested team is full — fall through to auto-balance
   }
-  const red = [...room.players.values(), ...room.bots.values()].filter((p) => p.team === "red").length;
-  const blue = [...room.players.values(), ...room.bots.values()].filter((p) => p.team === "blue").length;
+  const balance=replacingBot?[...room.players.values()]:occupants;
+  const red = balance.filter((p) => p.team === "red").length;
+  const blue = balance.filter((p) => p.team === "blue").length;
   return red <= blue ? "red" : "blue";
 }
 
@@ -402,14 +368,14 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
 function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const id = genId("match");
   const config = DEFAULT_CONFIG(mode, botCount);
-  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,mapId)?mapId:mode==="ctf"?"forest_warfare":"compound"));
+  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,mapId)?mapId:mode==="ctf"?"forest_warfare":"compound",mode));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
   // Gun Game: the score limit IS the progression length — first player to
   // cycle through every weapon (and get a kill with the knife) wins.
   if (isGungame) { config.scoreLimit = 0; config.timeLimit = 0; }
   // Legacy quick-match rooms: derive lobby metadata from botCount.
-  const teamSize: TeamSize = (botCount <= 3 ? 3 : botCount <= 5 ? 5 : 7);
+  const teamSize: TeamSize = teamSizesForMap(map.id,mode).find(n=>n>=Math.min(botCount,teamSizesForMap(map.id,mode).at(-1)!))!;
   const capacity = roomCapacity(mode, teamSize);
   const room: Room = {
     id, mode, config, map,
@@ -452,7 +418,7 @@ function findOpenRoom(mode: GameMode, mapId: MapId): Room | null {
     // are joined explicitly via joinRoom).
     if (r.mode === mode && r.map.id === mapId && !r.ended && r.state === "playing") {
       // survival caps at 2 humans; others at 7
-      const cap = mode === "survival" ? 2 : 7;
+      const cap = mode === "survival" ? 2 : r.capacity;
       if (r.players.size < cap) return r;
     }
   }
@@ -519,6 +485,8 @@ function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: Loa
   if (room.fillWithBots && teamIsFull(room, team)) {
     replaceBotOnTeam(room, team);
   }
+  // Remove the replaced occupant before scoring the new human spawn.
+  p.pos = pickSpawn(team,room);
   room.players.set(socketId, p);
   room.sockets.set(socketId, socketId);
   room.scores.set(socketId, 0);
@@ -551,7 +519,7 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
-  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,cfg.mapId)?cfg.mapId:mode==="ctf"?"forest_warfare":"compound"));
+  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,cfg.mapId)?cfg.mapId:mode==="ctf"?"forest_warfare":"compound",mode));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 1 ? 1 : 2);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
@@ -713,13 +681,12 @@ function joinLobbyRoom(
     return { room: null, error: "Incorrect password." };
   }
   const team = assignTeam(room.mode, room, requested);
-  const sp = pickSpawn(team, room);
   // In gungame, joining players get the first resolved weapon (or a placeholder
   // if the match hasn't started yet — startMatchInRoom will sync them).
   const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : loadout.weaponId;
   const p: PlayerNet = {
     id: socketId, name: name.slice(0, 52) || "Recruit", team: team as any, isBot: false,
-    pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
+    pos: [0,0,0], yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
     weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
     charmId:room.mode==="gungame"?"none":loadout.primaryCharmId??"none",nameplateId:loadout.nameplateId??"standard",
     kills: 0, deaths: 0, lastShotAt: 0,
@@ -3246,13 +3213,13 @@ async function handle(socket: any, msg: C2S) {
     case "createRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const cfg = msg.config;
-      if (!teamSizeAllowed(cfg.mapId, cfg.teamSize)) {
+      if (!teamSizeAllowed(cfg.mapId, cfg.teamSize,cfg.mode)) {
         socket.emit("message", { t: "roomError",
-          message: "This map supports up to 7v7 (14 free-for-all players). Choose Floodgate for 16v16 CTF, or Afterlight City for other 32-player modes." } as S2C);
+          message: "Choose a player count supported by this map and mode." } as S2C);
         break;
       }
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
-        socket.emit("message", { t: "roomError", message: "Choose Forest Warfare, Orbital Nexus or Floodgate for Capture the Flag; those maps are exclusive to CTF." } as S2C);
+        socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
         break;
       }
       if (cfg.mode === "ctf" &&

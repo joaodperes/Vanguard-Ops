@@ -44,9 +44,9 @@ describe("Afterlight City room capacity", () => {
         expect(roomCapacity(mode, 16)).toBe(32);
     }
   });
-  test("small arenas and existing CTF maps retain a 14 combatant maximum", () => {
+  test("standard arenas retain a 14 combatant maximum", () => {
     for (const map of MAP_LIST) {
-      if (isAfterlightCityMap(map.id)||map.id==="floodgate") continue;
+      if (isAfterlightCityMap(map.id)||map.id==="floodgate"||map.id==="bunker") continue;
       expect(teamSizeAllowed(map.id, 16)).toBe(false);
       expect(teamSizesForMap(map.id)).toEqual([3,5,7]);
       expect(teamSizeAllowed(map.id, 7)).toBe(true);

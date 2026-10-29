@@ -10,6 +10,7 @@ import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT } from "./forest-warfare";
+import { CTF_LAYOUTS } from "./ctf-layouts";
 import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
@@ -18,18 +19,22 @@ export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 5, 7, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
-/** Large authored battlefields support 32 combatants; compact arenas keep 14. */
+/** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
 export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
-export function teamSizesForMap(mapId: MapId | string): readonly TeamSize[] {
-  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
+export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
+  if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
+  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? [3,5,7,16] : [3,5,7];
 }
-export function teamSizeAllowed(mapId: MapId | string, teamSize: number): teamSize is TeamSize {
-  return teamSizesForMap(mapId).some(size => size === teamSize);
+export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
+  return mapId === "bunker" ? 3 : 5;
+}
+export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
+  return teamSizesForMap(mapId,mode).some(size => size === teamSize);
 }
 
 // Total combatant capacity for a room given mode + team size.
@@ -1249,13 +1254,16 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
-export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate"];
+export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge"];
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) : !CTF_MAP_IDS.includes(id as MapId);
+  mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) :
+  mode === "tdm" || mode === "killconfirmed" ? id in MAPS :
+  !["forest_warfare", "orbital_nexus", "floodgate"].includes(id);
 
-export function getMap(id: MapId | string | undefined): MapDef {
-  if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
-  return MAPS.compound;
+export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {
+  const map = id && id in MAPS ? MAPS[id as MapId] : MAPS.compound;
+  const layout = mode === "ctf" ? CTF_LAYOUTS[map.id] : undefined;
+  return layout ? {...map,spawns:{...map.spawns,red:layout.spawns.red,blue:layout.spawns.blue}} : map;
 }
 
 /** Client-side, offline-only compilation for unsaved Map Studio drafts.

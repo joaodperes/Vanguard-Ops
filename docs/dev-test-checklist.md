@@ -64,9 +64,9 @@ Check all nine playable map IDs: six general-purpose maps (including both Afterl
 | `terminal` | Afterlight City (Day) — dense streets, interior rooms, roof access and park |
 | `arena_neon` | Afterlight City (Night) — same current regions/spawns as Day; different lighting |
 | `skybridge` | Ridgefall — **enclosed industrial steelworks factory**, gantries, freight gate and multi-height paths |
-| `forest_warfare` | Forest Warfare — **CTF only**; raised treetop flag positions, climbable access and flag-carrier paths |
-| `orbital_nexus` | Orbital Nexus — **CTF only**; opposing flag routes, launch pads, reactor objective and platform clearance |
-| `floodgate` | Floodgate — **CTF only, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
+| `forest_warfare` | Forest Warfare — **CTF / TDM / KC**; raised treetop flag positions, climbable access and flag-carrier paths |
+| `orbital_nexus` | Orbital Nexus — **CTF / TDM / KC**; opposing flag routes, launch pads, reactor objective and platform clearance |
+| `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -107,3 +107,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - [ ] Performance and networking acceptable for intended release
 - [ ] Database backup/migration and rollback are approved, if applicable
 - [ ] `main` deployment/branch validation completed after merge
+
+## Map compatibility and spawn changes
+
+Run `bun test tests/map-mode-layouts.test.ts` for mode availability, Blacksite limits, UI configuration clamping, usable unique spawn counts and physical CTF pickup/capture routes. Follow the human playtest list in [map modes and spawns](map-modes-and-spawns.md), especially the two CTF trial conversions and TDM/KC reactor/purge HUD behavior.

@@ -7,10 +7,10 @@ import {createCtfFlags,ctfHome,ctfBase,ctfTouch,ctfReturnExpired,ctfStairWaypoin
 
 describe("Orbital Nexus CTF map",()=>{
   const id="orbital_nexus" as const;
-  test("is CTF-only, has usable geometry and safe spawns",()=>{
+  test("supports CTF and team combat with usable geometry and safe spawns",()=>{
     const map=getMap(id),bp=MAP_BLUEPRINTS.maps[id];
     expect(mapAllowedForMode("ctf",id)).toBe(true);
-    expect(mapAllowedForMode("tdm",id)).toBe(false);
+    expect(mapAllowedForMode("tdm",id)).toBe(true);
     expect(validateBlueprint(bp)).toEqual([]);
     expect(map.name).toBe("Orbital Nexus");
     expect(map.biome).toBe("orbital");

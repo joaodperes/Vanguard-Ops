@@ -1,6 +1,6 @@
 # Floodgate
 
-`floodgate` is the third CTF-only map: a hydroelectric complex for 3v3, 5v5, 7v7 or 16v16. The actual playable footprint is 352×212 world units, with connected districts and 16 distinct protected rear spawn positions per team.
+`floodgate` is a hydroelectric complex supporting CTF, TDM and Kill Confirmed for 3v3, 5v5, 7v7 or 16v16. The actual playable footprint is 352×212 world units, with connected districts and 16 distinct protected rear spawn positions per team.
 
 The dam, reservoir, waterfalls and storm-dark mountain silhouettes form a distant northern backdrop. Every backdrop mesh stays beyond the playable boundary; collision-backed turbine halls, pressure towers and yard props define the spaces players can actually reach.
 

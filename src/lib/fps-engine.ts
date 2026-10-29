@@ -1,3 +1,4 @@
+import {chooseSpawn} from "./spawn-selection";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
@@ -991,7 +992,7 @@ export class FPSEngine {
   constructor(container: HTMLElement, opts: EngineOptions) {
     this.container = container;
     this.opts = opts;
-    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
+    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId,opts.mode));
     this.ctfFlags = createCtfFlags(this.map.id);
     this.ctfBases = {red:ctfBase("red",this.map.id),blue:ctfBase("blue",this.map.id)};
     for (const o of this.map.environment ?? []) {
@@ -1453,6 +1454,7 @@ export class FPSEngine {
       }
       const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
       place(crown,x,28.5,0);
+      if(this.opts.mode!=="ctf")continue;
       // Nonblocking colored base objective ring; wide approaches from both
       // directions give the return carrier a clear, recognizable destination.
       const base=ctfBase(team,this.map.id);
@@ -1502,6 +1504,7 @@ export class FPSEngine {
     beam.position.y=8;this.scene.add(beam);
     for(const team of ["red","blue"] as const){
       const sign=team==="red"?-1:1,color=team==="red"?0xff5479:0x52ddff;
+      if(this.opts.mode!=="ctf")continue;
       const base=ctfBase(team,this.map.id);
       const marker=new THREE.Mesh(new THREE.RingGeometry(3,4.2,48),luminous(color,.9));
       marker.rotation.x=-Math.PI/2;marker.position.set(base[0],.07,base[2]);
@@ -4711,7 +4714,7 @@ export class FPSEngine {
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = makeEnvironmentMap(getMap(msg.mapId));
+          this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
           // Rebuild arena visuals for the new map. We can't easily rebuild mid-scene
           // without removing old meshes; in practice the server uses the same map as
           // the client requested (findOpenRoom matches by mode only — fix that later).
@@ -5253,7 +5256,7 @@ export class FPSEngine {
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = makeEnvironmentMap(getMap(msg.mapId));
+          this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
         }
         for (const p of msg.players) this.ensureCombatant(p);
         // The engine initially uses an FFA preview spawn before the server assigns
@@ -5484,63 +5487,11 @@ export class FPSEngine {
   }
 
   // ---- Spawning ----
-  // Pick a spawn point that is as FAR as possible from any other living player
-  // (not just enemies — we also want to avoid spawning on top of allies).
+  // Shared collision, separation, enemy sightline and recent-use scoring.
   private pickSpawn(team: string): Vec3 {
-    const list = team === "red" ? this.map.spawns.red : team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
-    const others = [...this.combatants.values()].filter((c) => c.alive);
-    // Also include the player's own current position (so we don't respawn where we just died)
-    const selfHere: { pos: Vec3 } | null = this.alive ? { pos: [this.pos.x, this.pos.y, this.pos.z] } : null;
-    // ---- Spawn safety filter: skip spawn points whose XZ is INSIDE a cover box ----
-    // (Some maps — notably Neon Plaza — have spawns inside the central tower or
-    // corner platforms. Without this filter, the player spawns embedded in a wall
-    // and can't move. The Y will be snapped to ground level below, but the XZ
-    // must be in open space.) We check against cover boxes whose top is above
-    // the player's feet + 0.5 (so we don't accidentally filter spawns that sit
-    // on top of a platform — those are intentional elevated spawns).
-    const safeList = list.filter((sp) => {
-      for (const cov of this.map.cover) {
-        const cx = cov.pos[0], cz = cov.pos[2];
-        const hx = cov.size[0], hz = cov.size[2];
-        const minY = cov.pos[1] - cov.size[1];
-        const maxY = cov.pos[1] + cov.size[1];
-        // Inside the box's XZ footprint?
-        if (Math.abs(sp[0] - cx) < hx + PLAYER_RADIUS && Math.abs(sp[2] - cz) < hz + PLAYER_RADIUS) {
-          // And the box's body extends above the spawn's feet (i.e. the spawn is
-          // embedded in the box's volume, not standing on its roof)?
-          if (maxY > sp[1] + 0.5 && minY < sp[1] + PLAYER_HEIGHT) {
-            return false;  // unsafe — skip this spawn
-          }
-        }
-      }
-      return true;
-    });
-    // Fall back to the unfiltered list if EVERY spawn is unsafe (shouldn't happen
-    // in practice, but prevents a hard crash if a map's spawns are all bad).
-    const candidateList = safeList.length > 0 ? safeList : list;
-    const points = candidateList.map((sp) => {
-      let minD = Infinity;
-      for (const e of others) {
-        const d = Math.hypot(e.pos[0] - sp[0], e.pos[2] - sp[2]);
-        if (d < minD) minD = d;
-      }
-      if (selfHere) {
-        const d = Math.hypot(selfHere.pos[0] - sp[0], selfHere.pos[2] - sp[2]);
-        if (d < minD) minD = d;
-      }
-      // Slight random jitter to break ties so bots don't always pick the same spawn
-      return { sp, score: minD + Math.random() * 2 };
-    });
-    points.sort((a, b) => b.score - a.score);
-    // Round 20: Enforce minimum spawn separation. Never spawn within 8 units
-    // of another living player if avoidable. If ALL spawn points are within 8
-    // units (small map / many players), pick the farthest one.
-    const MIN_SPAWN_DIST = 8;
-    const farPoints = points.filter((p) => p.score >= MIN_SPAWN_DIST);
-    const chosen = (farPoints.length > 0 ? farPoints : points)[0].sp;
-    // Snap Y to ground level at that XZ
-    const groundY = botGroundHeight(this.map.cover, chosen[0], chosen[2], chosen[1]);
-    return [chosen[0], Math.max(chosen[1], groundY), chosen[2]];
+    const occupants=[...this.combatants.values()].filter(c=>c.alive).map(c=>({pos:c.pos as Vec3,team:c.team}));
+    if(this.alive)occupants.push({pos:[this.pos.x,this.pos.y,this.pos.z],team:this.opts.team});
+    return chooseSpawn(this,this.map,team,occupants);
   }
 
   private respawnSelf() {

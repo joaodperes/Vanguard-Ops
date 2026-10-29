@@ -174,7 +174,7 @@ Put this object under `maps.frost_yard` (not a top-level array) in the existing 
 
 ## Map color palettes, biomes and prop authoring
 
-Floodgate (`floodgate`) is a fully authored 16v16 CTF layout with no inherited template geometry. It is registered in `MapId`, the shared `CTF_MAP_IDS` allowlist and room-capacity rules. Ground-level flag/delivery positions and bot lanes are implemented in `ctf-rules.ts`. A new CTF map must review all three contracts, not only append a blueprint or theme. See [Floodgate](floodgate.md).
+Floodgate (`floodgate`) is a fully authored 16v16 CTF layout with no inherited template geometry. It is registered in `MapId`, the shared `CTF_MAP_IDS` allowlist and room-capacity rules; it also supports TDM and Kill Confirmed. Ground-level flag/delivery positions and bot lanes are implemented in `ctf-rules.ts`. A new CTF map must review all three contracts, not only append a blueprint or theme. See [Floodgate](floodgate.md).
 
 Periodic hazards support optional `visual: "spikes" | "steam"` and `warningFor` fields in both blueprint and protocol types. Their animation and damage phase use `periodicHazardPhase()` and the synchronized environment clock. Steam is an appearance of the existing periodic damage mechanic, not a new server object type. Update schema, validation, editor copy/export, visuals and tests together when extending these fields.
 
@@ -350,3 +350,5 @@ Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated
 ## Explosion effects and rendering cost
 
 Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for transient blasts. Do not add/remove a realtime point light for every fragment: light-count changes generate shader variants across lit scene materials. The cosmetic pool is bounded independently of damage; even a culled/rejected visual must still resolve its full authoritative/offline combat effects. See [Explosion effect performance](explosion-effects-performance.md).
+
+Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in `src/data/ctf-layouts.json`. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).

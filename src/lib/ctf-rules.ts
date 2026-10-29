@@ -1,4 +1,5 @@
 // Capture the Flag rules shared by the authoritative server and offline engine.
+import { CTF_LAYOUTS } from "./ctf-layouts";
 import type { Vec3 } from "./game-protocol";
 
 export type FlagTeam = "red" | "blue";
@@ -24,10 +25,12 @@ export function ctfResetMs(value: number | undefined): number {
 }
 
 export const ctfHome = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
+  CTF_LAYOUTS[mapId] ? [...CTF_LAYOUTS[mapId].home[team]] :
   mapId==="floodgate" ? [team==="red"?-132:132,0.2,0] :
   mapId==="orbital_nexus" ? [team==="red"?-76:76,0.2,0] :
   [team==="red"?-CTF_TREE_X:CTF_TREE_X,CTF_TREE_TOP+.2,0];
 export const ctfBase = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
+  CTF_LAYOUTS[mapId] ? [...CTF_LAYOUTS[mapId].base[team]] :
   mapId==="floodgate" ? [team==="red"?-148:148,0,0] :
   mapId==="orbital_nexus" ? [team==="red"?-86:86,0,0] :
   [team==="red"?-(CTF_TREE_X+13):CTF_TREE_X+13,0,CTF_BASE_Z];
@@ -124,7 +127,14 @@ export function ctfBotIntent(
         carrier[0]+side*radius,carrier[1],carrier[2]+lane*6,
       ]};
     }
-    return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,lane*6]};
+    return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,ctfBase(team,mapId)[2]+lane*6]};
+  }
+  if(CTF_LAYOUTS[mapId]){
+    // One quarter of the squad guards its rear district. Raiders go directly
+    // to the ground objective; the shared region/A* motor chooses factory or
+    // jungle flanks without inheriting the Forest Warfare staircase route.
+    if(rank%4===0)return {role:"defend_flag",goal:[...home]};
+    return {role:"attack",goal:[...enemyHome]};
   }
   if(mapId==="floodgate"){
     // Four of a full squad defend, while twelve raiders share three broad lanes.
@@ -160,7 +170,7 @@ export function ctfBotIntent(
 }
 /** Elevated flag and sniper goals route via the ACTUAL tree center's stairs. */
 export function ctfStairWaypoint(goal:Vec3,pos:Vec3,mapId="forest_warfare"):Vec3 {
-  if(mapId==="orbital_nexus"||mapId==="floodgate")return [...goal];
+  if(mapId!=="forest_warfare")return [...goal];
   if(goal[1]<=CTF_TREE_TOP/2||pos[1]>=CTF_TREE_TOP-.7)return [...goal];
   const x=Math.sign(goal[0])*CTF_TREE_X;
   const side=pos[2]<0?-1:1;

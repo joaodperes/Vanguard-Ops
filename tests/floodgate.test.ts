@@ -45,9 +45,9 @@ describe("Floodgate 16v16 CTF",()=>{
     backdrop.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
   });
   test("fills the third CTF slot and authorizes 32 slots on client/server rules",()=>{
-    expect(CTF_MAP_IDS).toEqual(["forest_warfare","orbital_nexus","floodgate"]);
+    expect(CTF_MAP_IDS).toEqual(["forest_warfare","orbital_nexus","floodgate","compound","skybridge"]);
     expect(mapAllowedForMode("ctf",map.id)).toBe(true);
-    for(const mode of ["ffa","tdm","survival","gungame","killconfirmed"] as const)
+    for(const mode of ["ffa","survival","gungame"] as const)
       expect(mapAllowedForMode(mode,map.id)).toBe(false);
     expect(teamSizeAllowed(map.id,16)).toBe(true);
     expect(teamSizeAllowed("orbital_nexus",16)).toBe(false);

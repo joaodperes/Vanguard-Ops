@@ -19,7 +19,7 @@ Players can jump straight into combat against AI, create a room for friends, or 
 | **Free-for-All (FFA)** | Every operator for themselves; reach the kill limit. |
 | **Team Deathmatch (TDM)** | Two teams compete on eliminations. |
 | **Kill Confirmed** | Collect enemy tags to score; recover friendly tags to deny points. |
-| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Three dedicated maps: Forest Warfare, Orbital Nexus with its reactor objective, and Floodgate with 16v16 teams and spillway pressure purges. |
+| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Five maps: Forest Warfare, Orbital Nexus, 16v16 Floodgate with pressure purges, plus trial CTF layouts for Verdant Ruins and Ridgefall. All nine maps also support TDM and Kill Confirmed. |
 | **Gun Game** | Advance through a rotating weapon sequence by earning eliminations. |
 | **Survival** | Fight escalating enemy waves, including co-op and progressively harder tiers. |
 
@@ -109,3 +109,5 @@ Development continues on the `dev` branch and validated changes are promoted to 
 ## License
 
 The project's original source code is distributed under the **MIT License**. See [LICENSE](LICENSE). Third-party packages remain subject to their own licenses.
+
+Map compatibility, player limits and spawn safety: [map modes and spawns](docs/map-modes-and-spawns.md).
