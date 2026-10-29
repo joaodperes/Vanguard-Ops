@@ -9,6 +9,7 @@
 - Back up player data if `prisma/schema.prisma`, saved loadouts, progression counters or any persistence contracts changed. Check `DATABASE_URL` and resolve SQLite paths relative to `prisma/schema.prisma`. Never run `db:reset` on real accounts.
 - Include any required schema update/migration and deployment order in the release plan. `bun run build` does not migrate a production SQLite database; verify the deployed schema and plan a backup, forward update and rollback separately.
 - Review any still-open feature PRs targeting `dev` and decide whether to include or defer them *before* freezing the `main` release candidate.
+- Follow [curated main release preparation](release-promotion.md): build a main-based release candidate from the tested dev source, retaining the MIT LICENSE and player README but excluding `tests/`, `docs/`, agent notes and dev-only workflows. Never force-reset `main` to `dev`.
 
 ## 2. Run automated validation
 

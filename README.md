@@ -59,6 +59,7 @@ Use the [canonical QA and promotion checklist](docs/dev-test-checklist.md) befor
 ## Guides
 
 - [How to play and production overview](release/README.md)
+- [Clean main release preparation](docs/release-promotion.md)
 - [MIT License](LICENSE)
 
 - [Content authoring](docs/content-authoring.md)
