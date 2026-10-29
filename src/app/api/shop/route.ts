@@ -34,6 +34,16 @@ export async function POST(req:NextRequest){
     await db.$transaction(async tx=>{
       const owned=await tx.careerShopPurchase.findUnique({where:{playerId_itemKey:{playerId:player.id,itemKey:key}}});
       if(owned)throw new Error("OWNED");
+      if(item.kind==="weaponSkin"&&item.skinId){
+        const unlocked=await tx.skinUnlock.findUnique({where:{playerId_weaponId_skinId:{
+          playerId:player.id,weaponId,skinId:item.skinId}}});
+        if(unlocked)throw new Error("OWNED");
+      }
+      if(item.kind==="playerSkin"&&item.skinId){
+        const unlocked=await tx.playerSkinUnlock.findUnique({where:{playerId_skinId:{
+          playerId:player.id,skinId:item.skinId}}});
+        if(unlocked)throw new Error("OWNED");
+      }
       if(item.currency==="credits"){
         const paid=await tx.player.updateMany({
           where:{id:player.id,credits:{gte:item.cost}},
