@@ -9,10 +9,15 @@ export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3
   return o.pos.map((v, i) => v + (o.to[i] - v) * t) as Vec3;
 }
 
-export function spikesActive(o: EnvironmentObject, seconds: number): boolean {
-  if (o.type !== "spikes") return false;
+export function periodicHazardPhase(o: EnvironmentObject, seconds: number): "idle" | "warning" | "active" {
+  if (o.type !== "spikes") return "idle";
   const time = ((seconds + (o.offset ?? 0)) % o.period + o.period) % o.period;
-  return time < o.activeFor;
+  if(time < o.activeFor)return "active";
+  return (o.warningFor??0)>0 && time >= o.period-(o.warningFor??0) ? "warning" : "idle";
+}
+
+export function spikesActive(o: EnvironmentObject, seconds: number): boolean {
+  return periodicHazardPhase(o,seconds)==="active";
 }
 
 export function withinEnvironment(o: EnvironmentObject, feet: Vec3, radius = 0.45): boolean {

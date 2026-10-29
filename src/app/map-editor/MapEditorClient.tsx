@@ -1218,9 +1218,15 @@ export default function MapEditor() {
                         {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
                           <option key={kind} value={kind}>{kind}</option>)}
                       </select></label>
-                    {(["dps","damage","period","activeFor","offset","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
+                    {selectedObject && (selectedObject as MapHazard).type==="spikes" &&
+                      <label className="block text-xs">Trap appearance
+                        <select className={fieldClass} value={(selectedObject as MapHazard).visual??"spikes"}
+                          onChange={e=>changeSelected("visual",e.target.value)}>
+                          <option value="spikes">Retracting spikes</option><option value="steam">Pressure steam vents</option>
+                        </select></label>}
+                    {(["dps","damage","period","activeFor","offset","warningFor","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
                       .filter(key=>({
-                        fire:["dps"],spikes:["damage","period","activeFor","offset"],
+                        fire:["dps"],spikes:["damage","period","activeFor","offset","warningFor"],
                         jump_pad:["launchX","launchY","launchZ"],
                         moving_platform:["period","toX","toY","toZ"],destructible_wall:["hp"],
                       }[(selectedObject as MapHazard).type] as readonly string[]).includes(key))

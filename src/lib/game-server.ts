@@ -3248,11 +3248,11 @@ async function handle(socket: any, msg: C2S) {
       const cfg = msg.config;
       if (!teamSizeAllowed(cfg.mapId, cfg.teamSize)) {
         socket.emit("message", { t: "roomError",
-          message: "This map supports up to 7v7 (14 free-for-all players). 16v16 / 32 players is exclusive to Afterlight City (day and night)." } as S2C);
+          message: "This map supports up to 7v7 (14 free-for-all players). Choose Floodgate for 16v16 CTF, or Afterlight City for other 32-player modes." } as S2C);
         break;
       }
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
-        socket.emit("message", { t: "roomError", message: "Forest Warfare and Orbital Nexus are exclusive to Capture the Flag." } as S2C);
+        socket.emit("message", { t: "roomError", message: "Choose Forest Warfare, Orbital Nexus or Floodgate for Capture the Flag; those maps are exclusive to CTF." } as S2C);
         break;
       }
       if (cfg.mode === "ctf" &&

@@ -330,6 +330,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 </>
               )}
             </div>
+            {hud.mapEvent && <div className={`rounded-md border px-3 py-1 text-xs font-semibold text-center ${
+              hud.mapEvent.phase === "active" ? "border-rose-300/60 bg-rose-950/90 text-rose-100" :
+              hud.mapEvent.phase === "warning" ? "border-amber-300/70 bg-amber-950/90 text-amber-100" :
+              "border-cyan-300/20 bg-black/60 text-cyan-100/80"
+            }`} role="status">{hud.mapEvent.label}</div>}
             {hud.ctfOvertime && <div className="text-[10px] text-amber-300 font-bold uppercase">Sudden death · Next capture wins</div>}
             {hud.ctfZoneError && <div className="rounded px-2 py-1 bg-amber-950/80 border border-amber-400/40 text-amber-300 text-[10px] max-w-[85vw] text-center">{hud.ctfZoneError}</div>}
             {hud.ctfNotice && now - hud.ctfNotice.at < 2400 && (

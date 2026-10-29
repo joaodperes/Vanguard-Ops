@@ -301,6 +301,16 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 3
+                  },
+                  "warningFor": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "visual": {
+                    "enum": [
+                      "spikes",
+                      "steam"
+                    ]
                   }
                 },
                 "additionalProperties": false

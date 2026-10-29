@@ -24,9 +24,11 @@ export function ctfResetMs(value: number | undefined): number {
 }
 
 export const ctfHome = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
+  mapId==="floodgate" ? [team==="red"?-132:132,0.2,0] :
   mapId==="orbital_nexus" ? [team==="red"?-76:76,0.2,0] :
   [team==="red"?-CTF_TREE_X:CTF_TREE_X,CTF_TREE_TOP+.2,0];
 export const ctfBase = (team: FlagTeam, mapId="forest_warfare"): Vec3 =>
+  mapId==="floodgate" ? [team==="red"?-148:148,0,0] :
   mapId==="orbital_nexus" ? [team==="red"?-86:86,0,0] :
   [team==="red"?-(CTF_TREE_X+13):CTF_TREE_X+13,0,CTF_BASE_Z];
 export const otherFlag = (team: FlagTeam): FlagTeam => team === "red" ? "blue" : "red";
@@ -124,6 +126,14 @@ export function ctfBotIntent(
     }
     return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,lane*6]};
   }
+  if(mapId==="floodgate"){
+    // Four of a full squad defend, while twelve raiders share three broad lanes.
+    // Ground-level flags need neither forest stairs nor orbital launch routing.
+    if(rank%4===0)return {role:"defend_flag",goal:[home[0]-side*6,0,Math.floor(rank/4)%2===0?18:-18]};
+    const flankZ=[-66,0,66][rank%3];
+    if(Math.abs(pos[0]-enemyHome[0])>38)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*24,0,flankZ]};
+    return {role:"attack",goal:[...enemyHome]};
+  }
   if(mapId==="orbital_nexus"){
     // Flat station objectives use the upper and lower assault corridors.
     if(sniper||rank%4===0)return {role:"defend_flag",goal:[home[0]-side*11,0,lane*5]};
@@ -150,7 +160,7 @@ export function ctfBotIntent(
 }
 /** Elevated flag and sniper goals route via the ACTUAL tree center's stairs. */
 export function ctfStairWaypoint(goal:Vec3,pos:Vec3,mapId="forest_warfare"):Vec3 {
-  if(mapId==="orbital_nexus")return [...goal];
+  if(mapId==="orbital_nexus"||mapId==="floodgate")return [...goal];
   if(goal[1]<=CTF_TREE_TOP/2||pos[1]>=CTF_TREE_TOP-.7)return [...goal];
   const x=Math.sign(goal[0])*CTF_TREE_X;
   const side=pos[2]<0?-1:1;

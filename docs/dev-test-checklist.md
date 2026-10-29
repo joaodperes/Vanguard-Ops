@@ -54,7 +54,7 @@ Test desktop keyboard/mouse **and** touch/mobile:
 
 ## 4. Map and bot acceptance
 
-Check all eight playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and two Capture the Flag-only maps:
+Check all nine playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and three Capture the Flag-only maps:
 
 | Map ID | Current map / primary risk |
 | --- | --- |
@@ -66,6 +66,7 @@ Check all eight playable map IDs: six general-purpose maps (including both After
 | `skybridge` | Ridgefall — **enclosed industrial steelworks factory**, gantries, freight gate and multi-height paths |
 | `forest_warfare` | Forest Warfare — **CTF only**; raised treetop flag positions, climbable access and flag-carrier paths |
 | `orbital_nexus` | Orbital Nexus — **CTF only**; opposing flag routes, launch pads, reactor objective and platform clearance |
+| `floodgate` | Floodgate — **CTF only, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -74,6 +75,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - In both Afterlight editions, check identical footprint/spawn layout, street interiors, actual door openings, roof hatch/exterior stairs and park pavilion geometry. Confirm day/night materials do not change gameplay collision.
 - On Ridgefall, inspect actual factory routes and freight/security gate. Old snowfield, rocky-outpost and outdoor-cliff checklists are historical, not release criteria.
 - For Forest Warfare and Orbital Nexus, test flag pickup, return, capture, carrier paths, timed drops and team-wide feedback. On Orbital Nexus also verify the reactor objective and launch pads in online and offline CTF matches.
+- On Floodgate, test 3v3 through 16v16, all three lanes in both directions, ground-level flags, carrier delivery and the optional maintenance shutter. Vents warn at 30 seconds, purge at 36–42 seconds and repeat every 48 seconds of active match time. Compare HUD, vent lights, damage and late joins against the authoritative environment clock. Confirm bots keep moving and covered lanes remain open during a purge. See [Floodgate](floodgate.md).
 - For authored changes, export Map Studio content and validate `src/data/map-blueprints.json`, matching theme JSON and client/server geometry. See [Map Studio](map-studio.md).
 
 ## 5. Survival, rewards and persistence

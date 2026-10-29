@@ -540,7 +540,7 @@ export function Play() {
                       >{label}</button>
                     ))}
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className={`grid sm:grid-cols-2 gap-3 ${roomConfig.mode === "ctf" ? "xl:grid-cols-3" : ""}`}>
                     {MAP_LIST.filter((m) => mapAllowedForMode(roomConfig.mode, m.id) && (roomConfig.mode === "ctf" || mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter)).map((m) => {
                       const selected = roomConfig.mapId === m.id;
                       const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
@@ -575,6 +575,7 @@ export function Play() {
                                 {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
                                 <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
                                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {m.spawns.ffa.length} spawns</span>
+                                {roomConfig.mode === "ctf" && teamSizesForMap(m.id).includes(16) && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">Up to 16v16</span>}
                               </div>
                             </div>
                           </div>

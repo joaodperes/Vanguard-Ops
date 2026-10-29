@@ -1,0 +1,29 @@
+/** Distant dam/reservoir dressing stays completely outside playable collision. */
+import * as THREE from "three";
+
+export function buildFloodgateBackdrop(scene:THREE.Scene):THREE.Group {
+  const group=new THREE.Group();group.name="Floodgate distant spillway";
+  const concrete=new THREE.MeshStandardMaterial({color:0x536973,roughness:.94});
+  const water=new THREE.MeshBasicMaterial({color:0x537e94,transparent:true,opacity:.8,depthWrite:false});
+  const foam=new THREE.MeshBasicMaterial({color:0xc0d8de,transparent:true,opacity:.5,depthWrite:false});
+  const mountain=new THREE.MeshBasicMaterial({color:0x344e5e});
+  const box=(material:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+    mesh.position.set(x,y,z);group.add(mesh);return mesh;
+  };
+  box(concrete,0,15,-122,420,30,16);
+  box(concrete,0,31,-122,424,2,18);
+  for(const x of [-96,-32,32,96]){
+    box(water,x,16,-113.85,19,28,.1);
+    for(const dx of [-6,0,6])box(foam,x+dx,16,-113.76,.35,26,.06);
+    box(concrete,x-12,16,-115,3,31,3);
+    box(concrete,x+12,16,-115,3,31,3);
+  }
+  const reservoir=new THREE.Mesh(new THREE.PlaneGeometry(420,110),water);
+  reservoir.rotation.x=-Math.PI/2;reservoir.position.set(0,30,-185);group.add(reservoir);
+  for(const [x,z,h,radius] of [[-190,-235,108,65],[-60,-254,132,77],[85,-248,113,66],[205,-232,96,56]]){
+    const peak=new THREE.Mesh(new THREE.ConeGeometry(radius,h,5),mountain);
+    peak.position.set(x,h/2-8,z);peak.rotation.y=x*.013;group.add(peak);
+  }
+  scene.add(group);return group;
+}

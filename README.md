@@ -19,11 +19,11 @@ Players can jump straight into combat against AI, create a room for friends, or 
 | **Free-for-All (FFA)** | Every operator for themselves; reach the kill limit. |
 | **Team Deathmatch (TDM)** | Two teams compete on eliminations. |
 | **Kill Confirmed** | Collect enemy tags to score; recover friendly tags to deny points. |
-| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Forest Warfare and Orbital Nexus are CTF-specific maps; Orbital Nexus includes a reactor objective. |
+| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Three dedicated maps: Forest Warfare, Orbital Nexus with its reactor objective, and Floodgate with 16v16 teams and spillway pressure purges. |
 | **Gun Game** | Advance through a rotating weapon sequence by earning eliminations. |
 | **Survival** | Fight escalating enemy waves, including co-op and progressively harder tiers. |
 
-Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare and Orbital Nexus. Modes have different supported-map rules.
+Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare, Orbital Nexus and Floodgate. Modes have different supported-map rules.
 
 ## Controls
 

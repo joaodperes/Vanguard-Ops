@@ -10,6 +10,7 @@ import terminal from "../data/map-themes/terminal.json";
 import skybridge from "../data/map-themes/skybridge.json";
 import arenaNeon from "../data/map-themes/arena_neon.json";
 import orbitalNexus from "../data/map-themes/orbital_nexus.json";
+import floodgate from "../data/map-themes/floodgate.json";
 import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
 import { insideRegions, featureBoxes } from "./map-blueprints";
@@ -68,6 +69,7 @@ export const MAP_VISUAL_THEMES: Record<string,MapVisualTheme> = {
   compound:compound as MapVisualTheme,terminal:terminal as MapVisualTheme,
   skybridge:skybridge as MapVisualTheme,arena_neon:arenaNeon as MapVisualTheme,
   orbital_nexus:orbitalNexus as MapVisualTheme,
+  floodgate:floodgate as MapVisualTheme,
 };
 
 export function visualThemeForMap(id:string,templateMapId?:string):MapVisualTheme {

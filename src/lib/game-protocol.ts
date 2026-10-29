@@ -14,20 +14,19 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
 export const TEAM_SIZES = [3, 5, 7, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
-/** Only the two expansive Afterlight City variants support 32 combatants.
- * Other maps retain their previous 14-player maximum. */
+/** Large authored battlefields support 32 combatants; compact arenas keep 14. */
 export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string): readonly TeamSize[] {
-  return isAfterlightCityMap(mapId) ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
+  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
 }
 export function teamSizeAllowed(mapId: MapId | string, teamSize: number): teamSize is TeamSize {
   return teamSizesForMap(mapId).some(size => size === teamSize);
@@ -167,7 +166,7 @@ export interface MapAccentLight {
 /** Map-authored interactive objects. Coordinates follow CoverBox half-extents. */
 export type EnvironmentObject =
   | { id: string; type: "fire"; pos: Vec3; size: Vec3; dps: number }
-  | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number }
+  | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number; warningFor?: number; visual?: "spikes" | "steam" }
   | { id: string; type: "jump_pad"; pos: Vec3; size: Vec3; launch: Vec3 }
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
   | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
@@ -976,6 +975,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  floodgate: [],
   orbital_nexus: [],
   forest_warfare: [],
   compound: [
@@ -1022,6 +1022,17 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  floodgate: {
+    id:"floodgate",name:"Floodgate",shortName:"FLD",
+    description:"A stormbound hydroelectric complex built for 16v16 CTF.",
+    // Physical objects and all 32 spawns are authored only in the blueprint/theme.
+    size:176,wallHeight:14,cover:TACTICAL_COVER.floodgate,environment:ENVIRONMENTS.floodgate,
+    spawns:OUTER_SPAWNS.floodgate,biome:"hydroelectric",accentColor:"#64d8dc",
+    theme:{floor:0x46575b,floorPattern:0x344a50,wall:0x596b70,cover:0x73868a,
+      coverAccent:0x64d8dc,stair:0xadb8b6,platform:0x4a646c,
+      sky:"#263b4c",fog:"#687e87",fogNear:65,fogFar:520,ambient:1.8,gridColor:0x344a50},
+    lights:[],
+  },
   orbital_nexus: {
     id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
     description:"CTF aboard an orbital station above a violet gas giant.",
@@ -1225,6 +1236,7 @@ export const MAPS: Record<string, MapDef> = {
     lights:BASE_MAPS.terminal.lights,environment:[],
   }),
   arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
+  floodgate: applyMapFootprint(BASE_MAPS.floodgate),
 };
 // Any additional JSON blueprint becomes a selectable map automatically. The
 // template chooses a tested 3D theme/core; the new blueprint owns its regions,
@@ -1237,8 +1249,9 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
+export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate"];
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? id === "forest_warfare" || id === "orbital_nexus" : id !== "forest_warfare" && id !== "orbital_nexus";
+  mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) : !CTF_MAP_IDS.includes(id as MapId);
 
 export function getMap(id: MapId | string | undefined): MapDef {
   if (id && (id as MapId) in MAPS) return MAPS[id as MapId];

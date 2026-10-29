@@ -2264,6 +2264,1374 @@
           ]
         ]
       }
+    },
+    "floodgate": {
+      "name": "Floodgate",
+      "shortName": "FLD",
+      "description": "16v16 CTF across a stormbound hydroelectric dam. Push through the covered turbine hall, weave through the maintenance yard, or risk the spillway pressure purge.",
+      "pace": "tactical",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 264,
+          "d": 88
+        },
+        {
+          "x": 0,
+          "z": -70,
+          "w": 264,
+          "d": 72
+        },
+        {
+          "x": 0,
+          "z": 70,
+          "w": 264,
+          "d": 72
+        },
+        {
+          "x": -144,
+          "z": 0,
+          "w": 64,
+          "d": 160
+        },
+        {
+          "x": 144,
+          "z": 0,
+          "w": 64,
+          "d": 160
+        }
+      ],
+      "features": [
+        {
+          "id": "west-flag-screen",
+          "x": -120,
+          "z": 0,
+          "w": 3,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "west-flag-canopy",
+          "x": -144,
+          "z": 0,
+          "w": 52,
+          "d": 36,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "west-spawn-screen--28",
+          "x": -148,
+          "z": -28,
+          "w": 3,
+          "d": 24,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-spawn-screen-28",
+          "x": -148,
+          "z": 28,
+          "w": 3,
+          "d": 24,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-side-wall--48",
+          "x": -154,
+          "z": -52,
+          "w": 28,
+          "d": 2,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "west-side-wall-48",
+          "x": -154,
+          "z": 52,
+          "w": 28,
+          "d": 2,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "west-entry-baffle--66",
+          "x": -112,
+          "z": -66,
+          "w": 4,
+          "d": 20,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-entry-cover--66",
+          "x": -136,
+          "z": -66,
+          "w": 8,
+          "d": 4,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-entry-baffle-66",
+          "x": -112,
+          "z": 66,
+          "w": 4,
+          "d": 20,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-entry-cover-66",
+          "x": -136,
+          "z": 66,
+          "w": 8,
+          "d": 4,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-flag-screen",
+          "x": 120,
+          "z": 0,
+          "w": 3,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "east-flag-canopy",
+          "x": 144,
+          "z": 0,
+          "w": 52,
+          "d": 36,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "east-spawn-screen--28",
+          "x": 148,
+          "z": -28,
+          "w": 3,
+          "d": 24,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-spawn-screen-28",
+          "x": 148,
+          "z": 28,
+          "w": 3,
+          "d": 24,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-side-wall--48",
+          "x": 154,
+          "z": -52,
+          "w": 28,
+          "d": 2,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "east-side-wall-48",
+          "x": 154,
+          "z": 52,
+          "w": 28,
+          "d": 2,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "east-entry-baffle--66",
+          "x": 112,
+          "z": -66,
+          "w": 4,
+          "d": 20,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-entry-cover--66",
+          "x": 136,
+          "z": -66,
+          "w": 8,
+          "d": 4,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-entry-baffle-66",
+          "x": 112,
+          "z": 66,
+          "w": 4,
+          "d": 20,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-entry-cover-66",
+          "x": 136,
+          "z": 66,
+          "w": 8,
+          "d": 4,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "turbine-roof--81",
+          "x": -81,
+          "z": 0,
+          "w": 54,
+          "d": 56,
+          "h": 1,
+          "kind": "cover",
+          "y": 10
+        },
+        {
+          "id": "turbine-roof--27",
+          "x": -27,
+          "z": 0,
+          "w": 54,
+          "d": 56,
+          "h": 1,
+          "kind": "cover",
+          "y": 10
+        },
+        {
+          "id": "turbine-roof-27",
+          "x": 27,
+          "z": 0,
+          "w": 54,
+          "d": 56,
+          "h": 1,
+          "kind": "cover",
+          "y": 10
+        },
+        {
+          "id": "turbine-roof-81",
+          "x": 81,
+          "z": 0,
+          "w": 54,
+          "d": 56,
+          "h": 1,
+          "kind": "cover",
+          "y": 10
+        },
+        {
+          "id": "hall-wall--90--30",
+          "x": -90,
+          "z": -30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall--30--30",
+          "x": -30,
+          "z": -30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall-30--30",
+          "x": 30,
+          "z": -30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall-90--30",
+          "x": 90,
+          "z": -30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall--90-30",
+          "x": -90,
+          "z": 30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall--30-30",
+          "x": -30,
+          "z": 30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall-30-30",
+          "x": 30,
+          "z": 30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-wall-90-30",
+          "x": 90,
+          "z": 30,
+          "w": 36,
+          "d": 2,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar--102--24",
+          "x": -102,
+          "z": -24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar--102-24",
+          "x": -102,
+          "z": 24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar--54--24",
+          "x": -54,
+          "z": -24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar--54-24",
+          "x": -54,
+          "z": 24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-0--24",
+          "x": 0,
+          "z": -24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-0-24",
+          "x": 0,
+          "z": 24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-54--24",
+          "x": 54,
+          "z": -24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-54-24",
+          "x": 54,
+          "z": 24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-102--24",
+          "x": 102,
+          "z": -24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-pillar-102-24",
+          "x": 102,
+          "z": 24,
+          "w": 3,
+          "d": 12,
+          "h": 10,
+          "kind": "cover"
+        },
+        {
+          "id": "turbine--72",
+          "x": -72,
+          "z": -8,
+          "w": 14,
+          "d": 24,
+          "h": 6.5,
+          "kind": "cover"
+        },
+        {
+          "id": "turbine--24",
+          "x": -24,
+          "z": 8,
+          "w": 14,
+          "d": 24,
+          "h": 6.5,
+          "kind": "cover"
+        },
+        {
+          "id": "turbine-24",
+          "x": 24,
+          "z": 8,
+          "w": 14,
+          "d": 24,
+          "h": 6.5,
+          "kind": "cover"
+        },
+        {
+          "id": "turbine-72",
+          "x": 72,
+          "z": -8,
+          "w": 14,
+          "d": 24,
+          "h": 6.5,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover--100--40",
+          "x": -100,
+          "z": -40,
+          "w": 7,
+          "d": 18,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover--100-40",
+          "x": -100,
+          "z": 40,
+          "w": 7,
+          "d": 18,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover--50--40",
+          "x": -50,
+          "z": -40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover--50-40",
+          "x": -50,
+          "z": 40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-0--40",
+          "x": 0,
+          "z": -40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-0-40",
+          "x": 0,
+          "z": 40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-50--40",
+          "x": 50,
+          "z": -40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-50-40",
+          "x": 50,
+          "z": 40,
+          "w": 7,
+          "d": 18,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-100--40",
+          "x": 100,
+          "z": -40,
+          "w": 7,
+          "d": 18,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "junction-cover-100-40",
+          "x": 100,
+          "z": 40,
+          "w": 7,
+          "d": 18,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle--96",
+          "x": -96,
+          "z": -54,
+          "w": 4,
+          "d": 40,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle-0",
+          "x": 0,
+          "z": -54,
+          "w": 4,
+          "d": 40,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle-96",
+          "x": 96,
+          "z": -54,
+          "w": 4,
+          "d": 40,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle--48",
+          "x": -48,
+          "z": -89,
+          "w": 4,
+          "d": 34,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle-48",
+          "x": 48,
+          "z": -89,
+          "w": 4,
+          "d": 34,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-deck--104",
+          "x": -104,
+          "z": -88,
+          "w": 16,
+          "d": 10,
+          "h": 3.36,
+          "kind": "platform"
+        },
+        {
+          "id": "spillway-rail--104--6.5",
+          "x": -110.5,
+          "z": -88,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "spillway-rail--104-6.5",
+          "x": -97.5,
+          "z": -88,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "spillway-deck-104",
+          "x": 104,
+          "z": -88,
+          "w": 16,
+          "d": 10,
+          "h": 3.36,
+          "kind": "platform"
+        },
+        {
+          "id": "spillway-rail-104--6.5",
+          "x": 97.5,
+          "z": -88,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "spillway-rail-104-6.5",
+          "x": 110.5,
+          "z": -88,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "spillway-low-cover--72",
+          "x": -72,
+          "z": -46,
+          "w": 10,
+          "d": 3,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-low-cover--24",
+          "x": -24,
+          "z": -46,
+          "w": 10,
+          "d": 3,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-low-cover-24",
+          "x": 24,
+          "z": -46,
+          "w": 10,
+          "d": 3,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-low-cover-72",
+          "x": 72,
+          "z": -46,
+          "w": 10,
+          "d": 3,
+          "h": 2.5,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-cover--96",
+          "x": -96,
+          "z": 48,
+          "w": 10,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-cover--48",
+          "x": -48,
+          "z": 48,
+          "w": 10,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-cover-0",
+          "x": 0,
+          "z": 48,
+          "w": 10,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-cover-48",
+          "x": 48,
+          "z": 48,
+          "w": 10,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-cover-96",
+          "x": 96,
+          "z": 48,
+          "w": 10,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-baffle--72",
+          "x": -72,
+          "z": 88,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-pallet--72",
+          "x": -72,
+          "z": 58,
+          "w": 7,
+          "d": 6,
+          "h": 2.6,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-baffle--24",
+          "x": -24,
+          "z": 88,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-pallet--24",
+          "x": -24,
+          "z": 58,
+          "w": 7,
+          "d": 6,
+          "h": 2.6,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-baffle-24",
+          "x": 24,
+          "z": 88,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-pallet-24",
+          "x": 24,
+          "z": 58,
+          "w": 7,
+          "d": 6,
+          "h": 2.6,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-baffle-72",
+          "x": 72,
+          "z": 88,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-pallet-72",
+          "x": 72,
+          "z": 58,
+          "w": 7,
+          "d": 6,
+          "h": 2.6,
+          "kind": "cover"
+        },
+        {
+          "id": "maintenance-deck--88",
+          "x": -88,
+          "z": 90,
+          "w": 18,
+          "d": 10,
+          "h": 3.36,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-rail--88--7.5",
+          "x": -95.5,
+          "z": 90,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "maintenance-rail--88-7.5",
+          "x": -80.5,
+          "z": 90,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "maintenance-deck-88",
+          "x": 88,
+          "z": 90,
+          "w": 18,
+          "d": 10,
+          "h": 3.36,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-rail-88--7.5",
+          "x": 80.5,
+          "z": 90,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "maintenance-rail-88-7.5",
+          "x": 95.5,
+          "z": 90,
+          "w": 1,
+          "d": 8,
+          "h": 1.35,
+          "kind": "cover",
+          "y": 3.36
+        },
+        {
+          "id": "yard-lower-baffle--48",
+          "x": -48,
+          "z": 54,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "yard-lower-baffle-48",
+          "x": 48,
+          "z": 54,
+          "w": 4,
+          "d": 36,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "pressure-tower--152",
+          "x": -152,
+          "z": -68,
+          "w": 12,
+          "d": 12,
+          "h": 18,
+          "kind": "cover"
+        },
+        {
+          "id": "pressure-tower-152",
+          "x": 152,
+          "z": -68,
+          "w": 12,
+          "d": 12,
+          "h": 18,
+          "kind": "cover"
+        },
+        {
+          "id": "maintenance-shutter-wing--8",
+          "x": -8,
+          "z": 54,
+          "w": 10,
+          "d": 1.2,
+          "h": 4,
+          "kind": "cover"
+        },
+        {
+          "id": "maintenance-shutter-wing-8",
+          "x": 8,
+          "z": 54,
+          "w": 10,
+          "d": 1.2,
+          "h": 4,
+          "kind": "cover"
+        },
+        {
+          "id": "central-switchgear",
+          "x": 0,
+          "z": -10,
+          "w": 8,
+          "d": 20,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "base-flank-screen--130--28",
+          "x": -130,
+          "z": -28,
+          "w": 14,
+          "d": 4,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "base-flank-screen--130-28",
+          "x": -130,
+          "z": 28,
+          "w": 14,
+          "d": 4,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "base-flank-screen-130--28",
+          "x": 130,
+          "z": -28,
+          "w": 14,
+          "d": 4,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "base-flank-screen-130-28",
+          "x": 130,
+          "z": 28,
+          "w": 14,
+          "d": 4,
+          "h": 7,
+          "kind": "cover"
+        }
+      ],
+      "hazards": [
+        {
+          "id": "floodgate-purge--72",
+          "type": "spikes",
+          "visual": "steam",
+          "x": -72,
+          "z": -76,
+          "y": 0,
+          "w": 14,
+          "d": 12,
+          "h": 5,
+          "damage": 28,
+          "period": 48,
+          "activeFor": 6,
+          "offset": 12,
+          "warningFor": 6
+        },
+        {
+          "id": "floodgate-purge--24",
+          "type": "spikes",
+          "visual": "steam",
+          "x": -24,
+          "z": -76,
+          "y": 0,
+          "w": 14,
+          "d": 12,
+          "h": 5,
+          "damage": 28,
+          "period": 48,
+          "activeFor": 6,
+          "offset": 12,
+          "warningFor": 6
+        },
+        {
+          "id": "floodgate-purge-24",
+          "type": "spikes",
+          "visual": "steam",
+          "x": 24,
+          "z": -76,
+          "y": 0,
+          "w": 14,
+          "d": 12,
+          "h": 5,
+          "damage": 28,
+          "period": 48,
+          "activeFor": 6,
+          "offset": 12,
+          "warningFor": 6
+        },
+        {
+          "id": "floodgate-purge-72",
+          "type": "spikes",
+          "visual": "steam",
+          "x": 72,
+          "z": -76,
+          "y": 0,
+          "w": 14,
+          "d": 12,
+          "h": 5,
+          "damage": 28,
+          "period": 48,
+          "activeFor": 6,
+          "offset": 12,
+          "warningFor": 6
+        },
+        {
+          "id": "floodgate_maintenance_shutter",
+          "type": "destructible_wall",
+          "x": 0,
+          "z": 54,
+          "y": 2,
+          "w": 6,
+          "d": 1.2,
+          "h": 4,
+          "hp": 240
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            -156,
+            0,
+            -46
+          ],
+          [
+            -156,
+            0,
+            -34
+          ],
+          [
+            -156,
+            0,
+            -22
+          ],
+          [
+            -156,
+            0,
+            -10
+          ],
+          [
+            -156,
+            0,
+            10
+          ],
+          [
+            -156,
+            0,
+            22
+          ],
+          [
+            -156,
+            0,
+            34
+          ],
+          [
+            -156,
+            0,
+            46
+          ],
+          [
+            -164,
+            0,
+            -46
+          ],
+          [
+            -164,
+            0,
+            -34
+          ],
+          [
+            -164,
+            0,
+            -22
+          ],
+          [
+            -164,
+            0,
+            -10
+          ],
+          [
+            -164,
+            0,
+            10
+          ],
+          [
+            -164,
+            0,
+            22
+          ],
+          [
+            -164,
+            0,
+            34
+          ],
+          [
+            -164,
+            0,
+            46
+          ],
+          [
+            156,
+            0,
+            -46
+          ],
+          [
+            156,
+            0,
+            -34
+          ],
+          [
+            156,
+            0,
+            -22
+          ],
+          [
+            156,
+            0,
+            -10
+          ],
+          [
+            156,
+            0,
+            10
+          ],
+          [
+            156,
+            0,
+            22
+          ],
+          [
+            156,
+            0,
+            34
+          ],
+          [
+            156,
+            0,
+            46
+          ],
+          [
+            164,
+            0,
+            -46
+          ],
+          [
+            164,
+            0,
+            -34
+          ],
+          [
+            164,
+            0,
+            -22
+          ],
+          [
+            164,
+            0,
+            -10
+          ],
+          [
+            164,
+            0,
+            10
+          ],
+          [
+            164,
+            0,
+            22
+          ],
+          [
+            164,
+            0,
+            34
+          ],
+          [
+            164,
+            0,
+            46
+          ]
+        ],
+        "red": [
+          [
+            -156,
+            0,
+            -46
+          ],
+          [
+            -156,
+            0,
+            -34
+          ],
+          [
+            -156,
+            0,
+            -22
+          ],
+          [
+            -156,
+            0,
+            -10
+          ],
+          [
+            -156,
+            0,
+            10
+          ],
+          [
+            -156,
+            0,
+            22
+          ],
+          [
+            -156,
+            0,
+            34
+          ],
+          [
+            -156,
+            0,
+            46
+          ],
+          [
+            -164,
+            0,
+            -46
+          ],
+          [
+            -164,
+            0,
+            -34
+          ],
+          [
+            -164,
+            0,
+            -22
+          ],
+          [
+            -164,
+            0,
+            -10
+          ],
+          [
+            -164,
+            0,
+            10
+          ],
+          [
+            -164,
+            0,
+            22
+          ],
+          [
+            -164,
+            0,
+            34
+          ],
+          [
+            -164,
+            0,
+            46
+          ]
+        ],
+        "blue": [
+          [
+            156,
+            0,
+            -46
+          ],
+          [
+            156,
+            0,
+            -34
+          ],
+          [
+            156,
+            0,
+            -22
+          ],
+          [
+            156,
+            0,
+            -10
+          ],
+          [
+            156,
+            0,
+            10
+          ],
+          [
+            156,
+            0,
+            22
+          ],
+          [
+            156,
+            0,
+            34
+          ],
+          [
+            156,
+            0,
+            46
+          ],
+          [
+            164,
+            0,
+            -46
+          ],
+          [
+            164,
+            0,
+            -34
+          ],
+          [
+            164,
+            0,
+            -22
+          ],
+          [
+            164,
+            0,
+            -10
+          ],
+          [
+            164,
+            0,
+            10
+          ],
+          [
+            164,
+            0,
+            22
+          ],
+          [
+            164,
+            0,
+            34
+          ],
+          [
+            164,
+            0,
+            46
+          ]
+        ]
+      }
     }
   }
 }

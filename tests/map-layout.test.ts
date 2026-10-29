@@ -7,9 +7,16 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all eight maps have dedicated tactical cover and playable outer spawns", () => {
-    expect(MAP_LIST).toHaveLength(8);
+  test("all nine maps have dedicated tactical cover and playable spawns", () => {
+    expect(MAP_LIST).toHaveLength(9);
     for (const map of MAP_LIST) {
+      if(map.id==="floodgate"){
+        expect(MAP_BLUEPRINTS.maps.floodgate.features.length).toBeGreaterThanOrEqual(80);
+        expect(map.spawns.ffa).toHaveLength(32);
+        expect(map.spawns.red).toHaveLength(16);
+        expect(map.spawns.blue).toHaveLength(16);
+        continue;
+      }
       expect(TACTICAL_COVER[map.id].length).toBeGreaterThanOrEqual(16);
       expect(OUTER_SPAWNS[map.id].ffa.length).toBeGreaterThanOrEqual(6);
       expect(OUTER_SPAWNS[map.id].red.length).toBeGreaterThanOrEqual(3);
@@ -25,10 +32,10 @@ describe("authored map combat layouts", () => {
           for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
         }
-        if(map.id==="skybridge"){
+        if(map.id==="skybridge"||map.id==="floodgate"){
           // Ridgefall's old outdoor spawn coordinates were deliberately removed.
           // The compiled factory must use only the new indoor JSON spawn set.
-          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps.skybridge.spawns[team]);
+          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps[map.id].spawns[team]);
           for(const point of map.spawns[team])expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
         }

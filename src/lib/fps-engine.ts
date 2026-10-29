@@ -14,6 +14,10 @@ import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
+import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
+import {steamPurgeStatus,type MapEventStatus} from "./map-event-status";
+import {ctfDeliveryMarker} from "./ctf-map-visuals";
+import {buildFloodgateBackdrop} from "./floodgate-scenery";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -83,7 +87,7 @@ import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
-  withinEnvironment, spikesActive, closestCoverHit,
+  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit,
 } from "@/lib/dynamic-environment";
 import {
   BOT_STEP_HEIGHT, botGroundHeight, botMoveBlocked as blocksBotMotion,
@@ -176,6 +180,7 @@ export interface HudState {
   orbitalCharge?: number;
   orbitalReaper?: boolean;
   orbitalWarning?: string;
+  mapEvent?: MapEventStatus;
   ctfCarrying?: boolean;
   ctfOvertime?: boolean;
   ctfFlagResetMs?: number;
@@ -1770,6 +1775,13 @@ export class FPSEngine {
       return group;
     };
     this.ctfFlagMeshes={red:create(0xef4444),blue:create(0x22baf5)};
+    // Bespoke forest/orbital scenery supplies its own rings. Authored CTF maps
+    // still need a visible delivery destination at the shared scoring position.
+    for(const team of ["red","blue"] as const){
+      if(this.ctfMarkers[team])continue;
+      const marker=ctfDeliveryMarker(team,ctfBase(team,this.map.id));
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+    }
   }
 
   private updateCtfFlagsVisuals() {
@@ -1836,6 +1848,7 @@ export class FPSEngine {
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
+    if(this.map.id==="floodgate")buildFloodgateBackdrop(this.scene);
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -2322,6 +2335,8 @@ export class FPSEngine {
         const light = new THREE.PointLight(0xff5d1a, 2.2, 9);
         light.position.y = 1.3;
         g.add(light);
+      } else if (o.type === "spikes" && o.visual === "steam") {
+        buildSteamVent(g,o);
       } else if (o.type === "spikes") {
         const base = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, 0.12, o.size[2] * 2),
           new THREE.MeshStandardMaterial({ color: 0x361318, roughness: 0.6, metalness: 0.6 }));
@@ -2384,10 +2399,19 @@ export class FPSEngine {
         }
         moveEnvironmentCover(this.map, o, this.environmentTime);
         g.position.set(...newPos);
+      } else if (o.type === "spikes" && o.visual === "steam") {
+        updateSteamVent(g,o,this.environmentTime);
       } else if (o.type === "spikes") {
-        const active = spikesActive(o, this.environmentTime);
+        const phase=periodicHazardPhase(o,this.environmentTime),active=phase==="active";
         // The dark base remains visible during the inactive/telegraph phase.
         g.children.forEach((child, i) => { child.visible = i === 0 || active; });
+        if((o.warningFor??0)>0){
+          const base=g.children[0];
+          if(base instanceof THREE.Mesh&&base.material instanceof THREE.MeshStandardMaterial){
+            base.material.emissive.setHex(phase==="warning"?(Math.sin(this.environmentTime*12)>0?0xffa22b:0x603010):0);
+            base.material.emissiveIntensity=.8;
+          }
+        }
       } else if (o.type === "fire") {
         g.children.forEach(c => {
           if (c.userData.flame) {
@@ -8848,6 +8872,7 @@ export class FPSEngine {
       orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
+      mapEvent:this.map.id==="floodgate"?steamPurgeStatus(this.map.environment??[],this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
