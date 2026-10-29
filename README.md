@@ -1,6 +1,12 @@
 # Vanguard Ops
 
+**Game overview and instructions:** See [the release README](release/README.md) for how to play, controls, game modes, progression, and local/production setup.
+
 A browser-based 3D first-person shooter built with Next.js, React, Three.js, Socket.IO and Prisma. Play offline against bots or create/join multiplayer rooms. Modes include Free-for-All, Team Deathmatch, Gun Game, Kill Confirmed, Capture the Flag and Survival, with progression, unlocks, loadouts and an in-browser Map Studio.
+
+## The game
+
+Choose an offline bot match or create/join a multiplayer room, with modes including Free-for-All, Team Deathmatch, Kill Confirmed, Capture the Flag, Gun Game and Survival. Gain credits and XP, unlock weapons, attach upgrades, complete per-weapon skin challenges and save loadouts. Try any weapon or compatible attachments in the Firing Range without purchasing them. New players can follow an interactive tutorial; touch controls are supported.
 
 ## Local development
 
@@ -51,6 +57,9 @@ Use the [canonical QA and promotion checklist](docs/dev-test-checklist.md) befor
 - `docs/`: authoring and QA; `docs/archive/`: superseded designs and plans
 
 ## Guides
+
+- [How to play and production overview](release/README.md)
+- [MIT License](LICENSE)
 
 - [Content authoring](docs/content-authoring.md)
 - [Map Studio](docs/map-studio.md)
