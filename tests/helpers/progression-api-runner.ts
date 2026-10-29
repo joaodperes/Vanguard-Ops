@@ -81,6 +81,10 @@ try {
   await db.weaponProgress.upsert({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},
     create:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar",kills:600,headshots:110},
     update:{kills:600,headshots:110}});
+  // Old headshot threshold no longer qualifies for Rank 5/Eventide.
+  await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.notEqual((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+  await db.weaponProgress.update({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},data:{headshots:330}});
   await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
   assert.equal((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
   const prestigeSkinPlayer=await create("prestige-skins-player",totalXpForLevel(25));
