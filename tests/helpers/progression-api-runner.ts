@@ -208,6 +208,20 @@ try {
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,todayReticle.cosmeticId);
 
+  // Store finishes remain specific to a weapon even when the global rotation
+  // continues to advertise the same finish to every player.
+  const creditFinish=shopItemsForCategory("credits","weaponSkin").find(i=>featured.has(i.id))!;
+  const skinPlayer=await create("rotating-skin-player",totalXpForLevel(MAX_PLAYER_LEVEL),10000);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"rifle_ar"})),200);
+  let skinView=(await buildProfileView(skinPlayer.playerKey))!;
+  assert(skinView.unlocks.skinsByWeapon.rifle_ar?.includes(creditFinish.skinId!));
+  assert(!skinView.unlocks.skinsByWeapon.pistol_side?.includes(creditFinish.skinId!));
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"rifle_ar"})),409);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:"pistol_side"})),200);
+  skinView=(await buildProfileView(skinPlayer.playerKey))!;
+  assert(skinView.unlocks.skinsByWeapon.pistol_side?.includes(creditFinish.skinId!));
+  assert.equal(skinView.credits,10000-creditFinish.cost*2);
+
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.
   const titles = await create("title-player", totalXpForLevel(30), 1234);
