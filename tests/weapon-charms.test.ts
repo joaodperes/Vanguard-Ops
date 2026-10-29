@@ -35,7 +35,7 @@ describe("weapon charms remain visible on gun models",()=>{
     swingWeaponCharm(first,900);
     expect(pendant.rotation.z).not.toBe(initial);
   });
-  test("eight new distinct charms all render named 3D geometry",()=>{
+  test("all new distinct charms render named 3D geometry",()=>{
     const expected={
       charm_casing:"brass_casing",
       charm_dice:"lucky_die",
@@ -45,6 +45,10 @@ describe("weapon charms remain visible on gun models",()=>{
       charm_prism:"void_crystal",
       charm_solar:"sun_disc",
       charm_satellite:"satellite_body",
+      charm_bolt:"lightning_token",
+      charm_anchor:"anchor_shaft",
+      charm_rocket:"rocket_body",
+      charm_moon:"moon_crescent",
     } as const;
     for(const [id,part] of Object.entries(expected)){
       for(const firstPerson of [false,true]){
