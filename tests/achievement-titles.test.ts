@@ -41,11 +41,11 @@ describe("mastery title reward rules",()=>{
   });
   test("high-rank rewards require actual per-weapon mastery, not scattered cumulative kills",()=>{
     const rows=[
-      {weaponId:"rifle_ar",kills:600,headshots:110},
-      {weaponId:"smg_kp",kills:600,headshots:110},
-      {weaponId:"pistol_side",kills:600,headshots:110},
+      {weaponId:"rifle_ar",kills:600,headshots:330},
+      {weaponId:"smg_kp",kills:600,headshots:330},
+      {weaponId:"pistol_side",kills:600,headshots:330},
       {weaponId:"hammer",kills:600,headshots:0},
-      {weaponId:"rifle_dm",kills:60,headshots:10},
+      {weaponId:"rifle_dm",kills:60,headshots:25},
     ];
     const stats=masteryAchievementStats(rows);
     expect(stats.mastery_recruits).toBe(5);
@@ -55,6 +55,6 @@ describe("mastery title reward rules",()=>{
   test("melee mastery uses attainable kills-only milestones while firearms still need headshots",()=>{
     expect(weaponMasteryProgress(600,0,"hammer").rank).toBe(5);
     expect(weaponMasteryProgress(600,0,"rifle_ar").rank).toBe(1);
-    expect(weaponMasteryProgress(600,110,"rifle_ar").rank).toBe(5);
+    expect(weaponMasteryProgress(600,330,"rifle_ar").rank).toBe(5);
   });
 });

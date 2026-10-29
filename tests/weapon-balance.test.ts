@@ -33,6 +33,15 @@ describe("weapon range and damage falloff", () => {
   });
 });
 
+describe("Marksman DMR magazine balance", () => {
+  test("smaller 12-round base magazine still benefits from extended magazines", () => {
+    const weapon = weaponById("rifle_dm");
+    expect(weapon.stats.magSize).toBe(12);
+    const extended = computeEffectiveStats(weapon, { sight: null, barrel: null, grip: null, magazine: "mag_extended" });
+    expect(extended.magSize).toBe(18);
+  });
+});
+
 describe("DMR handling balance", () => {
   test("Executioner is an 8-round slower DMR and can reload only empty", () => {
     const executioner = weaponById("dmr_heavy").stats;

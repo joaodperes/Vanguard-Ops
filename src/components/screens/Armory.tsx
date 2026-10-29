@@ -530,6 +530,7 @@ export function Armory() {
               onCustomize={(w) => setCustomizing({ weapon: w, slot: "melee" })}
               onEquip={equipWeapon}
               equippedId={profile?.loadout.melee.id ?? ""}
+              defaultOpen
             />
           </TabsContent>
 
@@ -801,7 +802,8 @@ function WeaponCard(props: WeaponCardProps) {
           onClick={() => onCustomize(w)}
           className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
         >
-          <Wrench className="w-4 h-4 mr-1.5" /> {isOwned ? "Customize" : "View Customization"}
+          <Wrench className="w-4 h-4 mr-1.5" /> {w.category === "melee" ? "Skins & Challenges" : isOwned ? "Customize" : "View Customization"}
+          {w.category === "melee" && <span className="ml-1.5 text-[10px] opacity-70 normal-case">· 7 skin trials</span>}
           {supportedSlots.length > 0 && (
             <span className="ml-1.5 text-[10px] opacity-70 normal-case">
               · {supportedSlots.length} slot{supportedSlots.length === 1 ? "" : "s"}
@@ -866,7 +868,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   const currentKey = open && w ? `${w.id}:${slot}` : null;
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
-    setTab("attachments");
+    setTab(w?.category === "melee" ? "skins" : "attachments");
     setPreviewAttachment(null);
     setActiveAttachmentSlot(null);
   }
@@ -1371,9 +1373,9 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                   <span>{isOwned ? "Owned for this weapon" : `Price: ${a.unlockCost} CR`}</span>
                   {!canPurchase && !isOwned && <span className="text-amber-300/80">Weapon purchase required</span>}
                 </div>
-                {!isOwned && chProgress && (
+                {!isOwned && chProgress && !chProgress.completed && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
-                    <div className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${chProgress.completed ? "text-emerald-300" : "text-amber-300"}`}>{chProgress.completed ? "Challenge complete" : "Locked · Challenge"}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide mb-1 text-amber-300">Locked · Challenge</div>
                     {chProgress.description}
                     <span className="block mt-1 font-mono text-amber-200 font-bold">{chProgress.progress}/{chProgress.goal} {chProgress.metric.replaceAll("_", " ")}</span>
                     
