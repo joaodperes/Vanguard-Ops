@@ -290,6 +290,20 @@ try {
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,todayReticle.cosmeticId);
 
+  // Wonder customization is cosmetic-only, but it must actually persist the
+  // owned reticle and charm through the same API and profile as normal guns.
+  await db.wonderUnlock.create({data:{playerId:cosmeticsPlayer.id,weaponId:"wonder_riot_shield"}});
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryWeapon:"wonder_riot_shield"})),200);
+  await status(await cosmeticEquip("reticle",todayReticle.cosmeticId!,"primary","wonder_riot_shield"),200);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","wonder_riot_shield"),200);
+  const wonderCosmeticView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(wonderCosmeticView.loadout.weapon.id,"wonder_riot_shield");
+  assert.equal(wonderCosmeticView.loadout.primaryReticle,todayReticle.cosmeticId);
+  assert.equal(wonderCosmeticView.loadout.primaryCharm,todayCharm.cosmeticId);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryWeapon:"rifle_ar"})),200);
+
   // Store finishes remain specific to a weapon even when the global rotation
   // continues to advertise the same finish to every player.
   const creditFinish=shopItemsForCategory("credits","weaponSkin").find(i=>featured.has(i.id))!;
