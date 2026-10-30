@@ -2605,7 +2605,6 @@ function hasLineOfSight(room: Room, from: Vec3, to: Vec3): boolean {
 
 // ---- Connection handling ----------------------------------------------------
 io.on("connection", (socket) => {
-  console.log(`[VANGUARD] socket connected: ${socket.id}`);
   socket.on("message", async (msg: C2S) => {
     try {
       await handle(socket, msg);
@@ -2678,7 +2677,6 @@ async function handle(socket: any, msg: C2S) {
   switch (msg.t) {
     case "joinMatch": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
-      console.log(`[VANGUARD] joinMatch from ${socket.id}: mode=${msg.mode} bots=${msg.botCount} name=${msg.name} map=${msg.mapId ?? "compound"}`);
       const mapId: MapId = (msg.mapId ?? "compound") as MapId;
       let room = findOpenRoom(msg.mode, mapId);
       if (!room) room = createRoom(msg.mode, Math.min(7, Math.max(1, msg.botCount)), mapId);
@@ -3336,7 +3334,6 @@ async function handle(socket: any, msg: C2S) {
           }
         }
       }
-      console.log(`[VANGUARD] createRoom from ${socket.id}: mode=${cfg.mode} map=${cfg.mapId} teamSize=${cfg.teamSize} fillBots=${cfg.fillWithBots} diff=${cfg.botDifficulty} pw=${cfg.password ? "yes" : "no"}`);
       const room = createLobbyRoom(socket.id, msg.name, loadout, cfg);
       socketToRoom.set(socket.id, room.id);
       socket.join(room.id);
@@ -3369,7 +3366,6 @@ async function handle(socket: any, msg: C2S) {
           }
         }
       }
-      console.log(`[VANGUARD] joinRoom from ${socket.id}: roomId=${msg.roomId} name=${msg.name} team=${msg.team ?? "auto"}`);
       const { room, error } = joinLobbyRoom(socket.id, msg.name, loadout, msg.roomId, msg.password ?? null, msg.team);
       if (!room || error) {
         socket.emit("message", { t: "roomError", message: error ?? "Could not join room." } as S2C);
@@ -3449,7 +3445,6 @@ const globalAny = globalThis as unknown as { __vanguardGameServerStarted?: boole
 
 export function startGameServer(port = 3003) {
   if (globalAny.__vanguardGameServerStarted) {
-    console.log("[VANGUARD] Game server already started, skipping");
     return;
   }
   globalAny.__vanguardGameServerStarted = true;
@@ -3490,7 +3485,6 @@ export function startGameServer(port = 3003) {
   });
 
   httpServer.listen(port, () => {
-    console.log(`[VANGUARD] Game server listening on port ${port} (path /)`);
   });
   process.on("SIGTERM", () => httpServer.close(() => process.exit(0)));
   process.on("SIGINT", () => httpServer.close(() => process.exit(0)));
