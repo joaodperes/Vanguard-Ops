@@ -24,6 +24,8 @@ describe("Floodgate hydraulic progression",()=>{
     expect(settled.flooded).toBe(true);
     expect(settled.pushZ).toBeLessThan(3);
     expect(floodgateWaterEffect(0,3.4,-70,30).flooded).toBe(false);
+    // A jump through the wave is not ground contact.
+    expect(floodgateWaterEffect(0,1.2,-70,30).flooded).toBe(false);
     expect(floodgateWaterEffect(140,0,-70,30).flooded).toBe(false);
   });
 
@@ -34,6 +36,10 @@ describe("Floodgate hydraulic progression",()=>{
     expect(floodgateWaterEffect(0,.42,-70,30,[tread]).pushZ).toBe(0);
     expect(floodgateWaterEffect(0,0,-70,30,[tread]).flooded).toBe(true);
     expect(floodgateWaterEffect(3,0,-70,30,[tread]).flooded).toBe(true);
+    const shallow={pos:[0,.075,-70] as [number,number,number],
+      size:[2,.075,1] as [number,number,number],kind:"stair" as const};
+    expect(floodgateWaterEffect(0,.15,-70,30,[shallow]).flooded).toBe(false);
+    expect(floodgateWaterEffect(0,0,-70,30,[shallow]).flooded).toBe(true);
   });
 
   test("water contacts each column before its collision and visual stages change",()=>{
