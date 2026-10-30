@@ -5,7 +5,7 @@
     "bunker": {
       "name": "Blacksite",
       "shortName": "BLK",
-      "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
+      "description": "Red-lit underground stronghold built for close combat.",
       "pace": "compact",
       "regions": [
         {
@@ -101,7 +101,7 @@
     "shipyard": {
       "name": "Breakwater",
       "shortName": "BRK",
-      "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
+      "description": "Industrial docks with containers and crane walkways.",
       "pace": "compact",
       "regions": [
         {
@@ -239,7 +239,7 @@
     "compound": {
       "name": "Verdant Ruins",
       "shortName": "IRD",
-      "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
+      "description": "Jungle ruins with courtyards and tactical flanks.",
       "pace": "balanced",
       "regions": [
         {
@@ -578,7 +578,7 @@
     "terminal": {
       "name": "Afterlight City (Day)",
       "shortName": "DAY",
-      "description": "The identical Afterlight neighborhood and spawns in natural daylight; day and night are lighting variants.",
+      "description": "Sunlit city streets, shops and accessible rooftops.",
       "pace": "tactical",
       "regions": [
         {
@@ -758,7 +758,7 @@
     "skybridge": {
       "name": "Ridgefall",
       "shortName": "RFL",
-      "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
+      "description": "Steelworks with machinery and elevated gantries.",
       "pace": "tactical",
       "regions": [
         {
@@ -1514,7 +1514,7 @@
     "arena_neon": {
       "name": "Afterlight City",
       "shortName": "ALC",
-      "description": "Nighttime streets in a glowing grid of shops, accessible rooftops and a central garden bandstand.",
+      "description": "Neon-lit city streets, markets and rooftops.",
       "pace": "tactical",
       "regions": [
         {
@@ -1694,7 +1694,7 @@
       "templateMapId": "bunker",
       "name": "Orbital Nexus",
       "shortName": "ONX",
-      "description": "An orbital research station over a violet gas giant: mirrored flag vaults, reactor crossfire, launch pads and three interconnected attack lanes.",
+      "description": "Orbital station with a contested reactor deck.",
       "pace": "balanced",
       "regions": [
         {
@@ -2318,7 +2318,7 @@
     "floodgate": {
       "name": "Floodgate",
       "shortName": "FLD",
-      "description": "16v16 hydroelectric siege. Destroy the exposed dam core to rupture the spillway and permanently open the northern approach. Staggered turbine overlooks and maintenance decks break up the firing lanes.",
+      "description": "Stormbound hydroelectric complex with a destructible dam.",
       "pace": "tactical",
       "regions": [
         {
@@ -2892,7 +2892,7 @@
         },
         {
           "id": "spillway-baffle--48",
-          "x": -48,
+          "x": -59,
           "z": -89,
           "w": 4,
           "d": 34,
@@ -2901,7 +2901,7 @@
         },
         {
           "id": "spillway-baffle-48",
-          "x": 48,
+          "x": 59,
           "z": -89,
           "w": 4,
           "d": 34,
@@ -3567,55 +3567,55 @@
           "id": "floodgate_dam_core",
           "type": "destructible_wall",
           "x": 0,
-          "z": -100,
-          "y": 8,
-          "w": 20,
-          "d": 5,
-          "h": 16,
-          "hp": 850
+          "z": -72,
+          "y": 3,
+          "w": 8,
+          "d": 3,
+          "h": 6,
+          "hp": 360
         },
         {
           "id": "floodgate_dam_west_outer",
           "type": "destructible_wall",
           "x": -40,
-          "z": -100,
-          "y": 8,
+          "z": -84,
+          "y": 5,
           "w": 20,
-          "d": 5,
-          "h": 16,
+          "d": 4,
+          "h": 10,
           "hp": 100000
         },
         {
           "id": "floodgate_dam_west",
           "type": "destructible_wall",
           "x": -20,
-          "z": -100,
-          "y": 8,
+          "z": -84,
+          "y": 5,
           "w": 20,
-          "d": 5,
-          "h": 16,
+          "d": 4,
+          "h": 10,
           "hp": 100000
         },
         {
           "id": "floodgate_dam_east",
           "type": "destructible_wall",
           "x": 20,
-          "z": -100,
-          "y": 8,
+          "z": -84,
+          "y": 5,
           "w": 20,
-          "d": 5,
-          "h": 16,
+          "d": 4,
+          "h": 10,
           "hp": 100000
         },
         {
           "id": "floodgate_dam_east_outer",
           "type": "destructible_wall",
           "x": 40,
-          "z": -100,
-          "y": 8,
+          "z": -84,
+          "y": 5,
           "w": 20,
-          "d": 5,
-          "h": 16,
+          "d": 4,
+          "h": 10,
           "hp": 100000
         }
       ],
@@ -3951,7 +3951,7 @@
     "whiteout_depot": {
       "name": "Whiteout Depot",
       "shortName": "WHD",
-      "description": "Snowbound freight depot with recurring whiteout fronts: clear-weather rail firefights turn into short-range ambushes across sheltered galleries when visibility collapses.",
+      "description": "Snowbound freight depot with recurring blizzards.",
       "pace": "balanced",
       "regions": [
         {
