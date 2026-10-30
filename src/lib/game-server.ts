@@ -1,6 +1,6 @@
 import {chooseSpawn} from "./spawn-selection";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,whiteoutVisibility} from "./map-battle-events";
-import {freightStage,setFloodgateFreightStage} from "./floodgate-topple";
+import {freightStage,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -2233,7 +2233,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
         const index=cityIndex(room);
         ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,
-          room.map.environment,room.map.regions,index,index?280:1000) ??
+          floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000) ??
           botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850;
       }
@@ -2404,7 +2404,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
           const index=cityIndex(room);
           ai.routeWaypoint=botNextWaypoint(bot.pos,patrolPoint,room.map.cover,room.map.size,3,
-            room.map.environment,room.map.regions,index,index?280:1000);
+            floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000);
           ai.nextRouteAt=now+(index?1500:850);
         }
         const waypoint=ai.routeWaypoint;
