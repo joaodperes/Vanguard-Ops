@@ -2,7 +2,7 @@
  * Difficulty controls skill; archetype controls weapon choice, positioning and tempo.
  * Match-specific weapons (e.g. Gun Game) always override the preferred loadout.
  */
-import type { WeaponCategory } from "./game-data";
+import { WEAPONS, type WeaponCategory } from "./game-data";
 
 export type BotArchetype = "rusher" | "rifleman" | "marksman" | "support";
 
@@ -11,13 +11,32 @@ export function botArchetypeForSlot(teamSlot: number): BotArchetype {
   return LINEUP[Math.max(0, Math.floor(teamSlot)) % LINEUP.length];
 }
 
-// Fixed within a match; rotating variants avoids a squad of identical rifles.
-const WEAPONS: Record<BotArchetype, readonly string[]> = {
-  rusher: ["smg_kp", "shotgun_br", "smg_vector", "shotgun_auto"],
-  rifleman: ["rifle_ar", "rifle_burst", "rifle_heavy"],
-  marksman: ["rifle_dm", "dmr_scout", "sniper_scout", "sniper_lr"],
-  support: ["lmg_light", "lmg_hv", "lmg_heavy", "rifle_ar"],
+/** Standard ranged weapons supported by the shared hitscan/pellet bot AI.
+ * Wonder weapons, launchers, melee and bespoke mechanics (heat, bolt, arc)
+ * are intentionally excluded until bot-specific attack logic exists.
+ */
+export const BOT_ELIGIBLE_WEAPONS = WEAPONS.filter(weapon =>
+  !weapon.disabled && !weapon.wonder && !weapon.special &&
+  weapon.category !== "launcher" && weapon.category !== "melee"
+);
+
+/** Weighted archetype pool. Every conventional ranged weapon appears in at
+ * least one pool; repeated entries favor signature weapons over backups.
+ */
+const poolFor = (archetype: BotArchetype): readonly string[] => {
+  const byCategory=(category:WeaponCategory)=>BOT_ELIGIBLE_WEAPONS.filter(w=>w.category===category).map(w=>w.id);
+  switch(archetype){
+    case "rusher": return [...byCategory("smg"),...byCategory("shotgun"),...byCategory("pdw"),...byCategory("smg")];
+    case "rifleman": return [...byCategory("assault"),...byCategory("assault"),...byCategory("pistol")];
+    case "marksman": return [...byCategory("dmr"),...byCategory("sniper")];
+    case "support": return [...byCategory("lmg"),...byCategory("lmg"),...byCategory("assault")];
+  }
 };
+
+/** For assertions and mode-specific selection, without duplicating a catalog. */
+export function botArchetypeWeapons(archetype: BotArchetype): readonly string[] {
+  return poolFor(archetype);
+}
 /** Survival waves use broad random weapons; derive a matching personality. */
 export function botArchetypeForCategory(category: WeaponCategory): BotArchetype {
   if (category === "smg" || category === "shotgun" || category === "pdw" || category === "melee") return "rusher";
@@ -27,7 +46,7 @@ export function botArchetypeForCategory(category: WeaponCategory): BotArchetype 
 }
 
 export function botArchetypeWeapon(archetype: BotArchetype, slot: number): string {
-  const weapons = WEAPONS[archetype];
+  const weapons = poolFor(archetype);
   return weapons[Math.max(0, Math.floor(slot)) % weapons.length];
 }
 
