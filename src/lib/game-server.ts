@@ -2064,7 +2064,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
     const investigate=investigation&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
       (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? investigation : null;
-    ai.investigationLookAt=investigate?[...investigate.lookAt]:null;
+    ai.investigationLookAt=investigate?[...investigate.lookAt] as Vec3:null;
     const prevTarget = ai.targetId;
     ai.targetId = pursueTag || orbitalObjective || investigate || ctfObjective ? null : (enemy ? enemy.id : null);
     if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
