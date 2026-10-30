@@ -472,7 +472,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Account ownership gates persisted cosmetic choices even for old backup data.
   loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
   loadout.secondaryReticle=ownedCosmetics.includes(loadout.secondaryReticle)?loadout.secondaryReticle:"classic";
-  loadout.primaryCharm=!loadout.weapon.wonder&&loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
+  loadout.primaryCharm=loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
   loadout.secondaryCharm=!loadout.secondary.wonder&&loadout.secondary.category!=="melee"&&ownedCosmetics.includes(loadout.secondaryCharm)?loadout.secondaryCharm:"none";
   if (selectedTitle !== p.selectedTitle) await db.player.updateMany({
     where: { id: p.id, selectedTitle: p.selectedTitle }, data: { selectedTitle },
