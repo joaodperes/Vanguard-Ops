@@ -21,6 +21,23 @@ Run the safe schema update **before starting the new app/server build**.
   imports do not mint entitlements.
 - Weapon Prestige does not reset rank, kills, or attachments.
 
+## Diagnosing a missing Wonder unlock
+
+In **Armory → Wonders → Your Wonder unlock breakdown**, players can inspect
+their per-weapon counts of ordinary cosmetic challenges, the saved Prestige
+record, and their Mastery rank. The screen also shows lifetime Wonder
+entitlements and how many have already been redeemed. A "Weapon Master"
+account-wide achievement is **not** proof of Prestige on that same weapon.
+
+On a profile refresh, `buildProfileView` reconciles eligible Prestige rows
+from the server-side weapon progress. A missing record when the seven cosmetics
+show complete is a persistence issue to investigate, **not** a reason to mint
+an extra token client-side. A Wonder token is only spendable when the server
+confirms both the persisted Prestige and weapon-specific Mastery 5. Leaving
+a match with saved stats should have the same progression result as completing
+one; the integration regression covers Marksman DMR crossing 600 kills/330
+headshots on an early exit.
+
 ## Wonder Weapons
 
 | Weapon | Behavior | Max ammo | Recharge per charge | Other-kill bonus |

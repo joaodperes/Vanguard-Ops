@@ -18,6 +18,7 @@ import { PERKS } from "../../src/lib/perks";
 import { shopItemsForCategory } from "../../src/lib/shop-catalog";
 import { dailyShopRotation } from "../../src/lib/shop-rotation";
 import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
+import { WEAPON_CONDITION_METRICS } from "../../src/lib/armory-challenges";
 
 const req = (body: unknown) => new NextRequest("http://localhost/api/test", {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -93,6 +94,32 @@ try {
   assert.equal((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_toxic");
   await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
   assert.notEqual((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+
+  // A Marksman DMR reaches Mastery 5 on a live early-exit match report.
+  // Existing Prestige + the saved last kill/headshot must mint exactly one
+  // Wonder entitlement, even though won=false and the match ended early.
+  const dmr = await create("early-exit-dmr-player", totalXpForLevel(25));
+  const completedContext = Object.fromEntries(WEAPON_CONDITION_METRICS.map(metric => [metric, 999]));
+  await db.weaponProgress.create({ data: {
+    playerId: dmr.id, weaponId: "rifle_dm", kills: 599, headshots: 329,
+    conditionStats: JSON.stringify(completedContext),
+  } });
+  const dmrBefore = (await buildProfileView(dmr.playerKey))!;
+  assert(dmrBefore.prestige.masteredWeapons.includes("rifle_dm"), "7/7 cosmetics should already be Prestiged");
+  assert.equal(dmrBefore.prestige.tokens, 0, "Mastery 4 must not award a Wonder unlock");
+  const dmrExitResult = await applyMatchResult({
+    playerKey: dmr.playerKey, kills: 1, deaths: 0, headshots: 1, won: false,
+    mode: "ffa", score: 1, online: true, durationSec: 150, placement: 2,
+    weaponId: "rifle_dm",
+    perWeaponKills: { rifle_dm: { kills: 1, headshots: 1 } },
+  });
+  assert(dmrExitResult.newAchievements.some(a => a.id === "mastery_5"));
+  const dmrAfter = (await buildProfileView(dmr.playerKey))!;
+  assert.equal(dmrAfter.weaponProgress.rifle_dm.kills, 600);
+  assert.equal(dmrAfter.weaponProgress.rifle_dm.headshots, 330);
+  assert(dmrAfter.prestige.tokenReadyWeapons.includes("rifle_dm"));
+  assert.equal(dmrAfter.prestige.tokens, 1, "Early exit must not withhold a Wonder token");
+  assert.equal((await buildProfileView(dmr.playerKey))!.prestige.tokens, 1, "Refresh must be idempotent");
 
   // Quest/achievement XP must be included in both returned and persisted level.
   const q = await create("quest-player", totalXpForLevel(12) - 200);
