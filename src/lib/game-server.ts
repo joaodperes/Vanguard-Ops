@@ -27,7 +27,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
-import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
+import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
@@ -316,7 +316,7 @@ function spawnBots(room: Room) {
     const sp = pickSpawn(team, room);
     const teamSlot = [...room.bots.values()].filter(b => b.team === team).length;
     const archetype = botArchetypeForSlot(teamSlot);
-    const loadout = botLoadout(archetype,Math.floor(teamSlot/4));
+    const loadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
     // In gungame, every combatant (including bots) starts on the first
@@ -1637,18 +1637,8 @@ function startSurvivalWave(room: Room) {
   const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
   const count = Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
-  // ---- Round 18-b: expanded random weapon pool ----
-  // Use ALL primary + secondary weapons (excluding melee and launcher) for
-  // maximum gameplay variety. Each bot gets a truly random weapon.
-  const pool = [
-    "rifle_ar", "rifle_burst", "rifle_heavy",       // assault
-    "smg_kp", "smg_vector", "smg_compact",            // smg
-    "shotgun_br", "shotgun_auto", "shotgun_combat",   // shotgun
-    "rifle_dm", "dmr_scout", "dmr_heavy",             // dmr
-    "sniper_scout", "sniper_lr", "sniper_heavy",      // sniper
-    "lmg_hv", "lmg_light", "lmg_heavy",               // lmg
-    "pistol_side", "pistol_burst", "pistol_machine", "pistol_magnum", // sidearms
-  ];
+  // Match archetypes to any eligible standard weapon, not a legacy fixed list.
+  const pool = BOT_ELIGIBLE_WEAPONS.map(w=>w.id);
   const skins = ["red", "orange", "purple", "default", "red", "blue", "green", "phantom"];
   const waveDiff = survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
   for (let n = 0; n < count; n++) {
