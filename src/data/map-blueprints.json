@@ -2318,7 +2318,7 @@
     "floodgate": {
       "name": "Floodgate",
       "shortName": "FLD",
-      "description": "16v16 CTF across a stormbound hydroelectric dam. Push through the covered turbine hall, weave through the maintenance yard, or risk the spillway pressure purge.",
+      "description": "16v16 hydroelectric siege. Destroy the exposed dam core to rupture the spillway and permanently open the northern approach. Staggered turbine overlooks and maintenance decks break up the firing lanes.",
       "pace": "tactical",
       "regions": [
         {
@@ -3275,6 +3275,96 @@
           "d": 4,
           "h": 7,
           "kind": "cover"
+        },
+        {
+          "id": "spillway-overlook-1",
+          "x": -84,
+          "z": -50,
+          "w": 18,
+          "d": 12,
+          "h": 3.4,
+          "kind": "platform"
+        },
+        {
+          "id": "spillway-overlook-2",
+          "x": -28,
+          "z": -50,
+          "w": 18,
+          "d": 12,
+          "h": 3.4,
+          "kind": "platform"
+        },
+        {
+          "id": "spillway-overlook-3",
+          "x": 28,
+          "z": -50,
+          "w": 18,
+          "d": 12,
+          "h": 3.4,
+          "kind": "platform"
+        },
+        {
+          "id": "spillway-overlook-4",
+          "x": 84,
+          "z": -50,
+          "w": 18,
+          "d": 12,
+          "h": 3.4,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-overlook-1",
+          "x": -86,
+          "z": 72,
+          "w": 18,
+          "d": 12,
+          "h": 3.8,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-overlook-2",
+          "x": -30,
+          "z": 72,
+          "w": 18,
+          "d": 12,
+          "h": 3.8,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-overlook-3",
+          "x": 30,
+          "z": 72,
+          "w": 18,
+          "d": 12,
+          "h": 3.8,
+          "kind": "platform"
+        },
+        {
+          "id": "maintenance-overlook-4",
+          "x": 86,
+          "z": 72,
+          "w": 18,
+          "d": 12,
+          "h": 3.8,
+          "kind": "platform"
+        },
+        {
+          "id": "turbine-side-step-1",
+          "x": -78,
+          "z": 15,
+          "w": 13,
+          "d": 9,
+          "h": 2.6,
+          "kind": "platform"
+        },
+        {
+          "id": "turbine-side-step-2",
+          "x": 78,
+          "z": 15,
+          "w": 13,
+          "d": 9,
+          "h": 2.6,
+          "kind": "platform"
         }
       ],
       "hazards": [
@@ -3288,11 +3378,11 @@
           "w": 14,
           "d": 12,
           "h": 5,
-          "damage": 28,
-          "period": 48,
-          "activeFor": 6,
-          "offset": 12,
-          "warningFor": 6
+          "damage": 42,
+          "period": 36,
+          "activeFor": 8,
+          "offset": 10,
+          "warningFor": 7
         },
         {
           "id": "floodgate-purge--24",
@@ -3304,11 +3394,11 @@
           "w": 14,
           "d": 12,
           "h": 5,
-          "damage": 28,
-          "period": 48,
-          "activeFor": 6,
-          "offset": 12,
-          "warningFor": 6
+          "damage": 42,
+          "period": 36,
+          "activeFor": 8,
+          "offset": 10,
+          "warningFor": 7
         },
         {
           "id": "floodgate-purge-24",
@@ -3320,11 +3410,11 @@
           "w": 14,
           "d": 12,
           "h": 5,
-          "damage": 28,
-          "period": 48,
-          "activeFor": 6,
-          "offset": 12,
-          "warningFor": 6
+          "damage": 42,
+          "period": 36,
+          "activeFor": 8,
+          "offset": 10,
+          "warningFor": 7
         },
         {
           "id": "floodgate-purge-72",
@@ -3336,11 +3426,11 @@
           "w": 14,
           "d": 12,
           "h": 5,
-          "damage": 28,
-          "period": 48,
-          "activeFor": 6,
-          "offset": 12,
-          "warningFor": 6
+          "damage": 42,
+          "period": 36,
+          "activeFor": 8,
+          "offset": 10,
+          "warningFor": 7
         },
         {
           "id": "floodgate_maintenance_shutter",
@@ -3352,6 +3442,61 @@
           "d": 1.2,
           "h": 4,
           "hp": 240
+        },
+        {
+          "id": "floodgate_dam_core",
+          "type": "destructible_wall",
+          "x": 0,
+          "z": -100,
+          "y": 8,
+          "w": 19,
+          "d": 5,
+          "h": 16,
+          "hp": 850
+        },
+        {
+          "id": "floodgate_dam_west_outer",
+          "type": "destructible_wall",
+          "x": -42,
+          "z": -100,
+          "y": 8,
+          "w": 19,
+          "d": 5,
+          "h": 16,
+          "hp": 100000
+        },
+        {
+          "id": "floodgate_dam_west",
+          "type": "destructible_wall",
+          "x": -21,
+          "z": -100,
+          "y": 8,
+          "w": 19,
+          "d": 5,
+          "h": 16,
+          "hp": 100000
+        },
+        {
+          "id": "floodgate_dam_east",
+          "type": "destructible_wall",
+          "x": 21,
+          "z": -100,
+          "y": 8,
+          "w": 19,
+          "d": 5,
+          "h": 16,
+          "hp": 100000
+        },
+        {
+          "id": "floodgate_dam_east_outer",
+          "type": "destructible_wall",
+          "x": 42,
+          "z": -100,
+          "y": 8,
+          "w": 19,
+          "d": 5,
+          "h": 16,
+          "hp": 100000
         }
       ],
       "spawns": {
@@ -3686,7 +3831,7 @@
     "whiteout_depot": {
       "name": "Whiteout Depot",
       "shortName": "WHD",
-      "description": "A snowbound rail depot: fight through boxcars and covered platforms, cross the freight sheds, or take the sheltered service gallery. Mirrored dispatch bases and several flanks support up to 7v7.",
+      "description": "Snowbound freight depot with recurring whiteout fronts: clear-weather rail firefights turn into short-range ambushes across sheltered galleries when visibility collapses.",
       "pace": "balanced",
       "regions": [
         {
