@@ -2101,7 +2101,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
 
-  const target = ai.targetId ? (room.players.get(ai.targetId) ?? room.bots.get(ai.targetId)) : null;
+  const candidate = ai.targetId ? (room.players.get(ai.targetId) ?? room.bots.get(ai.targetId)) : null;
+  // Never track/fight an opponent behind cover even before the next AI
+  // decision. Only refreshed visible positions can enter the memory.
+  const candidateDist=candidate?Math.hypot(candidate.pos[0]-bot.pos[0],candidate.pos[2]-bot.pos[2]):Infinity;
+  const target=candidate?.alive &&
+    candidateDist<=Math.min(botDetectionRange(ai.difficulty,weapon.category),
+      room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,bot.pos):Infinity) &&
+    hasLineOfSight(room,[bot.pos[0],bot.pos[1]+PLAYER_HEIGHT/2,bot.pos[2]],
+      [candidate.pos[0],candidate.pos[1]+PLAYER_HEIGHT/2,candidate.pos[2]])
+      ? candidate : null;
+  if(target)ai.lastSighting=botRememberSighting(target.id,target.pos,now);
+  else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
   // Shell-fed shotguns and bolt-action rifles refill one round at a time.
   if (weapon.stats.reloadStyle === "incremental" &&
       ai.reloadingUntil > 0 && now >= ai.reloadingUntil && ai.ammoInMag < eff.magSize) {
