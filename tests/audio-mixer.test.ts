@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { audioGainLevels, DEFAULT_AUDIO_MIX } from "../src/lib/audio-mix";
+import { audioGainLevels, DEFAULT_AUDIO_MIX, EFFECTS_OUTPUT_BOOST, WEAPON_OUTPUT_SCALE } from "../src/lib/audio-mix";
 
 describe("audio mixer without music", () => {
+  test("boosts base loudness without changing the slider semantics", () => {
+    expect(EFFECTS_OUTPUT_BOOST).toBeGreaterThan(1);
+    expect(EFFECTS_OUTPUT_BOOST).toBeLessThan(1.6);
+    expect(WEAPON_OUTPUT_SCALE).toBeGreaterThan(0.32);
+    expect(WEAPON_OUTPUT_SCALE).toBeLessThan(0.55);
+    expect(audioGainLevels({ masterVolume: 100, footstepVolume: 100, fxVolume: 100 }))
+      .toEqual({ master: 1, footsteps: 1, fx: 1, weaponOutputPercent: 100 });
+  });
   test("keeps master, footsteps, FX and weapon output controls", () => {
     expect(audioGainLevels(DEFAULT_AUDIO_MIX)).toEqual({ master: .8, footsteps: .85, fx: 1, weaponOutputPercent: 80 });
   });

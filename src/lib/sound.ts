@@ -1,3 +1,5 @@
+import { EFFECTS_OUTPUT_BOOST, createOutputPeakGuard } from "./audio-mix";
+
 // ============================================================================
 // VANGUARD OPS — Sound Manager
 // ----------------------------------------------------------------------------
@@ -155,6 +157,8 @@ export class SoundManager {
   /** Legacy masterGain name is the FX bus; all existing SFX route through it. */
   private masterGain: GainNode | null = null;
   private outputGain: GainNode | null = null;
+  private outputBoost: GainNode | null = null;
+  private peakGuard: DynamicsCompressorNode | null = null;
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
   private footstepVolume = 0.85;
@@ -186,7 +190,14 @@ export class SoundManager {
         // Master scales footsteps and effects independently.
         this.outputGain = this.ctx.createGain();
         this.outputGain.gain.value = this.muted ? 0 : this.masterVolume;
-        this.outputGain.connect(this.ctx.destination);
+        // Apply the loudness adjustment after the master fader, then protect
+        // peaks caused by several simultaneous procedural effects.
+        this.outputBoost = this.ctx.createGain();
+        this.outputBoost.gain.value = EFFECTS_OUTPUT_BOOST;
+        this.peakGuard = createOutputPeakGuard(this.ctx);
+        this.outputGain.connect(this.outputBoost);
+        this.outputBoost.connect(this.peakGuard);
+        this.peakGuard.connect(this.ctx.destination);
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.value = this.fxVolume;
         this.masterGain.connect(this.outputGain);

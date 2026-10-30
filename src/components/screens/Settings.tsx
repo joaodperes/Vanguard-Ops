@@ -139,7 +139,7 @@ export function Settings() {
         </Section>
 
         {/* Master scales footsteps and sound effects independently. */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Adjust footsteps and combat effects separately. Master scales them all.">
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Louder baseline with peak protection. Master scales footsteps and combat effects together.">
           <div className="space-y-5">
             {([
               { key: "masterVolume", label: "Master Volume", help: "Overall game volume" },

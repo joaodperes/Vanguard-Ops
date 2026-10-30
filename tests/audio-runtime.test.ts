@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { SoundManager } from "../src/lib/sound";
+import { WeaponAudio } from "../src/lib/weapon-audio";
+import { EFFECTS_OUTPUT_BOOST, WEAPON_OUTPUT_SCALE } from "../src/lib/audio-mix";
 
 /** Minimal Web Audio graph spy: checks actual SoundManager routing and
  * scheduling without claiming to reproduce loudspeakers or browser acoustics.
@@ -19,6 +21,13 @@ class FakeNode {
   disconnect(): void { this.connections = []; }
 }
 class FakeGain extends FakeNode { gain = new FakeParam(1); }
+class FakeCompressor extends FakeNode {
+  threshold = new FakeParam(0);
+  knee = new FakeParam(0);
+  ratio = new FakeParam(1);
+  attack = new FakeParam(0);
+  release = new FakeParam(0);
+}
 class FakeOscillator extends FakeNode {
   type = "sine";
   frequency = new FakeParam(440);
@@ -58,6 +67,7 @@ class FakeAudioContext {
   createGain(): FakeGain { return new FakeGain(); }
   createBuffer(channels: number, length: number): FakeBuffer { return new FakeBuffer(channels, length); }
   createConvolver(): FakeConvolver { return new FakeConvolver(); }
+  createDynamicsCompressor(): FakeCompressor { return new FakeCompressor(); }
   createOscillator(): FakeOscillator {
     const osc = new FakeOscillator(); this.oscillators.push(osc); return osc;
   }
@@ -67,13 +77,18 @@ class FakeAudioContext {
   async close(): Promise<void> { this.state = "closed"; }
 }
 
-interface AudioInternals { outputGain: FakeGain; masterGain: FakeGain; footstepGain: FakeGain; }
+interface AudioInternals {
+  outputGain: FakeGain; outputBoost: FakeGain; peakGuard: FakeCompressor;
+  masterGain: FakeGain; footstepGain: FakeGain;
+}
 let musicAudioInstances = 0;
 class FakeHtmlAudio { constructor() { musicAudioInstances++; } }
 const previousWindow = (globalThis as any).window;
 const previousAudio = (globalThis as any).Audio;
+const previousAudioContext = (globalThis as any).AudioContext;
 beforeEach(() => {
   (globalThis as any).window = { AudioContext: FakeAudioContext };
+  (globalThis as any).AudioContext = FakeAudioContext;
   (globalThis as any).Audio = FakeHtmlAudio;
   FakeAudioContext.last = null; musicAudioInstances = 0;
 });
@@ -82,6 +97,8 @@ afterEach(() => {
   else (globalThis as any).window = previousWindow;
   if (previousAudio === undefined) delete (globalThis as any).Audio;
   else (globalThis as any).Audio = previousAudio;
+  if (previousAudioContext === undefined) delete (globalThis as any).AudioContext;
+  else (globalThis as any).AudioContext = previousAudioContext;
 });
 describe("SoundManager browser audio graph", () => {
   test("routes FX and footsteps through WebAudio without music", () => {
@@ -91,7 +108,12 @@ describe("SoundManager browser audio graph", () => {
     sm.resume();
     const a=sm as unknown as AudioInternals;
     const ctx=FakeAudioContext.last!;
-    expect(a.outputGain.connections).toContain(ctx.destination);
+    expect(a.outputGain.connections).toContain(a.outputBoost);
+    expect(a.outputBoost.gain.value).toBe(EFFECTS_OUTPUT_BOOST);
+    expect(a.outputBoost.connections).toContain(a.peakGuard);
+    expect(a.peakGuard.connections).toContain(ctx.destination);
+    expect(a.peakGuard.threshold.value).toBe(-5);
+    expect(a.peakGuard.attack.value).toBe(0.003);
     expect(a.masterGain.connections).toContain(a.outputGain);
     expect(a.footstepGain.connections).toContain(a.outputGain);
     expect(a.outputGain.gain.value).toBe(.75);
@@ -124,6 +146,22 @@ describe("SoundManager browser audio graph", () => {
     sm.setMuted(false);
     expect(a.outputGain.gain.value).toBe(0.42);
     sm.dispose();
+  });
+
+  test("weapon output is louder at 100%, peak guarded, and still obeys mute", () => {
+    const gun = new WeaponAudio(100);
+    gun.unlock();
+    const output = (gun as unknown as { output: FakeGain }).output;
+    const compressor = output.connections[0] as FakeCompressor;
+    const guard = compressor.connections[0] as FakeCompressor;
+    expect(output.gain.value).toBeCloseTo(WEAPON_OUTPUT_SCALE);
+    expect(guard.connections).toContain(FakeAudioContext.last!.destination);
+    expect(guard.ratio.value).toBe(16);
+    gun.setVolume(40);
+    expect(output.gain.value).toBeCloseTo(WEAPON_OUTPUT_SCALE * 0.4);
+    gun.setVolume(0);
+    expect(output.gain.value).toBe(0);
+    gun.dispose();
   });
 
   test("no HTML audio element is ever constructed for background music", () => {
