@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
+import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
@@ -18,9 +18,9 @@ import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from 
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
-import {floodgateObjectiveStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
+import {whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
-import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual} from "./floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual,updateFloodgateBreachVisual} from "./floodgate-scenery";
 import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
@@ -598,6 +598,7 @@ export class FPSEngine {
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private floodgateBackdrop:THREE.Group|null=null;
+  private floodgateBreachAt:number|null=null;
   private whiteoutSnow:THREE.Points|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
   private environmentCooldown = new Map<string, number>();
@@ -2498,9 +2499,11 @@ export class FPSEngine {
     // authoritative active window. Decorative water no longer suggests damage
     // while the grates are safe.
     if(this.map.id==="floodgate"&&this.floodgateBackdrop){
+      const age=this.floodgateBreachAt===null?null:this.environmentTime-this.floodgateBreachAt;
+      updateFloodgateBreachVisual(this.floodgateBackdrop,age);
       const vent=(this.map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
       if(vent&&vent.type==="spikes")
-        setFloodgatePurgeVisual(this.floodgateBackdrop,periodicHazardPhase(vent,this.environmentTime)==="active");
+        setFloodgatePurgeVisual(this.floodgateBackdrop,age===null&&periodicHazardPhase(vent,this.environmentTime)==="active");
     }
     if(this.map.id==="whiteout_depot" && this.scene.fog instanceof THREE.Fog){
       const strength=whiteoutIntensity(this.environmentTime)*whiteoutExposure(this.pos.x,this.pos.z);
@@ -2530,7 +2533,8 @@ export class FPSEngine {
         moveEnvironmentCover(this.map, o, this.environmentTime);
         g.position.set(...newPos);
       } else if (o.type === "spikes" && o.visual === "steam") {
-        updateSteamVent(g,o,this.environmentTime);
+        g.visible=this.floodgateBreachAt===null;
+        if(g.visible)updateSteamVent(g,o,this.environmentTime);
       } else if (o.type === "spikes") {
         const phase=periodicHazardPhase(o,this.environmentTime),active=phase==="active";
         // The dark base remains visible during the inactive/telegraph phase.
@@ -2557,19 +2561,6 @@ export class FPSEngine {
         if (glow) glow.rotation.z = this.environmentTime * 0.65;
       }
     }
-  }
-
-  private floodgateCoreMaxHp():number {
-    for(const wall of this.map.environment??[])
-      if(wall.id===FLOODGATE_CORE_ID && wall.type==="destructible_wall")return wall.hp;
-    return Infinity;
-  }
-
-  private floodgateShutterMaxHp():number {
-    for(const wall of this.map.environment??[])
-      if(wall.id==="floodgate_maintenance_shutter" && wall.type==="destructible_wall")
-        return wall.hp;
-    return Infinity;
   }
 
   private damageEnvironmentWall(id: string, damage: number): void {
@@ -2607,6 +2598,8 @@ export class FPSEngine {
         if(this.environmentWalls.has(panelId))this.setEnvironmentWallHP(panelId,hp);
     }
     if (old > 0 && hp <= 0) {
+      if(id===FLOODGATE_CORE_ID&&this.floodgateBreachAt===null)
+        this.floodgateBreachAt=this.environmentTime;
       breakEnvironmentWall(this.map, id);
       if(id===FLOODGATE_CORE_ID&&this.floodgateBackdrop)
         setFloodgateBreachVisual(this.floodgateBackdrop,true);
@@ -4956,6 +4949,7 @@ export class FPSEngine {
           // damage frame must use the same server-owned phase.
           this.environmentTime += phaseChanged || Math.abs(drift)>0.5 ? drift : drift*.2;
         }
+        if(this.map.id==="floodgate")this.floodgateBreachAt=typeof msg.floodgateBreachAt==="number"?msg.floodgateBreachAt:null;
         for (const [id, hp] of Object.entries(msg.environmentWalls ?? {})) {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
@@ -8157,7 +8151,10 @@ export class FPSEngine {
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
     if(reaperMovement)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
-    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
+    const water=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,
+      this.map.id==="floodgate"&&this.floodgateBreachAt!==null
+        ?this.environmentTime-this.floodgateBreachAt:null);
+    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * water.speedMultiplier;
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
       const stepInterval = this.sprinting ? 260 : 360;
@@ -8205,7 +8202,7 @@ export class FPSEngine {
 
     const next = this.pos.clone();
     next.x += this.vel.x * dt;
-    next.z += this.vel.z * dt;
+    next.z += this.vel.z * dt + water.pushZ * dt;
     next.y += this.vel.y * dt;
     // Gravity wells drag the local human player as well as bots. This remains
     // inside the normal collision resolution, so no pulling through walls.
@@ -9053,12 +9050,9 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?(this.opts.online && this.floodgateServerRulesVersion!==2
-          ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · restart or redeploy to enable destructibles",secondsLeft:0}
-          :floodgateObjectiveStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
-            this.floodgateCoreMaxHp(),
-            this.environmentWalls.get("floodgate_maintenance_shutter")??Infinity,
-            this.floodgateShutterMaxHp()))
+        ?(this.opts.online&&this.floodgateServerRulesVersion!==3
+          ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · redeploy to enable flood event",secondsLeft:0}
+          :undefined)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
