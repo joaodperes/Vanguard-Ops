@@ -184,17 +184,23 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
  * unavailable, a one-time non-spendable compensation offsets the purchase.
  * The old purchase table does not link a Wonder to its source weapon.
  */
+const wonderTokenReconciling=new Map<string,Promise<{awardedWeapons:string[];legacyCredits:number}>>();
 export async function reconcileWonderTokenAwards(playerId:string):Promise<{
   awardedWeapons:string[];legacyCredits:number;
 }> {
-  return db.$transaction(async tx=>{
+  const active=wonderTokenReconciling.get(playerId);
+  if(active)return active;
+  // SQLite's interactive transactions can time out under concurrent initial
+  // profile reads. Use a singleflight per player; each award is protected by
+  // a database unique key and persisted before the migration marker.
+  const pending=(async()=>{
     const [player,prestiges,progress,purchases,prior]=await Promise.all([
-      tx.player.findUniqueOrThrow({where:{id:playerId},
+      db.player.findUniqueOrThrow({where:{id:playerId},
         select:{wonderTokenLedgerReady:true,wonderLegacyCredits:true}}),
-      tx.weaponPrestige.findMany({where:{playerId},select:{weaponId:true,awardedAt:true}}),
-      tx.weaponProgress.findMany({where:{playerId},select:{weaponId:true,kills:true,headshots:true}}),
-      tx.wonderUnlock.findMany({where:{playerId},select:{weaponId:true,unlockedAt:true}}),
-      tx.wonderTokenAward.findMany({where:{playerId},select:{weaponId:true}}),
+      db.weaponPrestige.findMany({where:{playerId},select:{weaponId:true,awardedAt:true}}),
+      db.weaponProgress.findMany({where:{playerId},select:{weaponId:true,kills:true,headshots:true}}),
+      db.wonderUnlock.findMany({where:{playerId},select:{weaponId:true,unlockedAt:true}}),
+      db.wonderTokenAward.findMany({where:{playerId},select:{weaponId:true}}),
     ]);
     const totals=Object.fromEntries(progress.map(p=>[p.weaponId,{kills:p.kills,headshots:p.headshots}]));
     const qualified=tokenEligiblePrestiges(prestiges.map(p=>p.weaponId),totals);
@@ -209,17 +215,22 @@ export async function reconcileWonderTokenAwards(playerId:string):Promise<{
     const awarded=new Set(prior.map(a=>a.weaponId));
     for(const weaponId of new Set([...historical,...qualified])){
       if(awarded.has(weaponId))continue;
-      await tx.wonderTokenAward.upsert({
+      await db.wonderTokenAward.upsert({
         where:{playerId_weaponId:{playerId,weaponId}},
         create:{playerId,weaponId,legacy:historical.includes(weaponId)},update:{},
       });
       awarded.add(weaponId);
     }
-    if(!player.wonderTokenLedgerReady)await tx.player.update({
-      where:{id:playerId},data:{wonderTokenLedgerReady:true,wonderLegacyCredits:legacyCredits},
+    if(!player.wonderTokenLedgerReady)await db.player.updateMany({
+      where:{id:playerId,wonderTokenLedgerReady:false},
+      data:{wonderTokenLedgerReady:true,wonderLegacyCredits:legacyCredits},
     });
     return {awardedWeapons:[...awarded],legacyCredits};
-  });
+  })();
+  wonderTokenReconciling.set(playerId,pending);
+  try{return await pending;}finally{
+    if(wonderTokenReconciling.get(playerId)===pending)wonderTokenReconciling.delete(playerId);
+  }
 }
 
 /** Backfill mastery-title awards for existing weapon specialists.
