@@ -1716,11 +1716,45 @@ export class FPSEngine {
       },profile.reach,profile.halfArcDegrees);
     if(!target)return;
     if(target.id===this.selfId){
-      this.takeDamage(profile.damage,attacker.name,attacker.team,false,weaponId);
-    }else{
-      const victim=this.combatants.get(target.id);
-      if(victim)this.applyDamageLocal(victim,profile.damage,false,weaponId);
+      // A bot's kill must advance THE BOT in Gun Game, never the local player.
+      const lethal=this.health-profile.damage<=0;
+      const won=lethal&&this.opts.mode==="gungame"
+        ?this.advanceCombatantGungameTier(attacker):false;
+      this.takeDamage(profile.damage,attacker.name,attacker.team,false,weaponId,attacker.pos);
+      if(won)this.finalizeMatchLocal();
+      return;
     }
+    const victim=this.combatants.get(target.id);
+    if(!victim||!victim.alive)return;
+    victim.health-=profile.damage;
+    if(weaponId==="baton"&&victim.ai&&victim.ai.reloadingUntil>performance.now()){
+      victim.ai.reloadingUntil=performance.now()+1100;
+      victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,victim.ai.reloadingUntil);
+    }
+    if(victim.health>0)return;
+    const recent=this.offlineAssistDamage.get(victim.id);
+    if(attacker.team===this.opts.team&&victim.team!==this.opts.team&&
+      (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf")&&
+      recent&&recent.damage>=15&&performance.now()-recent.at<=10000)this.assists++;
+    this.offlineAssistDamage.delete(victim.id);
+    victim.alive=false;victim.deaths+=1;
+    if(attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
+    this.releaseOrbitalBotWeapon(victim);
+    if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
+    if(this.opts.mode!=="killconfirmed"&&this.opts.mode!=="ctf")victim.score=victim.kills;
+    attacker.kills+=1;
+    if(this.opts.mode!=="killconfirmed"&&this.opts.mode!=="ctf")attacker.score=attacker.kills;
+    if(this.opts.mode==="killconfirmed")this.dropLocalKillConfirmedTag(victim.id,victim.team,victim.pos);
+    if(this.opts.mode==="tdm")this.teamScores[attacker.team as "red"|"blue"]+=1;
+    const entry:KillFeedEntry={killer:attacker.name,victim:victim.name,weapon:weaponId,
+      headshot:false,killerTeam:attacker.team,victimTeam:victim.team};
+    this.killFeed.unshift(entry);if(this.killFeed.length>6)this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    if(this.opts.mode==="gungame"&&this.advanceCombatantGungameTier(attacker)){
+      this.finalizeMatchLocal();return;
+    }
+    this.scheduleRespawn(victim);
+    this.checkWin();
   }
 
   private offlineOrbitalBotSwing(attacker:Combatant){
