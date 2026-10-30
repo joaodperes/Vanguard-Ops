@@ -22,6 +22,8 @@ import {whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
 import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual,updateFloodgateBreachVisual} from "./floodgate-scenery";
 import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
+import {buildFloodgateFreight,updateFloodgateFreight,freightStage,setFloodgateFreightStage} from "./floodgate-topple";
+import {buildFloodgateDamCracks,updateFloodgateDamCracks} from "./floodgate-dam-cracks";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -601,6 +603,7 @@ export class FPSEngine {
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private floodgateBackdrop:THREE.Group|null=null;
+  private floodgateFreight:THREE.Group|null=null;
   private floodgateBreachAt:number|null=null;
   private whiteoutSnow:THREE.Points|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
@@ -1937,6 +1940,7 @@ export class FPSEngine {
     if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
     if(this.map.id==="floodgate"){
       this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
+      this.floodgateFreight=buildFloodgateFreight(this.scene);
       buildFloodgateColorDressing(this.scene,this.map);
     }
     if(this.map.id==="whiteout_depot")this.whiteoutSnow=buildWhiteoutSnow(this.scene);
@@ -2481,6 +2485,8 @@ export class FPSEngine {
             g.add(stripe);
           }
         }
+        if(isDamPanel)buildFloodgateDamCracks(g,o.size[0],o.size[1],o.size[2]+.19,
+          (o.pos[0]+150)*.13);
         if(isDamCore){
           // A bright physical target rather than another in-world text sign.
           const plate=new THREE.Mesh(new THREE.TorusGeometry(2.5,.21,8,32),
@@ -2506,6 +2512,8 @@ export class FPSEngine {
     if(this.map.id==="floodgate"&&this.floodgateBackdrop){
       const age=this.floodgateBreachAt===null?null:this.environmentTime-this.floodgateBreachAt;
       updateFloodgateBreachVisual(this.floodgateBackdrop,age);
+      setFloodgateFreightStage(this.map,freightStage(age));
+      if(this.floodgateFreight)updateFloodgateFreight(this.floodgateFreight,age);
       const vent=(this.map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
       if(vent&&vent.type==="spikes")
         setFloodgatePurgeVisual(this.floodgateBackdrop,age===null&&periodicHazardPhase(vent,this.environmentTime)==="active");
@@ -2584,6 +2592,8 @@ export class FPSEngine {
     const old = this.environmentWalls.get(id) ?? o.hp;
     this.environmentWalls.set(id, hp);
     const mesh = this.environmentMeshes.get(id);
+    if(mesh&&floodgateDamageTarget(id)===FLOODGATE_CORE_ID)
+      updateFloodgateDamCracks(mesh,hp,o.hp);
     if (mesh) {
       mesh.visible = hp > 0;
       const wall = mesh.children[0];
@@ -2603,8 +2613,14 @@ export class FPSEngine {
         if(this.environmentWalls.has(panelId))this.setEnvironmentWallHP(panelId,hp);
     }
     if (old > 0 && hp <= 0) {
-      if(id===FLOODGATE_CORE_ID&&this.floodgateBreachAt===null)
+      if(id===FLOODGATE_CORE_ID&&this.floodgateBreachAt===null){
         this.floodgateBreachAt=this.environmentTime;
+        setFloodgateFreightStage(this.map,"falling");
+        // New ramps become pathfinding goals when the hydraulic front reaches them.
+        for(const bot of this.combatants.values())if(bot.isBot&&bot.ai){
+          bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;
+        }
+      }
       breakEnvironmentWall(this.map, id);
       if(id===FLOODGATE_CORE_ID&&this.floodgateBackdrop)
         setFloodgateBreachVisual(this.floodgateBackdrop,true);
@@ -9133,7 +9149,7 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?(this.opts.online&&this.floodgateServerRulesVersion!==3
+        ?(this.opts.online&&this.floodgateServerRulesVersion!==4
           ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · redeploy to enable flood event",secondsLeft:0}
           :undefined)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
