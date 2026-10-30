@@ -1,5 +1,6 @@
 import {chooseSpawn} from "./spawn-selection";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,whiteoutVisibility} from "./map-battle-events";
+import {freightStage,setFloodgateFreightStage} from "./floodgate-topple";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -618,6 +619,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.startTime = Date.now();
   room.environmentTime = 0;
   room.floodgateBreachAt=null;
+  if(room.map.id==="floodgate")setFloodgateFreightStage(room.map,"upright");
   room.environmentCooldown.clear();
   room.timeLeft = room.config.timeLimit;
   room.elapsedSeconds = 0;
@@ -733,7 +735,7 @@ function snapshot(room: Room): S2C {
     environmentTime: room.environmentTime,
     floodgateBreachAt:room.floodgateBreachAt,
     environmentWalls: Object.fromEntries(room.environmentWalls),
-    ...(room.map.id==="floodgate"?{floodgateRulesVersion:3}:{}),
+    ...(room.map.id==="floodgate"?{floodgateRulesVersion:4}:{}),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
@@ -1723,7 +1725,12 @@ function damageEnvironmentWall(room: Room, id: string, damage: number): void {
   if(!result)return;
   if(result.hp<=0){
     if(room.map.id==="floodgate"&&floodgateDamageTarget(id)===FLOODGATE_CORE_ID&&
-      room.floodgateBreachAt===null)room.floodgateBreachAt=room.environmentTime;
+      room.floodgateBreachAt===null){
+      room.floodgateBreachAt=room.environmentTime;
+      setFloodgateFreightStage(room.map,"falling");
+      // A destroyed/converted obstacle requires fresh waypoints for every bot.
+      for(const bot of room.bots.values()){bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;}
+    }
     // The wall disappears physically on the server in the same shot that
     // depleted the shared structural pool; a future ray cannot hit a ghost wall.
     for(const wallId of result.ids)breakEnvironmentWall(room.map,wallId);
@@ -1733,6 +1740,10 @@ function damageEnvironmentWall(room: Room, id: string, damage: number): void {
 function tickEnvironment(room: Room, dt: number): void {
   const beforeTime = room.environmentTime;
   room.environmentTime += dt;
+  if(room.map.id==="floodgate"){
+    const age=room.floodgateBreachAt===null?null:room.environmentTime-room.floodgateBreachAt;
+    setFloodgateFreightStage(room.map,freightStage(age));
+  }
   const now = Date.now();
   for (const o of room.map.environment ?? []) {
     if (o.type === "moving_platform") {
@@ -2198,7 +2209,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.envJumpVelocityY===undefined&&botHasJumpClearance(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
-    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
+    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],room.map.id==="floodgate"&&room.floodgateBreachAt!==null?room.environmentTime-room.floodgateBreachAt:null).speedMultiplier;
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
