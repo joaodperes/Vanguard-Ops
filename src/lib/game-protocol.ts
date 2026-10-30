@@ -1270,7 +1270,9 @@ export const MAP_LIST: MapDef[] = Object.values(MAPS);
 export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge", "whiteout_depot"];
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
   mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) :
-  mode === "tdm" || mode === "killconfirmed" ? id in MAPS :
+  // Each team mode keeps nine maps without deleting either Afterlight lighting variant.
+  mode === "tdm" ? id in MAPS && id !== "arena_neon" :
+  mode === "killconfirmed" ? id in MAPS && id !== "terminal" :
   !["forest_warfare", "orbital_nexus", "floodgate", "whiteout_depot"].includes(id);
 
 export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {

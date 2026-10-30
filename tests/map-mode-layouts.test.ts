@@ -10,8 +10,18 @@ import {CoverSpatialIndex} from "../src/lib/cover-spatial-index";
 import {useGame} from "../src/lib/game-store";
 
 describe("mode availability and spawn capacity",()=>{
- test("all ten maps allow TDM/KC; six allow CTF",()=>{
-  for(const map of MAP_LIST){expect(mapAllowedForMode("tdm",map.id)).toBe(true);expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);}
+ test("TDM and Kill Confirmed each have nine maps, with opposite Afterlight variants removed",()=>{
+  expect(MAP_LIST).toHaveLength(10);
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("tdm",m.id))).toHaveLength(9);
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("killconfirmed",m.id))).toHaveLength(9);
+  expect(mapAllowedForMode("tdm","arena_neon")).toBe(false); // Afterlight City (night)
+  expect(mapAllowedForMode("tdm","terminal")).toBe(true);    // Afterlight City (Day)
+  expect(mapAllowedForMode("killconfirmed","terminal")).toBe(false);
+  expect(mapAllowedForMode("killconfirmed","arena_neon")).toBe(true);
+  for(const map of MAP_LIST){
+   if(map.id!=="arena_neon")expect(mapAllowedForMode("tdm",map.id)).toBe(true);
+   if(map.id!=="terminal")expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);
+  }
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });

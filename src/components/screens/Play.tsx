@@ -304,7 +304,7 @@ export function Play() {
 
           {/* ============== CREATE A ROOM ============== */}
           <TabsContent value="create" className="mt-5">
-            {/* Paired configuration panels use the full desktop width. On small screens they stack. */}
+            {/* Paired configuration panels make better use of desktop width; mobile stacks panels. */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
                 {/* Game mode */}
                 <Section icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
@@ -314,6 +314,122 @@ export function Play() {
                     ))}
                   </div>
                 </Section>
+              <div className="min-w-0 space-y-5">
+                {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
+                {roomConfig.mode !== "survival" && (
+                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BOT_DIFFICULTY_OPTIONS.map((d) => {
+                        const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
+                        return (
+                          <button
+                            key={d.id}
+                            onClick={() => setRoomConfig(d.id === "none" ? { fillWithBots: false } : { fillWithBots: true, botDifficulty: d.id })}
+                            className={`text-left p-3 rounded-xl border transition-all ${
+                              selected ? "border-white/40 bg-white/10" : "border-white/10 bg-black/30 hover:border-white/25"
+                            }`}
+                            style={selected ? { boxShadow: `0 0 14px ${d.color}40` } : {}}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 rounded-full" style={{ background: d.color, boxShadow: `0 0 6px ${d.color}` }} />
+                              <span className="text-white font-semibold text-sm">{d.label}</span>
+                              {selected && <Check className="w-3 h-3 text-emerald-400 ml-auto" />}
+                            </div>
+                            <div className="text-white/40 text-xs leading-snug">{d.desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Section>
+                )}
+                {roomConfig.mode === "survival" && (
+                  <Section icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {SURVIVAL_TIERS.map(tier=>{
+                        const info=SURVIVAL_TIER_INFO[tier];
+                        const unlocked=survivalUnlocked(tier,survivalProgress);
+                        const selected=roomConfig.survivalTier===tier;
+                        const progress=tier==="hard" ? "Unlock: win Standard (wave 30)" : tier==="elite" ? "Unlock: clear Hard wave 20" : tier==="nightmare" ? "Unlock: clear Elite wave 20" : "Available from the start";
+                        return (
+                          <button key={tier} type="button" disabled={!unlocked} onClick={()=>setRoomConfig({survivalTier:tier})}
+                            className={`text-left p-3 rounded-xl border transition-colors ${selected ? "border-amber-400/70 bg-amber-500/10" : unlocked ? "border-white/10 bg-black/30 hover:border-white/30" : "border-white/5 bg-black/20 opacity-50 cursor-not-allowed"}`}>
+                            <div className="flex items-center justify-between font-bold text-sm" style={{color:info.color}}>{info.label}{!unlocked && <Lock className="w-3.5 h-3.5" />}</div>
+                            <p className="text-white/60 text-xs mt-1 leading-relaxed">{info.description}</p>
+                            <div className="text-[10px] text-white/40 mt-2">{unlocked?"Unlocked":progress}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 text-xs text-white/50">
+                      Standard wins: {survivalProgress.defaultWins} · Hard best: {survivalProgress.hardBest} · Elite best: {survivalProgress.eliteBest} · Nightmare best: {survivalProgress.nightmareBest}
+                    </div>
+                  </Section>
+                )}
+              </div>
+                {/* Map choice */}
+                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Choose the combat pace and map footprint">
+                  <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter maps by size and combat pace">
+                    {([
+                      ["all", "All sizes"], ["compact", "Compact · intense"],
+                      ["balanced", "Balanced"], ["tactical", "Tactical · spacious"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value} type="button"
+                        aria-pressed={mapPaceFilter === value}
+                        onClick={() => setMapPaceFilter(value)}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          mapPaceFilter === value
+                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                            : "border-white/10 bg-black/30 text-white/55 hover:border-white/30"
+                        }`}
+                      >{label}</button>
+                    ))}
+                  </div>
+                  <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {MAP_LIST.filter((m) => mapAllowedForMode(roomConfig.mode, m.id) && (roomConfig.mode === "ctf" || mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter)).map((m) => {
+                      const selected = roomConfig.mapId === m.id;
+                      const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => setRoomConfig({ mapId: m.id as MapId })}
+                          className={`relative flex h-full w-full flex-col text-left p-3 rounded-xl border transition-all overflow-hidden group ${
+                            selected
+                              ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/10"
+                              : "border-white/10 bg-zinc-900/50 hover:border-white/25 hover:bg-zinc-900/80"
+                          }`}
+                        >
+                          <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-2xl opacity-30 pointer-events-none" style={{ background: m.accentColor }} />
+                          <div className="relative flex flex-1 items-start gap-2 w-full">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${m.accentColor}20`, color: m.accentColor }}>
+                              <Icon className="w-4 h-4" />
+                            </div>
+                            <div className="flex flex-col flex-1 min-w-0">
+                              <div className="flex items-start gap-1.5 mb-0.5">
+                                <span className="text-white font-bold text-sm leading-snug min-w-0 break-words">{displayMapLabel(m.name)}</span>
+                                {selected && (
+                                  <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shrink-0">
+                                    Selected
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-white/60 text-xs leading-relaxed whitespace-normal break-words mb-2">{m.description.replace(/[.!?]+$/, "")}{MAP_FOOTPRINT[m.id]?.description ? ` — ${MAP_FOOTPRINT[m.id].description.replace(/[.!?]+$/, "")}.` : "."}</p>
+                              <div className="mt-auto pt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
+                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
+                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
+                                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {roomConfig.mode === "ctf" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" ? `${getMap(m.id,roomConfig.mode).spawns.red.length}/${getMap(m.id,roomConfig.mode).spawns.blue.length} team spawns` : `${m.spawns.ffa.length} spawns`}</span>
+                                {roomConfig.mode !== "survival" && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">{roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)!*2} players` : `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)}v${teamSizesForMap(m.id,roomConfig.mode).at(-1)}`}</span>}
+                                {roomConfig.mode === "ctf" && (m.id === "compound" || m.id === "skybridge") && <span className="rounded bg-cyan-400/15 px-1.5 py-0.5 font-bold text-cyan-200">CTF trial</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Section>
+              <div className="min-w-0 space-y-5">
                 {/* Team size */}
                 <Section
                   icon={<Users className="w-4 h-4 text-rose-400" />}
@@ -361,124 +477,6 @@ export function Play() {
                     </div>
                   )}
                 </Section>
-                {/* Map selection occupies the left of the settings row; bot and match rules stack to its right. */}
-                {/* Map choice */}
-                <Section icon={<MapIcon className="w-4 h-4 text-cyan-400" />} title="Map Choice" hint="Choose the combat pace and map footprint">
-                  <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter maps by size and combat pace">
-                    {([
-                      ["all", "All sizes"], ["compact", "Compact · intense"],
-                      ["balanced", "Balanced"], ["tactical", "Tactical · spacious"],
-                    ] as const).map(([value, label]) => (
-                      <button
-                        key={value} type="button"
-                        aria-pressed={mapPaceFilter === value}
-                        onClick={() => setMapPaceFilter(value)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          mapPaceFilter === value
-                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
-                            : "border-white/10 bg-black/30 text-white/55 hover:border-white/30"
-                        }`}
-                      >{label}</button>
-                    ))}
-                  </div>
-                  <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {MAP_LIST.filter((m) => mapAllowedForMode(roomConfig.mode, m.id) && (roomConfig.mode === "ctf" || mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter)).map((m) => {
-                      const selected = roomConfig.mapId === m.id;
-                      const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
-                      return (
-                        <button
-                          key={m.id}
-                          onClick={() => setRoomConfig({ mapId: m.id as MapId })}
-                          className={`relative text-left p-3 rounded-xl border transition-all overflow-hidden group ${
-                            selected
-                              ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/10"
-                              : "border-white/10 bg-zinc-900/50 hover:border-white/25 hover:bg-zinc-900/80"
-                          }`}
-                        >
-                          <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-2xl opacity-30 pointer-events-none" style={{ background: m.accentColor }} />
-                          <div className="relative flex items-start gap-2">
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${m.accentColor}20`, color: m.accentColor }}>
-                              <Icon className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-1.5 mb-0.5">
-                                <span className="text-white font-bold text-sm leading-snug min-w-0 break-words">{displayMapLabel(m.name)}</span>
-                                {selected && (
-                                  <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shrink-0">
-                                    Selected
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-white/50 text-[11px] leading-snug mb-1.5 line-clamp-2">{m.description}</div>
-                              <div className="text-cyan-200/70 text-[11px] mb-1.5">{(MAP_FOOTPRINT[m.id]?.description ?? m.description)}</div>
-                              <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/40">
-                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
-                                {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
-                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
-                                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {roomConfig.mode === "ctf" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" ? `${getMap(m.id,roomConfig.mode).spawns.red.length}/${getMap(m.id,roomConfig.mode).spawns.blue.length} team spawns` : `${m.spawns.ffa.length} spawns`}</span>
-                                {roomConfig.mode !== "survival" && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">{roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)!*2} players` : `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)}v${teamSizesForMap(m.id,roomConfig.mode).at(-1)}`}</span>}
-                                {roomConfig.mode === "ctf" && (m.id === "compound" || m.id === "skybridge") && <span className="rounded bg-cyan-400/15 px-1.5 py-0.5 font-bold text-cyan-200">CTF trial</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </Section>
-              <div className="min-w-0 space-y-5">
-                {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
-                {roomConfig.mode !== "survival" && (
-                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {BOT_DIFFICULTY_OPTIONS.map((d) => {
-                        const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
-                        return (
-                          <button
-                            key={d.id}
-                            onClick={() => setRoomConfig(d.id === "none" ? { fillWithBots: false } : { fillWithBots: true, botDifficulty: d.id })}
-                            className={`text-left p-3 rounded-xl border transition-all ${
-                              selected ? "border-white/40 bg-white/10" : "border-white/10 bg-black/30 hover:border-white/25"
-                            }`}
-                            style={selected ? { boxShadow: `0 0 14px ${d.color}40` } : {}}
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="w-2 h-2 rounded-full" style={{ background: d.color, boxShadow: `0 0 6px ${d.color}` }} />
-                              <span className="text-white font-semibold text-sm">{d.label}</span>
-                              {selected && <Check className="w-3 h-3 text-emerald-400 ml-auto" />}
-                            </div>
-                            <div className="text-white/40 text-xs leading-snug">{d.desc}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Section>
-                )}
-
-                {/* Round 19i/20b: Match Limits (FFA/TDM only) */}
-                {roomConfig.mode === "survival" && (
-                  <Section icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {SURVIVAL_TIERS.map(tier=>{
-                        const info=SURVIVAL_TIER_INFO[tier];
-                        const unlocked=survivalUnlocked(tier,survivalProgress);
-                        const selected=roomConfig.survivalTier===tier;
-                        const progress=tier==="hard" ? "Unlock: win Standard (wave 30)" : tier==="elite" ? "Unlock: clear Hard wave 20" : tier==="nightmare" ? "Unlock: clear Elite wave 20" : "Available from the start";
-                        return (
-                          <button key={tier} type="button" disabled={!unlocked} onClick={()=>setRoomConfig({survivalTier:tier})}
-                            className={`text-left p-3 rounded-xl border transition-colors ${selected ? "border-amber-400/70 bg-amber-500/10" : unlocked ? "border-white/10 bg-black/30 hover:border-white/30" : "border-white/5 bg-black/20 opacity-50 cursor-not-allowed"}`}>
-                            <div className="flex items-center justify-between font-bold text-sm" style={{color:info.color}}>{info.label}{!unlocked && <Lock className="w-3.5 h-3.5" />}</div>
-                            <p className="text-white/60 text-xs mt-1 leading-relaxed">{info.description}</p>
-                            <div className="text-[10px] text-white/40 mt-2">{unlocked?"Unlocked":progress}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 text-xs text-white/50">
-                      Standard wins: {survivalProgress.defaultWins} · Hard best: {survivalProgress.hardBest} · Elite best: {survivalProgress.eliteBest} · Nightmare best: {survivalProgress.nightmareBest}
-                    </div>
-                  </Section>
-                )}
                 {roomConfig.mode === "gungame" && (
                   <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
                     <div>
@@ -584,9 +582,17 @@ export function Play() {
                   </Section>
                 )}
               </div>
-                {/* Room identity: name + password */}
-                <Section icon={<KeyRound className="w-4 h-4 text-amber-400" />} title="Room Identity" hint="Optional name & password">
-                  <div className="grid sm:grid-cols-2 gap-3">
+              {/* Identity, live summary, loadout and deployment share one full-width panel. */}
+              <section className="relative lg:col-span-2 rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-5 sm:p-6 overflow-hidden">
+                <div className="absolute -top-24 -right-16 w-56 h-56 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ background: MATCH_MODES[roomConfig.mode].accentColor }} />
+                <div className="relative flex items-center gap-2 mb-5">
+                  <DoorOpen className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-white font-bold text-sm uppercase tracking-wider">Room Setup &amp; Summary</h3>
+                </div>
+                <div className="relative grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.3fr)_minmax(260px,0.95fr)] gap-6">
+                  <div className="min-w-0">
+                    <h4 className="text-white/60 font-semibold text-xs uppercase tracking-widest flex items-center gap-1.5 mb-3"><KeyRound className="w-3.5 h-3.5 text-amber-400" /> Room Identity</h4>
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <Label htmlFor="room-name" className="text-white/60 text-xs uppercase tracking-wider mb-1.5 block">Room Name</Label>
                       <Input
@@ -611,19 +617,11 @@ export function Play() {
                       />
                     </div>
                   </div>
-                </Section>
-              {/* ---- Summary sidebar ---- */}
-              <aside className="min-w-0">
-                <div className="relative rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-5 overflow-hidden">
-                  <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full blur-3xl opacity-20" style={{ background: MATCH_MODES[roomConfig.mode].accentColor }} />
-                  <div className="relative">
-                    <div className="flex items-center gap-2 mb-4">
-                      <DoorOpen className="w-4 h-4 text-amber-400" />
-                      <span className="text-white font-bold text-sm uppercase tracking-wider">Room Summary</span>
-                    </div>
-
-                    <SummaryRow label="Room Name" value={roomConfig.roomName.trim() || `${profile?.name ?? "Host"}'s Room`} />
-                    <SummaryRow label="Host" value={profile?.name ?? "Recruit"} />
+                  </div>
+                  <div className="min-w-0 lg:border-l lg:border-white/10 lg:pl-6">
+                    <h4 className="text-white/60 font-semibold text-xs uppercase tracking-widest mb-3">Match at a Glance</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5">
+<SummaryRow label="Host" value={profile?.name ?? "Recruit"} />
                     <SummaryRow label="Mode" value={MATCH_MODES[roomConfig.mode].label} accent={MATCH_MODES[roomConfig.mode].accentColor} />
                     {roomConfig.mode === "killconfirmed" && <SummaryRow label="Tag Lifetime" value={`${roomConfig.tagLifetimeMs / 1000}s`} />}
                     {roomConfig.mode === "killconfirmed" && <SummaryRow label="Denial Scoring" value={roomConfig.denialScoreEnabled ? "+1 Point" : "Off"} />}
@@ -656,8 +654,11 @@ export function Play() {
                       </>
                     )}
                     <SummaryRow label="Password" value={roomConfig.password.trim() ? "Protected" : "Open"} accent={roomConfig.password.trim() ? "#f59e0b" : undefined} />
-
-                    {/* equipped loadout mini */}
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex flex-col lg:col-span-2 xl:col-span-1 xl:border-l xl:border-white/10 xl:pl-6">
+                    <h4 className="text-white/60 font-semibold text-xs uppercase tracking-widest mb-3">Ready to Deploy</h4>
+{/* equipped loadout mini */}
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <div className="text-white/40 text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <Crosshair className="w-3 h-3" /> Equipped Weapon
@@ -675,8 +676,8 @@ export function Play() {
                         </Button>
                       </div>
                     </div>
-
-                    <Button
+                    <div className="mt-auto">
+<Button
                       onClick={handleCreate}
                       disabled={serverOnline === false || (roomConfig.mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress))}
                       className="w-full mt-5 h-11 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
@@ -694,9 +695,10 @@ export function Play() {
                         ? "Game server is offline — play offline vs bots instead"
                         : "Opens a lobby — deploy when your squad is ready"}
                     </div>
+                    </div>
                   </div>
                 </div>
-              </aside>
+              </section>
             </div>
           </TabsContent>
 
