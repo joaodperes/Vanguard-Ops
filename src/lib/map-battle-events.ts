@@ -29,6 +29,38 @@ export function floodgateBreachTargets(id:string):readonly string[] {
 export function floodgateBreached(walls:ReadonlyMap<string,number>):boolean {
   return (walls.get(FLOODGATE_CORE_ID)??Infinity)<=0;
 }
+/** Breach is a one-time map-changing hydro event. Water spreads from the
+ * northern boundary (-103) into the spillway (-36); the outer flanks and
+ * elevated service decks remain dry, so CTF never loses all crossings. */
+export const FLOODGATE_DAM_HP=1800;
+export const FLOODGATE_SURGE_SECONDS=14;
+export const FLOODGATE_FLOOD_START_Z=-103;
+export const FLOODGATE_FLOOD_END_Z=-36;
+export const FLOODGATE_FLOOD_HALF_WIDTH=62;
+export const FLOODGATE_FLOOD_DRY_HEIGHT=2.2;
+export function floodgateSurgeFront(age:number):number{
+  return FLOODGATE_FLOOD_START_Z+
+    (FLOODGATE_FLOOD_END_Z-FLOODGATE_FLOOD_START_Z)*
+      Math.min(1,Math.max(0,age/FLOODGATE_SURGE_SECONDS));
+}
+/** Collision-independent effect sampled identically by server, offline bots,
+ * human movement and visual effects. Null age means the dam is intact. */
+export function floodgateWaterEffect(
+  x:number,y:number,z:number,age:number|null,
+):{flooded:boolean;surge:boolean;speedMultiplier:number;pushZ:number}{
+  const safe={flooded:false,surge:false,speedMultiplier:1,pushZ:0};
+  if(age===null||age<0||Math.abs(x)>FLOODGATE_FLOOD_HALF_WIDTH||
+    y>FLOODGATE_FLOOD_DRY_HEIGHT||
+    z<FLOODGATE_FLOOD_START_Z||z>FLOODGATE_FLOOD_END_Z)return safe;
+  const front=floodgateSurgeFront(age);
+  // The hydraulic front is fast and dangerous for ~14s; after it passes,
+  // low ground is persistently flooded, slows movement and pushes south.
+  const surge=age<FLOODGATE_SURGE_SECONDS&&Math.abs(z-front)<10;
+  const flooded=z<=front+2;
+  if(!flooded&&!surge)return safe;
+  return {flooded,surge,speedMultiplier:surge?.40:.68,pushZ:surge?9:1.1};
+}
+
 export const WHITEOUT_CYCLE_SECONDS=98;
 export function whiteoutIntensity(seconds:number):number {
   const t=Math.max(0,seconds-10)%WHITEOUT_CYCLE_SECONDS;
