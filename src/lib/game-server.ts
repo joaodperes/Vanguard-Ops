@@ -1,4 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
+import {floodgateBreachTargets,whiteoutVisibility} from "./map-battle-events";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -1695,7 +1696,16 @@ function damageEnvironmentWall(room: Room, id: string, damage: number): void {
   if (hp === undefined || hp <= 0 || !Number.isFinite(damage) || damage <= 0) return;
   const next = Math.max(0, hp - damage);
   room.environmentWalls.set(id, next);
-  if (next <= 0) breakEnvironmentWall(room.map, id);  // instantly unblocks shots + bots
+  if (next <= 0) {
+    breakEnvironmentWall(room.map, id);  // instantly unblocks shots + bots
+    // One atomic dam collapse: server owns the only trigger and both teams
+    // receive the changed collision in the next authoritative snapshot.
+    for (const panel of floodgateBreachTargets(id)) {
+      if (!room.environmentWalls.has(panel)) continue;
+      room.environmentWalls.set(panel,0);
+      breakEnvironmentWall(room.map,panel);
+    }
+  }
 }
 
 function tickEnvironment(room: Room, dt: number): void {
@@ -1915,7 +1925,8 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
     if (d >= bestD) continue;
     // Only acquire targets within the bot's engagement range AND with clear LoS.
-    if (d > botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)) continue;
+    if (d > Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category),
+      room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
     if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(room.mode === "survival" && e.pos[1] > p.pos[1] + 1.25)) continue;
