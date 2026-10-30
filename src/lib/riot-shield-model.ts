@@ -40,7 +40,7 @@ export function createRiotShieldModel(unlit=false): THREE.Group {
     geometry.setAttribute("position",new THREE.Float32BufferAttribute(coords,3));
     const lines=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({
       color:index===2?0xffb59a:index===1?0xffd69a:0xc6dce5,
-      transparent:true,opacity:.65,depthTest:false,depthWrite:false,
+      transparent:true,opacity:.65,depthTest:true,depthWrite:false,
     }));
     lines.renderOrder=6+index;
     stage.add(lines);stage.visible=false;root.add(stage);damageGroups.push(stage);
