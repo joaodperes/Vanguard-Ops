@@ -2939,7 +2939,7 @@ export class FPSEngine {
     // inherits all aim, reload, sway and recoil transforms automatically.
     const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
-    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
+    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"){
       const charm=createWeaponCharm(equippedCharm,true);
       if(charm)addPart(charm,...weaponCharmMountPoint(this.weaponId,"firstPerson"));
     }
@@ -4658,7 +4658,7 @@ export class FPSEngine {
         visual.add(mesh);
       }, fullWorldLegendary ? weaponMat : undefined,
         weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
-      if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
+      if(c.charmId && c.charmId!=="none"){
         const charm=createWeaponCharm(c.charmId);
         if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
       }
