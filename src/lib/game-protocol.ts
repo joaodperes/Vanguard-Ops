@@ -19,7 +19,7 @@ export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 4, 5, 7, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 9, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
 /** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
@@ -28,10 +28,16 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
-  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? [3,5,7,16] : [3,5,7];
+  if (isAfterlightCityMap(mapId)) return mode === "ffa" || mode === "gungame" ? [5,7,9,16] : [5,7,9,16];
+  if (mapId === "floodgate") return [5,7,9,16];
+  if (mapId === "compound" || mapId === "skybridge") return [3,5,7,9];
+  return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
-  return mapId === "bunker" ? 3 : 5;
+  if(mapId==="bunker")return 3;
+  if(isAfterlightCityMap(mapId))return mode==="ffa"||mode==="gungame"?7:9;
+  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge")return 7;
+  return 5;
 }
 export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
   return teamSizesForMap(mapId,mode).some(size => size === teamSize);
