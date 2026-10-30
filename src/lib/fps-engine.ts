@@ -62,7 +62,7 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
-import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
+import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
@@ -4202,7 +4202,7 @@ export class FPSEngine {
       const sp = this.pickSpawn(team);
       const teamSlot = team === "ffa" ? i : Math.floor(i/2);
       const archetype = botArchetypeForSlot(teamSlot);
-      const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(teamSlot/4));
+      const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
       const c: Combatant = {
         id, name: "Bot-" + (n + 1), team, isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
@@ -4302,19 +4302,8 @@ export class FPSEngine {
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     const count=Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
-    // ---- Round 18-b: expanded random weapon pool ----
-    // Previously only 6 weapons cycled. Now use ALL primary + secondary weapons
-    // (excluding melee and launcher — those are problematic for bot AI) for
-    // much more gameplay variety. Each bot gets a truly random weapon.
-    const botWeapons = [
-      "rifle_ar", "rifle_burst", "rifle_heavy",       // assault
-      "smg_kp", "smg_vector", "smg_compact",            // smg
-      "shotgun_br", "shotgun_auto", "shotgun_combat",   // shotgun
-      "rifle_dm", "dmr_scout", "dmr_heavy",             // dmr
-      "sniper_scout", "sniper_lr", "sniper_heavy",      // sniper
-      "lmg_hv", "lmg_light", "lmg_heavy",               // lmg
-      "pistol_side", "pistol_burst", "pistol_machine", "pistol_magnum", // sidearms
-    ];
+    // Every conventional ranged weapon can spawn; specials and launchers do not.
+    const botWeapons = BOT_ELIGIBLE_WEAPONS.map(w=>w.id);
     const skins = ["red", "orange", "purple", "default", "red", "blue", "green", "phantom"];
     // ---- Round 18-b: spread out spawns ----
     // Use FFA spawn list (typically 20 points across the whole map) instead of
