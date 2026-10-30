@@ -25,7 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
-import { wonderUnlockChallenge, prestigeChallengeStatus } from "@/lib/weapon-prestige";
+import { wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 import { OperatorPreview } from "@/components/game/OperatorPreview";
@@ -120,26 +120,6 @@ export function Armory() {
   // Per-weapon unlock maps (new shape from buildProfileView).
   const attachmentsByWeapon = profile?.unlocks.attachmentsByWeapon ?? {};
   const skinsByWeapon = profile?.unlocks.skinsByWeapon ?? {};
-  // The server derives tokens from permanent per-weapon Prestige rows and
-  // Mastery 5 progress, subtracting already redeemed Wonders. Surface the
-  // exact per-weapon gates here so a zero balance is explainable.
-  const wonderAudit = WEAPONS.filter(w => !w.wonder).map(w => {
-    const wp = profile?.weaponProgress?.[w.id];
-    const tally = wp ?? { kills: 0, headshots: 0 };
-    const cosmetic = prestigeChallengeStatus(
-      w.id, tally, new Set(profile?.unlocks.skinsByWeapon?.[w.id] ?? []),
-    );
-    const rank = weaponMasteryProgress(tally.kills, tally.headshots, w.id).rank;
-    const recorded = profile?.prestige?.masteredWeapons.includes(w.id) ?? false;
-    const qualified = profile?.prestige?.tokenReadyWeapons.includes(w.id) ?? false;
-    return { id: w.id, name: w.name, kills: tally.kills, rank, recorded,
-      qualified, cosmetic };
-  }).filter(s => s.kills > 0 || s.recorded)
-    .sort((a, b) => Number(b.qualified) - Number(a.qualified) ||
-      Number(b.recorded) - Number(a.recorded) ||
-      b.rank - a.rank || b.cosmetic.completed - a.cosmetic.completed ||
-      a.name.localeCompare(b.name));
-
   const ownedWeaponIds = new Set<string>([
     ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
@@ -459,24 +439,6 @@ export function Armory() {
               <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Permanent Wonder awards: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
               <p className="text-xs text-white/50 mt-1">Lifetime Wonder unlocks earned: {(profile?.prestige?.tokenReadyWeapons.length ?? 0) + (profile?.prestige?.legacyCredits ?? 0)} · Already redeemed: {profile?.prestige?.wonderWeapons.length ?? 0}. Earned awards stay permanent even when Mastery thresholds change.</p>
             </div>
-            <details className="mb-4 rounded-lg border border-white/15 bg-black/30 p-4" open>
-              <summary className="cursor-pointer select-none text-white/80 text-sm font-semibold">Your Wonder unlock breakdown</summary>
-              <p className="text-xs text-white/50 mt-2">For each weapon, finish all seven cosmetic challenges for Prestige, then reach Mastery 5/5. Each earned entitlement is permanent; historical purchases cannot create hidden token debt.</p>
-              <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
-                {wonderAudit.length === 0 && <p className="text-xs text-white/40">No weapon progress recorded yet.</p>}
-                {wonderAudit.map(s => (
-                  <div key={s.id} className="rounded-md border border-white/10 bg-zinc-900/50 p-3 text-xs">
-                    <div className="flex flex-wrap justify-between gap-1">
-                      <span className="font-semibold text-white/85">{s.name}</span>
-                      <span className={s.qualified ? "text-emerald-300" : "text-white/55"}>{s.qualified ? "Wonder unlock earned permanently" : s.recorded ? "Prestiged · Mastery pending" : "Not yet Wonder-qualified"}</span>
-                    </div>
-                    <div className="mt-1 text-white/60">Cosmetics: {s.cosmetic.completed}/{s.cosmetic.total} · Prestige: {s.recorded ? "recorded" : "not recorded"} · Current Mastery: {s.rank}/5</div>
-                    {!s.recorded && s.cosmetic.missingSkinIds.length > 0 && <div className="mt-1 text-amber-200/80">Remaining cosmetics: {s.cosmetic.missingSkinIds.map(id => WEAPON_SKINS.find(skin => skin.id === id)?.name ?? id).join(", ")}</div>}
-                    {!s.recorded && s.cosmetic.eligible && <div className="mt-1 text-rose-300">All cosmetic requirements are complete but the Prestige award is missing. Refresh your profile; if this remains, the saved award needs investigation.</div>}
-                  </div>
-                ))}
-              </div>
-            </details>
             <div className="grid md:grid-cols-2 gap-4">
               {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
                 const owned = profile?.prestige?.wonderWeapons.includes(w.id) ?? false;

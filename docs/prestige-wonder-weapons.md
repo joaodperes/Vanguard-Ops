@@ -23,20 +23,15 @@ Run the safe schema update **before starting the new app/server build**.
 
 ## Diagnosing a missing Wonder unlock
 
-In **Armory → Wonders → Your Wonder unlock breakdown**, players can inspect
-their per-weapon counts of ordinary cosmetic challenges, the saved Prestige
-record, and their Mastery rank. The screen also shows lifetime Wonder
-entitlements and how many have already been redeemed. A "Weapon Master"
-account-wide achievement is **not** proof of Prestige on that same weapon.
+Armory → Wonders shows permanent Wonder awards, lifetime unlocks earned,
+redemptions and available unlocks. The per-weapon challenge list remains
+under Armory → Weapons → Customize → Challenges, including the independent
+Mastery rank and Prestige status for that weapon.
 
-On a profile refresh, `buildProfileView` reconciles eligible Prestige rows
-from the server-side weapon progress. A missing record when the seven cosmetics
-show complete is a persistence issue to investigate, **not** a reason to mint
-an extra token client-side. A new Wonder token is earned only after server-confirmed Prestige and
-weapon-specific Mastery 5; once earned, it cannot be revoked. Leaving
-a match with saved stats should have the same progression result as completing
-one; the integration regression covers Marksman DMR crossing 600 kills/330
-headshots on an early exit.
+New Wonder awards require both server-confirmed Prestige and Mastery rank 5.
+Once earned, a token award is permanent even if balance requirements change.
+Historical Wonder purchases are grandfathered; an early match exit saves
+weapon progress when it successfully submits its match result.
 
 ## Wonder Weapons
 
