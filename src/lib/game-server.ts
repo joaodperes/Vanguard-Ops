@@ -27,6 +27,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { botRememberSighting, botInvestigation, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -83,6 +84,8 @@ const io = new Server(httpServer, {
 // ---- Room / match state -----------------------------------------------------
 interface BotAI {
   targetId: string | null;
+  lastSighting?: BotSighting | null;
+  investigationLookAt?: Vec3 | null;
   wanderTarget: Vec3;
   nextShotAt: number;
   nextDecisionAt: number;
@@ -349,6 +352,8 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
   const skill = Math.min(0.95, lo + Math.random() * (hi - lo));
   return {
     targetId: null,
+    lastSighting: null,
+    investigationLookAt: null,
     wanderTarget: sp,
     nextShotAt: 0,
     nextDecisionAt: 0,
@@ -1510,6 +1515,9 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     p.pos = sp;
     p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false; room.lastDamagedAt.delete(p.id);
     p.alive = true;
+    // Fresh life: no target memory may survive the bot's death.
+    const revivedBot=room.bots.get(p.id);
+    if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
     room.orbitalHolders.delete(p.id);
     const reserve = equipmentById(room.loadouts.get(p.id)?.equipmentId).charges;
     room.equipmentCharges.set(p.id,reserve);
@@ -1929,7 +1937,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
       room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
-    if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(room.mode === "survival" && e.pos[1] > p.pos[1] + 1.25)) continue;
+    if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]])) continue;
     bestD = d;
     best = e;
   }
@@ -2009,6 +2017,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   if (now > ai.nextDecisionAt) {
     ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
     const enemy = nearestEnemy(room, bot);
+    // Memory stores only a genuinely visible enemy position, never live
+    // coordinates through a wall.
+    if(enemy)ai.lastSighting=botRememberSighting(enemy.id,enemy.pos,now);
+    const remembered=ai.lastSighting;
+    const rememberedEnemy=remembered
+      ? room.players.get(remembered.targetId)??room.bots.get(remembered.targetId)
+      : null;
+    const investigation=!enemy ? botInvestigation(remembered,bot.pos,now,
+      ai.difficulty,ai.archetype,!!rememberedEnemy?.alive &&
+      (room.mode==="ffa"||room.mode==="gungame"||rememberedEnemy.team!==bot.team),
+      bot.id) : null;
+    if(remembered&&!investigation&&!enemy)ai.lastSighting=null;
     // In Kill Confirmed, bots pursue nearby tags (enemy confirms or friendly
     // denials), unless an opponent poses an immediate close-range threat.
     const nearestTag = room.mode === "killconfirmed"
@@ -2036,19 +2056,29 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       : null;
     const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,bot.pos,room.map.id) : null;
     ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
+    // Critical objectives retain priority. Defenders do not abandon their base
+    // to chase memories of distant attackers.
+    const ctfCritical=ctfIntent?.role==="recover"||ctfIntent?.role==="escort";
+    const base=bot.team==="red"||bot.team==="blue"?ctfBase(bot.team,room.map.id):null;
+    const nearBase=!!remembered&&!!base&&Math.hypot(
+      remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
+    const investigate=investigation&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
+      (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? investigation : null;
+    ai.investigationLookAt=investigate?[...investigate.lookAt]:null;
     const prevTarget = ai.targetId;
-    ai.targetId = pursueTag || orbitalObjective || ctfObjective ? null : (enemy ? enemy.id : null);
+    ai.targetId = pursueTag || orbitalObjective || investigate || ctfObjective ? null : (enemy ? enemy.id : null);
     if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
-    if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
-    if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
+    else if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
+    else if (investigate) ai.wanderTarget = [...investigate.goal] as Vec3;
+    else if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
     // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
     if (ai.targetId && ai.targetId !== prevTarget) {
       ai.acquiredTargetAt = now;
     }
     if(!ai.targetId){
-      if(orbitalObjective||ctfObjective||nearestTag){
+      if(orbitalObjective||investigate||ctfObjective||(pursueTag&&nearestTag)){
         ai.highGroundPatrol=null;
-        ai.wanderTarget=[...(orbitalObjective??ctfObjective??nearestTag!.pos)] as Vec3;
+        ai.wanderTarget=[...(orbitalObjective??investigate?.goal??ctfObjective??nearestTag!.pos)] as Vec3;
       }else{
         if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
           bot.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
@@ -2287,7 +2317,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     ai.aiming = ai.archetype === "marksman" && d <= 2.5;
     ai.sprinting=botPatrolSprint(d,ai.difficulty,ai.archetype);
     if(d<=1.5){
-      if(ai.ctfGuarding && (bot.team==="red"||bot.team==="blue")){
+      if(ai.investigationLookAt){
+        const last=ai.investigationLookAt;
+        const dx=last[0]-bot.pos[0],dz=last[2]-bot.pos[2];
+        const angle=Math.hypot(dx,dz)>0.4?Math.atan2(dx,dz):bot.yaw;
+        bot.yaw=lerpAngle(bot.yaw,angle+Math.sin(now/850+bot.id.length)*.38,.15);
+      }else if(ai.ctfGuarding && (bot.team==="red"||bot.team==="blue")){
         bot.yaw=lerpAngle(bot.yaw,ctfDefenderScanYaw(bot.team,bot.pos,bot.id,room.map.id),.12);
       }else if(ai.archetype==="marksman"){
         if(ai.idleLookYaw===undefined)ai.idleLookYaw=bot.yaw;
@@ -2414,6 +2449,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa);
       ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
       ai.targetId=null;        // wander instead of engaging
+      ai.lastSighting=null;ai.investigationLookAt=null;
       ai.routeWaypoint=null;ai.nextRouteAt=0;
       ai.strafeDir = -ai.strafeDir;
       ai.stuckSince = 0;
