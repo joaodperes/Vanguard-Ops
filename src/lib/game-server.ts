@@ -27,6 +27,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
@@ -41,7 +42,7 @@ import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { createServer, type Server as HttpServer } from "http";
@@ -105,6 +106,9 @@ interface BotAI {
   // The resolved difficulty for this bot (never "mixed" — that's rolled at
   // spawn time into one of easy/normal/hard/veteran). Used for rewards scaling.
   difficulty: Exclude<BotDifficulty, "mixed">;
+  archetype: BotArchetype;
+  ctfGuarding?: boolean;
+  idleLookYaw?: number;
   boss?: {phase:number;nextPhaseAt:number;nextSkillAt:number};
   // ---- Stuck detection / recovery (mirrors the offline engine) ----
   // Tracks when the bot started being stuck (ms timestamp). 0 = not stuck.
@@ -287,9 +291,9 @@ const SKILL_RANGE: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
   veteran: [0.80, 0.95],
 };
 
-function botLoadout(): LoadoutWire {
+function botLoadout(archetype?: BotArchetype, variant=0): LoadoutWire {
   const pool = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
-  const wid = pool[Math.floor(Math.random() * pool.length)];
+  const wid = archetype ? botArchetypeWeapon(archetype,variant) : pool[Math.floor(Math.random() * pool.length)];
   return {
     weaponId: wid,
     weaponSkinId: "default",
@@ -310,9 +314,12 @@ function spawnBots(room: Room) {
     const id = genId("bot");
     const team = assignTeam(room.mode, room);
     const sp = pickSpawn(team, room);
-    const loadout = botLoadout();
+    const teamSlot = [...room.bots.values()].filter(b => b.team === team).length;
+    const archetype = botArchetypeForSlot(teamSlot);
+    const loadout = botLoadout(archetype,Math.floor(teamSlot/4));
     const difficulty = resolveBotDifficulty(room);
-    const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0);
+    const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
+    ai.ammoInMag = weaponById(loadout.weaponId).stats.magSize;
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
     // weaponId is overridden to the first tier of the per-match weapon list.
@@ -335,7 +342,7 @@ function spawnBots(room: Room) {
 // Construct a fresh BotAI with humanization fields. The skill range is set by
 // the bot's resolved difficulty (easy/normal/hard/veteran). `skillBoost` is an
 // optional additive bump used by survival waves so late waves feel harder.
-function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficulty, "mixed">, skillBoost = 0): BotAI {
+function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficulty, "mixed">, skillBoost = 0, archetype: BotArchetype = "rifleman"): BotAI {
   const [lo0, hi0] = SKILL_RANGE[difficulty];
   const lo = Math.min(0.95, lo0 + skillBoost * 0.05);
   const hi = Math.min(0.97, hi0 + skillBoost * 0.05);
@@ -348,7 +355,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
     ammoInMag: 30,
     reloadingUntil: 0,
     strafeDir: Math.random() < 0.5 ? 1 : -1,
-    moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(difficulty),
+    moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(difficulty) * botPersonality(archetype).moveScale,
     acquiredTargetAt: 0,
     skill,
     burstShotsLeft: 0,
@@ -360,6 +367,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
     aimErrorPitch: 0,
     nextAimErrorAt: 0,
     difficulty,
+    archetype,
     stuckSince: 0,
     lastPosX: sp[0],
     lastPosZ: sp[2],
@@ -1655,7 +1663,7 @@ function startSurvivalWave(room: Room) {
     loadout.playerSkinId = skins[n % skins.length];
     const boss = mutators.boss && n === count-1;
     if (boss) loadout.weaponId = "lmg_hv";
-    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0);
+    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0,botArchetypeForCategory(weaponById(loadout.weaponId).category));
     ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
     ai.skill = Math.min(0.98,ai.skill + mutators.skillBoost);
     if (mutators.skillBoost > 0) ai.difficulty = "veteran";
@@ -2029,11 +2037,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const orbitalObjective=orbitalBotShouldContest(room.map.id,room.orbitalCharge,
       roster.find(c=>c.id===bot.id)!,roster,threatDistance)
       ?orbitalBotDeckGoal(bot.pos,bot.team):null;
-    const ctfObjective = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
-      ? ctfStairWaypoint(ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
+    const ctfIntent = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
+      ? ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
           [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
-          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map.id).goal,bot.pos,room.map.id)
+          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map.id)
       : null;
+    const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,bot.pos,room.map.id) : null;
+    ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
     const prevTarget = ai.targetId;
     ai.targetId = pursueTag || orbitalObjective || ctfObjective ? null : (enemy ? enemy.id : null);
     if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
@@ -2051,7 +2061,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
           bot.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
         if(!ai.highGroundPatrol && ai.wantsHighGround === undefined)
-          ai.wantsHighGround=Math.random()<botTactics(ai.difficulty).highGround;
+          ai.wantsHighGround=Math.random()<botArchetypeHighGroundChance(ai.archetype,botTactics(ai.difficulty).highGround);
         if(!ai.highGroundPatrol&&ai.wantsHighGround&&Math.random()<.55){
           const variation=bot.id.split("").reduce((n,ch)=>n+ch.charCodeAt(0),0);
           const goal=chooseCityHighGroundGoal(bot.pos,roomHighGroundGoals(room),variation);
@@ -2109,7 +2119,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const aimSettled=now-ai.acquiredTargetAt>=
       botReactionDelay(ai.difficulty)+eff.adsTime*750;
     const stance=botCombatDecision(weapon.category,dist,clearShot,
-      reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty);
+      reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty,ai.archetype);
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming;
     if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
@@ -2196,7 +2206,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const isAuto = weapon.stats.auto;
     const burstPaused = isAuto && now < ai.burstEndsAt;
     if (isAuto && ai.burstShotsLeft <= 0 && now >= ai.burstEndsAt && reacted) {
-      ai.burstShotsLeft = Math.max(2, Math.round(3 + ai.skill * 4 + (Math.random() - 0.5) * 2));
+      ai.burstShotsLeft = Math.max(2, Math.round(3 + ai.skill * 4 + (Math.random() - 0.5) * 2 + botPersonality(ai.archetype).extraBurstShots));
     }
 
     // ---- Intentional miss chance ----
@@ -2275,14 +2285,22 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       io.to(room.id).emit("message", { t: "reloadFx", playerId: bot.id } as S2C);
     }
   } else {
-    ai.aiming = false;
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
     const patrolGoal=ai.highGroundPatrol;
     const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
       cityCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
     const dx=patrolPoint[0]-bot.pos[0],dz=patrolPoint[2]-bot.pos[2];
     const d=Math.hypot(dx,dz);
-    ai.sprinting=botPatrolSprint(d,ai.difficulty);
+    ai.aiming = ai.archetype === "marksman" && d <= 2.5;
+    ai.sprinting=botPatrolSprint(d,ai.difficulty,ai.archetype);
+    if(d<=1.5){
+      if(ai.ctfGuarding && (bot.team==="red"||bot.team==="blue")){
+        bot.yaw=lerpAngle(bot.yaw,ctfDefenderScanYaw(bot.team,bot.pos,bot.id,room.map.id),.12);
+      }else if(ai.archetype==="marksman"){
+        if(ai.idleLookYaw===undefined)ai.idleLookYaw=bot.yaw;
+        bot.yaw=lerpAngle(bot.yaw,ai.idleLookYaw+Math.sin(now/2300+bot.id.length)*.5,.1);
+      }
+    }else ai.idleLookYaw=undefined;
     if(d>(patrolGoal?.38:1.5)){
       // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the movement
       // direction. If blocked, rotate the movement direction by ±35° (sign
