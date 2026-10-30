@@ -2587,29 +2587,24 @@ export class FPSEngine {
         const t = Math.max(0, Math.min(1, hp / o.hp));
         if(id===FLOODGATE_CORE_ID)
           wall.material.color.setRGB(.62+t*.28,.27+t*.30,.08+t*.15);
+        else if(floodgateDamageTarget(id)===FLOODGATE_CORE_ID)
+          wall.material.color.setRGB(.46+.25*t,.24+.16*t,.10+.12*t);
         else wall.material.color.setRGB(0.4 + t * 0.22, 0.25 + t * 0.12, 0.24 + t * 0.12);
       }
     }
     if(id===FLOODGATE_CORE_ID && hp!==old){
-      // Visible wear spreads across all panel surfaces with the shared pool.
-      const t=Math.max(0,Math.min(1,hp/o.hp));
-      for(const panelId of floodgateBreachTargets(id)){
-        const panel=this.environmentMeshes.get(panelId)?.children[0];
-        if(panel instanceof THREE.Mesh && panel.material instanceof THREE.MeshStandardMaterial)
-          panel.material.color.setRGB(.62+.12*t,.22+.18*t,.12+.14*t);
-      }
+      // Offline prediction and online snapshots use the same single HP pool.
+      // Update each panel's actual HP, not just its paint material.
+      for(const panelId of floodgateBreachTargets(id))
+        if(this.environmentWalls.has(panelId))this.setEnvironmentWallHP(panelId,hp);
     }
     if (old > 0 && hp <= 0) {
       breakEnvironmentWall(this.map, id);
-      if(id===FLOODGATE_CORE_ID){
-        for(const panel of floodgateBreachTargets(id)){
-          // The server sends every panel's new HP in snapshots; local play
-          // breaks the identical four colliders immediately after the core.
-          if(this.environmentWalls.has(panel))this.setEnvironmentWallHP(panel,0);
-        }
-        if(this.floodgateBackdrop)setFloodgateBreachVisual(this.floodgateBackdrop,true);
-      }
-      this.spawnExplosion(new THREE.Vector3(...o.pos));
+      if(id===FLOODGATE_CORE_ID&&this.floodgateBackdrop)
+        setFloodgateBreachVisual(this.floodgateBackdrop,true);
+      // One core explosion, not five simultaneous particles for linked panels.
+      if(floodgateDamageTarget(id)!==FLOODGATE_CORE_ID||id===FLOODGATE_CORE_ID)
+        this.spawnExplosion(new THREE.Vector3(...o.pos));
     }
   }
 
