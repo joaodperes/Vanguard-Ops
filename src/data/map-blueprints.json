@@ -2694,22 +2694,44 @@
           "kind": "cover"
         },
         {
-          "id": "hall-pillar-0--24",
-          "x": 0,
+          "id": "hall-pillar-0--24-west",
+          "x": -10,
           "z": -24,
-          "w": 3,
+          "w": 4,
           "d": 12,
           "h": 10,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "hall-pillar-0--24 west"
         },
         {
-          "id": "hall-pillar-0-24",
-          "x": 0,
-          "z": 24,
-          "w": 3,
+          "id": "hall-pillar-0--24-east",
+          "x": 10,
+          "z": -24,
+          "w": 4,
           "d": 12,
           "h": 10,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "hall-pillar-0--24 east"
+        },
+        {
+          "id": "hall-pillar-0-24-west",
+          "x": -10,
+          "z": 24,
+          "w": 4,
+          "d": 12,
+          "h": 10,
+          "kind": "cover",
+          "label": "hall-pillar-0-24 west"
+        },
+        {
+          "id": "hall-pillar-0-24-east",
+          "x": 10,
+          "z": 24,
+          "w": 4,
+          "d": 12,
+          "h": 10,
+          "kind": "cover",
+          "label": "hall-pillar-0-24 east"
         },
         {
           "id": "hall-pillar-54--24",
@@ -2820,22 +2842,24 @@
           "kind": "cover"
         },
         {
-          "id": "junction-cover-0--40",
-          "x": 0,
-          "z": -40,
-          "w": 7,
+          "id": "junction-cover-0-40-west",
+          "x": -10,
+          "z": 40,
+          "w": 5,
           "d": 18,
           "h": 7,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "junction-cover-0-40 west"
         },
         {
-          "id": "junction-cover-0-40",
-          "x": 0,
+          "id": "junction-cover-0-40-east",
+          "x": 10,
           "z": 40,
-          "w": 7,
+          "w": 5,
           "d": 18,
           "h": 7,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "junction-cover-0-40 east"
         },
         {
           "id": "junction-cover-50--40",
@@ -3040,13 +3064,24 @@
           "kind": "cover"
         },
         {
-          "id": "yard-cover-0",
-          "x": 0,
+          "id": "yard-cover-0-west",
+          "x": -13,
           "z": 48,
-          "w": 10,
+          "w": 5,
           "d": 3,
           "h": 2.7,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "yard-cover-0 west"
+        },
+        {
+          "id": "yard-cover-0-east",
+          "x": 13,
+          "z": 48,
+          "w": 5,
+          "d": 3,
+          "h": 2.7,
+          "kind": "cover",
+          "label": "yard-cover-0 east"
         },
         {
           "id": "yard-cover-48",
@@ -3251,13 +3286,24 @@
           "kind": "cover"
         },
         {
-          "id": "central-switchgear",
-          "x": 0,
+          "id": "central-switchgear-west",
+          "x": -10,
           "z": -10,
-          "w": 8,
-          "d": 20,
+          "w": 5,
+          "d": 15,
           "h": 7,
-          "kind": "cover"
+          "kind": "cover",
+          "label": "central-switchgear west"
+        },
+        {
+          "id": "central-switchgear-east",
+          "x": 10,
+          "z": -10,
+          "w": 5,
+          "d": 15,
+          "h": 7,
+          "kind": "cover",
+          "label": "central-switchgear east"
         },
         {
           "id": "base-flank-screen--130--28",
@@ -3638,7 +3684,7 @@
           "w": 20,
           "d": 4,
           "h": 10,
-          "hp": 100000
+          "hp": 360
         },
         {
           "id": "floodgate_dam_west",
@@ -3649,7 +3695,7 @@
           "w": 20,
           "d": 4,
           "h": 10,
-          "hp": 100000
+          "hp": 360
         },
         {
           "id": "floodgate_dam_east",
@@ -3660,7 +3706,7 @@
           "w": 20,
           "d": 4,
           "h": 10,
-          "hp": 100000
+          "hp": 360
         },
         {
           "id": "floodgate_dam_east_outer",
@@ -3671,7 +3717,7 @@
           "w": 20,
           "d": 4,
           "h": 10,
-          "hp": 100000
+          "hp": 360
         }
       ],
       "spawns": {
