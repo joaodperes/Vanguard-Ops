@@ -319,11 +319,11 @@ function spawnBots(room: Room) {
     const loadout = botLoadout(archetype,Math.floor(teamSlot/4));
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
-    ai.ammoInMag = weaponById(loadout.weaponId).stats.magSize;
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
     // weaponId is overridden to the first tier of the per-match weapon list.
     const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : loadout.weaponId;
+    ai.ammoInMag = weaponById(gungameWeaponId).stats.magSize;
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
