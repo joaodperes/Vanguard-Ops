@@ -18,7 +18,7 @@ import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from 
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
-import {floodgateIntegrityStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
+import {floodgateObjectiveStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
 import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual} from "./floodgate-scenery";
 import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
@@ -2561,6 +2561,13 @@ export class FPSEngine {
   private floodgateCoreMaxHp():number {
     for(const wall of this.map.environment??[])
       if(wall.id===FLOODGATE_CORE_ID && wall.type==="destructible_wall")return wall.hp;
+    return Infinity;
+  }
+
+  private floodgateShutterMaxHp():number {
+    for(const wall of this.map.environment??[])
+      if(wall.id==="floodgate_maintenance_shutter" && wall.type==="destructible_wall")
+        return wall.hp;
     return Infinity;
   }
 
@@ -9043,8 +9050,10 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?floodgateIntegrityStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
-            this.floodgateCoreMaxHp())
+        ?floodgateObjectiveStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
+            this.floodgateCoreMaxHp(),
+            this.environmentWalls.get("floodgate_maintenance_shutter")??Infinity,
+            this.floodgateShutterMaxHp())
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
