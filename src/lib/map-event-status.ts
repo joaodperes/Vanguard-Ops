@@ -27,5 +27,5 @@ export function whiteoutWeatherStatus(seconds:number):MapEventStatus {
   const event=whiteoutWindow(seconds);
   return {phase:event.phase,secondsLeft:event.secondsLeft,
     label:event.phase==="active"?"BLIZZARD · visibility reduced":event.phase==="warning"
-      ?`Blizzard arriving in ${event.secondsLeft}s`:`Clear skies · next blizzard in ${event.secondsLeft}s`};
+      ?`Blizzard arriving in ${event.secondsLeft}s`:"Clear skies"};
 }
