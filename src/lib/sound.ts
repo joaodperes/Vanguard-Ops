@@ -55,6 +55,7 @@ export type SfxName =
   | "wave_start"
   | "hit_taken"
   | "footstep"
+  | "water_footstep"
   | "empty_click"
   | "swap"
   | "ads_in"
@@ -306,6 +307,7 @@ export class SoundManager {
       case "wave_start": this.synthWaveStart(vol); break;
       case "hit_taken": this.synthHitTaken(vol); break;
       case "footstep": this.synthFootstep(vol); break;
+      case "water_footstep": this.synthWaterFootstep(vol); break;
       case "empty_click": this.synthBlip(1200, 0.02, vol * 0.3, "square"); break;
       case "swap": this.synthSwap(vol); break;
       case "ads_in": this.synthBlip(440, 0.03, vol * 0.25, "sine"); break;
@@ -323,15 +325,15 @@ export class SoundManager {
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
-  playFootstepAtDistance(distance: number, sprinting = false): void {
-    const volume = footstepVolumeAtDistance(distance, sprinting);
+  playFootstepAtDistance(distance: number, sprinting = false, inWater = false): void {
+    const volume = footstepVolumeAtDistance(distance, sprinting)*(inWater?1.65:1);
     if (volume < 0.004) return;
     const now=this.ctx?.currentTime??0;
     // Ambient bot traffic should not allocate dozens of overlapping noise
     // graphs and steal audio work from the player's own steps or shots.
     if((now*1000)-this.lastRemoteFootstepAt<95)return;
     this.lastRemoteFootstepAt=now*1000;
-    this.play("footstep", { volume });
+    this.play(inWater?"water_footstep":"footstep", { volume });
   }
 
   // ---- Distant / enemy fire ----
@@ -823,6 +825,31 @@ export class SoundManager {
     thump.connect(tg).connect(this.footstepGain!);
     thump.start(t); thump.stop(t + 0.095);
     thump.onended = () => { thump.disconnect(); tg.disconnect(); };
+  }
+
+  /** Splashy wet bootfall, mixed through the existing footstep-volume bus. */
+  private synthWaterFootstep(vol:number){
+    const ctx=this.ctx!;
+    const t=ctx.currentTime;
+    const splash=ctx.createBufferSource();
+    splash.buffer=this.noiseBuffer;
+    const band=ctx.createBiquadFilter();
+    band.type="bandpass";band.frequency.value=1550;band.Q.value=.65;
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(Math.max(.0001,vol*.65),t);
+    gain.gain.exponentialRampToValueAtTime(.0001,t+.19);
+    splash.connect(band).connect(gain).connect(this.footstepGain!);
+    splash.start(t);splash.stop(t+.20);
+    splash.onended=()=>{splash.disconnect();band.disconnect();gain.disconnect();};
+    const thump=ctx.createOscillator(),thumpGain=ctx.createGain();
+    thump.type="sine";
+    thump.frequency.setValueAtTime(95,t);
+    thump.frequency.exponentialRampToValueAtTime(48,t+.13);
+    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.22),t);
+    thumpGain.gain.exponentialRampToValueAtTime(.0001,t+.14);
+    thump.connect(thumpGain).connect(this.footstepGain!);
+    thump.start(t);thump.stop(t+.15);
+    thump.onended=()=>{thump.disconnect();thumpGain.disconnect();};
   }
 
   /** Weapon swap: a quick swoosh + click. */
