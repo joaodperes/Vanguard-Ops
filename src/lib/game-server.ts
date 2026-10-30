@@ -2117,8 +2117,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame");
-    const ideal = stance.idealDistance;
-    const chaseThreshold=weapon.id===ORBITAL_REAPER_ID?3:ideal+3;
+    const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
+    // Melee bots must close to the actual weapon's reach, not stop 3m short.
+    const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
     let mvx = 0, mvz = 0;
     if (dist > chaseThreshold) {
       mvx = Math.sin(bot.yaw) * moveSpeed / 20;
@@ -2214,9 +2215,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
       let didHit = false;
-      if(weapon.id===ORBITAL_REAPER_ID){
-        // True frontal, line-of-sight melee strike; never a 120-damage bullet.
-        applyMeleeStrike(room,bot,ORBITAL_REAPER_ID,now);
+      if(weapon.category==="melee"){
+        // Gun Game final-tier bots use the same frontal arc, range and LoS as players.
+        applyMeleeStrike(room,bot,weapon.id,now);
         didHit=true;
       }else for (let i = 0; i < pellets; i++) {
         const pdir = pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
@@ -2230,11 +2231,11 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       }
       // Reaper has its own purple pulse FX. It must not generate a gunshot
       // tracer or gunfire audio on other clients.
-      if(bot.weaponId!==ORBITAL_REAPER_ID){
+      if(weapon.category!=="melee"){
         io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor" } as S2C);
         broadcastRadarPing(room, bot, room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor");
       }
-      ai.ammoInMag--;
+      if(weapon.category!=="melee")ai.ammoInMag--;
       clearSpawnProtection(room, bot); // bot firing also cancels its protective shield
       ai.lastFiredAt = now;
       // Accumulate spray drift from this shot.
