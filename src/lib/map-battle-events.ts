@@ -26,7 +26,7 @@ export function whiteoutVisibility(seconds:number,pos?:readonly number[]):number
   return 160-122*whiteoutIntensity(seconds)*(pos?whiteoutExposure(pos[0],pos[2]):1);
 }
 export function whiteoutWindow(seconds:number):{phase:"idle"|"warning"|"active";secondsLeft:number}{
-  const t=Math.max(0,seconds)%WHITEOUT_CYCLE_SECONDS;
+  const t=Math.max(0,seconds-10)%WHITEOUT_CYCLE_SECONDS;
   if(seconds<10)return {phase:"idle",secondsLeft:0};
   if(t>=20&&t<65)return {phase:"active",secondsLeft:Math.max(1,Math.ceil(65-t))};
   if(t>=10&&t<20)return {phase:"warning",secondsLeft:Math.max(1,Math.ceil(20-t))};
