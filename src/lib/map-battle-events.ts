@@ -43,6 +43,8 @@ export const FLOODGATE_FLOOD_DRY_HEIGHT=2.2;
  * ramp surfaces remain dry even at low elevations; a player below the tread
  * still gets wet. Use the same test on clients, bots, and the server. */
 export function floodgateOnStairs(x:number,y:number,z:number,cover:readonly CoverBox[]=[]):boolean {
+  // Ground level never sits on a tread; skip scanning every cover collider.
+  if(y<.2)return false;
   return cover.some(c=>c.kind==="stair" &&
     Math.abs(x-c.pos[0])<=c.size[0]+.12 && Math.abs(z-c.pos[2])<=c.size[2]+.12 &&
     y>=c.pos[1]+c.size[1]-.18 && y<=c.pos[1]+c.size[1]+.35);
@@ -61,13 +63,12 @@ export function floodgateWaterEffect(
   if(age===null||age<0||Math.abs(x)>FLOODGATE_FLOOD_HALF_WIDTH||
     y>FLOODGATE_FLOOD_DRY_HEIGHT||
     z<FLOODGATE_FLOOD_START_Z||z>FLOODGATE_FLOOD_END_Z)return safe;
-  if(floodgateOnStairs(x,y,z,cover))return safe;
   const front=floodgateSurgeFront(age);
   // The hydraulic front is fast and dangerous for ~14s; after it passes,
   // low ground is persistently flooded, slows movement and pushes south.
   const surge=age<FLOODGATE_SURGE_SECONDS&&Math.abs(z-front)<10;
   const flooded=z<=front+2;
-  if(!flooded&&!surge)return safe;
+  if(!flooded&&!surge||floodgateOnStairs(x,y,z,cover))return safe;
   return {flooded,surge,speedMultiplier:surge?.55:.80,pushZ:surge?8:1.5};
 }
 
