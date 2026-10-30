@@ -4460,6 +4460,8 @@ export class FPSEngine {
   }
 
   private startSurvivalWave() {
+    // Clear obsolete phase timers from bosses in earlier waves.
+    this.survivalBossTimers.clear();
     this.survivalWave += 1;
     this.survivalWaveActive = true;
     // Wave-start SFX: menacing horn to signal the next wave incoming.
