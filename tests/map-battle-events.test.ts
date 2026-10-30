@@ -9,7 +9,7 @@ import {visualThemeForMap} from "../src/lib/map-visuals";
 import {damBreachStatus,floodgateIntegrityStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
-import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,
+import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
   from "../src/lib/map-battle-events";
 
@@ -82,6 +82,57 @@ describe("Floodgate one-time Levolution",()=>{
         for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
       }
     });
+  });
+  test("Marksman DMR destroys the actual central wall from accessible hall approach",()=>{
+    const map=makeEnvironmentMap(getMap("floodgate","tdm"));
+    const core=(map.environment??[]).find(o=>o.id===FLOODGATE_CORE_ID);
+    if(!core||core.type!=="destructible_wall")throw Error("core missing");
+    const walls=new Map((map.environment??[]).filter(o=>o.type==="destructible_wall")
+      .map(o=>[o.id,o.type==="destructible_wall"?o.hp:0]));
+    // Before this fix the hall pillar, switchgear and junction cover made
+    // every DMR hit from the middle of the arena strike invulnerable concrete.
+    const from:[number,number,number]=[0,1.6,10];
+    const direction:[number,number,number]=[0,0,-1];
+    for(let i=0;i<5;i++){
+      const hit=closestCoverHit(map.cover,from,direction,84.7*1.72,rayBox);
+      expect(hit?.box.environmentId).toBe(FLOODGATE_CORE_ID);
+      const result=applyLinkedWallDamage(walls,hit!.box.environmentId!,74);
+      expect(result?.hp).toBe(Math.max(0,360-(i+1)*74));
+      for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
+        expect(walls.get(id)).toBe(result?.hp);
+      if(result?.hp===0)for(const id of result.ids)breakEnvironmentWall(map,id);
+    }
+    expect(floodgateBreached(walls)).toBe(true);
+    expect(closestCoverHit(map.cover,from,direction,84.7*1.72,rayBox)).toBeNull();
+  });
+  test("12-round DMR magazine can breach the shutter and dam from the yard",()=>{
+    const map=makeEnvironmentMap(getMap("floodgate","tdm"));
+    const walls=new Map((map.environment??[]).filter(o=>o.type==="destructible_wall")
+      .map(o=>[o.id,o.type==="destructible_wall"?o.hp:0]));
+    const from:[number,number,number]=[0,1.6,60];
+    let shots=0,shutterShots=0,damShots=0;
+    while(shots<12&&!floodgateBreached(walls)){
+      const hit=closestCoverHit(map.cover,from,[0,0,-1],84.7*1.72,rayBox);
+      const id=hit?.box.environmentId;
+      expect(id).toBeDefined();
+      const result=applyLinkedWallDamage(walls,id!,74);
+      expect(result).not.toBeNull();
+      if(id==="floodgate_maintenance_shutter")shutterShots++;else if(id===FLOODGATE_CORE_ID)damShots++;
+      if(result?.hp===0)for(const x of result.ids)breakEnvironmentWall(map,x);
+      shots++;
+    }
+    expect(shutterShots).toBe(4);
+    expect(damShots).toBe(5);
+    expect(floodgateBreached(walls)).toBe(true);
+  });
+  test("dam backdrop no longer draws an invulnerable full-height central gate",()=>{
+    const backdrop=buildFloodgateBackdrop(new THREE.Scene());
+    const gate=backdrop.getObjectByName("floodgate-intact-gate");
+    expect(gate).toBeInstanceOf(THREE.Mesh);
+    expect((gate as THREE.Mesh<THREE.BoxGeometry>).geometry.parameters.height).toBeLessThan(4);
+    backdrop.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
+      for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
+    }});
   });
   test("spillway waterfalls match the exact steam-damage phase",()=>{
     const map=getMap("floodgate");
