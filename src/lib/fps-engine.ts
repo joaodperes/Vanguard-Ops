@@ -18,9 +18,10 @@ import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from 
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
-import {damBreachStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
+import {floodgateIntegrityStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
 import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual} from "./floodgate-scenery";
+import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -1924,7 +1925,10 @@ export class FPSEngine {
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
-    if(this.map.id==="floodgate")this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
+    if(this.map.id==="floodgate"){
+      this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
+      buildFloodgateColorDressing(this.scene,this.map);
+    }
     if(this.map.id==="whiteout_depot")this.whiteoutSnow=buildWhiteoutSnow(this.scene);
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
@@ -1967,6 +1971,7 @@ export class FPSEngine {
       }
     }
 
+    let floodgateLampIndex=0;
     for(const p of this.map.props ?? []){
       const group=new THREE.Group();
       group.position.set(p.x,p.y??0,p.z);
@@ -1980,7 +1985,7 @@ export class FPSEngine {
       if(isFactoryMachineKind(p.kind)){
         // Machine meshes dress pre-existing blueprint solids; collision remains
         // authoritative in those features instead of being duplicated here.
-        buildFactoryMachinery(group,p.kind,w,d,h);
+        buildFactoryMachinery(group,p.kind,w,d,h,this.map.id==="floodgate"?p.color:undefined);
       }else if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
         bole.position.y=h*.21;bole.castShadow=true;group.add(bole);
@@ -2358,9 +2363,13 @@ export class FPSEngine {
         glow.position.set(1.04,postH-.30,0);group.add(glow);
         // Long streets can have many posts; cap costly dynamic point lights
         // while keeping every lamp's glowing head visible.
-        if((this.map.biome!=="city"&&this.map.biome!=="city_day") ||
-          (Math.abs(Math.round(p.x*7+p.z*11))%11)===0){
-          const pl=new THREE.PointLight(0xffce90,.52,12);
+        const illuminate = this.map.id==="floodgate"
+          ?(++floodgateLampIndex%3===0)
+          : ((this.map.biome!=="city"&&this.map.biome!=="city_day") ||
+          (Math.abs(Math.round(p.x*7+p.z*11))%11)===0);
+        if(illuminate){
+          const pl=new THREE.PointLight(this.map.id==="floodgate"?(p.color??"#ffd39c"):0xffce90,
+            this.map.id==="floodgate"?1.25:.52,this.map.id==="floodgate"?28:12);
           pl.position.set(.95,postH-.32,0);group.add(pl);
         }
       }else if(p.kind==="sign"){
@@ -2441,8 +2450,9 @@ export class FPSEngine {
         g.add(slab);
       } else if (o.type === "destructible_wall") {
         const isDamCore=o.id===FLOODGATE_CORE_ID;
+        const isDamPanel=floodgateDamageTarget(o.id)===FLOODGATE_CORE_ID;
         const wall = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, o.size[1] * 2, o.size[2] * 2),
-          new THREE.MeshStandardMaterial({ color: isDamCore?0xe39747:0x9f7772, roughness: 0.88,
+          new THREE.MeshStandardMaterial({ color: isDamCore?0xf4b754:isDamPanel?0xc18248:0xa27b65, roughness: 0.88,
             emissive:isDamCore?0x6f2e08:0x000000, emissiveIntensity:isDamCore ? 0.55 : 0 }));
         wall.castShadow = true; wall.receiveShadow = true;
         g.add(wall);
@@ -2451,6 +2461,16 @@ export class FPSEngine {
           new THREE.MeshStandardMaterial({ color: 0xf28d52, emissive: 0x7d3010, emissiveIntensity: 0.25 }));
         rim.position.y = o.size[1] - 0.07;
         g.add(rim);
+        if(isDamPanel){
+          // All five orange panels share one structural hit pool, so every
+          // visible section invites fire instead of pretending to be invulnerable.
+          const stripeMat=new THREE.MeshBasicMaterial({color:0xf7d16d});
+          for(const stripeX of [-o.size[0]*.60,0,o.size[0]*.60]){
+            const stripe=new THREE.Mesh(new THREE.BoxGeometry(.34,Math.min(3.4,o.size[1]*1.25),.08),stripeMat);
+            stripe.position.set(stripeX,0,o.size[2]+.075);
+            g.add(stripe);
+          }
+        }
         if(isDamCore){
           // A bright physical target rather than another in-world text sign.
           const plate=new THREE.Mesh(new THREE.TorusGeometry(2.5,.21,8,32),
@@ -2542,6 +2562,7 @@ export class FPSEngine {
     const hp = this.environmentWalls.get(id) ?? original.hp;
     if (hp <= 0) return;
     this.setEnvironmentWallHP(id, Math.max(0, hp - damage));
+    if(!this.opts.online)this.hitMarkerAt=performance.now();
   }
 
   private setEnvironmentWallHP(id: string, hp: number): void {
@@ -2558,6 +2579,15 @@ export class FPSEngine {
         if(id===FLOODGATE_CORE_ID)
           wall.material.color.setRGB(.62+t*.28,.27+t*.30,.08+t*.15);
         else wall.material.color.setRGB(0.4 + t * 0.22, 0.25 + t * 0.12, 0.24 + t * 0.12);
+      }
+    }
+    if(id===FLOODGATE_CORE_ID && hp!==old){
+      // Visible wear spreads across all panel surfaces with the shared pool.
+      const t=Math.max(0,Math.min(1,hp/o.hp));
+      for(const panelId of floodgateBreachTargets(id)){
+        const panel=this.environmentMeshes.get(panelId)?.children[0];
+        if(panel instanceof THREE.Mesh && panel.material instanceof THREE.MeshStandardMaterial)
+          panel.material.color.setRGB(.62+.12*t,.22+.18*t,.12+.14*t);
       }
     }
     if (old > 0 && hp <= 0) {
@@ -8971,8 +9001,8 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?(floodgateBreached(this.environmentWalls)
-          ?damBreachStatus(true,this.map.environment??[],this.environmentTime):undefined)
+        ?floodgateIntegrityStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
+            (this.map.environment??[]).find(o=>o.id===FLOODGATE_CORE_ID&&o.type==="destructible_wall")?.hp??Infinity)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
