@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {floodgateBreachTargets,whiteoutVisibility} from "./map-battle-events";
+import {floodgateBreachTargets,floodgateDamageTarget,whiteoutVisibility} from "./map-battle-events";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -1690,6 +1690,8 @@ function recoverSurvivalPlayers(room: Room) {
 // ---- Bot AI -----------------------------------------------------------------
 /** Authoritative map-object damage. Player shots cannot request a wall's new HP. */
 function damageEnvironmentWall(room: Room, id: string, damage: number): void {
+  // Dam panels are genuine hit zones, not invulnerable 100k-HP decoys.
+  id=floodgateDamageTarget(id);
   const hp = room.environmentWalls.get(id);
   if (hp === undefined || hp <= 0 || !Number.isFinite(damage) || damage <= 0) return;
   const next = Math.max(0, hp - damage);
