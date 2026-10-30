@@ -2,13 +2,15 @@
 
 `floodgate` is a hydroelectric complex supporting CTF, TDM and Kill Confirmed for 3v3, 5v5, 7v7 or 16v16. The actual playable footprint is 352×212 world units, with connected districts and 16 distinct protected rear spawn positions per team.
 
-The dam, reservoir, waterfalls and storm-dark mountain silhouettes form a distant northern backdrop. Every backdrop mesh stays beyond the playable boundary; collision-backed turbine halls, pressure towers and yard props define the spaces players can actually reach.
+The real destructible dam sits at the north spillway (central core near z=-72, four linked gate sections near z=-84). The reservoir, waterfalls, elevated bridge and mountain silhouettes form the distant scenic backdrop; the misleading full-height non-colliding gate was removed. Collision-backed turbine halls, pressure towers and yard props define the playable spaces. The central hall-to-dam sightline stays open for weapon fire while flank cover maintains tactical routes.
 
 ## Routes and objectives
 
 - **Turbine hall:** a collision-backed roof, alternating generator banks, buttresses and switchgear create close and medium-range fights. Broken side walls provide frequent cross-connections.
 - **North spillway:** tall staggered baffles break long sightlines. Pressure grates offer a risky shortcut; wide detours stay open throughout the event. Two low service decks have real stairs and limited views.
 - **South maintenance yard:** containers, freight barriers and pallet cover create an alternate ground route. Two accessible maintenance decks have flanking approaches. A 240-HP shutter opens an extra hall-to-yard passage when destroyed.
+- **Destructible dam:** the five orange-marked structural sections have one shared **360-HP** pool. Shooting any section reduces every section's HP, shown as `DAM INTEGRITY` in the HUD; at zero, all five collision walls disappear and the breach opens. The independent **240-HP maintenance shutter** shows its own progress. Permanent cover directly behind the shutter and within the central firing corridor was split to avoid a visually unchanged wall after destruction. A 74-damage Marksman DMR needs five confirmed shots on the dam or four on the shutter; the end-to-end regression tests verify both from hall and yard positions within weapon range.
+- **Deployments:** the client checks `floodgateRulesVersion: 2` in server snapshots. An outdated multiplayer server triggers a visible warning. Updates committed to the `dev` branch do **not** themselves deploy to a running game/server; the matching frontend and authoritative multiplayer service must be deployed together.
 - **Control bases:** flags at X=±132, deliveries at X=±148. Both are ground-level and outside hazards. Spawn screens, canopy roofs and offset approaches prevent a direct base-to-base shooting lane. Geometry is mirrored across X; the north and south routes deliberately play differently.
 
 The CTF map picker displays all three maps, and Floodgate advertises **Up to 16v16**. Other CTF maps retain their previous 7v7 cap. Full squads assign four defenders and twelve attackers across three lanes; carriers, escorts and flag recovery retain priority over normal assignments. Nearby threats interrupt objective travel.
