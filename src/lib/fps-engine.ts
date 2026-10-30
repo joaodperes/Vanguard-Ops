@@ -1,4 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
+import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,whiteoutIntensity,whiteoutVisibility} from "./map-battle-events";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
@@ -16,9 +17,9 @@ import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from 
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
-import {steamPurgeStatus,type MapEventStatus} from "./map-event-status";
+import {damBreachStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
-import {buildFloodgateBackdrop} from "./floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgateBreachVisual} from "./floodgate-scenery";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -586,6 +587,7 @@ export class FPSEngine {
   private gardenMaterial: THREE.MeshStandardMaterial | null = null;
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
+  private floodgateBackdrop:THREE.Group|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
   private environmentCooldown = new Map<string, number>();
 
@@ -1851,7 +1853,7 @@ export class FPSEngine {
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
-    if(this.map.id==="floodgate")buildFloodgateBackdrop(this.scene);
+    if(this.map.id==="floodgate")this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -2385,6 +2387,13 @@ export class FPSEngine {
   private updateEnvironment(dt: number): void {
     const previous = this.environmentTime;
     this.environmentTime += dt;
+    if(this.map.id==="whiteout_depot" && this.scene.fog instanceof THREE.Fog){
+      const strength=whiteoutIntensity(this.environmentTime);
+      this.scene.fog.near=THREE.MathUtils.lerp(this.map.theme.fogNear,9,strength);
+      this.scene.fog.far=THREE.MathUtils.lerp(this.map.theme.fogFar,42,strength);
+      if(this.scene.background instanceof THREE.Color)
+        this.scene.background.set(this.map.theme.sky).lerp(new THREE.Color("#e2edf4"),strength*.48);
+    }
     for (const o of this.map.environment ?? []) {
       const g = this.environmentMeshes.get(o.id);
       if (!g) continue;
@@ -2456,6 +2465,14 @@ export class FPSEngine {
     }
     if (old > 0 && hp <= 0) {
       breakEnvironmentWall(this.map, id);
+      if(id===FLOODGATE_CORE_ID){
+        for(const panel of floodgateBreachTargets(id)){
+          // The server sends every panel's new HP in snapshots; local play
+          // breaks the identical four colliders immediately after the core.
+          if(this.environmentWalls.has(panel))this.setEnvironmentWallHP(panel,0);
+        }
+        if(this.floodgateBackdrop)setFloodgateBreachVisual(this.floodgateBackdrop,true);
+      }
       this.spawnExplosion(new THREE.Vector3(...o.pos));
     }
   }
@@ -4720,15 +4737,14 @@ export class FPSEngine {
           // the client requested (findOpenRoom matches by mode only — fix that later).
         }
         for (const p of msg.players) this.ensureCombatant(p);
-        // The engine initially uses an FFA preview spawn before the server assigns
-        // a team. For CTF, snap to the authoritative home-tree spawn on join.
-        if (msg.mode === "ctf") {
-          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
-          if (spawn) {
-            this.pos.set(spawn[0], spawn[1], spawn[2]);
-            this.vel.set(0, 0, 0);
-            this.cameraFeetY = spawn[1];
-          }
+        // Never retain the initial FFA preview position in team modes.
+        // The server's assigned team spawn is authoritative for TDM, KC,
+        // CTF and other modes alike, including late lobby joins.
+        const assignedSpawn = msg.players.find(p=>p.id===msg.selfId)?.pos;
+        if(assignedSpawn){
+          this.pos.set(assignedSpawn[0],assignedSpawn[1],assignedSpawn[2]);
+          this.vel.set(0,0,0);
+          this.cameraFeetY=assignedSpawn[1];
         }
         break;
       case "clusterVolley":
@@ -5259,15 +5275,14 @@ export class FPSEngine {
           this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
         }
         for (const p of msg.players) this.ensureCombatant(p);
-        // The engine initially uses an FFA preview spawn before the server assigns
-        // a team. For CTF, snap to the authoritative home-tree spawn on join.
-        if (msg.mode === "ctf") {
-          const spawn = msg.players.find(p => p.id === msg.selfId)?.pos;
-          if (spawn) {
-            this.pos.set(spawn[0], spawn[1], spawn[2]);
-            this.vel.set(0, 0, 0);
-            this.cameraFeetY = spawn[1];
-          }
+        // Never retain the initial FFA preview position in team modes.
+        // The server's assigned team spawn is authoritative for TDM, KC,
+        // CTF and other modes alike, including late lobby joins.
+        const assignedSpawn = msg.players.find(p=>p.id===msg.selfId)?.pos;
+        if(assignedSpawn){
+          this.pos.set(assignedSpawn[0],assignedSpawn[1],assignedSpawn[2]);
+          this.vel.set(0,0,0);
+          this.cameraFeetY=assignedSpawn[1];
         }
         // Track lobby state from the server's response.
         this.lobbyRoomName = msg.roomName;
@@ -8599,7 +8614,8 @@ export class FPSEngine {
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
-      if (d > botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)) continue;
+      if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category),
+        this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
       if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(this.opts.mode === "survival" && e.pos[1] > c.pos[1] + 1.25)) continue;
@@ -8823,7 +8839,9 @@ export class FPSEngine {
       orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
-      mapEvent:this.map.id==="floodgate"?steamPurgeStatus(this.map.environment??[],this.environmentTime):undefined,
+      mapEvent:this.map.id==="floodgate"
+        ?damBreachStatus(floodgateBreached(this.environmentWalls),this.map.environment??[],this.environmentTime)
+        :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
