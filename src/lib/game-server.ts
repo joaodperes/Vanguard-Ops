@@ -1778,7 +1778,7 @@ function tickEnvironment(room: Room, dt: number): void {
         if(!botMoveBlocked(room,player.pos,displaced,player.pos[1]))
           player.pos=clampToArena(room,collideBots(room,displaced,displaced[1]));
       }
-      if(!water.surge||player.spawnProtectedUntil>Date.now())continue;
+      if(!water.surge||(player.spawnProtectedUntil??0)>now)continue;
       const key=player.id+"|floodgate-surge";
       if(now<(room.environmentCooldown.get(key)??0))continue;
       room.environmentCooldown.set(key,now+900);
