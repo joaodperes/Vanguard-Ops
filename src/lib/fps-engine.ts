@@ -20,7 +20,7 @@ import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
 import {damBreachStatus,whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
-import {buildFloodgateBackdrop,setFloodgateBreachVisual} from "./floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual} from "./floodgate-scenery";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -2402,6 +2402,14 @@ export class FPSEngine {
   private updateEnvironment(dt: number): void {
     const previous = this.environmentTime;
     this.environmentTime += dt;
+    // The distant spillway and the playable steam grates share the exact same
+    // authoritative active window. Decorative water no longer suggests damage
+    // while the grates are safe.
+    if(this.map.id==="floodgate"&&this.floodgateBackdrop){
+      const vent=(this.map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
+      if(vent&&vent.type==="spikes")
+        setFloodgatePurgeVisual(this.floodgateBackdrop,periodicHazardPhase(vent,this.environmentTime)==="active");
+    }
     if(this.map.id==="whiteout_depot" && this.scene.fog instanceof THREE.Fog){
       const strength=whiteoutIntensity(this.environmentTime)*whiteoutExposure(this.pos.x,this.pos.z);
       const nvg=this.aiming&&this.adsProgress>.5&&this.sightDef.overlay==="nvg";
@@ -4836,7 +4844,12 @@ export class FPSEngine {
         if (typeof msg.environmentTime === "number") {
           // Snapshot clocks are authoritative; small drift is smoothed to avoid jitter.
           const drift = msg.environmentTime - this.environmentTime;
-          this.environmentTime += Math.abs(drift) > 0.5 ? drift : drift * 0.2;
+          const vent=(this.map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
+          const phaseChanged=vent?.type==="spikes" &&
+            periodicHazardPhase(vent,msg.environmentTime)!==periodicHazardPhase(vent,this.environmentTime);
+          // Never smooth across a hazard boundary: the warning light, jets and
+          // damage frame must use the same server-owned phase.
+          this.environmentTime += phaseChanged || Math.abs(drift)>0.5 ? drift : drift*.2;
         }
         for (const [id, hp] of Object.entries(msg.environmentWalls ?? {})) {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
