@@ -1,50 +1,37 @@
 # Floodgate
 
-`floodgate` is a hydroelectric complex supporting CTF, TDM and Kill Confirmed for 3v3, 5v5, 7v7 or 16v16. The actual playable footprint is 352×212 world units, with connected districts and 16 distinct protected rear spawn positions per team.
+Floodgate is a hydroelectric PvP arena for CTF, TDM and Kill Confirmed. Supported squad sizes include 5v5, 7v7, 9v9 and 16v16; 7v7 is the recommended team size. It has 16 distinct spawn positions per side, plus a 32-player FFA spawn layout.
 
-The real destructible dam sits at the north spillway (central core near z=-72, four linked gate sections near z=-84). The reservoir, waterfalls, elevated bridge and mountain silhouettes form the distant scenic backdrop; the misleading full-height non-colliding gate was removed. Collision-backed turbine halls, pressure towers and yard props define the playable spaces. The central hall-to-dam sightline stays open for weapon fire while flank cover maintains tactical routes.
+## Dam collapse — a one-time match-changing flood
 
-## Routes and objectives
+- **Dam placement:** Five linked orange/brown structural sections occupy the north playable edge at **z=-99** (boundary near z=-106), spanning x=-56 to x=56. The orange central core and all four panels share **1,800 HP** in a single authoritative pool.
+- **Damage:** Fire into any exposed dam section; bullets and explosive hits all contribute to the same health. A 74-damage Marksman DMR requires **25 registered shots** to break the dam. The 240-HP maintenance shutter remains independent.
+- **Collapse:** All five dam colliders disappear atomically, opening the northern view and releasing the reservoir. This cannot reset or be farmed during the match.
+- **Hydraulic surge:** A large white-capped flood front travels from z=-103 to z=-36 in **14 seconds**. Ground-level players caught in the moving front take **28 damage per 900 ms**, are pushed south at approximately 9 units/s, and experience 60% movement-speed reduction. Existing collision still blocks pushes through walls.
+- **Permanent aftermath:** Low ground inside x=±62 and z=-103..-36 remains flooded for the remainder of the match: 32% movement-speed penalty plus a steady southbound 1.1-unit/s current. Tactical positioning, north-lane chases and flag-carrier escapes change materially.
+- **Counterplay:** The outer flanks (beyond x=±62), central/south lanes and elevated decks higher than 2.2 units remain dry. Flooding does not make captures or team spawns impossible. Timed steam grates stop activating once flood water overwhelms the northern spillway.
+- **Visuals:** The breached wall disappears, torrent falls from the dam, an animated water-and-foam front crosses the playable strip, spray follows the crest, and a deep cyan inundation remains on the low ground. The visuals own no physics; client and server both use `floodgateWaterEffect` for gameplay.
+- **HUD:** No dam integrity, damage percentage, or breach-complete banner. The collapse is communicated spatially. Only an out-of-date multiplayer-server warning is allowed, to prevent misleading gameplay after an incompatible deployment.
 
-- **Turbine hall:** a collision-backed roof, alternating generator banks, buttresses and switchgear create close and medium-range fights. Broken side walls provide frequent cross-connections.
-- **North spillway:** tall staggered baffles break long sightlines. Pressure grates offer a risky shortcut; wide detours stay open throughout the event. Two low service decks have real stairs and limited views.
-- **South maintenance yard:** containers, freight barriers and pallet cover create an alternate ground route. Two accessible maintenance decks have flanking approaches. A 240-HP shutter opens an extra hall-to-yard passage when destroyed.
-- **Destructible dam:** the five orange-marked structural sections have one shared **360-HP** pool. Shooting any section reduces every section's HP, shown as `DAM INTEGRITY` in the HUD; at zero, all five collision walls disappear and the breach opens. The independent **240-HP maintenance shutter** shows its own progress. Permanent cover directly behind the shutter and within the central firing corridor was split to avoid a visually unchanged wall after destruction. A 74-damage Marksman DMR needs five confirmed shots on the dam or four on the shutter; the end-to-end regression tests verify both from hall and yard positions within weapon range.
-- **Deployments:** the client checks `floodgateRulesVersion: 2` in server snapshots. An outdated multiplayer server triggers a visible warning. Updates committed to the `dev` branch do **not** themselves deploy to a running game/server; the matching frontend and authoritative multiplayer service must be deployed together.
-- **Control bases:** flags at X=±132, deliveries at X=±148. Both are ground-level and outside hazards. Spawn screens, canopy roofs and offset approaches prevent a direct base-to-base shooting lane. Geometry is mirrored across X; the north and south routes deliberately play differently.
+The breach time is recorded in the match environment clock and replicated in each snapshot (`floodgateBreachAt`); late joiners see the correct current wave phase or the permanent flooded aftermath. Compatibility requires `floodgateRulesVersion: 3`. Deploying to GitHub `dev` alone does not update a running client/server.
 
-The CTF map picker displays all three maps, and Floodgate advertises **Up to 16v16**. Other CTF maps retain their previous 7v7 cap. Full squads assign four defenders and twelve attackers across three lanes; carriers, escorts and flag recovery retain priority over normal assignments. Nearby threats interrupt objective travel.
+## Routes and hazards
 
-## Pressure purge
+- **Turbine hall:** Collision-backed roof, alternating generator banks and split switchgear. The central approach provides an actual line of fire to the dam.
+- **Northern spillway:** Staggered baffles, a 5-section dam at the northern border, four timed steam grates *before* collapse, raised decks for the post-collapse fight.
+- **Southern maintenance yard:** Freight containers, pallets and a 240-HP maintenance shutter; these remain safely outside flood waters.
+- **Control bases:** Ground-level flags at x=±132 and deliveries at x=±148. Spawn screens and offsets prevent direct base-to-base sniping.
 
-All four spillway grates share one 48-second cycle of active match time:
+Before the dam collapses, four pressure vents use a 36-second shared repeating period, with a 7-second warning and 8-second active steam window. The hazard's warning is communicated by the flashing grates **without HUD countdowns**. After collapse, vents stop dealing steam damage, and the flood surge replaces them as the northern hazard.
 
-| First cycle | State | Player feedback |
-| --- | --- | --- |
-| 0–30 seconds | Idle | Teal grate rims and HUD countdown |
-| 30–36 seconds | Warning | Flashing amber rims; HUD says to clear the grates |
-| 36–42 seconds | Purging | Visible steam jets; 28 damage per 900 ms to occupants |
-| 42–78 seconds | Idle | Next purge approaches |
+## Implementation and checks
 
-The six-second warning precedes each six-second activation. Neither team owns the event; all players use the same timing. Covered hall and maintenance-yard routes remain safe, flags/spawns are outside all hazard bounds, and bots conservatively avoid pressure grates even while idle. Normal gravity applies.
+- Geometry, hazards and spawn points: `src/data/map-blueprints.json`
+- Colors and non-colliding machinery dressing: `src/data/map-themes/floodgate.json`
+- Shared flood geometry/damage predicates: `src/lib/map-battle-events.ts`
+- Server-authoritative breach time, flood damage, bot movement, timed-vent cancellation: `src/lib/game-server.ts`
+- Client prediction, offline damage and bot navigation: `src/lib/fps-engine.ts`
+- Reused meshes and advancing wave: `src/lib/floodgate-scenery.ts`
+- Regression tests: `tests/map-battle-events.test.ts`, `tests/floodgate.test.ts` and shared layout/bot suites.
 
-The existing periodic damage object (`type: "spikes"`) accepts `visual: "steam"` and `warningFor: 6`. Both offline gameplay and the server use `periodicHazardPhase()`; online rendering/HUD follow `environmentTime` snapshots, including late joins. The event uses nine reusable meshes per grate, no spawned particles and no extra point lights. The maintenance shutter has room-local destruction state.
-
-## Source and validation
-
-- Layout, spawns and hazards: `src/data/map-blueprints.json`, under `maps.floodgate`.
-- Palette, materials and props: `src/data/map-themes/floodgate.json`, imported by `map-visuals.ts`.
-- Registration/capacity: `game-protocol.ts`; objective positions and bot roles: `ctf-rules.ts`.
-- Regressions: `tests/floodgate.test.ts`, plus the shared map/capacity/material suites.
-
-Automated traversal checks sweep actual collision with all pressure grates forbidden and the shutter intact, proving three independent cross-map ground routes. Sampled horizontal sightlines at ground eye height and service-deck eye height must stay below 112 units across the combat area. These samples do not prove every possible diagonal sightline is short. Tests also check spawn clearance, compiled feature preservation, flag actions, bot destinations, event boundaries, editor round trips and fixed animation resources.
-
-Human offline/online 16v16 playtests remain necessary for balance, player readability, grenade behavior, carrier travel times and hardware-specific performance. Follow `docs/dev-test-checklist.md` before promoting to `main`.
-
-## Development checks — 2026-10-29
-
-Content validation, the complete 520-test suite, TypeScript and the production build pass. The map regressions include complete enemy-flag and carrier-return navigation in both directions, in addition to independent lane traversal and clearance checks.
-
-A live Socket.IO room ran with 32 combatants, 16 on each team, through 44 seconds of active match time. A second client joined during the warning, replaced a bot and received the current event clock and correct delivery positions. The run received 981 host snapshots; all event phases occurred, 25 living bots reached the combat area, and no living bots were embedded in solid geometry at the final sample.
-
-Browser checks verified the three-card CTF picker, 16v16 selection and 31-bot fill summary. The actual FPS renderer and HUD displayed both delivery rings, the warning and active purge without JavaScript errors. Four repeated active cycles kept geometry, texture, object and draw-call counts identical after initial allocation. These are automated development checks, not a human 32-player balance or hardware-performance sign-off.
+Regression checks should cover high-ground and flank safety, an actual 25-hit Marksman DMR sequence, absence of permanent cover masking the core, replicated breach age, flooded front animation with constant draw-call count, and all CTF routes remaining traversable. Human offline and multiplayer playtesting is still recommended before promoting to `main`.
