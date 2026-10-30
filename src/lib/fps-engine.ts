@@ -22,7 +22,7 @@ import {whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
 import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual,updateFloodgateBreachVisual} from "./floodgate-scenery";
 import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
-import {buildFloodgateFreight,updateFloodgateFreight,freightStage,setFloodgateFreightStage} from "./floodgate-topple";
+import {buildFloodgateFreight,updateFloodgateFreight,freightStage,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import {buildFloodgateDamCracks,updateFloodgateDamCracks} from "./floodgate-dam-cracks";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
@@ -8584,7 +8584,7 @@ export class FPSEngine {
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,this.map.environment,
+          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
             this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
@@ -8769,7 +8769,7 @@ export class FPSEngine {
             (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
             ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
-              this.map.environment,this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000);
+              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000);
             ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
           const waypoint=ai.routeWaypoint;
