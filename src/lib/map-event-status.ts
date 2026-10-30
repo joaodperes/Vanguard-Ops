@@ -1,5 +1,6 @@
 import type { EnvironmentObject } from "./game-protocol";
 import {periodicHazardPhase} from "./dynamic-environment";
+import {whiteoutWindow} from "./map-battle-events";
 
 export interface MapEventStatus {phase:"idle"|"warning"|"active";label:string;secondsLeft:number}
 
@@ -15,4 +16,16 @@ export function steamPurgeStatus(environment:readonly EnvironmentObject[],second
     phase==="warning"?`Pressure purge in ${secondsLeft}s · clear the grates`:
     `Spillway purge in ${secondsLeft}s`;
   return {phase,label,secondsLeft};
+}
+
+/** A permanent dam failure takes precedence over the former vent countdown. */
+export function damBreachStatus(breached:boolean,environment:readonly EnvironmentObject[],seconds:number):MapEventStatus|undefined {
+  if(breached)return {phase:"active",label:"DAM BREACHED · northern spillway opened",secondsLeft:0};
+  return steamPurgeStatus(environment,seconds);
+}
+export function whiteoutWeatherStatus(seconds:number):MapEventStatus {
+  const event=whiteoutWindow(seconds);
+  return {phase:event.phase,secondsLeft:event.secondsLeft,
+    label:event.phase==="active"?"BLIZZARD · visibility reduced":event.phase==="warning"
+      ?`Blizzard arriving in ${event.secondsLeft}s`:`Clear skies · next blizzard in ${event.secondsLeft}s`};
 }
