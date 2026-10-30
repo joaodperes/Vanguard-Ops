@@ -16,8 +16,14 @@ export function whiteoutIntensity(seconds:number):number {
   if(t<65)return (65-t)/10;
   return 0;
 }
-export function whiteoutVisibility(seconds:number):number {
-  return 160-122*whiteoutIntensity(seconds);
+/** Freight sheds and the southern service galleries shelter infantry from wind. */
+export function whiteoutExposure(x:number,z:number):number {
+  const shed=Math.abs(z)<17&&Math.abs(x)>10&&Math.abs(x)<72;
+  const gallery=z>31&&z<57&&Math.abs(x)<80;
+  return shed||gallery?.25:1;
+}
+export function whiteoutVisibility(seconds:number,pos?:readonly number[]):number {
+  return 160-122*whiteoutIntensity(seconds)*(pos?whiteoutExposure(pos[0],pos[2]):1);
 }
 export function whiteoutWindow(seconds:number):{phase:"idle"|"warning"|"active";secondsLeft:number}{
   const t=Math.max(0,seconds)%WHITEOUT_CYCLE_SECONDS;
