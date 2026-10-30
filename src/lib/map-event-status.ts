@@ -37,3 +37,17 @@ export function floodgateIntegrityStatus(currentHp:number,maxHp:number):MapEvent
   const pct=Math.max(1,Math.ceil(100*currentHp/maxHp));
   return {phase:"warning",label:`DAM INTEGRITY ${pct}% · keep firing at the orange panels`,secondsLeft:0};
 }
+
+/** Shutter and dam are distinct targets: tell players which structure they hit.
+ * Never replace dam progress with a generic purge countdown. */
+export function floodgateObjectiveStatus(
+  coreHp:number,coreMaxHp:number,shutterHp:number,shutterMaxHp:number,
+):MapEventStatus|undefined{
+  const dam=floodgateIntegrityStatus(coreHp,coreMaxHp);
+  if(dam)return dam;
+  if(!Number.isFinite(shutterHp)||!Number.isFinite(shutterMaxHp)||shutterMaxHp<=0)return undefined;
+  if(shutterHp<=0)
+    return {phase:"active",label:"MAINTENANCE SHUTTER OPEN · northern dam still intact",secondsLeft:0};
+  if(shutterHp>=shutterMaxHp)return undefined;
+  return {phase:"warning",label:`MAINTENANCE SHUTTER ${Math.max(1,Math.ceil(shutterHp/shutterMaxHp*100))}% · keep firing`,secondsLeft:0};
+}
