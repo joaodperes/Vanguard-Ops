@@ -10,15 +10,21 @@ An arcing grenade launcher with two charges, 32 seconds to regenerate each charg
 
 ## Bulwark + P-9 (`wonder_riot_shield`)
 
-The shield and P-9 occupy one Primary slot and consume one permanent Wonder unlock. A separately selected secondary remains independent. No ordinary attachments or charms are supported.
+The shield and P-9 occupy one Primary slot and consume one permanent Wonder unlock. A separately selected secondary remains independent. Wonder Weapons have no attachment, skin or challenge tabs; unlocked Wonders allow loadout-slot reticles and account-owned charms (no changes to weapon stats).
 
 - Shield starts at **250 HP**. At hip level it covers the left front; its inner edge points forward (`/` from above), and the first-person angle is aligned with the collision/world-model plane; the normal P-9 can fire from the right hand. The P-9 uses its normal damage, cadence, magazine and reload, with reduced movement speed for the combination.
 - Hold the ordinary ADS control (right mouse or touch ADS) to brace the shield across the front. This blocks frontal bullet rays, including the transparent viewport, and prevents P-9 fire. Releasing ADS lowers it. Auto-ADS-on-fire never raises this shield automatically, and bracing does not zoom the camera.
 - Back, sides and rays outside the physical rectangle remain vulnerable. Melee, explosions, poison, flame and chained/area energy effects bypass the bullet panel.
-- The breaking bullet is absorbed; following bullets hit health. A broken shield disappears, is labeled BROKEN in the HUD, and no longer prevents the P-9 firing.
-- Holstering removes protection. Swapping, reloading or collecting ammo never repairs the shield; a normal respawn/new match restores durability. Magazine reloads and secondary ammo remain independent of shield health.
+- The breaking bullet is absorbed; following bullets hit health. A broken shield disappears, is labeled BROKEN in the HUD, and no longer prevents the P-9 firing. It fully rebuilds after **32 seconds**, accelerated by **2 seconds for every kill** (including Bulwark P-9 kills) even while holstered; a HUD countdown displays the remaining time.
+- Holstering removes protection. Swapping, reloading or collecting ammo never instantly repairs the shield; only the rebuild timer or a normal respawn/new match restores durability. Magazine reloads and secondary ammo remain independent of shield health. The shield shows accumulating scratches and visor cracks as durability falls, visible to the carrier and other players; absorbed bullets cause a short subtle blue-grey edge flash without affecting health or the health-damage effect.
 
-`riot-shield.ts` owns the rectangle, orientation, ray test, damage and firing lockout. Both server and offline bullet traces compare the panel against body and cover distances, so it can also stop a bullet traveling toward a combatant behind the carrier. The server derives bracing from its observed ADS/reload/sprint state, owns HP, and includes it in snapshots. No client packet can declare its own durability. `usesWonderCharges()` separates Wonder ownership from ammunition behavior; shield magazines must never enter the Wonder-charge loop.
+`riot-shield.ts` owns the rectangle, orientation, ray test, damage and firing lockout. Both server and offline bullet traces compare the panel against body and cover distances, so it can also stop a bullet traveling toward a combatant behind the carrier. The server derives bracing from its observed ADS/reload/sprint state, owns HP, and includes it in snapshots. No client packet can declare its own durability or cooldown. The server timestamps shield rebuild and replicates HP/deadline in snapshots; offline uses the same shared state rules. `usesWonderCharges()` separates Wonder ownership from ammunition behavior; shield magazines must never enter the Wonder-charge loop.
+
+The shared timer/state helpers in `riot-shield.ts` and visual stages in
+`riot-shield-model.ts` have regression tests in `tests/riot-shield-recharge.test.ts`.
+Manual checks still need to cover multi-client hit flashes, all-angle panel
+scratches, restoring after a kill-accelerated countdown, and swapping while
+rebuilding. The retired "restores only on respawn" behavior is no longer valid.
 
 ## Combat and audio
 
