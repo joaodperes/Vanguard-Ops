@@ -1693,6 +1693,36 @@ export class FPSEngine {
     },excluded);
     for(const id of targets)this.offlineOrbitalStrikeDamage(id,ORBITAL_PULSE_DAMAGE,attacker);
   }
+  /** Gun Game's final tier uses the normal melee arc and cover rules, even for
+   * AI opponents. Ordinary bot weapon pools never contain melee equipment. */
+  private offlineBotMeleeSwing(attacker:Combatant,weaponId:string){
+    const profile=quickMeleeProfile(weaponById(weaponId).stats,weaponId);
+    const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
+      .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
+        protected:(c.spawnProtectedUntil??0)>Date.now(),
+        friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===attacker.team}));
+    candidates.push({id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+      alive:this.alive,protected:this.selfSpawnProtectedUntil>Date.now(),
+      friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&this.opts.team===attacker.team});
+    const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
+      (victim,dist)=>{
+        const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
+        const dir:Vec3=[(victim.pos[0]-attacker.pos[0])/dist,0,
+          (victim.pos[2]-attacker.pos[2])/dist];
+        return !this.map.cover.some(box=>{
+          const hit=rayBox(eye,dir,box.pos,box.size);
+          return hit!==null&&hit>.08&&hit<dist-.15;
+        });
+      },profile.reach,profile.halfArcDegrees);
+    if(!target)return;
+    if(target.id===this.selfId){
+      this.takeDamage(profile.damage,attacker.name,attacker.team,false,weaponId);
+    }else{
+      const victim=this.combatants.get(target.id);
+      if(victim)this.applyDamageLocal(victim,profile.damage,false,weaponId);
+    }
+  }
+
   private offlineOrbitalBotSwing(attacker:Combatant){
     const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
       .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
@@ -8349,8 +8379,8 @@ export class FPSEngine {
       }
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
         (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
-      const ideal = stance.idealDistance;
-      const chaseThreshold=w.id===ORBITAL_REAPER_ID?3:ideal+3;
+      const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
+      const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
       // Determine the desired movement vector for this frame.
       let mvx = 0, mvz = 0;
       if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
@@ -8449,8 +8479,9 @@ export class FPSEngine {
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        if(w.id===ORBITAL_REAPER_ID){
-          this.offlineOrbitalBotSwing(c);
+        if(w.category==="melee"){
+          if(w.id===ORBITAL_REAPER_ID)this.offlineOrbitalBotSwing(c);
+          else this.offlineBotMeleeSwing(c,w.id);
         }else{
           const pellets = eff.pellets ?? 1;
           for (let i = 0; i < pellets; i++) {
@@ -8458,17 +8489,17 @@ export class FPSEngine {
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
         }
-        if(w.id!==ORBITAL_REAPER_ID)this.spawnTracer(origin, dir, c.weaponSkinId);
+        if(w.category!=="melee")this.spawnTracer(origin, dir, c.weaponSkinId);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
-        ai.ammoInMag--;
+        if(w.category!=="melee")ai.ammoInMag--;
         c.spawnProtectedUntil = 0; // attacking cancels bot spawn protection
         if (c.shieldMesh) c.shieldMesh.visible = false;
-        this.recordRadarShot(c.id, c.pos, c.team, ai.attachments.barrel === "barrel_suppressor");
+        if(w.category!=="melee")this.recordRadarShot(c.id, c.pos, c.team, ai.attachments.barrel === "barrel_suppressor");
         // Enemy fire sound: distance-attenuated + muffled if suppressed.
         // Bots in offline mode have null barrel attachments (no suppressors),
         // but the check is wired correctly so a future loadout pass would Just Work.
-        if(w.id!==ORBITAL_REAPER_ID)this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
+        if(w.category!=="melee")this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
         // Accumulate spray drift from this shot (recovers when not firing).
         const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
         ai.sprayDriftPitch += driftKick;  // climb up
