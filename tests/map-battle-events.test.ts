@@ -42,12 +42,19 @@ describe("Floodgate one-time Levolution",()=>{
 describe("Whiteout tactical storm",()=>{
   test("storm and HUD loop are repeatable",()=>{
     expect(whiteoutIntensity(0)).toBe(0);
-    expect(whiteoutWindow(15).phase).toBe("warning");
+    expect(whiteoutWindow(15).phase).toBe("idle");
+    expect(whiteoutWeatherStatus(15).label).toBe("Clear skies");
+    expect(whiteoutWindow(25).phase).toBe("warning");
+    expect(whiteoutIntensity(29.99)).toBe(0);
+    expect(whiteoutIntensity(30.01)).toBeGreaterThan(0);
     expect(whiteoutWindow(40).phase).toBe("active");
     expect(whiteoutIntensity(40)).toBe(1);
     expect(whiteoutIntensity(80)).toBe(0);
     expect(whiteoutIntensity(40+WHITEOUT_CYCLE_SECONDS)).toBe(1);
-    expect(whiteoutWeatherStatus(15).label).toContain("arriving");
+    expect(whiteoutWeatherStatus(25).label).toContain("arriving");
+    expect(whiteoutWindow(29).secondsLeft).toBe(1);
+    expect(whiteoutWindow(10).phase).toBe("idle");
+    expect(whiteoutWindow(20).phase).toBe("warning");
     expect(whiteoutWeatherStatus(40).label).toContain("BLIZZARD");
   });
   test("weather restricts outdoor sightlines but rewards sheltered flanks",()=>{
