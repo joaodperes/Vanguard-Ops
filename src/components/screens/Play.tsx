@@ -586,11 +586,11 @@ export function Play() {
                 </div>
               </div>
               {/* Identity, live summary, loadout and deployment share one full-width panel. */}
-              <section className="relative lg:col-span-2 rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-5 sm:p-6 overflow-hidden">
+              <section className="relative rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-5 sm:p-6 overflow-hidden">
                 <div className="absolute -top-24 -right-16 w-56 h-56 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ background: MATCH_MODES[roomConfig.mode].accentColor }} />
                 <div className="relative flex items-center gap-2 mb-5">
                   <DoorOpen className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-white font-bold text-sm uppercase tracking-wider">Room Setup &amp; Summary</h3>
+                  <h3 className="text-white font-bold text-sm uppercase tracking-wider">Room Setup</h3>
                 </div>
                 <div className="relative grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.3fr)_minmax(260px,0.95fr)] gap-6">
                   <div className="min-w-0">
