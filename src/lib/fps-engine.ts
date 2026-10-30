@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
+import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
@@ -2502,6 +2502,7 @@ export class FPSEngine {
   }
 
   private damageEnvironmentWall(id: string, damage: number): void {
+    id=floodgateDamageTarget(id);
     const original = (this.map.environment ?? []).find(o => o.id === id);
     if (!original || original.type !== "destructible_wall") return;
     const hp = this.environmentWalls.get(id) ?? original.hp;
