@@ -1,6 +1,9 @@
 import {describe,expect,test} from "bun:test";
 import {getMap} from "../src/lib/game-protocol";
-import {makeEnvironmentMap,breakEnvironmentWall} from "../src/lib/dynamic-environment";
+import {makeEnvironmentMap,breakEnvironmentWall,closestCoverHit,periodicHazardPhase,spikesActive} from "../src/lib/dynamic-environment";
+import {rayBox} from "../src/lib/game-protocol";
+import * as THREE from "three";
+import {buildFloodgateBackdrop,setFloodgatePurgeVisual} from "../src/lib/floodgate-scenery";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {visualThemeForMap} from "../src/lib/map-visuals";
 import {damBreachStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
@@ -26,6 +29,31 @@ describe("Floodgate one-time Levolution",()=>{
     for(const id of ids)breakEnvironmentWall(map,id);
     for(const id of ids)expect(map.cover.some(c=>c.environmentId===id)).toBe(false);
     expect(damBreachStatus(true,map.environment??[],60)?.label).toContain("DAM BREACHED");
+  });
+  test("shots at the front-mounted yellow dam core hit the objective before permanent cover",()=>{
+    const map=makeEnvironmentMap(getMap("floodgate","tdm"));
+    const core=(map.environment??[]).find(o=>o.id===FLOODGATE_CORE_ID);
+    expect(core?.type).toBe("destructible_wall");
+    expect(core?.pos[1]).toBeLessThan(5);
+    const hit=closestCoverHit(map.cover,[0,1.5,-55],[0,0,-1],45,rayBox);
+    expect(hit?.box.environmentId).toBe(FLOODGATE_CORE_ID);
+    expect(hit?.distance).toBeLessThan(20);
+  });
+  test("spillway waterfalls match the exact steam-damage phase",()=>{
+    const map=getMap("floodgate");
+    const vent=(map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
+    if(!vent||vent.type!=="spikes")throw Error("No steam vent");
+    const group=buildFloodgateBackdrop(new THREE.Scene());
+    for(const [time,expected] of [[19,false],[26,true],[34,false]] as const){
+      const active=spikesActive(vent,time);
+      expect(active).toBe(expected);
+      expect(periodicHazardPhase(vent,time)==="active").toBe(active);
+      setFloodgatePurgeVisual(group,active);
+      expect(group.children.filter(c=>c.name==="floodgate-purge-spill").every(c=>c.visible===active)).toBe(true);
+    }
+    group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
+      for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
+    }});
   });
   test("32-player rear spawn zones are separated by team",()=>{
     const map=getMap("floodgate","tdm");
