@@ -62,11 +62,12 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -362,6 +363,9 @@ interface BotAI {
   // The resolved difficulty for this bot (never "mixed" — that's rolled at
   // spawn time into one of easy/normal/hard/veteran). Used for rewards scaling.
   difficulty: Exclude<BotDifficulty, "mixed">;
+  archetype: BotArchetype;
+  ctfGuarding?: boolean;
+  idleLookYaw?: number;
   // ---- Stuck detection / recovery ----
   // Tracks when the bot started being stuck (ms timestamp). 0 = not stuck.
   // Each tick we measure how far the bot moved since lastPosX/lastPosZ; if it
@@ -4191,21 +4195,23 @@ export class FPSEngine {
 
   private setupOfflineBots() {
     let i = 0;
-    const botWeapons = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
     const isGungame = this.opts.mode === "gungame";
     for (let n = 0; n < this.opts.botCount; n++) {
       const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
       const id = "bot_" + n;
       const sp = this.pickSpawn(team);
-      const wid = isGungame ? this.gungameWeapons[0] : botWeapons[i % botWeapons.length];
+      const teamSlot = team === "ffa" ? i : Math.floor(i/2);
+      const archetype = botArchetypeForSlot(teamSlot);
+      const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(teamSlot/4));
       const c: Combatant = {
         id, name: "Bot-" + (n + 1), team, isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
         weaponId: wid, weaponSkinId: "default", playerSkinId: isGungame ? "default" : ["default", "red", "blue", "green"][i % 4],
         kills: 0, deaths: 0, score: 0,
-        ai: this.makeBotAI(sp),
+        ai: this.makeBotAI(sp,undefined,archetype),
         gungameIndex: isGungame ? 0 : undefined,
       };
+      if(c.ai)c.ai.ammoInMag=weaponById(wid).stats.magSize;
       this.combatants.set(id, c);
       this.addCombatantMesh(c);
       i++;
@@ -4222,7 +4228,7 @@ export class FPSEngine {
   // veteran = 0.80..0.95). "mixed" rolls a random difficulty per bot. Higher skill =
   // faster reaction, tighter aim, fewer misses. The resolved difficulty is stored on
   // the BotAI so per-kill rewards can scale with the victim's tier.
-  private makeBotAI(sp: Vec3, overrideDifficulty?: Exclude<BotDifficulty, "mixed">): BotAI {
+  private makeBotAI(sp: Vec3, overrideDifficulty?: Exclude<BotDifficulty, "mixed">, archetype: BotArchetype = "rifleman"): BotAI {
     const skillRange: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
       easy: [0.28, 0.45],
       normal: [0.45, 0.65],
@@ -4249,9 +4255,9 @@ export class FPSEngine {
       ammoInMag: 30,
       reloadingUntil: 0,
       strafeDir: Math.random() < 0.5 ? 1 : -1,
-      moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
+      moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff) * botPersonality(archetype).moveScale,
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
-      wantsHighGround: Math.random() < botTactics(diff).highGround,
+      wantsHighGround: Math.random() < botArchetypeHighGroundChance(archetype,botTactics(diff).highGround),
       acquiredTargetAt: 0,
       skill,
       burstShotsLeft: 0,
@@ -4264,6 +4270,7 @@ export class FPSEngine {
       nextAimErrorAt: 0,
       wantsReload: false,
       difficulty: diff,
+      archetype,
       stuckSince: 0,
       lastPosX: sp[0],
       lastPosZ: sp[2],
@@ -4320,7 +4327,7 @@ export class FPSEngine {
       const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
-      const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave));
+      const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
@@ -8234,12 +8241,14 @@ export class FPSEngine {
       const orbitalObjective=orbitalBotShouldContest(this.map.id,this.orbitalCharge,
         roster.find(b=>b.id===c.id)!,roster,threatDistance)
         ?orbitalBotDeckGoal(c.pos,c.team):null;
-      const ctfObjective = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
-        ? ctfStairWaypoint(ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
+      const ctfIntent = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
+        ? ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id).goal,c.pos,this.map.id)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id)
         : null;
+      const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map.id) : null;
+      ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated
       // climbers first approach their real stair entry when combat is not
@@ -8342,7 +8351,7 @@ export class FPSEngine {
       const aimSettled = now - ai.acquiredTargetAt >=
         botReactionDelay(ai.difficulty) + eff.adsTime * 750;
       const stance = botCombatDecision(w.category, dist, clearShot,
-        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty);
+        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty,ai.archetype);
       ai.sprinting = stance.sprinting;
       ai.aiming = stance.aiming;
       if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
@@ -8431,7 +8440,7 @@ export class FPSEngine {
       // Start a new burst if the previous one is exhausted
       if (isAuto && ai.burstShotsLeft <= 0 && now >= ai.burstEndsAt && reacted) {
         // Skill-scaled burst length: better bots fire longer, more controlled bursts.
-        ai.burstShotsLeft = Math.max(2, Math.round(3 + ai.skill * 4 + (Math.random() - 0.5) * 2));
+        ai.burstShotsLeft = Math.max(2, Math.round(3 + ai.skill * 4 + (Math.random() - 0.5) * 2 + botPersonality(ai.archetype).extraBurstShots));
       }
       // Distance-scaled extra spread: bots are less accurate at long range.
       const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
@@ -8514,13 +8523,21 @@ export class FPSEngine {
         ai.burstEndsAt = now + durationMs;
       }
     } else {
-      ai.aiming = false;
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
       const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
-      ai.sprinting = botPatrolSprint(d,ai.difficulty);
+      ai.aiming=ai.archetype==="marksman" && d<=2.5;
+      ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
+      if(d<=1.5){
+        if(ai.ctfGuarding&&(c.team==="red"||c.team==="blue")){
+          c.yaw=this.lerpAngle(c.yaw,ctfDefenderScanYaw(c.team,c.pos,c.id,this.map.id),.12);
+        }else if(ai.archetype==="marksman"){
+          if(ai.idleLookYaw===undefined)ai.idleLookYaw=c.yaw;
+          c.yaw=this.lerpAngle(c.yaw,ai.idleLookYaw+Math.sin(now/2300+c.id.length)*.5,.1);
+        }
+      }else ai.idleLookYaw=undefined;
       if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
