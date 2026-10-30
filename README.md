@@ -37,10 +37,14 @@ persistent **combat archetype**:
 | Marksman | DMRs / snipers | Longer standoff distance, ADS lane-watching, less sprinting, high-ground preference |
 | Support | LMGs | Longer bursts, steady lane coverage and more deliberate movement |
 
-Offline and multiplayer team bot slots rotate through these archetypes so large
-squads do not all behave identically. Survival's wider random weapon pool assigns
-an archetype matching the chosen weapon. Gun Game still uses its fixed weapon
-progression; personalities adapt rather than replacing the assigned gun.
+Offline and multiplayer bots select from all **30 supported conventional ranged
+weapons**, with archetype-weighted pools so weapon choices fit their fighting
+style. This includes pistols and PDWs as the bot's equipped weapon; bots do not
+yet independently manage primary and secondary slots or switch weapons to
+finish an enemy. Wonder Weapons, launchers, melee weapons, and the Electron
+Rifle / Arc Pistol / Reclaimer Crossbow (bespoke mechanics) are excluded.
+Survival uses the same eligible catalog and derives its personality from the
+selected weapon. Gun Game continues to use its fixed progression.
 
 In CTF, roughly a quarter of each squad defends its base while others attack.
 Defenders patrol staggered positions **in front of** the flag and scan incoming
