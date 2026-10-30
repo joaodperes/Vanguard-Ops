@@ -1354,6 +1354,7 @@ export interface PlayerNet {
   playerSkinId: string;
   charmId?: string;
   nameplateId?: string;
+  bossMaxHealth?: number;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1416,6 +1417,9 @@ export interface SnapshotPlayer {
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
   charmId?: string; nameplateId?: string;
+  /** Optional Survival boss HUD/armor metadata sent by the server. */
+  bossMaxHealth?: number;
+  bossCharge?: number;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
