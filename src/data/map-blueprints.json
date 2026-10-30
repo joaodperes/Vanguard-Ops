@@ -3449,7 +3449,7 @@
           "x": 0,
           "z": -100,
           "y": 8,
-          "w": 19,
+          "w": 20,
           "d": 5,
           "h": 16,
           "hp": 850
@@ -3457,10 +3457,10 @@
         {
           "id": "floodgate_dam_west_outer",
           "type": "destructible_wall",
-          "x": -42,
+          "x": -40,
           "z": -100,
           "y": 8,
-          "w": 19,
+          "w": 20,
           "d": 5,
           "h": 16,
           "hp": 100000
@@ -3468,10 +3468,10 @@
         {
           "id": "floodgate_dam_west",
           "type": "destructible_wall",
-          "x": -21,
+          "x": -20,
           "z": -100,
           "y": 8,
-          "w": 19,
+          "w": 20,
           "d": 5,
           "h": 16,
           "hp": 100000
@@ -3479,10 +3479,10 @@
         {
           "id": "floodgate_dam_east",
           "type": "destructible_wall",
-          "x": 21,
+          "x": 20,
           "z": -100,
           "y": 8,
-          "w": 19,
+          "w": 20,
           "d": 5,
           "h": 16,
           "hp": 100000
@@ -3490,10 +3490,10 @@
         {
           "id": "floodgate_dam_east_outer",
           "type": "destructible_wall",
-          "x": 42,
+          "x": 40,
           "z": -100,
           "y": 8,
-          "w": 19,
+          "w": 20,
           "d": 5,
           "h": 16,
           "hp": 100000
