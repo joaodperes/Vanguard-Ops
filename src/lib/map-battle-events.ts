@@ -1,6 +1,12 @@
 /** Deterministic map events shared by browser and multiplayer server. */
 export const FLOODGATE_CORE_ID = "floodgate_dam_core";
 export const FLOODGATE_DAM_PANELS = ["floodgate_dam_west_outer","floodgate_dam_west","floodgate_dam_east","floodgate_dam_east_outer"] as const;
+/** Every gate section shares the same finite structural health pool. A bullet
+ * hitting any large panel must damage the same core instead of a fake 100k HP wall. */
+export function floodgateDamageTarget(id:string):string {
+  return id===FLOODGATE_CORE_ID||FLOODGATE_DAM_PANELS.some(panel=>panel===id)
+    ? FLOODGATE_CORE_ID : id;
+}
 export function floodgateBreachTargets(id:string):readonly string[] {
   return id===FLOODGATE_CORE_ID ? FLOODGATE_DAM_PANELS : [];
 }
