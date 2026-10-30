@@ -617,6 +617,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.state = "playing";
   room.startTime = Date.now();
   room.environmentTime = 0;
+  room.floodgateBreachAt=null;
   room.environmentCooldown.clear();
   room.timeLeft = room.config.timeLimit;
   room.elapsedSeconds = 0;
