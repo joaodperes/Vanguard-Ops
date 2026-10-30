@@ -1,5 +1,5 @@
 /** Low-draw-call structural fracturing on all five linked dam faces.
- * 4 progressively visible layers, each a single reusable LineSegments mesh. */
+ * 4 progressively visible layers, each a single reusable low-poly mesh. */
 import * as THREE from "three";
 
 export const FLOODGATE_CRACK_THRESHOLDS=[.8,.6,.4,.2] as const;
@@ -20,14 +20,22 @@ export function buildFloodgateDamCracks(parent:THREE.Group,halfW:number,halfH:nu
       for(let seg=0;seg<4;seg++){
         const endX=Math.max(-halfW*.95,Math.min(halfW*.95,x+Math.cos(phase+seg*.87)*(.45+tier*.22)));
         const endY=Math.max(-halfH*.92,Math.min(halfH*.92,y+Math.sin(phase*.88+seg*1.1)*(.48+tier*.23)));
-        xyz.push(x,y,frontZ,endX,endY,frontZ);
+        // Fixed-width world-space strips rather than WebGL 1px lines:
+        // fractures stay readable from normal rifle / DMR sight distances.
+        const dx=endX-x,dy=endY-y,len=Math.hypot(dx,dy)||1;
+        const halfThickness=(.10+tier*.042)/2;
+        const nx=-dy/len*halfThickness,ny=dx/len*halfThickness;
+        xyz.push(
+          x+nx,y+ny,frontZ,x-nx,y-ny,frontZ,endX+nx,endY+ny,frontZ,
+          endX+nx,endY+ny,frontZ,x-nx,y-ny,frontZ,endX-nx,endY-ny,frontZ,
+        );
         x=endX;y=endY;
       }
     }
     const geometry=new THREE.BufferGeometry();
     geometry.setAttribute("position",new THREE.Float32BufferAttribute(xyz,3));
-    const cracks=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({
-      color:tier>=3?0x120d13:0x1d2429,depthTest:true,depthWrite:false,
+    const cracks=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({
+      color:tier>=3?0x120d13:0x1d2429,depthTest:true,depthWrite:false,side:THREE.DoubleSide,
     }));
     cracks.name="floodgate-cracks-"+tier;
     cracks.userData.floodgateCrackTier=tier;
