@@ -10,6 +10,8 @@ export interface BotSighting {
   targetId: string;
   lastSeen: Vec3;
   seenAt: number;
+  /** Set when the bot first reaches the remembered position. */
+  searchStartedAt?: number;
 }
 export interface BotInvestigation {
   goal: Vec3;
@@ -47,7 +49,10 @@ export function botInvestigation(
   const last=[...sighting.lastSeen] as Vec3;
   if(archetype==="marksman")return {goal:[...botPos] as Vec3,lookAt:last,kind:"watch"};
   const d=Math.hypot(botPos[0]-last[0],botPos[2]-last[2]);
-  if(d>2.5)return {goal:last,lookAt:last,kind:"approach"};
+  if(d<=2.5 && sighting.searchStartedAt===undefined)sighting.searchStartedAt=now;
+  // Once searching starts, stick to the same nearby scan point rather than
+  // endlessly oscillating between it and the original last-seen location.
+  if(sighting.searchStartedAt===undefined)return {goal:last,lookAt:last,kind:"approach"};
   // At the last-seen spot, probe one nearby approach for the remaining time.
   // Stagger by bot ID; don't crowd an identical, magically inferred position.
   const hash=[...botId].reduce((n,ch)=>(n*31+ch.charCodeAt(0))>>>0,17);
