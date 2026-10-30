@@ -63,6 +63,7 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { botRememberSighting, botInvestigation, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
@@ -325,6 +326,8 @@ export interface MatchEndResult {
 
 interface BotAI {
   targetId: string | null;
+  lastSighting?: BotSighting | null;
+  investigationLookAt?: Vec3 | null;
   wanderTarget: Vec3;
   nextShotAt: number;
   nextDecisionAt: number;
@@ -4350,6 +4353,8 @@ export class FPSEngine {
     const skill = lo + Math.random() * (hi - lo);
     return {
       targetId: null,
+      lastSighting: null,
+      investigationLookAt: null,
       wanderTarget: sp,
       nextShotAt: 0,
       nextDecisionAt: 0,
@@ -6818,6 +6823,7 @@ export class FPSEngine {
         : this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
+      if(c.ai){c.ai.lastSighting=null;c.ai.investigationLookAt=null;c.ai.targetId=null;}
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
       c.spawnProtectedUntil = this.opts.firingRange ? 0 : Date.now() + 2500;
@@ -8312,6 +8318,18 @@ export class FPSEngine {
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
       const enemy = this.nearestEnemy(c);
+      if(enemy)ai.lastSighting=botRememberSighting(enemy.id,enemy.pos,now);
+      const remembered=ai.lastSighting;
+      const rememberedEnemy=remembered
+        ? remembered.targetId===this.selfId
+          ? {alive:this.alive,team:this.opts.team}
+          : this.combatants.get(remembered.targetId)
+        : null;
+      const investigation=!enemy ? botInvestigation(remembered,c.pos,now,
+        ai.difficulty,ai.archetype,!!rememberedEnemy?.alive &&
+        (this.opts.mode==="ffa"||this.opts.mode==="gungame"||rememberedEnemy.team!==c.team),
+        c.id) : null;
+      if(remembered&&!investigation&&!enemy)ai.lastSighting=null;
       // Collect/deny nearby Kill Confirmed tags when immediate combat doesn't
       // demand attention. Bots actively pursue tags even if enemies are visible.
       const nearestTag = this.opts.mode === "killconfirmed"
@@ -8339,6 +8357,13 @@ export class FPSEngine {
         : null;
       const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map.id) : null;
       ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
+      const ctfCritical=ctfIntent?.role==="recover"||ctfIntent?.role==="escort";
+      const base=c.team==="red"||c.team==="blue"?ctfBase(c.team,this.map.id):null;
+      const nearBase=!!remembered&&!!base&&Math.hypot(
+        remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
+      const investigate=investigation&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
+        (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? investigation : null;
+      ai.investigationLookAt=investigate?[...investigate.lookAt]:null;
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated
       // climbers first approach their real stair entry when combat is not
@@ -8356,18 +8381,19 @@ export class FPSEngine {
       }
       const climbing=safeToClimb&&!!ai.highGroundPatrol&&c.pos[1]<ai.highGroundPatrol.roof[1]-.65;
       const prevTarget = ai.targetId;
-      ai.targetId = pursueTag || orbitalObjective || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
+      ai.targetId = pursueTag || orbitalObjective || investigate || ctfObjective || climbing ? null : (enemy ? enemy.id : null);
       if (pursueTag && nearestTag) ai.wanderTarget = [...nearestTag.pos] as Vec3;
-      if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
-      if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
+      else if (orbitalObjective) ai.wanderTarget = [...orbitalObjective] as Vec3;
+      else if (investigate) ai.wanderTarget = [...investigate.goal] as Vec3;
+      else if (ctfObjective) ai.wanderTarget = [...ctfObjective] as Vec3;
       // Record when a NEW target is acquired so we can enforce a human-like reaction delay.
       if (ai.targetId && ai.targetId !== prevTarget) {
         ai.acquiredTargetAt = now;
       }
       if (!ai.targetId) {
-        if(orbitalObjective||ctfObjective||nearestTag){
+        if(orbitalObjective||investigate||ctfObjective||(pursueTag&&nearestTag)){
           ai.highGroundPatrol=null;
-          ai.wanderTarget=[...(orbitalObjective??ctfObjective??nearestTag!.pos)] as Vec3;
+          ai.wanderTarget=[...(orbitalObjective??investigate?.goal??ctfObjective??nearestTag!.pos)] as Vec3;
         }else{
           if(ai.highGroundPatrol&&(now>(ai.highGroundExpiresAt??0)||
             c.pos[1]>=ai.highGroundPatrol.roof[1]-.8))ai.highGroundPatrol=null;
@@ -8622,7 +8648,12 @@ export class FPSEngine {
       ai.aiming=ai.archetype==="marksman" && d<=2.5;
       ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
       if(d<=1.5){
-        if(ai.ctfGuarding&&(c.team==="red"||c.team==="blue")){
+        if(ai.investigationLookAt){
+          const last=ai.investigationLookAt;
+          const dx=last[0]-c.pos[0],dz=last[2]-c.pos[2];
+          const angle=Math.hypot(dx,dz)>0.4?Math.atan2(dx,dz):c.yaw;
+          c.yaw=this.lerpAngle(c.yaw,angle+Math.sin(now/850+c.id.length)*.38,.15);
+        }else if(ai.ctfGuarding&&(c.team==="red"||c.team==="blue")){
           c.yaw=this.lerpAngle(c.yaw,ctfDefenderScanYaw(c.team,c.pos,c.id,this.map.id),.12);
         }else if(ai.archetype==="marksman"){
           if(ai.idleLookYaw===undefined)ai.idleLookYaw=c.yaw;
@@ -8749,6 +8780,7 @@ export class FPSEngine {
           this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
         ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
         ai.targetId = null;        // wander instead of engaging
+        ai.lastSighting=null;ai.investigationLookAt=null;
       ai.routeWaypoint=null;ai.nextRouteAt=0;
         ai.strafeDir = -ai.strafeDir;
         ai.stuckSince = 0;
@@ -8785,7 +8817,7 @@ export class FPSEngine {
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
-      if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(this.opts.mode === "survival" && e.pos[1] > c.pos[1] + 1.25)) continue;
+      if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]])) continue;
       bestD = d;
       best = e;
     }
