@@ -292,8 +292,8 @@ const SKILL_RANGE: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
 };
 
 function botLoadout(archetype?: BotArchetype, variant=0): LoadoutWire {
-  const pool = ["rifle_ar", "smg_kp", "rifle_dm", "rifle_ar", "smg_kp"];
-  const wid = archetype ? botArchetypeWeapon(archetype,variant) : pool[Math.floor(Math.random() * pool.length)];
+  const pool = BOT_ELIGIBLE_WEAPONS;
+  const wid = archetype ? botArchetypeWeapon(archetype,variant) : pool[Math.floor(Math.random() * pool.length)].id;
   return {
     weaponId: wid,
     weaponSkinId: "default",
