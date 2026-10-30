@@ -25,6 +25,28 @@ Players can jump straight into combat against AI, create a room for friends, or 
 
 Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare, Orbital Nexus and Floodgate. Modes have different supported-map rules.
 
+## Bot personalities
+
+Bots have a **difficulty** (easy / normal / hard / veteran / mixed) and a separate,
+persistent **combat archetype**:
+
+| Archetype | Preferred weapons | Typical behaviour |
+| --- | --- | --- |
+| Rusher | SMGs / shotguns | Rapid close-range pushes, frequent sprints and hipfire |
+| Rifleman | Assault rifles | Balanced midrange fighting and strafing |
+| Marksman | DMRs / snipers | Longer standoff distance, ADS lane-watching, less sprinting, high-ground preference |
+| Support | LMGs | Longer bursts, steady lane coverage and more deliberate movement |
+
+Offline and multiplayer team bot slots rotate through these archetypes so large
+squads do not all behave identically. Survival's wider random weapon pool assigns
+an archetype matching the chosen weapon. Gun Game still uses its fixed weapon
+progression; personalities adapt rather than replacing the assigned gun.
+
+In CTF, roughly a quarter of each squad defends its base while others attack.
+Defenders patrol staggered positions **in front of** the flag and scan incoming
+approaches, instead of standing on the flag looking back at it. Enemy flag
+carriers and dropped flags override ordinary patrol objectives.
+
 ## Controls
 
 | Action | Desktop |
