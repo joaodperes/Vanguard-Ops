@@ -14,7 +14,11 @@ export function buildFloodgateBackdrop(scene:THREE.Scene):THREE.Group {
   // A permanent failure removes the central gate, revealing the reservoir.
   box(concrete,-129,15,-122,162,30,16);
   box(concrete,129,15,-122,162,30,16);
-  const intact=box(concrete,0,15,-122,96,30,16);
+  // The active destruction target is the COLLISION-BACKED gate at z=-72/-84.
+  // Do not draw a second huge, invulnerable wall far behind it: players
+  // naturally shot at this old scenic impostor rather than the real target.
+  // Keep only a narrow high-level spillway bridge, not a fake dam face.
+  const intact=box(concrete,0,29,-122,96,2.5,16);
   intact.name="floodgate-intact-gate";
   box(concrete,0,31,-122,424,2,18);
   for(const x of [-72,-24,24,72]){
