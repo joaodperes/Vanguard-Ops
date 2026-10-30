@@ -48,6 +48,7 @@ describe("Bulwark shield cooldown and hit effects", () => {
       const model=createRiotShieldModel(unlit);
       expect(model).toBeInstanceOf(THREE.Group);
       expect(applyRiotShieldDamageVisual(model,250)).toBe(0);
+      expect(applyRiotShieldDamageVisual(model,249)).toBe(1); // first absorbed bullet leaves a mark
       expect(applyRiotShieldDamageVisual(model,175)).toBe(1);
       expect(applyRiotShieldDamageVisual(model,110)).toBe(2);
       expect(applyRiotShieldDamageVisual(model,40)).toBe(3);
