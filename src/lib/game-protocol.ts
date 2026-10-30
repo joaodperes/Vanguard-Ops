@@ -1362,6 +1362,8 @@ export interface PlayerNet {
   // orient themselves before bots start shooting. 0 = no protection active.
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  /** Authoritative epoch-ms time of a broken Bulwark shield rebuild (0 if active). */
+  riotShieldReadyAt?: number;
   spawnProtectedUntil?: number;
 }
 
@@ -1420,6 +1422,8 @@ export interface SnapshotPlayer {
   // shield aura while this is in the future. 0/undefined = no protection.
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  /** Authoritative epoch-ms time of a broken Bulwark shield rebuild (0 if active). */
+  riotShieldReadyAt?: number;
   spawnProtectedUntil?: number;
 }
 
