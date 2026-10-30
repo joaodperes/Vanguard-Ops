@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
+import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
@@ -22,7 +22,7 @@ import {whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
 import {ctfDeliveryMarker} from "./ctf-map-visuals";
 import {buildFloodgateBackdrop,setFloodgateBreachVisual,setFloodgatePurgeVisual,updateFloodgateBreachVisual} from "./floodgate-scenery";
 import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
-import {buildFloodgateFreight,updateFloodgateFreight,freightStage,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
+import {buildFloodgateFreight,updateFloodgateFreight,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import {buildFloodgateDamCracks,updateFloodgateDamCracks} from "./floodgate-dam-cracks";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
@@ -2512,7 +2512,12 @@ export class FPSEngine {
     if(this.map.id==="floodgate"&&this.floodgateBackdrop){
       const age=this.floodgateBreachAt===null?null:this.environmentTime-this.floodgateBreachAt;
       updateFloodgateBreachVisual(this.floodgateBackdrop,age);
-      setFloodgateFreightStage(this.map,freightStage(age));
+      if(setFloodgateFreightStage(this.map,age)) {
+        // Re-plan only when a pillar falls or its new bridge becomes solid.
+        for(const bot of this.combatants.values())if(bot.isBot&&bot.ai){
+          bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;
+        }
+      }
       if(this.floodgateFreight)updateFloodgateFreight(this.floodgateFreight,age);
       const vent=(this.map.environment??[]).find(o=>o.type==="spikes"&&o.visual==="steam");
       if(vent&&vent.type==="spikes")
@@ -2615,8 +2620,8 @@ export class FPSEngine {
     if (old > 0 && hp <= 0) {
       if(id===FLOODGATE_CORE_ID&&this.floodgateBreachAt===null){
         this.floodgateBreachAt=this.environmentTime;
-        setFloodgateFreightStage(this.map,"falling");
-        // New ramps become pathfinding goals when the hydraulic front reaches them.
+        // Pillars stay upright until advancing water reaches them.
+        // Wall removal also invalidates bot paths.
         for(const bot of this.combatants.values())if(bot.isBot&&bot.ai){
           bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;
         }
@@ -2637,7 +2642,7 @@ export class FPSEngine {
     const feet: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
-    const flood=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,floodAge);
+    const flood=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,floodAge,this.map.cover);
     if(!this.opts.online&&flood.surge&&now>=(this.environmentCooldown.get("floodgate-surge")??0)&&
         this.selfSpawnProtectedUntil<=Date.now()){
       this.environmentCooldown.set("floodgate-surge",now+900);
@@ -2668,7 +2673,7 @@ export class FPSEngine {
     // Bots receive environmental damage independently of player weapon scoring.
     for (const c of this.combatants.values()) {
       if (!c.isBot || !c.alive || c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()) continue;
-      const botFlood=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge);
+      const botFlood=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover);
       if(botFlood.surge){
         const key=c.id+"|floodgate-surge";
         if(now>=(this.environmentCooldown.get(key)??0)){
@@ -7916,7 +7921,7 @@ export class FPSEngine {
       const listenerDistance = Math.hypot(c.pos[0] - this.pos.x, c.pos[1] - this.pos.y, c.pos[2] - this.pos.z);
       const age=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
         ?this.environmentTime-this.floodgateBreachAt:null;
-      const wet=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],age).flooded;
+      const wet=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],age,this.map.cover).flooded;
       this.sound.playFootstepAtDistance(listenerDistance,sprinting,wet);
     }
     for (const id of this.remoteFootsteps.keys()) {
@@ -8238,7 +8243,7 @@ export class FPSEngine {
     if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
     const water=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,
       this.map.id==="floodgate"&&this.floodgateBreachAt!==null
-        ?this.environmentTime-this.floodgateBreachAt:null);
+        ?this.environmentTime-this.floodgateBreachAt:null,this.map.cover);
     const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * water.speedMultiplier;
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
@@ -8366,6 +8371,8 @@ export class FPSEngine {
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
     const ai = c.ai!;
+    const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
+      ?this.environmentTime-this.floodgateBreachAt:null;
     const boss=this.survivalBossTimers.get(c.id);
     if (boss) {
       if(now>=boss.nextPhaseAt) {
@@ -8571,7 +8578,7 @@ export class FPSEngine {
         ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
       }
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
-        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],this.map.id==="floodgate"&&this.floodgateBreachAt!==null?this.environmentTime-this.floodgateBreachAt:null).speedMultiplier;
+        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
       const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
       const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
       // Determine the desired movement vector for this frame.
@@ -8582,10 +8589,11 @@ export class FPSEngine {
       // Obstacle-aware chase navigation around the dense Bunker centre.
       if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
-          this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]))) {
+          this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]) ||
+          floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
           ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
-            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000) ??
+            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
         }
@@ -8765,11 +8773,12 @@ export class FPSEngine {
         let fx = dx / d, fz = dz / d;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
         if((patrolBlocked || (patrolGoal&&d>5) ||
-            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker") &&
+            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker" ||
+            floodgateRouteNeedsDetour(c.pos,patrolPoint,floodAge,this.map.cover)) &&
             (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
             ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
-              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000);
+              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge);
             ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
           const waypoint=ai.routeWaypoint;
@@ -8802,7 +8811,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],this.map.id==="floodgate"&&this.floodgateBreachAt!==null?this.environmentTime-this.floodgateBreachAt:null).speedMultiplier;
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
         const mvx = fx * moveSpeed * cornerSpeed;
         const mvz = fz * moveSpeed * cornerSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -8839,7 +8848,7 @@ export class FPSEngine {
     // Ground-level bots are displaced by the same persistent southbound current
     // as human players; normal collision still prevents pushing through cover.
     const botWater=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],
-      this.map.id==="floodgate"&&this.floodgateBreachAt!==null?this.environmentTime-this.floodgateBreachAt:null);
+      floodAge,this.map.cover);
     if(botWater.flooded){
       const next:[number,number,number]=[c.pos[0],c.pos[1],c.pos[2]+botWater.pushZ*dt];
       if(!this.botMoveBlocked(c.pos,next,c.pos[1]))c.pos=this.clamp(this.collideBots(next,next[1]));
