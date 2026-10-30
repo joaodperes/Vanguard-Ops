@@ -1,5 +1,6 @@
 import { botTactics, type BotTier } from "./bot-difficulty";
 import type { WeaponCategory, WeaponStats } from "./game-data";
+import { botArchetypeDistanceScale, botPersonality, type BotArchetype } from "./bot-archetypes";
 
 /** Shared distance-aware AI stance. These choices are identical in the offline
  * simulation and on the authoritative multiplayer server. */
@@ -34,9 +35,11 @@ export function botCombatDecision(
   hasAmmo: boolean,
   reloading: boolean,
   tier: BotTier = "normal",
+  archetype: BotArchetype = "rifleman",
 ): BotCombatDecision {
   const tactics=botTactics(tier);
-  const base=botIdealDistance(category);
+  const personality=botPersonality(archetype);
+  const base=botIdealDistance(category)*botArchetypeDistanceScale(archetype,category);
   const idealDistance=tier==="easy"?Math.min(base,8):(category==="sniper"||category==="dmr")?base*(tier==="veteran"?2.2:tier==="hard"?1.6:1):base;
   const closingGap = distance > idealDistance + 5;
   const closeRangeRush = (category === "shotgun" && distance > 15)
@@ -53,15 +56,16 @@ export function botCombatDecision(
     : false;
   return {
     idealDistance,
-    strafe:tactics.strafe,
+    strafe:Math.min(1.15,tactics.strafe*personality.strafeScale),
     sprinting,
-    aiming: tier!=="easy" && aimsAtRange && clearShot && reacted && adsSettled
+    aiming: tier!=="easy" && aimsAtRange &&
+      !(archetype==="rusher" && distance<19) && clearShot && reacted && adsSettled
       && hasAmmo && !reloading && !sprinting,
   };
 }
 
-export function botPatrolSprint(distanceToWaypoint: number, tier:BotTier="normal"): boolean {
-  return distanceToWaypoint > botTactics(tier).sprintDistance;
+export function botPatrolSprint(distanceToWaypoint: number, tier:BotTier="normal", archetype:BotArchetype="rifleman"): boolean {
+  return distanceToWaypoint > botTactics(tier).sprintDistance * botPersonality(archetype).patrolSprintScale;
 }
 
 /** ADS only changes the weapon's mechanical spread. Per-bot reaction time,
