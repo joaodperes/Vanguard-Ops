@@ -18,6 +18,14 @@ const WEAPONS: Record<BotArchetype, readonly string[]> = {
   marksman: ["rifle_dm", "dmr_scout", "sniper_scout", "sniper_lr"],
   support: ["lmg_light", "lmg_hv", "lmg_heavy", "rifle_ar"],
 };
+/** Survival waves use broad random weapons; derive a matching personality. */
+export function botArchetypeForCategory(category: WeaponCategory): BotArchetype {
+  if (category === "smg" || category === "shotgun" || category === "pdw" || category === "melee") return "rusher";
+  if (category === "sniper" || category === "dmr") return "marksman";
+  if (category === "lmg") return "support";
+  return "rifleman";
+}
+
 export function botArchetypeWeapon(archetype: BotArchetype, slot: number): string {
   const weapons = WEAPONS[archetype];
   return weapons[Math.max(0, Math.floor(slot)) % weapons.length];
