@@ -60,8 +60,9 @@ describe("Floodgate one-time Levolution",()=>{
     expect(floodgateIntegrityStatus(0,360)?.label).toContain("DAM BREACHED");
     for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
       breakEnvironmentWall(map,id);
-    expect(closestCoverHit(map.cover,[0,1.6,-78],[0,0,-1],22,rayBox)?.box.environmentId)
-      .toBeUndefined();
+    // The central route must actually become traversable, not merely lose its
+    // environment ID while a permanent piece of cover still blocks it.
+    expect(closestCoverHit(map.cover,[0,1.6,-78],[0,0,-1],22,rayBox)).toBeNull();
   });
   test("industrial colour dressing paints zones without adding gameplay hitboxes or point lights",()=>{
     const map=getMap("floodgate"),scene=new THREE.Scene(),before=map.cover.length;
