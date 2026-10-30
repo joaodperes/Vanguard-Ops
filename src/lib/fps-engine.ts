@@ -5700,6 +5700,28 @@ export class FPSEngine {
     this.emitLobbyState();
   }
 
+  /** Rebuild third-person weapon/armor geometry on a loadout change. */
+  private rebuildCombatantMesh(c: Combatant): void {
+    if (!c.group) return;
+    this.scene.remove(c.group);
+    c.group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const mat = child.material;
+        if (Array.isArray(mat)) mat.forEach(m => m.dispose());
+        else mat.dispose();
+      } else if (child instanceof THREE.Sprite) {
+        const sm = child.material as THREE.SpriteMaterial;
+        sm.map?.dispose();
+        sm.dispose();
+      }
+    });
+    c.group = undefined;
+    c.parts = undefined;
+    c.bossVisual = undefined;
+    this.addCombatantMesh(c);
+  }
+
   private ensureCombatant(p: SnapshotPlayer): Combatant {
     let c = this.combatants.get(p.id);
     if (!c) {
@@ -5719,26 +5741,10 @@ export class FPSEngine {
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
       if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
-        this.scene.remove(c.group);
-        c.group.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-            const mat = child.material;
-            if (Array.isArray(mat)) mat.forEach(m => m.dispose());
-            else mat.dispose();
-          } else if (child instanceof THREE.Sprite) {
-            const sm = child.material as THREE.SpriteMaterial;
-            sm.map?.dispose();
-            sm.dispose();
-          }
-        });
         c.weaponId = p.weaponId;
         c.charmId = p.charmId;
         c.nameplateId = p.nameplateId;
-        c.group = undefined;
-        c.parts = undefined;
-        c.bossVisual = undefined;
-        this.addCombatantMesh(c);
+        this.rebuildCombatantMesh(c);
       }
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
@@ -8409,7 +8415,13 @@ export class FPSEngine {
     if (boss) {
       if(now>=boss.nextPhaseAt) {
         boss.phase=(boss.phase+1)%3;
-        c.weaponId=["lmg_hv","shotgun_auto","rifle_heavy"][boss.phase];
+        const nextWeapon=["lmg_hv","shotgun_auto","rifle_heavy"][boss.phase];
+        if (c.weaponId !== nextWeapon) {
+          c.weaponId=nextWeapon;
+          // Offline does not receive network snapshots: rebuild the held gun
+          // so each phase is visually distinguishable, just like online.
+          this.rebuildCombatantMesh(c);
+        }
         ai.ammoInMag=weaponById(c.weaponId).stats.magSize;
         ai.burstShotsLeft=0; ai.burstEndsAt=0;
         boss.nextPhaseAt=now+5500;
