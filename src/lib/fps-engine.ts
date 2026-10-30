@@ -407,6 +407,7 @@ interface Combatant {
   nameSprite?: THREE.Sprite;
   healthBar?: THREE.Mesh;
   skinMaterial?: THREE.MeshStandardMaterial;
+  thermalOverlays?: THREE.Mesh[];
   // humanoid animation parts
   parts?: HumanoidParts;
   walkPhase?: number;
@@ -2403,8 +2404,10 @@ export class FPSEngine {
     this.environmentTime += dt;
     if(this.map.id==="whiteout_depot" && this.scene.fog instanceof THREE.Fog){
       const strength=whiteoutIntensity(this.environmentTime)*whiteoutExposure(this.pos.x,this.pos.z);
-      this.scene.fog.near=THREE.MathUtils.lerp(this.map.theme.fogNear,9,strength);
-      this.scene.fog.far=THREE.MathUtils.lerp(this.map.theme.fogFar,42,strength);
+      const nvg=this.aiming&&this.adsProgress>.5&&this.sightDef.overlay==="nvg";
+      // NVG helps in snow, but never extends sight as far as thermal heat signatures.
+      this.scene.fog.near=THREE.MathUtils.lerp(this.map.theme.fogNear,nvg?16:9,strength);
+      this.scene.fog.far=THREE.MathUtils.lerp(this.map.theme.fogFar,nvg?82:42,strength);
       if(this.scene.background instanceof THREE.Color)
         this.scene.background.set(this.map.theme.sky).lerp(new THREE.Color("#e2edf4"),strength*.48);
       if(this.whiteoutSnow)updateWhiteoutSnow(this.whiteoutSnow,strength,this.environmentTime,this.pos.x,this.pos.y+2,this.pos.z);
@@ -4616,6 +4619,24 @@ export class FPSEngine {
     root.add(shield);
     c.shieldMesh = shield;
 
+    // Depth-tested heat silhouette meshes share the already-animated body
+    // geometry. They ignore atmospheric fog but NOT concrete/wall occlusion.
+    // No new allocations occur while switching scopes or during a blizzard.
+    const hotMaterial=new THREE.MeshBasicMaterial({
+      color:0xffe7a0,transparent:true,opacity:.88,depthTest:true,depthWrite:false,fog:false,
+    });
+    const bodyMeshes:THREE.Mesh[]=[];
+    root.traverse(obj=>{
+      if(obj instanceof THREE.Mesh && (obj.material===bodyMat||obj.material===darkMat))bodyMeshes.push(obj);
+    });
+    c.thermalOverlays=bodyMeshes.map(body=>{
+      const hot=new THREE.Mesh(body.geometry,hotMaterial);
+      hot.scale.setScalar(1.04);
+      hot.visible=false;
+      hot.renderOrder=1;
+      body.add(hot);
+      return hot;
+    });
     root.position.set(c.pos[0], c.pos[1], c.pos[2]);
     root.frustumCulled = false; // Round 19l: never frustum-cull combatant groups
     this.scene.add(root);
@@ -7807,6 +7828,14 @@ export class FPSEngine {
           c.skinMaterial.emissiveIntensity = skin.emissive ? 0.4 : 0;
         }
       }
+      // Thermal ADS reveals exposed heat signatures through weather, not through
+      // physical cover. The ordinary body shader is still obscured by snow fog.
+      const thermalVisible=isThermalAds&&c.alive&&!c.isSelf&&
+        (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team)&&
+        Math.hypot(c.pos[0]-this.pos.x,c.pos[2]-this.pos.z)<165&&
+        this.hasLineOfSight([this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z],
+          [c.pos[0],c.pos[1]+1.1,c.pos[2]]);
+      for(const overlay of c.thermalOverlays??[])overlay.visible=thermalVisible;
       c.group.position.set(c.pos[0], c.pos[1], c.pos[2]);
       c.group.rotation.y = c.yaw;
       // ---- Death animation: fall forward over ~900ms before hiding ----
@@ -8857,7 +8886,8 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?damBreachStatus(floodgateBreached(this.environmentWalls),this.map.environment??[],this.environmentTime)
+        ?(floodgateBreached(this.environmentWalls)
+          ?damBreachStatus(true,this.map.environment??[],this.environmentTime):undefined)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
