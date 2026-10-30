@@ -2883,10 +2883,19 @@
           "kind": "cover"
         },
         {
-          "id": "spillway-baffle-0",
-          "x": 0,
+          "id": "spillway-baffle-central-west",
+          "x": -10,
           "z": -54,
-          "w": 4,
+          "w": 5,
+          "d": 40,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "spillway-baffle-central-east",
+          "x": 10,
+          "z": -54,
+          "w": 5,
           "d": 40,
           "h": 8,
           "kind": "cover"
