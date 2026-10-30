@@ -17,9 +17,13 @@ export function buildFloodgateBackdrop(scene:THREE.Scene):THREE.Group {
   const intact=box(concrete,0,15,-122,96,30,16);
   intact.name="floodgate-intact-gate";
   box(concrete,0,31,-122,424,2,18);
-  for(const x of [-96,-32,32,96]){
-    box(water,x,16,-113.85,19,28,.1);
-    for(const dx of [-6,0,6])box(foam,x+dx,16,-113.76,.35,26,.06);
+  for(const x of [-72,-24,24,72]){
+    const spill=box(water,x,16,-113.85,19,28,.1);
+    spill.name="floodgate-purge-spill";spill.visible=false;
+    for(const dx of [-6,0,6]){
+      const spray=box(foam,x+dx,16,-113.76,.35,26,.06);
+      spray.name="floodgate-purge-spray";spray.visible=false;
+    }
     box(concrete,x-12,16,-115,3,31,3);
     box(concrete,x+12,16,-115,3,31,3);
   }
@@ -44,5 +48,16 @@ export function setFloodgateBreachVisual(group:THREE.Group,breached:boolean):voi
     if(child.name==="floodgate-intact-gate")child.visible=!breached;
     if(child.name==="floodgate-torrent"||child.name==="floodgate-flooded-spillway"||child.name==="floodgate-breach-foam")
       child.visible=breached;
+  }
+}
+
+/** Distant spillway water pulses only during the SAME authoritative steam
+ * damage phase as its four warning grates. A broken dam has its own torrent. */
+export function setFloodgatePurgeVisual(group:THREE.Group,active:boolean):void {
+  if(group.userData.purgeActive===active)return;
+  group.userData.purgeActive=active;
+  for(const child of group.children){
+    if(child.name==="floodgate-purge-spill"||child.name==="floodgate-purge-spray")
+      child.visible=active;
   }
 }
