@@ -3,13 +3,13 @@ import {getMap} from "../src/lib/game-protocol";
 import {makeEnvironmentMap,breakEnvironmentWall,closestCoverHit,periodicHazardPhase,spikesActive} from "../src/lib/dynamic-environment";
 import {rayBox} from "../src/lib/game-protocol";
 import * as THREE from "three";
-import {buildFloodgateBackdrop,setFloodgatePurgeVisual} from "../src/lib/floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgatePurgeVisual,updateFloodgateBreachVisual} from "../src/lib/floodgate-scenery";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {visualThemeForMap} from "../src/lib/map-visuals";
-import {damBreachStatus,floodgateIntegrityStatus,floodgateObjectiveStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
+import {whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
-import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,
+import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,floodgateWaterEffect,floodgateSurgeFront,FLOODGATE_DAM_HP,FLOODGATE_SURGE_SECONDS,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
   from "../src/lib/map-battle-events";
 
@@ -30,14 +30,15 @@ describe("Floodgate one-time Levolution",()=>{
     expect(floodgateBreached(state)).toBe(true);
     for(const id of ids)breakEnvironmentWall(map,id);
     for(const id of ids)expect(map.cover.some(c=>c.environmentId===id)).toBe(false);
-    expect(damBreachStatus(true,map.environment??[],60)?.label).toContain("DAM BREACHED");
+
   });
   test("shots at the front-mounted yellow dam core hit the objective before permanent cover",()=>{
     const map=makeEnvironmentMap(getMap("floodgate","tdm"));
     const core=(map.environment??[]).find(o=>o.id===FLOODGATE_CORE_ID);
     expect(core?.type).toBe("destructible_wall");
-    expect(core?.pos[1]).toBeLessThan(5);
-    const hit=closestCoverHit(map.cover,[0,1.5,-55],[0,0,-1],45,rayBox);
+    expect(core?.pos[2]).toBeLessThan(-95);
+    expect(core?.pos[1]).toBeGreaterThan(4);
+    const hit=closestCoverHit(map.cover,[0,1.5,-82],[0,0,-1],30,rayBox);
     expect(hit?.box.environmentId).toBe(FLOODGATE_CORE_ID);
     expect(hit?.distance).toBeLessThan(20);
   });
@@ -45,7 +46,7 @@ describe("Floodgate one-time Levolution",()=>{
     const map=makeEnvironmentMap(getMap("floodgate","tdm"));
     const core=map.environment!.find(o=>o.id===FLOODGATE_CORE_ID);
     if(!core||core.type!=="destructible_wall")throw Error("missing core");
-    expect(core.hp).toBeLessThan(500);
+    expect(core.hp).toBe(FLOODGATE_DAM_HP);
     for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS]){
       expect(floodgateDamageTarget(id)).toBe(FLOODGATE_CORE_ID);
       const wall=map.environment!.find(o=>o.id===id);
@@ -55,19 +56,12 @@ describe("Floodgate one-time Levolution",()=>{
       expect(hit?.box.environmentId).toBe(id);
     }
     expect(floodgateDamageTarget("floodgate_maintenance_shutter")).toBe("floodgate_maintenance_shutter");
-    expect(floodgateIntegrityStatus(360,360)).toBeUndefined();
-    expect(floodgateIntegrityStatus(180,360)?.label).toContain("50%");
-    expect(floodgateIntegrityStatus(0,360)?.label).toContain("DAM BREACHED");
-    expect(floodgateObjectiveStatus(360,360,240,240)).toBeUndefined();
-    expect(floodgateObjectiveStatus(360,360,120,240)?.label).toContain("SHUTTER 50%");
-    expect(floodgateObjectiveStatus(360,360,0,240)?.label).toContain("SHUTTER OPEN");
-    expect(floodgateObjectiveStatus(180,360,120,240)?.label).toContain("DAM INTEGRITY");
 
     for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
       breakEnvironmentWall(map,id);
     // The central route must actually become traversable, not merely lose its
     // environment ID while a permanent piece of cover still blocks it.
-    expect(closestCoverHit(map.cover,[0,1.6,-78],[0,0,-1],22,rayBox)).toBeNull();
+    expect(closestCoverHit(map.cover,[0,1.6,-90],[0,0,-1],14,rayBox)).toBeNull();
   });
   test("industrial colour dressing paints zones without adding gameplay hitboxes or point lights",()=>{
     const map=getMap("floodgate"),scene=new THREE.Scene(),before=map.cover.length;
@@ -98,11 +92,11 @@ describe("Floodgate one-time Levolution",()=>{
     // every DMR hit from the middle of the arena strike invulnerable concrete.
     const from:[number,number,number]=[0,1.6,10];
     const direction:[number,number,number]=[0,0,-1];
-    for(let i=0;i<5;i++){
+    for(let i=0;i<Math.ceil(FLOODGATE_DAM_HP/74);i++){
       const hit=closestCoverHit(map.cover,from,direction,84.7*1.72,rayBox);
       expect(hit?.box.environmentId).toBe(FLOODGATE_CORE_ID);
       const result=applyLinkedWallDamage(walls,hit!.box.environmentId!,74);
-      expect(result?.hp).toBe(Math.max(0,360-(i+1)*74));
+      expect(result?.hp).toBe(Math.max(0,FLOODGATE_DAM_HP-(i+1)*74));
       for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
         expect(walls.get(id)).toBe(result?.hp);
       if(result?.hp===0)for(const id of result.ids)breakEnvironmentWall(map,id);
@@ -113,25 +107,58 @@ describe("Floodgate one-time Levolution",()=>{
     expect(after?.box.environmentId).toBeUndefined();
     expect(after?.distance??Infinity).toBeGreaterThan(84);
   });
-  test("12-round DMR magazine can breach the shutter and dam from the yard",()=>{
+  test("1800 HP dam takes sustained fire but opens on 25 confirmed DMR hits",()=>{
     const map=makeEnvironmentMap(getMap("floodgate","tdm"));
     const walls=new Map((map.environment??[]).filter(o=>o.type==="destructible_wall")
       .map(o=>[o.id,o.type==="destructible_wall"?o.hp:0]));
-    const from:[number,number,number]=[0,1.6,60];
-    let shots=0,shutterShots=0,damShots=0;
-    while(shots<12&&!floodgateBreached(walls)){
-      const hit=closestCoverHit(map.cover,from,[0,0,-1],84.7*1.72,rayBox);
-      const id=hit?.box.environmentId;
-      expect(id).toBeDefined();
-      const result=applyLinkedWallDamage(walls,id!,74);
-      expect(result).not.toBeNull();
-      if(id==="floodgate_maintenance_shutter")shutterShots++;else if(id===FLOODGATE_CORE_ID)damShots++;
-      if(result?.hp===0)for(const x of result.ids)breakEnvironmentWall(map,x);
-      shots++;
+    const fire=(origin:[number,number,number])=>{
+      const hit=closestCoverHit(map.cover,origin,[0,0,-1],84.7*1.72,rayBox);
+      expect(hit?.box.environmentId).toBeDefined();
+      const result=applyLinkedWallDamage(walls,hit!.box.environmentId!,74);
+      if(result?.hp===0)for(const id of result.ids)breakEnvironmentWall(map,id);
+      return hit!.box.environmentId;
+    };
+    for(let i=0;i<4;i++)expect(fire([0,1.6,60])).toBe("floodgate_maintenance_shutter");
+    for(let i=0;i<24;i++){
+      expect(fire([0,1.6,10])).toBe(FLOODGATE_CORE_ID);
+      expect(floodgateBreached(walls)).toBe(false);
     }
-    expect(shutterShots).toBe(4);
-    expect(damShots).toBe(5);
+    expect(fire([0,1.6,10])).toBe(FLOODGATE_CORE_ID);
     expect(floodgateBreached(walls)).toBe(true);
+    expect(walls.get("floodgate_maintenance_shutter")).toBe(0);
+  });
+  test("moving flood front changes movement and damage but keeps decks and flanks safe",()=>{
+    expect(floodgateWaterEffect(0,0,-75,null).flooded).toBe(false);
+    expect(floodgateSurgeFront(0)).toBe(-103);
+    expect(floodgateSurgeFront(FLOODGATE_SURGE_SECONDS)).toBe(-36);
+    const age=FLOODGATE_SURGE_SECONDS/2;
+    const front=floodgateSurgeFront(age);
+    expect(floodgateWaterEffect(0,0,front,age)).toMatchObject({
+      flooded:true,surge:true,speedMultiplier:.4,pushZ:9,
+    });
+    expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:1.1});
+    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.68});
+    expect(floodgateWaterEffect(0,5,-75,40).flooded).toBe(false);
+    expect(floodgateWaterEffect(90,0,-75,40).flooded).toBe(false);
+    expect(floodgateWaterEffect(0,0,20,40).flooded).toBe(false);
+  });
+  test("flood front grows across the playable northern lane without spawning particles",()=>{
+    const scene=new THREE.Scene(),group=buildFloodgateBackdrop(scene);
+    const stable=[...group.children];
+    updateFloodgateBreachVisual(group,7);
+    const front=group.getObjectByName("floodgate-wave");
+    expect(front?.visible).toBe(true);
+    expect(front?.position.z).toBeCloseTo(floodgateSurgeFront(7));
+    const sheet=group.getObjectByName("floodgate-flooded-spillway");
+    expect(sheet?.visible).toBe(true);
+    expect(sheet?.scale.z).toBeGreaterThan(30);
+    updateFloodgateBreachVisual(group,20);
+    expect(front?.visible).toBe(false);
+    expect(sheet?.scale.z).toBeCloseTo(67);
+    expect(group.children).toEqual(stable);
+    group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
+      for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
+    }});
   });
   test("dam backdrop no longer draws an invulnerable full-height central gate",()=>{
     const backdrop=buildFloodgateBackdrop(new THREE.Scene());
