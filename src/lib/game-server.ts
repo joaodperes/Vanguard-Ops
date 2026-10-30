@@ -1,7 +1,7 @@
 import {chooseSpawn} from "./spawn-selection";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,whiteoutVisibility} from "./map-battle-events";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
@@ -652,7 +652,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     room.timeLeft = 0;
   }
   for (const p of room.players.values()) {
-    p.kills = 0; p.deaths = 0; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false; p.health = MAX_HEALTH; p.alive = true;
+    p.kills = 0; p.deaths = 0; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; p.health = MAX_HEALTH; p.alive = true;
     room.burstState.delete(p.id);
     // Reset gungame progress + weaponId for everyone (in case of restart).
     if (room.mode === "gungame") {
@@ -780,6 +780,9 @@ function snapshot(room: Room): S2C {
 }
 
 function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
+  // Advance authoritative recharge even while the shield is holstered.
+  const shield=tickRiotShield(p.riotShieldHp??RIOT_SHIELD_HP,p.riotShieldReadyAt??0,Date.now());
+  p.riotShieldHp=shield.hp;p.riotShieldReadyAt=shield.readyAt;
   const currentCharm=loadout && p.weaponId===loadout.weaponId ? loadout.primaryCharmId :
     loadout && p.weaponId===loadout.secondaryWeaponId ? loadout.secondaryCharmId :
     loadout && p.weaponId===loadout.meleeWeaponId ? loadout.meleeCharmId : "none";
@@ -788,7 +791,7 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
     charmId:currentCharm??"none",nameplateId:p.nameplateId,
-    riotShieldHp:p.riotShieldHp??RIOT_SHIELD_HP,riotShieldRaised:p.riotShieldRaised??false,
+    riotShieldHp:p.riotShieldHp??RIOT_SHIELD_HP,riotShieldRaised:p.riotShieldRaised??false,riotShieldReadyAt:p.riotShieldReadyAt??0,
     kills: p.kills, deaths: p.deaths, aiming: (p as PlayerNet & { ai?: BotAI }).ai?.aiming ?? false, reloading: false,
     spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
   };
@@ -1346,7 +1349,12 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // This prevents bots from killing a freshly-spawned player before they can react.
   if (room.mode === "survival" && room.downed.has(victim.id)) return;
   if (victim.spawnProtectedUntil && victim.spawnProtectedUntil > Date.now()) return;
-  if(shieldHit){victim.riotShieldHp=damageRiotShield(victim.riotShieldHp??RIOT_SHIELD_HP,damage);if(!victim.riotShieldHp)victim.riotShieldRaised=false;return;}
+  if(shieldHit){
+    const state=hitRiotShield(victim.riotShieldHp??RIOT_SHIELD_HP,victim.riotShieldReadyAt??0,damage,Date.now());
+    victim.riotShieldHp=state.hp;victim.riotShieldReadyAt=state.readyAt;
+    if(!state.hp)victim.riotShieldRaised=false;
+    return; // shield impact absorbs shot, no health hit event
+  }
   let dmg = damage;
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   // Survival: bots hit harder as waves progress, BUT base damage is reduced
@@ -1391,6 +1399,13 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         if (room.mode !== "ctf" && room.mode !== "killconfirmed")
           room.scores.set(id,(room.scores.get(id)??0)+1); }
     room.damageContributions.delete(victim.id);
+    // Every elimination (including the Bulwark P-9) reduces an active
+    // shield-rebuild clock. Do not accelerate from deaths with no attacker.
+    if(attacker && weaponId!=="perk_explonando" && (attacker.riotShieldReadyAt??0)>0){
+      const next=accelerateRiotShield(attacker.riotShieldHp??RIOT_SHIELD_HP,
+        attacker.riotShieldReadyAt??0,Date.now());
+      attacker.riotShieldHp=next.hp;attacker.riotShieldReadyAt=next.readyAt;
+    }
     if (attacker && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
       for (const [key, state] of room.wonderCharges) {
@@ -1519,7 +1534,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
   const timer = setTimeout(() => {
     const sp = pickSpawn(p.team, room);
     p.pos = sp;
-    p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false; room.lastDamagedAt.delete(p.id);
+    p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; room.lastDamagedAt.delete(p.id);
     p.alive = true;
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
