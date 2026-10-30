@@ -38,16 +38,17 @@ export const FLOODGATE_SURGE_SECONDS=14;
 export const FLOODGATE_FLOOD_START_Z=-103;
 export const FLOODGATE_FLOOD_END_Z=-36;
 export const FLOODGATE_FLOOD_HALF_WIDTH=132;
-export const FLOODGATE_FLOOD_DRY_HEIGHT=2.2;
+// The current acts at the spillway floor, not on airborne feet or raised surfaces.
+export const FLOODGATE_FLOOD_DRY_HEIGHT=.25;
 /** Floodwater is only hazardous on the actual ground. Stair treads and inclined
  * ramp surfaces remain dry even at low elevations; a player below the tread
  * still gets wet. Use the same test on clients, bots, and the server. */
 export function floodgateOnStairs(x:number,y:number,z:number,cover:readonly CoverBox[]=[]):boolean {
   // Ground level never sits on a tread; skip scanning every cover collider.
-  if(y<.2)return false;
+  if(y<.045)return false;
   return cover.some(c=>c.kind==="stair" &&
     Math.abs(x-c.pos[0])<=c.size[0]+.12 && Math.abs(z-c.pos[2])<=c.size[2]+.12 &&
-    y>=c.pos[1]+c.size[1]-.18 && y<=c.pos[1]+c.size[1]+.35);
+    y>=c.pos[1]+c.size[1]-.08 && y<=c.pos[1]+c.size[1]+.22);
 }
 export function floodgateSurgeFront(age:number):number{
   return FLOODGATE_FLOOD_START_Z+
