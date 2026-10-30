@@ -51,6 +51,14 @@ Defenders patrol staggered positions **in front of** the flag and scan incoming
 approaches, instead of standing on the flag looking back at it. Enemy flag
 carriers and dropped flags override ordinary patrol objectives.
 
+**Enemy awareness:** A bot remembers the *last position it actually saw* an
+enemy, then investigates for a short, difficulty-dependent window. Rushers
+search around the last corner; marksmen hold the last visible sightline.
+Neither the server nor offline bots follows enemy coordinates through walls,
+and no shots are fired without current line of sight. Memory expires, is
+cleared on respawn, and yields to critical CTF / map objectives. This is
+short-term perception, not a permanent radar or an enemy-team position reveal.
+
 ## Controls
 
 | Action | Desktop |
