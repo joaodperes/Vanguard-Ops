@@ -29,3 +29,11 @@ export function whiteoutWeatherStatus(seconds:number):MapEventStatus {
     label:event.phase==="active"?"BLIZZARD · visibility reduced":event.phase==="warning"
       ?`Blizzard arriving in ${event.secondsLeft}s`:"Clear skies"};
 }
+
+/** Only show structural progress after the first confirmed hit. No idle timers. */
+export function floodgateIntegrityStatus(currentHp:number,maxHp:number):MapEventStatus|undefined {
+  if(currentHp<=0)return {phase:"active",label:"DAM BREACHED · northern spillway opened",secondsLeft:0};
+  if(!Number.isFinite(currentHp)||!Number.isFinite(maxHp)||maxHp<=0||currentHp>=maxHp)return undefined;
+  const pct=Math.max(1,Math.ceil(100*currentHp/maxHp));
+  return {phase:"warning",label:`DAM INTEGRITY ${pct}% · keep firing at the orange panels`,secondsLeft:0};
+}
