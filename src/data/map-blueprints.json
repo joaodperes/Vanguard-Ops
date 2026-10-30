@@ -3586,6 +3586,24 @@
           "d": 10,
           "h": 7,
           "kind": "cover"
+        },
+        {
+          "id": "breach-route-anti-snipe-west",
+          "x": -78,
+          "z": -86,
+          "w": 9,
+          "d": 10,
+          "h": 8,
+          "kind": "cover"
+        },
+        {
+          "id": "breach-route-anti-snipe-east",
+          "x": 78,
+          "z": -86,
+          "w": 9,
+          "d": 10,
+          "h": 8,
+          "kind": "cover"
         }
       ],
       "hazards": [
