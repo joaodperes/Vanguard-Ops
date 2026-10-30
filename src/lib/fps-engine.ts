@@ -8422,7 +8422,16 @@ export class FPSEngine {
       alive: this.alive, weaponId: this.weaponId, weaponSkinId: this.opts.loadout.weaponSkinId,
       playerSkinId: this.opts.loadout.playerSkinId, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills,
     };
-    const tgt = targetIsSelf ? selfCombatant : target;
+    const candidate = targetIsSelf ? selfCombatant : target;
+    const candidateDist=candidate?Math.hypot(candidate.pos[0]-c.pos[0],candidate.pos[2]-c.pos[2]):Infinity;
+    const tgt=candidate?.alive &&
+      candidateDist<=Math.min(botDetectionRange(ai.difficulty,w.category),
+        this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity) &&
+      this.hasLineOfSight([c.pos[0],c.pos[1]+PLAYER_HEIGHT/2,c.pos[2]],
+        [candidate.pos[0],candidate.pos[1]+PLAYER_HEIGHT/2,candidate.pos[2]])
+      ? candidate : null;
+    if(tgt)ai.lastSighting=botRememberSighting(tgt.id,tgt.pos,now);
+    else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
     // Bots receive each shell only after its insert time. They can return fire
     // after the first completed shell if threatened.
     if (w.stats.reloadStyle === "incremental" &&
