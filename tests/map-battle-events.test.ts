@@ -9,6 +9,8 @@ import {visualThemeForMap} from "../src/lib/map-visuals";
 import {whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
+import {buildFloodgateFreight,freightCover,freightStage,setFloodgateFreightStage,updateFloodgateFreight,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
+import {buildFloodgateDamCracks,damCrackTier,updateFloodgateDamCracks} from "../src/lib/floodgate-dam-cracks";
 import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,floodgateWaterEffect,floodgateSurgeFront,FLOODGATE_DAM_HP,FLOODGATE_SURGE_SECONDS,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
   from "../src/lib/map-battle-events";
@@ -107,7 +109,7 @@ describe("Floodgate one-time Levolution",()=>{
     expect(after?.box.environmentId).toBeUndefined();
     expect(after?.distance??Infinity).toBeGreaterThan(84);
   });
-  test("1800 HP dam takes sustained fire but opens on 25 confirmed DMR hits",()=>{
+  test("3000 HP dam takes sustained fire but opens after 41 confirmed DMR hits",()=>{
     const map=makeEnvironmentMap(getMap("floodgate","tdm"));
     const walls=new Map((map.environment??[]).filter(o=>o.type==="destructible_wall")
       .map(o=>[o.id,o.type==="destructible_wall"?o.hp:0]));
@@ -119,7 +121,7 @@ describe("Floodgate one-time Levolution",()=>{
       return hit!.box.environmentId;
     };
     for(let i=0;i<4;i++)expect(fire([0,1.6,60])).toBe("floodgate_maintenance_shutter");
-    for(let i=0;i<24;i++){
+    for(let i=0;i<Math.ceil(FLOODGATE_DAM_HP/74)-1;i++){
       expect(fire([0,1.6,10])).toBe(FLOODGATE_CORE_ID);
       expect(floodgateBreached(walls)).toBe(false);
     }
@@ -134,12 +136,14 @@ describe("Floodgate one-time Levolution",()=>{
     const age=FLOODGATE_SURGE_SECONDS/2;
     const front=floodgateSurgeFront(age);
     expect(floodgateWaterEffect(0,0,front,age)).toMatchObject({
-      flooded:true,surge:true,speedMultiplier:.4,pushZ:9,
+      flooded:true,surge:true,speedMultiplier:.36,pushZ:15,
     });
-    expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:1.1});
-    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.68});
+    expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:3.8});
+    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.64});
     expect(floodgateWaterEffect(0,5,-75,40).flooded).toBe(false);
-    expect(floodgateWaterEffect(90,0,-75,40).flooded).toBe(false);
+    expect(floodgateWaterEffect(90,0,-75,40).flooded).toBe(true);
+    expect(floodgateWaterEffect(116,0,-75,40).flooded).toBe(true);
+    expect(floodgateWaterEffect(140,0,-75,40).flooded).toBe(false);
     expect(floodgateWaterEffect(0,0,20,40).flooded).toBe(false);
   });
   test("flood front grows across the playable northern lane without spawning particles",()=>{
@@ -159,6 +163,72 @@ describe("Floodgate one-time Levolution",()=>{
     group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
       for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
     }});
+  });
+  test("freight containers topple into new accessible northern routes in both room maps",()=>{
+    const first=makeEnvironmentMap(getMap("floodgate","ctf"));
+    const second=makeEnvironmentMap(getMap("floodgate","ctf"));
+    const count=(map:typeof first)=>map.cover.filter(b=>b.environmentId?.startsWith("floodgate-freight:"));
+    expect(count(first)).toHaveLength(4);
+    expect(count(first).every(b=>b.kind==="cover")).toBe(true);
+    setFloodgateFreightStage(first,freightStage(1));
+    expect(count(first)).toHaveLength(0); // No invisible standing cover while falling
+    expect(count(second)).toHaveLength(4); // Rooms do not share mutable collision
+    setFloodgateFreightStage(first,freightStage(FLOODGATE_TOPPLE_SECONDS));
+    const fallen=count(first);
+    expect(fallen).toHaveLength(FLOODGATE_FREIGHT.length*9);
+    expect(fallen.filter(b=>b.kind==="stair")).toHaveLength(FLOODGATE_FREIGHT.length*8);
+    expect(fallen.filter(b=>b.kind==="platform")).toHaveLength(FLOODGATE_FREIGHT.length);
+    expect(fallen.filter(b=>b.kind==="stair").every(b=>b.pos[1]+b.size[1]<=3.36)).toBe(true);
+    for(const item of FLOODGATE_FREIGHT){
+      const ramp=fallen.filter(b=>b.environmentId?.startsWith("floodgate-freight:"+item.id+":step-"))
+        .sort((a,b)=>a.pos[2]-b.pos[2]);
+      expect(ramp).toHaveLength(8);
+      for(let i=1;i<ramp.length;i++)expect(
+        ramp[i].pos[1]+ramp[i].size[1]-(ramp[i-1].pos[1]+ramp[i-1].size[1])
+      ).toBeCloseTo(.42,5);
+      const landing=fallen.find(b=>b.environmentId==="floodgate-freight:"+item.id+":bridge")!;
+      expect(landing.pos[1]+landing.size[1]).toBeCloseTo(3.36);
+      const deck=first.cover.find(b=>b.kind==="platform"&&!b.environmentId &&
+        Math.abs(b.pos[0]-item.x)<8&&Math.abs(b.pos[2]+50)<1);
+      expect(deck).toBeDefined();
+      expect(landing.pos[2]+landing.size[2]).toBeGreaterThanOrEqual(
+        deck!.pos[2]-deck!.size[2]-.5);
+    }
+    setFloodgateFreightStage(first,"fallen");
+    expect(count(first)).toHaveLength(fallen.length);
+    setFloodgateFreightStage(first,"upright");
+    expect(count(first)).toHaveLength(4);
+    expect(count(second)).toHaveLength(4);
+  });
+  test("fall animations reuse geometry and match the shared collapse clock",()=>{
+    const scene=new THREE.Scene(),group=buildFloodgateFreight(scene),all=[...group.children];
+    expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(false);
+    updateFloodgateFreight(group,FLOODGATE_TOPPLE_SECONDS/2);
+    expect(group.getObjectByName("floodgate-freight:west-inner")?.rotation.x).toBeGreaterThan(-Math.PI/2);
+    updateFloodgateFreight(group,FLOODGATE_TOPPLE_SECONDS);
+    expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(true);
+    expect(group.children).toEqual(all);
+    group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
+      for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
+    }});
+  });
+  test("visible cracks accumulate in four tiers without replacing the dam hitbox",()=>{
+    expect(damCrackTier(FLOODGATE_DAM_HP,FLOODGATE_DAM_HP)).toBe(0);
+    for(const [ratio,tier] of [[.8,1],[.6,2],[.4,3],[.2,4]] as const)
+      expect(damCrackTier(FLOODGATE_DAM_HP*ratio,FLOODGATE_DAM_HP)).toBe(tier);
+    const group=new THREE.Group();
+    buildFloodgateDamCracks(group,8,5,4.19,9);
+    const cracks=group.children.filter(c=>c.name.startsWith("floodgate-cracks"));
+    expect(cracks).toHaveLength(4);
+    for(const hp of [3000,2400,1800,1200,600]){
+      updateFloodgateDamCracks(group,hp,FLOODGATE_DAM_HP);
+      expect(cracks.filter(c=>c.visible)).toHaveLength(damCrackTier(hp,FLOODGATE_DAM_HP));
+    }
+    expect(cracks.every(c=>c instanceof THREE.LineSegments)).toBe(true);
+    for(const o of cracks){const line=o as THREE.LineSegments;
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
   });
   test("dam backdrop no longer draws an invulnerable full-height central gate",()=>{
     const backdrop=buildFloodgateBackdrop(new THREE.Scene());
