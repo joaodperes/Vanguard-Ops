@@ -1,0 +1,97 @@
+/** Floodgate environmental transformation: upright freight containers become four
+ * traversable stairs and upper landing bridges after the dam breaches.
+ * Shared by server collisions, offline physics, bot pathfinding and rendering. */
+import * as THREE from "three";
+import type {CoverBox,MapDef,Vec3} from "./game-protocol";
+
+export const FLOODGATE_TOPPLE_SECONDS=3.2;
+export const FLOODGATE_FREIGHT=[
+  {id:"west-inner",x:-21,z:-74,color:0xda8539},
+  {id:"east-inner",x:21,z:-74,color:0x36a6b0},
+  {id:"west-outer",x:-88,z:-74,color:0xc65e42},
+  {id:"east-outer",x:88,z:-74,color:0xe0a93c},
+] as const;
+const PREFIX="floodgate-freight:";
+export type FreightStage="upright"|"falling"|"fallen";
+const stages=new WeakMap<MapDef,FreightStage>();
+export function freightStage(age:number|null):FreightStage {
+  return age===null?"upright":age<FLOODGATE_TOPPLE_SECONDS?"falling":"fallen";
+}
+export function freightCover(stage:Exclude<FreightStage,"falling">):CoverBox[]{
+  const boxes:CoverBox[]=[];
+  for(const c of FLOODGATE_FREIGHT){
+    if(stage==="upright"){
+      boxes.push({pos:[c.x,11.5,c.z],size:[2.7,11.5,1.4],kind:"cover",environmentId:PREFIX+c.id+":upright"});
+    }else{
+      // North-to-south staircase: eight 0.42-unit risers, with an upper
+      // landing that joins the northern lip of the existing overlook deck.
+      // One shared geometry recipe prevents visible and physical mismatch.
+      for(let i=0;i<8;i++){
+        const top=(i+1)*.42;
+        boxes.push({pos:[c.x,top/2,-84+(i+.5)*2.65],size:[2.7,top/2,1.345],
+          kind:"stair",environmentId:PREFIX+c.id+":step-"+i});
+      }
+      boxes.push({pos:[c.x,1.68,-59.3],size:[4.15,1.68,4.1],
+        kind:"platform",environmentId:PREFIX+c.id+":bridge"});
+    }
+  }
+  return boxes;
+}
+/** Only changes cover owned by the event. This never mutates MAPS singletons;
+ * each room/game gets its own makeEnvironmentMap copy. Idempotent per stage. */
+export function setFloodgateFreightStage(map:MapDef,stage:FreightStage):void{
+  if(map.id!=="floodgate"||stages.get(map)===stage)return;
+  for(let i=map.cover.length-1;i>=0;i--)
+    if(map.cover[i].environmentId?.startsWith(PREFIX))map.cover.splice(i,1);
+  if(stage!=="falling")map.cover.push(...freightCover(stage));
+  stages.set(map,stage);
+}
+export function initializeFloodgateFreight(map:MapDef):void{
+  setFloodgateFreightStage(map,"upright");
+}
+export function buildFloodgateFreight(scene:THREE.Scene):THREE.Group{
+  const group=new THREE.Group();group.name="floodgate-freight";
+  const trim=new THREE.MeshStandardMaterial({color:0x2e4548,metalness:.68,roughness:.4});
+  const decking=new THREE.MeshStandardMaterial({color:0x778b88,metalness:.55,roughness:.6});
+  for(const c of FLOODGATE_FREIGHT){
+    const pivot=new THREE.Group();
+    pivot.name=PREFIX+c.id;
+    const body=new THREE.Mesh(new THREE.BoxGeometry(5.1,1.0,23),new THREE.MeshStandardMaterial({
+      color:c.color,metalness:.45,roughness:.64,
+    }));
+    body.castShadow=true;body.receiveShadow=true;pivot.add(body);
+    for(const offset of [-2.1,0,2.1]){
+      const rib=new THREE.Mesh(new THREE.BoxGeometry(.13,1.1,22.8),trim);
+      rib.position.x=offset;pivot.add(rib);
+    }
+    group.add(pivot);
+    const steps=new THREE.Group();steps.name=PREFIX+c.id+":stairs";
+    for(const box of freightCover("fallen").filter(b=>b.environmentId?.startsWith(PREFIX+c.id+":step-"))){
+      const plank=new THREE.Mesh(new THREE.BoxGeometry(box.size[0]*2,.12,box.size[2]*2),decking);
+      plank.position.set(box.pos[0],box.pos[1]+box.size[1]+.06,box.pos[2]);
+      plank.receiveShadow=true;steps.add(plank);
+    }
+    const bridge=new THREE.Mesh(new THREE.BoxGeometry(8.3,.19,8.2),decking);
+    bridge.position.set(c.x,3.43,-59.3);steps.add(bridge);
+    steps.visible=false;group.add(steps);
+  }
+  scene.add(group);
+  updateFloodgateFreight(group,null);
+  return group;
+}
+export function updateFloodgateFreight(group:THREE.Group,age:number|null):void{
+  const elapsed=Math.max(0,age??0);
+  const t=age===null?0:Math.min(1,elapsed/FLOODGATE_TOPPLE_SECONDS);
+  // Fast start, sharp final impact: all clients derive exactly the same pose
+  // from the authoritative breach clock, including spectators and late joins.
+  const ease=t*t*(3-2*t);
+  for(const c of FLOODGATE_FREIGHT){
+    const mesh=group.getObjectByName(PREFIX+c.id);
+    if(mesh){
+      mesh.position.set(c.x,11.5+(1.67-11.5)*ease,c.z+(-72.2-c.z)*ease);
+      mesh.rotation.x=-Math.PI/2+(Math.PI/2-Math.atan2(3.36,23))*ease;
+    }
+    const stairs=group.getObjectByName(PREFIX+c.id+":stairs");
+    if(stairs)stairs.visible=t>=1;
+  }
+}
