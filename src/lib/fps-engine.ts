@@ -6281,7 +6281,7 @@ export class FPSEngine {
     for(const m of mats)m.dispose();
   }
   private updateRiotModels(){
-    if(!this.opts.online){
+    if(!this.opts?.online){
       const next=tickRiotShield(this.riotShieldHp,this.riotShieldReadyAt,performance.now());
       this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
     }
