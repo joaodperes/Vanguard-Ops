@@ -34,6 +34,21 @@ describe("mode availability and spawn capacity",()=>{
   store.setRoomConfig({teamSize:5});store.setRoomConfig({mode:"ffa"});expect(useGame.getState().roomConfig.teamSize).toBe(4);
   store.setRoomConfig({mapId:"shipyard",mode:"tdm"});expect(useGame.getState().roomConfig.teamSize).toBe(5);
  });
+ test("per-map recommended and expanded player counts are consistent",()=>{
+  const {recommendedTeamSize}=require("../src/lib/game-protocol") as typeof import("../src/lib/game-protocol");
+  for(const id of ["terminal","arena_neon"]){
+    expect(teamSizesForMap(id,"tdm")).toEqual([5,7,9,16]);
+    expect(teamSizesForMap(id,"ffa")).toEqual([5,7,9,16]);
+    expect(recommendedTeamSize(id,"tdm")).toBe(9);
+    expect(recommendedTeamSize(id,"ffa")).toBe(7);
+  }
+  expect(teamSizesForMap("floodgate","tdm")).toEqual([5,7,9,16]);
+  expect(recommendedTeamSize("floodgate")).toBe(7);
+  for(const id of ["compound","skybridge"]){
+    expect(teamSizesForMap(id,"ctf")).toEqual([3,5,7,9]);
+    expect(recommendedTeamSize(id)).toBe(7);
+  }
+ });
  test("every enabled PvP map/mode has enough unique collision-safe spawn points",()=>{
   for(const base of MAP_LIST)for(const mode of ["tdm","killconfirmed","ctf","ffa","gungame"] as const){
    if(!mapAllowedForMode(mode,base.id))continue;
@@ -46,7 +61,7 @@ describe("mode availability and spawn capacity",()=>{
  });
 });
 
-describe("Verdant Ruins and Ridgefall CTF trials",()=>{
+describe("Verdant Ruins and Ridgefall CTF",()=>{
  for(const id of ["compound","skybridge"] as const){
   const map=makeEnvironmentMap(getMap(id,"ctf")),index=new CoverSpatialIndex(map.cover);
   test(`${id}: objectives and rear spawn pools are clear without mutating other modes`,()=>{
