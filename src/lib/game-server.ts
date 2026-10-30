@@ -1926,7 +1926,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     if (d >= bestD) continue;
     // Only acquire targets within the bot's engagement range AND with clear LoS.
     if (d > Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category),
-      room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime):Infinity)) continue;
+      room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
     if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(room.mode === "survival" && e.pos[1] > p.pos[1] + 1.25)) continue;
