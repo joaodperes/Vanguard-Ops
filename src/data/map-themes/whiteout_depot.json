@@ -43,17 +43,6 @@
   },
   "props": [
     {
-      "kind": "sign",
-      "x": -109,
-      "z": 0,
-      "w": 9,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "WEST DISPATCH",
-      "color": "#ff8a82"
-    },
-    {
       "kind": "lamp",
       "x": -94,
       "z": -16,
@@ -99,39 +88,6 @@
       "color": "#9b825b"
     },
     {
-      "kind": "sign",
-      "x": -44,
-      "z": -20,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "FREIGHT SHED",
-      "color": "#e4c887"
-    },
-    {
-      "kind": "sign",
-      "x": -80,
-      "z": 30,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "SERVICE GALLERY",
-      "color": "#e4c887"
-    },
-    {
-      "kind": "sign",
-      "x": 109,
-      "z": 0,
-      "w": 9,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "EAST DISPATCH",
-      "color": "#72c8ff"
-    },
-    {
       "kind": "lamp",
       "x": 94,
       "z": -16,
@@ -175,49 +131,6 @@
       "d": 7,
       "h": 2.6,
       "color": "#9b825b"
-    },
-    {
-      "kind": "sign",
-      "x": 44,
-      "z": -20,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "FREIGHT SHED",
-      "color": "#e4c887"
-    },
-    {
-      "kind": "sign",
-      "x": 80,
-      "z": 30,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 4,
-      "text": "SERVICE GALLERY",
-      "color": "#e4c887"
-    },
-    {
-      "kind": "sign",
-      "x": 0,
-      "z": -62,
-      "w": 16,
-      "d": 1,
-      "h": 4,
-      "text": "WHITEOUT / PLATFORM 6",
-      "color": "#f6c56b"
-    },
-    {
-      "kind": "sign",
-      "x": 0,
-      "z": 57,
-      "w": 14,
-      "d": 1,
-      "h": 3,
-      "y": 3,
-      "text": "MAINTENANCE / TWO WAY ACCESS",
-      "color": "#f6c56b"
     }
   ]
 }
