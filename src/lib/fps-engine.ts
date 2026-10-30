@@ -1,4 +1,6 @@
 import {chooseSpawn} from "./spawn-selection";
+import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss} from "./bot-appearances";
+import {addSurvivalBossArmor, updateSurvivalBossArmor, type SurvivalBossVisual} from "./survival-boss-visuals";
 import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
@@ -418,6 +420,9 @@ interface Combatant {
   group?: THREE.Group;
   nameSprite?: THREE.Sprite;
   healthBar?: THREE.Mesh;
+  bossMaxHealth?: number;
+  bossCharge?: number;
+  bossVisual?: SurvivalBossVisual;
   skinMaterial?: THREE.MeshStandardMaterial;
   thermalOverlays?: THREE.Mesh[];
   // humanoid animation parts
@@ -4356,6 +4361,7 @@ export class FPSEngine {
 
   private setupOfflineBots() {
     let i = 0;
+    const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
     const isGungame = this.opts.mode === "gungame";
     for (let n = 0; n < this.opts.botCount; n++) {
       const team = (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? (i % 2 === 0 ? "red" : "blue") : "ffa";
@@ -4367,7 +4373,7 @@ export class FPSEngine {
       const c: Combatant = {
         id, name: "Bot-" + (n + 1), team, isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-        weaponId: wid, weaponSkinId: "default", playerSkinId: isGungame ? "default" : ["default", "red", "blue", "green"][i % 4],
+        weaponId: wid, weaponSkinId: "default", playerSkinId: botOperativeSkinId(i,skinRotation),
         kills: 0, deaths: 0, score: 0,
         ai: this.makeBotAI(sp,undefined,archetype),
         gungameIndex: isGungame ? 0 : undefined,
@@ -4467,7 +4473,7 @@ export class FPSEngine {
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Every conventional ranged weapon can spawn; specials and launchers do not.
     const botWeapons = BOT_ELIGIBLE_WEAPONS.map(w=>w.id);
-    const skins = ["red", "orange", "purple", "default", "red", "blue", "green", "phantom"];
+    const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
     // ---- Round 18-b: spread out spawns ----
     // Use FFA spawn list (typically 20 points across the whole map) instead of
     // red-team-only spawns (typically 10 points on one side). This spreads
@@ -4488,7 +4494,8 @@ export class FPSEngine {
       const c: Combatant = {
         id, name: boss ? `BOSS · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
-        weaponId: wid, weaponSkinId: "default", playerSkinId: skins[n % skins.length],
+        bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
+        weaponId: wid, weaponSkinId: "default", playerSkinId: boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation),
         kills: 0, deaths: 0, score: 0,
         ai,
       };
@@ -4585,6 +4592,14 @@ export class FPSEngine {
     hips.castShadow = true;
     torsoGroup.add(hips);
     root.add(torsoGroup);
+    // Team identity is independent of the operative skin. Red and blue players
+    // keep a readable chest band even when wearing an opposing-colour skin.
+    if (c.team === "red" || c.team === "blue") {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.58,0.065,0.33),
+        new THREE.MeshBasicMaterial({color:c.team==="red"?0xff4256:0x4fc9ff}));
+      band.position.set(0,1.09,0.01);
+      torsoGroup.add(band);
+    }
 
     // ---- Head ----
     const headGroup = new THREE.Group();
@@ -4653,6 +4668,14 @@ export class FPSEngine {
     };
     const legL = makeLeg(1);
     const legR = makeLeg(-1);
+
+    // Larger-than-life armor is a cosmetic overlay over the standard hitbox.
+    // Online boss identity is the authoritative name (IDs are random svbot IDs).
+    c.bossVisual = isSurvivalBoss(c.id,c.name,c.isBot)
+      ? addSurvivalBossArmor({root,torso:torsoGroup,head:headGroup,
+          upperArmL:armL.upper,upperArmR:armR.upper,
+          upperLegL:legL.upper,upperLegR:legR.upper})
+      : undefined;
 
     // ---- Third-person weapon (model faces character-forward +Z) ----
     // The procedural weapon builder is camera-local (-Z forward). Its geometry,
@@ -5686,6 +5709,7 @@ export class FPSEngine {
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
+        bossMaxHealth:p.bossMaxHealth,bossCharge:p.bossCharge,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
       this.combatants.set(p.id, c);
@@ -5713,11 +5737,14 @@ export class FPSEngine {
         c.nameplateId = p.nameplateId;
         c.group = undefined;
         c.parts = undefined;
+        c.bossVisual = undefined;
         this.addCombatantMesh(c);
       }
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
+    c.bossMaxHealth=p.bossMaxHealth;
+    c.bossCharge=p.bossCharge;
     c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;c.riotShieldReadyAt=p.riotShieldReadyAt;
     c.perkId = p.perkId;
     return c;
@@ -8035,6 +8062,11 @@ export class FPSEngine {
       }
       // Thermal ADS reveals exposed heat signatures through weather, not through
       // physical cover. The ordinary body shader is still obscured by snow fog.
+      if (c.bossVisual && c.alive) {
+        const timer=this.survivalBossTimers.get(c.id);
+        const charge=c.bossCharge ?? (timer?bossShockwaveCharge(timer.nextSkillAt,now):0);
+        updateSurvivalBossArmor(c.bossVisual,c.weaponId,charge,now);
+      }
       const thermalVisible=isThermalAds&&c.alive&&!c.isSelf&&
         (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team)&&
         Math.hypot(c.pos[0]-this.pos.x,c.pos[2]-this.pos.z)<165&&
@@ -8077,7 +8109,7 @@ export class FPSEngine {
         if (c.nameSprite) c.nameSprite.visible = true;
         if (c.healthBar) {
           c.healthBar.visible = true;
-          const pct = Math.max(0, c.health / MAX_HEALTH);
+          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
           (c.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x33dd66 : pct > 0.25 ? 0xffaa33 : 0xff3333);
