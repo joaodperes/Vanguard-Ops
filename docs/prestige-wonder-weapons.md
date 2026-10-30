@@ -14,11 +14,11 @@ Run the safe schema update **before starting the new app/server build**.
 - **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
   players can equip it even without completing Prestige.
 - Completing both tracks on the same weapon grants a one-use **Wonder Weapon
-  unlock entitlement**, equal to uniquely dual-completed weapons minus already
-  purchased Wonder Weapons. This is displayed as 'Wonder unlocks available',
-  not as a separate reusable Shop currency. Old Prestige awards retain both
-  cosmetics, even if they predate the split. Repeated completions, reloads or
-  imports do not mint entitlements.
+  unlock entitlement**, stored as a one-time permanent `WonderTokenAward`
+  for that weapon. Later threshold increases never revoke an earned token.
+  Available tokens are immutable award rows plus any legacy purchase
+  compensation, minus previously redeemed Wonder Weapons. Old Prestige
+  awards retain both skins. No repeated awards on refresh, re-mastery or import.
 - Weapon Prestige does not reset rank, kills, or attachments.
 
 ## Diagnosing a missing Wonder unlock
@@ -32,8 +32,8 @@ account-wide achievement is **not** proof of Prestige on that same weapon.
 On a profile refresh, `buildProfileView` reconciles eligible Prestige rows
 from the server-side weapon progress. A missing record when the seven cosmetics
 show complete is a persistence issue to investigate, **not** a reason to mint
-an extra token client-side. A Wonder token is only spendable when the server
-confirms both the persisted Prestige and weapon-specific Mastery 5. Leaving
+an extra token client-side. A new Wonder token is earned only after server-confirmed Prestige and
+weapon-specific Mastery 5; once earned, it cannot be revoked. Leaving
 a match with saved stats should have the same progression result as completing
 one; the integration regression covers Marksman DMR crossing 600 kills/330
 headshots on an early exit.
@@ -126,8 +126,17 @@ The startup sync intentionally omits `--accept-data-loss`.
 6. Export and reimport an account with a Prestige and Wonder purchase; ensure
    camos/ownership remain and available tokens do not increase.
 
-The added tables are `WeaponPrestige` and `WonderUnlock` with unique keys
-(playerId, weaponId). They add no destructive migration. Existing
+The progression schema now contains `WeaponPrestige`, `WonderUnlock`,
+and permanent `WonderTokenAward` records, all unique per player/weapon.
+New Player fields `wonderTokenLedgerReady` and `wonderLegacyCredits`
+enable one-time grandfathering. On first profile access, pre-existing
+Wonder purchases are treated as paid from the oldest Prestige awards
+earned before the most recent historical Wonder purchase; if those source
+records are incomplete, an offset credit covers the unmatched historic
+purchases without giving free spending power. Old purchase rows did not
+record the source weapon, so this reconciliation is necessarily
+best-effort and permanent. Run an additive `bun run db:push` before
+starting this server build. The changes are not destructive. Existing
 `WeaponProgress.conditionStats` is the earlier contextual challenge schema
 change and also needs migration if not already applied.
 
