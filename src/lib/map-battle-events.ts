@@ -7,6 +7,22 @@ export function floodgateDamageTarget(id:string):string {
   return id===FLOODGATE_CORE_ID||FLOODGATE_DAM_PANELS.some(panel=>panel===id)
     ? FLOODGATE_CORE_ID : id;
 }
+/** One finite structural HP pool, reflected on every linked segment.
+ * Returns the changed IDs so a server can remove each collider on collapse.
+ * A non-Floodgate breakable remains an independent destructible. */
+export function applyLinkedWallDamage(
+  walls:Map<string,number>,hitId:string,damage:number,
+):{ids:string[];hp:number}|null{
+  const target=floodgateDamageTarget(hitId);
+  const previous=walls.get(target);
+  if(previous===undefined||previous<=0||!Number.isFinite(damage)||damage<=0)return null;
+  const hp=Math.max(0,previous-damage);
+  const ids=target===FLOODGATE_CORE_ID
+    ?[target,...FLOODGATE_DAM_PANELS].filter(id=>walls.has(id))
+    :[target];
+  for(const id of ids)walls.set(id,hp);
+  return {ids,hp};
+}
 export function floodgateBreachTargets(id:string):readonly string[] {
   return id===FLOODGATE_CORE_ID ? FLOODGATE_DAM_PANELS : [];
 }
