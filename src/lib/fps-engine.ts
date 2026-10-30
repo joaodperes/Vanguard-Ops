@@ -1,5 +1,6 @@
 import {chooseSpawn} from "./spawn-selection";
-import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,whiteoutIntensity,whiteoutVisibility} from "./map-battle-events";
+import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
+import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
@@ -588,6 +589,7 @@ export class FPSEngine {
   private environmentTime = 0;
   private environmentWalls = new Map<string, number>();
   private floodgateBackdrop:THREE.Group|null=null;
+  private whiteoutSnow:THREE.Points|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
   private environmentCooldown = new Map<string, number>();
 
@@ -1854,6 +1856,7 @@ export class FPSEngine {
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
     if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
     if(this.map.id==="floodgate")this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
+    if(this.map.id==="whiteout_depot")this.whiteoutSnow=buildWhiteoutSnow(this.scene);
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -2388,11 +2391,12 @@ export class FPSEngine {
     const previous = this.environmentTime;
     this.environmentTime += dt;
     if(this.map.id==="whiteout_depot" && this.scene.fog instanceof THREE.Fog){
-      const strength=whiteoutIntensity(this.environmentTime);
+      const strength=whiteoutIntensity(this.environmentTime)*whiteoutExposure(this.pos.x,this.pos.z);
       this.scene.fog.near=THREE.MathUtils.lerp(this.map.theme.fogNear,9,strength);
       this.scene.fog.far=THREE.MathUtils.lerp(this.map.theme.fogFar,42,strength);
       if(this.scene.background instanceof THREE.Color)
         this.scene.background.set(this.map.theme.sky).lerp(new THREE.Color("#e2edf4"),strength*.48);
+      if(this.whiteoutSnow)updateWhiteoutSnow(this.whiteoutSnow,strength,this.environmentTime,this.pos.x,this.pos.y+2,this.pos.z);
     }
     for (const o of this.map.environment ?? []) {
       const g = this.environmentMeshes.get(o.id);
@@ -8615,7 +8619,7 @@ export class FPSEngine {
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
       if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category),
-        this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime):Infinity)) continue;
+        this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
       if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(this.opts.mode === "survival" && e.pos[1] > c.pos[1] + 1.25)) continue;
