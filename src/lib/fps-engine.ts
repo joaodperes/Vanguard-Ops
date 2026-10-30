@@ -5282,11 +5282,11 @@ export class FPSEngine {
         // Never retain the initial FFA preview position in team modes.
         // The server's assigned team spawn is authoritative for TDM, KC,
         // CTF and other modes alike, including late lobby joins.
-        const assignedSpawn = msg.players.find(p=>p.id===msg.selfId)?.pos;
-        if(assignedSpawn){
-          this.pos.set(assignedSpawn[0],assignedSpawn[1],assignedSpawn[2]);
+        const lobbySpawn = msg.players.find(p=>p.id===msg.selfId)?.pos;
+        if(lobbySpawn){
+          this.pos.set(lobbySpawn[0],lobbySpawn[1],lobbySpawn[2]);
           this.vel.set(0,0,0);
-          this.cameraFeetY=assignedSpawn[1];
+          this.cameraFeetY=lobbySpawn[1];
         }
         // Track lobby state from the server's response.
         this.lobbyRoomName = msg.roomName;
