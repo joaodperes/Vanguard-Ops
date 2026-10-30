@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {floodgateBreachTargets,floodgateDamageTarget,whiteoutVisibility} from "./map-battle-events";
+import {applyLinkedWallDamage,whiteoutVisibility} from "./map-battle-events";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -1698,21 +1698,12 @@ function recoverSurvivalPlayers(room: Room) {
 // ---- Bot AI -----------------------------------------------------------------
 /** Authoritative map-object damage. Player shots cannot request a wall's new HP. */
 function damageEnvironmentWall(room: Room, id: string, damage: number): void {
-  // Dam panels are genuine hit zones, not invulnerable 100k-HP decoys.
-  id=floodgateDamageTarget(id);
-  const hp = room.environmentWalls.get(id);
-  if (hp === undefined || hp <= 0 || !Number.isFinite(damage) || damage <= 0) return;
-  const next = Math.max(0, hp - damage);
-  room.environmentWalls.set(id, next);
-  if (next <= 0) {
-    breakEnvironmentWall(room.map, id);  // instantly unblocks shots + bots
-    // One atomic dam collapse: server owns the only trigger and both teams
-    // receive the changed collision in the next authoritative snapshot.
-    for (const panel of floodgateBreachTargets(id)) {
-      if (!room.environmentWalls.has(panel)) continue;
-      room.environmentWalls.set(panel,0);
-      breakEnvironmentWall(room.map,panel);
-    }
+  const result=applyLinkedWallDamage(room.environmentWalls,id,damage);
+  if(!result)return;
+  if(result.hp<=0){
+    // The wall disappears physically on the server in the same shot that
+    // depleted the shared structural pool; a future ray cannot hit a ghost wall.
+    for(const wallId of result.ids)breakEnvironmentWall(room.map,wallId);
   }
 }
 
