@@ -1,6 +1,6 @@
 import {chooseSpawn} from "./spawn-selection";
-import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,whiteoutVisibility} from "./map-battle-events";
-import {freightStage,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
+import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutVisibility} from "./map-battle-events";
+import {setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -619,7 +619,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.startTime = Date.now();
   room.environmentTime = 0;
   room.floodgateBreachAt=null;
-  if(room.map.id==="floodgate")setFloodgateFreightStage(room.map,"upright");
+  if(room.map.id==="floodgate")setFloodgateFreightStage(room.map,null);
   room.environmentCooldown.clear();
   room.timeLeft = room.config.timeLimit;
   room.elapsedSeconds = 0;
@@ -1727,8 +1727,8 @@ function damageEnvironmentWall(room: Room, id: string, damage: number): void {
     if(room.map.id==="floodgate"&&floodgateDamageTarget(id)===FLOODGATE_CORE_ID&&
       room.floodgateBreachAt===null){
       room.floodgateBreachAt=room.environmentTime;
-      setFloodgateFreightStage(room.map,"falling");
-      // A destroyed/converted obstacle requires fresh waypoints for every bot.
+      // The hydraulic front will topple each pillar when it reaches it.
+      // A destroyed wall still invalidates existing waypoints.
       for(const bot of room.bots.values()){bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;}
     }
     // The wall disappears physically on the server in the same shot that
@@ -1742,7 +1742,10 @@ function tickEnvironment(room: Room, dt: number): void {
   room.environmentTime += dt;
   if(room.map.id==="floodgate"){
     const age=room.floodgateBreachAt===null?null:room.environmentTime-room.floodgateBreachAt;
-    setFloodgateFreightStage(room.map,freightStage(age));
+    if(setFloodgateFreightStage(room.map,age)){
+      // Every falling/landing pillar changes the traversable geometry.
+      for(const bot of room.bots.values()){bot.ai.routeWaypoint=null;bot.ai.nextRouteAt=0;}
+    }
   }
   const now = Date.now();
   for (const o of room.map.environment ?? []) {
@@ -1797,7 +1800,7 @@ function tickEnvironment(room: Room, dt: number): void {
     const age=room.environmentTime-room.floodgateBreachAt;
     for(const player of allCombatants(room)){
       if(!player.alive)continue;
-      const water=floodgateWaterEffect(player.pos[0],player.pos[1],player.pos[2],age);
+      const water=floodgateWaterEffect(player.pos[0],player.pos[1],player.pos[2],age,room.map.cover);
       if(water.flooded&&player.isBot){
         // Bots are server simulated; clients predict the identical current for
         // human movement. Resolve solid cover after the current is applied.
@@ -2021,6 +2024,8 @@ function roomHighGroundGoals(room:Room):HighGroundGoal[]{
 function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire }, now: number) {
   if ((room.equipmentStun.get(bot.id) ?? 0) > now) return;
   const ai = bot.ai;
+  const floodAge=room.map.id==="floodgate"&&room.floodgateBreachAt!==null
+    ?room.environmentTime-room.floodgateBreachAt:null;
   if (ai.boss) {
     if (now >= ai.boss.nextPhaseAt) {
       ai.boss.phase=(ai.boss.phase+1)%3;
@@ -2209,7 +2214,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.envJumpVelocityY===undefined&&botHasJumpClearance(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
-    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],room.map.id==="floodgate"&&room.floodgateBreachAt!==null?room.environmentTime-room.floodgateBreachAt:null).speedMultiplier;
+    const moveSpeed = (room.mode === "ctf" && (room.flags.red.carrierId === bot.id || room.flags.blue.carrierId === bot.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed * (orbitalReaperEquipped(room.map.id,bot.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier;
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
@@ -2229,11 +2234,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // waypoint when the direct chase lane is obstructed; keep weapon aim on target.
     if ((dist > chaseThreshold || Math.abs(target.pos[1] - bot.pos[1]) > 1.3) &&
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
-      botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]))) {
+      botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]) ||
+      floodgateRouteNeedsDetour(bot.pos,target.pos,floodAge,room.map.cover))) {
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
         const index=cityIndex(room);
         ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,
-          floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000) ??
+          floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge) ??
           botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850;
       }
@@ -2399,12 +2405,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       let fx = dx / d, fz = dz / d;
       const patrolBlocked = botMoveBlocked(room, bot.pos, [bot.pos[0]+fx*4, bot.pos[1], bot.pos[2]+fz*4], bot.pos[1]);
       if((patrolBlocked||(patrolGoal&&d>5)||
-          Math.abs(patrolPoint[1]-bot.pos[1])>1.3||room.map.id==="bunker") &&
+          Math.abs(patrolPoint[1]-bot.pos[1])>1.3||room.map.id==="bunker" ||
+          floodgateRouteNeedsDetour(bot.pos,patrolPoint,floodAge,room.map.cover)) &&
           (!patrolGoal||d>4.5)){
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
           const index=cityIndex(room);
           ai.routeWaypoint=botNextWaypoint(bot.pos,patrolPoint,room.map.cover,room.map.size,3,
-            floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000);
+            floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge);
           ai.nextRouteAt=now+(index?1500:850);
         }
         const waypoint=ai.routeWaypoint;
