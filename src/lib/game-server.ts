@@ -791,14 +791,14 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
   const currentCharm=loadout && p.weaponId===loadout.weaponId ? loadout.primaryCharmId :
     loadout && p.weaponId===loadout.secondaryWeaponId ? loadout.secondaryCharmId :
     loadout && p.weaponId===loadout.meleeWeaponId ? loadout.meleeCharmId : "none";
+  const boss = (p as PlayerNet & {ai?:BotAI}).ai?.boss;
   return {
     id: p.id, name: p.name, team: p.team, isBot: p.isBot,
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
     charmId:currentCharm??"none",nameplateId:p.nameplateId,
     bossMaxHealth:p.bossMaxHealth,
-    bossCharge:(p as PlayerNet & {ai?:BotAI}).ai?.boss
-      ?bossShockwaveCharge((p as PlayerNet & {ai?:BotAI}).ai!.boss!.nextSkillAt,Date.now()):undefined,
+    bossCharge:boss?bossShockwaveCharge(boss.nextSkillAt,Date.now()):undefined,
     riotShieldHp:p.riotShieldHp??RIOT_SHIELD_HP,riotShieldRaised:p.riotShieldRaised??false,riotShieldReadyAt:p.riotShieldReadyAt??0,
     kills: p.kills, deaths: p.deaths, aiming: (p as PlayerNet & { ai?: BotAI }).ai?.aiming ?? false, reloading: false,
     spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
