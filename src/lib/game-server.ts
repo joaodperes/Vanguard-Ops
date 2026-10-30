@@ -1,5 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
-import {applyLinkedWallDamage,whiteoutVisibility} from "./map-battle-events";
+import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,whiteoutVisibility} from "./map-battle-events";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
 import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
@@ -200,6 +200,7 @@ interface Room {
   // ticks down in the tickRoom loop; when it hits 0, normal gameplay resumes.
   preMatchCountdown: number;
   environmentTime: number;             // seconds since the fight became active
+  floodgateBreachAt: number|null;      // authoritative environment clock at dam failure
   environmentWalls: Map<string, number>;
   environmentCooldown: Map<string, number>;
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
@@ -408,6 +409,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     gungamePreset: "all", gungameMultiplier: 1, sprintState: new Map(),
     preMatchCountdown: 5,
     environmentTime: 0,
+    floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
     specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
@@ -573,6 +575,7 @@ function createLobbyRoom(
     sprintState: new Map(),
     preMatchCountdown: 0,  // lobby rooms set this when startMatch fires
     environmentTime: 0,
+    floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
     specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
@@ -727,8 +730,9 @@ function snapshot(room: Room): S2C {
     elapsedSeconds: Math.floor(room.elapsedSeconds ?? 0),
     clusterVolleys: [...room.clusterVolleys.values()].map(({done,dealt,...v})=>v),
     environmentTime: room.environmentTime,
+    floodgateBreachAt:room.floodgateBreachAt,
     environmentWalls: Object.fromEntries(room.environmentWalls),
-    ...(room.map.id==="floodgate"?{floodgateRulesVersion:2}:{}),
+    ...(room.map.id==="floodgate"?{floodgateRulesVersion:3}:{}),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
@@ -1702,6 +1706,8 @@ function damageEnvironmentWall(room: Room, id: string, damage: number): void {
   const result=applyLinkedWallDamage(room.environmentWalls,id,damage);
   if(!result)return;
   if(result.hp<=0){
+    if(room.map.id==="floodgate"&&floodgateDamageTarget(id)===FLOODGATE_CORE_ID&&
+      room.floodgateBreachAt===null)room.floodgateBreachAt=room.environmentTime;
     // The wall disappears physically on the server in the same shot that
     // depleted the shared structural pool; a future ray cannot hit a ghost wall.
     for(const wallId of result.ids)breakEnvironmentWall(room.map,wallId);
@@ -1743,6 +1749,8 @@ function tickEnvironment(room: Room, dt: number): void {
       continue;
     }
     if (o.type !== "fire" && o.type !== "spikes") continue;
+    // Rushing water drowns the timed steam vents permanently.
+    if (room.floodgateBreachAt!==null&&o.type==="spikes"&&o.visual==="steam")continue;
     if (o.type === "spikes" && !spikesActive(o, room.environmentTime)) continue;
     for (const player of allCombatants(room)) {
       if (!player.alive || !withinEnvironment(o, player.pos)) continue;
@@ -1753,6 +1761,29 @@ function tickEnvironment(room: Room, dt: number): void {
       room.environmentCooldown.set(key, now + interval);
       applyDamage(room, "world", player, o.type === "fire" ? o.dps * interval / 1000 : o.damage, false, o.type === "fire" ? "env_fire" : "env_spikes");
       if (room.ended) return;
+    }
+  }
+  // Dam breach is an actual environmental event, not a blue floor decal.
+  // The hydraulic front strikes ground-level occupants once per 900ms; shallow
+  // flood water then keeps pushing/slowing the northern lane for the match.
+  if(room.map.id==="floodgate"&&room.floodgateBreachAt!==null){
+    const age=room.environmentTime-room.floodgateBreachAt;
+    for(const player of allCombatants(room)){
+      if(!player.alive)continue;
+      const water=floodgateWaterEffect(player.pos[0],player.pos[1],player.pos[2],age);
+      if(water.flooded&&player.isBot){
+        // Bots are server simulated; clients predict the identical current for
+        // human movement. Resolve solid cover after the current is applied.
+        const displaced:[number,number,number]=[player.pos[0],player.pos[1],player.pos[2]+water.pushZ*dt];
+        if(!botMoveBlocked(room,player.pos,displaced,player.pos[1]))
+          player.pos=clampToArena(room,collideBots(room,displaced,displaced[1]));
+      }
+      if(!water.surge||player.spawnProtectedUntil>Date.now())continue;
+      const key=player.id+"|floodgate-surge";
+      if(now<(room.environmentCooldown.get(key)??0))continue;
+      room.environmentCooldown.set(key,now+900);
+      applyDamage(room,"world",player,28,false,"env_floodgate_surge");
+      if(room.ended)return;
     }
   }
 }
