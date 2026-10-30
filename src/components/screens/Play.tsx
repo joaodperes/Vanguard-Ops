@@ -492,14 +492,11 @@ export function Play() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-white/60 text-xs leading-relaxed whitespace-normal break-words mb-2">{m.description.replace(/[.!?]+$/, "")}{MAP_FOOTPRINT[m.id]?.description ? ` — ${MAP_FOOTPRINT[m.id].description.replace(/[.!?]+$/, "")}.` : "."}</p>
+                              <p className="text-white/60 text-xs leading-relaxed whitespace-normal break-words mb-2">{m.description}</p>
                               <div className="mt-auto pt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
                                 <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/70 font-semibold capitalize">{(MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced")}</span>
                                 {m.biome && <span className="rounded px-1.5 py-0.5 font-semibold capitalize" style={{color:m.accentColor,background:`${m.accentColor}20`}}>{displayLabel(m.biome)}</span>}
-                                <span className="flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {Math.round(m.regions ? Math.max(...m.regions.map(r=>r.x+r.w/2))-Math.min(...m.regions.map(r=>r.x-r.w/2)) : m.size*2)}×{Math.round(m.regions ? Math.max(...m.regions.map(r=>r.z+r.d/2))-Math.min(...m.regions.map(r=>r.z-r.d/2)) : m.size*2)}</span>
-                                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> {roomConfig.mode === "ctf" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" ? `${getMap(m.id,roomConfig.mode).spawns.red.length}/${getMap(m.id,roomConfig.mode).spawns.blue.length} team spawns` : `${m.spawns.ffa.length} spawns`}</span>
-                                {roomConfig.mode !== "survival" && <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-bold text-amber-200">{roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)!*2} players` : `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)}v${teamSizesForMap(m.id,roomConfig.mode).at(-1)}`}</span>}
-                                {roomConfig.mode === "ctf" && (m.id === "compound" || m.id === "skybridge") && <span className="rounded bg-cyan-400/15 px-1.5 py-0.5 font-bold text-cyan-200">CTF trial</span>}
+                                {roomConfig.mode !== "survival" && <span className="rounded px-1.5 py-0.5 font-semibold text-amber-200 bg-amber-400/15">{roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)!*2} players` : `Up to ${teamSizesForMap(m.id,roomConfig.mode).at(-1)}v${teamSizesForMap(m.id,roomConfig.mode).at(-1)}`}</span>}
                               </div>
                             </div>
                           </div>
