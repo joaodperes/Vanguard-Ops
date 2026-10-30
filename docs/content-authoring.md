@@ -352,3 +352,5 @@ Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated
 Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for transient blasts. Do not add/remove a realtime point light for every fragment: light-count changes generate shader variants across lit scene materials. The cosmetic pool is bounded independently of damage; even a culled/rejected visual must still resolve its full authoritative/offline combat effects. See [Explosion effect performance](explosion-effects-performance.md).
 
 Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in `src/data/ctf-layouts.json`. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).
+
+Whiteout Depot is a third consumer of the generic `ctf-layouts.json` ground-objective contract. Its blueprint owns all geometry and its snow/metal theme has a static registration. See [Whiteout Depot](whiteout-depot.md).

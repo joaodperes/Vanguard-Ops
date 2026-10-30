@@ -20,6 +20,7 @@ function elevated(x: number, z: number, surface: number, width = 1.2, depth = 1.
 
 export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
   // Floodgate has no inherited template objects; its JSON owns the whole layout.
+  whiteout_depot: [],
   floodgate: [],
   orbital_nexus: [
     wall(-8,-34,10,1.2,3),wall(8,-34,10,1.2,3),
@@ -131,6 +132,7 @@ export const TACTICAL_COVER: Record<MapId, CoverBox[]> = {
  * fighting positions. Added alongside the original spawns; tested for cover
  * and hazard clearance so no spawn is placed inside solid geometry. */
 export const OUTER_SPAWNS: Record<MapId, { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] }> = {
+  whiteout_depot: {ffa:[],red:[],blue:[]},
   floodgate: {ffa:[],red:[],blue:[]},
   orbital_nexus: {
     ffa:[[-88,0,-15],[-88,0,15],[88,0,-15],[88,0,15],[-29,0,-44],[29,0,44]],

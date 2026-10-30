@@ -10,10 +10,10 @@ import {CoverSpatialIndex} from "../src/lib/cover-spatial-index";
 import {useGame} from "../src/lib/game-store";
 
 describe("mode availability and spawn capacity",()=>{
- test("all nine maps allow TDM/KC; only five allow CTF",()=>{
+ test("all ten maps allow TDM/KC; six allow CTF",()=>{
   for(const map of MAP_LIST){expect(mapAllowedForMode("tdm",map.id)).toBe(true);expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);}
-  for(const id of ["forest_warfare","orbital_nexus","floodgate"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
-  expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(5);
+  for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
  test("Blacksite mode caps and UI transitions agree",()=>{
   expect(teamSizesForMap("bunker","tdm")).toEqual([3,5]);expect(teamSizesForMap("bunker","ffa")).toEqual([3,4]);

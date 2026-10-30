@@ -244,3 +244,7 @@ At full charge, the first eligible living human or bot who reaches the raised ce
 ## Mode-specific objectives and spawns
 
 Map Studio edits the base geometry and spawn pools. The Verdant Ruins/Ridgefall CTF trial overrides are separate in `src/data/ctf-layouts.json`; a base-map edit must also check the CTF flag, delivery and spawn clearance tests. Both simulations use `getMap(mapId, mode)` to obtain those overrides. See [map modes and spawns](map-modes-and-spawns.md).
+
+## Whiteout Depot
+
+The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).

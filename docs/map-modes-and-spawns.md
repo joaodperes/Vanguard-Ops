@@ -1,15 +1,15 @@
 # Map modes, limits and spawn safety
 
-All nine maps support Team Deathmatch and Kill Confirmed. Forest Warfare, Orbital Nexus and Floodgate retain their map events in those modes: low gravity/reactor/Reaper on Orbital, pressure purges on Floodgate. The HUD shows reactor status and purge warnings independently of CTF; flag meshes, delivery rings and vault objective beacons appear only in CTF.
+All ten maps support Team Deathmatch and Kill Confirmed. Forest Warfare, Orbital Nexus and Floodgate retain their map events in those modes: low gravity/reactor/Reaper on Orbital, pressure purges on Floodgate. The HUD shows reactor status and purge warnings independently of CTF; flag meshes, delivery rings and vault objective beacons appear only in CTF.
 
-CTF supports Forest Warfare, Orbital Nexus, Floodgate and two trial conversions: Verdant Ruins (`compound`) and Ridgefall (`skybridge`). The latter two are labelled **CTF trial** in the picker. They need human balance testing before their layout can be considered settled. Existing FFA, Gun Game and Survival availability is unchanged.
+CTF supports Forest Warfare, Orbital Nexus, Floodgate, Whiteout Depot and two trial conversions: Verdant Ruins (`compound`) and Ridgefall (`skybridge`). The latter two are labelled **CTF trial** in the picker. They need human balance testing before their layout can be considered settled. Existing FFA, Gun Game and Survival availability is unchanged.
 
 | Map | Recommended team size | Maximum team size | Maximum FFA/Gun Game |
 | --- | --- | --- | --- |
 | Blacksite | 3v3 | 5v5 | 8 players |
 | Breakwater | 5v5 | 7v7 | 14 players |
 | Verdant Ruins / Ridgefall | 5v5 | 7v7 | 14 players |
-| Forest Warfare / Orbital Nexus | 5v5 | 7v7 | Unavailable |
+| Forest Warfare / Orbital Nexus / Whiteout Depot | 5v5 | 7v7 | Unavailable |
 | Afterlight City, day/night | 5v5 | 16v16 | 32 players |
 | Floodgate | 5v5 | 16v16 | Unavailable |
 
@@ -34,3 +34,5 @@ When editing the conversion JSON, keep each team pool unique, within walkable re
 - Check Blacksite at 3v3 and 5v5 and at eight-player FFA; use Breakwater 7v7 as the high-intensity option.
 - Check TDM/KC on Forest, Orbital and Floodgate, including KC tags on elevated surfaces, reactor claims, map-event warnings and late joins.
 - Run 32-human Floodgate/Afterlight matches on representative hardware. Automated spawn-count and bot tests do not establish human balance or performance.
+
+Whiteout Depot uses the same generic CTF layout contract with twelve spawn alternatives per team. Its base geometry already matches that pool. See [Whiteout Depot](whiteout-depot.md) for routes, hatch and playtests.

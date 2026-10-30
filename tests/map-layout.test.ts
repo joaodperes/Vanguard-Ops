@@ -7,9 +7,14 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all nine maps have dedicated tactical cover and playable spawns", () => {
-    expect(MAP_LIST).toHaveLength(9);
+  test("all ten maps have dedicated tactical cover and playable spawns", () => {
+    expect(MAP_LIST).toHaveLength(10);
     for (const map of MAP_LIST) {
+      if(map.id==="whiteout_depot"){
+        expect(MAP_BLUEPRINTS.maps.whiteout_depot.features.length).toBeGreaterThan(60);
+        expect(map.spawns.red.length).toBeGreaterThanOrEqual(7);
+        continue;
+      }
       if(map.id==="floodgate"){
         expect(MAP_BLUEPRINTS.maps.floodgate.features.length).toBeGreaterThanOrEqual(80);
         expect(map.spawns.ffa).toHaveLength(32);
@@ -32,7 +37,7 @@ describe("authored map combat layouts", () => {
           for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
         }
-        if(map.id==="skybridge"||map.id==="floodgate"){
+        if(map.id==="skybridge"||map.id==="floodgate"||map.id==="whiteout_depot"){
           // Ridgefall's old outdoor spawn coordinates were deliberately removed.
           // The compiled factory must use only the new indoor JSON spawn set.
           expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps[map.id].spawns[team]);
@@ -104,20 +109,20 @@ describe("authored map combat layouts", () => {
         ids.add(environment.id);
       }
       for (const door of doors) {
+        // Doors can be authored along either horizontal axis.
+        const along = door.size[0] >= door.size[2] ? 0 : 2;
+        const across = along === 0 ? 2 : 0;
         const barriers = map.cover.filter(box => box.kind === "cover" &&
-          Math.abs(box.pos[2] - door.pos[2]) < 2 &&
-          Math.abs(box.pos[0] - door.pos[0]) < 14 &&
-          box.size[1] >= 1);
-        expect(barriers.some(box => box.pos[0] < door.pos[0] - 3)).toBe(true);
-        expect(barriers.some(box => box.pos[0] > door.pos[0] + 3)).toBe(true);
-        // The breach should matter: no gap wide enough to walk through
-        // before its central destructible panel is removed.
-        const left = barriers.filter(box => box.pos[0] < door.pos[0] - 3)
-          .reduce((edge,box) => Math.max(edge, box.pos[0] + box.size[0]), -Infinity);
-        const right = barriers.filter(box => box.pos[0] > door.pos[0] + 3)
-          .reduce((edge,box) => Math.min(edge, box.pos[0] - box.size[0]), Infinity);
-        expect(door.pos[0] - door.size[0] - left).toBeLessThan(0.9);
-        expect(right - (door.pos[0] + door.size[0])).toBeLessThan(0.9);
+          Math.abs(box.pos[across] - door.pos[across]) < 2 &&
+          Math.abs(box.pos[along] - door.pos[along]) < 14 && box.size[1] >= 1);
+        expect(barriers.some(box => box.pos[along] < door.pos[along] - 3)).toBe(true);
+        expect(barriers.some(box => box.pos[along] > door.pos[along] + 3)).toBe(true);
+        const left = barriers.filter(box => box.pos[along] < door.pos[along] - 3)
+          .reduce((edge,box) => Math.max(edge, box.pos[along] + box.size[along]), -Infinity);
+        const right = barriers.filter(box => box.pos[along] > door.pos[along] + 3)
+          .reduce((edge,box) => Math.min(edge, box.pos[along] - box.size[along]), Infinity);
+        expect(door.pos[along] - door.size[along] - left).toBeLessThan(0.9);
+        expect(right - (door.pos[along] + door.size[along])).toBeLessThan(0.9);
       }
     }
   });

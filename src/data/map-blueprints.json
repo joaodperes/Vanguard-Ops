@@ -3682,6 +3682,1370 @@
           ]
         ]
       }
+    },
+    "whiteout_depot": {
+      "name": "Whiteout Depot",
+      "shortName": "WHD",
+      "description": "A snowbound rail depot: fight through boxcars and covered platforms, cross the freight sheds, or take the sheltered service gallery. Mirrored dispatch bases and several flanks support up to 7v7.",
+      "pace": "balanced",
+      "regions": [
+        {
+          "x": 0,
+          "z": 0,
+          "w": 208,
+          "d": 148
+        },
+        {
+          "x": -112,
+          "z": 0,
+          "w": 32,
+          "d": 120
+        },
+        {
+          "x": 112,
+          "z": 0,
+          "w": 32,
+          "d": 120
+        }
+      ],
+      "features": [
+        {
+          "id": "west-dispatch-roof",
+          "x": -112,
+          "z": 0,
+          "w": 28,
+          "d": 100,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "west-flag-screen",
+          "x": -80,
+          "z": 0,
+          "w": 3,
+          "d": 20,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-spawn-screen--28",
+          "x": -100,
+          "z": -28,
+          "w": 3,
+          "d": 22,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-spawn-screen-28",
+          "x": -100,
+          "z": 28,
+          "w": 3,
+          "d": 22,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-rear-wing--52",
+          "x": -114,
+          "z": -52,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-rear-wing-52",
+          "x": -114,
+          "z": 52,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-shed-roof",
+          "x": -42,
+          "z": 0,
+          "w": 68,
+          "d": 34,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "west-shed-wall-20--18",
+          "x": -20,
+          "z": -18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-shed-wall-64--18",
+          "x": -64,
+          "z": -18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-shed-wall-20-18",
+          "x": -20,
+          "z": 18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-shed-wall-64-18",
+          "x": -64,
+          "z": 18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "west-cargo-60",
+          "x": -60,
+          "z": -4,
+          "w": 10,
+          "d": 12,
+          "h": 3.2,
+          "kind": "cover"
+        },
+        {
+          "id": "west-cargo-20",
+          "x": -20,
+          "z": 4,
+          "w": 10,
+          "d": 12,
+          "h": 3.2,
+          "kind": "cover"
+        },
+        {
+          "id": "west-signal-deck",
+          "x": -46,
+          "z": 23,
+          "w": 12,
+          "d": 8,
+          "h": 2.1,
+          "kind": "platform"
+        },
+        {
+          "id": "west-snow-break-36--70",
+          "x": -36,
+          "z": -70,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-snow-break-76--70",
+          "x": -76,
+          "z": -70,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-snow-break-36--28",
+          "x": -36,
+          "z": -28,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-snow-break-76--28",
+          "x": -76,
+          "z": -28,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-snow-break-36-68",
+          "x": -36,
+          "z": 68,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-snow-break-76-68",
+          "x": -76,
+          "z": 68,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-wall-20-32",
+          "x": -20,
+          "z": 32,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-wall-60-32",
+          "x": -60,
+          "z": 32,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-wall-20-56",
+          "x": -20,
+          "z": 56,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-wall-60-56",
+          "x": -60,
+          "z": 56,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-roof-20",
+          "x": -20,
+          "z": 44,
+          "w": 40,
+          "d": 26,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 5
+        },
+        {
+          "id": "west-service-baffle-20",
+          "x": -20,
+          "z": 48,
+          "w": 3,
+          "d": 8,
+          "h": 3.8,
+          "kind": "cover"
+        },
+        {
+          "id": "west-service-roof-60",
+          "x": -60,
+          "z": 44,
+          "w": 40,
+          "d": 26,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 5
+        },
+        {
+          "id": "west-service-baffle-60",
+          "x": -60,
+          "z": 40,
+          "w": 3,
+          "d": 8,
+          "h": 3.8,
+          "kind": "cover"
+        },
+        {
+          "id": "east-dispatch-roof",
+          "x": 112,
+          "z": 0,
+          "w": 28,
+          "d": 100,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "east-flag-screen",
+          "x": 80,
+          "z": 0,
+          "w": 3,
+          "d": 20,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-spawn-screen--28",
+          "x": 100,
+          "z": -28,
+          "w": 3,
+          "d": 22,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-spawn-screen-28",
+          "x": 100,
+          "z": 28,
+          "w": 3,
+          "d": 22,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-rear-wing--52",
+          "x": 114,
+          "z": -52,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-rear-wing-52",
+          "x": 114,
+          "z": 52,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-shed-roof",
+          "x": 42,
+          "z": 0,
+          "w": 68,
+          "d": 34,
+          "h": 1,
+          "kind": "cover",
+          "y": 8
+        },
+        {
+          "id": "east-shed-wall-20--18",
+          "x": 20,
+          "z": -18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-shed-wall-64--18",
+          "x": 64,
+          "z": -18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-shed-wall-20-18",
+          "x": 20,
+          "z": 18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-shed-wall-64-18",
+          "x": 64,
+          "z": 18,
+          "w": 24,
+          "d": 2,
+          "h": 6,
+          "kind": "cover"
+        },
+        {
+          "id": "east-cargo-60",
+          "x": 60,
+          "z": -4,
+          "w": 10,
+          "d": 12,
+          "h": 3.2,
+          "kind": "cover"
+        },
+        {
+          "id": "east-cargo-20",
+          "x": 20,
+          "z": 4,
+          "w": 10,
+          "d": 12,
+          "h": 3.2,
+          "kind": "cover"
+        },
+        {
+          "id": "east-signal-deck",
+          "x": 46,
+          "z": 23,
+          "w": 12,
+          "d": 8,
+          "h": 2.1,
+          "kind": "platform"
+        },
+        {
+          "id": "east-snow-break-36--70",
+          "x": 36,
+          "z": -70,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-snow-break-76--70",
+          "x": 76,
+          "z": -70,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-snow-break-36--28",
+          "x": 36,
+          "z": -28,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-snow-break-76--28",
+          "x": 76,
+          "z": -28,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-snow-break-36-68",
+          "x": 36,
+          "z": 68,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-snow-break-76-68",
+          "x": 76,
+          "z": 68,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-wall-20-32",
+          "x": 20,
+          "z": 32,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-wall-60-32",
+          "x": 60,
+          "z": 32,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-wall-20-56",
+          "x": 20,
+          "z": 56,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-wall-60-56",
+          "x": 60,
+          "z": 56,
+          "w": 24,
+          "d": 2,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-roof-20",
+          "x": 20,
+          "z": 44,
+          "w": 40,
+          "d": 26,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 5
+        },
+        {
+          "id": "east-service-baffle-20",
+          "x": 20,
+          "z": 48,
+          "w": 3,
+          "d": 8,
+          "h": 3.8,
+          "kind": "cover"
+        },
+        {
+          "id": "east-service-roof-60",
+          "x": 60,
+          "z": 44,
+          "w": 40,
+          "d": 26,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 5
+        },
+        {
+          "id": "east-service-baffle-60",
+          "x": 60,
+          "z": 40,
+          "w": 3,
+          "d": 8,
+          "h": 3.8,
+          "kind": "cover"
+        },
+        {
+          "id": "platform-canopy--80",
+          "x": -80,
+          "z": -64,
+          "w": 40,
+          "d": 18,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 7.5
+        },
+        {
+          "id": "platform-column--80",
+          "x": -80,
+          "z": -70,
+          "w": 2,
+          "d": 2,
+          "h": 7.5,
+          "kind": "cover"
+        },
+        {
+          "id": "platform-canopy--40",
+          "x": -40,
+          "z": -64,
+          "w": 40,
+          "d": 18,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 7.5
+        },
+        {
+          "id": "platform-column--40",
+          "x": -40,
+          "z": -70,
+          "w": 2,
+          "d": 2,
+          "h": 7.5,
+          "kind": "cover"
+        },
+        {
+          "id": "platform-canopy-0",
+          "x": 0,
+          "z": -64,
+          "w": 40,
+          "d": 18,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 7.5
+        },
+        {
+          "id": "platform-column-0",
+          "x": 0,
+          "z": -70,
+          "w": 2,
+          "d": 2,
+          "h": 7.5,
+          "kind": "cover"
+        },
+        {
+          "id": "platform-canopy-40",
+          "x": 40,
+          "z": -64,
+          "w": 40,
+          "d": 18,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 7.5
+        },
+        {
+          "id": "platform-column-40",
+          "x": 40,
+          "z": -70,
+          "w": 2,
+          "d": 2,
+          "h": 7.5,
+          "kind": "cover"
+        },
+        {
+          "id": "platform-canopy-80",
+          "x": 80,
+          "z": -64,
+          "w": 40,
+          "d": 18,
+          "h": 0.8,
+          "kind": "cover",
+          "y": 7.5
+        },
+        {
+          "id": "platform-column-80",
+          "x": 80,
+          "z": -70,
+          "w": 2,
+          "d": 2,
+          "h": 7.5,
+          "kind": "cover"
+        },
+        {
+          "id": "center-windbreak--70",
+          "x": 0,
+          "z": -70,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "center-windbreak--28",
+          "x": 0,
+          "z": -28,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "center-windbreak-68",
+          "x": 0,
+          "z": 68,
+          "w": 4,
+          "d": 8,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "rail--49.5",
+          "x": 0,
+          "z": -49.5,
+          "w": 204,
+          "d": 0.2,
+          "h": 0.06,
+          "kind": "accent"
+        },
+        {
+          "id": "rail--42.5",
+          "x": 0,
+          "z": -42.5,
+          "w": 204,
+          "d": 0.2,
+          "h": 0.06,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--98",
+          "x": -98,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--91",
+          "x": -91,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--84",
+          "x": -84,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--77",
+          "x": -77,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--70",
+          "x": -70,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--63",
+          "x": -63,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--56",
+          "x": -56,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--49",
+          "x": -49,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--42",
+          "x": -42,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--35",
+          "x": -35,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--28",
+          "x": -28,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--21",
+          "x": -21,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--14",
+          "x": -14,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper--7",
+          "x": -7,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-0",
+          "x": 0,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-7",
+          "x": 7,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-14",
+          "x": 14,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-21",
+          "x": 21,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-28",
+          "x": 28,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-35",
+          "x": 35,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-42",
+          "x": 42,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-49",
+          "x": 49,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-56",
+          "x": 56,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-63",
+          "x": 63,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-70",
+          "x": 70,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-77",
+          "x": 77,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-84",
+          "x": 84,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-91",
+          "x": 91,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "sleeper-98",
+          "x": 98,
+          "z": -46,
+          "w": 0.6,
+          "d": 9,
+          "h": 0.08,
+          "kind": "accent"
+        },
+        {
+          "id": "rail-windbreak--80",
+          "x": -80,
+          "z": -62,
+          "w": 4,
+          "d": 20,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "rail-windbreak-0",
+          "x": 0,
+          "z": -62,
+          "w": 4,
+          "d": 20,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "rail-windbreak-80",
+          "x": 80,
+          "z": -62,
+          "w": 4,
+          "d": 20,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "rail-cargo--40",
+          "x": -40,
+          "z": -36,
+          "w": 4,
+          "d": 10,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "rail-cargo-40",
+          "x": 40,
+          "z": -36,
+          "w": 4,
+          "d": 10,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "service-signal--40",
+          "x": -40,
+          "z": 62,
+          "w": 4,
+          "d": 12,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "service-signal-0",
+          "x": 0,
+          "z": 62,
+          "w": 4,
+          "d": 12,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "service-signal-40",
+          "x": 40,
+          "z": 62,
+          "w": 4,
+          "d": 12,
+          "h": 5,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-north-screen",
+          "x": 0,
+          "z": -16,
+          "w": 5,
+          "d": 18,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-south-screen",
+          "x": 0,
+          "z": 14,
+          "w": 5,
+          "d": 12,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "hall-cargo",
+          "x": 0,
+          "z": -6,
+          "w": 6,
+          "d": 6,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "gallery-west-screen",
+          "x": -44,
+          "z": 30,
+          "w": 4,
+          "d": 14,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "gallery-east-screen",
+          "x": 44,
+          "z": 30,
+          "w": 4,
+          "d": 14,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "gallery-west-crates",
+          "x": -28,
+          "z": 36,
+          "w": 6,
+          "d": 4,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "gallery-east-crates",
+          "x": 28,
+          "z": 36,
+          "w": 6,
+          "d": 4,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "gallery-rear-screen",
+          "x": 0,
+          "z": 54,
+          "w": 4,
+          "d": 8,
+          "h": 4.5,
+          "kind": "cover"
+        },
+        {
+          "id": "hatch-jamb-35.5",
+          "x": 0,
+          "z": 35.5,
+          "w": 3,
+          "d": 7,
+          "h": 3.6,
+          "kind": "cover"
+        },
+        {
+          "id": "hatch-jamb-52.5",
+          "x": 0,
+          "z": 52.5,
+          "w": 3,
+          "d": 7,
+          "h": 3.6,
+          "kind": "cover"
+        }
+      ],
+      "hazards": [
+        {
+          "id": "whiteout-service-hatch",
+          "type": "destructible_wall",
+          "x": 0,
+          "z": 44,
+          "y": 1.8,
+          "w": 3,
+          "d": 10,
+          "h": 3.6,
+          "hp": 180
+        }
+      ],
+      "spawns": {
+        "ffa": [
+          [
+            -112,
+            0,
+            -40
+          ],
+          [
+            -112,
+            0,
+            -24
+          ],
+          [
+            -112,
+            0,
+            -8
+          ],
+          [
+            -112,
+            0,
+            8
+          ],
+          [
+            -112,
+            0,
+            24
+          ],
+          [
+            -112,
+            0,
+            40
+          ],
+          [
+            -122,
+            0,
+            -40
+          ],
+          [
+            -122,
+            0,
+            -24
+          ],
+          [
+            -122,
+            0,
+            -8
+          ],
+          [
+            -122,
+            0,
+            8
+          ],
+          [
+            -122,
+            0,
+            24
+          ],
+          [
+            -122,
+            0,
+            40
+          ],
+          [
+            112,
+            0,
+            -40
+          ],
+          [
+            112,
+            0,
+            -24
+          ],
+          [
+            112,
+            0,
+            -8
+          ],
+          [
+            112,
+            0,
+            8
+          ],
+          [
+            112,
+            0,
+            24
+          ],
+          [
+            112,
+            0,
+            40
+          ],
+          [
+            122,
+            0,
+            -40
+          ],
+          [
+            122,
+            0,
+            -24
+          ],
+          [
+            122,
+            0,
+            -8
+          ],
+          [
+            122,
+            0,
+            8
+          ],
+          [
+            122,
+            0,
+            24
+          ],
+          [
+            122,
+            0,
+            40
+          ]
+        ],
+        "red": [
+          [
+            -112,
+            0,
+            -40
+          ],
+          [
+            -112,
+            0,
+            -24
+          ],
+          [
+            -112,
+            0,
+            -8
+          ],
+          [
+            -112,
+            0,
+            8
+          ],
+          [
+            -112,
+            0,
+            24
+          ],
+          [
+            -112,
+            0,
+            40
+          ],
+          [
+            -122,
+            0,
+            -40
+          ],
+          [
+            -122,
+            0,
+            -24
+          ],
+          [
+            -122,
+            0,
+            -8
+          ],
+          [
+            -122,
+            0,
+            8
+          ],
+          [
+            -122,
+            0,
+            24
+          ],
+          [
+            -122,
+            0,
+            40
+          ]
+        ],
+        "blue": [
+          [
+            112,
+            0,
+            -40
+          ],
+          [
+            112,
+            0,
+            -24
+          ],
+          [
+            112,
+            0,
+            -8
+          ],
+          [
+            112,
+            0,
+            8
+          ],
+          [
+            112,
+            0,
+            24
+          ],
+          [
+            112,
+            0,
+            40
+          ],
+          [
+            122,
+            0,
+            -40
+          ],
+          [
+            122,
+            0,
+            -24
+          ],
+          [
+            122,
+            0,
+            -8
+          ],
+          [
+            122,
+            0,
+            8
+          ],
+          [
+            122,
+            0,
+            24
+          ],
+          [
+            122,
+            0,
+            40
+          ]
+        ]
+      }
     }
   }
 }

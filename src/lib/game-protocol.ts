@@ -15,7 +15,7 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
@@ -980,6 +980,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  whiteout_depot: [],
   floodgate: [],
   orbital_nexus: [],
   forest_warfare: [],
@@ -1027,6 +1028,17 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  whiteout_depot: {
+    id:"whiteout_depot",name:"Whiteout Depot",shortName:"WHD",
+    description:"A snowbound rail depot for up to 7v7 CTF.",
+    // Physical objects and all spawns are authored only in the blueprint/theme.
+    size:128,wallHeight:14,cover:TACTICAL_COVER.whiteout_depot,environment:ENVIRONMENTS.whiteout_depot,
+    spawns:OUTER_SPAWNS.whiteout_depot,biome:"snow_rail",accentColor:"#64d8dc",
+    theme:{floor:0x46575b,floorPattern:0x344a50,wall:0x596b70,cover:0x73868a,
+      coverAccent:0x64d8dc,stair:0xadb8b6,platform:0x4a646c,
+      sky:"#263b4c",fog:"#687e87",fogNear:65,fogFar:520,ambient:1.8,gridColor:0x344a50},
+    lights:[],
+  },
   floodgate: {
     id:"floodgate",name:"Floodgate",shortName:"FLD",
     description:"A stormbound hydroelectric complex built for 16v16 CTF.",
@@ -1228,6 +1240,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
 export const MAPS: Record<string, MapDef> = {
+  whiteout_depot: applyMapFootprint(BASE_MAPS.whiteout_depot),
   orbital_nexus: applyMapFootprint(BASE_MAPS.orbital_nexus),
   forest_warfare: applyMapFootprint(BASE_MAPS.forest_warfare),
   compound: applyMapFootprint(BASE_MAPS.compound),
@@ -1254,11 +1267,11 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
-export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge"];
+export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge", "whiteout_depot"];
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
   mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) :
   mode === "tdm" || mode === "killconfirmed" ? id in MAPS :
-  !["forest_warfare", "orbital_nexus", "floodgate"].includes(id);
+  !["forest_warfare", "orbital_nexus", "floodgate", "whiteout_depot"].includes(id);
 
 export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {
   const map = id && id in MAPS ? MAPS[id as MapId] : MAPS.compound;
