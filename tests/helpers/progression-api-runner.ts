@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { db } from "../../src/lib/db";
 import { POST as saveLoadout } from "../../src/app/api/loadout/route";
+import { POST as redeemWonder } from "../../src/app/api/unlock/route";
 import { POST as preset } from "../../src/app/api/loadout/presets/route";
 import { POST as claimCareer } from "../../src/app/api/profile/career/route";
 import { POST as shopCosmetic } from "../../src/app/api/shop/route";
@@ -120,6 +121,54 @@ try {
   assert(dmrAfter.prestige.tokenReadyWeapons.includes("rifle_dm"));
   assert.equal(dmrAfter.prestige.tokens, 1, "Early exit must not withhold a Wonder token");
   assert.equal((await buildProfileView(dmr.playerKey))!.prestige.tokens, 1, "Refresh must be idempotent");
+
+  // Regression: three prior Wonder purchases before the 110->330 headshot
+  // threshold change cannot create negative entitlement debt. A NEW DMR
+  // completion must give its first token, not pay off that hidden debt.
+  const legacyWonders = await create("legacy-wonder-owner",totalXpForLevel(25));
+  const oldSources=["rifle_ar","smg_kp","pistol_side"];
+  for(const [index,weaponId] of oldSources.entries()){
+    await db.weaponPrestige.create({data:{playerId:legacyWonders.id,weaponId,
+      legacyReward:true,awardedAt:new Date(Date.UTC(2026,9,19,index))}});
+    await db.weaponProgress.create({data:{playerId:legacyWonders.id,weaponId,
+      kills:600,headshots:110}});
+  }
+  const ownedWonders=WEAPONS.filter(w=>!!w.wonder&&!w.disabled).slice(0,3);
+  assert.equal(ownedWonders.length,3);
+  for(const [index,w] of ownedWonders.entries())
+    await db.wonderUnlock.create({data:{playerId:legacyWonders.id,weaponId:w.id,
+      unlockedAt:new Date(Date.UTC(2026,9,22,index))}});
+  const beforeLedger=(await buildProfileView(legacyWonders.playerKey))!.prestige;
+  assert.equal(beforeLedger.tokens,0);
+  assert.equal(beforeLedger.tokenReadyWeapons.length,3);
+  assert.equal(beforeLedger.wonderWeapons.length,3);
+  assert.equal(beforeLedger.legacyCredits,0);
+  // Re-earning rank 5 on a previously spent source cannot duplicate the token.
+  await db.weaponProgress.updateMany({where:{playerId:legacyWonders.id,
+    weaponId:{in:oldSources.slice(0,2)}},data:{headshots:330}});
+  assert.equal((await buildProfileView(legacyWonders.playerKey))!.prestige.tokens,0);
+  await db.weaponProgress.create({data:{playerId:legacyWonders.id,weaponId:"rifle_dm",
+    kills:600,headshots:330,conditionStats:JSON.stringify(completedContext)}});
+  const newAward=(await buildProfileView(legacyWonders.playerKey))!.prestige;
+  assert.equal(newAward.tokens,1,"New DMR award must not cover old purchases");
+  assert(newAward.tokenReadyWeapons.includes("rifle_dm"));
+  const fourthWonder=WEAPONS.find(w=>!!w.wonder&&!w.disabled&&!ownedWonders.some(p=>p.id===w.id))!;
+  await status(await redeemWonder(req({playerKey:legacyWonders.playerKey,
+    kind:"wonderWeapon",itemId:fourthWonder.id})),200);
+  assert.equal((await buildProfileView(legacyWonders.playerKey))!.prestige.tokens,0);
+  const fifthWonder=WEAPONS.find(w=>!!w.wonder&&!w.disabled&&
+    ![...ownedWonders,fourthWonder].some(p=>p.id===w.id))!;
+  await status(await redeemWonder(req({playerKey:legacyWonders.playerKey,
+    kind:"wonderWeapon",itemId:fifthWonder.id})),403);
+  assert.equal(await db.wonderTokenAward.count({where:{playerId:legacyWonders.id}}),4);
+  const missingSources=await create("legacy-wonder-without-source",totalXpForLevel(25));
+  await db.wonderUnlock.createMany({data:ownedWonders.map(w=>({
+    playerId:missingSources.id,weaponId:w.id,
+  }))});
+  const unmatched=(await buildProfileView(missingSources.playerKey))!.prestige;
+  assert.equal(unmatched.legacyCredits,3);
+  assert.equal(unmatched.tokens,0);
+  assert.equal((await buildProfileView(missingSources.playerKey))!.prestige.legacyCredits,3);
 
   // Quest/achievement XP must be included in both returned and persisted level.
   const q = await create("quest-player", totalXpForLevel(12) - 200);
