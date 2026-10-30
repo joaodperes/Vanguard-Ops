@@ -69,7 +69,7 @@ export function floodgateWaterEffect(
   const surge=age<FLOODGATE_SURGE_SECONDS&&Math.abs(z-front)<10;
   const flooded=z<=front+2;
   if(!flooded&&!surge||floodgateOnStairs(x,y,z,cover))return safe;
-  return {flooded,surge,speedMultiplier:surge?.55:.80,pushZ:surge?8:1.5};
+  return {flooded,surge,speedMultiplier:surge?.50:.74,pushZ:surge?10:2.4};
 }
 
 /** Whether a direct ground route would walk into the moving or settled flood.
