@@ -435,7 +435,7 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. Charge-based Wonders recharge over time. Bulwark uses a P-9 magazine and a separate 250 HP shield that restores on respawn.</p>
+              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. Charge-based Wonders recharge over time. Bulwark uses a P-9 magazine and a separate 250 HP shield that rebuilds after breaking or restores on respawn.</p>
               <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Permanent Wonder awards: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
               <p className="text-xs text-white/50 mt-1">Lifetime Wonder unlocks earned: {(profile?.prestige?.tokenReadyWeapons.length ?? 0) + (profile?.prestige?.legacyCredits ?? 0)} · Already redeemed: {profile?.prestige?.wonderWeapons.length ?? 0}. Earned awards stay permanent even when Mastery thresholds change.</p>
             </div>
@@ -451,15 +451,21 @@ export function Armory() {
                   <p className="text-white/60 text-sm">{w.description}</p>
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
                     <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
-                    <span>{w.wonder!.kind === "shield" ? "Hold ADS: frontal cover, P-9 lowered" : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
-                    <span>{w.wonder!.kind === "shield" ? "Shield restores on respawn" : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
+                    <span>{w.wonder!.kind === "shield" ? `Broken shield rebuilds in ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
+                    <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill · also restores on respawn` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
                   {owned
-                    ? <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
-                      onClick={() => equipWeapon(w, "primary")}
-                      className="w-full border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
-                      {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
-                    </Button>
+                    ? <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
+                          onClick={() => equipWeapon(w, "primary")}
+                          className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                          {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
+                        </Button>
+                        <Button variant="outline" onClick={() => setCustomizing({weapon:w,slot:"primary"})}
+                          className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                          <Palette className="w-4 h-4 mr-1.5" /> Customize
+                        </Button>
+                      </div>
                     : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
                         <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Redeem · 1 Wonder unlock" : "Requires 1 Wonder unlock"}
                       </Button>}
@@ -858,7 +864,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   const currentKey = open && w ? `${w.id}:${slot}` : null;
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
-    setTab(w?.category === "melee" ? "skins" : "attachments");
+    setTab(w?.wonder ? "reticles" : w?.category === "melee" ? "skins" : "attachments");
     setPreviewAttachment(null);
     setActiveAttachmentSlot(null);
   }
@@ -923,19 +929,21 @@ function CustomizeModal(props: CustomizeModalProps) {
 
         <Tabs value={tab} onValueChange={(v) => { setTab(v); setPreviewAttachment(null); }} className="flex flex-col flex-1 min-h-0">
           <TabsList className="bg-zinc-900/60 border border-white/10 w-full">
-            <TabsTrigger value="attachments" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
-              <Wrench className="w-3.5 h-3.5 mr-1.5" /> Attachments
-            </TabsTrigger>
-            <TabsTrigger value="skins" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
-              <Palette className="w-3.5 h-3.5 mr-1.5" /> Skins
-            </TabsTrigger>
-            <TabsTrigger value="challenges" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
-              <Target className="w-3.5 h-3.5 mr-1.5" /> Challenges
-            </TabsTrigger>
+            {!w.wonder && <>
+              <TabsTrigger value="attachments" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+                <Wrench className="w-3.5 h-3.5 mr-1.5" /> Attachments
+              </TabsTrigger>
+              <TabsTrigger value="skins" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+                <Palette className="w-3.5 h-3.5 mr-1.5" /> Skins
+              </TabsTrigger>
+              <TabsTrigger value="challenges" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+                <Target className="w-3.5 h-3.5 mr-1.5" /> Challenges
+              </TabsTrigger>
+            </>}
             {w.category!=="melee" && <TabsTrigger value="reticles" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Crosshair className="w-3.5 h-3.5 mr-1.5" /> Reticles
             </TabsTrigger>}
-            {w.category!=="melee" && !w.wonder && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
+            {w.category!=="melee" && <TabsTrigger value="charms" className="flex-1 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60">
               <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Charms
             </TabsTrigger>}
           </TabsList>
