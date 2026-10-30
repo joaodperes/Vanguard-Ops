@@ -3,6 +3,7 @@
  * Shared by server collisions, offline physics, bot pathfinding and rendering. */
 import * as THREE from "three";
 import type {CoverBox,EnvironmentObject,MapDef} from "./game-protocol";
+import {FLOODGATE_FLOOD_START_Z,FLOODGATE_FLOOD_END_Z,FLOODGATE_SURGE_SECONDS} from "./map-battle-events";
 
 export const FLOODGATE_TOPPLE_SECONDS=3.2;
 export const FLOODGATE_FREIGHT=[
@@ -13,13 +14,25 @@ export const FLOODGATE_FREIGHT=[
 ] as const;
 const PREFIX="floodgate-freight:";
 export type FreightStage="upright"|"falling"|"fallen";
-const stages=new WeakMap<MapDef,FreightStage>();
-export function freightStage(age:number|null):FreightStage {
-  return age===null?"upright":age<FLOODGATE_TOPPLE_SECONDS?"falling":"fallen";
+type Freight = (typeof FLOODGATE_FREIGHT)[number];
+const stages=new WeakMap<MapDef,Map<string,FreightStage>>();
+/** The upstream face is the first part of a standing pillar touched by water.
+ * Each pillar's own Z determines its collapse, not the dam-breach timestamp. */
+export function freightContactAge(c:Freight):number {
+  return (c.z-1.4-FLOODGATE_FLOOD_START_Z)/
+    (FLOODGATE_FLOOD_END_Z-FLOODGATE_FLOOD_START_Z)*FLOODGATE_SURGE_SECONDS;
 }
-export function freightCover(stage:Exclude<FreightStage,"falling">):CoverBox[]{
+export function freightFallingAge(age:number|null,c:Freight):number|null {
+  if(age===null||age<freightContactAge(c))return null;
+  return age-freightContactAge(c);
+}
+export function freightStage(age:number|null,c:Freight=FLOODGATE_FREIGHT[0]):FreightStage {
+  const t=freightFallingAge(age,c);
+  return t===null?"upright":t<FLOODGATE_TOPPLE_SECONDS?"falling":"fallen";
+}
+export function freightCover(stage:Exclude<FreightStage,"falling">,only?:Freight):CoverBox[]{
   const boxes:CoverBox[]=[];
-  for(const c of FLOODGATE_FREIGHT){
+  for(const c of only?[only]:FLOODGATE_FREIGHT){
     if(stage==="upright"){
       boxes.push({pos:[c.x,11.5,c.z],size:[2.7,11.5,1.4],kind:"cover",environmentId:PREFIX+c.id+":upright"});
     }else{
@@ -43,16 +56,28 @@ export function floodgatePathHazards(map:MapDef,breached:boolean):readonly Envir
   return (map.environment??[]).filter(o=>!(o.type==="spikes"&&o.visual==="steam"));
 }
 /** Only changes cover owned by the event. This never mutates MAPS singletons;
- * each room/game gets its own makeEnvironmentMap copy. Idempotent per stage. */
-export function setFloodgateFreightStage(map:MapDef,stage:FreightStage):void{
-  if(map.id!=="floodgate"||stages.get(map)===stage)return;
-  for(let i=map.cover.length-1;i>=0;i--)
-    if(map.cover[i].environmentId?.startsWith(PREFIX))map.cover.splice(i,1);
-  if(stage!=="falling")map.cover.push(...freightCover(stage));
-  stages.set(map,stage);
+ * each room/game gets its own makeEnvironmentMap copy. Each pillar updates
+ * individually when its water contact time is reached. Returns true if any
+ * collider changed, allowing bot routes to be invalidated exactly then. */
+export function setFloodgateFreightStage(map:MapDef,age:number|null):boolean{
+  if(map.id!=="floodgate")return false;
+  const previous=stages.get(map)??new Map<string,FreightStage>();
+  let changed=false;
+  for(const c of FLOODGATE_FREIGHT){
+    const stage=freightStage(age,c);
+    if(previous.get(c.id)===stage)continue;
+    const prefix=PREFIX+c.id+":";
+    for(let i=map.cover.length-1;i>=0;i--)
+      if(map.cover[i].environmentId?.startsWith(prefix))map.cover.splice(i,1);
+    if(stage!=="falling")map.cover.push(...freightCover(stage,c));
+    previous.set(c.id,stage);
+    changed=true;
+  }
+  stages.set(map,previous);
+  return changed;
 }
 export function initializeFloodgateFreight(map:MapDef):void{
-  setFloodgateFreightStage(map,"upright");
+  setFloodgateFreightStage(map,null);
 }
 export function buildFloodgateFreight(scene:THREE.Scene):THREE.Group{
   const group=new THREE.Group();group.name="floodgate-freight";
@@ -85,16 +110,16 @@ export function buildFloodgateFreight(scene:THREE.Scene):THREE.Group{
   return group;
 }
 export function updateFloodgateFreight(group:THREE.Group,age:number|null):void{
-  const elapsed=Math.max(0,age??0);
-  const t=age===null?0:Math.min(1,elapsed/FLOODGATE_TOPPLE_SECONDS);
-  // Fast start, sharp final impact: all clients derive exactly the same pose
-  // from the authoritative breach clock, including spectators and late joins.
-  const ease=t*t*(3-2*t);
+  // Derive every pose from the shared hydraulic front for late joiners.
   for(const c of FLOODGATE_FREIGHT){
+    const fallingAge=freightFallingAge(age,c);
+    const t=fallingAge===null?0:Math.min(1,fallingAge/FLOODGATE_TOPPLE_SECONDS);
+    const ease=t*t*(3-2*t);
     const mesh=group.getObjectByName(PREFIX+c.id);
     if(mesh){
       mesh.position.set(c.x,11.5+(1.67-11.5)*ease,c.z+(-72.2-c.z)*ease);
-      mesh.rotation.x=-Math.PI/2+(Math.PI/2-Math.atan2(3.36,23))*ease;
+      // The southern end must be HIGHER to match the actual stair colliders.
+      mesh.rotation.x=-Math.PI/2+(Math.PI/2+Math.atan2(3.36,23))*ease;
     }
     const stairs=group.getObjectByName(PREFIX+c.id+":stairs");
     if(stairs)stairs.visible=t>=1;
