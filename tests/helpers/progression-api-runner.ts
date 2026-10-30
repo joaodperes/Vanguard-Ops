@@ -297,6 +297,10 @@ try {
     primaryWeapon:"wonder_riot_shield"})),200);
   await status(await cosmeticEquip("reticle",todayReticle.cosmeticId!,"primary","wonder_riot_shield"),200);
   await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","wonder_riot_shield"),200);
+  // Persist the selection via the general loadout endpoint too. Previously
+  // this route rejected Wonder charms and/or silently reset them to "none".
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryCharm:todayCharm.cosmeticId!,primaryReticle:todayReticle.cosmeticId!})),200);
   const wonderCosmeticView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
   assert.equal(wonderCosmeticView.loadout.weapon.id,"wonder_riot_shield");
   assert.equal(wonderCosmeticView.loadout.primaryReticle,todayReticle.cosmeticId);
