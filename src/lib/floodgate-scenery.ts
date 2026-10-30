@@ -54,9 +54,10 @@ export function buildFloodgateBackdrop(scene:THREE.Scene):THREE.Group {
   front.name="floodgate-wave-foam";front.visible=false;
   const spray=box(foam,0,1,-104,110,2,3);
   spray.name="floodgate-breach-foam";spray.visible=false;
-  // Reuse ~11 cheap mist columns. They ride the front and vanish after 14s.
-  for(let i=0;i<11;i++){
-    const x=(i-5)*11;
+  // Reuse fixed mist columns across the FULL northern district, not just
+  // the original central channel. No runtime particle allocation.
+  for(let i=0;i<25;i++){
+    const x=(i-12)*10.5;
     const mist=box(foam,x,1.7,FLOODGATE_FLOOD_START_Z,.55,3.2,1.5);
     mist.name="floodgate-front-mist";mist.visible=false;
     mist.userData.phase=i*.71;
