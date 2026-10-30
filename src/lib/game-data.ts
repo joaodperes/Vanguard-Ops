@@ -62,6 +62,7 @@ export interface WeaponStats {
   falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
   minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
   reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
+  reloadOnlyWhenEmpty?: boolean; // en-bloc magazine: partial reloads are disallowed
   reloadPerRound?: number; // seconds per round before attachments/perks
   adsTime: number;       // seconds to aim down sights
   moveSpeed: number;     // movement multiplier
@@ -77,7 +78,7 @@ export interface WeaponDef {
   explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
   disabled?: boolean;
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3 | 4 | 5; rechargeMs: number; killBonusMs: number; radius: number };
+  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge" | "cluster" | "shield"; maxCharges: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -97,6 +98,9 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+/** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
+export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
+
 /** Single source for offline and authoritative server projectile blast radii. */
 export function projectileSplashRadius(weapon: WeaponDef): number {
   return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
@@ -163,6 +167,17 @@ export interface SightDef {
 export const SIGHT_DEFS: Record<SightType, SightDef> = sightDefinitionsData as unknown as Record<SightType, SightDef>;
 
 export const SIGHT_LIST: SightDef[] = Object.values(SIGHT_DEFS);
+
+/** Convert true optical magnification into a camera FOV at any player-selected base FOV.
+ * 1x sights preserve the existing ADS framing instead of adding artificial optical zoom.
+ */
+export function adsFieldOfView(baseFov: number, sight: Pick<SightDef, "zoom" | "adsFovReduction">, progress = 1): number {
+  const p = Math.max(0, Math.min(1, progress));
+  const scopedFov = sight.zoom > 1
+    ? 2 * Math.atan(Math.tan(baseFov * Math.PI / 360) / sight.zoom) * 180 / Math.PI
+    : baseFov - sight.adsFovReduction;
+  return baseFov + (scopedFov - baseFov) * p;
+}
 
 export function sightDefForType(type: SightType): SightDef {
   return SIGHT_DEFS[type] ?? SIGHT_DEFS.iron;
@@ -393,7 +408,7 @@ export function resolveLoadout(input: {
   const requestedPrimary = weaponById(input.primaryWeapon);
   const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
   const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
-  const secondary = requestedSecondary.disabled ? weaponById("pistol_side") : requestedSecondary;
+  const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {

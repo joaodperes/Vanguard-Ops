@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
+import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
@@ -112,6 +113,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
   const clockText = formatMatchClock(hud);
+  const scoreboardRuleLabels = scoreboardRules(mode, hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier);
 
   // damage direction indicator
@@ -233,7 +235,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
 
       {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
-      {mode!=="ctf"&&hud.orbitalCharge!==undefined&&<div className="absolute top-20 left-1/2 -translate-x-1/2 rounded bg-black/65 px-3 py-1 text-xs text-violet-300">Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}{hud.orbitalReaper?" · REAPER EQUIPPED":""}</div>}
       <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
         <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
           {mode === "survival" ? (
@@ -329,6 +330,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 </>
               )}
             </div>
+
             {hud.ctfOvertime && <div className="text-[10px] text-amber-300 font-bold uppercase">Sudden death · Next capture wins</div>}
             {hud.ctfZoneError && <div className="rounded px-2 py-1 bg-amber-950/80 border border-amber-400/40 text-amber-300 text-[10px] max-w-[85vw] text-center">{hud.ctfZoneError}</div>}
             {hud.ctfNotice && now - hud.ctfNotice.at < 2400 && (
@@ -336,6 +338,16 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             )}
           </>
         )}
+
+        {hud.mapEvent && <div className={`rounded-md border px-3 py-1 text-xs font-semibold text-center ${
+          hud.mapEvent.phase === "active" ? "border-rose-300/60 bg-rose-950/90 text-rose-100" :
+          hud.mapEvent.phase === "warning" ? "border-amber-300/70 bg-amber-950/90 text-amber-100" :
+          "border-cyan-300/20 bg-black/60 text-cyan-100/80"
+        }`} role="status">{hud.mapEvent.label}</div>}
+        {mode !== "ctf" && hud.orbitalCharge !== undefined && <div className="rounded-md border border-violet-400/20 bg-black/60 px-3 py-1 text-center text-xs font-bold text-violet-300" role="status">
+          Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}{hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
+        </div>}
+        {mode !== "ctf" && hud.orbitalWarning && <div className="rounded px-2 py-1 bg-amber-950/80 text-amber-300 text-xs text-center">{hud.orbitalWarning}</div>}
 
         {mode === "gungame" && hud.gungameTotal !== undefined && (
           <GunGameProgress index={hud.gungameIndex ?? 0} total={hud.gungameTotal} currentWeaponId={hud.weaponId} compact={isTouch} />
@@ -507,6 +519,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">{hud.heat !== undefined ? "VENTING…" : "RELOADING…"}</div>}
+        {hud.riotShieldHp!==undefined&&<div className="text-sky-200 text-xs mt-1">SHIELD {Math.ceil(hud.riotShieldHp)} / 250 · {hud.riotShieldHp<=0?"BROKEN":hud.riotShieldRaised?"FRONT COVER · P-9 LOWERED":"LEFT COVER · HOLD ADS TO BRACE"}</div>}
         {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
         {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
@@ -692,10 +705,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : "Team Deathmatch · Kills"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
-              {/* team panels */}
+              <div className="px-4 py-2 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/65">
+                  {scoreboardRuleLabels.map((label) => <span key={label}>{label}</span>)}
+                </div>
+                {/* team panels */}
               <div className="flex flex-col sm:flex-row gap-2 p-2 max-h-[50vh] overflow-y-auto custom-scroll">
-                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
-                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
               </div>
             </div>
           </div>
@@ -707,7 +723,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <span className="text-white font-bold tracking-wider uppercase text-sm">{matchInfo.title}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
-              <div className="max-h-[50vh] overflow-y-auto custom-scroll">
+              <div className="px-4 py-2 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/65">
+                  {scoreboardRuleLabels.map((label) => <span key={label}>{label}</span>)}
+                </div>
+                <div className="max-h-[50vh] overflow-y-auto custom-scroll">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-white/40 text-xs uppercase">
@@ -765,7 +784,7 @@ function teamDot(t: string) {
 // highlighted emerald (same as the FFA table). Every player whose team matches
 // `selfTeam` (i.e. friendlies — which in a team panel is either everyone or
 // no-one) gets a small Shield icon prefix so allies are visually distinct.
-function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string }) {
+function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string; limit?: number }) {
   const accent = team === "red" ? "border-red-500/40" : "border-blue-500/40";
   const headerBg = team === "red" ? "bg-red-500/10" : "bg-blue-500/10";
   const headerText = team === "red" ? "text-red-400" : "text-blue-400";
@@ -777,7 +796,7 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel }: { team: "red" | 
       <div className={`px-3 py-2 ${headerBg} flex items-center gap-2`}>
         <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`} />
         <span className={`${headerText} font-bold uppercase tracking-wider text-xs`}>{team === "red" ? "Red Team" : "Blue Team"}</span>
-        <span className="ml-auto text-white font-black text-lg tabular-nums">{score}</span>
+        <span className="ml-auto text-white font-black text-lg tabular-nums">{score}{limit !== undefined && limit > 0 && <span className="text-white/50 text-xs font-normal">/{limit}</span>}</span>
       </div>
       <table className="w-full text-sm">
         <thead>
@@ -1052,6 +1071,10 @@ export function CosmeticCrosshair({styleId,color,size,gap}:{
        styleId==="reticle_nova"?<><path d={`M 0 ${-n-r} L ${r*.25} ${-r*.25} L ${n+r} 0 L ${r*.25} ${r*.25} L 0 ${n+r} L ${-r*.25} ${r*.25} L ${-n-r} 0 L ${-r*.25} ${-r*.25} Z`} {...common}/><circle r="1.3" fill={color}/></>:
        styleId==="reticle_pulse"?<><path d={`M 0 ${-n-r} L ${n+r} 0 L 0 ${n+r} L ${-n-r} 0 Z`} {...common}/>
          <path d={`M 0 ${-n} L ${n} 0 L 0 ${n} L ${-n} 0 Z`} {...common}/><circle r="1.4" fill={color}/></>:
+       styleId==="reticle_spire"?<><path d={`M 0 ${-n-r} V ${-n} M ${-n-r} 0 h ${r*.65} M ${n+r*.35} 0 h ${r*.65}`} {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_trident"?<><path d={`M ${-n-r} ${-n-r*.7} L ${-r} ${-n} L 0 ${-n-r*.5} L ${r} ${-n} L ${n+r} ${-n-r*.7} M 0 ${-n-r*.5} V ${-n-r}`} {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_eclipse"?<><circle r={n+r*.55} strokeDasharray="8 5" {...common}/><circle r="1.5" fill={color}/></>:
+       styleId==="reticle_helix"?<><path d={`M ${-n-r} ${-r} L ${-n*.7} 0 L ${-n-r} ${r} M ${n+r} ${-r} L ${n*.7} 0 L ${n+r} ${r}`} {...common}/><circle r="1.5" fill={color}/></>:
        <circle r="1.8" fill={color}/>}
      </svg>;
 }

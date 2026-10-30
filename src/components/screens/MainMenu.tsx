@@ -49,35 +49,6 @@ export function MainMenu() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* header */}
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2">
-            <div className="relative w-9 h-9 rounded-md bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center shadow-lg shadow-amber-900/40">
-              <Crosshair className="w-5 h-5 text-white" />
-              <div className="absolute inset-0 rounded-md ring-1 ring-white/20" />
-            </div>
-            <div>
-              <div className="font-black tracking-[0.2em] text-white text-sm leading-none">VANGUARD</div>
-              <div className="text-[10px] tracking-[0.3em] text-amber-400/80 leading-none mt-0.5">OPS</div>
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
-            <Button
-              onClick={() => setScreen("play")}
-              className="bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold h-9 px-4 shadow-lg shadow-amber-900/30"
-            >
-              <PlayIcon className="w-4 h-4 mr-1.5" /> Play
-            </Button>
-            <NavBtn onClick={() => setScreen("armory")} icon={<Backpack className="w-4 h-4" />} label="Armory" />
-            <NavBtn onClick={() => setScreen("shop")} icon={<ShoppingBag className="w-4 h-4" />} label="Shop" />
-            <NavBtn onClick={() => setScreen("profile")} icon={<Trophy className="w-4 h-4" />} label="Profile" />
-            <NavBtn onClick={() => setScreen("settings")} icon={<Sparkles className="w-4 h-4" />} label="Settings" />
-
-          </div>
-        </div>
-      </header>
-
       {/* news ticker removed per user request — navigation is via the header menu */}
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
@@ -325,15 +296,6 @@ export function MainMenu() {
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
       `}</style>
     </div>
-  );
-}
-
-function NavBtn({ onClick, icon, label }: { onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <Button variant="ghost" size="sm" onClick={onClick} aria-label={label} className="text-white/70 hover:text-white hover:bg-white/5 transition-colors">
-      {icon}
-      <span className="ml-1.5 hidden sm:inline">{label}</span>
-    </Button>
   );
 }
 

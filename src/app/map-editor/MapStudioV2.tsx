@@ -779,6 +779,9 @@ export default function MapEditorClient(){
           <p className="text-[10px] text-zinc-400">One flag and capture zone per team; one optional reactor. Place markers on reachable surfaces. Select markers to edit rules and approaches.</p>
           <div className="grid grid-cols-2 gap-1">{(Object.keys(MODE_OBJECTIVES) as GameMode[]).map(m=><label key={m} className="text-xs text-zinc-300"><input type="checkbox" checked={(plan.modes??DEFAULT_COMBAT_MODES).includes(m)} onChange={e=>editPlan(bp=>{const modes=bp.modes??[...DEFAULT_COMBAT_MODES];bp.modes=e.target.checked?[...modes,m]:modes.filter(v=>v!==m);})}/> {m}</label>)}</div>
           <Picker label="Playtest mode" value={(plan.modes??DEFAULT_COMBAT_MODES).includes(playtestMode)?playtestMode:(plan.modes??DEFAULT_COMBAT_MODES)[0]??"ffa"} options={plan.modes??DEFAULT_COMBAT_MODES} save={v=>setPlaytestMode(v as GameMode)}/>
+          {Object.entries(plan.modeSpawns??{}).map(([mode,pools])=>pools&&<details key={mode}><summary className="text-xs text-zinc-300">{mode} spawn overrides</summary>
+            {(["red","blue"] as const).map(team=><div key={team}><p className="text-xs text-zinc-400">{team}</p>{pools[team].map((point,i)=><div key={i} className="grid grid-cols-3 gap-1">{point.map((v,a)=><NumberInput key={a} label={`${i+1} ${["X","Y","Z"][a]}`} value={v} save={n=>editPlan(bp=>{bp.modeSpawns![mode as GameMode]![team][i][a]=n;})}/>)}</div>)}</div>)}
+          </details>)}
           <NumberInput label="Gravity scale" value={plan.gravityScale??1} save={v=>editPlan(bp=>{bp.gravityScale=v;})}/>
         </section>
         <h3 className="mt-5 border-t border-white/10 pt-3 text-xs font-semibold uppercase text-zinc-400">Object layers</h3>
@@ -982,6 +985,10 @@ export default function MapEditorClient(){
             <input aria-label="Asset recipe name" placeholder="Name this asset recipe" value={assetName} onChange={e=>setAssetName(e.target.value)} className={control}/>
             <button className={btn+" w-full"} onClick={saveAsset}>Save to My assets</button>
           </div>}
+          {hazard?.type==="spikes"&&<>
+            <Picker label="Trap appearance" value={hazard.visual??"spikes"} options={["spikes","steam"]} save={v=>editSelected("visual",v)}/>
+            <NumberInput label="Warning duration" value={hazard.warningFor??0} save={v=>editSelected("warningFor",v)}/>
+          </>}
         </div>:objective?<div className="space-y-3">
           <p className="text-sm text-amber-300">{objective.kind.replaceAll("_"," ")} · {objective.id}</p>
           {"team" in objective&&<Picker label="Team" value={objective.team} options={["red","blue"]} save={v=>editSelected("team",v)}/>}

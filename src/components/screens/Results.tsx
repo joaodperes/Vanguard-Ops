@@ -1,5 +1,5 @@
 "use client";
-import { achievementTitle } from "@/lib/achievement-titles";
+import { achievementTitle, achievementRequirement } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
@@ -148,6 +148,7 @@ export function Results() {
                       <div key={a.id} className="flex items-center justify-between text-xs">
                         <div className="min-w-0">
                           <span className="text-white/80 flex items-center gap-1.5"><Star className="w-3 h-3 text-amber-400" /> {a.title}</span>
+                          <p className="mt-1 text-white/60">{achievementRequirement(a.id, a.description) ?? "Achievement conditions met"}</p>
                           {achievementTitle(a.id) && <p className="mt-1 text-amber-300">Title unlocked: {achievementTitle(a.id)}</p>}
                         </div>
                         <span className="text-emerald-300">+{a.rewardXp} XP · +{a.rewardCredits} CR</span>

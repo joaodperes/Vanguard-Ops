@@ -2,6 +2,9 @@
  * New mechanics require an explicit kind + shared runtime handler, never JSON scripts. */
 import type {GameMode,Vec3} from "./game-protocol";
 import orbital from "../data/maps/orbital_nexus.json";
+import floodgate from "../data/maps/floodgate.json";
+import compound from "../data/maps/compound.json";
+import skybridge from "../data/maps/skybridge.json";
 import forest from "../data/maps/forest-objectives.json";
 export type ObjectiveTeam="red"|"blue";
 interface ObjectiveBase {
@@ -26,7 +29,8 @@ export const MODE_OBJECTIVES:Record<GameMode,readonly {kind:MapObjective["kind"]
 export const DEFAULT_COMBAT_MODES:GameMode[]=["ffa","tdm","survival","gungame","killconfirmed"];
 /** Compatibility for old API callers and pre-objective editor saves only. */
 export function legacyObjectiveMap(id:string):ObjectiveMap {
-  if(id==="orbital_nexus")return {objectives:orbital.blueprint.objectives as unknown as MapObjective[],modes:orbital.blueprint.modes as GameMode[],gravityScale:orbital.blueprint.gravityScale};
+  const authored=({orbital_nexus:orbital,floodgate,compound,skybridge} as Record<string,{blueprint:unknown}>)[id]?.blueprint as ObjectiveMap|undefined;
+  if(authored)return {objectives:authored.objectives,modes:authored.modes,gravityScale:authored.gravityScale};
   if(id==="forest_warfare")return forest as unknown as ObjectiveMap;
   return {};
 }

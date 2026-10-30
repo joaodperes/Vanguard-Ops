@@ -3,7 +3,7 @@ import { WEAPON_SKINS, RARITY_COLORS } from "../src/lib/game-data";
 import { coatsAllWeaponParts } from "../src/lib/weapon-finish";
 describe("weapon finish visuals and rarity", () => {
   test("all catalogued skins have distinct art briefs", () => {
-    expect(WEAPON_SKINS).toHaveLength(12);
+    expect(WEAPON_SKINS).toHaveLength(18);
     for (const skin of WEAPON_SKINS) expect(skin.artBrief.length).toBeGreaterThan(25);
     expect(new Set(WEAPON_SKINS.map(s => s.artBrief)).size).toBe(WEAPON_SKINS.length);
   });

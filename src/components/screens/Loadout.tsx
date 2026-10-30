@@ -306,7 +306,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         {canCustomize && onCustomize && (
           <button type="button" onClick={onCustomize}
             className="w-full mb-2 px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
-            Customize this slot
+            {slot === "melee" ? "Skins & Challenges" : "Customize this slot"}
           </button>
         )}
         <button

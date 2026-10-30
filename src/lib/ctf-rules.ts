@@ -1,4 +1,5 @@
 // Capture the Flag rules shared by the authoritative server and offline engine.
+import {CTF_LAYOUTS} from "./ctf-layouts";
 import {teamObjective,objectiveApproach,objectiveMap,type ObjectiveSource} from "./map-objectives";
 import type { Vec3 } from "./game-protocol";
 
@@ -121,7 +122,23 @@ export function ctfBotIntent(
         carrier[0]+side*radius,carrier[1],carrier[2]+lane*6,
       ]};
     }
-    return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,lane*6]};
+    return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,ctfBase(team,mapId)[2]+lane*6]};
+  }
+  const mapKey=typeof mapId==="string"?mapId:"id" in mapId?String(mapId.id):"";
+  if(CTF_LAYOUTS[mapKey]){
+    // One quarter of the squad guards its rear district. Raiders go directly
+    // to the ground objective; the shared region/A* motor chooses factory or
+    // jungle flanks without inheriting the Forest Warfare staircase route.
+    if(rank%4===0)return {role:"defend_flag",goal:[...home]};
+    return {role:"attack",goal:[...enemyHome]};
+  }
+  if(mapKey==="floodgate"){
+    // Four of a full squad defend, while twelve raiders share three broad lanes.
+    // Ground-level flags need neither forest stairs nor orbital launch routing.
+    if(rank%4===0)return {role:"defend_flag",goal:[home[0]-side*6,0,Math.floor(rank/4)%2===0?18:-18]};
+    const flankZ=[-66,0,66][rank%3];
+    if(Math.abs(pos[0]-enemyHome[0])>38)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*24,0,flankZ]};
+    return {role:"attack",goal:[...enemyHome]};
   }
   if(!teamObjective(mapId,"flag",team)?.approachLandings?.length){
     if(sniper||rank%4===0)return {role:"defend_flag",goal:[home[0]-side*5,Math.max(0,home[1]-.2),home[2]+lane*2]};

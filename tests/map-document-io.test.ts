@@ -19,7 +19,7 @@ describe("map document import/export",()=>{
   test("imports earlier blueprint-only and split theme drafts",()=>{
     const plan={version:1,units:legacy.units,maps:{compound:legacy.maps.compound}};
     expect(importMapDocuments(plan,originals,"compound").documents.compound.blueprint)
-      .toEqual(plan.maps.compound);
+      .toMatchObject(plan.maps.compound);
     const theme=importMapDocuments(compoundTheme,originals,"compound");
     expect(theme.documents.compound.theme.palette.floor).toBe(compoundTheme.palette.floor);
     expect(theme.migrated).toBe(true);

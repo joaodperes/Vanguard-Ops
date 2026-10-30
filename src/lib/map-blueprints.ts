@@ -31,6 +31,7 @@ export interface MapBlueprint extends ObjectiveMap {
   legacyEnvironmentDisabled?: number[];
   /** Stable IDs of procedurally generated city lots converted into authored props. */
   cityBuildingDisabled?: string[];
+  modeSpawns?: import("./game-protocol").MapModeSpawns;
   spawns: { ffa: Vec3[]; red: Vec3[]; blue: Vec3[] };
 }
 export interface MapBoxOverride {
@@ -56,6 +57,8 @@ export interface MapHazard {
   id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
   x: number; z: number; y: number; w: number; d: number; h: number;
   dps?: number; damage?: number; period?: number; activeFor?: number; offset?: number;
+  /** Periodic trap presentation and pre-activation telegraph, shared with gameplay time. */
+  warningFor?: number; visual?: "spikes" | "steam";
   hp?: number; launchX?: number; launchY?: number; launchZ?: number;
   toX?: number; toY?: number; toZ?: number;
   turns?: 0 | 1 | 2 | 3;
@@ -233,7 +236,8 @@ export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol")
   const base={id:h.id,pos:[h.x,h.y,h.z] as Vec3,size:[h.w/2,h.h/2,h.d/2] as Vec3};
   switch(h.type){
     case "fire":return {...base,type:"fire",dps:h.dps??7};
-    case "spikes":return {...base,type:"spikes",damage:h.damage??25,period:h.period??5,activeFor:h.activeFor??2,offset:h.offset??0};
+    case "spikes":return {...base,type:"spikes",damage:h.damage??25,period:h.period??5,activeFor:h.activeFor??2,offset:h.offset??0,
+      warningFor:h.warningFor,visual:h.visual};
     case "jump_pad":return {...base,type:"jump_pad",launch:[h.launchX??0,h.launchY??18,h.launchZ??0] as Vec3};
     case "moving_platform":return {...base,type:"moving_platform",to:[h.toX??h.x,h.toY??h.y,h.toZ??h.z] as Vec3,period:h.period??6};
     case "destructible_wall":return {...base,type:"destructible_wall",hp:h.hp??120};
@@ -277,6 +281,12 @@ export function validateBlueprint(b: MapBlueprint): string[] {
     if(h.type==="fire"&&!(Number.isFinite(h.dps)&&h.dps!>0))issues.push(`Hazard ${h.id} needs DPS > 0`);
     if(h.type==="spikes"&&!(Number.isFinite(h.damage)&&h.damage!>0&&Number.isFinite(h.period)&&h.period!>0&&Number.isFinite(h.activeFor)&&h.activeFor!>0&&h.activeFor!<=h.period!))
       issues.push(`Hazard ${h.id} invalid spike timing/damage`);
+    if(h.offset!==undefined&&!Number.isFinite(h.offset))issues.push(`Hazard ${h.id} invalid offset`);
+    if(h.warningFor!==undefined&&(h.type!=="spikes"||!Number.isFinite(h.warningFor)||h.warningFor<0||
+      !Number.isFinite(h.period)||!Number.isFinite(h.activeFor)||h.warningFor>h.period!-h.activeFor!))
+      issues.push(`Hazard ${h.id} invalid warning duration`);
+    if(h.visual!==undefined&&(h.type!=="spikes"||!["spikes","steam"].includes(h.visual)))
+      issues.push(`Hazard ${h.id} invalid periodic hazard visual`);
     if(h.type==="destructible_wall"&&!(Number.isFinite(h.hp)&&h.hp!>0))issues.push(`Hazard ${h.id} needs HP > 0`);
     if(h.type==="moving_platform"&&!(Number.isFinite(h.period)&&h.period!>0))issues.push(`Hazard ${h.id} needs period > 0`);
   }
@@ -314,6 +324,15 @@ export function validateBlueprint(b: MapBlueprint): string[] {
     for(const p of b.spawns?.[team]??[])
       if(!p.every(Number.isFinite)||!insideRegions(p[0],p[2],b.regions??[],1.1))
         issues.push(`${team} spawn at ${p[0]},${p[2]} outside walkable space`);
+  }
+  const validModePools=b.modeSpawns===undefined||!!b.modeSpawns&&typeof b.modeSpawns==="object"&&!Array.isArray(b.modeSpawns);
+  if(!validModePools)issues.push("Mode spawn sets must be an object");
+  for(const [mode,pools] of Object.entries(validModePools?b.modeSpawns??{}:{})){
+    if(!["ffa","tdm","survival","gungame","killconfirmed","ctf"].includes(mode)||!pools||typeof pools!=="object") {issues.push("Invalid mode spawn set "+mode);continue;}
+    for(const team of ["red","blue"] as const){
+      if(!Array.isArray(pools[team])||!pools[team].length){issues.push(`${mode}: missing ${team} spawns`);continue;}
+      for(const point of pools[team]??[])if(!Array.isArray(point)||point.length!==3||!point.every(Number.isFinite)||!insideRegions(point[0],point[2],b.regions??[],1.1))issues.push(`${mode}: invalid ${team} spawn`);
+    }
   }
   issues.push(...validateObjectives(b,p=>insideRegions(p[0],p[2],b.regions??[])));
   return issues;

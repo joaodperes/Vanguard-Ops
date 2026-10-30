@@ -1,9 +1,11 @@
+import { botTactics, type BotTier } from "./bot-difficulty";
 import type { WeaponCategory, WeaponStats } from "./game-data";
 
 /** Shared distance-aware AI stance. These choices are identical in the offline
  * simulation and on the authoritative multiplayer server. */
 export interface BotCombatDecision {
   idealDistance: number;
+  strafe: number;
   sprinting: boolean;
   aiming: boolean;
 }
@@ -31,12 +33,15 @@ export function botCombatDecision(
   adsSettled: boolean,
   hasAmmo: boolean,
   reloading: boolean,
+  tier: BotTier = "normal",
 ): BotCombatDecision {
-  const idealDistance = botIdealDistance(category);
+  const tactics=botTactics(tier);
+  const base=botIdealDistance(category);
+  const idealDistance=tier==="easy"?Math.min(base,8):(category==="sniper"||category==="dmr")?base*(tier==="veteran"?2.2:tier==="hard"?1.6:1):base;
   const closingGap = distance > idealDistance + 5;
   const closeRangeRush = (category === "shotgun" && distance > 15)
     || ((category === "smg" || category === "pdw" || category === "melee") && distance > 20);
-  const sprinting = hasAmmo && !reloading && closingGap
+  const sprinting = tier!=="easy" && hasAmmo && !reloading && closingGap
     && (!clearShot || closeRangeRush || distance > (category === "sniper" ? 65 : category === "dmr" ? 52 : 38));
 
   const aimsAtRange = category === "sniper" ? distance >= 7
@@ -48,14 +53,15 @@ export function botCombatDecision(
     : false;
   return {
     idealDistance,
+    strafe:tactics.strafe,
     sprinting,
-    aiming: aimsAtRange && clearShot && reacted && adsSettled
+    aiming: tier!=="easy" && aimsAtRange && clearShot && reacted && adsSettled
       && hasAmmo && !reloading && !sprinting,
   };
 }
 
-export function botPatrolSprint(distanceToWaypoint: number): boolean {
-  return distanceToWaypoint > 8;
+export function botPatrolSprint(distanceToWaypoint: number, tier:BotTier="normal"): boolean {
+  return distanceToWaypoint > botTactics(tier).sprintDistance;
 }
 
 /** ADS only changes the weapon's mechanical spread. Per-bot reaction time,

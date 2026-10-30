@@ -32,7 +32,7 @@ describe("Armory firing range loadout restrictions", () => {
     expect(rangeWeaponSlot("no-such-weapon")).toBeNull();
   });
 
-  test("Try Free routes secondary and melee weapons to the correct slot", () => {
+  test("Firing Range selectors preview secondary and melee weapons in the correct slot", () => {
     const sidearm = WEAPONS.find(w => w.category === "pistol" && w.id !== "pistol_side" && !w.wonder);
     const knife = WEAPONS.find(w => w.category === "melee" && w.id !== "knife_tactical" && !w.wonder);
     expect(sidearm).toBeDefined();

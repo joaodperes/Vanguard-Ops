@@ -1,14 +1,25 @@
 import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
+import {chooseSpawn} from "./spawn-selection";
 // ============================================================================
 // VANGUARD OPS — Three.js FPS engine (vanilla, no R3F)
 // Supports OFFLINE (local bots, client-authoritative) and ONLINE (socket.io,
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
+import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
+import { usesWonderCharges } from "./game-data";
+import { createRiotShieldModel } from "./riot-shield-model";
+import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
+import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
+import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
+import {steamPurgeStatus,type MapEventStatus} from "./map-event-status";
+import {ctfDeliveryMarker} from "./ctf-map-visuals";
+import {buildFloodgateBackdrop} from "./floodgate-scenery";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
@@ -27,6 +38,8 @@ import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
+import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
+import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -61,7 +74,7 @@ import {
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
-  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots,
+  SIGHT_DEFS, sightDefForType, hasMountedSight, adsFieldOfView, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
@@ -71,11 +84,12 @@ import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
+import { canStartWeaponReload } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
-  withinEnvironment, spikesActive, closestCoverHit,
+  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit,
 } from "@/lib/dynamic-environment";
 import {
   BOT_STEP_HEIGHT, botGroundHeight, botMoveBlocked as blocksBotMotion,
@@ -169,12 +183,14 @@ export interface HudState {
   orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
   orbitalWarning?: string;
+  mapEvent?: MapEventStatus;
   ctfCarrying?: boolean;
   ctfOvertime?: boolean;
   ctfFlagResetMs?: number;
   ctfNotice?: { label: string; at: number };
   ctfZoneError?: string;
   scoreLimit?: number;  // Kill target (or confirmed tags for Kill Confirmed)
+  timeLimitSec?: number; // Room's configured duration (not the countdown)
   confirmations?: number;
   denials?: number;
   denialScoreEnabled?: boolean;
@@ -236,6 +252,8 @@ export interface HudState {
   primaryWeaponId: string;
   secondaryWeaponId: string;
   meleeWeaponId: string;
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
   wonderRechargeMs?: number;
   turretDeployPending?: boolean;
   turretDeployFailed?: boolean;
@@ -355,6 +373,9 @@ interface BotAI {
   routeWaypoint?: Vec3 | null;
   lastPosX: number;
   lastPosZ: number;
+  nextCombatJumpAt?:number;
+  cornerUntil?:number;
+  nextCornerAt?:number;
   envJumpVelocityY?: number;
   envLaunchX?: number;
   envLaunchZ?: number;
@@ -408,6 +429,9 @@ interface Combatant {
   spawnProtectedUntil?: number;
   // Shield mesh for spawn protection visual (created in addCombatantMesh,
   // toggled in updateCombatantMeshes).
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
+  riotShieldModel?: THREE.Group;
   shieldMesh?: THREE.Mesh;
 }
 
@@ -596,6 +620,10 @@ export class FPSEngine {
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
+  private riotShieldHp=RIOT_SHIELD_HP;
+  private riotShieldModel:THREE.Group|null=null;
+  private lastCountdownSecond=0;
+  private clusterVolleys=new Map<string,ClusterVolley & {offline:boolean;done:Set<number>;dealt:Map<string,number>;meshes:Map<number,THREE.Mesh>}>();
   private wonderStates = new Map<string, WonderChargeState>();
   // Online deployment is NOT charged locally until server confirms placement.
   // This prevents rejected network/weapon-state packets from starting a
@@ -739,7 +767,7 @@ export class FPSEngine {
   // spawns an explosion at the impact point.
   private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
-  private explosions: { mesh: THREE.Mesh; light: THREE.PointLight; born: number; life: number; radius: number }[] = [];
+  private explosionEffects!: ExplosionEffects;
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
   private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; weaponId: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
@@ -759,6 +787,7 @@ export class FPSEngine {
   private denialScoreEnabled = false;
   private tagNotice: { action: "confirm" | "deny"; at: number } | undefined;
   private timeLeft = 360;
+  private configuredTimeLimitSec = 360;
   private hasTimeLimit = true;
   private elapsedSeconds = 0;
   private matchEnded = false;
@@ -965,7 +994,7 @@ export class FPSEngine {
   constructor(container: HTMLElement, opts: EngineOptions) {
     this.container = container;
     this.opts = opts;
-    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId));
+    this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId,opts.mode));
     this.ctfFlags = createCtfFlags(this.map);
     this.ctfBases = {red:ctfBase("red",this.map),blue:ctfBase("blue",this.map)};
     for (const o of this.map.environment ?? []) {
@@ -1029,8 +1058,8 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    if (primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
-    this.primaryAmmoInMag = primW.wonder ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
+    if (usesWonderCharges(primW) && primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
+    this.primaryAmmoInMag = usesWonderCharges(primW) ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
@@ -1047,6 +1076,7 @@ export class FPSEngine {
     this.scoreLimit = opts.scoreLimit ?? (opts.mode === "ctf" ? 3 : opts.mode === "ffa" ? 30 : opts.mode === "killconfirmed" ? 40 : opts.mode === "gungame" ? this.gungameWeapons.length : 60);
     this.denialScoreEnabled = opts.denialScoreEnabled === true || opts.roomConnect?.config?.denialScoreEnabled === true;
     this.timeLeft = opts.mode === "gungame" ? 0 : (opts.timeLimitSec ?? 360);
+    this.configuredTimeLimitSec = opts.mode === "gungame" || opts.mode === "survival" ? 0 : this.timeLeft;
     this.ctfResetDurationMs = ctfResetMs(opts.roomConnect?.config?.ctfFlagResetMs);
     this.ctfRulesVerified = !opts.online;
     this.hasTimeLimit = opts.mode !== "survival" && opts.mode !== "gungame" && this.timeLeft > 0;
@@ -1069,6 +1099,7 @@ export class FPSEngine {
       // The constructor never returns if WebGL fails. Release resources
       // already allocated before renderer initialization.
       try { this.renderer?.dispose(); this.renderer?.forceContextLoss(); } catch {}
+      try { this.explosionEffects?.dispose(); } catch {}
       try { this.sound.dispose(); } catch {}
       try { this.weaponAudio.dispose(); } catch {}
       throw error;
@@ -1134,6 +1165,7 @@ export class FPSEngine {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(theme.sky);
     this.scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
+    this.explosionEffects=new ExplosionEffects(this.scene);
 
     this.camera = new THREE.PerspectiveCamera(this.baseFov, this.container.clientWidth / this.container.clientHeight, 0.05, Math.max(500, this.map.size * 3));
 
@@ -1728,6 +1760,13 @@ export class FPSEngine {
       return group;
     };
     this.ctfFlagMeshes={red:create(0xef4444),blue:create(0x22baf5)};
+    // Bespoke forest/orbital scenery supplies its own rings. Authored CTF maps
+    // still need a visible delivery destination at the shared scoring position.
+    for(const team of ["red","blue"] as const){
+      if(this.ctfMarkers[team])continue;
+      const marker=ctfDeliveryMarker(team,ctfBase(team,this.map));
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+    }
   }
 
   private updateCtfFlagsVisuals() {
@@ -1815,7 +1854,7 @@ export class FPSEngine {
     if(this.map.id==="orbital_nexus"||reactorObjective(this.map))this.buildOrbitalScenery();
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
-
+    if(this.map.id==="floodgate")buildFloodgateBackdrop(this.scene);
     const biome = this.map.biome ?? "industrial";
     const palette = this.map.theme;
     const stone = this.surfaceMaterials?.cover ?? new THREE.MeshStandardMaterial({color:palette.cover,roughness:.93});
@@ -2302,6 +2341,8 @@ export class FPSEngine {
         const light = new THREE.PointLight(0xff5d1a, 2.2, 9);
         light.position.y = 1.3;
         g.add(light);
+      } else if (o.type === "spikes" && o.visual === "steam") {
+        buildSteamVent(g,o);
       } else if (o.type === "spikes") {
         const base = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, 0.12, o.size[2] * 2),
           new THREE.MeshStandardMaterial({ color: 0x361318, roughness: 0.6, metalness: 0.6 }));
@@ -2364,10 +2405,19 @@ export class FPSEngine {
         }
         moveEnvironmentCover(this.map, o, this.environmentTime);
         g.position.set(...newPos);
+      } else if (o.type === "spikes" && o.visual === "steam") {
+        updateSteamVent(g,o,this.environmentTime);
       } else if (o.type === "spikes") {
-        const active = spikesActive(o, this.environmentTime);
+        const phase=periodicHazardPhase(o,this.environmentTime),active=phase==="active";
         // The dark base remains visible during the inactive/telegraph phase.
         g.children.forEach((child, i) => { child.visible = i === 0 || active; });
+        if((o.warningFor??0)>0){
+          const base=g.children[0];
+          if(base instanceof THREE.Mesh&&base.material instanceof THREE.MeshStandardMaterial){
+            base.material.emissive.setHex(phase==="warning"?(Math.sin(this.environmentTime*12)>0?0xffa22b:0x603010):0);
+            base.material.emissiveIntensity=.8;
+          }
+        }
       } else if (o.type === "fire") {
         g.children.forEach(c => {
           if (c.userData.flame) {
@@ -2543,6 +2593,8 @@ export class FPSEngine {
   }
 
   private buildViewmodel() {
+    if(this.riotShieldModel){this.disposeRiotModel(this.riotShieldModel);this.riotShieldModel=null;}
+    if(this.weaponId===RIOT_SHIELD_ID){this.riotShieldModel=createRiotShieldModel(true);this.camera.add(this.riotShieldModel);}
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
     // Old parts are parented directly to `this.camera` and never removed — without
     // this cleanup, every weapon swap stacks another full set of meshes on the
@@ -2984,6 +3036,9 @@ export class FPSEngine {
       for (const x of [-.045,.045]) add(new THREE.CylinderGeometry(.011,.011,.09,8),cyan,[x,.065,-.065]);
     } else if (id === "vent") {
       add(new THREE.BoxGeometry(.095,.09,.16),cyan,[0,0,0]);
+    } else if (id === "side_bolt") {
+      add(new THREE.CylinderGeometry(.018,.018,.14,10),amber,[0,0,0],Math.PI/2);
+      add(new THREE.ConeGeometry(.018,.055,10),steel,[0,0,-.09],-Math.PI/2);
     } else if (id === "bolt") {
       add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0],Math.PI/2);
       add(new THREE.ConeGeometry(.024,.065,7),amber,[0,0,-.18],-Math.PI/2);
@@ -3073,6 +3128,8 @@ export class FPSEngine {
     // the camera. This also exposes the hammer/axe head during idle movement.
     const meleePose = this.touchMode ? { x: 0.25, y: -0.11, z: -0.47 } : { x: 0.35, y: -0.085, z: -0.49 };
     let target = wDef.category === "melee" ? meleePose : (this.aiming ? adsTarget : hipTarget);
+    if(this.weaponId===RIOT_SHIELD_ID)target=this.shieldRaised()?{x:.4,y:-.6,z:-.35}:hipTarget;
+    this.updateRiotModels();
     // Subtle head-bob while moving on the ground (skipped while aiming for stability).
     let bobY = 0;
     if (!this.aiming && this.onGround && this.vel.lengthSq() > 1) {
@@ -3712,7 +3769,8 @@ export class FPSEngine {
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
-      this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
+      if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null)target.riotShieldHp=damageRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,TURRET_DAMAGE);
+      else this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
     }
   }
 
@@ -4151,7 +4209,7 @@ export class FPSEngine {
       strafeDir: Math.random() < 0.5 ? 1 : -1,
       moveSpeed: (0.55 + Math.random() * 0.3) * botMoveMultiplier(diff),
       attachments: { sight: null, barrel: null, grip: null, magazine: null },
-      wantsHighGround: Math.random() < (this.map.biome==="city"||this.map.biome==="city_day"?.7:.3),
+      wantsHighGround: Math.random() < botTactics(diff).highGround,
       acquiredTargetAt: 0,
       skill,
       burstShotsLeft: 0,
@@ -4651,6 +4709,7 @@ export class FPSEngine {
       case "joined":
         this.selfId = msg.selfId;
         this.scoreLimit = msg.config.scoreLimit;
+        this.configuredTimeLimitSec = msg.config.timeLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
@@ -4658,7 +4717,7 @@ export class FPSEngine {
         // switch to server's map if needed
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = makeEnvironmentMap(getMap(msg.mapId));
+          this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
           // Rebuild arena visuals for the new map. We can't easily rebuild mid-scene
           // without removing old meshes; in practice the server uses the same map as
           // the client requested (findOpenRoom matches by mode only — fix that later).
@@ -4675,7 +4734,11 @@ export class FPSEngine {
           }
         }
         break;
+      case "clusterVolley":
+        this.addClusterVolley({...msg.volley,launchedAt:gravityClientTime(msg.volley.launchedAt,msg.serverNow,Date.now())},false);
+        break;
       case "snapshot":
+        for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
         // Authoritative poison status is sent to everyone, not just the
         // attacker. Convert server timestamps so client clock skew is safe.
         this.onlinePoisoned.clear();
@@ -4693,6 +4756,7 @@ export class FPSEngine {
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
+            this.riotShieldHp=p.riotShieldHp??RIOT_SHIELD_HP;
             this.selfSpawnProtectedUntil = p.spawnProtectedUntil ?? 0;
             // Server now regenerates health authoritatively every combat tick.
             // Never let local predicted HP exceed the canonical value.
@@ -4945,11 +5009,11 @@ export class FPSEngine {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
-          this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           // Round 20: Refill ALL weapon slots on respawn (not just the active one).
-          this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
+          this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
           this.secondaryAmmoInMag = this.secondaryEff.magSize;
           this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
@@ -5134,7 +5198,9 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
+          if(msg.weaponId===CLUSTER_ID){
+            // The server-authored volley owns every shell and bomblet visual.
+          } else if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
           } else if (msg.weaponId==="wonder_stormweaver") {
@@ -5186,13 +5252,14 @@ export class FPSEngine {
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
         this.scoreLimit = msg.config.scoreLimit;
+        this.configuredTimeLimitSec = msg.config.timeLimit;
         this.denialScoreEnabled = msg.config.denialScoreEnabled === true;
         this.hasTimeLimit = msg.config.timeLimit > 0 && msg.mode !== "gungame" && msg.mode !== "survival";
         this.survivalTier=normalizeSurvivalTier(msg.config.survivalTier ?? this.survivalTier);
         (this.opts as any).team = msg.team;
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
-          this.map = makeEnvironmentMap(getMap(msg.mapId));
+          this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
         }
         for (const p of msg.players) this.ensureCombatant(p);
         // The engine initially uses an FFA preview spawn before the server assigns
@@ -5241,6 +5308,7 @@ export class FPSEngine {
           this.opts.scoreLimit = msg.config.scoreLimit;
           this.scoreLimit = msg.config.scoreLimit;
           this.timeLeft = this.opts.mode === "gungame" ? 0 : msg.config.timeLimit;
+          this.configuredTimeLimitSec = msg.config.timeLimit;
           this.hasTimeLimit = msg.config.timeLimit > 0 && this.opts.mode !== "gungame" && this.opts.mode !== "survival";
           this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
           this.elapsedSeconds = 0;
@@ -5260,8 +5328,8 @@ export class FPSEngine {
         this.perWeaponActions = new Map();
         this.wonderStates.clear();
         const matchPrimary = weaponById(this.primaryWeaponId);
-        if (matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
-        this.primaryAmmoInMag = matchPrimary.wonder ? matchPrimary.wonder.maxCharges : this.primaryEff.magSize;
+        if (usesWonderCharges(matchPrimary) && matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
+        this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
         if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
@@ -5416,68 +5484,17 @@ export class FPSEngine {
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
+    c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;
     c.perkId = p.perkId;
     return c;
   }
 
   // ---- Spawning ----
-  // Pick a spawn point that is as FAR as possible from any other living player
-  // (not just enemies — we also want to avoid spawning on top of allies).
+  // Shared collision, separation, enemy sightline and recent-use scoring.
   private pickSpawn(team: string): Vec3 {
-    const list = team === "red" ? this.map.spawns.red : team === "blue" ? this.map.spawns.blue : this.map.spawns.ffa;
-    const others = [...this.combatants.values()].filter((c) => c.alive);
-    // Also include the player's own current position (so we don't respawn where we just died)
-    const selfHere: { pos: Vec3 } | null = this.alive ? { pos: [this.pos.x, this.pos.y, this.pos.z] } : null;
-    // ---- Spawn safety filter: skip spawn points whose XZ is INSIDE a cover box ----
-    // (Some maps — notably Neon Plaza — have spawns inside the central tower or
-    // corner platforms. Without this filter, the player spawns embedded in a wall
-    // and can't move. The Y will be snapped to ground level below, but the XZ
-    // must be in open space.) We check against cover boxes whose top is above
-    // the player's feet + 0.5 (so we don't accidentally filter spawns that sit
-    // on top of a platform — those are intentional elevated spawns).
-    const safeList = list.filter((sp) => {
-      for (const cov of this.map.cover) {
-        const cx = cov.pos[0], cz = cov.pos[2];
-        const hx = cov.size[0], hz = cov.size[2];
-        const minY = cov.pos[1] - cov.size[1];
-        const maxY = cov.pos[1] + cov.size[1];
-        // Inside the box's XZ footprint?
-        if (Math.abs(sp[0] - cx) < hx + PLAYER_RADIUS && Math.abs(sp[2] - cz) < hz + PLAYER_RADIUS) {
-          // And the box's body extends above the spawn's feet (i.e. the spawn is
-          // embedded in the box's volume, not standing on its roof)?
-          if (maxY > sp[1] + 0.5 && minY < sp[1] + PLAYER_HEIGHT) {
-            return false;  // unsafe — skip this spawn
-          }
-        }
-      }
-      return true;
-    });
-    // Fall back to the unfiltered list if EVERY spawn is unsafe (shouldn't happen
-    // in practice, but prevents a hard crash if a map's spawns are all bad).
-    const candidateList = safeList.length > 0 ? safeList : list;
-    const points = candidateList.map((sp) => {
-      let minD = Infinity;
-      for (const e of others) {
-        const d = Math.hypot(e.pos[0] - sp[0], e.pos[2] - sp[2]);
-        if (d < minD) minD = d;
-      }
-      if (selfHere) {
-        const d = Math.hypot(selfHere.pos[0] - sp[0], selfHere.pos[2] - sp[2]);
-        if (d < minD) minD = d;
-      }
-      // Slight random jitter to break ties so bots don't always pick the same spawn
-      return { sp, score: minD + Math.random() * 2 };
-    });
-    points.sort((a, b) => b.score - a.score);
-    // Round 20: Enforce minimum spawn separation. Never spawn within 8 units
-    // of another living player if avoidable. If ALL spawn points are within 8
-    // units (small map / many players), pick the farthest one.
-    const MIN_SPAWN_DIST = 8;
-    const farPoints = points.filter((p) => p.score >= MIN_SPAWN_DIST);
-    const chosen = (farPoints.length > 0 ? farPoints : points)[0].sp;
-    // Snap Y to ground level at that XZ
-    const groundY = botGroundHeight(this.map.cover, chosen[0], chosen[2], chosen[1]);
-    return [chosen[0], Math.max(chosen[1], groundY), chosen[2]];
+    const occupants=[...this.combatants.values()].filter(c=>c.alive).map(c=>({pos:c.pos as Vec3,team:c.team}));
+    if(this.alive)occupants.push({pos:[this.pos.x,this.pos.y,this.pos.z],team:this.opts.team});
+    return chooseSpawn(this,this.map,team,occupants);
   }
 
   private respawnSelf() {
@@ -5491,15 +5508,16 @@ export class FPSEngine {
     this.wasJumpHeld = !!this.keys["Space"];
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
+    this.riotShieldHp=RIOT_SHIELD_HP;
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.ammoInMag = weaponById(this.weaponId).wonder ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
+    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     // Round 19o: refill ALL slots on respawn (not just the active one).
-    this.primaryAmmoInMag = weaponById(this.primaryWeaponId).wonder ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
+    this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     // Round 20h: Local player spawn protection (offline only — online is
@@ -5554,7 +5572,7 @@ export class FPSEngine {
     // this game; restore the actual magazine values used by weapon swapping.
     const beforePrimary = this.primaryAmmoInMag;
     const beforeSecondary = this.secondaryAmmoInMag;
-    if (this.primaryWeaponId && !weaponById(this.primaryWeaponId).wonder && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
+    if (this.primaryWeaponId && !usesWonderCharges(weaponById(this.primaryWeaponId)) && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
         weaponById(this.primaryWeaponId).category !== "melee") {
       this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
         this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
@@ -5980,7 +5998,9 @@ export class FPSEngine {
         for(const victim of tagged){
           const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
           this.spawnWonderBeam(origin,to,"smart");
-          this.applyDamageLocal(victim,this.eff.damage,false,w.id);
+          const path=this.normalize([to[0]-origin[0],to[1]-origin[1],to[2]-origin[2]]);
+          if(rayRiotShield(origin,path,victim)!==null)victim.riotShieldHp=damageRiotShield(victim.riotShieldHp??RIOT_SHIELD_HP,this.eff.damage);
+          else this.applyDamageLocal(victim,this.eff.damage,false,w.id);
         }
       }else{
         this.localFireRay(origin,dir,w.stats.headshotMult);
@@ -6037,6 +6057,79 @@ export class FPSEngine {
     }
   }
 
+  private shieldRaised():boolean{
+    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting && this.riotShieldHp>0;
+  }
+  private disposeRiotModel(model:THREE.Object3D){
+    model.removeFromParent();
+    const mats=new Set<THREE.Material>();
+    model.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);}});
+    for(const m of mats)m.dispose();
+  }
+  private updateRiotModels(){
+    const panel=shieldPanel(this.shieldRaised()), full=shieldPanel(true);
+    if(this.riotShieldModel){
+      const model=this.riotShieldModel;
+      model.visible=this.alive&&this.riotShieldHp>0;
+      model.scale.set(panel.width/full.width,panel.height/full.height,1);
+      model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
+      // Camera forward is -Z; the same panel angle is required, not its mirror.
+      model.rotation.set(0,panel.yawOffset,0);
+    }
+    for(const c of this.combatants.values()){
+      if(!c.group||c.isSelf)continue;
+      if(c.weaponId===RIOT_SHIELD_ID&&(!c.riotShieldModel||c.riotShieldModel.parent!==c.group)){
+        c.riotShieldModel=createRiotShieldModel();c.group.add(c.riotShieldModel);
+      }
+      const model=c.riotShieldModel;if(!model)continue;
+      model.visible=c.alive&&c.weaponId===RIOT_SHIELD_ID&&(c.riotShieldHp??RIOT_SHIELD_HP)>0;
+      const p=shieldPanel(!!c.riotShieldRaised);
+      model.position.set(-p.right,p.centerY,p.forward);model.rotation.y=p.yawOffset;
+      model.scale.set(p.width/full.width,p.height/full.height,1);
+    }
+  }
+  private addClusterVolley(volley:ClusterVolley,offline:boolean){
+    if(this.clusterVolleys.has(volley.id))return;
+    const done=new Set<number>();
+    // A late join must not replay old detonations.
+    if(!offline)volley.shots.forEach((s,i)=>{if(Date.now()>volley.launchedAt+s.delayMs+s.path.flightMs)done.add(i);});
+    this.clusterVolleys.set(volley.id,{...volley,offline,done,dealt:new Map(),meshes:new Map()});
+  }
+  private removeClusterVolley(id:string){
+    const v=this.clusterVolleys.get(id);if(!v)return;
+    for(const mesh of v.meshes.values()){mesh.removeFromParent();mesh.geometry.dispose();(mesh.material as THREE.Material).dispose();}
+    this.clusterVolleys.delete(id);
+  }
+  private tickClusterVolleys(){
+    const now=Date.now();
+    for(const [id,v] of this.clusterVolleys){
+      v.shots.forEach((s,i)=>{
+        const age=now-v.launchedAt-s.delayMs;
+        if(age<0||v.done.has(i))return;
+        if(age>=s.path.flightMs){
+          v.done.add(i);
+          const mesh=v.meshes.get(i);if(mesh){mesh.removeFromParent();mesh.geometry.dispose();(mesh.material as THREE.Material).dispose();v.meshes.delete(i);}
+          this.spawnExplosion(new THREE.Vector3(...s.path.impact),undefined,s.radius,CLUSTER_ID);
+          if(v.offline&&!this.matchEnded){
+            const point=s.path.impact;
+            for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
+            for(const target of this.combatants.values()){
+              if(!target.alive||target.id===v.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
+              const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
+              if(dmg<=0||!this.hasLineOfSight(point,center))continue;
+              v.dealt.set(target.id,(v.dealt.get(target.id)??0)+dmg);this.applyDamageLocal(target,dmg,false,CLUSTER_ID);
+            }
+          }
+        }else{
+          let mesh=v.meshes.get(i);
+          if(!mesh){mesh=new THREE.Mesh(new THREE.SphereGeometry(i===0?.13:.09,8,6),new THREE.MeshBasicMaterial({color:i===0?0xffb535:0xff6030}));v.meshes.set(i,mesh);this.scene.add(mesh);}
+          mesh.position.set(...clusterPositionAt(s.path,age));
+        }
+      });
+      if(now>v.launchedAt+clusterLifetime(v.shots)+100)this.removeClusterVolley(id);
+    }
+  }
   // ---- Shooting ----
   // fireOneShot is called from the main loop's firing block (above). It handles
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
@@ -6044,7 +6137,7 @@ export class FPSEngine {
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
-    if (w.disabled) return;
+    if (w.disabled || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
@@ -6078,7 +6171,7 @@ export class FPSEngine {
       this.socket.emit("message", { t: "deployTurret" } as const);
       return;
     }
-    if (w.wonder) {
+    if (usesWonderCharges(w) && w.wonder) {
       const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
       if(w.wonder.kind==="flame"){
         // Only accepted trigger-held shots call this function.
@@ -6093,14 +6186,14 @@ export class FPSEngine {
         this.wonderStates.set(w.id,next);
       }
     }
-    if (special?.kind !== "heat" && !w.wonder && this.ammoInMag <= 0) {
+    if (special?.kind !== "heat" && !usesWonderCharges(w) && this.ammoInMag <= 0) {
       this.sound.play("empty_click", { volume: 0.4 });
       this.startReload();
       return;
     }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
-    if (w.wonder) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
+    if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
@@ -6126,6 +6219,7 @@ export class FPSEngine {
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
+      aiming:this.aiming,
       suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
       volume: w.wonder?.kind==="flame" ? .47 : .9,
     });
@@ -6137,7 +6231,7 @@ export class FPSEngine {
     // for weapons that actually have a reload (melee/launcher have reloadTime 0
     // and are handled separately).
     const justEmptied = this.ammoInMag <= 0;
-    if (!w.wonder && special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
+    if (!usesWonderCharges(w) && special?.kind !== "heat" && justEmptied && !this.reloading && this.eff.reloadTime > 0) {
       this.startReload();
     }
 
@@ -6162,6 +6256,11 @@ export class FPSEngine {
     // Capture impact before damage can kill/remove a target. Reclaimed bolts
     // should land where the shot hit, not travel through a newly-dead enemy.
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
+    if(w.wonder?.kind==="cluster"){
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
+      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map)},true);
+      return;
+    }
     // These kinds implement new hitscan / area rules, never rocket splash.
     if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
       if(w.wonder.kind==="flame")this.spawnFlameSpray(origin,dir);
@@ -6171,7 +6270,7 @@ export class FPSEngine {
     }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
-    const isRocket = !!w.explosive || !!w.wonder;
+    const isRocket = !!w.explosive || usesWonderCharges(w);
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -6275,10 +6374,12 @@ export class FPSEngine {
   }
 
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
-    let nearest: { c: Combatant; t: number; head: boolean } | null = null;
+    let nearest: { c: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+      const panel=rayRiotShield(origin,dir,c);
+      if(panel!==null&&panel<=maxWeaponHitRange(this.eff.range,this.eff)&&(!nearest||panel<nearest.t))nearest={c,t:panel,head:false,shield:true};
       const hit = rayCombatantHit(origin, dir, c.pos);
       if (hit && hit.t <= maxWeaponHitRange(this.eff.range, this.eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { c, t: hit.t, head: hit.head };
@@ -6304,6 +6405,7 @@ export class FPSEngine {
         this.hitMarkerAt = performance.now();
         return null;
       }
+      if(nearest.shield){nearest.c.riotShieldHp=damageRiotShield(nearest.c.riotShieldHp??RIOT_SHIELD_HP,this.eff.damage);this.sound.play("melee_hit",{volume:.45});return null;}
       const baseDmg = this.eff.damage * (nearest.head ? headshotMult : 1);
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
@@ -6929,21 +7031,16 @@ export class FPSEngine {
     this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash });
   }
 
-  // Spawn an explosion effect at a world position: an expanding emissive sphere
-  // + a brief point light flash. The effect auto-fades and is removed after ~500ms.
+  // Reuse bounded visuals and one permanent light; never vary the scene's light count per blast.
   private spawnExplosion(pos: THREE.Vector3, wonderKind?: "singularity" | "corrosion", radius = GRAVITY_WELL_RADIUS, weaponId = "") {
-    const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 16, 16),
-      new THREE.MeshBasicMaterial({ color: wonderKind === "singularity" ? 0x9370ff : wonderKind === "corrosion" ? 0x597940 : weaponId === "launcher_swarm" ? 0x3df9ef : 0xff6622, transparent: true, opacity: 0.85 }),
-    );
-    sphere.position.copy(pos);
-    this.scene.add(sphere);
-    const light = new THREE.PointLight(wonderKind === "singularity" ? 0x6e42ea : wonderKind === "corrosion" ? 0x557040 : weaponId === "launcher_swarm" ? 0x21f1db : 0xff6622, wonderKind ? 7 : 4, wonderKind === "singularity" ? radius * 2 : wonderKind ? 20 : 12);
-    light.position.copy(pos);
-    this.scene.add(light);
-    this.explosions.push({ mesh: sphere, light, born: performance.now(), life: wonderKind === "singularity" ? 650 : weaponId === "launcher_swarm" ? 750 : 500, radius });
-    // Explosion SFX.
-    this.weaponAudio.play("launcher", { weaponId: "launcher_rocket", volume: 0.95 });
+    const now=performance.now(),listener=this.camera.position;
+    const style=wonderKind??(weaponId==="launcher_swarm"?"swarm":"ordinary");
+    this.explosionEffects.spawn(pos,style,radius,now,listener);
+    if(this.explosionEffects.soundDue(pos,listener,now)){
+      const dx=pos.x-listener.x,dz=pos.z-listener.z,horizontal=Math.hypot(dx,dz)||1;
+      this.weaponAudio.play("launcher",{weaponId:"launcher_rocket",volume:.95,
+        distance:pos.distanceTo(listener),pan:(dx*Math.cos(this.yaw)-dz*Math.sin(this.yaw))/horizontal});
+    }
   }
 
   /** Persistent visual vortex: purple heart, concentric orbiting rings and glow.
@@ -7046,7 +7143,7 @@ export class FPSEngine {
 
   private startReload() {
     if (this.equipmentAction) return;
-    if (weaponById(this.weaponId).wonder) return;
+    if (usesWonderCharges(weaponById(this.weaponId))) return;
     const special = weaponById(this.weaponId).special;
     if (special?.kind === "heat") {
       const heat = this.heatStates.get(this.weaponId)?.heat ?? 0;
@@ -7062,7 +7159,8 @@ export class FPSEngine {
     }
     if (this.weaponId==="crossbow_reclaimer" &&
         this.getCurrentAttachments().magazine==="mag_bolt_heavy") return; // scavenged heavy arrows only
-    if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive) return;
+    if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive ||
+        !canStartWeaponReload(weaponById(this.weaponId).stats, this.ammoInMag)) return;
     if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
@@ -7130,6 +7228,8 @@ export class FPSEngine {
     // HUD renders a big centered countdown number from `preMatchCountdown`.
     // When it hits 0, a "GO!" SFX plays and normal gameplay resumes.
     if (this.preMatchCountdown > 0) {
+      const second=Math.ceil(this.preMatchCountdown);
+      if(second!==this.lastCountdownSecond){this.lastCountdownSecond=second;this.sound.play("countdown_tick",{volume:.8});}
       this.preMatchCountdown -= dt;
       // Keep the camera at spawn so the player can look around (mouse-look is
       // still active via the pointer-lock handler, but movement keys are
@@ -7182,6 +7282,9 @@ export class FPSEngine {
     if (!this.matchEnded) this.updateEnvironment(dt);
     if (this.opts.firingRange && !this.matchEnded) this.tickFiringRangeTargets(dt);
     this.tickGravityWells(dt);
+    // Thrown ordnance keeps its authoritative schedule while its owner is dead.
+    this.tickClusterVolleys();
+    this.explosionEffects?.update(performance.now(),this.camera.position);
     // ---- Dead player: freeze camera + suppress all input/animation ----
     // When the local player is dead (waiting for respawn), we lock the camera
     // at the death position and suppress movement, firing, and viewmodel
@@ -7189,6 +7292,7 @@ export class FPSEngine {
     // move, shoot, or play weapon animations. This prevents the jarring
     // effect of the gun continuing to sway/recoil while the player is dead.
     if (!this.alive && !this.matchEnded) {
+      this.updateRiotModels(); // hide the local panel and continue remote stance updates
       // Keep the camera at the death position (don't follow movement — there is none).
       this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
       this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
@@ -7296,7 +7400,7 @@ export class FPSEngine {
     const inputActive = this.pointerLocked || this.touchMode;
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    const wantsAds = this.manualAiming || (this.autoAdsOnFire && wantFire && this.alive);
+    const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds && (!this.sprinting || allowSprintAds);
     if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
@@ -7304,7 +7408,7 @@ export class FPSEngine {
       const now = performance.now();
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
       if(wantFire && (this.mousePressedThisFrame || this.touchPressedThisFrame) &&
-         this.ammoInMag<=0 && !this.reloading && !w.wonder &&
+         this.ammoInMag<=0 && !this.reloading && !usesWonderCharges(w) &&
          w.category!=="melee" && w.special?.kind!=="heat"){
         this.sound.play("empty_click",{volume:.36});
         this.startReload();
@@ -7361,9 +7465,9 @@ export class FPSEngine {
     // ADS smoothing
     const targetAds = this.aiming ? 1 : 0;
     this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
-    // Per-sight FOV reduction (iron/red_dot = small zoom, ACOG = bigger, Hunter = biggest).
-    // The HUD renders the matching reticle overlay; the camera FOV provides the zoom.
-    this.camera.fov = this.baseFov - this.adsProgress * this.sightDef.adsFovReduction;
+    // The optical zoom field determines actual magnification across all player FOV settings.
+    // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
+    this.camera.fov = this.weaponId===RIOT_SHIELD_ID?this.baseFov:adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
     this.camera.updateProjectionMatrix();
     this.positionViewmodel();
     // Update the laser indicator (visible only when a laser sight is equipped)
@@ -7480,27 +7584,6 @@ export class FPSEngine {
       const t = age / p.travelMs;
       p.mesh.position.lerpVectors(p.start, p.end, t);
       if (weaponById(p.weaponId).wonder?.kind === "singularity") p.mesh.rotation.z += dt * 5;
-      return true;
-    });
-
-    // ---- Update explosions: expand + fade out, then remove ----
-    this.explosions = this.explosions.filter((e) => {
-      const age = now - e.born;
-      if (age > e.life) {
-        this.scene.remove(e.mesh);
-        this.scene.remove(e.light);
-        (e.mesh.geometry as THREE.BufferGeometry).dispose();
-        (e.mesh.material as THREE.Material).dispose();
-        return false;
-      }
-      const t = age / e.life;
-      // The singularity shockwave reaches EXACTLY the damage radius (not a
-      // fixed-size 13m visual on a 9.5m hit area).
-      const scale = e.life > 500 ? 0.3 + t * (e.radius / 0.3 - 0.3) : 0.3 + t * 2.2;
-      e.mesh.scale.setScalar(scale);
-      (e.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - t);
-      // Light fades faster.
-      e.light.intensity = 4 * (1 - t) * (1 - t);
       return true;
     });
 
@@ -7808,10 +7891,12 @@ export class FPSEngine {
     // Third-person aim pitch is the same sign as the existing head pitch.
     p.weaponStub.rotation.x = c.pitch * 0.35 - recoil * 0.3;
 
+    if(c.weaponId===RIOT_SHIELD_ID&&c.riotShieldRaised&&(c.riotShieldHp??RIOT_SHIELD_HP)>0){p.weaponStub.position.y-=.42;p.weaponStub.rotation.x+=.85;}
     const rightGrip = p.weaponHoldRight.clone()
       .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
     const leftGrip = p.weaponHoldLeft.clone()
       .applyQuaternion(p.weaponStub.quaternion).add(p.weaponStub.position);
+    if(c.weaponId===RIOT_SHIELD_ID&&(c.riotShieldHp??RIOT_SHIELD_HP)>0){const panel=shieldPanel(!!c.riotShieldRaised);leftGrip.set(-panel.right+.12,.95,panel.forward-.07);}
     poseBotArm(p.upperArmR, p.lowerArmR, rightGrip, -1);
     poseBotArm(p.upperArmL, p.lowerArmL, leftGrip, 1);
     // Head tracks pitch (look up/down with aim)
@@ -8186,9 +8271,13 @@ export class FPSEngine {
       const aimSettled = now - ai.acquiredTargetAt >=
         botReactionDelay(ai.difficulty) + eff.adsTime * 750;
       const stance = botCombatDecision(w.category, dist, clearShot,
-        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil);
+        reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty);
       ai.sprinting = stance.sprinting;
       ai.aiming = stance.aiming;
+      if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
+        ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
+        ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
+      }
       const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
         (orbitalReaperEquipped(this.map,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
       const ideal = stance.idealDistance;
@@ -8197,7 +8286,7 @@ export class FPSEngine {
       let mvx = 0, mvz = 0;
       if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
-      else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * 0.7; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * 0.7; }
+      else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; }
       // Obstacle-aware chase navigation around the dense Bunker centre.
       if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
@@ -8341,7 +8430,8 @@ export class FPSEngine {
       // visible/close (smart reload). Higher-skill bots are smarter about this.
       const enemyVisible = dist < 35;
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
-      const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 && Math.random() < 0.02;
+      const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
+        canStartWeaponReload(w.stats, ai.ammoInMag) && Math.random() < 0.02;
       if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = w.stats.reloadStyle === "incremental"
           ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
@@ -8359,7 +8449,7 @@ export class FPSEngine {
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
       const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
-      ai.sprinting = botPatrolSprint(d);
+      ai.sprinting = botPatrolSprint(d,ai.difficulty);
       if(d>(patrolGoal?.38:1.5)){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
@@ -8400,12 +8490,15 @@ export class FPSEngine {
         } else {
           c.yaw = this.lerpAngle(c.yaw, Math.atan2(dx, dz), 0.15);
         }
+        const scan=botCornerScan(ai.difficulty,patrolBlocked,now,ai);
+        if((ai.cornerUntil??0)>now){ai.sprinting=false;c.yaw=this.lerpAngle(c.yaw,Math.atan2(fx,fz)+scan,.28);}
+        const cornerSpeed=(ai.cornerUntil??0)>now?.35:1;
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
         const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame");
-        const mvx = fx * moveSpeed;
-        const mvz = fz * moveSpeed;
+        const mvx = fx * moveSpeed * cornerSpeed;
+        const mvz = fz * moveSpeed * cornerSpeed;
         const moveLen = Math.hypot(mvx, mvz);
         const SUBSTEP = 0.15;
         const steps = Math.max(1, Math.ceil(moveLen / SUBSTEP));
@@ -8509,7 +8602,7 @@ export class FPSEngine {
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
-      if (d > 55) continue;
+      if (d > botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
       if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]]) && !(this.opts.mode === "survival" && e.pos[1] > c.pos[1] + 1.25)) continue;
@@ -8536,16 +8629,19 @@ export class FPSEngine {
   }
 
   private botFireRay(attacker: Combatant, origin: Vec3, dir: Vec3, eff: EffectiveStats, headshotMult: number) {
-    let nearest: { victim: Combatant; t: number; head: boolean } | null = null;
+    let nearest: { victim: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     const selfC: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
       weaponId: "", weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
+    selfC.weaponId=this.weaponId;selfC.yaw=this.yaw;selfC.riotShieldHp=this.riotShieldHp;selfC.riotShieldRaised=this.shieldRaised();
     const candidates = [...this.combatants.values(), selfC];
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
+      const panel=rayRiotShield(origin,dir,e);
+      if(panel!==null&&panel<=maxWeaponHitRange(eff.range,eff)&&(!nearest||panel<nearest.t))nearest={victim:e,t:panel,head:false,shield:true};
       const hit = rayCombatantHit(origin, dir, e.pos);
       if (hit && hit.t <= maxWeaponHitRange(eff.range, eff)) {
         if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
@@ -8557,6 +8653,11 @@ export class FPSEngine {
       if (t !== null && t < blockedT) blockedT = t;
     }
     if (nearest && nearest.t < blockedT) {
+      if(nearest.shield){
+        if(nearest.victim.id===this.selfId){this.riotShieldHp=damageRiotShield(this.riotShieldHp,eff.damage);this.sound.play("melee_hit",{volume:.55});}
+        else nearest.victim.riotShieldHp=damageRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,eff.damage);
+        return;
+      }
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
       let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff);
       // Survival: bots hit harder as waves progress, BUT base damage is reduced
@@ -8727,6 +8828,7 @@ export class FPSEngine {
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
       orbitalWarning,
+      mapEvent:this.map.id==="floodgate"?steamPurgeStatus(this.map.environment??[],this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
       ctfCarrying: this.opts.mode === "ctf" &&
@@ -8740,6 +8842,7 @@ export class FPSEngine {
           !flagAtHome(this.ctfFlags[this.opts.team])
           ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
+      timeLimitSec: this.configuredTimeLimitSec,
       confirmations: this.confirmations,
       denials: this.denials,
       denialScoreEnabled: this.denialScoreEnabled,
@@ -8828,7 +8931,8 @@ export class FPSEngine {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
       } : {}),
-      ...(weaponById(this.weaponId).wonder ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
+      ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised()}:{}),
+      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
@@ -9003,7 +9107,10 @@ export class FPSEngine {
     }
     this.fpHandMat.dispose(); this.fpCuffMat.dispose();
     this.sound.dispose();
+    for(const id of [...this.clusterVolleys.keys()])this.removeClusterVolley(id);
+    if(this.riotShieldModel)this.disposeRiotModel(this.riotShieldModel);
     this.weaponAudio.dispose();
+    this.explosionEffects?.dispose();
     if(this.gardenMaterial){
       this.gardenMaterial.map?.dispose();
       this.gardenMaterial.dispose();

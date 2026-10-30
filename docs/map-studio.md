@@ -40,7 +40,7 @@ Current recipes use procedural game primitives. They do not import arbitrary mod
 
 ## Canonical map files and migration
 
-Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon and orbital_nexus. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
+Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus and floodgate. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
 
 Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
 
@@ -94,3 +94,13 @@ Orbital Nexus objective positions, charge settings and 0.6 gravity are now store
 ### Extending the system
 
 `src/lib/map-objectives.ts` owns the typed objective grammar, mode requirement table, lookups, route helper and structural validation. New modes using existing flag/zone/reactor mechanics can share these definitions without adding coordinate checks for map names. Add the mode to `GameMode`, `MODE_OBJECTIVES`, its catalog/lobby and actual scoring/match handlers. For a new objective mechanic, add a discriminated kind and its schema/validator/editor fields, implement shared rules with client rendering and authoritative server state/events, and add regression tests. Arbitrary scripts, URLs and unknown behavior fields are rejected. Current `orbital*` wire event names are retained for compatibility; rules version 5 requires restarting/redeploying both client and server together.
+
+## Synchronization with dev — 2026-10-30
+
+Floodgate is registered as the eighth unified document, `src/data/maps/floodgate.json`. Its native empty base, authored geometry, theme, 16 unique spawns per team, four pressure vents and maintenance shutter are preserved. The editor exposes steam/spike appearance and warning duration for periodic hazards; exports, copies and draft playtests retain these fields. Full backdrop, purge rendering and synchronized event HUD remain in the game renderer. See [Floodgate](floodgate.md) for event timing and route notes.
+
+Forest Warfare, Orbital Nexus and Floodgate support CTF/TDM/Kill Confirmed. Verdant Ruins and Ridgefall additionally support the CTF trial layouts from current dev. The CTF picker retains the three dedicated maps first. Updated map capacities, protected spawn selection and weapon/bot changes from dev are retained.
+
+The trials' rear spawn pools now live in each unified blueprint's optional `modeSpawns.ctf` alongside their editable objectives. The **Objectives and modes** section exposes these override coordinates. `getMap(id, mode)` and `compileMapStudioDraft(id, blueprint, theme, mode)` apply the same overrides; other modes keep their normal pools. Choose CTF in Playtest mode to use them. Legacy `src/data/ctf-layouts.json` remains a migration/reference snapshot, while runtime contact positions and spawn selection use the compiled unified document. Explicit empty objective arrays are never silently replaced.
+
+Regression checks compare Floodgate published/draft collision, hazards, spawns and objectives, and verify that unsaved trial edits affect neither other modes nor the published catalog. Live pointer/touch and offline/online gameplay review of this merged editor branch remains required.

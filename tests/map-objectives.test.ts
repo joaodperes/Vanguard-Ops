@@ -191,3 +191,45 @@ describe("objective rendering and offline engine integration",()=>{
     engine.tickOrbitalPickup();expect(grants).toBe(1);
   });
 });
+
+describe("dev synchronization and Floodgate editor support",()=>{
+  test("Floodgate draft preserves geometry, purge hazards and mode availability",()=>{
+    const doc=MAP_DOCUMENTS.floodgate;
+    expect(validateMapDocument(doc)).toEqual([]);
+    expect(validateBlueprint(doc.blueprint)).toEqual([]);
+    const draft=compileMapStudioDraft(doc.id,doc.blueprint,doc.theme,"ctf"),live=getMap("floodgate","ctf");
+    expect(draft.cover).toEqual(live.cover);expect(draft.environment).toEqual(live.environment);
+    expect(draft.spawns).toEqual(live.spawns);expect(draft.objectives).toEqual(live.objectives);
+    expect(draft.environment!.filter(o=>o.type==="spikes"&&o.visual==="steam")).toHaveLength(4);
+    for(const m of ["ctf","tdm","killconfirmed"] as const)expect(supportsMapMode(draft,m)).toBe(true);
+    expect(supportsMapMode(draft,"ffa")).toBe(false);
+    expect(createCtfFlags(draft)).toEqual(createCtfFlags("floodgate"));
+    const imported=importMapDocuments(JSON.parse(JSON.stringify(doc)),MAP_DOCUMENTS,doc.id).documents[doc.id];
+    expect(imported).toEqual(doc);
+  });
+  test("CTF trial draft edits its own spawn pools and flags without affecting TDM or published data",()=>{
+    for(const id of ["compound","skybridge"]){
+      const doc=structuredClone(MAP_DOCUMENTS[id]);
+      const pool=doc.blueprint.modeSpawns!.ctf!;pool.red[0]=[-20,0,30];
+      doc.blueprint.objectives!.find(o=>o.kind==="flag"&&"team" in o&&o.team==="blue")!.pos=[25,0,25];
+      const preview=compileMapStudioDraft(id,doc.blueprint,doc.theme,"ctf");
+      expect(preview.spawns.red[0]).toEqual([-20,0,30]);
+      expect(ctfHome("blue",preview)).toEqual([25,0,25]);
+      expect(getMap(id,"ctf").spawns.red[0]).not.toEqual([-20,0,30]);
+      const normal=compileMapStudioDraft(id,doc.blueprint,doc.theme,"tdm");
+      expect(normal.spawns).toEqual(getMap(id,"tdm").spawns);
+    }
+  });
+  test("legacy trial imports retain mode-specific spawn defaults",()=>{
+    const doc=structuredClone(MAP_DOCUMENTS.compound);delete doc.blueprint.objectives;delete doc.blueprint.modeSpawns;
+    const restored=importMapDocuments(doc,MAP_DOCUMENTS,doc.id).documents[doc.id];
+    expect(restored.blueprint.modeSpawns).toEqual(MAP_DOCUMENTS.compound.blueprint.modeSpawns);
+  });
+});
+
+import {clusterGravity} from "../src/lib/cluster-grenades";
+import {MOVEMENT} from "../src/lib/movement-rules";
+test("new dev cluster ordnance respects unsaved map gravity independently of the reactor",()=>{
+  const map=compile();map.gravityScale=.4;map.objectives=[];
+  expect(clusterGravity(map)).toBeCloseTo(MOVEMENT.gravity*.4);
+});

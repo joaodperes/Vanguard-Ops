@@ -14,6 +14,7 @@ import {legacyObjectiveMap} from "./map-objectives";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
+  floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
   bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
   shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
@@ -38,6 +39,7 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,
+    modeSpawns:plan?.modeSpawns?structuredClone(plan.modeSpawns):base.modeSpawns,
     objectives:structuredClone(plan?.objectives??base.objectives??legacyObjectiveMap(base.id).objectives??[]),
     modes:[...(plan?.modes??base.modes??legacyObjectiveMap(base.id).modes??["ffa","tdm","survival","gungame","killconfirmed"])],
     gravityScale:plan?.gravityScale??base.gravityScale??legacyObjectiveMap(base.id).gravityScale??1,

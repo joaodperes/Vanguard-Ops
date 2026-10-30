@@ -8,6 +8,11 @@ export function isFinalAchievementTier(achievement: AchievementDef, catalog: rea
 
 /** Permanent achievement rewards. The player's equipped value
  * stores the achievement ID, never a client-provided arbitrary title. */
+/** Plain-language requirement shared by unlock notifications and results. */
+export function achievementRequirement(achievementId: string, supplied?: string | null): string | null {
+  return supplied?.trim() || ACHIEVEMENTS.find(a => a.id === achievementId)?.description || null;
+}
+
 export function achievementTitle(achievementId:string|null|undefined):string|null {
   const achievement = ACHIEVEMENTS.find(a => a.id === achievementId);
   return achievement && isFinalAchievementTier(achievement)

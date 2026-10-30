@@ -129,7 +129,7 @@ const MAULER_BLAST: BlastProfile = { highpassHz: 310, lowpassHz: 11500, seconds:
 /** Pure acoustic calculations, also used by regression tests. */
 export function resolveShotAcoustics(
   category: WeaponSoundCategory,
-  options: { weaponId?: string; suppressed?: boolean; distance?: number; volume?: number } = {},
+  options: { weaponId?: string; suppressed?: boolean; distance?: number; volume?: number; aiming?: boolean } = {},
 ) {
   const impact = SPECIAL_IMPACTS[options.weaponId ?? ""] ?? IMPACTS[category];
   const blast = options.weaponId === "shotgun_combat" ? MAULER_BLAST
@@ -145,7 +145,7 @@ export function resolveShotAcoustics(
   // electronic/quiet weapons so the silencer remains meaningfully muffled.
   const conventional = category !== "melee" &&
     !["rifle_electron", "crossbow_reclaimer", "pistol_arc", "wonder_hellfire"].includes(options.weaponId ?? "");
-  const bassBoost = conventional && !suppressed ? 1.34 : 1;
+  const bassBoost = conventional && !suppressed ? 1.9 : 1;
   const trebleBoost = conventional && !suppressed ? 1.26 : 1;
   return {
     level,
@@ -235,6 +235,8 @@ export class WeaponAudio {
   play(category: WeaponSoundCategory, options: {
     weaponId?: string;
     suppressed?: boolean;
+    /** ADS is accepted for regression coverage; it never changes shot acoustics. */
+    aiming?: boolean;
     /** World distance to the sound source in game units; omit for local shots. */
     distance?: number;
     /** -1 left, +1 right (relative to camera direction). */
@@ -246,7 +248,7 @@ export class WeaponAudio {
     // Remote firefights must not exhaust voices reserved for the local gun.
     const voiceLimit = options.distance === undefined ? this.maxVoices + 8 : Math.max(4,this.maxVoices - 6);
     if (this.volume === 0 || this.disposed || this.activeVoices >= voiceLimit) return;
-    if (!this.ctx) this.unlock();
+    this.unlock(); // Recover a suspended context on every real shot, including scoped ADS.
     const ctx = this.ctx;
     const out = this.output;
     if (!ctx || !out || !this.noiseBuffer) return;
@@ -386,6 +388,14 @@ export class WeaponAudio {
       punch.frequency.exponentialRampToValueAtTime(acoustics.punchHz * pitch * .72, now + acoustics.punchSeconds);
       shape(punchGain, acoustics.punchLevel * .72, .002, acoustics.punchSeconds);
       punch.connect(punchGain).connect(destination);
+      const bodyPunch=ctx.createOscillator(), bodyPunchGain=ctx.createGain();
+      bodyPunch.type="triangle";
+      bodyPunch.frequency.setValueAtTime(acoustics.punchHz*pitch*2.4,now);
+      bodyPunch.frequency.exponentialRampToValueAtTime(acoustics.punchHz*pitch*1.4,now+acoustics.punchSeconds);
+      shape(bodyPunchGain,acoustics.punchLevel*.26,.001,acoustics.punchSeconds*.8);
+      bodyPunch.connect(bodyPunchGain).connect(destination);
+      track(bodyPunch,[bodyPunch,bodyPunchGain]);
+      bodyPunch.start(now);bodyPunch.stop(now+acoustics.punchSeconds+.008);
       track(punch, [punch, punchGain]);
       punch.start(now);
       punch.stop(now + acoustics.punchSeconds + .008);
@@ -395,7 +405,7 @@ export class WeaponAudio {
   /** Distinct two-note elimination chime. Invoked only for a confirmed local kill. */
   playElimination(headshot = false): void {
     if (this.disposed || this.volume <= 0) return;
-    if (!this.ctx) this.unlock();
+    this.unlock(); // Recover a suspended context on every real shot, including scoped ADS.
     const ctx = this.ctx;
     if (!ctx || !this.output || ctx.state === "closed") return;
     const t = ctx.currentTime;

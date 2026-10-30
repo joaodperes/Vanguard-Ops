@@ -67,6 +67,8 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   pdw_mamba:       { receiver: [.112,.115,.25],guardLength:.075,barrelLength:.09,bore:.018, stock:"none",magazine:"straight",body:"ribbed",features:["vent","muzzle"],signature:0xd5db4a },
   pdw_sentinel:    { receiver: [.13,.125,.29],guardLength:.12, barrelLength:.13,bore:.026, stock:"wire",magazine:"straight",body:"block",features:["rail","guard"],signature:0x6fe2b7 },
   launcher_breach: { receiver: [.25,.22,.48],guardLength:.20, barrelLength:.46,bore:.105, stock:"none",magazine:"rocket",body:"angular",features:["shield","muzzle"],signature:0xb48b53 },
+  wonder_cluster: { receiver:[.20,.20,.35],guardLength:.22,barrelLength:.30,bore:.10,stock:"folding",magazine:"drum",body:"ribbed",features:["guard","muzzle"],signature:0xe5a538 },
+  wonder_riot_shield: { receiver:[.09,.095,.19],guardLength:.045,barrelLength:.065,bore:.017,stock:"none",magazine:"grip",body:"slim",features:[],signature:0x879aaa },
   launcher_swarm:  { receiver: [.20,.18,.40],guardLength:.16, barrelLength:.34,bore:.076, stock:"none",magazine:"rocket",body:"ribbed",features:["rail","muzzle"],signature:0x58b9d3 },
 };
 

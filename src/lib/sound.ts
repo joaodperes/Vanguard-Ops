@@ -57,6 +57,7 @@ export type SfxName =
   | "swap"
   | "ads_in"
   | "ads_out"
+  | "countdown_tick"
   | "match_start"
   | "match_win"
   | "match_lose"
@@ -300,6 +301,7 @@ export class SoundManager {
       case "ads_out": this.synthBlip(330, 0.03, vol * 0.25, "sine"); break;
       case "match_win": this.synthMatchWin(vol); break;
       case "match_lose": this.synthMatchLose(vol); break;
+      case "countdown_tick": this.synthBlip(740, .075, vol * .7, "sine"); break;
       case "match_start": this.synthMatchStart(vol); break;
       case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
       case "flag_scored": this.synthFlagFanfare("score", vol); break;

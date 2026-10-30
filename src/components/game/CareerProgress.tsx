@@ -25,7 +25,7 @@ export function CareerProgress() {
       <h2 className="text-white font-bold flex items-center gap-2"><Award className="w-5 h-5 text-violet-300"/>Career Contracts · Set {career.cycle}</h2>
       <span className="text-sm text-violet-200">{career.tokens} Career Tokens</span>
     </div>
-    <p className="text-sm text-white/65 mt-2">At level 40, finish any three of five long-term contracts to claim one token for exclusive Shop cosmetics. No gameplay bonuses or resets. Your previously earned Career titles are retained.</p>
+    <p className="text-sm text-white/65 mt-2">At level 40, complete three of five contracts to claim a Career Token.</p>
     {career.unlocked?<div className="mt-4 space-y-3">
       <div className="flex items-center justify-between text-xs text-violet-200">
         <span>{career.completed} / {career.required} required contracts completed</span>

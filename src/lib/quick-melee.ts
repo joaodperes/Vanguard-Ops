@@ -13,12 +13,12 @@ export const QUICK_MELEE_REACH = 3.5; // shared safety cap; ordinary weapons ret
  * Fast stabbing weapons stay focused; heavy axe and hammer swings are broader.
  * Shared by local play, F quick melee, and authoritative online hit selection. */
 export const MELEE_HALF_ARC_DEGREES: Readonly<Record<string,number>> = {
-  shiv: 26,
-  knife_tactical: 28,
-  baton: 30,
-  machete: 32,
-  axe: 41,
-  hammer: 45,
+  shiv: 38,
+  knife_tactical: 40,
+  baton: 43,
+  machete: 46,
+  axe: 50,
+  hammer: 52,
   orbital_reaper: 50,
 };
 export function meleeHalfArcDegrees(weaponId:string):number {

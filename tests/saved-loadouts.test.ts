@@ -46,6 +46,24 @@ describe("Named loadout slots", () => {
     expect(restored.meleeAttachments).toEqual({sight:null,barrel:null,grip:null,magazine:null});
     expect(snapshot.attachments).toEqual(restored.attachments);
   });
+  test("replacing a slot preserves its stable ID/name and updates both reticles and charms", () => {
+    const previous = captureSavedLoadout(equipped, "slot-one", "Long Range", "steady");
+    const updated = captureSavedLoadout({ ...equipped,
+      primaryReticle: "reticle_pulse", secondaryReticle: "classic",
+      primaryCharm: "charm_skull", secondaryCharm: "charm_compass",
+      attachments: '{"sight":"sight_acog"}',
+    }, previous.id, previous.name, "battle_hardened");
+    const slots = parseSavedLoadouts(JSON.stringify([updated]));
+    expect(slots).toHaveLength(1);
+    expect(slots[0].id).toBe(previous.id);
+    expect(slots[0].name).toBe(previous.name);
+    expect(slots[0].perkId).toBe("battle_hardened");
+    expect(slots[0].primaryReticle).toBe("reticle_pulse");
+    expect(slots[0].secondaryReticle).toBe("classic");
+    expect(slots[0].primaryCharm).toBe("charm_skull");
+    expect(slots[0].secondaryCharm).toBe("charm_compass");
+    expect(slots[0].attachments.sight).toBe("sight_acog");
+  });
   test("sanitizes long or broken names and invalid serialized data", () => {
     expect(cleanLoadoutName("   Heavy   Weapons   ")).toBe("Heavy Weapons");
     expect(cleanLoadoutName("x".repeat(100)).length).toBe(24);

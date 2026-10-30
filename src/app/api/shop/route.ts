@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
 import { buildProfileView,getOrCreatePlayer } from "@/lib/player-service";
 import { shopItemById,shopItemKey } from "@/lib/shop-catalog";
+import { isShopOfferFeatured } from "@/lib/shop-rotation";
 import { WEAPONS,levelForXp } from "@/lib/game-data";
 import { MAX_PLAYER_LEVEL } from "@/lib/progression";
 import { ownsWeapon } from "@/lib/collection-ownership";
@@ -15,11 +16,14 @@ export async function POST(req:NextRequest){
   if(!playerKey)return NextResponse.json({error:"playerKey required"},{status:400});
   const item=shopItemById(typeof body.itemId==="string"?body.itemId:"");
   if(!item)return NextResponse.json({error:"Unknown shop item"},{status:404});
+
   const player=await getOrCreatePlayer(playerKey);
   const weaponId=item.kind==="weaponSkin"&&typeof body.weaponId==="string"?body.weaponId:"";
+  if(!isShopOfferFeatured(item.id,item.kind==="weaponSkin"?weaponId:undefined))
+    return NextResponse.json({error:"This exact offer is not in today\'s Shop rotation"},{status:403});
   const weapon=WEAPONS.find(w=>w.id===weaponId && !w.wonder);
   if(item.kind==="weaponSkin"&&(!weapon||!ownsWeapon(weapon,levelForXp(player.xp),player.weaponUnlocks.map(w=>w.weaponId))))
-    return NextResponse.json({error:"Select an owned regular weapon first"},{status:403});
+    return NextResponse.json({error:"Weapon locked"},{status:403});
   if(item.currency==="career"&&levelForXp(player.xp)<MAX_PLAYER_LEVEL)
     return NextResponse.json({error:"Career Shop opens at level 40"},{status:403});
   if(item.cosmeticId&&!cosmeticById(item.cosmeticId,
@@ -30,6 +34,16 @@ export async function POST(req:NextRequest){
     await db.$transaction(async tx=>{
       const owned=await tx.careerShopPurchase.findUnique({where:{playerId_itemKey:{playerId:player.id,itemKey:key}}});
       if(owned)throw new Error("OWNED");
+      if(item.kind==="weaponSkin"&&item.skinId){
+        const unlocked=await tx.skinUnlock.findUnique({where:{playerId_weaponId_skinId:{
+          playerId:player.id,weaponId,skinId:item.skinId}}});
+        if(unlocked)throw new Error("OWNED");
+      }
+      if(item.kind==="playerSkin"&&item.skinId){
+        const unlocked=await tx.playerSkinUnlock.findUnique({where:{playerId_skinId:{
+          playerId:player.id,skinId:item.skinId}}});
+        if(unlocked)throw new Error("OWNED");
+      }
       if(item.currency==="credits"){
         const paid=await tx.player.updateMany({
           where:{id:player.id,credits:{gte:item.cost}},

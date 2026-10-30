@@ -701,7 +701,9 @@
       }
     ],
     "modes": [
-      "ctf"
+      "ctf",
+      "tdm",
+      "killconfirmed"
     ],
     "gravityScale": 0.6
   },

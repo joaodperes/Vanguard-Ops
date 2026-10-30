@@ -26,7 +26,8 @@ export function importMapDocuments(
     if(doc?.blueprint&&doc.blueprint.objectives===undefined){
       const defaults=legacyObjectiveMap(doc.id);
       if(defaults.objectives){
-        const prior=doc.blueprint;doc.blueprint={...clone(defaults),...prior,objectives:clone(defaults.objectives)};
+        const prior=doc.blueprint;doc.blueprint={...clone(defaults),...prior,objectives:clone(defaults.objectives),
+          ...(prior.modeSpawns===undefined&&existing[doc.id]?.blueprint.modeSpawns?{modeSpawns:clone(existing[doc.id].blueprint.modeSpawns)}:{})};
       }
     }
     const structural=validateMapDocument(doc);

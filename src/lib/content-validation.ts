@@ -1,3 +1,4 @@
+import { CTF_LAYOUTS } from "./ctf-layouts";
 /**
  * Build-time content validation. Safe to import from Bun tests or scripts;
  * game startup deliberately does not run schemas on every frame.
@@ -57,7 +58,7 @@ const weapon = z.object({
   explosive: z.object({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
   wonder: z.object({
-    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge"]),
+    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
     maxCharges: z.number().int().min(1).max(8),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),
@@ -264,5 +265,16 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   }
   for(const [mapId,map] of Object.entries(MAPS))
     for(const problem of validateObjectives(map))issues.push("runtime map "+mapId+": "+problem);
+
+  for(const [mapId,layout] of Object.entries(CTF_LAYOUTS)) {
+    const bp=MAP_BLUEPRINTS.maps[mapId];
+    if(!bp)issues.push("CTF layout: unknown map "+mapId);
+    for(const team of ["red","blue"] as const){
+      const points=[layout.home?.[team],layout.base?.[team],...(layout.spawns?.[team]??[])];
+      if(!layout.spawns?.[team]?.length)issues.push(`CTF ${mapId}: missing ${team} spawns`);
+      for(const point of points)if(!Array.isArray(point)||point.length!==3||!point.every(Number.isFinite))
+        issues.push(`CTF ${mapId}: invalid ${team} coordinate`);
+    }
+  }
   return issues;
 }

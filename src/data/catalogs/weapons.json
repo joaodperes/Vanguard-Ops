@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
+    "description": "Deploys an automated turret with a 140\u00b0 firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -134,7 +134,7 @@
     "category": "dmr",
     "unlockLevel": 19,
     "unlockCost": 1600,
-    "description": "Recover standard bolts for quicker reloads. Quiver: 10 auto-fired lighter bolts without pickup. Heavy arrows: only two devastating bolts; reclaim fired arrows to replenish.",
+    "description": "Recover standard bolts for quicker reloads.",
     "special": {
       "kind": "bolt",
       "pickupRadius": 2,
@@ -280,10 +280,10 @@
     "category": "dmr",
     "unlockLevel": 35,
     "unlockCost": 2700,
-    "description": "Low-recoil semi-auto precision rifle. Extremely accurate but deliberately paced.",
+    "description": "Low-recoil semi-auto precision rifle. Extremely accurate; a full-health opponent takes two headshots.",
     "stats": {
       "damage": 62,
-      "fireRate": 2.7,
+      "fireRate": 3.1,
       "magSize": 14,
       "reloadTime": 2,
       "spread": 0.003,
@@ -293,7 +293,7 @@
       "adsTime": 0.32,
       "moveSpeed": 0.9,
       "auto": false,
-      "headshotMult": 1.9,
+      "headshotMult": 1.4,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
     }
@@ -313,7 +313,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.38,
+      "range": 1.5,
       "adsTime": 0,
       "moveSpeed": 1.13,
       "auto": false,
@@ -336,7 +336,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.69,
+      "range": 1.8,
       "adsTime": 0,
       "moveSpeed": 0.96,
       "auto": false,
@@ -435,7 +435,7 @@
     "stats": {
       "damage": 74,
       "fireRate": 4,
-      "magSize": 20,
+      "magSize": 12,
       "reloadTime": 2.5,
       "spread": 0.005,
       "adsSpread": 0.0015,
@@ -648,7 +648,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.19,
+      "range": 1.25,
       "adsTime": 0,
       "moveSpeed": 1.1,
       "auto": false,
@@ -671,7 +671,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.08,
+      "range": 1.15,
       "adsTime": 0,
       "moveSpeed": 1.2,
       "auto": false,
@@ -694,7 +694,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.49,
+      "range": 1.6,
       "adsTime": 0,
       "moveSpeed": 1.15,
       "auto": false,
@@ -857,7 +857,7 @@
     "category": "assault",
     "unlockLevel": 11,
     "unlockCost": 800,
-    "description": "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
+    "description": "Burst-fire assault rifle. Three rounds per trigger pull \u2014 deadly at mid range.",
     "stats": {
       "damage": 28,
       "fireRate": 9,
@@ -906,7 +906,7 @@
     "category": "smg",
     "unlockLevel": 3,
     "unlockCost": 500,
-    "description": "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
+    "description": "Ultra-compact budget SMG. Fast handling, low damage \u2014 a starter run-and-gun.",
     "stats": {
       "damage": 20,
       "fireRate": 12,
@@ -963,11 +963,12 @@
     "category": "dmr",
     "unlockLevel": 25,
     "unlockCost": 1200,
-    "description": "Heavy DMR. Near-sniper damage with semi-auto fire rate. Devastating at range.",
+    "description": "Heavy 8-round en-bloc DMR. Devastating at range; the clip can only be reloaded when empty.",
     "stats": {
       "damage": 85,
-      "fireRate": 3,
-      "magSize": 15,
+      "fireRate": 2.3,
+      "magSize": 8,
+      "reloadOnlyWhenEmpty": true,
       "reloadTime": 2.8,
       "spread": 0.004,
       "adsSpread": 0.001,
@@ -1098,7 +1099,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Hold fire to sweep flames across a broad 140° forward arc, denying nearby approaches. Eight seconds of fuel; releasing the trigger preserves remaining charges. No burning ground.",
+    "description": "Hold fire to sweep flames across a broad 140\u00b0 forward arc, denying nearby approaches. Eight seconds of fuel; releasing the trigger preserves remaining charges. No burning ground.",
     "wonder": {
       "kind": "flame",
       "maxCharges": 8,
@@ -1369,5 +1370,70 @@
       "grip",
       "magazine"
     ]
+  },
+  {
+    "id": "wonder_cluster",
+    "name": "Thunderclap",
+    "category": "launcher",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "attachments": [],
+    "description": "Wonder grenade launcher. A bouncing shell bursts after 1.4s into six bouncing cluster grenades. Powerful wide-area blasts; solid cover blocks damage. Follows map gravity. Two charges regenerate over time.",
+    "stats": {
+      "damage": 120,
+      "fireRate": 0.8,
+      "magSize": 2,
+      "reloadTime": 0,
+      "spread": 0.005,
+      "adsSpread": 0.002,
+      "recoil": 1.5,
+      "range": 80,
+      "adsTime": 0.35,
+      "moveSpeed": 0.85,
+      "auto": false,
+      "headshotMult": 1
+    },
+    "wonder": {
+      "kind": "cluster",
+      "maxCharges": 2,
+      "rechargeMs": 32000,
+      "killBonusMs": 1600,
+      "radius": 6
+    },
+    "explosive": {
+      "radius": 6
+    }
+  },
+  {
+    "id": "wonder_riot_shield",
+    "name": "Bulwark + P-9",
+    "category": "pistol",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "attachments": [],
+    "description": "250 HP riot shield and P-9 as one primary Wonder. Shield covers the left front while firing. Hold ADS for full frontal bullet cover; P-9 cannot fire while raised.",
+    "stats": {
+      "damage": 41,
+      "fireRate": 5,
+      "magSize": 12,
+      "reloadTime": 1.6,
+      "spread": 0.015,
+      "adsSpread": 0.005,
+      "recoil": 0.8,
+      "range": 33,
+      "adsTime": 0.2,
+      "moveSpeed": 0.8,
+      "auto": false,
+      "headshotMult": 1.5,
+      "falloffEndMultiplier": 1.55,
+      "minDamageMultiplier": 0.32
+    },
+    "wonder": {
+      "kind": "shield",
+      "maxCharges": 1,
+      "rechargeMs": 32000,
+      "killBonusMs": 0,
+      "radius": 0
+    }
   }
 ]

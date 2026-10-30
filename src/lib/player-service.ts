@@ -487,7 +487,7 @@ export interface AwardResult {
   // Per-weapon skin challenges completed during this match.
   newWeaponChallenges: { challengeId: string; weaponId: string; skinId: string; title: string; description: string }[];
   newPrestiges: string[];
-  newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[];
+  newAchievements: { id: string; title: string; description: string; rewardXp: number; rewardCredits: number }[];
   challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[];
   challengeProgress: { id: string; kind: "daily" | "weekly" | "elite" | "weapon"; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }[];
   bonusXp: number;
@@ -708,7 +708,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   // --- Achievements check (lifetime stats, including quest counters 17-C) ---
   // Run AFTER the daily/weekly loops so the new quest-completion counters
   // reflect this match's awards (Player counters + per-match increments).
-  const newAchievements: { id: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
+  const newAchievements: AwardResult["newAchievements"] = [];
   const headshotAgg = await db.matchRecord.aggregate({ where: { playerId: player.id }, _sum: { headshots: true } });
   const lifetimeHeadshots = (headshotAgg._sum.headshots ?? 0) + input.headshots;
   // Only ordinary combat modes count toward PvP combat achievements.
@@ -801,7 +801,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   for (const ach of ACHIEVEMENTS) {
     if (earnedAchievementIds.has(ach.id)) continue;
     if (getStatValue(ach.metric) >= ach.goal) {
-      newAchievements.push({ id: ach.id, title: ach.title, rewardXp: ach.rewardXp, rewardCredits: ach.rewardCredits });
+      newAchievements.push({ id: ach.id, title: ach.title, description: ach.description, rewardXp: ach.rewardXp, rewardCredits: ach.rewardCredits });
       xpGained += ach.rewardXp;
       creditsGained += ach.rewardCredits;
     }

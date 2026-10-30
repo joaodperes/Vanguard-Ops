@@ -21,13 +21,13 @@ describe("equipped quick melee F",()=>{
     expect(hammer.damage).toBeGreaterThan(shiv.damage);
   });
   test("practical close-quarters reach differs by melee weapon",()=>{
-    const targets=[{id:"target",pos:[0,0,1.12] as const,alive:true}];
+    const targets=[{id:"target",pos:[0,0,1.3] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
     const far=[{id:"far",pos:[0,0,2.05] as const,alive:true}];
-    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.7] as const,alive:true}],()=>true,weaponById("hammer").stats.range)?.id).toBe("hammer-only");
-    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.7] as const,alive:true}],()=>true,weaponById("axe").stats.range)).toBeNull();
+    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.85] as const,alive:true}],()=>true,weaponById("hammer").stats.range)?.id).toBe("hammer-only");
+    expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.85] as const,alive:true}],()=>true,weaponById("axe").stats.range)).toBeNull();
     for(const id of ["knife_tactical","machete","shiv","baton","axe","hammer"]) {
       const reach=quickMeleeProfile(weaponById(id).stats).reach;
       expect(chooseQuickMeleeTarget(from,0,far,()=>true,reach)).toBeNull();
@@ -43,7 +43,7 @@ test("melee rejects side/rear enemies even when they are inside radial reach",()
  ];
  expect(chooseQuickMeleeTarget(from,0,[enemies[0]],()=>true,1.5)).toBeNull();
  expect(chooseQuickMeleeTarget(from,0,enemies,()=>true,1.5)?.id).toBe("ahead");
- expect(chooseQuickMeleeTarget(from,0,[{id:"near",pos:[0,0,1.23] as const,alive:true}],()=>true,
+ expect(chooseQuickMeleeTarget(from,0,[{id:"near",pos:[0,0,1.35] as const,alive:true}],()=>true,
    weaponById("knife_tactical").stats.range)).toBeNull();
 });
 
@@ -63,19 +63,20 @@ describe("live-match melee arcs versus ideal stationary alignment",()=>{
       const reach=quickMeleeProfile(weaponById(weaponId).stats,weaponId).reach;
       expect(hit(weaponId,-21,reach*.93)?.id).toBe("opponent");
       expect(hit(weaponId,21,reach*.93)?.id).toBe("opponent");
-      expect(hit(weaponId,34,reach*.9)).toBeNull();
+      expect(hit(weaponId,32,reach*.9)?.id).toBe("opponent");
+      expect(hit(weaponId,53,reach*.9)).toBeNull();
     }
   });
   test("axe and hammer catch wider off-center targets, with hammer the broadest",()=>{
     const axe=quickMeleeProfile(weaponById("axe").stats,"axe");
     const hammer=quickMeleeProfile(weaponById("hammer").stats,"hammer");
     const machete=quickMeleeProfile(weaponById("machete").stats,"machete");
-    expect(hit("machete",35,machete.reach*.8)).toBeNull();
+    expect(hit("machete",49,machete.reach*.8)).toBeNull();
     expect(hit("axe",-35,axe.reach*.91)?.id).toBe("opponent");
     expect(hit("hammer",35,hammer.reach*.91)?.id).toBe("opponent");
-    expect(hit("axe",43,axe.reach*.8)).toBeNull();
-    expect(hit("hammer",40,hammer.reach*.8)?.id).toBe("opponent");
-    expect(hit("hammer",48,hammer.reach*.8)).toBeNull();
+    expect(hit("axe",51,axe.reach*.8)).toBeNull();
+    expect(hit("hammer",51,hammer.reach*.8)?.id).toBe("opponent");
+    expect(hit("hammer",55,hammer.reach*.8)).toBeNull();
   });
   test("moving-target forgiveness never extends melee behind, through cover, or beyond weapon reach",()=>{
     expect(hit("hammer",90,1.2)).toBeNull();

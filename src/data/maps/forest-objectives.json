@@ -1,6 +1,8 @@
 {
   "modes": [
-    "ctf"
+    "ctf",
+    "tdm",
+    "killconfirmed"
   ],
   "objectives": [
     {

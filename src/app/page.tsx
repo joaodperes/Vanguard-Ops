@@ -1,10 +1,11 @@
 "use client";
 
-import { achievementTitle, titledDisplayName } from "@/lib/achievement-titles";
+import { achievementTitle, achievementRequirement, titledDisplayName } from "@/lib/achievement-titles";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
+import { SiteNav } from "@/components/game/SiteNav";
 import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
 import { FiringRange } from "@/components/screens/FiringRange";
@@ -107,7 +108,8 @@ export default function Page() {
       if (rewards.newAchievements?.length) {
         for (const a of rewards.newAchievements) {
           const title = achievementTitle(a.id);
-          toast.success(`Achievement: ${a.title}`, { description: `+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+          const requirement = achievementRequirement(a.id, a.description);
+          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
         }
       }
       if (rewards.newPrestiges?.length) {
@@ -193,6 +195,7 @@ export default function Page() {
   return (
     <>
       <div className="dark min-h-screen bg-[#0a0a0a] text-white">
+      {screen !== "playing" && <SiteNav />}
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
       {screen === "armory" && <Armory />}

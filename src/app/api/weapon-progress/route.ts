@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllWeaponProgress, getWeaponChallengesView } from "@/lib/player-service";
 import { resolvePlayerKey } from "@/lib/auth";
+import { WEAPONS } from "@/lib/game-data";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,10 @@ export async function GET(req: NextRequest) {
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
 
   const progress = await getAllWeaponProgress(playerKey);
-  // Only compute challenge views for weapons the player has actually used
-  // (i.e. appear in MatchRecord) — those are the only ones with non-zero progress.
-  const challengePromises = Object.keys(progress).map(async (wid) => [wid, await getWeaponChallengesView(playerKey, wid)] as const);
+  // Always include melee skin trials, even if the weapon has zero recorded kills.
+  // This ensures the default Tactical Knife is fully discoverable for new players.
+  const weaponIds = new Set([...Object.keys(progress), ...WEAPONS.filter(w => w.category === "melee").map(w => w.id)]);
+  const challengePromises = [...weaponIds].map(async (wid) => [wid, await getWeaponChallengesView(playerKey, wid)] as const);
   const challengeEntries = await Promise.all(challengePromises);
   const challenges: Record<string, Awaited<ReturnType<typeof getWeaponChallengesView>>> = {};
   for (const [wid, view] of challengeEntries) challenges[wid] = view;

@@ -14,7 +14,7 @@ export function resolveMatchLoadout(player: {
   const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
   let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
   const w = WEAPONS.find(x => x.id === secondaryWeaponId);
-  if (!w || w.disabled || w.category === "melee" ||
+  if (!w || w.disabled || w.wonder || w.category === "melee" ||
       (!w.wonder && w.unlockCost > 0 && !player?.weaponUnlocks.some(x => x.weaponId === w.id)) ||
       (isPrimaryWeaponCategory(w.category) &&
       (!canEquipSecondaryPrimary(perkId, level) || !!w.wonder ||

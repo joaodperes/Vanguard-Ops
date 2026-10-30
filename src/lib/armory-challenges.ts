@@ -297,10 +297,10 @@ export function operatorContract(skinId: string): ArmoryChallengeDef | null {
 export interface WeaponMasteryTier { rank: number; title: string; kills: number; headshots: number }
 export const WEAPON_MASTERY_TIERS: WeaponMasteryTier[] = [
   { rank: 1, title: "Recruit", kills: 20, headshots: 0 },
-  { rank: 2, title: "Skilled", kills: 60, headshots: 10 },
-  { rank: 3, title: "Specialist", kills: 150, headshots: 25 },
-  { rank: 4, title: "Veteran", kills: 300, headshots: 55 },
-  { rank: 5, title: "Elite", kills: 600, headshots: 110 },
+  { rank: 2, title: "Skilled", kills: 60, headshots: 25 },
+  { rank: 3, title: "Specialist", kills: 150, headshots: 70 },
+  { rank: 4, title: "Veteran", kills: 300, headshots: 150 },
+  { rank: 5, title: "Elite", kills: 600, headshots: 330 },
 ];
 export function weaponMasteryProgress(kills: number, headshots: number, weaponId?: string) {
   // Melee strikes cannot headshot, so they earn the same rank from kills alone.

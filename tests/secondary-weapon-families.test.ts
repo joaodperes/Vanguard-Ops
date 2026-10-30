@@ -24,7 +24,7 @@ describe("secondary family catalog and permanent IDs", () => {
     for (const count of counts.values()) expect(count % 3).toBe(0);
     expect(SECONDARY.map(cat => counts.get(cat))).toEqual([6, 3, 3]);
     expect(regular.some(w => (w.category as string) === "sidearm")).toBe(false);
-    expect(WEAPONS.filter(w => w.wonder)).toHaveLength(7);
+    expect(WEAPONS.filter(w => w.wonder)).toHaveLength(9);
   });
   test("old persisted IDs keep their identity and original slot", () => {
     for (const [id, category] of Object.entries(ORIGINAL)) {
@@ -92,19 +92,25 @@ describe("catalog-driven launcher ballistics", () => {
       ? { ...w, explosive: undefined } : w);
     expect(validateGameContent({ weapons }).some(e => e.includes("launcher requires a positive explosive radius"))).toBe(true);
   });
-  test("Gun Game has distinct regular firearms, ends RL-7 then knife, never inserts other launchers", () => {
+  test("Gun Game has distinct regular firearms followed by any standard launcher and melee", () => {
     for (const preset of ["all", "cqc", "long_range"]) {
       const selection = buildGunGameWeapons(preset, 2, () => .38);
       expect(selection).toHaveLength(GUN_GAME_BASE_TIERS * 2);
       for (let start = 0; start < selection.length; start += GUN_GAME_BASE_TIERS) {
         const stage = selection.slice(start, start + GUN_GAME_BASE_TIERS);
         expect(new Set(stage).size).toBe(GUN_GAME_BASE_TIERS);
-        expect(stage.at(-2)).toBe("launcher_rocket");
-        expect(stage.at(-1)).toBe("knife_tactical");
+        expect(weaponById(stage.at(-2)!).category).toBe("launcher");
+        expect(weaponById(stage.at(-1)!).category).toBe("melee");
         expect(stage.slice(0, -2).every(id => weaponById(id).category !== "launcher")).toBe(true);
       }
-      expect(canCompleteGunGame(selection.length - 1, selection, "knife_tactical")).toBe(true);
-      expect(canCompleteGunGame(selection.length - 2, selection, "launcher_rocket")).toBe(false);
+      expect(canCompleteGunGame(selection.length - 1, selection, selection.at(-1)!)).toBe(true);
+      expect(canCompleteGunGame(selection.length - 2, selection, selection.at(-2)!)).toBe(false);
     }
+    const low = buildGunGameWeapons("all",1,()=>0);
+    const high = buildGunGameWeapons("all",1,()=>.999);
+    expect(low.at(-2)).not.toBe(high.at(-2));
+    expect(low.at(-1)).not.toBe(high.at(-1));
+    const bad = [...low]; bad[bad.length-2] = "pistol_side";
+    expect(canCompleteGunGame(bad.length-1,bad,bad.at(-1)!)).toBe(false);
   });
 });

@@ -24,7 +24,7 @@ export default function MapDraftPlaytest(){
       if(!draft.mapId||!draft.blueprint?.regions?.length||!draft.blueprint.spawns||
           !draft.theme?.palette)throw Error("The draft is missing a map, regions, spawns or visual theme.");
       const issues=validateBlueprint(draft.blueprint);if(issues.length)throw Error(issues.join("; "));
-      const map=compileMapStudioDraft(draft.mapId,draft.blueprint,draft.theme);
+      const map=compileMapStudioDraft(draft.mapId,draft.blueprint,draft.theme,draft.mode);
       const mode=draft.mode??(map.modes??DEFAULT_COMBAT_MODES)[0];
       if(!supportsMapMode(map,mode))throw Error("Map does not provide the objectives required for "+mode);
       setPreview({map,mode,mapId:draft.mapId as MapId,botCount:[0,3,6].includes(draft.botCount??0)?draft.botCount??0:0});

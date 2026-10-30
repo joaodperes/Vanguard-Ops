@@ -15,6 +15,8 @@ import { getOrCreatePlayer, buildProfileView, applyMatchResult } from "../../src
 import { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp } from "../../src/lib/progression";
 
 import { PERKS } from "../../src/lib/perks";
+import { shopItemsForCategory } from "../../src/lib/shop-catalog";
+import { dailyShopRotation } from "../../src/lib/shop-rotation";
 import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
 
 const req = (body: unknown) => new NextRequest("http://localhost/api/test", {
@@ -79,6 +81,10 @@ try {
   await db.weaponProgress.upsert({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},
     create:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar",kills:600,headshots:110},
     update:{kills:600,headshots:110}});
+  // Old headshot threshold no longer qualifies for Rank 5/Eventide.
+  await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
+  assert.notEqual((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
+  await db.weaponProgress.update({where:{playerId_weaponId:{playerId:masterySkinPlayer.id,weaponId:"rifle_ar"}},data:{headshots:330}});
   await status(await saveLoadout(req({playerKey:masterySkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
   assert.equal((await buildProfileView(masterySkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
   const prestigeSkinPlayer=await create("prestige-skins-player",totalXpForLevel(25));
@@ -130,9 +136,13 @@ try {
   await status(await claimCareer(req({playerKey:c.playerKey})),200);
   assert.equal((await buildProfileView(c.playerKey))!.career.tokens,1);
   await status(await claimCareer(req({playerKey:c.playerKey})),403);
-  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),200);
+  const featured = new Set(dailyShopRotation().itemIds);
+  const careerFinish = shopItemsForCategory("career","weaponSkin").find(i=>featured.has(i.id))!;
+  const careerWeapon = dailyShopRotation().offers.find(o=>o.itemId===careerFinish.id)?.weaponId!;
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:c.id,weaponId:careerWeapon}},create:{playerId:c.id,weaponId:careerWeapon},update:{}});
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:careerWeapon})),200);
   assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
-  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:"void_circuit",weaponId:"rifle_ar"})),409);
+  await status(await shopPurchase(req({playerKey:c.playerKey,itemId:careerFinish.id,weaponId:careerWeapon})),409);
   await status(await importProfile(req({playerKey:c.playerKey,data:backup})),200);
   assert.equal((await buildProfileView(c.playerKey))!.career.tokens,0);
   assert.equal((await db.player.findUniqueOrThrow({where:{id:c.id}})).careerTokensSpent,1);
@@ -148,7 +158,15 @@ try {
   assert.equal(restored.level,MAX_PLAYER_LEVEL);
   assert(restored.unlockedTitles.some(t=>t.id==="career_veteran"));
 
-  // Cosmetic ownership is account-wide, equip state belongs to each loadout slot.
+  // Shop rotation is global and account ownership stays permanent.
+  const offers=(kind:"charm"|"reticle"|"nameplate")=>
+    shopItemsForCategory("credits",kind).filter(i=>featured.has(i.id));
+  const todayReticle=offers("reticle")[0];
+  const todayCharm=offers("charm")[0];
+  const secondCharm=offers("charm")[1];
+  const todayPlate=offers("nameplate")[0];
+  assert(todayReticle&&todayCharm&&secondCharm&&todayPlate);
+
   const cosmeticsPlayer=await create("cosmetic-player",totalXpForLevel(MAX_PLAYER_LEVEL),75000);
   let cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
   assert.equal(cosmeticsView.loadout.primaryReticle,"classic");
@@ -159,40 +177,79 @@ try {
   await status(await cosmeticEquip("reticle","dot","primary"),200);
   await status(await cosmeticEquip("reticle","reticle_nova","primary"),403);
   await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"reticle",cosmeticId:"dot"})),400);
-  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),200);
-  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"orbit_ring"})),409);
-  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"vanguard_dog_tag"})),200);
-  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:"steel_division"})),200);
-  await status(await cosmeticEquip("reticle","reticle_orbit","primary","rifle_ar"),200);
+  const offRotation=shopItemsForCategory("credits","reticle").find(i=>!featured.has(i.id))!;
+  await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:offRotation.id})),403);
+  for(const item of [todayReticle,todayCharm,todayPlate,secondCharm]){
+    await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:item.id})),200);
+    await status(await shopCosmetic(req({playerKey:cosmeticsPlayer.playerKey,itemId:item.id})),409);
+  }
+  await status(await cosmeticEquip("reticle",todayReticle.cosmeticId!,"primary","rifle_ar"),200);
   await status(await cosmeticEquip("reticle","dot","secondary","pistol_side"),200);
-  await status(await cosmeticEquip("charm","charm_tag","primary","rifle_ar"),200);
-  await status(await cosmeticEquip("charm","charm_tag","secondary","pistol_side"),200);
-  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:"plate_steel"})),200);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","rifle_ar"),200);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"secondary","pistol_side"),200);
+  await status(await equipCosmetic(req({playerKey:cosmeticsPlayer.playerKey,kind:"nameplate",cosmeticId:todayPlate.cosmeticId})),200);
   cosmeticsView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
-  assert.equal(cosmeticsView.loadout.primaryReticle,"reticle_orbit");
+  assert.equal(cosmeticsView.loadout.primaryReticle,todayReticle.cosmeticId);
   assert.equal(cosmeticsView.loadout.secondaryReticle,"dot");
-  assert.equal(cosmeticsView.loadout.primaryCharm,"charm_tag");
-  assert.equal(cosmeticsView.loadout.secondaryCharm,"charm_tag");
-  assert.equal(cosmeticsView.selectedNameplate,"plate_steel");
-  assert.equal(cosmeticsView.credits,75000-3500-6000-7500);
-  await status(await cosmeticEquip("charm","charm_tag","primary","not_a_weapon"),409);
+  assert.equal(cosmeticsView.loadout.primaryCharm,todayCharm.cosmeticId);
+  assert.equal(cosmeticsView.loadout.secondaryCharm,todayCharm.cosmeticId);
+  assert.equal(cosmeticsView.selectedNameplate,todayPlate.cosmeticId);
+  assert.equal(cosmeticsView.credits,75000-todayReticle.cost-todayCharm.cost-todayPlate.cost-secondCharm.cost);
+  await status(await cosmeticEquip("charm",secondCharm.cosmeticId!,"primary","rifle_ar"),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,todayCharm.cosmeticId);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","rifle_ar"),200);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","not_a_weapon"),409);
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryReticle:"reticle_nova"})),403);
-  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_skull"})),403);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,primaryCharm:"charm_moon"})),403);
   await status(await preset(req({playerKey:cosmeticsPlayer.playerKey,action:"save",name:"Cosmetic Kit"})),200);
-  const savedCosmeticPreset=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
-  assert.equal(savedCosmeticPreset.primaryReticle,"reticle_orbit");
-  assert.equal(savedCosmeticPreset.secondaryReticle,"dot");
-  assert.equal(savedCosmeticPreset.primaryCharm,"charm_tag");
+  const cosmeticSaved=(await buildProfileView(cosmeticsPlayer.playerKey))!.savedLoadouts[0];
+  assert.equal(cosmeticSaved.primaryReticle,todayReticle.cosmeticId);
+  assert.equal(cosmeticSaved.primaryCharm,todayCharm.cosmeticId);
   await status(await cosmeticEquip("charm","none","primary"),200);
-  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,"charm_tag");
-  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:savedCosmeticPreset.id})),200);
-  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryCharm,"charm_tag");
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.secondaryCharm,todayCharm.cosmeticId);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,presetId:cosmeticSaved.id})),200);
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryCharm,todayCharm.cosmeticId);
   const cosmeticBackup=await (await exportProfile(new NextRequest(`http://localhost/api/profile/export?playerKey=${cosmeticsPlayer.playerKey}`))).json();
-  assert.equal(cosmeticBackup.loadout.primaryReticle,"reticle_orbit");
-  assert.equal(cosmeticBackup.loadout.secondaryCharm,"charm_tag");
   await status(await cosmeticEquip("reticle","classic","primary"),200);
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
-  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,"reticle_orbit");
+  assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,todayReticle.cosmeticId);
+
+  // Store finishes remain specific to a weapon even when the global rotation
+  // continues to advertise the same finish to every player.
+  const creditFinish=shopItemsForCategory("credits","weaponSkin").find(i=>featured.has(i.id))!;
+  const todayWeapon=dailyShopRotation().offers.find(o=>o.itemId===creditFinish.id)?.weaponId!;
+  const wrongWeapon=todayWeapon==="rifle_ar"?"pistol_side":"rifle_ar";
+  const skinPlayer=await create("rotating-skin-player",totalXpForLevel(MAX_PLAYER_LEVEL),10000);
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:skinPlayer.id,weaponId:todayWeapon}},create:{playerId:skinPlayer.id,weaponId:todayWeapon},update:{}});
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:wrongWeapon})),403);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),200);
+  const skinView=(await buildProfileView(skinPlayer.playerKey))!;
+  assert(skinView.unlocks.skinsByWeapon[todayWeapon]?.includes(creditFinish.skinId!));
+  assert(!skinView.unlocks.skinsByWeapon[wrongWeapon]?.includes(creditFinish.skinId!));
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),409);
+  await status(await shopPurchase(req({playerKey:skinPlayer.playerKey,itemId:creditFinish.id,weaponId:wrongWeapon})),403);
+  assert.equal((await buildProfileView(skinPlayer.playerKey))!.credits,10000-creditFinish.cost);
+  // An already-unlocked finish cannot be purchased/charged again by a rotation.
+  const already=await create("already-unlocked-skin-player",totalXpForLevel(MAX_PLAYER_LEVEL),10000);
+  await db.weaponUnlock.upsert({where:{playerId_weaponId:{playerId:already.id,weaponId:todayWeapon}},create:{playerId:already.id,weaponId:todayWeapon},update:{}});
+  await db.skinUnlock.create({data:{playerId:already.id,weaponId:todayWeapon,skinId:creditFinish.skinId!}});
+  await status(await shopPurchase(req({playerKey:already.playerKey,itemId:creditFinish.id,weaponId:todayWeapon})),409);
+  assert.equal((await buildProfileView(already.playerKey))!.credits,10000);
+
+  // Operative skin choices are saved with the named loadout, not account-wide.
+  const operator=await create("operative-loadout-player",totalXpForLevel(12),10000);
+  await db.playerSkinUnlock.createMany({data:["red","blue"].map(skinId=>({playerId:operator.id,skinId}))});
+  await status(await saveLoadout(req({playerKey:operator.playerKey,playerSkin:"red"})),200);
+  await status(await preset(req({playerKey:operator.playerKey,action:"save",name:"Crimson kit"})),200);
+  const crimson=(await buildProfileView(operator.playerKey))!.savedLoadouts.find(p=>p.name==="Crimson kit")!;
+  await status(await saveLoadout(req({playerKey:operator.playerKey,playerSkin:"blue"})),200);
+  await status(await preset(req({playerKey:operator.playerKey,action:"save",name:"Azure kit"})),200);
+  const azure=(await buildProfileView(operator.playerKey))!.savedLoadouts.find(p=>p.name==="Azure kit")!;
+  await status(await saveLoadout(req({playerKey:operator.playerKey,presetId:crimson.id})),200);
+  assert.equal((await buildProfileView(operator.playerKey))!.loadout.playerSkin.id,"red");
+  await status(await saveLoadout(req({playerKey:operator.playerKey,presetId:azure.id})),200);
+  assert.equal((await buildProfileView(operator.playerKey))!.loadout.playerSkin.id,"blue");
+
 
   // Retired intermediate titles disappear without removing achievements or
   // replaying payouts. Existing final awards immediately grant their new title.

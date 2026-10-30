@@ -4,6 +4,7 @@
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
 import {supportsMapMode,type ObjectiveMap} from "./map-objectives";
+import type { ClusterVolley } from "./cluster-grenades";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
 import { applyMapFootprint } from "./map-footprint";
@@ -14,23 +15,26 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 5, 7, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
-/** Only the two expansive Afterlight City variants support 32 combatants.
- * Other maps retain their previous 14-player maximum. */
+/** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
 export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
-export function teamSizesForMap(mapId: MapId | string): readonly TeamSize[] {
-  return isAfterlightCityMap(mapId) ? TEAM_SIZES : TEAM_SIZES.slice(0, -1);
+export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
+  if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
+  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? [3,5,7,16] : [3,5,7];
 }
-export function teamSizeAllowed(mapId: MapId | string, teamSize: number): teamSize is TeamSize {
-  return teamSizesForMap(mapId).some(size => size === teamSize);
+export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
+  return mapId === "bunker" ? 3 : 5;
+}
+export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
+  return teamSizesForMap(mapId,mode).some(size => size === teamSize);
 }
 
 // Total combatant capacity for a room given mode + team size.
@@ -167,12 +171,14 @@ export interface MapAccentLight {
 /** Map-authored interactive objects. Coordinates follow CoverBox half-extents. */
 export type EnvironmentObject =
   | { id: string; type: "fire"; pos: Vec3; size: Vec3; dps: number }
-  | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number }
+  | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number; warningFor?: number; visual?: "spikes" | "steam" }
   | { id: string; type: "jump_pad"; pos: Vec3; size: Vec3; launch: Vec3 }
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
   | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
 
+export type MapModeSpawns=Partial<Record<GameMode,{red:Vec3[];blue:Vec3[]}>>;
 export interface MapDef extends ObjectiveMap {
+  modeSpawns?:MapModeSpawns;
   id: MapId;
   name: string;
   shortName: string;
@@ -976,6 +982,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  floodgate: [],
   orbital_nexus: [],
   forest_warfare: [],
   compound: [
@@ -1022,6 +1029,17 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  floodgate: {
+    id:"floodgate",name:"Floodgate",shortName:"FLD",
+    description:"A stormbound hydroelectric complex built for 16v16 CTF.",
+    // Physical objects and all 32 spawns are authored only in the blueprint/theme.
+    size:176,wallHeight:14,cover:TACTICAL_COVER.floodgate,environment:ENVIRONMENTS.floodgate,
+    spawns:OUTER_SPAWNS.floodgate,biome:"hydroelectric",accentColor:"#64d8dc",
+    theme:{floor:0x46575b,floorPattern:0x344a50,wall:0x596b70,cover:0x73868a,
+      coverAccent:0x64d8dc,stair:0xadb8b6,platform:0x4a646c,
+      sky:"#263b4c",fog:"#687e87",fogNear:65,fogFar:520,ambient:1.8,gridColor:0x344a50},
+    lights:[],
+  },
   orbital_nexus: {
     id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
     description:"CTF aboard an orbital station above a violet gas giant.",
@@ -1225,6 +1243,7 @@ export const MAPS: Record<string, MapDef> = {
     lights:BASE_MAPS.terminal.lights,environment:[],
   }),
   arena_neon: applyMapFootprint(BASE_MAPS.arena_neon),
+  floodgate: applyMapFootprint(BASE_MAPS.floodgate),
 };
 // Any additional JSON blueprint becomes a selectable map automatically. The
 // template chooses a tested 3D theme/core; the new blueprint owns its regions,
@@ -1237,17 +1256,27 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
+export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(m,"ctf")).map(m=>m.id).sort((a,b)=>{
+  const priority=["forest_warfare","orbital_nexus","floodgate"];
+  const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
+  return rank(a)-rank(b);
+});
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
   !!MAPS[id] && supportsMapMode(MAPS[id],mode);
 
-export function getMap(id: MapId | string | undefined): MapDef {
-  if (id && (id as MapId) in MAPS) return MAPS[id as MapId];
-  return MAPS.compound;
+export function mapForMode(map:MapDef,mode?:GameMode):MapDef {
+  const pools=mode?map.modeSpawns?.[mode]:undefined;
+  return pools?{...map,spawns:{...map.spawns,red:pools.red,blue:pools.blue}}:map;
+}
+
+export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {
+  const map = id && id in MAPS ? MAPS[id as MapId] : MAPS.compound;
+  return mapForMode(map,mode);
 }
 
 /** Client-side, offline-only compilation for unsaved Map Studio drafts.
  * Never modifies MAPS or the server map catalog and cannot affect matchmaking. */
-export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme):MapDef {
+export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme,mode?:GameMode):MapDef {
   // Shipped maps can have an old fallback template ID (Orbital used bunker).
   // Their draft must start from the SAME native base as the published map.
   const templateId=(mapId in BASE_MAPS?mapId:(blueprint.templateMapId||mapId)) as MapId;
@@ -1256,7 +1285,7 @@ export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:
     ...BASE_MAPS.arena_neon,id:"terminal" as MapId,theme:BASE_MAPS.terminal.theme,
     accentColor:BASE_MAPS.terminal.accentColor,lights:BASE_MAPS.terminal.lights,environment:[],
   }:template;
-  return applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme});
+  return mapForMode(applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme}),mode);
 }
 
 // Legacy single-map exports (default to compound) for backward compat
@@ -1320,6 +1349,8 @@ export interface PlayerNet {
   // Spawn protection: timestamp (ms) until which this player cannot be damaged.
   // Set on initial spawn + each respawn so players have a brief grace period to
   // orient themselves before bots start shooting. 0 = no protection active.
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
   spawnProtectedUntil?: number;
 }
 
@@ -1376,6 +1407,8 @@ export interface SnapshotPlayer {
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
   // shield aura while this is in the future. 0/undefined = no protection.
+  riotShieldHp?: number;
+  riotShieldRaised?: boolean;
   spawnProtectedUntil?: number;
 }
 
@@ -1384,6 +1417,7 @@ export interface LobbyPlayer {
 }
 
 export type S2C =
+  | { t: "clusterVolley"; volley: ClusterVolley; serverNow: number }
   | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
   | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
   | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
@@ -1402,7 +1436,7 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "orbitalReactor"; charge: number }
@@ -1474,8 +1508,8 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
 // This replaces the old GUN_GAME_PROGRESSION (which was a fixed list of 18
 // weapon IDs). The old list is kept as GUN_GAME_TYPE_PROGRESSION_FALLBACK for
 // backward compat / offline mode where the engine still reads a flat list.
-// 30 unique stages per cycle: 28 different firearms, then RL-7 Rocket Launcher
-// and a final melee elimination. Presets prioritize their preferred range, but
+// 30 unique stages per cycle: 28 different firearms, then a random regular
+// launcher and a random standard melee weapon. Presets prioritize their preferred range, but
 // automatically fill from other weapon categories when too few unique weapons
 // exist; they never repeat the same gun just to satisfy a category count.
 export const GUN_GAME_TYPE_PROGRESSION: string[] = [
@@ -1511,7 +1545,7 @@ export const GUN_GAME_TYPE_PROGRESSION: string[] = [
   "melee"
 ];
 
-// Offline/back-compat fallback is equally unique, including the rocket finish.
+// Offline/back-compat fallback is equally unique; dynamic rounds randomize both finishers.
 export const GUN_GAME_PROGRESSION: string[] = [
   "pistol_arc",
   "smg_kp",
