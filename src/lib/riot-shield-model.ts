@@ -54,7 +54,7 @@ export function createRiotShieldModel(unlit=false): THREE.Group {
  * materials are created per-frame. Hit flashes are handled separately by HUD. */
 export function applyRiotShieldDamageVisual(model:THREE.Group,hp:number):number {
   const pct=Math.max(0,Math.min(1,hp/RIOT_SHIELD_HP));
-  const stage=hp<=0?3:pct<=.20?3:pct<=.48?2:pct<=.78?1:0;
+  const stage=hp<=0?3:pct<=.20?3:pct<=.48?2:hp<RIOT_SHIELD_HP?1:0;
   const groups=model.userData.damageGroups as THREE.Group[]|undefined;
   if(groups){
     for(const [i,g] of groups.entries()){
