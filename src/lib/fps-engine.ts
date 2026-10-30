@@ -8363,7 +8363,7 @@ export class FPSEngine {
         remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
       const investigate=investigation&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
         (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? investigation : null;
-      ai.investigationLookAt=investigate?[...investigate.lookAt]:null;
+      ai.investigationLookAt=investigate?[...investigate.lookAt] as Vec3:null;
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated
       // climbers first approach their real stair entry when combat is not
