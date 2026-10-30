@@ -9,7 +9,8 @@ import {visualThemeForMap} from "../src/lib/map-visuals";
 import {whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
-import {buildFloodgateFreight,freightCover,freightStage,setFloodgateFreightStage,updateFloodgateFreight,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
+import {botTraversableEdge} from "../src/lib/bot-routing";
+import {buildFloodgateFreight,freightCover,freightStage,setFloodgateFreightStage,updateFloodgateFreight,floodgatePathHazards,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
 import {buildFloodgateDamCracks,damCrackTier,updateFloodgateDamCracks} from "../src/lib/floodgate-dam-cracks";
 import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,floodgateWaterEffect,floodgateSurgeFront,FLOODGATE_DAM_HP,FLOODGATE_SURGE_SECONDS,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
@@ -200,6 +201,19 @@ describe("Floodgate one-time Levolution",()=>{
     expect(count(first)).toHaveLength(4);
     expect(count(second)).toHaveLength(4);
   });
+  test("four new post-flood container ramps are actually climbable by bot physics",()=>{
+    const map=makeEnvironmentMap(getMap("floodgate","tdm"));
+    for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])breakEnvironmentWall(map,id);
+    setFloodgateFreightStage(map,"fallen");
+    const hazards=floodgatePathHazards(map,true);
+    expect(hazards.some(o=>o.type==="spikes"&&o.visual==="steam")).toBe(false);
+    expect(floodgatePathHazards(map,false).some(o=>o.type==="spikes"&&o.visual==="steam")).toBe(true);
+    for(const item of FLOODGATE_FREIGHT){
+      const height=botTraversableEdge([item.x,0,-88],item.x,-55,map.cover,hazards);
+      expect(height).not.toBeNull();
+      expect(height!).toBeGreaterThanOrEqual(3.3);
+    }
+  });
   test("fall animations reuse geometry and match the shared collapse clock",()=>{
     const scene=new THREE.Scene(),group=buildFloodgateFreight(scene),all=[...group.children];
     expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(false);
@@ -224,8 +238,8 @@ describe("Floodgate one-time Levolution",()=>{
       updateFloodgateDamCracks(group,hp,FLOODGATE_DAM_HP);
       expect(cracks.filter(c=>c.visible)).toHaveLength(damCrackTier(hp,FLOODGATE_DAM_HP));
     }
-    expect(cracks.every(c=>c instanceof THREE.LineSegments)).toBe(true);
-    for(const o of cracks){const line=o as THREE.LineSegments;
+    expect(cracks.every(c=>c instanceof THREE.Mesh)).toBe(true);
+    for(const o of cracks){const line=o as THREE.Mesh;
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
     }
