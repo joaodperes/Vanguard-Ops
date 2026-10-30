@@ -769,6 +769,7 @@ export class FPSEngine {
   private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
   private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
   private ctfRulesVerified = false;
+  private floodgateServerRulesVersion:number|undefined;
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
@@ -4985,6 +4986,8 @@ export class FPSEngine {
           }
           for (const [id,t] of this.bulletSpitters) if (!t.offline && !activeIds.has(id)) this.removeBulletSpitter(id);
         }
+        if(this.opts.online&&this.map.id==="floodgate")
+          this.floodgateServerRulesVersion=msg.floodgateRulesVersion;
         this.teamScores = msg.teamScores;
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if (this.opts.mode === "ctf") {
@@ -9050,10 +9053,12 @@ export class FPSEngine {
       orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?floodgateObjectiveStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
+        ?(this.opts.online && this.floodgateServerRulesVersion!==2
+          ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · restart or redeploy to enable destructibles",secondsLeft:0}
+          :floodgateObjectiveStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
             this.floodgateCoreMaxHp(),
             this.environmentWalls.get("floodgate_maintenance_shutter")??Infinity,
-            this.floodgateShutterMaxHp())
+            this.floodgateShutterMaxHp()))
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
