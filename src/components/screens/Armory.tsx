@@ -131,8 +131,9 @@ export function Armory() {
     );
     const rank = weaponMasteryProgress(tally.kills, tally.headshots, w.id).rank;
     const recorded = profile?.prestige?.masteredWeapons.includes(w.id) ?? false;
+    const qualified = profile?.prestige?.tokenReadyWeapons.includes(w.id) ?? false;
     return { id: w.id, name: w.name, kills: tally.kills, rank, recorded,
-      qualified: recorded && rank === 5, cosmetic };
+      qualified, cosmetic };
   }).filter(s => s.kills > 0 || s.recorded)
     .sort((a, b) => Number(b.qualified) - Number(a.qualified) ||
       Number(b.recorded) - Number(a.recorded) ||
@@ -455,21 +456,21 @@ export function Armory() {
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
               <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. Charge-based Wonders recharge over time. Bulwark uses a P-9 magazine and a separate 250 HP shield that restores on respawn.</p>
-              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Wonder-qualified weapons: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
-              <p className="text-xs text-white/50 mt-1">Lifetime Wonder unlocks earned: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Already redeemed: {profile?.prestige?.wonderWeapons.length ?? 0}. One Mastery 5 achievement does not award a Wonder unlock unless that SAME weapon is Prestiged.</p>
+              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Permanent Wonder awards: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
+              <p className="text-xs text-white/50 mt-1">Lifetime Wonder unlocks earned: {(profile?.prestige?.tokenReadyWeapons.length ?? 0) + (profile?.prestige?.legacyCredits ?? 0)} · Already redeemed: {profile?.prestige?.wonderWeapons.length ?? 0}. Earned awards stay permanent even when Mastery thresholds change.</p>
             </div>
             <details className="mb-4 rounded-lg border border-white/15 bg-black/30 p-4" open>
               <summary className="cursor-pointer select-none text-white/80 text-sm font-semibold">Your Wonder unlock breakdown</summary>
-              <p className="text-xs text-white/50 mt-2">For each weapon, finish all seven cosmetic challenges for Prestige, then reach Mastery 5/5. Completed entitlements are counted once; redeemed Wonders reduce the available balance.</p>
+              <p className="text-xs text-white/50 mt-2">For each weapon, finish all seven cosmetic challenges for Prestige, then reach Mastery 5/5. Each earned entitlement is permanent; historical purchases cannot create hidden token debt.</p>
               <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
                 {wonderAudit.length === 0 && <p className="text-xs text-white/40">No weapon progress recorded yet.</p>}
                 {wonderAudit.map(s => (
                   <div key={s.id} className="rounded-md border border-white/10 bg-zinc-900/50 p-3 text-xs">
                     <div className="flex flex-wrap justify-between gap-1">
                       <span className="font-semibold text-white/85">{s.name}</span>
-                      <span className={s.qualified ? "text-emerald-300" : "text-white/55"}>{s.qualified ? "Wonder unlock earned" : s.recorded ? "Prestiged · Mastery pending" : "Not yet Wonder-qualified"}</span>
+                      <span className={s.qualified ? "text-emerald-300" : "text-white/55"}>{s.qualified ? "Wonder unlock earned permanently" : s.recorded ? "Prestiged · Mastery pending" : "Not yet Wonder-qualified"}</span>
                     </div>
-                    <div className="mt-1 text-white/60">Cosmetics: {s.cosmetic.completed}/{s.cosmetic.total} · Prestige: {s.recorded ? "recorded" : "not recorded"} · Mastery: {s.rank}/5</div>
+                    <div className="mt-1 text-white/60">Cosmetics: {s.cosmetic.completed}/{s.cosmetic.total} · Prestige: {s.recorded ? "recorded" : "not recorded"} · Current Mastery: {s.rank}/5</div>
                     {!s.recorded && s.cosmetic.missingSkinIds.length > 0 && <div className="mt-1 text-amber-200/80">Remaining cosmetics: {s.cosmetic.missingSkinIds.map(id => WEAPON_SKINS.find(skin => skin.id === id)?.name ?? id).join(", ")}</div>}
                     {!s.recorded && s.cosmetic.eligible && <div className="mt-1 text-rose-300">All cosmetic requirements are complete but the Prestige award is missing. Refresh your profile; if this remains, the saved award needs investigation.</div>}
                   </div>
