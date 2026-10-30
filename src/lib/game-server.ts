@@ -728,6 +728,7 @@ function snapshot(room: Room): S2C {
     clusterVolleys: [...room.clusterVolleys.values()].map(({done,dealt,...v})=>v),
     environmentTime: room.environmentTime,
     environmentWalls: Object.fromEntries(room.environmentWalls),
+    ...(room.map.id==="floodgate"?{floodgateRulesVersion:2}:{}),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
