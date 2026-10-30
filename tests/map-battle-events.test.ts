@@ -6,7 +6,7 @@ import * as THREE from "three";
 import {buildFloodgateBackdrop,setFloodgatePurgeVisual} from "../src/lib/floodgate-scenery";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {visualThemeForMap} from "../src/lib/map-visuals";
-import {damBreachStatus,floodgateIntegrityStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
+import {damBreachStatus,floodgateIntegrityStatus,floodgateObjectiveStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
 import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,
@@ -58,6 +58,11 @@ describe("Floodgate one-time Levolution",()=>{
     expect(floodgateIntegrityStatus(360,360)).toBeUndefined();
     expect(floodgateIntegrityStatus(180,360)?.label).toContain("50%");
     expect(floodgateIntegrityStatus(0,360)?.label).toContain("DAM BREACHED");
+    expect(floodgateObjectiveStatus(360,360,240,240)).toBeUndefined();
+    expect(floodgateObjectiveStatus(360,360,120,240)?.label).toContain("SHUTTER 50%");
+    expect(floodgateObjectiveStatus(360,360,0,240)?.label).toContain("SHUTTER OPEN");
+    expect(floodgateObjectiveStatus(180,360,120,240)?.label).toContain("DAM INTEGRITY");
+
     for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
       breakEnvironmentWall(map,id);
     // The central route must actually become traversable, not merely lose its
