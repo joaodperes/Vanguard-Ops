@@ -2555,6 +2555,12 @@ export class FPSEngine {
     }
   }
 
+  private floodgateCoreMaxHp():number {
+    for(const wall of this.map.environment??[])
+      if(wall.id===FLOODGATE_CORE_ID && wall.type==="destructible_wall")return wall.hp;
+    return Infinity;
+  }
+
   private damageEnvironmentWall(id: string, damage: number): void {
     id=floodgateDamageTarget(id);
     const original = (this.map.environment ?? []).find(o => o.id === id);
@@ -9002,7 +9008,7 @@ export class FPSEngine {
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
         ?floodgateIntegrityStatus(this.environmentWalls.get(FLOODGATE_CORE_ID)??Infinity,
-            (this.map.environment??[]).find(o=>o.id===FLOODGATE_CORE_ID&&o.type==="destructible_wall")?.hp??Infinity)
+            this.floodgateCoreMaxHp())
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
       ctfOvertime: this.opts.mode === "ctf" ? this.ctfOvertime : undefined,
       ctfFlagResetMs: this.opts.mode === "ctf" ? this.ctfResetDurationMs : undefined,
