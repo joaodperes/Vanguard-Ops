@@ -12,7 +12,7 @@ import {steamPurgeStatus} from "../src/lib/map-event-status";
 import {buildSteamVent,updateSteamVent} from "../src/lib/steam-vent-visuals";
 import {legacyEnvironmentToHazard} from "../src/lib/map-object-actions";
 import {ctfDeliveryMarker} from "../src/lib/ctf-map-visuals";
-import {buildFloodgateBackdrop,setFloodgateBreachVisual} from "../src/lib/floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgateBreachVisual,updateFloodgateBreachVisual} from "../src/lib/floodgate-scenery";
 
 const map=getMap("floodgate"),plan=MAP_BLUEPRINTS.maps.floodgate;
 const collision=makeEnvironmentMap(map).cover,index=new CoverSpatialIndex(collision);
@@ -40,16 +40,19 @@ function groundRoute(start:Vec3,goal:Vec3,zMin:number,zMax:number):boolean {
 describe("Floodgate 16v16 CTF",()=>{
   test("the reservoir, waterfalls and mountains cannot become invisible playable obstacles",()=>{
     const scene=new THREE.Scene(),backdrop=buildFloodgateBackdrop(scene);
-    // The distant concrete and reservoir stay out of bounds. Only a hidden
-    // post-breach water decal may reach into the northern play corridor.
-    const permanent=backdrop.children.filter(o=>o.name!=="floodgate-flooded-spillway"&&o.name!=="floodgate-breach-foam");
-    const originalBounds=new THREE.Box3();for(const child of permanent)originalBounds.expandByObject(child);
-    expect(originalBounds.max.z).toBeLessThan(-108);
-    // Keep the original group free of offscreen impostor colliders; the actual
-    // rupture comes from per-room authored environment wall state.
+    // The distant concrete remains outside the arena; the water is allowed to
+    // enter the playable strip only AFTER the authoritative breach.
+    const before=backdrop.getObjectByName("floodgate-flooded-spillway");
+    expect(before?.visible).toBe(false);
+    const solid=backdrop.children.filter(o=>o instanceof THREE.Mesh &&
+      o.material instanceof THREE.MeshStandardMaterial);
+    expect(solid.length).toBeGreaterThan(0);
+    expect(solid.every(o=>o.position.z< -106)).toBe(true);
     setFloodgateBreachVisual(backdrop,true);
+    updateFloodgateBreachVisual(backdrop,14);
     expect(backdrop.getObjectByName("floodgate-intact-gate")?.visible).toBe(false);
     expect(backdrop.getObjectByName("floodgate-flooded-spillway")?.visible).toBe(true);
+    expect(backdrop.getObjectByName("floodgate-wave")?.visible).toBe(false);
     expect(backdrop.children.some(o=>o instanceof THREE.Light)).toBe(false);
     backdrop.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
   });
