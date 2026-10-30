@@ -7914,7 +7914,10 @@ export class FPSEngine {
       if (elapsed < (sprinting ? 245 : 335)) continue;
       this.remoteFootsteps.set(c.id, { pos: [...c.pos], at: now });
       const listenerDistance = Math.hypot(c.pos[0] - this.pos.x, c.pos[1] - this.pos.y, c.pos[2] - this.pos.z);
-      this.sound.playFootstepAtDistance(listenerDistance, sprinting);
+      const age=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
+        ?this.environmentTime-this.floodgateBreachAt:null;
+      const wet=floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],age).flooded;
+      this.sound.playFootstepAtDistance(listenerDistance,sprinting,wet);
     }
     for (const id of this.remoteFootsteps.keys()) {
       if (!this.combatants.has(id)) this.remoteFootsteps.delete(id);
@@ -8242,7 +8245,7 @@ export class FPSEngine {
       const stepInterval = this.sprinting ? 260 : 360;
       if (performance.now() - this.lastFootstepAt > stepInterval) {
         this.lastFootstepAt = performance.now();
-        if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: this.sprinting ? 0.43 : 0.3 });
+        if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.98:.84):(this.sprinting?.43:.3) });
       }
     }
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
@@ -8276,7 +8279,7 @@ export class FPSEngine {
         this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
         reaperMovement?ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER:1,
       );
-      if (this.activePerkId !== "silent_steps") this.sound.play("footstep", { volume: 0.4 });
+      if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?.9:.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
     this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id,
