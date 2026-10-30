@@ -7,9 +7,9 @@ import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
-import { createRiotShieldModel } from "./riot-shield-model";
+import { createRiotShieldModel, applyRiotShieldDamageVisual } from "./riot-shield-model";
 import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
@@ -208,6 +208,7 @@ export interface HudState {
   hitMarker: number;     // timestamp of last hit
   headshotMarker?: number;  // Round 20g: timestamp of last headshot hit (distinct visual)
   damageFlash: number;   // timestamp of last damage taken
+  riotShieldHitFlash?: number; // softer impact cue when Bulwark absorbs a bullet
   pointerLocked: boolean;
   ping: number;
   // killstreak callout (timestamp + label) — set when player achieves multi-kill
@@ -257,6 +258,7 @@ export interface HudState {
   meleeWeaponId: string;
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  riotShieldRechargeMs?: number;
   wonderRechargeMs?: number;
   turretDeployPending?: boolean;
   turretDeployFailed?: boolean;
@@ -440,6 +442,7 @@ interface Combatant {
   // toggled in updateCombatantMeshes).
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  riotShieldReadyAt?: number;
   riotShieldModel?: THREE.Group;
   shieldMesh?: THREE.Mesh;
 }
@@ -633,6 +636,8 @@ export class FPSEngine {
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
   private riotShieldHp=RIOT_SHIELD_HP;
+  private riotShieldReadyAt=0;
+  private riotShieldHitFlashAt=0;
   private riotShieldModel:THREE.Group|null=null;
   private lastCountdownSecond=0;
   private clusterVolleys=new Map<string,ClusterVolley & {offline:boolean;done:Set<number>;dealt:Map<string,number>;meshes:Map<number,THREE.Mesh>}>();
@@ -3946,7 +3951,11 @@ export class FPSEngine {
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
-      if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null)target.riotShieldHp=damageRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,TURRET_DAMAGE);
+      if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null){
+        const next=hitRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,
+          target.riotShieldReadyAt??0,TURRET_DAMAGE,performance.now());
+        target.riotShieldHp=next.hp;target.riotShieldReadyAt=next.readyAt;
+      }
       else this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
     }
   }
@@ -4944,7 +4953,15 @@ export class FPSEngine {
         for (const p of msg.players) {
           const c = this.ensureCombatant(p);
           if (p.id === this.selfId) {
-            this.riotShieldHp=p.riotShieldHp??RIOT_SHIELD_HP;
+            const shieldHp=p.riotShieldHp??RIOT_SHIELD_HP;
+            if(shieldHp<this.riotShieldHp && this.alive){
+              this.riotShieldHitFlashAt=performance.now();
+              this.sound.play("melee_hit",{volume:.23,throttleMs:95});
+            }
+            this.riotShieldHp=shieldHp;
+            // Server deadlines use epoch ms; local countdowns use performance.now.
+            this.riotShieldReadyAt=p.riotShieldReadyAt
+              ? performance.now()+Math.max(0,p.riotShieldReadyAt-(msg.serverNow??Date.now())) : 0;
             this.selfSpawnProtectedUntil = p.spawnProtectedUntil ?? 0;
             // Server now regenerates health authoritatively every combat tick.
             // Never let local predicted HP exceed the canonical value.
@@ -5522,6 +5539,7 @@ export class FPSEngine {
         this.perWeaponKills = new Map();
         this.perWeaponActions = new Map();
         this.wonderStates.clear();
+        this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;
         const matchPrimary = weaponById(this.primaryWeaponId);
         if (usesWonderCharges(matchPrimary) && matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
         this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
@@ -5679,7 +5697,7 @@ export class FPSEngine {
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
-    c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;
+    c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;c.riotShieldReadyAt=p.riotShieldReadyAt;
     c.perkId = p.perkId;
     return c;
   }
@@ -5704,6 +5722,7 @@ export class FPSEngine {
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
     this.riotShieldHp=RIOT_SHIELD_HP;
+    this.riotShieldReadyAt=0;
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
@@ -6258,14 +6277,19 @@ export class FPSEngine {
   private disposeRiotModel(model:THREE.Object3D){
     model.removeFromParent();
     const mats=new Set<THREE.Material>();
-    model.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);}});
+    model.traverse(o=>{if(o instanceof THREE.Mesh || o instanceof THREE.Line){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);}});
     for(const m of mats)m.dispose();
   }
   private updateRiotModels(){
+    if(!this.opts.online){
+      const next=tickRiotShield(this.riotShieldHp,this.riotShieldReadyAt,performance.now());
+      this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
+    }
     const panel=shieldPanel(this.shieldRaised()), full=shieldPanel(true);
     if(this.riotShieldModel){
       const model=this.riotShieldModel;
       model.visible=this.alive&&this.riotShieldHp>0;
+      applyRiotShieldDamageVisual(model,this.riotShieldHp);
       model.scale.set(panel.width/full.width,panel.height/full.height,1);
       model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
       // Camera forward is -Z; the same panel angle is required, not its mirror.
@@ -6278,6 +6302,7 @@ export class FPSEngine {
       }
       const model=c.riotShieldModel;if(!model)continue;
       model.visible=c.alive&&c.weaponId===RIOT_SHIELD_ID&&(c.riotShieldHp??RIOT_SHIELD_HP)>0;
+      applyRiotShieldDamageVisual(model,c.riotShieldHp??RIOT_SHIELD_HP);
       const p=shieldPanel(!!c.riotShieldRaised);
       model.position.set(-p.right,p.centerY,p.forward);model.rotation.y=p.yawOffset;
       model.scale.set(p.width/full.width,p.height/full.height,1);
@@ -6600,7 +6625,12 @@ export class FPSEngine {
         this.hitMarkerAt = performance.now();
         return null;
       }
-      if(nearest.shield){nearest.c.riotShieldHp=damageRiotShield(nearest.c.riotShieldHp??RIOT_SHIELD_HP,this.eff.damage);this.sound.play("melee_hit",{volume:.45});return null;}
+      if(nearest.shield){
+        const next=hitRiotShield(nearest.c.riotShieldHp??RIOT_SHIELD_HP,
+          nearest.c.riotShieldReadyAt??0,this.eff.damage,performance.now());
+        nearest.c.riotShieldHp=next.hp;nearest.c.riotShieldReadyAt=next.readyAt;
+        this.sound.play("melee_hit",{volume:.45});return null;
+      }
       const baseDmg = this.eff.damage * (nearest.head ? headshotMult : 1);
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
@@ -6834,6 +6864,11 @@ export class FPSEngine {
     }
     if (this.recentKills.some(t => performance.now() - t < 5000)) bump("multikill_kills");
     this.perWeaponActions.set(weaponId, actions);
+    // The P-9 is part of Bulwark: its kills ALSO speed up shield repair.
+    if(this.riotShieldReadyAt>0){
+      const next=accelerateRiotShield(this.riotShieldHp,this.riotShieldReadyAt,performance.now());
+      this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
+    }
     if (!weaponById(weaponId).wonder) {
       for (const [id, state] of this.wonderStates) {
         const rules = weaponById(id).wonder;
@@ -8916,8 +8951,17 @@ export class FPSEngine {
     }
     if (nearest && nearest.t < blockedT) {
       if(nearest.shield){
-        if(nearest.victim.id===this.selfId){this.riotShieldHp=damageRiotShield(this.riotShieldHp,eff.damage);this.sound.play("melee_hit",{volume:.55});}
-        else nearest.victim.riotShieldHp=damageRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,eff.damage);
+        if(nearest.victim.id===this.selfId){
+          if(this.selfSpawnProtectedUntil>Date.now())return;
+          const next=hitRiotShield(this.riotShieldHp,this.riotShieldReadyAt,eff.damage,performance.now());
+          this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
+          this.riotShieldHitFlashAt=performance.now();
+          this.sound.play("melee_hit",{volume:.35,throttleMs:90});
+        }else{
+          const next=hitRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,
+            nearest.victim.riotShieldReadyAt??0,eff.damage,performance.now());
+          nearest.victim.riotShieldHp=next.hp;nearest.victim.riotShieldReadyAt=next.readyAt;
+        }
         return;
       }
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
@@ -9121,6 +9165,7 @@ export class FPSEngine {
       hitMarker: this.hitMarkerAt,
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker
       damageFlash: this.damageFlashAt,
+      riotShieldHitFlash:this.riotShieldHitFlashAt,
       pointerLocked: this.pointerLocked,
       ping: this.ping,
       killstreak: this.lastKillstreak ?? undefined,
@@ -9195,7 +9240,7 @@ export class FPSEngine {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
       } : {}),
-      ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised()}:{}),
+      ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised(),riotShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now)}:{}),
       ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
