@@ -109,6 +109,9 @@ describe("authored map combat layouts", () => {
         ids.add(environment.id);
       }
       for (const door of doors) {
+        // Floodgate's five interlocking dam shutters are one coordinated
+        // destructible objective, not independent flanked doorways.
+        if (map.id==="floodgate" && door.id.startsWith("floodgate_dam_")) continue;
         // Doors can be authored along either horizontal axis.
         const along = door.size[0] >= door.size[2] ? 0 : 2;
         const across = along === 0 ? 2 : 0;
