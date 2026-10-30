@@ -1,4 +1,5 @@
 import {chooseSpawn} from "./spawn-selection";
+import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge} from "./bot-appearances";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutVisibility} from "./map-battle-events";
 import {setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
@@ -302,7 +303,7 @@ function botLoadout(archetype?: BotArchetype, variant=0): LoadoutWire {
   return {
     weaponId: wid,
     weaponSkinId: "default",
-    playerSkinId: ["default", "red", "blue", "green"][Math.floor(Math.random() * 4)],
+    playerSkinId: botOperativeSkinId(Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length)),
     attachments: { sight: null, barrel: null, grip: null, magazine: null },
   };
 }
@@ -315,6 +316,7 @@ function spawnBots(room: Room) {
   const target = room.fillWithBots
     ? Math.max(0, room.capacity - room.players.size)
     : room.config.botCount;
+  const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
   while (room.bots.size < target) {
     const id = genId("bot");
     const team = assignTeam(room.mode, room);
@@ -322,6 +324,7 @@ function spawnBots(room: Room) {
     const teamSlot = [...room.bots.values()].filter(b => b.team === team).length;
     const archetype = botArchetypeForSlot(teamSlot);
     const loadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
+    loadout.playerSkinId = botOperativeSkinId(room.bots.size, skinRotation);
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
     // In gungame, every combatant (including bots) starts on the first
@@ -332,7 +335,7 @@ function spawnBots(room: Room) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-      weaponId: gungameWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
+      weaponId: gungameWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: loadout.playerSkinId,
     charmId:room.mode==="gungame"?"none":loadout.primaryCharmId??"none",nameplateId:loadout.nameplateId??"standard",
       kills: 0, deaths: 0, lastShotAt: 0,
       spawnProtectedUntil: Date.now() + 3000,
@@ -793,6 +796,9 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
     charmId:currentCharm??"none",nameplateId:p.nameplateId,
+    bossMaxHealth:p.bossMaxHealth,
+    bossCharge:(p as PlayerNet & {ai?:BotAI}).ai?.boss
+      ?bossShockwaveCharge((p as PlayerNet & {ai?:BotAI}).ai!.boss!.nextSkillAt,Date.now()):undefined,
     riotShieldHp:p.riotShieldHp??RIOT_SHIELD_HP,riotShieldRaised:p.riotShieldRaised??false,riotShieldReadyAt:p.riotShieldReadyAt??0,
     kills: p.kills, deaths: p.deaths, aiming: (p as PlayerNet & { ai?: BotAI }).ai?.aiming ?? false, reloading: false,
     spawnProtectedUntil: p.spawnProtectedUntil && p.spawnProtectedUntil > Date.now() ? p.spawnProtectedUntil : 0,
@@ -1670,7 +1676,7 @@ function startSurvivalWave(room: Room) {
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const pool = BOT_ELIGIBLE_WEAPONS.map(w=>w.id);
-  const skins = ["red", "orange", "purple", "default", "red", "blue", "green", "phantom"];
+  const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
   const waveDiff = survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
   for (let n = 0; n < count; n++) {
     const id = genId("svbot");
@@ -1681,8 +1687,8 @@ function startSurvivalWave(room: Room) {
     const sp = pickSpawn("ffa", room);
     const loadout = botLoadout();
     loadout.weaponId = pool[Math.floor(Math.random() * pool.length)];
-    loadout.playerSkinId = skins[n % skins.length];
     const boss = mutators.boss && n === count-1;
+    loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
     if (boss) loadout.weaponId = "lmg_hv";
     const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0,botArchetypeForCategory(weaponById(loadout.weaponId).category));
     ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
@@ -1693,7 +1699,8 @@ function startSurvivalWave(room: Room) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: boss ? `BOSS · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
-      weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
+      bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
+      weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: loadout.playerSkinId,
     charmId:room.mode==="gungame"?"none":loadout.primaryCharmId??"none",nameplateId:loadout.nameplateId??"standard",
       kills: 0, deaths: 0, lastShotAt: 0,
       spawnProtectedUntil: 0,
