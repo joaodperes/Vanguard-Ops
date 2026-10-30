@@ -2371,8 +2371,10 @@ export class FPSEngine {
         slab.castShadow = true; slab.receiveShadow = true;
         g.add(slab);
       } else if (o.type === "destructible_wall") {
+        const isDamCore=o.id===FLOODGATE_CORE_ID;
         const wall = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, o.size[1] * 2, o.size[2] * 2),
-          new THREE.MeshStandardMaterial({ color: 0x9f7772, roughness: 0.88 }));
+          new THREE.MeshStandardMaterial({ color: isDamCore?0xe39747:0x9f7772, roughness: 0.88,
+            emissive:isDamCore?0x6f2e08:0x000000, emissiveIntensity:isDamCore?.55:0 }));
         wall.castShadow = true; wall.receiveShadow = true;
         g.add(wall);
         // Steel rim helps distinguish destructible cover from permanent concrete.
@@ -2380,6 +2382,15 @@ export class FPSEngine {
           new THREE.MeshStandardMaterial({ color: 0xf28d52, emissive: 0x7d3010, emissiveIntensity: 0.25 }));
         rim.position.y = o.size[1] - 0.07;
         g.add(rim);
+        if(isDamCore){
+          // A bright physical target rather than another in-world text sign.
+          const plate=new THREE.Mesh(new THREE.TorusGeometry(2.5,.21,8,32),
+            new THREE.MeshBasicMaterial({color:0xffbd57}));
+          plate.position.set(0,0,o.size[2]+.09);g.add(plate);
+          const hub=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.3,16),
+            new THREE.MeshStandardMaterial({color:0x253943,emissive:0xee871d,emissiveIntensity:.7}));
+          hub.rotation.x=Math.PI/2;hub.position.set(0,0,o.size[2]+.2);g.add(hub);
+        }
       }
       this.scene.add(g);
       this.environmentMeshes.set(o.id, g);
@@ -2464,7 +2475,9 @@ export class FPSEngine {
       const wall = mesh.children[0];
       if (wall instanceof THREE.Mesh && wall.material instanceof THREE.MeshStandardMaterial) {
         const t = Math.max(0, Math.min(1, hp / o.hp));
-        wall.material.color.setRGB(0.4 + t * 0.22, 0.25 + t * 0.12, 0.24 + t * 0.12);
+        if(id===FLOODGATE_CORE_ID)
+          wall.material.color.setRGB(.62+t*.28,.27+t*.30,.08+t*.15);
+        else wall.material.color.setRGB(0.4 + t * 0.22, 0.25 + t * 0.12, 0.24 + t * 0.12);
       }
     }
     if (old > 0 && hp <= 0) {
