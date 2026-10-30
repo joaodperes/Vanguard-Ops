@@ -3513,6 +3513,24 @@
           "d": 24,
           "h": 7,
           "kind": "cover"
+        },
+        {
+          "id": "breach-baffle-inner-west",
+          "x": -32,
+          "z": -80,
+          "w": 6,
+          "d": 10,
+          "h": 7,
+          "kind": "cover"
+        },
+        {
+          "id": "breach-baffle-inner-east",
+          "x": 32,
+          "z": -80,
+          "w": 6,
+          "d": 10,
+          "h": 7,
+          "kind": "cover"
         }
       ],
       "hazards": [
