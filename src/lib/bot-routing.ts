@@ -10,6 +10,7 @@ import type { CoverBox, Vec3 } from "./game-protocol";
 import { botGroundHeight, botMoveBlocked } from "./bot-physics";
 import { nextRegionPortal, type MapRegion } from "./map-blueprints";
 import type {CoverSpatialIndex} from "./cover-spatial-index";
+import {floodgateWaterEffect} from "./map-battle-events";
 
 type Hazard = { type: string; pos: readonly number[]; size: readonly number[] };
 type Node = { x: number; z: number; y: number; g: number; f: number; key: string };
@@ -99,7 +100,7 @@ export function botTraversableEdge(
 export function botNextWaypoint(
   start: readonly number[], goal: readonly number[], cover: CoverBox[],
   bounds: number, _legacyStep = 3, hazards: readonly Hazard[] = [], regions: readonly MapRegion[] = [],
-  index?:CoverSpatialIndex, maxExpansions=MAX_EXPANSIONS,
+  index?:CoverSpatialIndex, maxExpansions=MAX_EXPANSIONS, floodAge:number|null=null,
 ): Vec3 | null {
   const target=nextRegionPortal(start,goal,regions,cover) ?? goal;
   const sx = Math.round(start[0] / GRID), sz = Math.round(start[2] / GRID);
@@ -139,7 +140,12 @@ export function botNextWaypoint(
       const nextY = botTraversableEdge(from, wx, wz, cover, hazards, index);
       if (nextY === null) continue;
       const nextKey = key(x, z, nextY);
-      const cost = cur.g + Math.hypot(dx,dz) + Math.abs(nextY - cur.y) * 0.65;
+      // Prefer dry routes and elevated stair bridges over the active flood.
+      // This is a cost, not an impassable wall: bots can still contest CTF
+      // objectives or chase an enemy when there is no dry alternative.
+      const water=floodgateWaterEffect(wx,nextY,wz,floodAge,cover);
+      const floodPenalty=water.surge?24:water.flooded?8:0;
+      const cost = cur.g + Math.hypot(dx,dz)*(1+floodPenalty) + Math.abs(nextY - cur.y) * 0.65;
       if (cost >= (bestCost.get(nextKey) ?? Infinity) - 1e-6) continue;
       const h = heuristic(x,z,nextY);
       const next: Node = { x, z, y: nextY, g: cost, f: cost + h, key: nextKey };
