@@ -6,8 +6,10 @@ import * as THREE from "three";
 import {buildFloodgateBackdrop,setFloodgatePurgeVisual} from "../src/lib/floodgate-scenery";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {visualThemeForMap} from "../src/lib/map-visuals";
-import {damBreachStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
-import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,
+import {damBreachStatus,floodgateIntegrityStatus,whiteoutWeatherStatus} from "../src/lib/map-event-status";
+import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
+import {buildFactoryMachinery} from "../src/lib/factory-machinery";
+import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
   from "../src/lib/map-battle-events";
 
@@ -38,6 +40,47 @@ describe("Floodgate one-time Levolution",()=>{
     const hit=closestCoverHit(map.cover,[0,1.5,-55],[0,0,-1],45,rayBox);
     expect(hit?.box.environmentId).toBe(FLOODGATE_CORE_ID);
     expect(hit?.distance).toBeLessThan(20);
+  });
+  test("all five painted dam panels share a single reachable health pool",()=>{
+    const map=makeEnvironmentMap(getMap("floodgate","tdm"));
+    const core=map.environment!.find(o=>o.id===FLOODGATE_CORE_ID);
+    if(!core||core.type!=="destructible_wall")throw Error("missing core");
+    expect(core.hp).toBeLessThan(500);
+    for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS]){
+      expect(floodgateDamageTarget(id)).toBe(FLOODGATE_CORE_ID);
+      const wall=map.environment!.find(o=>o.id===id);
+      if(!wall||wall.type!=="destructible_wall")throw Error("missing panel "+id);
+      const from:[number,number,number]=[wall.pos[0],1.6,wall.pos[2]+5];
+      const hit=closestCoverHit(map.cover,from,[0,0,-1],11,rayBox);
+      expect(hit?.box.environmentId).toBe(id);
+    }
+    expect(floodgateDamageTarget("floodgate_maintenance_shutter")).toBe("floodgate_maintenance_shutter");
+    expect(floodgateIntegrityStatus(360,360)).toBeUndefined();
+    expect(floodgateIntegrityStatus(180,360)?.label).toContain("50%");
+    expect(floodgateIntegrityStatus(0,360)?.label).toContain("DAM BREACHED");
+    for(const id of [FLOODGATE_CORE_ID,...FLOODGATE_DAM_PANELS])
+      breakEnvironmentWall(map,id);
+    expect(closestCoverHit(map.cover,[0,1.6,-78],[0,0,-1],22,rayBox)?.box.environmentId)
+      .toBeUndefined();
+  });
+  test("industrial colour dressing paints zones without adding gameplay hitboxes or point lights",()=>{
+    const map=getMap("floodgate"),scene=new THREE.Scene(),before=map.cover.length;
+    const group=buildFloodgateColorDressing(scene,map);
+    expect(group.children.length).toBeGreaterThan(20);
+    expect(group.children.length).toBeLessThan(100);
+    expect(group.children.every(o=>o instanceof THREE.Mesh)).toBe(true);
+    expect(map.cover.length).toBe(before);
+    const painted=new THREE.Group();
+    buildFactoryMachinery(painted,"generator",14,24,6.5,"#20bcae");
+    expect(painted.children.some(c=>c instanceof THREE.Mesh &&
+      c.material instanceof THREE.MeshStandardMaterial && c.material.color.getHex()===0x20bcae))
+      .toBe(true);
+    for(const groupRoot of [scene,painted])groupRoot.traverse(o=>{
+      if(o instanceof THREE.Mesh){
+        o.geometry.dispose();
+        for(const mat of Array.isArray(o.material)?o.material:[o.material])mat.dispose();
+      }
+    });
   });
   test("spillway waterfalls match the exact steam-damage phase",()=>{
     const map=getMap("floodgate");
