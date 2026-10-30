@@ -2374,7 +2374,7 @@ export class FPSEngine {
         const isDamCore=o.id===FLOODGATE_CORE_ID;
         const wall = new THREE.Mesh(new THREE.BoxGeometry(o.size[0] * 2, o.size[1] * 2, o.size[2] * 2),
           new THREE.MeshStandardMaterial({ color: isDamCore?0xe39747:0x9f7772, roughness: 0.88,
-            emissive:isDamCore?0x6f2e08:0x000000, emissiveIntensity:isDamCore?.55:0 }));
+            emissive:isDamCore?0x6f2e08:0x000000, emissiveIntensity:isDamCore ? 0.55 : 0 }));
         wall.castShadow = true; wall.receiveShadow = true;
         g.add(wall);
         // Steel rim helps distinguish destructible cover from permanent concrete.
