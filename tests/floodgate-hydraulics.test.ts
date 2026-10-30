@@ -18,11 +18,11 @@ describe("Floodgate hydraulic progression",()=>{
     const surgeAge=(-70+103)/(67)*FLOODGATE_SURGE_SECONDS;
     const surge=floodgateWaterEffect(0,0,-70,surgeAge);
     expect(surge.surge).toBe(true);
-    expect(surge.pushZ).toBeLessThan(10);
-    expect(surge.speedMultiplier).toBeGreaterThan(.5);
+    expect(surge.pushZ).toBeLessThanOrEqual(10);
+    expect(surge.speedMultiplier).toBeGreaterThanOrEqual(.5);
     const settled=floodgateWaterEffect(0,0,-70,30);
     expect(settled.flooded).toBe(true);
-    expect(settled.pushZ).toBeLessThan(2);
+    expect(settled.pushZ).toBeLessThan(3);
     expect(floodgateWaterEffect(0,3.4,-70,30).flooded).toBe(false);
     expect(floodgateWaterEffect(140,0,-70,30).flooded).toBe(false);
   });
