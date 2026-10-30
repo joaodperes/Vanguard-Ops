@@ -9,7 +9,7 @@ export function floodgateBreached(walls:ReadonlyMap<string,number>):boolean {
 }
 export const WHITEOUT_CYCLE_SECONDS=98;
 export function whiteoutIntensity(seconds:number):number {
-  const t=Math.max(0,seconds)%WHITEOUT_CYCLE_SECONDS;
+  const t=Math.max(0,seconds-10)%WHITEOUT_CYCLE_SECONDS;
   if(t<20)return 0;
   if(t<28)return (t-20)/8;
   if(t<55)return 1;
@@ -27,7 +27,8 @@ export function whiteoutVisibility(seconds:number,pos?:readonly number[]):number
 }
 export function whiteoutWindow(seconds:number):{phase:"idle"|"warning"|"active";secondsLeft:number}{
   const t=Math.max(0,seconds)%WHITEOUT_CYCLE_SECONDS;
+  if(seconds<10)return {phase:"idle",secondsLeft:0};
   if(t>=20&&t<65)return {phase:"active",secondsLeft:Math.max(1,Math.ceil(65-t))};
   if(t>=10&&t<20)return {phase:"warning",secondsLeft:Math.max(1,Math.ceil(20-t))};
-  return {phase:"idle",secondsLeft:Math.max(1,Math.ceil((t<10?10:WHITEOUT_CYCLE_SECONDS+10)-t))};
+  return {phase:"idle",secondsLeft:0};
 }
