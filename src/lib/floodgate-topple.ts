@@ -2,7 +2,7 @@
  * traversable stairs and upper landing bridges after the dam breaches.
  * Shared by server collisions, offline physics, bot pathfinding and rendering. */
 import * as THREE from "three";
-import type {CoverBox,MapDef,Vec3} from "./game-protocol";
+import type {CoverBox,EnvironmentObject,MapDef} from "./game-protocol";
 
 export const FLOODGATE_TOPPLE_SECONDS=3.2;
 export const FLOODGATE_FREIGHT=[
@@ -36,6 +36,11 @@ export function freightCover(stage:Exclude<FreightStage,"falling">):CoverBox[]{
     }
   }
   return boxes;
+}
+/** Steam vents cease to be route blockers when the flood disables them. */
+export function floodgatePathHazards(map:MapDef,breached:boolean):readonly EnvironmentObject[]{
+  if(map.id!=="floodgate"||!breached)return map.environment??[];
+  return (map.environment??[]).filter(o=>!(o.type==="spikes"&&o.visual==="steam"));
 }
 /** Only changes cover owned by the event. This never mutates MAPS singletons;
  * each room/game gets its own makeEnvironmentMap copy. Idempotent per stage. */
