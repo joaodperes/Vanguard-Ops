@@ -30,13 +30,13 @@ export function floodgateBreached(walls:ReadonlyMap<string,number>):boolean {
   return (walls.get(FLOODGATE_CORE_ID)??Infinity)<=0;
 }
 /** Breach is a one-time map-changing hydro event. Water spreads from the
- * northern boundary (-103) into the spillway (-36); the outer flanks and
+ * northern boundary (-103) into the spillway (-36); the side spawns and
  * elevated service decks remain dry, so CTF never loses all crossings. */
-export const FLOODGATE_DAM_HP=1800;
+export const FLOODGATE_DAM_HP=3000;
 export const FLOODGATE_SURGE_SECONDS=14;
 export const FLOODGATE_FLOOD_START_Z=-103;
 export const FLOODGATE_FLOOD_END_Z=-36;
-export const FLOODGATE_FLOOD_HALF_WIDTH=62;
+export const FLOODGATE_FLOOD_HALF_WIDTH=132;
 export const FLOODGATE_FLOOD_DRY_HEIGHT=2.2;
 export function floodgateSurgeFront(age:number):number{
   return FLOODGATE_FLOOD_START_Z+
@@ -58,7 +58,7 @@ export function floodgateWaterEffect(
   const surge=age<FLOODGATE_SURGE_SECONDS&&Math.abs(z-front)<10;
   const flooded=z<=front+2;
   if(!flooded&&!surge)return safe;
-  return {flooded,surge,speedMultiplier:surge?.40:.68,pushZ:surge?9:1.1};
+  return {flooded,surge,speedMultiplier:surge?.36:.64,pushZ:surge?15:3.8};
 }
 
 export const WHITEOUT_CYCLE_SECONDS=98;
