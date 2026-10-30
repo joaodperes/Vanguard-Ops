@@ -3283,7 +3283,8 @@
           "w": 18,
           "d": 12,
           "h": 3.4,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "spillway-overlook-2",
@@ -3292,7 +3293,8 @@
           "w": 18,
           "d": 12,
           "h": 3.4,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "spillway-overlook-3",
@@ -3301,7 +3303,8 @@
           "w": 18,
           "d": 12,
           "h": 3.4,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "spillway-overlook-4",
@@ -3310,7 +3313,8 @@
           "w": 18,
           "d": 12,
           "h": 3.4,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "maintenance-overlook-1",
@@ -3319,7 +3323,8 @@
           "w": 18,
           "d": 12,
           "h": 3.8,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "maintenance-overlook-2",
@@ -3328,7 +3333,8 @@
           "w": 18,
           "d": 12,
           "h": 3.8,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "maintenance-overlook-3",
@@ -3337,7 +3343,8 @@
           "w": 18,
           "d": 12,
           "h": 3.8,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "maintenance-overlook-4",
@@ -3346,7 +3353,8 @@
           "w": 18,
           "d": 12,
           "h": 3.8,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "turbine-side-step-1",
@@ -3355,7 +3363,8 @@
           "w": 13,
           "d": 9,
           "h": 2.6,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
         },
         {
           "id": "turbine-side-step-2",
@@ -3364,7 +3373,118 @@
           "w": 13,
           "d": 9,
           "h": 2.6,
-          "kind": "platform"
+          "kind": "platform",
+          "autoStairs": false
+        },
+        {
+          "id": "spillway-overlook-1-single-access",
+          "x": -84,
+          "z": -43.92,
+          "w": 3.4,
+          "d": 6.84,
+          "h": 3.4,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
+        },
+        {
+          "id": "spillway-overlook-2-single-access",
+          "x": -28,
+          "z": -43.92,
+          "w": 3.4,
+          "d": 6.84,
+          "h": 3.4,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
+        },
+        {
+          "id": "spillway-overlook-3-single-access",
+          "x": 28,
+          "z": -43.92,
+          "w": 3.4,
+          "d": 6.84,
+          "h": 3.4,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
+        },
+        {
+          "id": "spillway-overlook-4-single-access",
+          "x": 84,
+          "z": -43.92,
+          "w": 3.4,
+          "d": 6.84,
+          "h": 3.4,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
+        },
+        {
+          "id": "maintenance-overlook-1-single-access",
+          "x": -86,
+          "z": 65.92,
+          "w": 3.4,
+          "d": 7.6,
+          "h": 3.8,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1
+        },
+        {
+          "id": "maintenance-overlook-2-single-access",
+          "x": -30,
+          "z": 65.92,
+          "w": 3.4,
+          "d": 7.6,
+          "h": 3.8,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1
+        },
+        {
+          "id": "maintenance-overlook-3-single-access",
+          "x": 30,
+          "z": 65.92,
+          "w": 3.4,
+          "d": 7.6,
+          "h": 3.8,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1
+        },
+        {
+          "id": "maintenance-overlook-4-single-access",
+          "x": 86,
+          "z": 65.92,
+          "w": 3.4,
+          "d": 7.6,
+          "h": 3.8,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": -1
+        },
+        {
+          "id": "turbine-side-step-1-single-access",
+          "x": -78,
+          "z": 19.58,
+          "w": 3.4,
+          "d": 5.32,
+          "h": 2.6,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
+        },
+        {
+          "id": "turbine-side-step-2-single-access",
+          "x": 78,
+          "z": 19.58,
+          "w": 3.4,
+          "d": 5.32,
+          "h": 2.6,
+          "kind": "stairs",
+          "axis": "z",
+          "sign": 1
         }
       ],
       "hazards": [
