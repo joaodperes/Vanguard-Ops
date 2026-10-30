@@ -103,7 +103,10 @@ describe("Floodgate one-time Levolution",()=>{
       if(result?.hp===0)for(const id of result.ids)breakEnvironmentWall(map,id);
     }
     expect(floodgateBreached(walls)).toBe(true);
-    expect(closestCoverHit(map.cover,from,direction,84.7*1.72,rayBox)).toBeNull();
+    // The distant map boundary remains solid; the destroyed dam does not.
+    const after=closestCoverHit(map.cover,from,direction,84.7*1.72,rayBox);
+    expect(after?.box.environmentId).toBeUndefined();
+    expect(after?.distance??Infinity).toBeGreaterThan(84);
   });
   test("12-round DMR magazine can breach the shutter and dam from the yard",()=>{
     const map=makeEnvironmentMap(getMap("floodgate","tdm"));
