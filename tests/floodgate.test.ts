@@ -43,8 +43,8 @@ describe("Floodgate 16v16 CTF",()=>{
     // The distant concrete and reservoir stay out of bounds. Only a hidden
     // post-breach water decal may reach into the northern play corridor.
     const permanent=backdrop.children.filter(o=>o.name!=="floodgate-flooded-spillway"&&o.name!=="floodgate-breach-foam");
-    const permanentGroup=new THREE.Group();for(const child of permanent)permanentGroup.add(child);
-    expect(new THREE.Box3().setFromObject(permanentGroup).max.z).toBeLessThan(-108);
+    const originalBounds=new THREE.Box3();for(const child of permanent)originalBounds.expandByObject(child);
+    expect(originalBounds.max.z).toBeLessThan(-108);
     // Keep the original group free of offscreen impostor colliders; the actual
     // rupture comes from per-room authored environment wall state.
     setFloodgateBreachVisual(backdrop,true);
