@@ -7001,7 +7001,8 @@ export class FPSEngine {
       }
       // Bug 3 fix: name sprite + health bar visible immediately too.
       if (c.nameSprite) c.nameSprite.visible = true;
-      if (c.healthBar) c.healthBar.visible = true;
+      if (c.healthBar) c.healthBar.visible = this.showHealthBars;
+      if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars;
     }, this.opts.firingRange ? 900 : RESPAWN_DELAY_MS);
   }
 

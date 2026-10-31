@@ -29,6 +29,11 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
       </header>}
 
       <main className={embedded ? "w-full space-y-5 py-2" : "flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5"}>
+        {embedded && <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={reset} className="border-white/10 text-white/70 hover:text-white hover:bg-white/5">
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset to Defaults
+          </Button>
+        </div>}
         {/* Crosshair */}
         <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Global color and size. Equip each weapon’s reticle in Armory → Customize → Reticles.">
           <div className="flex items-center gap-6">
