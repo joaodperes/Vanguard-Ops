@@ -69,6 +69,7 @@ export interface MatchResultView {
   denials?: number;
   durationSec?: number;
   completed?: boolean;
+  participants?: number;
   placement?: number;
   multikills?: number;
   survivalWaves?: number;

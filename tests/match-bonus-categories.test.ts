@@ -68,7 +68,7 @@ describe("category-only match rewards", () => {
     expect(largestScoreDeficit(5, 20, 10)).toBe(5);
     const won = calculateMatchRewards({ ...match, won: true, maxScoreDeficit: 5 });
     const lost = calculateMatchRewards({ ...match, won: false, maxScoreDeficit: 5 });
-    const left = calculateMatchRewards({ ...match, won: true, completed: false, maxScoreDeficit: 5 });
+    const left = calculateMatchRewards({ ...match, won: false, completed: false, maxScoreDeficit: 5 });
     expect(won.breakdown.matchPerformance.xp - lost.breakdown.matchPerformance.xp).toBe(200);
     expect(left.breakdown.matchPerformance).toEqual({ xp: 0, credits: 0 });
     expect(calculateMatchRewards({ ...match, won: true, maxScoreDeficit: 4 }).breakdown.matchPerformance.xp).toBe(225);

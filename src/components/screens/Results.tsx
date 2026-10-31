@@ -38,7 +38,7 @@ export function Results() {
   const placement = r.placement ?? (myStanding >= 0 ? myStanding + 1 : 1);
   const rewards = r.rewards;
   const leftEarly = r.completed === false;
-  const isMvp = placement === 1 && !leftEarly && playConfig.mode !== "survival";
+  const isMvp = placement === 1 && !leftEarly && playConfig.mode !== "survival" && (r.participants ?? 0) >= 2;
   const durationMin = r.durationSec ? Math.floor(r.durationSec / 60) : 0;
   const durationSec = r.durationSec ? r.durationSec % 60 : 0;
   const w = weaponById(r.weaponId ?? "rifle_ar");
