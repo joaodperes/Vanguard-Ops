@@ -69,6 +69,11 @@ export interface MatchResultInput {
   // (Player model column) which drives the Triple Threat / Killstreak King /
   // Untouchable Force tiered achievements.
   bestStreak?: number;
+  maxNoDeathStreak?: number;
+  defenseKills?: number;
+  flagReturns?: number;
+  maxScoreDeficit?: number;
+  participants?: number;
   // Per-kill difficulty breakdown (one entry per kill). Values: "easy"|"normal"|"hard"|"veteran"|"enemy_player".
   // Used to scale XP/credits by victim difficulty. Optional — legacy callers omit it.
   killDifficulties?: string[];
@@ -543,6 +548,7 @@ export interface AwardResult {
   creditsGained: number;
   completionXp: number;
   completionCredits: number;
+  breakdown: import("./match-rewards").RewardBreakdown;
   leveledUp: boolean;
   newLevel: number;
   newUnlocks: { weapons: string[]; purchasableWeapons: string[]; perks: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
@@ -671,6 +677,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const rewards = calculateMatchRewards(input);
   const { killXp, killCredits, winXp, winCredits, survivalWaves, completionXp, completionCredits } = rewards;
   let { xpGained, creditsGained } = rewards;
+  const breakdown = rewards.breakdown;
 
   // --- 17-C: Quest-completion counters ---
   // Local accumulators for how many challenges (by type) were newly awarded
@@ -719,6 +726,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         data: { awarded: true },
       });
       challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      breakdown.challenges.xp += ch.rewardXp;
+      breakdown.challenges.credits += ch.rewardCredits;
       xpGained += ch.rewardXp;
       creditsGained += ch.rewardCredits;
       // Increment the appropriate quest counter. Elite variants count toward
@@ -760,6 +769,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         data: { awarded: true },
       });
       challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      breakdown.challenges.xp += ch.rewardXp;
+      breakdown.challenges.credits += ch.rewardCredits;
       xpGained += ch.rewardXp;
       creditsGained += ch.rewardCredits;
       if (isElite) eliteAwardedCount++;
@@ -864,6 +875,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     if (earnedAchievementIds.has(ach.id)) continue;
     if (getStatValue(ach.metric) >= ach.goal) {
       newAchievements.push({ id: ach.id, title: ach.title, description: ach.description, rewardXp: ach.rewardXp, rewardCredits: ach.rewardCredits });
+      breakdown.achievements.xp += ach.rewardXp;
+      breakdown.achievements.credits += ach.rewardCredits;
       xpGained += ach.rewardXp;
       creditsGained += ach.rewardCredits;
     }
@@ -1085,7 +1098,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   });
 
   const newPrestiges = await grantWeaponPrestiges(player.id);
-  return { xpGained, creditsGained, completionXp, completionCredits, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
+  return { xpGained, creditsGained, completionXp, completionCredits, breakdown, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
 }
 
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---

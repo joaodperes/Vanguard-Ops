@@ -38,7 +38,7 @@ export function Results() {
   const placement = r.placement ?? (myStanding >= 0 ? myStanding + 1 : 1);
   const rewards = r.rewards;
   const leftEarly = r.completed === false;
-  const isMvp = placement === 1 && !leftEarly;
+  const isMvp = placement === 1 && !leftEarly && playConfig.mode !== "survival";
   const durationMin = r.durationSec ? Math.floor(r.durationSec / 60) : 0;
   const durationSec = r.durationSec ? r.durationSec % 60 : 0;
   const w = weaponById(r.weaponId ?? "rifle_ar");
@@ -123,21 +123,34 @@ export function Results() {
                 </div>
               </div>
 
-              {!isSurvival && (rewards.completionXp ?? 0) > 0 && (
-                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 flex items-center justify-between gap-3 text-xs">
-                  <span className="flex items-center gap-2 text-emerald-300"><Trophy className="w-3.5 h-3.5" /> Match Completion</span>
-                  <span className="font-semibold text-emerald-200">+{rewards.completionXp} XP · +{rewards.completionCredits} CR</span>
+              {rewards.breakdown ? (
+                <div className="rounded-xl border border-white/10 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-5 border-b border-white/10 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-widest text-white/45">
+                    <span>Reward category</span><span className="w-16 text-right">XP</span><span className="w-16 text-right">Credits</span>
+                  </div>
+                  {([
+                    ["combat", "Combat"],
+                    ["objectives", "Objectives"],
+                    ["matchPerformance", "Match Performance"],
+                    ["challenges", "Challenges"],
+                    ["achievements", "Achievements"],
+                    ["survival", "Survival"],
+                  ] as const).filter(([key]) => (rewards.breakdown?.[key]?.xp ?? 0) > 0 ||
+                    (rewards.breakdown?.[key]?.credits ?? 0) > 0).map(([key, label]) => (
+                    <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-5 border-b border-white/5 px-4 py-3 text-sm last:border-b-0">
+                      <span className="text-white/80 font-medium">{label}</span>
+                      <span className="w-16 text-right tabular-nums text-cyan-300">+{rewards.breakdown?.[key]?.xp ?? 0}</span>
+                      <span className="w-16 text-right tabular-nums text-amber-300">+{rewards.breakdown?.[key]?.credits ?? 0}</span>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div className="text-xs text-white/45">Category breakdown unavailable for this match.</div>
               )}
               {!isSurvival && leftEarly && (
-                <div className="text-xs text-white/45">No completion bonus — you left before the round ended. Earned combat and objective rewards are retained.</div>
+                <p className="text-xs text-white/45">Early exit: no match completion or placement bonuses. Earned combat and objective rewards are retained.</p>
               )}
-
-              {(rewards.bonusXp ?? 0) > 0 && (
-                <div className="text-xs text-white/40 flex items-center gap-1.5">
-                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from objectives, streaks &amp; challenges
-                </div>
-              )}
+              <div className="pt-2 text-xs uppercase tracking-widest text-white/50">Progression &amp; Unlocks</div>
 
               {rewards.leveledUp && (
                 <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-rose-500/15 border border-amber-500/30 flex items-center gap-3">
@@ -162,7 +175,7 @@ export function Results() {
                           <p className="mt-1 text-white/60">{achievementRequirement(a.id, a.description) ?? "Achievement conditions met"}</p>
                           {achievementTitle(a.id) && <p className="mt-1 text-amber-300">Title unlocked: {achievementTitle(a.id)}</p>}
                         </div>
-                        <span className="text-emerald-300">+{a.rewardXp} XP · +{a.rewardCredits} CR</span>
+                        <span className="text-emerald-300">Unlocked</span>
                       </div>
                     ))}
                   </div>
@@ -206,7 +219,7 @@ export function Results() {
                     {rewards.challengeAwards.map((c: any) => (
                       <div key={c.challengeId} className="flex items-center justify-between text-xs">
                         <span className="text-white/80 flex items-center gap-1.5"><Trophy className="w-3 h-3 text-purple-400" /> {c.title}</span>
-                        <span className="text-purple-300">+{c.rewardXp} XP · +{c.rewardCredits} CR</span>
+                        <span className="text-purple-300">Completed</span>
                       </div>
                     ))}
                   </div>

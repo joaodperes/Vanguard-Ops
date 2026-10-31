@@ -88,6 +88,11 @@ export async function POST(req: NextRequest) {
     // which Math.maxes it against player.bestKillstreak for the tiered
     // streak achievements.
     bestStreak: Math.max(0, Math.min(30, Math.floor((input as any).bestStreak ?? 0))),
+    maxNoDeathStreak: Math.max(0, Math.min(kills, Math.floor(Number(input.maxNoDeathStreak) || 0))),
+    defenseKills: mode === "ctf" ? Math.max(0, Math.min(10, Math.floor(Number(input.defenseKills) || 0))) : 0,
+    flagReturns: mode === "ctf" ? Math.max(0, Math.min(10, Math.floor(Number(input.flagReturns) || 0))) : 0,
+    maxScoreDeficit: Math.max(0, Math.min(100, Math.floor(Number(input.maxScoreDeficit) || 0))),
+    participants: Math.max(0, Math.min(32, Math.floor(Number(input.participants) || 0))),
     survivalWaves: Math.max(0, Math.min(999, Math.floor((input as any).survivalWaves ?? 0))),
     survivalTier: normalizeSurvivalTier(input.survivalTier),
     // Per-kill difficulty breakdown for difficulty-scaled XP. Cap the array

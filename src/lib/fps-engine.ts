@@ -63,6 +63,7 @@ import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, 
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
+import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
@@ -73,7 +74,7 @@ import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHor
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -311,6 +312,11 @@ export interface MatchEndResult {
   // Drives the player's lifetime bestKillstreak stat
   // (Triple Threat / Killstreak King / Untouchable Force achievements).
   bestStreak?: number;
+  maxNoDeathStreak?: number;
+  defenseKills?: number;
+  flagReturns?: number;
+  maxScoreDeficit?: number;
+  participants?: number;
   weaponId?: string;
   survivalWaves?: number;
   survivalTier?: SurvivalTier;
@@ -834,6 +840,18 @@ export class FPSEngine {
   // killstreak / multikill tracking
   private recentKills: number[] = [];
   private multikillsCount = 0;
+  private currentNoDeathStreak = 0;
+  private maxNoDeathStreak = 0;
+  private defenseKills = 0;
+  private flagReturns = 0;
+  private maxScoreDeficit = 0;
+  private trackScoreDeficit(): void {
+    if (this.opts.mode !== "tdm" && this.opts.mode !== "ctf" && this.opts.mode !== "killconfirmed") return;
+    const team = this.opts.team;
+    if (team !== "red" && team !== "blue") return;
+    this.maxScoreDeficit = largestScoreDeficit(this.maxScoreDeficit,
+      this.teamScores[team], this.teamScores[team === "red" ? "blue" : "red"]);
+  }
   private killChain: KillChainState = { count: 0, lastKillAt: -Infinity };
   // Highest chain with up to five seconds between each consecutive kill.
   // Reset on match start. Forwarded in MatchEndResult so the rewards API can update the
@@ -1163,6 +1181,11 @@ export class FPSEngine {
       // online `matchStarted` handler resets and is defensively correct if a
       // future change ever reuses an engine instance across matches.
       this.multikillsCount = 0;
+      this.currentNoDeathStreak = 0;
+      this.maxNoDeathStreak = 0;
+      this.defenseKills = 0;
+      this.flagReturns = 0;
+      this.maxScoreDeficit = 0;
       this.bestStreak = 0;
       this.recentKills = [];
       this.killChain = { count: 0, lastKillAt: -Infinity };
@@ -1933,6 +1956,7 @@ export class FPSEngine {
       const event=ctfTouch(this.ctfFlags,actor,this.map.id);
       if(!event)continue;
       this.announceCtfEvent(event.kind, event.flag, actor.id);
+      if(event.kind==="return" && actor.self)this.flagReturns++;
       if(event.kind==="capture"){
         this.teamScores[actor.team]++;
         if(actor.self)this.ctfCaptures++;
@@ -4336,7 +4360,7 @@ export class FPSEngine {
     return {
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won,
       score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
-      durationSec, completed: false, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
+      durationSec, completed: false, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
@@ -5111,6 +5135,7 @@ export class FPSEngine {
             // increment in the "hit" handler gives immediate HUD feedback;
             // the snapshot confirms the canonical value (resolves any race
             // where the hit event arrived slightly before the kill was credited).
+            if (p.deaths > this.deaths) this.currentNoDeathStreak = 0;
             this.kills = p.kills; this.deaths = p.deaths;
             // Also update the local player's combatant so the scoreboard
             // (which iterates this.combatants) shows the right values.
@@ -5169,6 +5194,7 @@ export class FPSEngine {
         if(this.opts.online&&this.map.id==="floodgate")
           this.floodgateServerRulesVersion=msg.floodgateRulesVersion;
         this.teamScores = msg.teamScores;
+        this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if (this.opts.mode === "ctf") {
           this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
@@ -5303,10 +5329,12 @@ export class FPSEngine {
             this.weaponAudio.playElimination(!!msg.headshot);
             this.lastElimination = { at: performance.now(), victim: this.combatants.get(msg.victimId)?.name ?? "Enemy", headshot: !!msg.headshot };
             // Register the kill for killstreak callouts.
+            if (msg.defendedFlag) this.defenseKills++;
             this.registerPlayerKill();
           }
           if (msg.victimId === this.selfId) {
             this.deaths += 1;
+            this.currentNoDeathStreak = 0;
             this.alive = false;
             this.grantOrbitalReaper(false);
             this.killChain = { count: 0, lastKillAt: -Infinity };
@@ -5593,6 +5621,7 @@ export class FPSEngine {
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
           if (msg.action === "capture" && msg.playerId === this.selfId) this.ctfCaptures++;
+          if (msg.action === "return" && msg.playerId === this.selfId) this.flagReturns++;
           this.announceCtfEvent(msg.action, msg.flag, msg.playerId);
         }
         break;
@@ -5694,6 +5723,11 @@ export class FPSEngine {
         // instance per match (field defaults are 0) but the explicit reset is
         // harmless and keeps the two paths symmetric.
         this.multikillsCount = 0;
+        this.currentNoDeathStreak = 0;
+        this.maxNoDeathStreak = 0;
+        this.defenseKills = 0;
+        this.flagReturns = 0;
+        this.maxScoreDeficit = 0;
         this.bestStreak = 0;
         this.recentKills = [];
         this.killChain = { count: 0, lastKillAt: -Infinity };
@@ -6871,6 +6905,8 @@ export class FPSEngine {
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
       if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
+        isFlagDefenseKill(flagAtHome(this.ctfFlags[this.opts.team]), victim.pos, ctfHome(this.opts.team, this.map.id))) this.defenseKills++;
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
       if (this.opts.mode === "killconfirmed") this.dropLocalKillConfirmedTag(victim.id, victim.team, victim.pos);
       // Trigger the death animation (fall forward over ~900ms) before the
@@ -6953,6 +6989,8 @@ export class FPSEngine {
     // Refresh the full five-second grace period with each elimination.
     // Ten kills can span nine successive five-second intervals.
     this.killChain = advanceKillChain(this.killChain, now);
+    this.currentNoDeathStreak++;
+    this.maxNoDeathStreak = Math.max(this.maxNoDeathStreak, this.currentNoDeathStreak);
     this.recentKills = this.recentKills.filter(t => now - t <= 5000);
     this.recentKills.push(now);
     const streak = this.killChain.count;
@@ -7210,7 +7248,7 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
-      durationSec, completed: true, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
+      durationSec, completed: true, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
@@ -7251,7 +7289,7 @@ export class FPSEngine {
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
       score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
-      durationSec, completed: true, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, weaponId: this.weaponId,
+      durationSec, completed: true, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
@@ -7646,6 +7684,7 @@ export class FPSEngine {
     // Gun Game and user-configured unlimited-time matches. Reconcile upward
     // with authoritative snapshots instead of letting stale zeroes freeze it.
     this.elapsedSeconds = advanceMatchElapsed(this.elapsedSeconds, dt, !this.matchEnded);
+    if (!this.matchEnded && !this.opts.firingRange) this.trackScoreDeficit();
     if (!this.opts.firingRange && !this.matchEnded && !this.opts.online && this.opts.mode !== "survival") {
       // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
       // timeLeft = 0 means "no limit" — the match runs until the kill target
@@ -9222,6 +9261,7 @@ export class FPSEngine {
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
       this.health = 0; this.alive = false; this.deaths += 1;
+      this.currentNoDeathStreak = 0;
       // Falling, environmental hazards and friendly damage must not charge
       // the reactor; only a legitimate opposing-team kill contributes.
       if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)

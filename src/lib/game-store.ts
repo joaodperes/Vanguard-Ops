@@ -61,7 +61,7 @@ export interface MatchResultView {
   kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
   standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   rewards?: {
-    xpGained: number; creditsGained: number; completionXp?: number; completionCredits?: number; leveledUp: boolean; newLevel: number;
+    xpGained: number; creditsGained: number; completionXp?: number; completionCredits?: number; breakdown?: import("./match-rewards").RewardBreakdown; leveledUp: boolean; newLevel: number;
     newUnlocks: any; newAchievements: any[]; challengeAwards: any[]; challengeProgress?: { id: string; kind: string; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }[]; bonusXp: number; bonusCredits: number;
   };
   /** Optional objective counters reported by Kill Confirmed matches. */

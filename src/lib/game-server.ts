@@ -45,9 +45,10 @@ import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT } from "./movement-rules";
-import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, flagAtHome, otherFlag, CTF_SPEED_MULTIPLIER, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
+import { isFlagDefenseKill } from "./match-bonus-tracking";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
@@ -1394,10 +1395,14 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // For rewards scaling: attach the victim's difficulty to the hit event when
   // it's a kill. Non-killing hits don't need it (only kills earn rewards).
   const killDiff: KillDifficulty | undefined = killed ? victimKillDifficulty(victim) : undefined;
+  const defendedFlag = killed && room.mode === "ctf" && attacker &&
+    (attacker.team === "red" || attacker.team === "blue") && victim.team !== attacker.team &&
+    isFlagDefenseKill(flagAtHome(room.flags[attacker.team]), victim.pos, ctfHome(attacker.team, room.map.id));
   io.to(room.id).emit("message", {
     t: "hit", attackerId, victimId: victim.id, damage: Math.round(dmg),
     headshot: head, killed, weaponId,
     ...(killDiff ? { botDifficulty: killDiff } : {}),
+    ...(defendedFlag ? { defendedFlag: true } : {}),
   } as S2C);
   if (killed) {
     const contributions=room.damageContributions.get(victim.id);
