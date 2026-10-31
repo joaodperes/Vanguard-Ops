@@ -55,6 +55,8 @@ export interface MatchResultInput {
   denials?: number;
   online?: boolean;
   durationSec?: number;
+  /** True when the round finishes naturally, false for early exit. */
+  completed?: boolean;
   placement?: number;
   weaponId?: string;
   multikills?: number;       // number of double-kill or better streaks achieved in this match
@@ -539,6 +541,8 @@ export function effectiveUnlocks(level: number, dbUnlocks: { weapons: string[]; 
 export interface AwardResult {
   xpGained: number;
   creditsGained: number;
+  completionXp: number;
+  completionCredits: number;
   leveledUp: boolean;
   newLevel: number;
   newUnlocks: { weapons: string[]; purchasableWeapons: string[]; perks: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
@@ -665,7 +669,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const oldLevel = levelForXp(player.xp);
 
   const rewards = calculateMatchRewards(input);
-  const { killXp, killCredits, winXp, winCredits, survivalWaves } = rewards;
+  const { killXp, killCredits, winXp, winCredits, survivalWaves, completionXp, completionCredits } = rewards;
   let { xpGained, creditsGained } = rewards;
 
   // --- 17-C: Quest-completion counters ---
@@ -1080,7 +1084,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   });
 
   const newPrestiges = await grantWeaponPrestiges(player.id);
-  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
+  return { xpGained, creditsGained, completionXp, completionCredits, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
 }
 
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---

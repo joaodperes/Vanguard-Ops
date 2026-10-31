@@ -37,7 +37,8 @@ export function Results() {
   const myStanding = standings.findIndex((s) => !s.isBot && s.name === profile?.name);
   const placement = r.placement ?? (myStanding >= 0 ? myStanding + 1 : 1);
   const rewards = r.rewards;
-  const isMvp = placement === 1;
+  const leftEarly = r.completed === false;
+  const isMvp = placement === 1 && !leftEarly;
   const durationMin = r.durationSec ? Math.floor(r.durationSec / 60) : 0;
   const durationSec = r.durationSec ? r.durationSec % 60 : 0;
   const w = weaponById(r.weaponId ?? "rifle_ar");
@@ -65,13 +66,13 @@ export function Results() {
           <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border mb-3 ${r.won ? "border-amber-500/40 bg-amber-500/10" : "border-white/10 bg-white/5"}`}>
             {r.won ? <Crown className="w-5 h-5 text-amber-400" /> : <Trophy className="w-5 h-5 text-white/60" />}
             <span className={`font-bold tracking-widest uppercase text-sm ${r.won ? "text-amber-300" : "text-white/70"}`}>
-              {r.won ? "Victory" : "Defeat"}
+              {leftEarly ? "Left Match" : r.won ? "Victory" : "Defeat"}
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
             {isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
-              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
+              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · ${leftEarly ? "Match Left" : "Match Over"}`}
           </h1>
           {!isSurvival && (
             <p className="text-white/50 mt-2">
@@ -121,6 +122,16 @@ export function Results() {
                   </div>
                 </div>
               </div>
+
+              {!isSurvival && (rewards.completionXp ?? 0) > 0 && (
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 flex items-center justify-between gap-3 text-xs">
+                  <span className="flex items-center gap-2 text-emerald-300"><Trophy className="w-3.5 h-3.5" /> Match Completion</span>
+                  <span className="font-semibold text-emerald-200">+{rewards.completionXp} XP · +{rewards.completionCredits} CR</span>
+                </div>
+              )}
+              {!isSurvival && leftEarly && (
+                <div className="text-xs text-white/45">No completion bonus — you left before the round ended. Earned combat and objective rewards are retained.</div>
+              )}
 
               {(rewards.bonusXp ?? 0) > 0 && (
                 <div className="text-xs text-white/40 flex items-center gap-1.5">

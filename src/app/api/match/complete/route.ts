@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     denials: mode === "killconfirmed" ? Math.max(0, Math.min(200, Math.floor(input.denials ?? 0))) : 0,
     online: !!input.online,
     durationSec: Math.max(0, Math.min(7200, Math.floor(input.durationSec ?? 0))),
+    completed: input.completed === true,
     placement: Math.max(1, Math.min(16, Math.floor(input.placement ?? 1))),
     weaponId: typeof input.weaponId === "string" ? input.weaponId : "rifle_ar",
     multikills: Math.max(0, Math.min(30, Math.floor(input.multikills ?? 0))),

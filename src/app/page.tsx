@@ -82,6 +82,7 @@ export default function Page() {
           playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots, assists:r.assists??0,
           won: r.won, mode: r.mode, score: r.score,
           online: playConfig.online,
+          completed: r.completed === true,
           durationSec: r.durationSec ?? 0,
           placement: r.placement ?? 1,
           weaponId: r.weaponId ?? "rifle_ar",

@@ -30,8 +30,13 @@ export function calculateMatchRewards(input: MatchResultInput) {
   }
   const winXp = input.won ? REWARDS.winXpBonus : 0;
   const winCredits = input.won ? REWARDS.winCreditsBonus : 0;
-  let xpGained = killXp + winXp + REWARDS.participationXp;
-  let creditsGained = killCredits + winCredits + REWARDS.participationCredits;
+  // Natural PvP match endings award completion; early exits keep earned action rewards.
+  // Survival uses separate wave and victory rewards.
+  const completed = input.completed === true && input.mode !== "survival";
+  const completionXp = completed ? REWARDS.completionXp : 0;
+  const completionCredits = completed ? REWARDS.completionCredits : 0;
+  let xpGained = killXp + winXp + completionXp;
+  let creditsGained = killCredits + winCredits + completionCredits;
   if (input.mode === "ctf") {
     const captures = Math.max(0, Math.min(50, Math.floor(input.score || 0)));
     xpGained += captures * REWARDS.captureXp;
@@ -57,5 +62,5 @@ export function calculateMatchRewards(input: MatchResultInput) {
       creditsGained += REWARDS.survivalWinCredits;
     }
   }
-  return { killXp, killCredits, winXp, winCredits, xpGained, creditsGained, survivalWaves };
+  return { killXp, killCredits, winXp, winCredits, completionXp, completionCredits, xpGained, creditsGained, survivalWaves };
 }
