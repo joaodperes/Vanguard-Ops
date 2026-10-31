@@ -182,7 +182,7 @@ try {
   const cap = totalXpForLevel(MAX_PLAYER_LEVEL);
   const crossing = await create("crossing-player", cap - 1);
   await suppressAwards(crossing.id);
-  const crossingResult = await applyMatchResult({ playerKey: crossing.playerKey, kills: 0, deaths: 0, headshots: 0, won: false, mode: "ffa", score: 0 });
+  const crossingResult = await applyMatchResult({ playerKey: crossing.playerKey, kills: 0, deaths: 0, headshots: 0, won: false, completed: true, mode: "ffa", score: 0 });
   const crossed = await db.player.findUniqueOrThrow({ where: { id: crossing.id } });
   assert.equal(crossed.careerXp, crossingResult.xpGained - 1);
   assert.equal(crossingResult.newLevel, MAX_PLAYER_LEVEL);
