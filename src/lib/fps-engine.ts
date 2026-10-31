@@ -8190,6 +8190,7 @@ export class FPSEngine {
           c.group.visible = false;
           if (c.nameSprite) c.nameSprite.visible = false;
           if (c.healthBar) c.healthBar.visible = false;
+          if (c.healthBarBg) c.healthBarBg.visible = false;
           if (c.friendlyMarker) c.friendlyMarker.visible = false;
           if (c.shieldMesh) c.shieldMesh.visible = false;
         } else {
@@ -8200,6 +8201,7 @@ export class FPSEngine {
           c.group.rotation.z = Math.sin(p * Math.PI) * 0.15;
           if (c.nameSprite) c.nameSprite.visible = false;
           if (c.healthBar) c.healthBar.visible = false;
+          if (c.healthBarBg) c.healthBarBg.visible = false;
           if (c.friendlyMarker) c.friendlyMarker.visible = false;
           if (c.shieldMesh) c.shieldMesh.visible = false;
         }
@@ -8207,6 +8209,7 @@ export class FPSEngine {
         c.group.visible = false;
         if (c.nameSprite) c.nameSprite.visible = false;
         if (c.healthBar) c.healthBar.visible = false;
+          if (c.healthBarBg) c.healthBarBg.visible = false;
         if (c.friendlyMarker) c.friendlyMarker.visible = false;
         if (c.shieldMesh) c.shieldMesh.visible = false;
       } else {
