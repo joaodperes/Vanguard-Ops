@@ -13,6 +13,7 @@ import { useGame } from "@/lib/game-store";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
+import { isPrimaryWeaponCategory } from "@/lib/game-data";
 
 interface Props {
   loadout: LoadoutWire;
@@ -181,6 +182,32 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     // Triggered directly from the Resume button / Escape key, a user gesture.
     engineRef.current?.resumePointerLock();
   };
+  const queueSavedLoadout = () => {
+    const profile = useGame.getState().profile;
+    const saved = profile?.loadout;
+    if (!saved || !profile) return;
+    const wire: LoadoutWire = {
+      ...loadout,
+      perkId: saved.perkId,
+      weaponId: saved.weapon.id,
+      secondaryWeaponId: saved.perkId === "well_prepared" || !isPrimaryWeaponCategory(saved.secondary.category)
+        ? saved.secondary.id : "pistol_side",
+      meleeWeaponId: saved.melee.id,
+      weaponSkinId: saved.weaponSkin.id,
+      secondaryWeaponSkinId: saved.secondaryWeaponSkin?.id ?? "default",
+      meleeWeaponSkinId: saved.meleeWeaponSkin?.id ?? "default",
+      playerSkinId: saved.playerSkin.id,
+      nameplateId: profile.selectedNameplate,
+      primaryReticleId: saved.primaryReticle,
+      secondaryReticleId: saved.secondaryReticle,
+      primaryCharmId: saved.primaryCharm,
+      secondaryCharmId: saved.secondaryCharm,
+      attachments: { ...saved.attachments },
+      secondaryAttachments: { ...saved.secondaryAttachments },
+      meleeAttachments: { ...saved.meleeAttachments },
+    };
+    engineRef.current?.queueLoadout(wire);
+  };
   const changeMenuPage = (page: InGameMenuPage) => {
     menuPageRef.current = page;
     setMenuPage(page);
@@ -301,7 +328,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       )}
       {menuOpen && !lobbyActive && !matchOutro && (
         <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
-          onQuit={handleExit} online={online} mode={mode} />
+          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} online={online} mode={mode} />
       )}
       {matchOutro && (
         <div className="absolute inset-0 z-[70] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto">

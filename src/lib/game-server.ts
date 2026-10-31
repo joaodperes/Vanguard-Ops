@@ -146,6 +146,8 @@ interface Room {
   sockets: Map<string, string>;        // socketId -> playerId (same for humans)
   bots: Map<string, PlayerNet & { ai: BotAI; loadout: LoadoutWire }>;
   loadouts: Map<string, LoadoutWire>;  // playerId -> loadout
+  pendingLoadouts: Map<string, LoadoutWire>; // applied only on the next respawn/recovery
+  playerKeys: Map<string, string>; // stable key from authenticated join request
   assists: Map<string, number>;        // playerId -> successful team assists
   damageContributions: Map<string, Map<string, Contribution>>; // victimId -> allies recently damaging victim
   scores: Map<string, number>;         // playerId -> kills
@@ -398,7 +400,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const capacity = roomCapacity(mode, teamSize);
   const room: Room = {
     id, mode, config, map,
-    players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
+    players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
@@ -560,7 +562,7 @@ function createLobbyRoom(
   // Use a placeholder for now; startMatchInRoom overwrites it.
   const room: Room = {
     id, mode, config, map,
-    players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(),
+    players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
@@ -1531,6 +1533,21 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   }
 }
 
+/** A weapon/perk swap is committed at spawn, never while the player is alive. */
+function applyQueuedLoadout(room: Room, p: PlayerNet) {
+  const queued = room.pendingLoadouts.get(p.id);
+  if (!queued || p.isBot) return;
+  room.pendingLoadouts.delete(p.id);
+  room.loadouts.set(p.id, queued);
+  p.weaponId = queued.weaponId;
+  p.weaponSkinId = queued.weaponSkinId;
+  p.playerSkinId = queued.playerSkinId;
+  p.charmId = queued.primaryCharmId ?? "none";
+  p.nameplateId = queued.nameplateId ?? "standard";
+  p.riotShieldRaised = false;
+  room.smartTags.delete(p.id);
+}
+
 function scheduleRespawn(room: Room, p: PlayerNet) {
   room.burstState.delete(p.id);
   room.poison.delete(p.id);
@@ -1544,6 +1561,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     p.pos = sp;
     p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; room.lastDamagedAt.delete(p.id);
     p.alive = true;
+    applyQueuedLoadout(room, p);
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
     if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
@@ -1717,6 +1735,7 @@ function recoverSurvivalPlayers(room: Room) {
     if (!p) continue;
     const pos = pickSpawn(p.team, room);
     p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
+    applyQueuedLoadout(room, p);
     p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
     p.spawnProtectedUntil = 0;
     room.lastDamagedAt.delete(p.id);
@@ -2664,6 +2683,8 @@ io.on("connection", (socket) => {
       room.sockets.delete(socket.id);
       room.scores.delete(socket.id);
       room.loadouts.delete(socket.id);
+        room.pendingLoadouts.delete(socket.id);
+        room.playerKeys.delete(socket.id);
       socket.leave(roomId);
       // If host leaves, transfer host to the next human (if any).
       if (room.hostSocketId === socket.id && room.players.size > 0) {
@@ -2720,6 +2741,7 @@ async function handle(socket: any, msg: C2S) {
       const mapId: MapId = (msg.mapId ?? "compound") as MapId;
       let room = findOpenRoom(msg.mode, mapId);
       if (!room) room = createRoom(msg.mode, Math.min(7, Math.max(1, msg.botCount)), mapId);
+      room.playerKeys.set(socket.id, msg.playerKey);
       socketToRoom.set(socket.id, room.id);
       socket.join(room.id);
       const team = assignTeam(room.mode, room) as any;
@@ -3284,6 +3306,19 @@ async function handle(socket: any, msg: C2S) {
       io.to(room.id).emit("message", { t: "boltRecovered", id: bolt.id, ownerId: socket.id } as S2C);
       break;
     }
+    case "queueLoadout": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame") return;
+      const playerKey = room.playerKeys.get(socket.id);
+      if (!room.players.has(socket.id) || !playerKey) return;
+      // The packet is untrusted: check ownership, perks, skins and attachments
+      // against the same authoritative validation as match joining.
+      const loadout = await validatedMatchLoadout(playerKey, msg.loadout);
+      if (!room.players.has(socket.id) || room.ended) return;
+      room.pendingLoadouts.set(socket.id, loadout);
+      socket.emit("message", { t: "loadoutQueued", loadout } as S2C);
+      break;
+    }
     case "weaponSwap": {
       // Player switched weapon slots (1=primary, 2=secondary, 3=melee).
       // Update their equipped weaponId so the server validates shots against
@@ -3375,6 +3410,7 @@ async function handle(socket: any, msg: C2S) {
         }
       }
       const room = createLobbyRoom(socket.id, msg.name, loadout, cfg);
+      room.playerKeys.set(socket.id, msg.playerKey);
       socketToRoom.set(socket.id, room.id);
       socket.join(room.id);
       const host = room.players.get(socket.id)!;
@@ -3411,6 +3447,7 @@ async function handle(socket: any, msg: C2S) {
         socket.emit("message", { t: "roomError", message: error ?? "Could not join room." } as S2C);
         return;
       }
+      room.playerKeys.set(socket.id, msg.playerKey);
       socketToRoom.set(socket.id, room.id);
       socket.join(room.id);
       const me = room.players.get(socket.id)!;
@@ -3461,6 +3498,8 @@ async function handle(socket: any, msg: C2S) {
         room.sockets.delete(socket.id);
         room.scores.delete(socket.id);
         room.loadouts.delete(socket.id);
+        room.pendingLoadouts.delete(socket.id);
+        room.playerKeys.delete(socket.id);
         socket.leave(roomId);
         // Transfer host if the leaving player was the host.
         if (room.hostSocketId === socket.id && room.players.size > 0) {

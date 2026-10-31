@@ -1382,6 +1382,7 @@ export type C2S =
   | { t: "useEquipment" } // deprecated; server ignores this packet
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" }   // player changed weapon slot
+  | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
   | { t: "listRooms" }
   | { t: "createRoom"; playerKey: string; name: string; loadout: LoadoutWire; config: CreateRoomConfig }
@@ -1465,6 +1466,7 @@ export type S2C =
   | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
+  | { t: "loadoutQueued"; loadout: LoadoutWire } // authoritative validated pending loadout
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }

@@ -11,11 +11,12 @@ interface Props {
   onPageChange: (page: InGameMenuPage) => void;
   onResume: () => void;
   onQuit: () => void;
+  onLoadoutSaved: () => void;
   online: boolean;
   mode: GameMode;
 }
 
-export function InGameMenu({ page, onPageChange, onResume, onQuit, online, mode }: Props) {
+export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSaved, online, mode }: Props) {
   return (
     <div role="dialog" aria-modal="true" aria-label="In-game menu"
       className="absolute inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 text-white pointer-events-auto"
@@ -47,7 +48,7 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, online, mode 
             </p>
             <MenuButton icon={<Play className="h-5 w-5" />} title="Resume" help="Return to the match" onClick={onResume} />
             <MenuButton icon={<Settings2 className="h-5 w-5" />} title="Settings" help="Display, controls and audio · changes apply immediately" onClick={() => onPageChange("settings")} />
-            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help="Equip owned weapons and perks for your next match" onClick={() => onPageChange("loadout")} />
+            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Edit your next match loadout" : "Equip owned weapons and perks for your next respawn"} onClick={() => onPageChange("loadout")} />
             <MenuButton icon={<DoorOpen className="h-5 w-5" />} title="Quit Match" help="Leave and collect any earned match progression" onClick={() => onPageChange("quit")} danger />
             <div className="pt-2 text-xs text-white/35">Esc: close menu · Tab: scoreboard while playing</div>
           </div>
@@ -55,9 +56,12 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, online, mode 
         {page === "settings" && <div className="p-4 sm:p-6"><Settings embedded /></div>}
         {page === "loadout" && <div className="space-y-4 p-4 sm:p-6">
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
-            Saved loadout changes take effect in your <strong>next match</strong>. Your weapons and perks in this active match are unchanged.
+            {mode === "gungame"
+              ? <>Gun Game controls weapon progression. Your saved loadout will be used in a <strong>future match</strong>.</>
+              : <>Confirm your new kit to queue it for your <strong>next respawn</strong> (or Survival recovery). Your current life is unchanged.</>}
+            {online && mode !== "gungame" && <span className="block mt-1 text-amber-200/70">The server validates your unlocks before accepting the change.</span>}
           </div>
-          <LoadoutSelector compact />
+          <LoadoutSelector compact onSaved={onLoadoutSaved} />
         </div>}
         {page === "quit" && <div className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center gap-3 text-rose-300">

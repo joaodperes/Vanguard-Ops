@@ -755,6 +755,7 @@ export class FPSEngine {
   private pointerLocked = false;
   private inputSuspended = false;
   private showHealthBars = true;
+  private pendingLoadout: LoadoutWire | null = null;
 
   // touch input (mobile)
   private touchMode = false;
@@ -3743,6 +3744,56 @@ export class FPSEngine {
     this.weaponAudio.setVolume(levels.weaponOutputPercent);
   }
 
+  /** Queue a saved preset for the next life. The server validates account inventory
+   * before acknowledging authoritative loadout changes in online matches. */
+  queueLoadout(next: LoadoutWire) {
+    if (this.opts.mode === "gungame" || this.disposed) return;
+    if (this.opts.online) {
+      if (this.socket?.connected) this.socket.emit("message", { t: "queueLoadout", loadout: next });
+    } else this.pendingLoadout = next;
+  }
+
+  /** Apply queued kit only at spawn, never refill/change mid-life. */
+  private equipQueuedLoadout() {
+    const next = this.pendingLoadout;
+    if (!next) return;
+    this.pendingLoadout = null;
+    this.opts.loadout = next;
+    this.primaryWeaponId = next.weaponId;
+    this.secondaryWeaponId = next.secondaryWeaponId ?? "pistol_side";
+    this.meleeWeaponId = next.meleeWeaponId ?? "knife_tactical";
+    const empty = { sight: null, barrel: null, grip: null, magazine: null };
+    this.primaryEff = computeEffectiveStats(weaponById(this.primaryWeaponId), next.attachments);
+    this.secondaryEff = computeEffectiveStats(weaponById(this.secondaryWeaponId), next.secondaryAttachments ?? empty);
+    this.meleeEff = computeEffectiveStats(weaponById(this.meleeWeaponId), empty);
+    this.primarySight = sightDefForType(this.primaryEff.sightType);
+    this.secondarySight = sightDefForType(this.secondaryEff.sightType);
+    this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.currentSlot = "primary"; this.lastSlot = "secondary";
+    this.weaponId = this.primaryWeaponId;
+    this.eff = this.primaryEff; this.sightDef = this.primarySight;
+    const primary = weaponById(this.primaryWeaponId);
+    if (usesWonderCharges(primary) && primary.wonder)
+      this.wonderStates.set(primary.id, fullWonderCharges(primary.wonder));
+    this.primaryAmmoInMag = usesWonderCharges(primary) ? (this.wonderStates.get(primary.id)?.charges ?? this.primaryEff.magSize) : this.primaryEff.magSize;
+    this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.ammoInMag = this.primaryAmmoInMag;
+    this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
+    this.reloading = false; this.equipmentAction = null;
+    this.buildViewmodel();
+    if (this.quickMeleeModel) {
+      this.camera.remove(this.quickMeleeModel);
+      this.quickMeleeModel.traverse(child => { if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const material = child.material;
+        if (Array.isArray(material)) material.forEach(m => m.dispose()); else material.dispose();
+      }});
+      this.quickMeleeModel = null;
+    }
+    this.createQuickMeleeModel();
+  }
+
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   setInputSuspended(suspended: boolean) {
     this.inputSuspended = suspended;
@@ -5304,8 +5355,12 @@ export class FPSEngine {
           this.tagNotice = { action: msg.action, at: performance.now() };
         }
         break;
+      case "loadoutQueued":
+        this.pendingLoadout = msg.loadout;
+        break;
       case "respawn":
         if (msg.playerId === this.selfId) {
+          this.equipQueuedLoadout();
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
@@ -5382,6 +5437,7 @@ export class FPSEngine {
         break;
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
+          this.equipQueuedLoadout();
           this.survivalDowned = false;
           this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
@@ -5808,6 +5864,7 @@ export class FPSEngine {
   }
 
   private respawnSelf() {
+    this.equipQueuedLoadout();
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
     this.cameraFeetY=this.pos.y;
