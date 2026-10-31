@@ -894,8 +894,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     }
   }
 
-  const bonusXp = xpGained - (killXp + winXp + REWARDS.participationXp);
-  const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
+  // Report non-completion bonuses separately: end-of-match rewards have their own Results row.
+  const bonusXp = xpGained - (killXp + winXp + completionXp);
+  const bonusCredits = creditsGained - (killCredits + winCredits + completionCredits);
 
   // --- Per-weapon skin challenges (kills / headshots milestones) ---
   // Completing the goal opens the CREDIT PURCHASE in the Armory.
