@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
-export function Settings() {
+export function Settings({ embedded = false }: { embedded?: boolean }) {
   const { setScreen } = useGame();
   const { settings, update, reset, load } = useSettings();
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
+    <div className={embedded ? "flex flex-col" : "min-h-screen flex flex-col"}>
+      {!embedded && <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setScreen("menu")} className="text-white/70 hover:text-white hover:bg-white/5">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
@@ -26,9 +26,9 @@ export function Settings() {
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset
           </Button>
         </div>
-      </header>
+      </header>}
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5">
+      <main className={embedded ? "w-full space-y-5 py-2" : "flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5"}>
         {/* Crosshair */}
         <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Global color and size. Equip each weapon’s reticle in Armory → Customize → Reticles.">
           <div className="flex items-center gap-6">
@@ -108,6 +108,7 @@ export function Settings() {
         <Section icon={<Eye className="w-4 h-4" />} title="HUD Display" desc="Toggle optional HUD elements">
           <div className="grid sm:grid-cols-2 gap-3">
             <Toggle label="Show Ping" desc="Display network latency" value={settings.showPing} onChange={(v) => update({ showPing: v })} />
+            <Toggle label="Player Health Bars" desc="Show floating health bars above other operatives, including enemies and teammates" value={settings.showHealthBars} onChange={(v) => update({ showHealthBars: v })} />
           </div>
         </Section>
 
@@ -165,9 +166,9 @@ export function Settings() {
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-xs text-white/40">Settings persist locally and apply to your next match.</div>
-      </footer>
+      {!embedded && <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-xs text-white/40">Settings persist locally. Display, control and audio changes apply immediately in matches.</div>
+      </footer>}
     </div>
   );
 }

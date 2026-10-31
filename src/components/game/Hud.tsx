@@ -425,14 +425,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </svg>
       </div>}
       {/* top right: exit + ping */}
-      <div className={`absolute right-4 flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
+      <div className={`absolute right-4 z-[45] flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
         {showPing && (
           <div className="bg-black/55 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 flex items-center gap-1">
             <Zap className="w-3 h-3" /> {hud.ping}ms
           </div>
         )}
         <button onClick={onExit} className="bg-black/55 hover:bg-rose-900/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-white/80 hover:text-white text-xs flex items-center gap-1 transition-colors">
-          <LogOut className="w-3 h-3" /> Leave
+          <LogOut className="w-3 h-3" /> Menu
         </button>
       </div>
 

@@ -12,6 +12,7 @@ import { useSettings } from "@/lib/settings-store";
 import { useGame } from "@/lib/game-store";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
+import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
 
 interface Props {
   loadout: LoadoutWire;
@@ -46,12 +47,18 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [matchOutro, setMatchOutro] = useState<MatchEndResult | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
+  const menuOpenRef = useRef(false);
+  const menuPageRef = useRef<InGameMenuPage>("main");
+  const everPointerLockedRef = useRef(false);
   const outroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
   const practiceObserver = useRef(onPracticeSample);
   useEffect(() => { practiceObserver.current = onPracticeSample; }, [onPracticeSample]);
+  useEffect(() => { useSettings.getState().load(); }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -143,16 +150,67 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     };
   }, []);
 
-  // Settings are mutable during a match (e.g. via a future pause menu).
-  // Subscribe without rebuilding the engine or resetting the match.
+  // All controls, overhead health bars and audio changes apply immediately in-game.
+  // Subscribing avoids rebuilding the engine (and resetting match state).
   useEffect(() => {
-    const apply = (s: typeof settings) => engineRef.current?.setAudioMix(s);
+    const apply = (s: typeof settings) => {
+      engineRef.current?.setAudioMix(s);
+      engineRef.current?.applyDisplayAndControlSettings(s);
+    };
     apply(useSettings.getState().settings);
     return useSettings.subscribe((state) => apply(state.settings));
   }, []);
 
   const showStartOverlay = ready && isTouch && !touchStarted;
   const lobbyActive = !!lobby?.active;
+
+  const openMenu = () => {
+    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    menuOpenRef.current = true;
+    menuPageRef.current = "main";
+    setMenuPage("main");
+    setMenuOpen(true);
+    engineRef.current?.setInputSuspended(true);
+  };
+  const resumeGame = () => {
+    menuOpenRef.current = false;
+    menuPageRef.current = "main";
+    setMenuPage("main");
+    setMenuOpen(false);
+    engineRef.current?.setInputSuspended(false);
+    // Triggered directly from the Resume button / Escape key, a user gesture.
+    engineRef.current?.resumePointerLock();
+  };
+  const changeMenuPage = (page: InGameMenuPage) => {
+    menuPageRef.current = page;
+    setMenuPage(page);
+  };
+
+  useEffect(() => {
+    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.code !== "Escape" || event.repeat) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (menuOpenRef.current) {
+        if (menuPageRef.current !== "main") changeMenuPage("main");
+        else resumeGame();
+      } else openMenu();
+    };
+    const onLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (locked) everPointerLockedRef.current = true;
+      // Some browsers consume Escape in Pointer Lock before the keydown handler.
+      // Opening on lock release ensures Escape still opens the in-game menu.
+      if (!locked && everPointerLockedRef.current && !menuOpenRef.current) openMenu();
+    };
+    window.addEventListener("keydown", onEscape, true);
+    document.addEventListener("pointerlockchange", onLockChange);
+    return () => {
+      window.removeEventListener("keydown", onEscape, true);
+      document.removeEventListener("pointerlockchange", onLockChange);
+    };
+  }, [ready, lobbyActive, matchOutro, firingRange, tutorial]);
 
   // Centralized exit handler: if the user leaves mid-match (not from the lobby),
   // capture the live match stats and forward them via onExitWithStats so the
@@ -201,22 +259,22 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           </div>
         </div>
       )}
-      {hud && !lobbyActive && <Hud hud={hud} onExit={handleExit} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
+      {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && <TouchControls engine={engineInstance} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
-      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && (
+      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
             <div className="text-sm text-white/60">WASD move · Mouse aim · L-Click fire · R-Click ADS · R reload · Shift sprint · Space jump</div>
-            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard</div>
+            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard · Esc menu</div>
             <div className="text-xs text-amber-300/70 mt-2">{tutorial ? "Press Escape to use the tutorial controls" : firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
         </div>
       )}
       {/* Mobile "tap to play" — hidden while lobby overlay is up */}
-      {showStartOverlay && !lobbyActive && (
+      {showStartOverlay && !lobbyActive && !menuOpen && (
         <button
           className="absolute inset-0 flex items-center justify-center z-50 bg-black/60"
           onClick={() => setTouchStarted(true)}
@@ -240,6 +298,10 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           onLeave={handleExit}
           socketConnected={socketConnected}
         />
+      )}
+      {menuOpen && !lobbyActive && !matchOutro && (
+        <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
+          onQuit={handleExit} online={online} mode={mode} />
       )}
       {matchOutro && (
         <div className="absolute inset-0 z-[70] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto">

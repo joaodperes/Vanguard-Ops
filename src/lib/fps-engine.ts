@@ -420,6 +420,7 @@ interface Combatant {
   group?: THREE.Group;
   nameSprite?: THREE.Sprite;
   healthBar?: THREE.Mesh;
+  healthBarBg?: THREE.Mesh;
   bossMaxHealth?: number;
   bossCharge?: number;
   bossVisual?: SurvivalBossVisual;
@@ -751,6 +752,8 @@ export class FPSEngine {
   private mouseDown = false;
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
+  private inputSuspended = false;
+  private showHealthBars = true;
 
   // touch input (mobile)
   private touchMode = false;
@@ -3666,7 +3669,7 @@ export class FPSEngine {
       // Resume the audio context on first user gesture (browsers block audio
       // until a gesture). Safe to call repeatedly — no-op if already running.
       this.unlockAudio();
-      if (this.touchMode) return; // touch devices don't use pointer lock
+      if (this.touchMode || this.inputSuspended) return; // touch devices and menus do not use pointer lock
       if (!this.pointerLocked) canvas.requestPointerLock();
     });
     document.addEventListener("pointerlockchange", () => {
@@ -3685,7 +3688,7 @@ export class FPSEngine {
       this.pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.pitch));
     });
     document.addEventListener("mousedown", (e) => {
-      if (this.touchMode) return;
+      if (this.touchMode || this.inputSuspended) return;
       this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
       if (e.button === 2) this.manualAiming = true;
@@ -3696,6 +3699,7 @@ export class FPSEngine {
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => {
+      if (this.inputSuspended) return;
       // Record the edge in the browser event itself. Even a fast tap that starts
       // and ends between render frames must be eligible for jump buffering.
       if (e.code === "Space" && !e.repeat && !this.keys[e.code]) {
@@ -3736,6 +3740,39 @@ export class FPSEngine {
     this.sound.setFootstepVolume(levels.footsteps);
     this.sound.setFxVolume(levels.fx);
     this.weaponAudio.setVolume(levels.weaponOutputPercent);
+  }
+
+  /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
+  setInputSuspended(suspended: boolean) {
+    this.inputSuspended = suspended;
+    this.keys = {};
+    this.mouseDown = false;
+    this.mousePressedThisFrame = false;
+    this.manualAiming = false;
+    this.touchMoveX = 0;
+    this.touchMoveY = 0;
+    this.touchFiring = false;
+    this.touchAiming = false;
+    this.touchPressedThisFrame = false;
+    this.touchJumpQueued = false;
+    if (suspended && document.pointerLockElement === this.renderer.domElement) document.exitPointerLock();
+  }
+
+  resumePointerLock() {
+    if (!this.touchMode && !this.inputSuspended) void this.renderer.domElement.requestPointerLock();
+  }
+
+  /** Apply preferences live. Health-bar visibility is local-only, never sent to the server. */
+  applyDisplayAndControlSettings(settings: { showHealthBars: boolean; sensitivity: number; fov: number; autoAdsOnFire: boolean; invertY: boolean }) {
+    this.showHealthBars = settings.showHealthBars;
+    this.sensitivityMul = settings.sensitivity;
+    this.baseFov = settings.fov;
+    this.autoAdsOnFire = settings.autoAdsOnFire;
+    this.invertY = settings.invertY;
+    for (const c of this.combatants.values()) {
+      if (c.healthBar) c.healthBar.visible = this.showHealthBars && c.alive;
+      if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars && c.alive;
+    }
   }
 
   // Unlock both audio systems from the same user gesture (autoplay-safe).
@@ -4750,11 +4787,14 @@ export class FPSEngine {
     barBg.position.y = PLAYER_HEIGHT + 0.4;
     barBg.renderOrder = 999;
     root.add(barBg);
+    barBg.visible = this.showHealthBars;
+    c.healthBarBg = barBg;
     const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.08), new THREE.MeshBasicMaterial({ color: 0x33dd66, depthTest: true }));
     bar.position.set(0, PLAYER_HEIGHT + 0.4, 0.01);
     bar.renderOrder = 1000;
     root.add(bar);
     c.healthBar = bar;
+    bar.visible = this.showHealthBars;
 
     // ---- Team ring at feet (visible ground marker showing team color) ----
     const ringColor = c.team === "red" ? 0xef4444 : c.team === "blue" ? 0x3b82f6 : 0x9ca3af;
@@ -7683,8 +7723,8 @@ export class FPSEngine {
         this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
       this.reloading = false;
     }
-    const wantFire = (this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring);
-    const inputActive = this.pointerLocked || this.touchMode;
+    const wantFire = !this.inputSuspended && ((this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring));
+    const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
     const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
@@ -8115,8 +8155,9 @@ export class FPSEngine {
         c.group.rotation.z = 0;
         c.group.visible = true;
         if (c.nameSprite) c.nameSprite.visible = true;
+        if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars;
         if (c.healthBar) {
-          c.healthBar.visible = true;
+          c.healthBar.visible = this.showHealthBars;
           const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
