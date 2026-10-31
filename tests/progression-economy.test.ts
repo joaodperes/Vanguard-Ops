@@ -48,15 +48,15 @@ describe("multiplayer perk entitlement", () => {
 });
 
 describe("credit economy across every match reward path", () => {
-  test("a normal 30-kill win pays 146 CR instead of the previous 425 CR", () => {
-    const result = calculateMatchRewards({ ...match, kills: 30, headshots: 10, assists: 6, won: true, multikills: 3, killDifficulties: Array(30).fill("normal") });
-    expect(result.creditsGained).toBe(146);
-    expect(result.xpGained).toBe(1097);
+  test("a naturally completed 30-kill win pays 151 CR", () => {
+    const result = calculateMatchRewards({ ...match, kills: 30, headshots: 10, assists: 6, won: true, completed: true, multikills: 3, killDifficulties: Array(30).fill("normal") });
+    expect(result.creditsGained).toBe(151);
+    expect(result.xpGained).toBe(1147);
   });
   test("difficulty, legacy, headshot and assist payouts all use the smaller economy", () => {
     expect(Object.values(DIFFICULTY_REWARDS).map(r => r.credits)).toEqual([1,2,4,5,5]);
-    expect(calculateMatchRewards({ ...match, kills: 5, killDifficulties: ["easy","normal","hard","veteran","enemy_player"] }).creditsGained).toBe(22);
-    expect(calculateMatchRewards({ ...match, kills: 1, headshots: 1, assists: 1 }).creditsGained).toBe(12);
+    expect(calculateMatchRewards({ ...match, kills: 5, killDifficulties: ["easy","normal","hard","veteran","enemy_player"] }).creditsGained).toBe(17);
+    expect(calculateMatchRewards({ ...match, kills: 1, headshots: 1, assists: 1 }).creditsGained).toBe(7);
   });
   test("partial difficulty lists still account for every kill, unknown entries use normal", () => {
     const result = calculateMatchRewards({ ...match, kills: 3, killDifficulties: ["easy"] });
@@ -65,15 +65,15 @@ describe("credit economy across every match reward path", () => {
     expect(calculateMatchRewards({ ...match, kills: 1, killDifficulties: ["invalid"] }).killCredits).toBe(2);
   });
   test("objectives and multikills cannot bypass the rebalance", () => {
-    expect(calculateMatchRewards({ ...match, mode: "ctf", score: 2 }).creditsGained).toBe(29);
-    expect(calculateMatchRewards({ ...match, mode: "killconfirmed", confirmations: 3, denials: 2 }).creditsGained).toBe(13);
-    expect(calculateMatchRewards({ ...match, multikills: 2 }).creditsGained).toBe(21);
+    expect(calculateMatchRewards({ ...match, mode: "ctf", score: 2 }).creditsGained).toBe(24);
+    expect(calculateMatchRewards({ ...match, mode: "killconfirmed", confirmations: 3, denials: 2 }).creditsGained).toBe(8);
+    expect(calculateMatchRewards({ ...match, multikills: 2 }).creditsGained).toBe(16);
   });
   test("Survival clear credit windfalls are smaller while XP and difficulty bonuses stay meaningful", () => {
     const result = calculateMatchRewards({ ...match, mode: "survival", survivalTier: "default", kills: 200, headshots: 75, won: true, multikills: 3, survivalWaves: 30, killDifficulties: Array(200).fill("veteran") });
-    expect(result.creditsGained).toBe(2254);
-    expect(result.xpGained).toBe(17275);
-    expect(calculateMatchRewards({ ...match, mode: "survival", survivalTier: "nightmare", survivalWaves: 10 }).creditsGained).toBe(165);
+    expect(result.creditsGained).toBe(2249);
+    expect(result.xpGained).toBe(17250);
+    expect(calculateMatchRewards({ ...match, mode: "survival", survivalTier: "nightmare", survivalWaves: 10 }).creditsGained).toBe(160);
   });
   test("elite variants multiply the reduced base quest reward", () => {
     for (const q of [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL]) {
