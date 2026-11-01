@@ -47,7 +47,7 @@ export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: G
 // FFA: teamSize*2 total slots (no teams, just a player cap).
 // TDM: teamSize per side → teamSize*2 total.
 // Survival: configurable solo or duo lobby; wave bots are independent of capacity.
-export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers: 1 | 2 = 2): number {
+export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers: 1 | 2 = 1): number {
   if (mode === "survival") return survivalPlayers;
   return teamSize * 2;
 }
@@ -98,7 +98,7 @@ export interface CreateRoomConfig {
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
-  survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
+  survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
   survivalTier?: SurvivalTier; // default / hard / elite / nightmare
 }
 
