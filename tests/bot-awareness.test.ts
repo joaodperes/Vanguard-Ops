@@ -1,5 +1,5 @@
 import {describe,expect,test} from "bun:test";
-import {botRememberSighting,botInvestigation,botMemoryDuration} from "../src/lib/bot-awareness";
+import {botRememberSighting,botInvestigation,botMemoryDuration,botCanHearNoise,botRememberNoise,botRememberHit,botAlertInvestigation} from "../src/lib/bot-awareness";
 
 describe("bot last-seen memory (offline and online shared)",()=>{
   test("copies sightings instead of tracking hidden enemies by reference",()=>{
@@ -45,5 +45,40 @@ describe("bot last-seen memory (offline and online shared)",()=>{
     for(const action of [one,two]){
       expect(Math.hypot(action!.goal[0]-10,action!.goal[2]-12)).toBeLessThanOrEqual(4.001);
     }
+  });
+});
+
+
+describe("hearing and incoming-fire alerts (shared by offline and online bots)",()=>{
+  test("sprinting is louder; suppressors and cover reduce effective hearing",()=>{
+    const foot={sourceId:"p",pos:[12,0,0] as [number,number,number],at:1000,kind:"footstep" as const};
+    expect(botCanHearNoise([0,0,0],foot,1200,"normal",false)).toBe(false);
+    expect(botCanHearNoise([0,0,0],{...foot,sprinting:true},1200,"normal",false)).toBe(true);
+    const gun={...foot,kind:"gunshot" as const};
+    expect(botCanHearNoise([0,0,0],{...gun,pos:[45,0,0]},1200,"normal",false)).toBe(true);
+    expect(botCanHearNoise([0,0,0],{...gun,pos:[45,0,0]},1200,"normal",true)).toBe(false);
+    expect(botCanHearNoise([0,0,0],{...gun,suppressed:true,pos:[30,0,0]},1200,"normal",false)).toBe(false);
+    expect(botCanHearNoise([0,0,0],gun,1200,"veteran",false)).toBe(true);
+  });
+  test("stale, future, or vertically distant sounds cannot alert bots",()=>{
+    const sound={sourceId:"p",pos:[5,0,0] as [number,number,number],at:1000,kind:"gunshot" as const};
+    expect(botCanHearNoise([0,0,0],sound,3000,"normal",false)).toBe(false);
+    expect(botCanHearNoise([0,0,0],sound,900,"normal",false)).toBe(false);
+    expect(botCanHearNoise([0,0,0],{...sound,pos:[0,20,0]},1100,"normal",false)).toBe(false);
+  });
+  test("sound memory freezes the point; expires instead of following enemy position",()=>{
+    const pos:[number,number,number]=[9,0,8];
+    const alert=botRememberNoise({sourceId:"enemy",pos,at:1000,kind:"gunshot"});
+    pos[0]=90;
+    expect(alert.pos).toEqual([9,0,8]);
+    expect(botAlertInvestigation(alert,[0,0,0],1300,"normal","rusher",true)?.goal).toEqual([9,0,8]);
+    expect(botAlertInvestigation(alert,[0,0,0],4500,"normal","rusher",true)).toBeNull();
+    expect(botAlertInvestigation(alert,[0,0,0],1200,"normal","rusher",false)).toBeNull();
+  });
+  test("a shot from behind starts a directional search without granting through-wall aim",()=>{
+    const alert=botRememberHit("attacker",[0,1,-14],1000);
+    expect(botAlertInvestigation(alert,[0,1,0],1050,"hard","rifleman",true)?.goal).toEqual([0,1,-14]);
+    expect(botAlertInvestigation(alert,[0,1,0],1050,"hard","marksman",true)?.kind).toBe("watch");
+    expect(botAlertInvestigation(alert,[0,1,0],9000,"veteran","rifleman",true)).toBeNull();
   });
 });
