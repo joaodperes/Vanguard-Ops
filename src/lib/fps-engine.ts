@@ -68,7 +68,7 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
-import { botRememberSighting, botInvestigation, type BotSighting } from "./bot-awareness";
+import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
@@ -340,6 +340,9 @@ export interface MatchEndResult {
 interface BotAI {
   targetId: string | null;
   lastSighting?: BotSighting | null;
+  lastAlert?: BotAlert | null;
+  nextHearingAt?: number;
+  lastNoiseStepAt?: number;
   investigationLookAt?: Vec3 | null;
   wanderTarget: Vec3;
   nextShotAt: number;
@@ -923,6 +926,33 @@ export class FPSEngine {
   private shotBloom = 0; // additional inaccuracy from repeated fire; decays on pause
   private lastBloomShotAt = -10000;
   private lastFootstepAt = 0;    // throttle footstep SFX
+  // Bounded, physics-sourced audio stimulus journal (no per-frame sound raycasts).
+  private botNoises:BotNoise[]=[];
+  private publishBotNoise(noise:BotNoise):void {
+    this.botNoises.push({...noise,pos:[...noise.pos] as Vec3});
+    if(this.botNoises.length>64)this.botNoises.splice(0,this.botNoises.length-64);
+  }
+  private hearBotNoise(bot:Combatant,now:number):void {
+    const ai=bot.ai!;
+    if(now<(ai.nextHearingAt??0))return;
+    ai.nextHearingAt=now+180;
+    for(let i=this.botNoises.length-1;i>=0;i--){
+      const noise=this.botNoises[i];
+      if(noise.at<=(ai.lastAlert?.at??0)||now-noise.at>1500)break;
+      if(noise.sourceId===bot.id)continue;
+      const source=noise.sourceId===this.selfId
+        ? {alive:this.alive,team:this.opts.team} : this.combatants.get(noise.sourceId);
+      if(!source?.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&source.team===bot.team))continue;
+      if(Math.hypot(bot.pos[0]-noise.pos[0],bot.pos[2]-noise.pos[2])>105)continue;
+      const occluded=!this.hasLineOfSight(
+        [bot.pos[0],bot.pos[1]+PLAYER_HEIGHT/2,bot.pos[2]],
+        [noise.pos[0],noise.pos[1]+PLAYER_HEIGHT/2,noise.pos[2]]);
+      if(!botCanHearNoise(bot.pos,noise,now,ai.difficulty,occluded))continue;
+      ai.lastAlert=botRememberNoise(noise);
+      ai.nextDecisionAt=0;
+      break;
+    }
+  }
   private remoteFootsteps = new Map<string, { pos: Vec3; at: number }>();
 
   // ---- Sound ----
@@ -4530,6 +4560,7 @@ export class FPSEngine {
     return {
       targetId: null,
       lastSighting: null,
+      lastAlert: null,
       investigationLookAt: null,
       wanderTarget: sp,
       nextShotAt: 0,
@@ -6625,6 +6656,9 @@ export class FPSEngine {
     }
     if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash();
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
+    if(!this.opts.online&&!this.opts.firingRange&&w.wonder?.kind!=="flame")
+      this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+        at:now,kind:"gunshot",suppressed:this.getCurrentAttachments().barrel==="barrel_suppressor"});
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
       aiming:this.aiming,
@@ -6883,6 +6917,10 @@ export class FPSEngine {
         at:performance.now(),
       });
     }
+    if(victim.ai && victim.team!==this.opts.team){
+      victim.ai.lastAlert=botRememberHit(this.selfId,[this.pos.x,this.pos.y,this.pos.z],performance.now());
+      victim.ai.nextDecisionAt=0;
+    }
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       this.offlineAssistDamage.delete(victim.id);
@@ -7080,7 +7118,7 @@ export class FPSEngine {
         : this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
-      if(c.ai){c.ai.lastSighting=null;c.ai.investigationLookAt=null;c.ai.targetId=null;}
+      if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;}
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
       c.spawnProtectedUntil = this.opts.firingRange ? 0 : Date.now() + 2500;
@@ -8432,7 +8470,12 @@ export class FPSEngine {
       const stepInterval = this.sprinting ? 260 : 360;
       if (performance.now() - this.lastFootstepAt > stepInterval) {
         this.lastFootstepAt = performance.now();
-        if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.98:.84):(this.sprinting?.43:.3) });
+        if (this.activePerkId !== "silent_steps") {
+          this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.98:.84):(this.sprinting?.43:.3) });
+          if(!this.opts.online&&!this.opts.firingRange)
+            this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+              at:performance.now(),kind:"footstep",sprinting:this.sprinting});
+        }
       }
     }
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
@@ -8553,6 +8596,7 @@ export class FPSEngine {
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
     const ai = c.ai!;
+    this.hearBotNoise(c,now);
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
     const boss=this.survivalBossTimers.get(c.id);
@@ -8607,6 +8651,15 @@ export class FPSEngine {
           ? {alive:this.alive,team:this.opts.team}
           : this.combatants.get(remembered.targetId)
         : null;
+      const alert=ai.lastAlert;
+      const alertSource=alert?.sourceId===this.selfId
+        ? {alive:this.alive,team:this.opts.team}
+        : alert?this.combatants.get(alert.sourceId):null;
+      const audioInvestigation=!enemy?botAlertInvestigation(alert,c.pos,now,ai.difficulty,
+        ai.archetype,!!alertSource?.alive &&
+        (this.opts.mode==="ffa"||this.opts.mode==="gungame"||alertSource.team!==c.team)):null;
+      if(alert&&!audioInvestigation&&!enemy)ai.lastAlert=null;
+      if(enemy)ai.lastAlert=null;
       const investigation=!enemy ? botInvestigation(remembered,c.pos,now,
         ai.difficulty,ai.archetype,!!rememberedEnemy?.alive &&
         (this.opts.mode==="ffa"||this.opts.mode==="gungame"||rememberedEnemy.team!==c.team),
@@ -8643,8 +8696,9 @@ export class FPSEngine {
       const base=c.team==="red"||c.team==="blue"?ctfBase(c.team,this.map.id):null;
       const nearBase=!!remembered&&!!base&&Math.hypot(
         remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
-      const investigate=investigation&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
-        (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? investigation : null;
+      const stimulus=investigation??audioInvestigation;
+      const investigate=stimulus&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
+        (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? stimulus : null;
       ai.investigationLookAt=investigate?[...investigate.lookAt] as Vec3:null;
       // Ground-level bots otherwise acquire distant opponents through map
       // walls on every decision tick and never enter patrol mode. Let designated
@@ -8884,7 +8938,11 @@ export class FPSEngine {
         if(w.category!=="melee")ai.ammoInMag--;
         c.spawnProtectedUntil = 0; // attacking cancels bot spawn protection
         if (c.shieldMesh) c.shieldMesh.visible = false;
-        if(w.category!=="melee")this.recordRadarShot(c.id, c.pos, c.team, ai.attachments.barrel === "barrel_suppressor");
+        if(w.category!=="melee"){
+          this.recordRadarShot(c.id, c.pos, c.team, ai.attachments.barrel === "barrel_suppressor");
+          this.publishBotNoise({sourceId:c.id,pos:c.pos,at:now,kind:"gunshot",
+            suppressed:ai.attachments.barrel==="barrel_suppressor"});
+        }
         // Enemy fire sound: distance-attenuated + muffled if suppressed.
         // Bots in offline mode have null barrel attachments (no suppressors),
         // but the check is wired correctly so a future loadout pass would Just Work.
@@ -9093,6 +9151,11 @@ export class FPSEngine {
       }
     }
     // Record this tick's position for next tick's stuck measurement.
+    const stepDistance=Math.hypot(c.pos[0]-ai.lastPosX,c.pos[2]-ai.lastPosZ);
+    if(stepDistance>.08&&now-(ai.lastNoiseStepAt??0)>(ai.sprinting?280:390)){
+      ai.lastNoiseStepAt=now;
+      this.publishBotNoise({sourceId:c.id,pos:c.pos,at:now,kind:"footstep",sprinting:!!ai.sprinting});
+    }
     ai.lastPosX = c.pos[0];
     ai.lastPosZ = c.pos[2];
   }
@@ -9215,6 +9278,10 @@ export class FPSEngine {
         this.takeDamage(dmg, attacker.name, attacker.team, headshotMult > 1,
           attacker.weaponId,attacker.pos);
       } else {
+        if(nearest.victim.ai && (this.opts.mode==="ffa"||this.opts.mode==="gungame"||nearest.victim.team!==attacker.team)){
+          nearest.victim.ai.lastAlert=botRememberHit(attacker.id,attacker.pos,performance.now());
+          nearest.victim.ai.nextDecisionAt=0;
+        }
         nearest.victim.health -= dmg;
         if (nearest.victim.health <= 0 && nearest.victim.alive) {
           const recent=this.offlineAssistDamage.get(nearest.victim.id);
