@@ -1,10 +1,11 @@
 "use client";
 import { Settings } from "@/components/screens/Settings";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { QuestPanel } from "./QuestPanel";
 import type { GameMode } from "@/lib/game-protocol";
-import { ArrowLeft, DoorOpen, LogOut, Play, Settings2, Backpack, AlertTriangle } from "lucide-react";
+import { ArrowLeft, DoorOpen, LogOut, Play, Settings2, Backpack, AlertTriangle, ScrollText } from "lucide-react";
 
-export type InGameMenuPage = "main" | "settings" | "loadout" | "quit";
+export type InGameMenuPage = "main" | "settings" | "loadout" | "quests" | "quit";
 
 interface Props {
   page: InGameMenuPage;
@@ -21,14 +22,14 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
     <div role="dialog" aria-modal="true" aria-label="In-game menu"
       className="absolute inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 text-white pointer-events-auto"
       onPointerDown={event => event.stopPropagation()}>
-      <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70">
+      <div className={`w-full ${page === "loadout" ? "max-w-7xl" : page === "quests" ? "max-w-5xl" : "max-w-3xl"} max-h-[92vh] overflow-y-auto overscroll-contain rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70`}>
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-zinc-950/95 backdrop-blur px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-rose-600">
             <Settings2 className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-black uppercase tracking-[0.18em]">
-              {page === "main" ? "In-Game Menu" : page === "settings" ? "Settings" : page === "loadout" ? "Change Loadout" : "Leave Match"}
+              {page === "main" ? "In-Game Menu" : page === "settings" ? "Settings" : page === "loadout" ? "Change Loadout" : page === "quests" ? "Quests" : "Leave Match"}
             </div>
             <div className="text-xs text-white/45">{mode.toUpperCase()} · {online ? "Online match" : "Local match"}</div>
           </div>
@@ -43,12 +44,10 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
         </div>
         {page === "main" && (
           <div className="space-y-3 p-5 sm:p-8">
-            <p className="mb-5 text-sm text-white/50">
-              Match simulation continues while the menu is open{online ? " — other players are not paused." : "."}
-            </p>
             <MenuButton icon={<Play className="h-5 w-5" />} title="Resume" help="Return to the match" onClick={onResume} />
             <MenuButton icon={<Settings2 className="h-5 w-5" />} title="Settings" help="Display, controls and audio · changes apply immediately" onClick={() => onPageChange("settings")} />
             <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Edit your next match loadout" : "Equip owned weapons and perks for your next respawn"} onClick={() => onPageChange("loadout")} />
+            <MenuButton icon={<ScrollText className="h-5 w-5" />} title="Quests" help="Daily and weekly challenges · progress and rewards" onClick={() => onPageChange("quests")} />
             <MenuButton icon={<DoorOpen className="h-5 w-5" />} title="Quit Match" help="Leave and collect any earned match progression" onClick={() => onPageChange("quit")} danger />
             <div className="pt-2 text-xs text-white/35">Esc: close menu · Tab: scoreboard while playing</div>
           </div>
@@ -63,6 +62,7 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
           </div>
           <LoadoutSelector compact onSaved={onLoadoutSaved} />
         </div>}
+        {page === "quests" && <div className="p-4 sm:p-6"><QuestPanel /></div>}
         {page === "quit" && <div className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center gap-3 text-rose-300">
             <AlertTriangle className="h-6 w-6" />
