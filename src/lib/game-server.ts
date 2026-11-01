@@ -2194,9 +2194,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // to chase memories of distant attackers.
     const ctfCritical=ctfIntent?.role==="recover"||ctfIntent?.role==="escort";
     const base=bot.team==="red"||bot.team==="blue"?ctfBase(bot.team,room.map.id):null;
-    const nearBase=!!remembered&&!!base&&Math.hypot(
-      remembered.lastSeen[0]-base[0],remembered.lastSeen[2]-base[2])<34;
-    const stimulus=investigation??audioInvestigation;
+    // Prefer the freshest audible threat near the flag, but retain objective priority.
+    const stimulus=audioInvestigation &&
+      (!investigation || (ai.lastAlert?.at??0) >= (remembered?.seenAt??0))
+      ? audioInvestigation : investigation;
+    const nearBase=!!stimulus&&!!base&&Math.hypot(
+      stimulus.lookAt[0]-base[0],stimulus.lookAt[2]-base[2])<34;
     const investigate=stimulus&&!pursueTag&&!orbitalObjective&&!ctfCritical &&
       (!ctfIntent||!ctfIntent.role.startsWith("defend")||nearBase) ? stimulus : null;
     ai.investigationLookAt=investigate?[...investigate.lookAt] as Vec3:null;
