@@ -22,7 +22,7 @@ test("pause menu provides quests and removes the simulation warning", () => {
   }));
   expect(html).toContain("Quests");
   expect(html).toContain("Daily and weekly challenges");
-  expect((html.match(/>Resume</g) ?? [])).toHaveLength(1);
+  expect((html.match(/Resume/g) ?? [])).toHaveLength(1);
   expect(html).not.toContain("Return to the match");
   expect(html).not.toContain("Match simulation continues");
   expect(html).not.toContain("other players are not paused");
