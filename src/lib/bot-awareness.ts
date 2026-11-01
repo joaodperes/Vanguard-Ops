@@ -61,3 +61,56 @@ export function botInvestigation(
   return {goal:[last[0]+Math.sin(angle)*radius,last[1],last[2]+Math.cos(angle)*radius],
     lookAt:last,kind:"search"};
 }
+
+
+/** Sounds provide a frozen last-known position, never an omniscient target lock. */
+export interface BotNoise {
+  sourceId: string;
+  pos: Vec3;
+  at: number;
+  kind: "footstep" | "gunshot";
+  sprinting?: boolean;
+  suppressed?: boolean;
+}
+export interface BotAlert {
+  sourceId: string;
+  pos: Vec3;
+  at: number;
+  kind: BotNoise["kind"] | "hit";
+}
+export function botNoiseRadius(noise: Pick<BotNoise,"kind"|"sprinting"|"suppressed">, tier: BotTier): number {
+  const base = noise.kind === "footstep" ? (noise.sprinting ? 17 : 10) : noise.suppressed ? 19 : 65;
+  const scale: Record<BotTier, number> = { easy: .78, normal: 1, hard: 1.13, veteran: 1.25 };
+  return base * scale[tier];
+}
+/** A cover obstacle muffles the sound rather than silencing it. */
+export function botCanHearNoise(
+  listener: readonly [number,number,number], noise: BotNoise, now:number,
+  tier:BotTier, occluded:boolean,
+):boolean {
+  if (noise.at > now || now-noise.at > 1500) return false;
+  if (Math.abs(listener[1]-noise.pos[1])>15) return false;
+  return Math.hypot(listener[0]-noise.pos[0],listener[2]-noise.pos[2]) <=
+    botNoiseRadius(noise,tier) * (occluded ? .55 : 1);
+}
+export function botRememberNoise(noise: BotNoise):BotAlert {
+  return { sourceId:noise.sourceId,pos:[...noise.pos] as Vec3,at:noise.at,kind:noise.kind };
+}
+/** A hit gives a direction even from behind, not a through-wall firing solution. */
+export function botRememberHit(sourceId:string, sourcePos:readonly [number,number,number], now:number):BotAlert {
+  return {sourceId,pos:[...sourcePos] as Vec3,at:now,kind:"hit"};
+}
+export function botAlertInvestigation(
+  alert:BotAlert|null|undefined, botPos:readonly [number,number,number], now:number,
+  tier:BotTier,archetype:BotArchetype,sourceAlive:boolean,
+):BotInvestigation|null {
+  if(!alert || !sourceAlive || now<alert.at)return null;
+  const life = alert.kind==="hit"?4500:alert.kind==="gunshot"?3100:1800;
+  const scale:Record<BotTier,number>={easy:.75,normal:1,hard:1.15,veteran:1.25};
+  if(now-alert.at>life*scale[tier])return null;
+  const pos=[...alert.pos] as Vec3;
+  const d=Math.hypot(pos[0]-botPos[0],pos[2]-botPos[2]);
+  if(archetype==="marksman" || d<2.5)
+    return {goal:[...botPos] as Vec3,lookAt:pos,kind:"watch"};
+  return {goal:pos,lookAt:pos,kind:"approach"};
+}
