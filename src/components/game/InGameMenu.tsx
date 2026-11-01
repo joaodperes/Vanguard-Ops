@@ -44,7 +44,6 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
         </div>
         {page === "main" && (
           <div className="space-y-3 p-5 sm:p-8">
-            <MenuButton icon={<Play className="h-5 w-5" />} title="Resume" help="Return to the match" onClick={onResume} />
             <MenuButton icon={<Settings2 className="h-5 w-5" />} title="Settings" help="Display, controls and audio · changes apply immediately" onClick={() => onPageChange("settings")} />
             <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Edit your next match loadout" : "Equip owned weapons and perks for your next respawn"} onClick={() => onPageChange("loadout")} />
             <MenuButton icon={<ScrollText className="h-5 w-5" />} title="Quests" help="Daily and weekly challenges · progress and rewards" onClick={() => onPageChange("quests")} />

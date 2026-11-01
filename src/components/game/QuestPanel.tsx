@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Crown, RefreshCw, Sparkles, Star, Zap } from "lucide-react";
+import { Calendar, Crown, Sparkles, Star, Zap } from "lucide-react";
 
 export interface ChallengeView {
   challengeId: string;
@@ -32,8 +32,8 @@ export function QuestPanel() {
   const [data, setData] = useState<ChallengesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refresh, setRefresh] = useState(0);
-  const retry = useCallback(() => setRefresh((n) => n + 1), []);
+  const [retryCount, setRetryCount] = useState(0);
+  const retry = useCallback(() => setRetryCount((n) => n + 1), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,17 +55,11 @@ export function QuestPanel() {
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [playerKey, refresh]);
+  }, [playerKey, retryCount]);
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-white/50">Track your daily and weekly objectives.</p>
-        <button type="button" onClick={retry} disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </button>
-      </div>
+      <p className="mb-4 text-xs text-white/50">Track your daily and weekly objectives.</p>
       {loading && !data && <div role="status" className="py-12 text-center text-sm text-white/50">Loading quests…</div>}
       {error && <div role="alert" className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error} <button type="button" className="underline" onClick={retry}>Try again</button></div>}
       {data && <div className={loading ? "opacity-60" : ""}>

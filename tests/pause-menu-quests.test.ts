@@ -22,6 +22,8 @@ test("pause menu provides quests and removes the simulation warning", () => {
   }));
   expect(html).toContain("Quests");
   expect(html).toContain("Daily and weekly challenges");
+  expect((html.match(/>Resume</g) ?? [])).toHaveLength(1);
+  expect(html).not.toContain("Return to the match");
   expect(html).not.toContain("Match simulation continues");
   expect(html).not.toContain("other players are not paused");
 });
@@ -34,6 +36,7 @@ test("loadout receives the wide container and quests a readable container", () =
   const questHtml = renderToStaticMarkup(createElement(InGameMenu, { ...props, page: "quests" }));
   expect(questHtml).toContain("max-w-5xl");
   expect(questHtml).toContain("Loading quests");
+  expect(questHtml).not.toContain("Refresh");
 });
 
 test("daily, weekly and elite objectives show progress and rewards", () => {
