@@ -3844,6 +3844,7 @@ export class FPSEngine {
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.wonderSight = sightDefForType(this.wonderEff.sightType);
     this.currentSlot = "primary"; this.lastSlot = "secondary";
     this.weaponId = this.primaryWeaponId;
     this.eff = this.primaryEff; this.sightDef = this.primarySight;
