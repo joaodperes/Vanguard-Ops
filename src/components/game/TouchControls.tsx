@@ -175,6 +175,7 @@ export function TouchControls({ engine }: Props) {
           <SwapBtn label="1" onDown={() => engine?.touchSwap("primary")} color="border-emerald-500/50 bg-emerald-500/15 text-emerald-300" />
           <SwapBtn label="2" onDown={() => engine?.touchSwap("secondary")} color="border-amber-500/50 bg-amber-500/15 text-amber-300" />
           <SwapBtn label="3" icon={<PocketKnife className="w-3.5 h-3.5" />} onDown={() => engine?.touchSwap("melee")} color="border-rose-500/50 bg-rose-500/15 text-rose-300" />
+          {engine?.hasWonderSlot() && <SwapBtn label="4" onDown={() => engine?.touchSwap("wonder")} color="border-violet-500/50 bg-violet-500/15 text-violet-300" />}
         </div>
         {/* Jump — prominent cyan button at the bottom-left */}
         <ActionBtn
