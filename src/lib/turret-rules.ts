@@ -14,8 +14,8 @@ export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: str
 // Center of the visible twin-barrel assembly above the planted feet.
 export const TURRET_MUZZLE_HEIGHT = 1.29;
 export const TURRET_RANGE = 42; // Matches the Hailstorm LMG's effective range.
-// Actual turret damage was already 34 despite Armory showing 17. Apply a
-// modest buff and keep the visible stat in sync (regression-tested).
+// The autonomous turret is a slot-four ability; modest damage and duration
+// prevent it from eclipsing the player's conventional primary.
 export const TURRET_DAMAGE = 26;
 export const TURRET_HP = 460;
 export const TURRET_INTERVAL_MS = 220;
