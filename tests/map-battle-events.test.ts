@@ -10,7 +10,7 @@ import {whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
 import {botTraversableEdge} from "../src/lib/bot-routing";
-import {buildFloodgateFreight,freightCover,freightStage,setFloodgateFreightStage,updateFloodgateFreight,floodgatePathHazards,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
+import {buildFloodgateFreight,freightCover,freightContactAge,freightStage,setFloodgateFreightStage,updateFloodgateFreight,floodgatePathHazards,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
 import {buildFloodgateDamCracks,damCrackTier,updateFloodgateDamCracks} from "../src/lib/floodgate-dam-cracks";
 import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,floodgateWaterEffect,floodgateSurgeFront,FLOODGATE_DAM_HP,FLOODGATE_SURGE_SECONDS,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
@@ -137,15 +137,21 @@ describe("Floodgate one-time Levolution",()=>{
     const age=FLOODGATE_SURGE_SECONDS/2;
     const front=floodgateSurgeFront(age);
     expect(floodgateWaterEffect(0,0,front,age)).toMatchObject({
-      flooded:true,surge:true,speedMultiplier:.36,pushZ:15,
+      flooded:true,surge:true,speedMultiplier:.5,pushZ:10,
     });
-    expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:3.8});
-    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.64});
+    expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:2.4});
+    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.74});
     expect(floodgateWaterEffect(0,5,-75,40).flooded).toBe(false);
     expect(floodgateWaterEffect(90,0,-75,40).flooded).toBe(true);
     expect(floodgateWaterEffect(116,0,-75,40).flooded).toBe(true);
     expect(floodgateWaterEffect(140,0,-75,40).flooded).toBe(false);
     expect(floodgateWaterEffect(0,0,20,40).flooded).toBe(false);
+    // The current must not affect a supported low tread, or feet lifted above water.
+    const lowTread={pos:[0,.1,-75] as [number,number,number],
+      size:[2,.1,2] as [number,number,number],kind:"stair" as const};
+    expect(floodgateWaterEffect(0,.2,-75,40).flooded).toBe(true);
+    expect(floodgateWaterEffect(0,.2,-75,40,[lowTread]).flooded).toBe(false);
+    expect(floodgateWaterEffect(0,.4,-75,40).flooded).toBe(false);
   });
   test("flood front grows across the playable northern lane without spawning particles",()=>{
     const scene=new THREE.Scene(),group=buildFloodgateBackdrop(scene);
@@ -171,10 +177,17 @@ describe("Floodgate one-time Levolution",()=>{
     const count=(map:typeof first)=>map.cover.filter(b=>b.environmentId?.startsWith("floodgate-freight:"));
     expect(count(first)).toHaveLength(4);
     expect(count(first).every(b=>b.kind==="cover")).toBe(true);
-    setFloodgateFreightStage(first,freightStage(1));
+    const contactAge=freightContactAge(FLOODGATE_FREIGHT[0]);
+    expect(freightStage(1)).toBe("upright"); // No collapse until the surge reaches freight
+    expect(freightStage(contactAge-.01)).toBe("upright");
+    expect(freightStage(contactAge)).toBe("falling");
+    expect(freightStage(contactAge+FLOODGATE_TOPPLE_SECONDS)).toBe("fallen");
+    setFloodgateFreightStage(first,contactAge-.01);
+    expect(count(first)).toHaveLength(4);
+    setFloodgateFreightStage(first,contactAge+.1);
     expect(count(first)).toHaveLength(0); // No invisible standing cover while falling
     expect(count(second)).toHaveLength(4); // Rooms do not share mutable collision
-    setFloodgateFreightStage(first,freightStage(FLOODGATE_TOPPLE_SECONDS));
+    setFloodgateFreightStage(first,contactAge+FLOODGATE_TOPPLE_SECONDS);
     const fallen=count(first);
     expect(fallen).toHaveLength(FLOODGATE_FREIGHT.length*9);
     expect(fallen.filter(b=>b.kind==="stair")).toHaveLength(FLOODGATE_FREIGHT.length*8);
@@ -195,9 +208,9 @@ describe("Floodgate one-time Levolution",()=>{
       expect(landing.pos[2]+landing.size[2]).toBeGreaterThanOrEqual(
         deck!.pos[2]-deck!.size[2]-.5);
     }
-    setFloodgateFreightStage(first,"fallen");
+    setFloodgateFreightStage(first,contactAge+FLOODGATE_TOPPLE_SECONDS+1);
     expect(count(first)).toHaveLength(fallen.length);
-    setFloodgateFreightStage(first,"upright");
+    setFloodgateFreightStage(first,null); // Reset to the intact dam state
     expect(count(first)).toHaveLength(4);
     expect(count(second)).toHaveLength(4);
   });
@@ -217,9 +230,12 @@ describe("Floodgate one-time Levolution",()=>{
   test("fall animations reuse geometry and match the shared collapse clock",()=>{
     const scene=new THREE.Scene(),group=buildFloodgateFreight(scene),all=[...group.children];
     expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(false);
-    updateFloodgateFreight(group,FLOODGATE_TOPPLE_SECONDS/2);
+    const contactAge=freightContactAge(FLOODGATE_FREIGHT[0]);
+    updateFloodgateFreight(group,contactAge-.01);
+    expect(group.getObjectByName("floodgate-freight:west-inner")?.rotation.x).toBeCloseTo(-Math.PI/2);
+    updateFloodgateFreight(group,contactAge+FLOODGATE_TOPPLE_SECONDS/2);
     expect(group.getObjectByName("floodgate-freight:west-inner")?.rotation.x).toBeGreaterThan(-Math.PI/2);
-    updateFloodgateFreight(group,FLOODGATE_TOPPLE_SECONDS);
+    updateFloodgateFreight(group,contactAge+FLOODGATE_TOPPLE_SECONDS);
     expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(true);
     expect(group.children).toEqual(all);
     group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
