@@ -235,6 +235,17 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
               <span className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">Specialization</span>
             </div>
             <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
+            {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
+              <label htmlFor="loadout-wonder" className="text-violet-200 text-[10px]">Slot 4 · Owned Wonder Weapon</label>
+              <select id="loadout-wonder" value={wonderWeaponId} onChange={e=>setWonderWeaponId(e.target.value)}
+                className="w-full bg-zinc-950 text-white text-xs rounded border border-violet-500/40 p-2">
+                <option value="">Choose a Wonder Weapon</option>
+                {WEAPONS.filter(w=>w.wonder && !w.disabled && profile.prestige.wonderWeapons.includes(w.id))
+                  .map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
+                <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
+            </div>
             <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
             <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
               className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
