@@ -48,13 +48,12 @@ weapon progress when it successfully submits its match result.
 
 A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
 the Primary slot and has no attachments. Charge-based Wonders have no reserve ammo and cannot manually
-reload. Bulwark is the explicit exception: its P-9 uses a normal magazine/reload while shield HP is independent. See [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md). The recharge clock continues through death and while the gun is
-holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
+reload. Bulwark is the explicit exception: its P-9 uses a normal magazine/reload while shield HP is independent. See [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md). Within each life, charges refill one at a time on their recharge clock, including while the gun is holstered. **Every respawn restores full charges immediately and resets the cooldown**, including multiplayer respawns and Survival wave recoveries. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
 The server separately tracks and refuses premature online shots; the client
 tracks the clock for accurate firing, HUD and offline gameplay. Gun Game
 excludes all Wonders from its ordinary weapon ladder.
 
-Wonder charges reset *between matches*, not between deaths. The web server
+Wonder charges reset at match start and on every new life (full charge refill). The web server
 still uses client-reported match results and the separate socket game server
 does not validate a signed token-purchase entitlement; full anti-cheat and
 server-side user identity binding are future hardening work. The web loadout
@@ -113,7 +112,7 @@ The startup sync intentionally omits `--accept-data-loss`.
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
    mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
-   rejection on replay and no free refill through swap, death or ammo cache.
+   rejection on replay, no refill through weapon swap or ammo cache, and full refill on respawn.
 4. Verify all seven Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
 5. Verify Gun Game still uses 30 normal tiers and all legacy purchases remain.
