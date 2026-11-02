@@ -1316,6 +1316,8 @@ export const SPAWN_POINTS = MAPS.compound.spawns;
 // ---- Network protocol -------------------------------------------------------
 export interface LoadoutWire {
   perkId?: import("./perks").PerkId;
+  /** Owned Wonder available only when the Wonder Weapon perk is equipped. */
+  wonderWeaponId?: string;
   /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
@@ -1389,7 +1391,7 @@ export type C2S =
   | { t: "collectScavenger"; id: string }
   | { t: "useEquipment" } // deprecated; server ignores this packet
   | { t: "chat"; text: string }
-  | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" }   // player changed weapon slot
+  | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
   | { t: "listRooms" }
