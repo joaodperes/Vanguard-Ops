@@ -1604,15 +1604,9 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   }
 }
 
-/** The server is authoritative for online Wonder spending. Refill only the
- * revived player's charges; other players' cooldowns remain untouched. */
+/** Respawns preserve the Wonder's spent charges and countdown.
+ * The held-flame prepaid window is never retained between lives. */
 function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
-  const primary = weaponById(room.loadouts.get(p.id)?.weaponId ?? p.weaponId);
-  resetWonderChargesOnRespawn(
-    room.wonderCharges, `${p.id}:`, primary.id,
-    room.mode !== "gungame" && usesWonderCharges(primary) ? primary.wonder! : null,
-  );
-  // No fuel-second from the previous life may count toward Hellfire's next shot.
   room.hellfireUntil.delete(p.id);
 }
 
@@ -1627,7 +1621,13 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
   const timer = setTimeout(() => {
     const sp = pickSpawn(p.team, room);
     p.pos = sp;
-    p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; room.lastDamagedAt.delete(p.id);
+    p.health=MAX_HEALTH;p.riotShieldRaised=false;
+    const currentKit=room.loadouts.get(p.id);
+    // Bulwark is also a Wonder: keep broken-shield cooldown across death.
+    if(currentKit?.perkId!=="wonder_weapon" || currentKit.wonderWeaponId!==RIOT_SHIELD_ID){
+      p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldReadyAt=0;
+    }
+    room.lastDamagedAt.delete(p.id);
     p.alive = true;
     applyQueuedLoadout(room, p);
     refillPlayerWonderAmmo(room, p);
