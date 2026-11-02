@@ -53,6 +53,8 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
   const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
   const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
   const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
+  const [wonderWeaponId, setWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
+  const [savedWonderWeaponId, setSavedWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
   useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
