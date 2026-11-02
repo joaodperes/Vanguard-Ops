@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "lan": "next dev -H 0.0.0.0 -p 3000",
     "test:movement": "bun test tests/movement-rules.test.ts",
     "dev": "prisma generate && prisma db push && next dev -p 3000",
     "build": "prisma generate && next build && (cp -r .next/static .next/standalone/.next/ 2>/dev/null || true) && (cp -r public .next/standalone/ 2>/dev/null || true)",

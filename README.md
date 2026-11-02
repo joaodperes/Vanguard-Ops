@@ -96,6 +96,10 @@ Touch devices provide a movement stick and on-screen firing, aiming, swapping, r
 
 Credits are an in-game reward currency; the current game does not sell credits for real money.
 
+## LAN parties and Tailscale
+
+To play with friends on the same network or over Tailscale, use the **[LAN/Tailscale hosting guide](docs/lan-and-tailscale.md)**. It covers the Windows host setup, `bun run lan`, shared ports **3000/3003**, firewall restrictions, inviting remote Tailscale peers, and connection checks. Friends join from their browsers; only one PC runs the app and game server.
+
 ## Running locally
 
 **Prerequisites:** Bun, a compatible Node.js runtime, and a writable SQLite database.

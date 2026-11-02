@@ -3642,6 +3642,7 @@ export function startGameServer(port = 3003) {
   });
 
   httpServer.listen(port, () => {
+    console.info(`[VANGUARD] Game server listening on port ${port}`);
   });
   process.on("SIGTERM", () => httpServer.close(() => process.exit(0)));
   process.on("SIGINT", () => httpServer.close(() => process.exit(0)));
