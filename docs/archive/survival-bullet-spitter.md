@@ -1,3 +1,5 @@
+> **Archived implementation record.** Completed Survival/Bullet Spitter implementation and balancing record. It documents a past behavior snapshot, not the current authoritative mechanics. The Survival rules, weapon data, code and regression tests remain the source of truth.
+
 # Survival, vertical AI and Bullet Spitter — implementation reference
 
 ## Survival

@@ -1,3 +1,5 @@
+> **Archived implementation record.** One-time attachment availability review. Recorded option counts may no longer match the current catalog; inspect attachment JSON and compatibility tests for current rules.
+
 # Attachment choices — latest dev pass
 
 All **36** ordinary ranged weapons (Wonder and melee excluded) now support all four attachment slots, with at least four options each. Conventional launchers, including Breach-2 and Swarm-3, now support attachments, but suppressors and recoil-reduction-only upgrades are excluded from launcher attachment lists.

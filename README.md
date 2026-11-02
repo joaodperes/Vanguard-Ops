@@ -98,7 +98,7 @@ Credits are an in-game reward currency; the current game does not sell credits f
 
 ## LAN parties and Tailscale
 
-To play with friends on the same network or over Tailscale, use the **[LAN/Tailscale hosting guide](docs/lan-and-tailscale.md)**. It covers the Windows host setup, `bun run lan`, shared ports **3000/3003**, firewall restrictions, inviting remote Tailscale peers, and connection checks. Friends join from their browsers; only one PC runs the app and game server.
+**Host from the stable `main` branch** for a normal LAN party. Use `dev` only for unreleased feature playtests, with a separate test database. To play with friends on the same network or over Tailscale, use the **[LAN/Tailscale hosting guide](docs/lan-and-tailscale.md)**. It covers the Windows host setup, `bun run lan`, shared ports **3000/3003**, firewall restrictions, inviting remote Tailscale peers, and connection checks. Friends join from their browsers; only one PC runs the app and game server.
 
 ## Running locally
 
@@ -134,6 +134,10 @@ bun run start
 ```
 
 The production server uses Next.js standalone output. **Back up your database before deployment and review any Prisma schema changes**; building the application does not apply production database migrations. Configure `DATABASE_URL` and network/proxy routing for your environment. Never commit credentials or player databases.
+
+## Documentation
+
+See the [documentation index](docs/README.md) for current operator/developer references and the historical archive. Implementation notes and regression tests are maintained in Git, but are not automatically packaged into the player-facing browser application.
 
 ## Validation and contributing
 

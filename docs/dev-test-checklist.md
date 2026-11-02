@@ -31,7 +31,7 @@ bun run build
 
 GitHub Actions:
 - `.github/workflows/dev-validation.yml` runs catalog validation, map tests, the complete Bun smoke suite, typecheck and build on pushes to `dev` or `main`, and PRs targeting those branches. It also supports manual dispatch and configured feature-branch pushes.
-- `.github/workflows/afterlight-dev-validation.yml` separately runs map-focused validation for selected map changes pushed to `dev` or `main`, and supports manual dispatch.
+- Shipped Afterlight, Ridgefall and CTF regressions run as part of the **same full smoke suite**, so the former separate map-only workflow was retired; do not drop the individual gameplay tests.
 - Inspect the status and logs of runs for the **candidate commit**, including failures and skipped jobs. Workflow availability on `main` begins once the workflow edits have been merged there.
 - GitHub-hosted runs consume Actions allowance; check repository/org billing settings if required.
 

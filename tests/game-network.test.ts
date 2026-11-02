@@ -72,7 +72,13 @@ describe("private party hosting instructions", () => {
 
   test("README links private hosting guide with both service ports and a test handshake", () => {
     expect(read("README.md")).toContain("docs/lan-and-tailscale.md");
+    expect(read("README.md")).toContain("stable `main` branch");
     const guide = read("docs/lan-and-tailscale.md");
+    expect(guide).toContain("git switch main");
+    expect(guide).toContain("git pull --ff-only origin main");
+    expect(guide).toContain("file:./vanguard-lan.db");
+    expect(guide.indexOf("git switch main")).toBeLessThan(guide.indexOf("git switch dev"));
+    expect(guide).toContain("separate, backed-up test database");
     for (const fragment of ["bun run db:setup", "bun run lan", "tailscale ip -4", "3000 and 3003", "EIO=4&transport=polling", "New-NetFirewallRule", "do not need `tailscale serve`"]) {
       expect(guide).toContain(fragment);
     }
