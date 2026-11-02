@@ -4,6 +4,7 @@
 // ============================================================================
 
 import type { WeaponSpecial } from "./weapon-mechanics";
+import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
 import attachmentCompatibilityData from "../data/catalogs/attachment-compatibility.json";
@@ -23,23 +24,27 @@ import achievementColorsData from "../data/catalogs/achievement-colors.json";
 import matchModesData from "../data/catalogs/match-modes.json";
 import killstreakCalloutsData from "../data/catalogs/killstreak-callouts.json";
 
-export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "sidearm" | "melee";
+import {ORBITAL_REAPER,ORBITAL_REAPER_ID} from "./orbital-reactor";
+
+export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "launcher" | "melee";
 
 // Weapon slots are the three loadout positions a player can equip.
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
-// secondary -> sidearm
+// secondary -> pistol / pdw / launcher
 // melee    -> melee
 export type WeaponSlot = "primary" | "secondary" | "melee";
 
 // The secondary accepts a second primary only with Well Prepared.
 export function isPrimaryWeaponCategory(category: WeaponCategory): boolean {
-  return category !== "sidearm" && category !== "melee";
+  return ["assault", "smg", "shotgun", "dmr", "sniper", "lmg"].includes(category);
 }
 
 // Map a weapon category to its loadout slot.
 export function weaponSlot(category: WeaponCategory): WeaponSlot {
   switch (category) {
-    case "sidearm": return "secondary";
+    case "pistol":
+    case "pdw":
+    case "launcher": return "secondary";
     case "melee": return "melee";
     default: return "primary";
   }
@@ -57,6 +62,7 @@ export interface WeaponStats {
   falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
   minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
   reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
+  reloadOnlyWhenEmpty?: boolean; // en-bloc magazine: partial reloads are disallowed
   reloadPerRound?: number; // seconds per round before attachments/perks
   adsTime: number;       // seconds to aim down sights
   moveSpeed: number;     // movement multiplier
@@ -68,8 +74,11 @@ export interface WeaponStats {
 
 export interface WeaponDef {
   special?: WeaponSpecial;
+  /** Unguided impact rocket profile. Applies to all conventional launchers. */
+  explosive?: { radius: number };
   /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge"; maxCharges: 1 | 2 | 3; rechargeMs: number; killBonusMs: number; radius: number };
+  disabled?: boolean;
+  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge" | "cluster" | "shield"; maxCharges: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; rechargeMs: number; killBonusMs: number; radius: number };
   id: string;
   name: string;
   category: WeaponCategory;
@@ -89,6 +98,13 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+/** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
+export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
+
+/** Single source for offline and authoritative server projectile blast radii. */
+export function projectileSplashRadius(weapon: WeaponDef): number {
+  return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
+}
 
 export type AttachmentSlot = "sight" | "barrel" | "grip" | "magazine";
 
@@ -151,6 +167,17 @@ export interface SightDef {
 export const SIGHT_DEFS: Record<SightType, SightDef> = sightDefinitionsData as unknown as Record<SightType, SightDef>;
 
 export const SIGHT_LIST: SightDef[] = Object.values(SIGHT_DEFS);
+
+/** Convert true optical magnification into a camera FOV at any player-selected base FOV.
+ * 1x sights preserve the existing ADS framing instead of adding artificial optical zoom.
+ */
+export function adsFieldOfView(baseFov: number, sight: Pick<SightDef, "zoom" | "adsFovReduction">, progress = 1): number {
+  const p = Math.max(0, Math.min(1, progress));
+  const scopedFov = sight.zoom > 1
+    ? 2 * Math.atan(Math.tan(baseFov * Math.PI / 360) / sight.zoom) * 180 / Math.PI
+    : baseFov - sight.adsFovReduction;
+  return baseFov + (scopedFov - baseFov) * p;
+}
 
 export function sightDefForType(type: SightType): SightDef {
   return SIGHT_DEFS[type] ?? SIGHT_DEFS.iron;
@@ -223,7 +250,7 @@ export interface WeaponSkinDef {
   name: string;
   unlockLevel: number;
   unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary";
+  rarity: "common" | "rare" | "epic" | "legendary" | "prestige";
   // Skin tier controls how the skin unlocks:
   //  - "standard"  : basic color variants (default, arctic, desert, etc.) — available
   //                  on ALL weapons. One unlock (SkinUnlock with weaponId="*") applies globally.
@@ -231,6 +258,8 @@ export interface WeaponSkinDef {
   //  - "legendary" : per-weapon special-event skin (future).
   // Currently every skin is "standard" — non-standard tiers will be added later.
   tier: "standard" | "rare" | "legendary";
+  /** Player-facing visual art brief. */
+  artBrief: string;
   // Visual properties for the engine
   color: string;        // base hex
   metalness: number;    // 0..1
@@ -239,6 +268,8 @@ export interface WeaponSkinDef {
   emissiveIntensity?: number;
   /** Awarded free to a weapon after completing every standard skin challenge. */
   prestige?: "cosmic" | "toxic";
+  /** Cosmetics bought through the Shop, not earned from standard skin challenges. */
+  shopCurrency?: "credits" | "career";
 }
 
 // Wildcard weaponId used in SkinUnlock rows for standard-tier skins. A skin
@@ -256,6 +287,7 @@ export const WEAPON_SKINS: WeaponSkinDef[] = weaponSkinsData as unknown as Weapo
 
 export interface PlayerSkinDef {
   id: string;
+  shopCurrency?: "credits" | "career";
   name: string;
   unlockLevel: number;
   unlockCost: number;
@@ -306,53 +338,20 @@ export function skinChallengesForWeapon(weaponId: string, skinId: string): Weapo
   return WEAPON_CHALLENGES.filter((c) => c.weaponId === weaponId && c.skinId === skinId);
 }
 
-// ---- Leveling curve ---------------------------------------------------------
-// XP curve: steeper progression so leveling takes meaningful play time.
-// Level N requires totalXpForLevel(N) cumulative XP. The curve is roughly
-// cubic — early levels come quickly (so new players feel progression), but
-// mid-to-high levels take many matches to climb. This replaces the old
-// `100 * (level-1) * level` quadratic curve which let a single 30-kill match
-// take a player from level 1 → level 5.
-//
-// Examples (new vs old):
-//   L2:  150 XP  (was 200)   — slight ease for the very first level
-//   L4:  1350 XP (was 1200)  — comparable
-//   L8:  7350 XP (was 5600)  — steeper
-//   L12: 19800 XP (was 13200) — significantly steeper
-//   L20: 77000 XP (was 38000) — much steeper (veteran players)
-//   L30: 244650 XP (was 87000) — long-term goal
-export function totalXpForLevel(level: number): number {
-  if (level <= 1) return 0;
-  // Cubic-ish: 50 * (level-1)^2 * level / 2 ≈ 25 * (level-1)^2 * level
-  // Tuned so L2 = 150, L4 = 1350, L8 = 7350, L12 = 19800.
-  return Math.round(25 * (level - 1) * (level - 1) * level);
-}
-export function levelForXp(xp: number): number {
-  let lvl = 1;
-  while (totalXpForLevel(lvl + 1) <= xp) lvl++;
-  return lvl;
-}
-export function xpProgressInLevel(xp: number): { current: number; needed: number; level: number } {
-  const level = levelForXp(xp);
-  const base = totalXpForLevel(level);
-  const next = totalXpForLevel(level + 1);
-  return { current: xp - base, needed: next - base, level };
-}
+// XP is authoritative for every level gate. Keep stable exports for callers.
+export { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp, xpProgressInLevel } from "./progression";
 
-// XP & credit rewards
-// Reduced per-kill XP from 100 → 25 so a single 30-kill match no longer takes
-// a player from L1 → L4. The bulk of XP now comes from wins + challenges,
-// not raw kill count. Difficulty-scaled kill XP is applied in player-service
-// (easy=10, normal=15, hard=22, veteran=30 — see applyMatchResult).
+// All combat and objective payouts share the deployment-bundled catalog.
 export const REWARDS = rewardsData;
 
 // ---- Lookup helpers ---------------------------------------------------------
-export const weaponById = (id: string) => WEAPONS.find((w) => w.id === id) ?? WEAPONS[0];
+export const weaponById = (id: string) => id===ORBITAL_REAPER_ID?ORBITAL_REAPER:WEAPONS.find(w=>w.id===id)??WEAPONS[0];
 export const attachmentById = (id: string) => ATTACHMENTS.find((a) => a.id === id);
 export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === id) ?? WEAPON_SKINS[0];
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];
 
 export interface ResolvedLoadout {
+  perkId: PerkId;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
@@ -362,6 +361,8 @@ export interface ResolvedLoadout {
   secondaryWeaponSkin: WeaponSkinDef;
   meleeWeaponSkin: WeaponSkinDef;
   playerSkin: PlayerSkinDef;
+  primaryReticle: string; secondaryReticle: string;
+  primaryCharm: string; secondaryCharm: string;
   attachments: Record<AttachmentSlot, string | null>;
   // Secondary-slot attachments (sidearms). Defaults to all-null when not provided.
   secondaryAttachments: Record<AttachmentSlot, string | null>;
@@ -371,6 +372,7 @@ export interface ResolvedLoadout {
 }
 
 export function resolveLoadout(input: {
+  perkId?: string;
   primaryWeapon: string;
   secondaryWeapon?: string;
   meleeWeapon?: string;
@@ -379,6 +381,8 @@ export function resolveLoadout(input: {
   secondaryWeaponSkin?: string;
   meleeWeaponSkin?: string;
   playerSkin: string;
+  primaryReticle?: string; secondaryReticle?: string;
+  primaryCharm?: string; secondaryCharm?: string;
   attachments: Record<string, string | null> | string;
   // Optional secondary + melee attachment maps (JSON string or object).
   // Default to all-null if not provided.
@@ -401,26 +405,32 @@ export function resolveLoadout(input: {
       magazine: o.magazine ?? null,
     };
   };
-  const weapon = weaponById(input.primaryWeapon);
+  const requestedPrimary = weaponById(input.primaryWeapon);
+  const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
+  const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
+  const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {
     if (unlocked && !unlocked.includes(skinId)) return weaponSkinById("default");
     return weaponSkinById(skinId);
   };
-  const skinId = validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
+  const skinId = requestedPrimary.disabled ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
   const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
+    perkId: perkById(input.perkId).id,
     weapon,
-    secondary: weaponById(input.secondaryWeapon ?? "pistol_side"),
+    secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
     weaponSkin: skinId,
     secondaryWeaponSkin: secondarySkin,
     meleeWeaponSkin: meleeSkin,
     playerSkin: playerSkinById(input.playerSkin),
-    attachments: parseAtts(input.attachments),
-    secondaryAttachments: parseAtts(input.secondaryAttachments),
+    primaryReticle: input.primaryReticle ?? "classic", secondaryReticle: input.secondaryReticle ?? "classic",
+    primaryCharm: input.primaryCharm ?? "none", secondaryCharm: input.secondaryCharm ?? "none",
+    attachments: requestedPrimary.disabled ? parseAtts(undefined) : parseAtts(input.attachments),
+    secondaryAttachments: requestedSecondary.disabled ? parseAtts(undefined) : parseAtts(input.secondaryAttachments),
     meleeAttachments: parseAtts(input.meleeAttachments),
   };
 }
@@ -479,8 +489,9 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   return {
     ...base,
     shotgunAmmo: shell,
+    auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
-    fireRate: base.fireRate * (shellTuning?.rateMul ?? 1),
+    fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1),
     damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.
@@ -502,6 +513,7 @@ export const RARITY_COLORS: Record<string, string> = {
   rare: "#3b82f6",
   epic: "#a855f7",
   legendary: "#f59e0b",
+  prestige: "#c4b5fd",
 };
 
 // ============================================================================
@@ -720,14 +732,25 @@ export interface AchievementDef {
     // double-kill-or-better streaks; this tracks the highest streak length
     // achieved across all matches. Drives the Triple Threat / Killstreak King /
     // Untouchable Force tiered achievements.
-    | "best_killstreak";
+    | "best_killstreak"
+    | "ctf_captures"
+    | "ctf_wins"
+    | "mastery_recruits"
+    | "mastery_specialists"
+    | "mastery_elites"
+    | "collection_percent";
   goal: number;
   tier: "bronze" | "silver" | "gold" | "platinum";
   rewardXp: number;
   rewardCredits: number;
-  // PvP = earned in FFA/TDM; PvE = earned in Survival. General milestones
-  // (level, matches played, quest completion) default to "pvp".
-  category: "pvp" | "pve";
+  // PvP = non-Survival combat (all regular modes); PvE = Survival.
+  // Career and mastery can advance in any game mode.
+  category: "pvp" | "pve" | "career" | "mastery";
+  /** Stable achievement chain and its ordered tier, independent of display color. */
+  series: string;
+  seriesTier: number;
+  /** Nameplate reward for the final tier of this series only. */
+  rewardTitle?: string;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = achievementsData as unknown as AchievementDef[];
@@ -738,7 +761,7 @@ export const ACHIEVEMENT_TIER_COLORS: Record<string, string> = achievementColors
 // MATCH SETTINGS — configurable per-match options.
 // ============================================================================
 export interface MatchModeConfig {
-  id: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed";
+  id: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
   label: string;
   description: string;
   icon: string;

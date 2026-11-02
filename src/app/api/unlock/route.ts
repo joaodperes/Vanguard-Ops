@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId, grantWeaponPrestiges } from "@/lib/player-service";
+import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId, grantWeaponPrestiges, reconcileWonderTokenAwards } from "@/lib/player-service";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -13,6 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
+import { prestigeTokens } from "@/lib/weapon-prestige";
 import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeProgress } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
@@ -46,28 +47,31 @@ export async function POST(req: NextRequest) {
   const level = levelForXp(player.xp);
 
   if (kind === "wonderWeapon") {
-    const def = WEAPONS.find(w => w.id === itemId && !!w.wonder);
+    const def = WEAPONS.find(w => w.id === itemId && !!w.wonder && !w.disabled);
     if (!def) return NextResponse.json({ error: "Unknown Wonder Weapon" }, { status: 404 });
     // Legitimately earned legacy progress can be claimed on the first purchase.
     await grantWeaponPrestiges(player.id);
+    await reconcileWonderTokenAwards(player.id);
     try {
       await db.$transaction(async tx => {
-        const [awards, purchases, owned] = await Promise.all([
-          tx.weaponPrestige.count({ where: { playerId: player.id } }),
+        const [awards, account, purchases, owned] = await Promise.all([
+          tx.wonderTokenAward.count({ where: { playerId: player.id } }),
+          tx.player.findUniqueOrThrow({ where: { id: player.id }, select: { wonderLegacyCredits: true } }),
           tx.wonderUnlock.count({ where: { playerId: player.id } }),
           tx.wonderUnlock.findUnique({ where: {
             playerId_weaponId: { playerId: player.id, weaponId: def.id },
           } }),
         ]);
         if (owned) throw new Error("ALREADY_OWNED");
-        if (awards <= purchases) throw new Error("NO_PRESTIGE_TOKENS");
+        if (prestigeTokens(awards + account.wonderLegacyCredits, purchases) <= 0)
+          throw new Error("NO_PRESTIGE_TOKENS");
         await tx.wonderUnlock.create({ data: { playerId: player.id, weaponId: def.id } });
       });
     } catch (e: any) {
       if (e?.message === "ALREADY_OWNED" || e?.code === "P2002")
         return NextResponse.json({ error: "Wonder Weapon already owned" }, { status: 400 });
       if (e?.message === "NO_PRESTIGE_TOKENS")
-        return NextResponse.json({ error: "Earn a weapon Prestige token first" }, { status: 403 });
+        return NextResponse.json({ error: "Complete Weapon Prestige and Mastery Rank 5 to earn a token" }, { status: 403 });
       throw e;
     }
     return NextResponse.json({ ok: true, profile: await buildProfileView(playerKey) });

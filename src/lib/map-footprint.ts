@@ -5,18 +5,23 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes } from "./map-blueprints";
-import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders } from "./map-visuals";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, type MapBlueprint } from "./map-blueprints";
+import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type MapVisualTheme } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
+import { expandCitySpawnPositions } from "./city-spawn-layout";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
+  whiteout_depot: {scale:1,pace:"balanced",description:"Snowbound freight sheds, covered rail platforms and a sheltered service gallery"},
+  floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
+  orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
   bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
   shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
   compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},
   terminal: {scale:1.02,pace:"tactical",description:"Afterlight City shared neighborhood in natural daylight"},
   skybridge: {scale:1.07,pace:"tactical",description:"Enclosed steelworks with machinery lanes, freight bays and elevated gantries"},
   arena_neon: {scale:1.02,pace:"tactical",description:"Downtown markets, vibrant shopfronts and rooftop fighting"},
+  forest_warfare: {scale:1,pace:"balanced",description:"Long woodland valley with mirrored cover and climbable forest giants"},
 };
 const scaled=(p:Vec3,s:number):Vec3=>[Math.round(p[0]*s*1000)/1000,p[1],Math.round(p[2]*s*1000)/1000];
 function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
@@ -25,10 +30,10 @@ function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
   if(o.type==="jump_pad")return {...o,pos,size,launch:scaled(o.launch,s)};
   return {...o,pos,size};
 }
-export function applyMapFootprint(base:MapDef):MapDef {
+export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;theme:MapVisualTheme}):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
-  const plan=(!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null;
+  const plan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
     ...base,size:Math.round(base.size*factor*1000)/1000,
@@ -56,8 +61,19 @@ export function applyMapFootprint(base:MapDef):MapDef {
   };
   if(!plan)return scaledBase;
   const regions=plan.regions.map(r=>({...r}));
-  const visuals=visualThemeForMap(base.id,plan.templateMapId);
-  const allSpawns=[...scaledBase.spawns.ffa,...scaledBase.spawns.red,...scaledBase.spawns.blue,
+  const visuals=draft?.theme??visualThemeForMap(base.id,plan.templateMapId);
+  // Afterlight's predecessor was a small 128x128 arena with spawn points
+  // clustered immediately around the central plaza. Those inherited spawns
+  // forced every proposed park-edge house to disappear. The authored city
+  // already provides neighbourhood spawns; retain only its legacy OUTER
+  // fallbacks, not the obsolete central arena positions.
+  const isAfterlight=base.id==="arena_neon"||base.id==="terminal";
+  const activeLegacySpawns={
+    ffa:isAfterlight?scaledBase.spawns.ffa.slice(-6):scaledBase.spawns.ffa,
+    red:isAfterlight?scaledBase.spawns.red.slice(-3):scaledBase.spawns.red,
+    blue:isAfterlight?scaledBase.spawns.blue.slice(-3):scaledBase.spawns.blue,
+  };
+  const allSpawns=[...activeLegacySpawns.ffa,...activeLegacySpawns.red,...activeLegacySpawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
   const props=mapProps(base.id,plan,visuals,allSpawns);
   const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
@@ -74,6 +90,7 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const addSpawns=(team:"ffa"|"red"|"blue")=>{
     const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
     if(base.id==="skybridge")return plan.spawns[team].map(p=>[...p] as Vec3);
+    if(isAfterlight)return [...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
   const legacyCoverSource=scaledBase.cover.filter(c=>{
@@ -92,9 +109,23 @@ export function applyMapFootprint(base:MapDef):MapDef {
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
   const legacyCover=compileVisibleLegacyBoxes(
     legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides);
-  const legacyEnvironmentSource=scaledBase.environment??[];
+  // Ridgefall replaces the old skybridge arena. The inherited breakable wall
+  // at (0,-28) sat inside the new central staircase, could absorb shots and
+  // was not a usable doorway. Keep only authored factory hazards instead.
+  const legacyEnvironmentSource=base.id==="skybridge"
+    ?(scaledBase.environment??[]).filter(o=>o.id!=="skybridge_wall")
+    :scaledBase.environment??[];
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
+  const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
+    ...propColliders(props,allSpawns),
+    ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
+  const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
+  const expandedSpawns = isAfterlight ? {
+    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32),
+    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16),
+    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16),
+  } : initialSpawns;
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,
     editorLegacyCoverCount:legacyCover.length,
@@ -105,10 +136,8 @@ export function applyMapFootprint(base:MapDef):MapDef {
     size:Math.max(scaledBase.size,Math.ceil(halfExtent)),wallHeight:base.id==="skybridge"?18:Math.max(base.wallHeight,11),
     regions,
     environment:[...legacyEnvironment,...(plan.hazards??[]).map(authoredHazardEnvironment)],
-    cover:[...legacyCover,...flankFeatures.flatMap(featureBoxes),
-      ...propColliders(props,allSpawns),
-      ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)],
-    spawns:{ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue")},
+    cover:fullCover,
+    spawns:expandedSpawns,
     props,biome:visuals.biome,surfaces:visuals.surfaces,accentColor:visuals.palette.accent,
     theme:{...paletteToGameTheme(visuals,scaledBase.theme),fogNear:Math.max(35,scaledBase.theme.fogNear),
       fogFar:Math.max(scaledBase.theme.fogFar,halfExtent*2.5+60)},

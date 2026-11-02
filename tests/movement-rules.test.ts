@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump,
+  MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity,
 } from "../src/lib/movement-rules";
 
 describe("Movement V2 — horizontal response", () => {
@@ -60,4 +60,30 @@ describe("Movement V2 — buffered jump", () => {
     expect(canUseBufferedJump(1000, 990, 860, false)).toBe(false);
     expect(canUseBufferedJump(1000, -Infinity, -Infinity, false)).toBe(false);
   });
+});
+
+describe("running jump takeoff momentum",()=>{
+  test("a moving jump preserves motion and adds a small forward impulse",()=>{
+    const [x,z]=runJumpTakeoffVelocity(MOVEMENT.walk,0,MOVEMENT.walk,0,false);
+    expect(x).toBeGreaterThan(MOVEMENT.walk+1);
+    expect(z).toBe(0);
+  });
+  test("sprint jumps carry more momentum than ordinary running jumps",()=>{
+    const normal=runJumpTakeoffVelocity(MOVEMENT.walk,0,MOVEMENT.walk,0,false);
+    const sprint=runJumpTakeoffVelocity(MOVEMENT.walk*MOVEMENT.sprintMultiplier,0,
+      MOVEMENT.walk*MOVEMENT.sprintMultiplier,0,true);
+    expect(sprint[0]-MOVEMENT.walk*MOVEMENT.sprintMultiplier).toBeGreaterThan(normal[0]-MOVEMENT.walk);
+  });
+  test("no free launch impulse from standing still or trying to reverse",()=>{
+    expect(runJumpTakeoffVelocity(0,0,8,0,true)).toEqual([0,0]);
+    expect(runJumpTakeoffVelocity(8,0,-8,0,true)).toEqual([8,0]);
+  });
+});
+
+test("temporary Reaper jump boost transfers greater horizontal momentum without creating motion from rest",()=>{
+  const normal=runJumpTakeoffVelocity(15,0,15,0,true,1);
+  const reaper=runJumpTakeoffVelocity(15,0,15,0,true,1.55);
+  expect(reaper[0]).toBeGreaterThan(normal[0]+1);
+  expect(runJumpTakeoffVelocity(0,0,15,0,true,1.55)).toEqual([0,0]);
+  expect(runJumpTakeoffVelocity(15,0,-15,0,true,1.55)).toEqual([15,0]);
 });

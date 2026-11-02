@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
-export function Settings() {
+export function Settings({ embedded = false }: { embedded?: boolean }) {
   const { setScreen } = useGame();
   const { settings, update, reset, load } = useSettings();
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
+    <div className={embedded ? "flex flex-col" : "min-h-screen flex flex-col"}>
+      {!embedded && <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setScreen("menu")} className="text-white/70 hover:text-white hover:bg-white/5">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
@@ -26,16 +26,21 @@ export function Settings() {
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset
           </Button>
         </div>
-      </header>
+      </header>}
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5">
+      <main className={embedded ? "w-full space-y-5 py-2" : "flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-5"}>
+        {embedded && <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={reset} className="border-white/10 text-white/70 hover:text-white hover:bg-white/5">
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset to Defaults
+          </Button>
+        </div>}
         {/* Crosshair */}
-        <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Customize your targeting reticle">
+        <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Global color and size. Equip each weapon’s reticle in Armory → Customize → Reticles.">
           <div className="flex items-center gap-6">
             {/* live preview */}
             <div className="w-32 h-32 rounded-xl bg-gradient-to-br from-zinc-900 to-black border border-white/10 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04), transparent 60%)" }} />
-              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} />
+              <CrosshairPreview color={settings.crosshairColor} size={settings.crosshairSize} shape="classic" />
             </div>
             <div className="flex-1 space-y-4">
               <div>
@@ -108,6 +113,7 @@ export function Settings() {
         <Section icon={<Eye className="w-4 h-4" />} title="HUD Display" desc="Toggle optional HUD elements">
           <div className="grid sm:grid-cols-2 gap-3">
             <Toggle label="Show Ping" desc="Display network latency" value={settings.showPing} onChange={(v) => update({ showPing: v })} />
+            <Toggle label="Player Health Bars" desc="Show floating health bars above other operatives, including enemies and teammates" value={settings.showHealthBars} onChange={(v) => update({ showHealthBars: v })} />
           </div>
         </Section>
 
@@ -138,12 +144,11 @@ export function Settings() {
           </div>
         </Section>
 
-        {/* All audio sliders are stored independently; Master scales every channel. */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Adjust soundtrack, footsteps and combat effects separately. Master scales them all.">
+        {/* Master scales footsteps and sound effects independently. */}
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Louder baseline with peak protection. Master scales footsteps and combat effects together.">
           <div className="space-y-5">
             {([
               { key: "masterVolume", label: "Master Volume", help: "Overall game volume" },
-              { key: "musicVolume", label: "Music", help: "Map, menu and lobby soundtracks" },
               { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and nearby players" },
               { key: "fxVolume", label: "Sound Effects", help: "Gunfire, explosions, hits and UI sounds" },
             ] as const).map(({ key, label, help }) => (
@@ -166,9 +171,9 @@ export function Settings() {
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-xs text-white/40">Settings persist locally and apply to your next match.</div>
-      </footer>
+      {!embedded && <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-xs text-white/40">Settings persist locally. Display, control and audio changes apply immediately in matches.</div>
+      </footer>}
     </div>
   );
 }
@@ -207,15 +212,10 @@ function Toggle({ label, desc, value, onChange }: { label: string; desc: string;
   );
 }
 
-function CrosshairPreview({ color, size }: { color: string; size: number }) {
-  const s = size;
-  return (
-    <div className="relative" style={{ width: s * 3, height: s * 3 }}>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: 2, height: 2, background: color }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: s, height: 1.5, background: color, transform: `translate(${-s - 2}px, -50%)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: s, height: 1.5, background: color, transform: `translate(${2}px, -50%)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 1.5, height: s, background: color, transform: `translate(-50%, ${-s - 2}px)` }} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 1.5, height: s, background: color, transform: `translate(-50%, ${2}px)` }} />
-    </div>
-  );
+function CrosshairPreview({color,size,shape}:{color:string;size:number;shape:string}){
+ const view=shape==="dot"?"•":shape==="reticle_orbit"?"◎":shape==="reticle_chevron"?"⌃":shape==="reticle_nova"?"✧":shape==="reticle_pulse"?"◇":null;
+ if(view)return <span aria-hidden className="font-mono" style={{color,fontSize:size*3,textShadow:`0 0 8px ${color}66`}}>{view}</span>;
+ return <div className="relative" style={{width:size*3,height:size*3}}>
+  <span className="absolute inset-0 flex items-center justify-center font-thin" style={{color,fontSize:size*3}}>+</span>
+ </div>;
 }

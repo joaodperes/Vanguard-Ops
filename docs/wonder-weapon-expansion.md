@@ -1,33 +1,20 @@
-# Wonder Weapon breakthrough pass
+# Wonder Weapon mechanics
 
-**Feature branch:** `feature/wonder-weapon-expansion`, based on `dev`. The three previously proposed derivative gravity/corrosion variants have been removed **on this unmerged feature branch** and replaced with four uniquely coded mechanic families.
+The following Wonder abilities use their existing permanent Prestige-token unlocks and stable catalog IDs. Every shot/resource is validated on the match server; offline bot games mirror damage, collisions and special effects.
 
-## New playable prototypes
+| Weapon | Behavior | Resource |
+| --- | --- | --- |
+| **Deadlock** (`wonder_deadlock`) | Aim down sights 250ms to tag up to three visible targets. Pink markers remain for 6s; hipfire smart bullets still seek tagged enemies if exposed. | Two charges; 26s per charge |
+| **Hellfire** (`wonder_hellfire`) | Hold fire to spray a moving 13m cone of flame. No lingering ground patches. Eight fuel-seconds are available, spent only while firing. | Eight fuel-seconds per tank; recharge 6.5s per fuel-second |
+| **Stormweaver** (`wonder_stormweaver`) | Fires **seven individual electrical pellets** in a lightning shotgun fan. Each enemy hit causes 22 direct damage and can jump to **two additional** exposed enemies within 9m. Pellets that hit no enemy, whether they hit a wall or reach max distance, fall to the floor as visible **energy mines**. Mines arm after 450ms, last 5s, and on enemy proximity within 2.65m deliver a 24-damage lightning burst followed by up to two 9m chain jumps. Mines cannot detect through solid cover. A limit of 12 active mines per owner and per-target repeat/cumulative shot-damage caps prevent unbounded stacking. **No paired-anchor/line mechanic remains.** | Two shots; 31s per recharge |
+| **Bogfather** (`wonder_bogfather`) | Disabled prototype. ID and historical progression preserved, but purchasing, equipping and shooting are unavailable. | Retired |
 
-| Weapon | Wonder kind | Actual new behavior | Charge economy |
-| --- | --- | --- | --- |
-| **Deadlock** (`wonder_deadlock`) | `smart` | Aim down sights for at least 250ms to acquire an exposed enemy within a narrow 15° forward cone. A guided shot is redirected to that target; cover denies the lock. Hipfire falls back to normal ballistic firing. | 2 charges, 29s each |
-| **Hellfire** (`wonder_hellfire`) | `flame` | Close-range widening flame cone that damages enemies directly and lays three short-lived burning patches along the firing lane. | 2 fuel bursts, 28s each |
-| **Stormweaver** (`wonder_stormweaver`) | `storm` | Electrical discharge hits, then chains across up to four nearby visible enemies. Every shot plants a 10-second conductive anchor. A follow-up shot within 24m of the anchor energizes the route between them and shocks anyone intersecting it. | 2 shots, 31s each |
-| **Bogfather** (`wonder_bogfather`) | `sludge` | Launches a sticky shell that creates an 8.5-second, 5m-radius sludge pool. Hostiles inside take damage every half-second and move at 46% normal speed. | 2 shots, 35s each |
+## Stormweaver implementation notes
 
-These are not skins or clones of `singularity`/`corrosion`. Each type has new server-owned hit/status rules, offline combat equivalents, network FX, and a procedural weapon silhouette. All use one Prestige token, equip in the Primary slot, are attachment-free and cannot manually reload; the existing Wonder charge rules still apply. Gun Game excludes them.
-
-### Caveats and follow-up engineering
-
-Hellfire currently fires discrete recharge-limited **fuel bursts**, not an unrestricted hold-trigger stream; implementing continuously fueled flame would require a new server channeling protocol and separate heat/fuel economy. Deadlock uses a server-validated aim cone and continuous ADS timing rather than a persistent target-mark UI, so it can lock one valid target per trigger pull. Bogfather's online movement clamp limits clients crossing an active field; additional latency testing is required on high-ping networks. The network visual fields use simple translucent discs that can be improved with particles later.
-
-## Bigger ideas — still not implemented
-
-1. **Riftmaker** — linked projectile-only portals; needs safe position/orientation transforms and trusted multi-hop hits.
-2. **Secondhand** — target rewind; needs authoritative per-player position history and collision-safe playback.
-3. **Payback** — kinetic collector; needs directional damage absorption and capped stored-energy accounting.
-4. **Polarity** — coupled magnetic darts; needs validated target pairs and anti-clipping physics.
-5. **Afterimage** — holographic shot-replay ghost; needs server-validated recording/playback of historical shots.
-6. **Resonance** — reflecting sonic waves; needs deterministic wall reflection and bounce budgeting.
+Shared deterministic spread, per-pellet first-contact hit detection (including enemy limbs and map geometry), enemy eligibility, mine placement, arm/trigger radius and chain selection live in `src/lib/stormweaver.ts`. Server `game-server.ts` owns mine creation, trigger events, damage, expiring/evicting mines and synchronized snapshots. Offline `fps-engine.ts` uses the same helper, displays each pellet's path and creates electrical mine meshes which pulse and detonate when bots approach. Mines are visually synchronized using `stormMinePlaced`, `stormMineRemoved`, and snapshots; network clients cannot submit mine positions or victim IDs. The previous conditional link connecting two shots was removed.
 
 ## Verification
 
-Mandatory CI: `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build`. Test offline and online separately, including teams, cover, death/respawn, overlapping fields, late-join snapshots, movement validation and charge persistence. Automated unit tests cover targeting, flame geometry, conductive segments, sludge movement/team rules and primary-slot catalog requirements. **Human gameplay testing is not replaced by green CI**.
+Run catalog checks, regression tests, TypeScript and the production build. Manually inspect pellet visibility, arcs, mine expiration, wall shielding, different elevations, team damage, bot reactions, and late-join synchronization in offline and multiplayer. Automated tests do not substitute for interactive playtesting.
 
 See also [Prestige and Wonder Weapons](prestige-wonder-weapons.md).

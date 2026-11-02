@@ -3,7 +3,7 @@
 This file is for autonomous coding agents and developers using AI assistants. Treat these rules as project policy when operating in this repository.
 
 ## Before editing
-- Check the current Git branch and head SHA. For content system work, use `feature/json-content-catalogs` or a fresh topic branch; do not push directly to `main` or `dev` unless explicitly asked.
+- Check the current Git branch and head SHA. For content system work, use a fresh topic branch from the current `dev` head; do not push directly to `main` or `dev` unless explicitly asked.
 - Read `docs/content-authoring.md` first. For map work also read `docs/map-studio.md` and `src/lib/map-blueprints.ts`.
 - Inspect nearby catalog entries and the matching TypeScript definition before adding a new object.
 - Identify the catalog shape first (array, keyed object, scalar settings, versioned map dictionary or standalone theme); a single draft fragment is not a replacement for the whole file.
@@ -25,7 +25,9 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Validate server/client parity for new mechanics and run gameplay tests for new map layout, weapon tuning, rendering or bot navigation. A green CI build does not prove a map feels balanced.
 - Update documentation whenever a new object kind, allowed enum value, required field, runtime behavior or authoring workflow changes.
 - If any check has not actually run, state that clearly instead of claiming it passed.
-- Keep generated reports and test commits on the feature branch; request review before merging into `dev`.
+- Keep generated reports and test commits on a feature branch unless an authorized maintainer explicitly requests direct `dev` changes; request review before merging into `dev` or promoting to `main`.
+- Use `docs/dev-test-checklist.md` as the canonical QA and promotion checklist; dated plans and superseded proposals belong under `docs/archive/`.
+- Promote tested `dev` changes to `main` through a normal pull request after reviewing branch divergence, verifying the merge result and signing off on gameplay and data migration. Keep tests, CI and useful engineering documentation on both branches; they do not enter the browser bundle.
 
 ## JSON object recipes
 - Map: author in `/map-editor`, export to `src/data/map-blueprints.json`; check open plazas, multiple flanks, spawn clearance and stairs. Theme palette and scenery are in individual `src/data/map-themes/<mapId>.json` files. Add a static theme import to `src/lib/map-visuals.ts` for new map IDs. Do not reintroduce inherited sealed perimeter walls.

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
-import { PERKS, PERK_STORAGE_KEY, DEFAULT_PERK_ID, perkSelection, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
+import { weaponCategoryLabel } from "@/lib/display-labels";
+import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
 import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
 import {
   WEAPONS,
@@ -33,12 +34,14 @@ interface LoadoutSelectorProps {
   // Optional callback invoked after a successful save. Defaults to refreshing
   // the profile via the game store.
   onSaved?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onCustomize?: (weapon: WeaponDef, slot: WeaponSlot) => void;
   // Optional compact mode (smaller cards). Defaults to false.
   compact?: boolean;
+  children?: React.ReactNode; // named saved-loadout dropdown nested in Current Loadout
 }
 
-export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelectorProps) {
+export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, children }: LoadoutSelectorProps) {
   const { profile, refreshProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
   const current = profile?.loadout ?? null;
@@ -50,7 +53,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
   const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
   const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
   const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
-  useEffect(() => { const selected = perkSelection(level); setPerkId(selected); setSavedPerk(selected); }, [level]);
+  useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -85,14 +88,20 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
     ...(profile?.prestige?.wonderWeapons ?? []),
   ]), [level, profile?.unlocks.weapons, profile?.prestige?.wonderWeapons]);
 
+  const dirtyForPreset = !!current && (
+    primary !== current.weapon.id || secondary !== current.secondary.id ||
+    melee !== current.melee.id || perkId !== savedPerk
+  );
+  useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
+
   if (!profile || !current) {
     return <div className="text-white/60 text-sm">Loading loadout…</div>;
   }
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
-    if (slot === "primary") return WEAPONS.filter((w) => PRIMARY_CATEGORIES.includes(w.category));
+    if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && PRIMARY_CATEGORIES.includes(w.category));
     if (slot === "secondary") return WEAPONS.filter((w) =>
-      w.category === "sidearm" || (perkId === "well_prepared" &&
+      ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
         isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
     return WEAPONS.filter((w) => w.category === "melee");
   };
@@ -108,20 +117,8 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
   const save = async () => {
     if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
     setSaving(true);
-    // Perks are account-agnostic, free passive choices persisted locally.
-    const saveLocalPerk = () => {
-      try { localStorage.setItem(PERK_STORAGE_KEY, perkId); } catch {}
-      setSavedPerk(perkId);
-    };
     const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
     const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
-    if (primary === current?.weapon.id && savedSecondary === current?.secondary.id && melee === current?.melee.id) {
-      saveLocalPerk();
-      toast.success("Perk equipped");
-      setSaving(false);
-      onSaved?.();
-      return;
-    }
     try {
       const res = await fetch("/api/loadout", {
         method: "POST",
@@ -135,8 +132,8 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
         }),
       });
       if (res.ok) {
-        saveLocalPerk();
-        toast.success("Loadout saved");
+        setSavedPerk(perkId);
+        toast.success("Loadout confirmed");
         await refreshProfile();
         onSaved?.();
       } else {
@@ -166,7 +163,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50"
           size="sm"
         >
-          <Save className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Saving…" : "Save Loadout"}
+          <Check className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Confirming…" : "Confirm Loadout"}
         </Button>
       </div>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -252,6 +249,7 @@ export function LoadoutSelector({ onSaved, compact, onCustomize }: LoadoutSelect
           )}
         </div>
       </div>
+      {children}
     </div>
   );
 }
@@ -292,7 +290,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         {/* weapon preview strip */}
         <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center`}
           style={{ background: `linear-gradient(135deg, ${skinColor}, #0a0a0a)` }}>
-          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weapon.category}</div>
+          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weaponCategoryLabel(weapon.category)}</div>
           <div className="w-24 h-2 rounded-sm" style={{ background: skinColor }} />
           <div className="absolute bottom-1.5 left-2 text-[10px] text-white/60 font-mono">
             DMG {weapon.stats.damage} · RoF {weapon.stats.fireRate}
@@ -301,14 +299,14 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         <div className="flex items-center justify-between mb-1">
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
-        <div className="text-white/40 text-[10px] uppercase mb-2">{weapon.category} · LVL {weapon.unlockLevel}</div>
+        <div className="text-white/40 text-[10px] uppercase mb-2">{weaponCategoryLabel(weapon.category)} · LVL {weapon.unlockLevel}</div>
         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3 h-[227px] overflow-y-auto">
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
         {canCustomize && onCustomize && (
           <button type="button" onClick={onCustomize}
             className="w-full mb-2 px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
-            Customize this slot
+            {slot === "melee" ? "Skins & Challenges" : "Customize this slot"}
           </button>
         )}
         <button
@@ -338,7 +336,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
                 <span className="flex items-center gap-2 min-w-0">
                   {selected && <Check className="w-3 h-3 shrink-0" />}
                   <span className="font-semibold truncate">{w.name}</span>
-                  <span className="text-white/40 text-[10px] uppercase shrink-0">{w.category}</span>
+                  <span className="text-white/40 text-[10px] uppercase shrink-0">{weaponCategoryLabel(w.category)}</span>
                 </span>
                 {!isOwned && (
                   <span className="text-rose-400/70 text-[10px] shrink-0">LVL {w.unlockLevel}</span>

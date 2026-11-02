@@ -31,3 +31,5 @@ Thumbs.db
 
 # Temp
 *.patch
+# Bun is the canonical dependency lockfile; ignore npm's duplicate
+/package-lock.json

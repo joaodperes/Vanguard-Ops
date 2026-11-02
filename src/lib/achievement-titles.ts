@@ -1,0 +1,43 @@
+import { careerTitle } from "./career";
+import { ACHIEVEMENTS, type AchievementDef } from "./game-data";
+import { weaponMasteryProgress } from "./armory-challenges";
+
+export function isFinalAchievementTier(achievement: AchievementDef, catalog: readonly AchievementDef[] = ACHIEVEMENTS): boolean {
+  return !catalog.some(other => other.series === achievement.series && other.seriesTier > achievement.seriesTier);
+}
+
+/** Permanent achievement rewards. The player's equipped value
+ * stores the achievement ID, never a client-provided arbitrary title. */
+/** Plain-language requirement shared by unlock notifications and results. */
+export function achievementRequirement(achievementId: string, supplied?: string | null): string | null {
+  return supplied?.trim() || ACHIEVEMENTS.find(a => a.id === achievementId)?.description || null;
+}
+
+export function achievementTitle(achievementId:string|null|undefined):string|null {
+  const achievement = ACHIEVEMENTS.find(a => a.id === achievementId);
+  return achievement && isFinalAchievementTier(achievement)
+    ? achievement.rewardTitle ?? null
+    : careerTitle(achievementId)?.title ?? null;
+}
+export function unlockedAchievementTitles(earnedIds:readonly string[]) {
+  const earned=new Set(earnedIds);
+  return ACHIEVEMENTS.filter(a=>a.rewardTitle&&isFinalAchievementTier(a)&&earned.has(a.id)).map(a=>({id:a.id,title:a.rewardTitle!}));
+}
+export function titledDisplayName(name:string,achievementId:string|null|undefined):string {
+  const title=achievementTitle(achievementId);
+  return title ? `${name} · ${title}` : name;
+}
+
+/** Weapon mastery is per distinct weapon, not raw total kills spread across
+ * firearms. A melee mastery tier uses its kill requirement alone, since
+ * melee attacks cannot generate headshots. */
+export function masteryAchievementStats(rows:readonly {weaponId:string;kills:number;headshots:number}[]) {
+  const byId=new Map<string,{weaponId:string;kills:number;headshots:number}>();
+  for(const row of rows) byId.set(row.weaponId,row);
+  const ranks=[...byId.values()].map(r=>weaponMasteryProgress(r.kills,r.headshots,r.weaponId).rank);
+  return {
+    mastery_recruits:ranks.filter(rank=>rank>=1).length,
+    mastery_specialists:ranks.filter(rank=>rank>=3).length,
+    mastery_elites:ranks.filter(rank=>rank>=5).length,
+  };
+}

@@ -21,10 +21,19 @@ export function selectSmartTarget(origin:V3,dir:V3,candidates:WonderCandidate[],
  }
  return best;
 }
-/** Flame blooms radially outward from a short-range emitter. */
-export function inFlameCone(origin:V3,dir:V3,target:V3,range=14):boolean{
- const aim=aimProjection(origin,dir,target);
- return aim.forward>0&&aim.forward<=range&&aim.offset<=0.8+aim.forward*.245;
+/** Hellfire covers a broad 140-degree FORWARD arc, not a narrow bullet lane.
+ * Flat-plane arc is intentional: it threatens lateral approaches and denies
+ * passages, but never damages enemies behind the operator or through cover.
+ */
+export const HELLFIRE_HALF_ARC_DEGREES = 70;
+export const HELLFIRE_RANGE = 13;
+export function inFlameCone(origin:V3,dir:V3,target:V3,range=HELLFIRE_RANGE):boolean{
+ const dx=target[0]-origin[0],dz=target[2]-origin[2];
+ const dist=Math.hypot(dx,dz),aimLen=Math.hypot(dir[0],dir[2]);
+ if(dist<=0||dist>range||aimLen===0)return false;
+ const forward=(dx*dir[0]+dz*dir[2])/(dist*aimLen);
+ return forward>=Math.cos(HELLFIRE_HALF_ARC_DEGREES*Math.PI/180) &&
+   Math.abs(target[1]-origin[1])<=2.3;
 }
 /** Electrical current follows the connecting segment between two anchors. */
 export function nearStormLink(a:V3,b:V3,pos:V3,radius=1.4):boolean{
@@ -35,4 +44,30 @@ export function nearStormLink(a:V3,b:V3,pos:V3,radius=1.4):boolean{
 /** Sludge imposes one clear 54% reduction, not a multiplicative stack. */
 export function sludgeMovementFactor(pos:V3,team:string,now:number,pools:readonly {pos:V3;radius:number;ownerTeam:string;expiresAt:number;kind:string}[],ffa=false){
  return pools.some(p=>p.kind==="sludge"&&p.expiresAt>now&&(ffa||p.ownerTeam!==team)&&Math.hypot(pos[0]-p.pos[0],pos[2]-p.pos[2])<=p.radius)?0.46:1;
+}
+
+/** Deadlock stores up to three persistent exposed target tags per owner. */
+export const SMART_MAX_TAGS = 3;
+export const SMART_TAG_MS = 6000;
+export function selectSmartTargets(
+  origin:V3,dir:V3,candidates:WonderCandidate[],team:string,ffa:boolean,
+  range:number,canSee:(p:V3)=>boolean,limit=SMART_MAX_TAGS,
+):WonderCandidate[]{
+  return candidates.filter(c=>{
+    if(!c.alive||c.protected||(!ffa&&c.team===team))return false;
+    const target:V3=[c.pos[0],c.pos[1]+1.05,c.pos[2]];
+    const aim=aimProjection(origin,dir,target);
+    return aim.forward>0&&distance(origin,target)<=range&&aim.cosine>=.952&&canSee(target);
+  }).sort((a,b)=>{
+    const aa=aimProjection(origin,dir,[a.pos[0],a.pos[1]+1.05,a.pos[2]]);
+    const bb=aimProjection(origin,dir,[b.pos[0],b.pos[1]+1.05,b.pos[2]]);
+    return (1-aa.cosine)*50+distance(origin,a.pos)*.003-
+      ((1-bb.cosine)*50+distance(origin,b.pos)*.003);
+  }).slice(0,Math.max(0,limit));
+}
+export const HELLFIRE_BURST_MS = 8000; // fully charged fuel reserve (8 seconds)
+export const HELLFIRE_FUEL_STEP_MS = 1000; // each held second spends ONE charge
+export const HELLFIRE_TICK_MS = 125;
+export function hellfireRemainingMs(until:number,now:number):number {
+  return Math.max(0,until-now);
 }

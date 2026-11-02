@@ -87,7 +87,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";
   const cqc = category === "shotgun" || category === "melee";
-  const mobile = category === "smg" || category === "sidearm";
+  const mobile = category === "smg" || category === "pistol" || category === "pdw";
   const choice: Record<string, WeaponConditionMetric> = {
     arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "comeback_kills",
     crimson: equipped ? "bare_kills" : "multikill_kills",
@@ -230,7 +230,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       goal = 12 + difficulty * 9;
       break;
     case "grip":
-      metric = weapon.category === "smg" || weapon.category === "sidearm" ? "airborne_kills" : "hipfire_kills";
+      metric = weapon.category === "smg" || weapon.category === "pistol" || weapon.category === "pdw" ? "airborne_kills" : "hipfire_kills";
       goal = 10 + difficulty * 8;
       break;
     case "magazine":
@@ -297,13 +297,15 @@ export function operatorContract(skinId: string): ArmoryChallengeDef | null {
 export interface WeaponMasteryTier { rank: number; title: string; kills: number; headshots: number }
 export const WEAPON_MASTERY_TIERS: WeaponMasteryTier[] = [
   { rank: 1, title: "Recruit", kills: 20, headshots: 0 },
-  { rank: 2, title: "Skilled", kills: 60, headshots: 10 },
-  { rank: 3, title: "Specialist", kills: 150, headshots: 25 },
-  { rank: 4, title: "Veteran", kills: 300, headshots: 55 },
-  { rank: 5, title: "Elite", kills: 600, headshots: 110 },
+  { rank: 2, title: "Skilled", kills: 60, headshots: 25 },
+  { rank: 3, title: "Specialist", kills: 150, headshots: 70 },
+  { rank: 4, title: "Veteran", kills: 300, headshots: 150 },
+  { rank: 5, title: "Elite", kills: 600, headshots: 330 },
 ];
-export function weaponMasteryProgress(kills: number, headshots: number) {
-  const rank = WEAPON_MASTERY_TIERS.filter(t => kills >= t.kills && headshots >= t.headshots).length;
+export function weaponMasteryProgress(kills: number, headshots: number, weaponId?: string) {
+  // Melee strikes cannot headshot, so they earn the same rank from kills alone.
+  const isMelee = !!weaponId && WEAPONS.some(w => w.id === weaponId && w.category === "melee");
+  const rank = WEAPON_MASTERY_TIERS.filter(t => kills >= t.kills && (isMelee || headshots >= t.headshots)).length;
   return {
     rank, title: rank ? WEAPON_MASTERY_TIERS[rank - 1].title : "Unranked",
     next: WEAPON_MASTERY_TIERS[rank] ?? null,

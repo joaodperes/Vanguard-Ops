@@ -3,14 +3,32 @@
  */
 export interface AudioMixSettings {
   masterVolume: number;
-  musicVolume: number;
   footstepVolume: number;
   fxVolume: number;
 }
 
+/** The procedural game audio reference level is lower than many other apps.
+ * Raise quiet cues without changing the player's bus ratios.
+ */
+export const EFFECTS_OUTPUT_BOOST = 1.45;
+/** WeaponAudio previously stopped at 0.32 at full volume. */
+export const WEAPON_OUTPUT_SCALE = 0.48;
+
+/** Catch overlapping peaks on each Web Audio context. This is a fast
+ * dynamics compressor rather than a brick-wall limiter.
+ */
+export function createOutputPeakGuard(ctx: AudioContext): DynamicsCompressorNode {
+  const guard = ctx.createDynamicsCompressor();
+  guard.threshold.value = -5;
+  guard.knee.value = 0;
+  guard.ratio.value = 16;
+  guard.attack.value = 0.003;
+  guard.release.value = 0.12;
+  return guard;
+}
+
 export const DEFAULT_AUDIO_MIX: AudioMixSettings = {
   masterVolume: 80,
-  musicVolume: 65,
   footstepVolume: 85,
   fxVolume: 100,
 };
@@ -20,8 +38,7 @@ const gain = (percent: number): number =>
 
 export function audioGainLevels(mix: AudioMixSettings) {
   const master = gain(mix.masterVolume);
-  const music = gain(mix.musicVolume);
   const footsteps = gain(mix.footstepVolume);
   const fx = gain(mix.fxVolume);
-  return { master, music, footsteps, fx, weaponOutputPercent: master * fx * 100 };
+  return { master, footsteps, fx, weaponOutputPercent: master * fx * 100 };
 }

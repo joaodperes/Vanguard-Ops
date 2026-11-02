@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
   const kills = Math.max(0, Math.min(200, Math.floor(input.kills ?? 0)));
   const deaths = Math.max(0, Math.min(200, Math.floor(input.deaths ?? 0)));
   const headshots = Math.max(0, Math.min(kills, Math.floor(input.headshots ?? 0)));
-  const mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" =
-    input.mode === "tdm" ? "tdm" : input.mode === "killconfirmed" ? "killconfirmed" : input.mode === "survival" ? "survival" : input.mode === "gungame" ? "gungame" : "ffa";
+  const mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf" =
+    input.mode === "ctf" ? "ctf" : input.mode === "tdm" ? "tdm" : input.mode === "killconfirmed" ? "killconfirmed" : input.mode === "survival" ? "survival" : input.mode === "gungame" ? "gungame" : "ffa";
   // Per-weapon kill/headshot tallies (gungame). Sanitize: keep only entries with
   // numeric kills/headshots, cap each at the sanity-capped total kill count, and
   // verify the summed per-weapon kills don't exceed the reported total (defensive
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     denials: mode === "killconfirmed" ? Math.max(0, Math.min(200, Math.floor(input.denials ?? 0))) : 0,
     online: !!input.online,
     durationSec: Math.max(0, Math.min(7200, Math.floor(input.durationSec ?? 0))),
+    completed: input.completed === true,
     placement: Math.max(1, Math.min(16, Math.floor(input.placement ?? 1))),
     weaponId: typeof input.weaponId === "string" ? input.weaponId : "rifle_ar",
     multikills: Math.max(0, Math.min(30, Math.floor(input.multikills ?? 0))),
@@ -87,6 +88,11 @@ export async function POST(req: NextRequest) {
     // which Math.maxes it against player.bestKillstreak for the tiered
     // streak achievements.
     bestStreak: Math.max(0, Math.min(30, Math.floor((input as any).bestStreak ?? 0))),
+    maxNoDeathStreak: Math.max(0, Math.min(kills, Math.floor(Number(input.maxNoDeathStreak) || 0))),
+    defenseKills: mode === "ctf" ? Math.max(0, Math.min(10, Math.floor(Number(input.defenseKills) || 0))) : 0,
+    flagReturns: mode === "ctf" ? Math.max(0, Math.min(10, Math.floor(Number(input.flagReturns) || 0))) : 0,
+    maxScoreDeficit: Math.max(0, Math.min(100, Math.floor(Number(input.maxScoreDeficit) || 0))),
+    participants: Math.max(0, Math.min(32, Math.floor(Number(input.participants) || 0))),
     survivalWaves: Math.max(0, Math.min(999, Math.floor((input as any).survivalWaves ?? 0))),
     survivalTier: normalizeSurvivalTier(input.survivalTier),
     // Per-kill difficulty breakdown for difficulty-scaled XP. Cap the array

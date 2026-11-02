@@ -9,17 +9,20 @@ export function normalizeGunGameConfig(preset?: string, multiplier?: number) {
     multiplier: Number.isInteger(multiplier) ? Math.max(1, Math.min(GUN_GAME_MAX_MULTIPLIER, multiplier!)) : 1,
   };
 }
-const CQC = new Set(["sidearm", "smg", "shotgun"]);
+const CQC = new Set(["pistol", "pdw", "smg", "shotgun"]);
 const LONG = new Set(["assault", "dmr", "sniper", "lmg"]);
 const sample = <T>(values: T[], random: () => number): T =>
   values[Math.min(values.length - 1, Math.floor(Math.max(0, Math.min(.999999,random())) * values.length))];
-/** 28 distinct firearms, rocket launcher, melee. Never duplicate a weapon ID
+/** 28 distinct firearms, a standard launcher, and standard melee. Never duplicate a weapon ID
  * within a cycle. Range presets are preferred where available, then filled
  * with other guns; no 28-item CQC-only or long-range-only catalog yet exists.
  */
 export function buildGunGameWeapons(preset?: string, multiplier?: number, random: () => number = Math.random): string[] {
   const config = normalizeGunGameConfig(preset, multiplier);
-  const ranged = WEAPONS.filter(w => !w.wonder && w.category !== "melee" && w.id !== "launcher_rocket");
+  const ranged = WEAPONS.filter(w => !w.wonder && !w.disabled && w.category !== "melee" && w.category !== "launcher");
+  const launchers = WEAPONS.filter(w => !w.wonder && !w.disabled && w.category === "launcher");
+  const melee = WEAPONS.filter(w => !w.wonder && !w.disabled && w.category === "melee");
+  if (!launchers.length || !melee.length) throw new Error("Gun Game needs standard launcher and melee finishers");
   if (ranged.length < GUN_GAME_BASE_TIERS - 2) throw new Error("Gun Game needs at least 28 unique ranged weapons");
   const cycles: string[] = [];
   for (let cycle = 0; cycle < config.multiplier; cycle++) {
@@ -40,17 +43,17 @@ export function buildGunGameWeapons(preset?: string, multiplier?: number, random
       cycleWeapons.push(picked.id);
       used.add(picked.id);
     }
-    // Fixed two-step ending is preserved for every multiplier cycle.
-    cycles.push(...cycleWeapons,"launcher_rocket","knife_tactical");
+    // Each cycle ends with a random standard launcher and then a random standard melee weapon.
+    cycles.push(...cycleWeapons, sample(launchers,random).id, sample(melee,random).id);
   }
   return cycles;
 }
-/** Server and offline engine may end Gun Game ONLY on the final melee kill,
- * immediately preceded by the rocket launcher tier in the active 30-step list. */
+/** Server and offline engine may end Gun Game ONLY on the final standard melee kill,
+ * immediately preceded by any standard launcher in the active 30-step list. */
 export function canCompleteGunGame(index: number, weapons: readonly string[], activeWeaponId: string): boolean {
   if (weapons.length < GUN_GAME_BASE_TIERS || weapons.length % GUN_GAME_BASE_TIERS !== 0 ||
     !Number.isInteger(index) || index !== weapons.length - 1) return false;
   const last = weapons[index];
-  return last === activeWeaponId && WEAPONS.some(w => w.id === last && w.category === "melee") &&
-    weapons[index - 1] === "launcher_rocket";
+  return last === activeWeaponId && WEAPONS.some(w => w.id === last && w.category === "melee" && !w.wonder && !w.disabled) &&
+    WEAPONS.some(w => w.id === weapons[index - 1] && w.category === "launcher" && !w.wonder && !w.disabled);
 }

@@ -14,7 +14,9 @@ export function turretCanAttack(mode: string, ownerTeam: string, victimTeam: str
 // Center of the visible twin-barrel assembly above the planted feet.
 export const TURRET_MUZZLE_HEIGHT = 1.29;
 export const TURRET_RANGE = 54; // Matches the Hailstorm LMG's effective range.
-export const TURRET_DAMAGE = 34;
+// Actual turret damage was already 34 despite Armory showing 17. Apply a
+// modest buff and keep the visible stat in sync (regression-tested).
+export const TURRET_DAMAGE = 38;
 export const TURRET_HP = 460;
 export const TURRET_INTERVAL_MS = 135;
 export const TURRET_LIFETIME_MS = 45000;

@@ -1,18 +1,40 @@
 # Map Studio — connected-district JSON maps
 
-Open **/map-editor** while running the Next.js development server. A link is also available from the main menu on desktop.
+Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
+
+## Object movement and rotation
+
+3D editing saves every quarter-turn (0°, 90°, 180°, 270°) with the object instead of resetting it when moving or reselecting. For authored geometry, theme props, standalone hazards and overridden built-in objects, the saved extents remain axis-aligned for physics. City-building doorways, external/internal stairs and furniture rotate with the saved orientation. In Move mode, explicitly choose **Lock direction X / Y / Z**: the gizmo exposes only that direction, and commits reject movement along the other two axes, including accidental plane dragging.
+
+The two prominent authoring modes are **Construction kits** (regions, walls, stairs, grouped kits and spawns) and **Paint tools** (buildings and themed scenery). Use **Dismiss guide** to hide the tutorial between visits; **Show guide** reopens it.
+
+### Breakwater polish
+
+Containers now show stripes on **both long faces** whether they run along the X or Z axis. The floating moving cargo platform and independent authored crane platform have been removed, while the dock layout, normal cover, existing supported crane routes and container stacks remain.
+
+## Quick Build — dev workflow
+
+Map Studio now includes a first-map guide, direct cursor placement, eight reusable city building kits, and seven geometry kits (alley, room, rooftop, market stalls, checkpoint, stairwell, courtyard).
+
+In 3D, choose a building or kit and click the ground to stamp it. The building preview is green for a valid placement and red for a detected overlap, map-boundary or spawn problem. Repeat placement can stay enabled for bulk decoration. Existing procedural Afterlight buildings can be selected and converted into independently editable authored objects, suppressing their generated duplicates. The Day and Night variants share city geometry changes and authored props while retaining separate lighting palettes.
+
+The Collision toggle displays the real shared collider geometry. Safety overlay highlights positioned map problems. District links shows a coarse overlap/portal network, not actual bot pathfinding. 2D and 3D author the same draft.
+
+Playtest draft sends unsaved geometry directly into a non-rewarding offline FPS session with 0, 3 or 6 bots. Exit back to Map Studio to restore browser-local work. Save bundle exports one portable JSON containing both the complete blueprint document and visual themes; Import map / bundle restores either that bundle or a blueprint-only JSON.
+
+Publishing still requires exporting the blueprint and theme JSON source files, reviewing and committing them in the repository, and rebuilding. This is deliberate: browser drafts do not mutate live multiplayer maps. Automated tests cover map schemas, city physics, editing primitives, playtest compilation and build checks; final rendering, FPS performance, sightlines and bot quality still require an actual browser/in-game playtest.
 
 ## Authoring
 
 Choose one of six maps or type a new unique ID and select **New** to clone the current template. The editor supports:
 
-- Draw **walkable region** rectangles; they overlap to form an irregular, connected footprint, including L/T/S-shaped layouts and side districts.
-- Regions may be **non-square rectangles**. Triangle, circular and arbitrary polygon regions are not currently supported by the game collision/footprint grammar.
+- Draw connected **walkable regions** using rectangles and supported circle/triangle approximations; overlapping regions form larger districts and irregular footprints.
+- Regions may be non-square rectangles or approximated circles/triangles. Arbitrary freehand polygons are not supported.
 - Use **Select / Move** and drag inside a region or on its outline to reposition it. Regions are combined at runtime into one footprint: interior shared edges are not physical walls. The minimap also draws their **union outline**, while the editing view still shows individual rectangles for selection.
 - Draw **hard cover**, **elevated platforms** with automatically generated physical stair flights, and place team/FFA **spawns**.
 - Select, drag, edit precise dimensions, duplicate, delete, zoom and undo.
 - Enable/disable **Snap drawing and movement to grid** in Placement precision. Select 1, 2, 5 or 10 world-unit X/Z increments. This controls horizontal placement, **not** platform height.
-- Selecting a platform shows its height in the inspector and the estimated automatically generated north/south stair count and horizontal run. Standalone staircases, stairs with arbitrary directions and snap-to-platform-height connections are **not** implemented yet.
+- Platforms expose height and generated stair geometry in the inspector. Independently authored stairs and elevation snapping are supported; see the object-authoring and 3D editing sections below.
 - Edit name, short name, description and pace; import/export all maps together as JSON.
 - Draft persistence to local browser storage, geometry and spawn validation.
 
@@ -62,7 +84,7 @@ The six shipped themes are:
 | Breakwater (`shipyard`) | compact | Sunlit dock containers, crane silhouettes, shipping machinery |
 | Verdant Ruins (`compound`) | medium | Jungle canopy, moss-covered stone, ruined temples and boulders |
 | Glassline (`terminal`) | medium | Bright city transit plaza, shops, windows and planters |
-| Ridgefall (`skybridge`) | enormous | Mountain ridges, snow-dusted rocks, conifers and antennas |
+| Ridgefall (`skybridge`) | large indoor | Enclosed industrial steelworks, foundries, gantries and maintenance bays |
 | Afterlight City (`arena_neon`) | enormous | Colorful downtown, shop signage, glowing windows and street lights |
 
 Example theme file (use hex CSS colors, not integer colors):
@@ -90,6 +112,12 @@ Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp
 **Important gameplay detail:** rock/tree/building silhouettes are shared with collision where appropriate; storefronts are **exterior buildings**, not modeled enterable interiors. To create an enterable interior, author real physical geometry and door paths; do not draw fake walkable doorways. The theme is not a replacement for the gameplay blueprint.
 
 **Route-design rules:** keep two or more viable flanks around perches, short and interrupted sightlines around open courts, obstacles sized for cover rather than 100-unit hallway walls, and accessible elevated positions with real stairs. Sniper perches should overlook contested space but should not lock every route. Retain truly compact maps for shotgun/SMG combat as well as vast outdoor maps. Before publishing, playtest spawn safety and A-to-B travel times in 1v1, 3v3 and 7v7. The map builder suppresses new features intersecting known spawns, but this is a fail-safe, not an excuse to author invalid positions.
+
+The built-in **Orbital Nexus** map (`orbital_nexus`) supports CTF, TDM and Kill Confirmed. Flags live on the ground at X=±76 and deliveries at X=±86, with flat three-lane bot navigation rather than Forest Warfare tree stairs. Its blueprint includes mirrored cover, command decks, a breachable north bulkhead and ten jump pads; its `orbital_nexus.json` theme provides the orbital palette and decorative props. Decorative gas-giant/reactor geometry is rendered separately and does not add invisible shared collision.
+
+**Floodgate** (`floodgate`) is the third dedicated CTF layout, also available in TDM/KC, and supports 3v3, 5v5, 7v7 and 16v16. Its 352×212 footprint, collision-backed turbine roof, machinery, spillway baffles, maintenance yard, four stair-accessible decks and 16 spawns per team live in the blueprint/theme JSON. It starts with no inherited cover, spawns or hazards. Flags are at X=±132 and deliveries at X=±148, all on the ground. The optional maintenance shutter is breachable; it never seals the only route. See [layout and playtest notes](floodgate.md).
+
+Periodic `spikes` hazards now accept `visual: "steam"` and `warningFor` (seconds), exposed as **Trap appearance** and **warningFor** in the Inspector. This reuses the existing server damage/cooldown and `environmentTime` synchronization. `warningFor` must be nonnegative and no greater than `period - activeFor`; offsets must be finite. Steam vents show teal idle rims, flashing amber warnings and fixed-mesh jets during activation. Copying, exporting and draft playtesting preserve these fields. No particle spawning or additional point lights are used. The HUD derives Floodgate's purge countdown from the same synchronized cycle; warnings cause no damage. Legacy traps keep their original behavior when these fields are omitted.
 
 For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
 
@@ -182,18 +210,41 @@ Test new hazards on both offline and authoritative-server matches; test stair tr
 
 ## Large-scale performance and gameplay
 
-`Ridgefall` and `Afterlight City` extend past 380 units across, with outer strongholds and multiple separated combat districts. Larger maps intentionally support slower first contact and stronger reconnaissance/sightline choices. Both still have the inherited core as a contested hub, but their main flanks now sit far outside it.
+Ridgefall's enclosed factory and Afterlight City's connected districts have substantial, distinct playable footprints. Validate travel time, sightlines, navigation and frame time against the **current exported blueprints**, not earlier map-size estimates.
 
 Recommended validation before merging from dev: `bun test`, `npx tsc --noEmit`, `bun run build`, followed by human/bot 3v3–7v7 playtests on all maps, especially distant spawn fairness, tunnel junctions, stair transitions, FPS and minimap readability. Manual gameplay tests are necessary; basic geometry validation is not sufficient.
 
 ## October 2026 map art update
 
-- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their existing physical region blueprints are still different.
+- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their current authored region and spawn arrays are identical; the visual themes differ.
 - Both city editions exclude hazards and legacy arena cover. New scenery prop types: `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`.
 - Enterable buildings have physically open doorways, exterior stairs, and climbable roof geometry. City centers feature an open park and bandstand.
-- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins and Ridgefall have more flora and rocks.
+- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins uses foliage and ruined masonry; Ridgefall is now an enclosed steelworks, not an outdoor snowfield.
 - The renderer creates procedural worn surface textures without third-party binary assets. [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) is used for visual guidance; redistribute its individual textures only after verifying the exact license and retaining appropriate credits/notice.
 
 ## Retro FPS material language
 
-Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio itself still edits geometry only.
+Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio also edits authored props, theme palettes and surface material settings; exported JSON remains authoritative.
+
+## Afterlight interior and façade design
+
+Both Afterlight lighting variants share deterministic architectural plans. City lots now vary across additional shops and public uses (including clinics, gyms, florist shops, workshops and galleries), six façade materials, building height/footprint, furnishing plans and whether the roof can be climbed. Enterable street levels have collision-backed rear-room walls with a real center doorway and type-specific furniture such as beds, counters, bookshelves and reception desks. Only buildings with `roofAccess: true` have interior/exterior rooftop stairways. The no-access buildings have a solid, sealed roof. Visible partitions and furniture use the same `cityBuildingBoxes` / `cityInteriorFixtures` geometry as game collision. Avoid cluttering the front center entrance or the east-side roof hatch aisle; inspect both lighting variants for signs, room usability and frame rate.
+
+### Orbital Nexus reactor and gravity
+
+Orbital Nexus is an arena for CTF, TDM and Kill Confirmed with 60% of normal gravity (before its temporary Reaper boost), ten jump pads, and **32-unit-high boundary walls** to contain extended airborne traversal. The reactor counts **10 legitimate enemy eliminations** with either the killer or the victim inside a **38-unit-radius** circle in the arena's center (XZ distance, independent of elevation). Kills between two fighters both outside the zone, friendly fire, and environmental deaths do not charge it. The HUD displays only `Reactor 0/10` through `Reactor 10/10`: there are no activation totals, negative no-charge messages, charged banners, or center-claim pop-ups. The reactor itself changes color and animates when full.
+
+At full charge, the first eligible living human or bot who reaches the raised center deck at Y=3.2 claims the **Nexus Reaper** in melee slot 3. Both teams' bots compete for the reward; flag carriers continue to prioritize scoring, and immediate threats interrupt their route. Claiming the weapon resets the reactor to 0/10, and dying forfeits it. The Reaper's blade reaches **3.5 units** and every swing also emits a **purple 4.75-unit-radius pulse**, dealing **58 damage** to other valid enemy targets (never hitting the same enemy twice with the blade and pulse). The pulse can hit enemies to the sides/behind even when the blade misses; cover and spawn protection still apply. Purple rings visualize human and bot attacks in online and offline games.
+
+**Only while Nexus Reaper is actually selected/equipped** (not merely owned or accessed with the quick-melee hotkey), the holder gets 25% faster movement, 47% less sprint stamina drain, 30% less Orbital Nexus gravity, and 55% more momentum added at aligned running jump takeoff. The bonuses end immediately when switching weapons or losing the Reaper. Reaper blade/pulse eliminations contribute to a separate three-tier permanent achievement (10/35/100 kills; final reward title *Nexus Reaper*); they do not advance standard Armory mastery. The temporary weapon remains absent from the purchasable Armory catalog.
+
+
+**Troubleshooting live reactor charge:** The Socket.IO match server on port 3003 owns multiplayer scoring. Updating frontend files or getting a green GitHub Actions build does **not** update an already-running game-server instance. In local development, Next.js instrumentation starts the server once and keeps a singleton running: restart the Next.js development server after modifying `game-server.ts`, `orbital-reactor.ts`, or the game protocol. In deployment, redeploy/restart **both** the web frontend and the Socket.IO server from the same commit, then start a **new room**. Newer clients require `orbitalRulesVersion` in the server snapshots; when the server is outdated the HUD displays **"Reactor: server update required"** rather than a misleading `0/5`. On compatible servers each qualifying elimination updates `orbitalReactor`; unqualified eliminations do not display distracting pop-up warnings. CI validates the matching source protocol; it cannot verify or restart an external, live deployment.
+
+## Mode-specific objectives and spawns
+
+Map Studio edits the base geometry and spawn pools. The Verdant Ruins/Ridgefall CTF trial overrides are separate in `src/data/ctf-layouts.json`; a base-map edit must also check the CTF flag, delivery and spawn clearance tests. Both simulations use `getMap(mapId, mode)` to obtain those overrides. See [map modes and spawns](map-modes-and-spawns.md).
+
+## Whiteout Depot
+
+The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).

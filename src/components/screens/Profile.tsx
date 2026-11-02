@@ -1,13 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import { CareerProgress } from "@/components/game/CareerProgress";
 import { useGame } from "@/lib/game-store";
+import { achievementTitle } from "@/lib/achievement-titles";
+import { displayLabel } from "@/lib/display-labels";
 import { ownsWeapon, ownsOperativeSkin, ownsWeaponSkin } from "@/lib/collection-ownership";
+import { collectorProgress } from "@/lib/collector";
+import { COSMETICS,cosmeticById } from "@/lib/cosmetics";
 import { WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS, ACHIEVEMENT_TIER_COLORS, ACHIEVEMENTS, rankForLevel, nextRank, weaponById, compatibleAttachments, weaponAttachmentSlots } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { perkSelection, PERK_STORAGE_KEY } from "@/lib/perks";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Trophy, Target, Skull, Zap, Coins, TrendingUp, Award, Crown, Star, Clock, Crosshair, Flame, Swords, Shield, Users, Sparkles, Calendar, Save, Trash2, Pencil, Check } from "lucide-react";
+import { ArrowLeft, Trophy, Target, Skull, Zap, Coins, TrendingUp, Award, Crown, Star, Clock, Crosshair, Flame, Swords, Shield, Users, Sparkles, Calendar, LogOut, UserCircle, GraduationCap } from "lucide-react";
 
 interface MatchRecordView {
   id: string; mode: string; online: boolean; kills: number; deaths: number;
@@ -24,13 +27,40 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function Profile() {
-  const { profile, setScreen, playerKey, refreshProfile } = useGame();
-  const [presetName, setPresetName] = useState("");
-  const [editingPreset, setEditingPreset] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [presetBusy, setPresetBusy] = useState(false);
+  const { profile, setScreen, playerKey, refreshProfile, session, signOut } = useGame();
   const [matches, setMatches] = useState<MatchRecordView[]>([]);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [titleBusy, setTitleBusy] = useState(false);
+  const [nameplateBusy,setNameplateBusy]=useState(false);
+  const [cosmeticError,setCosmeticError]=useState("");
+  const [titleError, setTitleError] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
+  async function equipTitle(id:string) {
+    if (!playerKey || titleBusy) return;
+    setTitleBusy(true); setTitleError("");
+    try {
+      const response = await fetch("/api/profile/title",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,achievementId:id}),
+      });
+      if(!response.ok)throw new Error((await response.json().catch(()=>({}))).error??"Unable to equip title");
+      await refreshProfile();
+    }catch(error){setTitleError(error instanceof Error?error.message:"Unable to equip title");}
+    finally{setTitleBusy(false);}
+  }
+
+  async function equipNameplate(id:string){
+    if(!playerKey||nameplateBusy)return;
+    setNameplateBusy(true);setCosmeticError("");
+    try{
+      const r=await fetch("/api/profile/cosmetics",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,kind:"nameplate",cosmeticId:id})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error??"Could not equip nameplate");
+      await refreshProfile();
+    }catch(e){setCosmeticError(e instanceof Error?e.message:"Could not equip nameplate");}
+    finally{setNameplateBusy(false);}
+  }
 
   useEffect(() => {
     if (!playerKey) return;
@@ -43,49 +73,19 @@ export function Profile() {
   }, [playerKey]);
 
 
-  const managePreset = async (action: "save" | "rename" | "delete", id?: string) => {
-    if (presetBusy) return;
-    const name = action === "save" ? presetName.trim() : editName.trim();
-    if (action !== "delete" && !name) { toast.error("Enter a loadout name"); return; }
-    setPresetBusy(true);
-    try {
-      const response = await fetch("/api/loadout/presets", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerKey, action, id, name, perkId: perkSelection(profile?.level ?? 1) }),
-      });
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save loadout");
-      await refreshProfile();
-      setPresetName("");
-      setEditingPreset(null);
-      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : "Loadout deleted");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update loadout"); }
-    finally { setPresetBusy(false); }
-  };
-
-  const equipPreset = async (id: string, perkId: string) => {
-    if (presetBusy) return;
-    setPresetBusy(true);
-    try {
-      const response = await fetch("/api/loadout", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerKey, presetId: id }),
-      });
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not equip loadout");
-      // The Armory and match setup read the selected passive perk from here.
-      localStorage.setItem(PERK_STORAGE_KEY, perkId);
-      await refreshProfile();
-      toast.success("Saved loadout equipped");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not equip loadout"); }
-    finally { setPresetBusy(false); }
-  };
-
   if (!profile) return <div className="min-h-screen flex items-center justify-center text-white/60">Loading…</div>;
   const lvl = profile.level;
   const rank = rankForLevel(lvl);
   const next = nextRank(lvl);
-  const totalWeapons = WEAPONS.length;
-  const totalWSkins = WEAPON_SKINS.length * WEAPONS.length;
-  const totalPSkins = PLAYER_SKINS.length;
+  const collector=collectorProgress({
+    level:lvl,unlockedWeapons:profile.unlocks.weapons,
+    ownedAttachments:profile.unlocks.attachmentsByWeapon,
+    ownedWeaponSkins:profile.unlocks.skinsByWeapon,
+    ownedOperators:profile.unlocks.playerSkins,
+  });
+  const totalWeapons=collector.weapons.total;
+  const totalWSkins=collector.weaponSkins.total;
+  const totalPSkins=collector.operatorSkins.total;
   // Attachments unlock PER-WEAPON (AttachmentUnlock is keyed by playerId+weaponId+attachmentId).
   // So the meaningful totals count (weapon, attachment) PAIRS, not distinct attachment types.
   //   - totalAttachmentPairs: every valid (weapon, attachment) combo across all weapons
@@ -113,22 +113,23 @@ export function Profile() {
   for (const w of WEAPONS) {
     ownedAttachmentPairs += (attachmentsByWeapon[w.id]?.length ?? 0);
   }
-  const ownedW = WEAPONS.filter(w => ownsWeapon(w, lvl, profile.unlocks.weapons)).length;
-  const ownedA = ownedAttachmentPairs;
+  const ownedW = collector.weapons.owned;
+  const ownedA = collector.attachments.owned;
+  totalAttachmentPairs = collector.attachments.total;
   const skinPairs = WEAPONS.flatMap(w => WEAPON_SKINS.map(s => ({
     id: `${w.id}:${s.id}`, name: s.name, sub: w.name,
     owned: ownsWeaponSkin(w.id, s.id, lvl, profile.unlocks.weapons, profile.unlocks.skinsByWeapon ?? {}, WEAPONS),
     color: RARITY_COLORS[s.rarity],
   })));
-  const ownedWS = skinPairs.filter(pair => pair.owned).length;
-  const ownedPS = PLAYER_SKINS.filter(s => ownsOperativeSkin(s, lvl, profile.unlocks.playerSkins)).length;
+  const ownedWS = collector.weaponSkins.owned;
+  const ownedPS = collector.operatorSkins.owned;
   const earnedAchievements = achievements.filter((a) => a.earned).length;
   const totalAchievements = achievements.length || 1;
-  const xpPct = Math.min(100, (profile.xpProgress.current / profile.xpProgress.needed) * 100);
+  const xpPct = Math.min(100, profile.xpProgress.needed ? (profile.xpProgress.current / profile.xpProgress.needed) * 100 : 100);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-0 z-30">
+      <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => setScreen("menu")} className="text-white/70 hover:text-white hover:bg-white/5">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
@@ -141,6 +142,24 @@ export function Profile() {
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+        <section aria-label="Account and training" className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/60 p-4">
+          <UserCircle className={`h-6 w-6 shrink-0 ${session ? "text-emerald-400" : "text-white/40"}`} />
+          <div className="min-w-0 flex-1 basis-40">
+            <p className="text-sm font-semibold text-white">{session ? session.name : "Guest operative"}</p>
+            <p className="break-words text-xs text-white/50">{session ? session.email : "Sign in or create an account to keep playing across devices."}</p>
+          </div>
+          <Button variant="outline" onClick={() => setScreen("tutorial")} className="border-amber-500/30 text-amber-200 hover:bg-amber-500/10">
+            <GraduationCap className="mr-2 h-4 w-4" /> Tutorial
+          </Button>
+          <Button variant="outline" disabled={accountBusy} onClick={async () => {
+            if (!session) { setScreen("auth"); return; }
+            setAccountBusy(true);
+            try { await signOut(); } finally { setAccountBusy(false); }
+          }} className="border-white/15 text-white/70 hover:bg-white/5">
+            {session ? <LogOut className="mr-2 h-4 w-4" /> : <UserCircle className="mr-2 h-4 w-4" />}
+            {accountBusy ? "Signing out…" : session ? "Log out" : "Sign in"}
+          </Button>
+        </section>
         {/* hero banner */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/80 to-black p-6 mb-6">
           <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full blur-3xl" style={{ background: `${rank.color}20` }} />
@@ -157,7 +176,14 @@ export function Profile() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-white/50 text-xs uppercase tracking-widest">{rank.name}</div>
-              <div className="text-3xl font-bold text-white">{profile.name}</div>
+              <div className="inline-flex items-center gap-2 text-2xl sm:text-3xl font-bold px-3 py-1.5 rounded-xl border max-w-full"
+                style={{color:cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#ffffff",
+                  borderColor:`${cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#94a3b8"}80`,
+                  background:`linear-gradient(95deg,${cosmeticById(profile.selectedNameplate,"nameplate")?.color??"#334155"}30,#090e19)`}}>
+                <span className="text-base">{cosmeticById(profile.selectedNameplate,"nameplate")?.symbol??"▭"}</span>
+                <span className="truncate">{profile.name}</span>
+                {profile.selectedTitle&&<span className="text-xs font-medium opacity-70">· {profile.unlockedTitles.find(t=>t.id===profile.selectedTitle)?.title}</span>}
+              </div>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">
                   <Star className="w-3 h-3" /> LVL {lvl}
@@ -176,7 +202,7 @@ export function Profile() {
               <div className="mt-3">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/60">{next ? `Next rank: ${next.name} (LVL ${next.level})` : "Max rank achieved"}</span>
-                  <span className="text-white/60 tabular-nums">{profile.xpProgress.current} / {profile.xpProgress.needed} XP</span>
+                  <span className="text-white/60 tabular-nums">{profile.xpProgress.needed ? `${profile.xpProgress.current} / ${profile.xpProgress.needed} XP` : "Level cap · Career unlocked"}</span>
                 </div>
                 <div className="relative h-2.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
                   <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-all duration-500" style={{ width: `${xpPct}%` }} />
@@ -186,72 +212,12 @@ export function Profile() {
           </div>
         </div>
 
-        {/* Saved loadouts are persistent, named snapshots of the equipped kit. */}
-        <section className="mb-6 rounded-2xl border border-amber-500/25 bg-zinc-900/60 p-5" aria-label="Saved loadouts">
-          <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
-            <div>
-              <h2 className="text-white font-bold uppercase tracking-wider flex items-center gap-2">
-                <Save className="w-4 h-4 text-amber-400" /> Saved Loadouts
-                <span className="text-xs text-white/40 font-normal normal-case">{(profile.savedLoadouts ?? []).length} / 5</span>
-              </h2>
-              <p className="text-xs text-white/50 mt-1">Save your current Armory setup, name it, and equip it before a match.</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setScreen("armory")} className="border-white/20 text-white">Customize in Armory</Button>
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <input
-              value={presetName}
-              onChange={e => setPresetName(e.target.value)}
-              placeholder="Name this loadout"
-              maxLength={24}
-              aria-label="New loadout name"
-              className="flex-1 min-w-40 rounded-lg bg-black/40 border border-white/20 text-white px-3 py-2 text-sm outline-none focus:border-amber-400"
-            />
-            <Button
-              disabled={presetBusy || !presetName.trim() || (profile.savedLoadouts ?? []).length >= 5}
-              onClick={() => managePreset("save")}
-              className="bg-amber-500 hover:bg-amber-400 text-black"
-            ><Save className="w-4 h-4 mr-1.5" /> Save Current</Button>
-          </div>
-          {(profile.savedLoadouts ?? []).length === 0 ? (
-            <div className="text-sm text-white/40 py-3">No saved loadouts yet. Equip your preferred kit in the Armory, then save it here.</div>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {(profile.savedLoadouts ?? []).map(preset => (
-                <div key={preset.id} className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-2">
-                  {editingPreset === preset.id ? (
-                    <div className="flex gap-2">
-                      <input value={editName} maxLength={24} onChange={e => setEditName(e.target.value)}
-                        aria-label="Rename saved loadout"
-                        className="min-w-0 flex-1 rounded bg-zinc-800 border border-white/20 text-white px-2 py-1 text-sm" />
-                      <Button size="sm" disabled={presetBusy || !editName.trim()} onClick={() => managePreset("rename", preset.id)}><Check className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditingPreset(null)}>Cancel</Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-amber-200 font-semibold text-sm truncate">{preset.name}</h3>
-                      <div className="flex gap-1">
-                        <button aria-label={`Rename ${preset.name}`} title="Rename" className="p-1.5 text-white/60 hover:text-white"
-                          onClick={() => { setEditingPreset(preset.id); setEditName(preset.name); }}><Pencil className="w-3.5 h-3.5" /></button>
-                        <button aria-label={`Delete ${preset.name}`} title="Delete" disabled={presetBusy}
-                          className="p-1.5 text-white/60 hover:text-rose-400" onClick={() => managePreset("delete", preset.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name}</div>
-                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id, preset.perkId)}
-                    className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
 
         <Tabs defaultValue="stats">
-          <TabsList className="bg-zinc-900/60 border border-white/10">
+          <TabsList className="bg-zinc-900/60 border border-white/10 w-full sm:w-fit justify-start overflow-x-auto">
             <TabsTrigger value="stats" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><TrendingUp className="w-4 h-4 mr-1.5" /> Stats</TabsTrigger>
+            <TabsTrigger value="customization" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Sparkles className="w-4 h-4 mr-1.5" /> Customization</TabsTrigger>
+            <TabsTrigger value="career" className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-200 text-white/60"><Crown className="w-4 h-4 mr-1.5" /> Career Contracts</TabsTrigger>
             <TabsTrigger value="achievements" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Award className="w-4 h-4 mr-1.5" /> Achievements <span className="ml-1 text-[10px] tabular-nums">({earnedAchievements}/{totalAchievements})</span></TabsTrigger>
             <TabsTrigger value="matches" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Clock className="w-4 h-4 mr-1.5" /> History</TabsTrigger>
             <TabsTrigger value="collection" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300 text-white/60"><Crosshair className="w-4 h-4 mr-1.5" /> Collection</TabsTrigger>
@@ -272,7 +238,8 @@ export function Profile() {
 
             {/* collection summary */}
             <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-5 mt-5">
-              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress</h3>
+              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress · {collector.percent}%</h3>
+              <p className="text-xs text-white/50 mb-3">Collector milestones at 10%, 25%, 50%, 75% and 100%. Wonder weapons and Career Token-exclusive cosmetics are excluded.</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <Progress label="Weapons" value={ownedW} total={totalWeapons} color="from-rose-500 to-amber-500" />
                 <Progress label="Owned Attachments" value={ownedA} total={totalAttachmentPairs} color="from-amber-500 to-yellow-500" sub="Owned per-weapon" />
@@ -280,6 +247,36 @@ export function Profile() {
                 <Progress label="Operative Skins" value={ownedPS} total={totalPSkins} color="from-emerald-500 to-cyan-500" />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="customization" className="mt-5">
+            <section aria-label="Profile customization" className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
+              <h2 className="text-white font-bold text-sm mb-4">Title &amp; Nameplate</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
+                <select id="equipped-mastery-title" value={profile.selectedTitle ?? ""} disabled={titleBusy}
+                  onChange={e=>void equipTitle(e.target.value)}
+                  className="rounded-lg border border-amber-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  <option value="">No title</option>
+                  {(profile.unlockedTitles??[]).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
+                </select>
+                {titleError&&<span role="alert" className="text-xs text-rose-400">{titleError}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <label htmlFor="equipped-nameplate" className="text-xs text-violet-200">Nameplate design</label>
+                <select id="equipped-nameplate" value={profile.selectedNameplate} disabled={nameplateBusy}
+                  onChange={e=>void equipNameplate(e.target.value)}
+                  className="rounded-lg border border-violet-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white">
+                  {COSMETICS.filter(c=>c.kind==="nameplate").map(c=><option key={c.id} value={c.id}
+                    disabled={!profile.ownedCosmetics.includes(c.id)}>{c.name}{profile.ownedCosmetics.includes(c.id)?"":" · Shop"}</option>)}
+                </select>
+                {cosmeticError&&<span role="alert" className="text-xs text-rose-400">{cosmeticError}</span>}
+              </div>
+
+            </section>
+          </TabsContent>
+          <TabsContent value="career" className="mt-5">
+            <CareerProgress />
           </TabsContent>
 
           {/* ACHIEVEMENTS — split into Quest, PvP, and PvE sections */}
@@ -310,9 +307,10 @@ export function Profile() {
                               {a.earned && <Crown className="w-3 h-3 text-purple-300" />}
                             </div>
                             <div className="text-white/40 text-xs">{a.description}</div>
-                            <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                            <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                           </div>
                         </div>
+                        <AchievementTitleReward id={a.id} earned={a.earned} />
                         {!a.earned && (
                           <div>
                             <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -335,11 +333,37 @@ export function Profile() {
               </div>
             </div>
 
+            {/* Tiered weapon mastery and account-wide career achievements. */}
+            <div className="mb-6">
+              <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400"/> Weapon Mastery &amp; Career
+                <span className="text-white/40 text-xs normal-case tracking-normal">Title rewards at the final tier of each achievement chain</span>
+              </h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {achievements.filter(a=>["mastery","career"].includes(ACHIEVEMENTS.find(d=>d.id===a.id)?.category??"")).map(a=>{
+                  const color=ACHIEVEMENT_TIER_COLORS[a.tier]??"#e9b85f";
+                  const pct=Math.min(100,100*a.currentValue/a.goal);
+                  return <div key={a.id} className={`rounded-xl border p-4 ${a.earned?"border-amber-500/40 bg-amber-500/5":"border-white/10 bg-zinc-900/40"}`}>
+                    <div className="flex gap-2 items-center mb-1">
+                      <Crown className="w-4 h-4" style={{color}}/>
+                      <span className="font-bold text-sm text-white">{a.title}</span>
+                      {a.earned&&<span className="text-[10px] text-emerald-300 ml-auto">EARNED</span>}
+                    </div>
+                    <p className="text-white/50 text-xs mb-2">{a.description}</p>
+                    <AchievementTitleReward id={a.id} earned={a.earned} />
+                    <div className="flex justify-between text-[11px] text-white/50 mb-1"><span>{a.currentValue} / {a.goal}</span><span className="uppercase" style={{color}}>{a.tier}</span></div>
+                    <div className="h-1.5 bg-black/70 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{width:`${pct}%`}}/></div>
+                    <p className="text-[11px] text-white/50 mt-2">+{a.rewardXp} XP · +{a.rewardCredits} CR</p>
+                  </div>;
+                })}
+              </div>
+            </div>
+
             {/* PvP Achievements */}
             <div className="mb-5">
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-3 flex items-center gap-2">
                 <Swords className="w-4 h-4 text-rose-400" /> PvP Achievements
-                <span className="text-white/30 text-xs normal-case tracking-normal">FFA &amp; TDM</span>
+                <span className="text-white/30 text-xs normal-case tracking-normal">Non-Survival game modes</span>
               </h3>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {achievements.filter((a) => (ACHIEVEMENTS.find((d) => d.id === a.id)?.category ?? "pvp") === "pvp" && !["quest_daily_10", "quest_weekly_5", "quest_elite_3", "quest_total_50"].includes(a.id)).map((a) => {
@@ -359,9 +383,10 @@ export function Profile() {
                             {a.earned && <Crown className="w-3 h-3 text-rose-400" />}
                           </div>
                           <div className="text-white/40 text-xs">{a.description}</div>
-                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
+                      <AchievementTitleReward id={a.id} earned={a.earned} />
                       {!a.earned && (
                         <div>
                           <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -408,9 +433,10 @@ export function Profile() {
                             {a.earned && <Crown className="w-3 h-3 text-emerald-400" />}
                           </div>
                           <div className="text-white/40 text-xs">{a.description}</div>
-                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{a.tier}</div>
+                          <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: tierColor }}>{displayLabel(a.tier)}</div>
                         </div>
                       </div>
+                      <AchievementTitleReward id={a.id} earned={a.earned} />
                       {!a.earned && (
                         <div>
                           <div className="flex justify-between text-[10px] text-white/50 mb-1 tabular-nums">
@@ -440,7 +466,7 @@ export function Profile() {
               <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-10 text-center">
                 <Clock className="w-10 h-10 mx-auto text-white/20 mb-2" />
                 <div className="text-white/60 font-semibold">No matches yet</div>
-                <div className="text-white/40 text-sm">Deploy from the main menu to start your record.</div>
+                <div className="text-white/40 text-sm">Choose Play in the main menu to start your record.</div>
               </div>
             ) : (
               <div className="rounded-2xl border border-white/10 bg-zinc-900/40 overflow-hidden">
@@ -461,7 +487,7 @@ export function Profile() {
                       const Icon = m.mode === "tdm" ? Shield : m.mode === "survival" ? Skull : m.mode === "gungame" ? Swords : Users;
                       const w = weaponById(m.weaponId);
                       const ago = formatAgo(new Date(m.playedAt));
-                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : "FFA";
+                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : m.mode === "killconfirmed" ? "KC" : m.mode === "ffa" ? "FFA" : displayLabel(m.mode);
                       return (
                         <tr key={m.id} className="border-t border-white/5 hover:bg-white/5">
                           <td className="px-4 py-2">
@@ -529,6 +555,14 @@ export function Profile() {
       </footer>
     </div>
   );
+}
+
+function AchievementTitleReward({ id, earned }: { id: string; earned: boolean }) {
+  const title = achievementTitle(id);
+  if (!title) return null;
+  return <p className="my-2 flex items-center gap-1.5 text-xs text-amber-300">
+    <Crown className="h-3 w-3 shrink-0" /> {earned ? "Title unlocked" : "Final-tier title"}: {title}
+  </p>;
 }
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number | string; color: string }) {

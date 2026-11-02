@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { resolveGameServerConnection, type GameBrowserLocation } from "../src/lib/game-network";
 
 const browser = (overrides: Partial<GameBrowserLocation> = {}): GameBrowserLocation => ({
@@ -53,5 +55,26 @@ describe("LAN and Tailscale multiplayer endpoints", () => {
     const endpoint = resolveGameServerConnection(browser(), 4003);
     expect(endpoint.socketUrl).toBe("http://localhost:4003");
     expect(endpoint.probeUrls[0]).toContain(":4003/");
+  });
+});
+
+describe("private party hosting instructions", () => {
+  const read = (p: string) => readFileSync(join(import.meta.dir, "..", p), "utf8");
+
+  test("one-command LAN launch uses the non-loopback web listener", () => {
+    const packageJson = JSON.parse(read("package.json")) as {scripts: Record<string,string>};
+    expect(packageJson.scripts.lan).toBe("next dev -H 0.0.0.0 -p 3000");
+    const server = read("src/lib/game-server.ts");
+    expect(server).toContain("httpServer.listen(port");
+    expect(server).toContain("Game server listening on port");
+    expect(read("src/instrumentation.ts")).toContain("startGameServer(3003)");
+  });
+
+  test("README links private hosting guide with both service ports and a test handshake", () => {
+    expect(read("README.md")).toContain("docs/lan-and-tailscale.md");
+    const guide = read("docs/lan-and-tailscale.md");
+    for (const fragment of ["bun run db:setup", "bun run lan", "tailscale ip -4", "3000 and 3003", "EIO=4&transport=polling", "New-NetFirewallRule", "do not need `tailscale serve`"]) {
+      expect(guide).toContain(fragment);
+    }
   });
 });

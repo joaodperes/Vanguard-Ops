@@ -37,21 +37,21 @@
   },
   "hunter": {
     "type": "hunter",
-    "name": "Hunter 6x",
-    "zoom": 6,
+    "name": "Hunter 2x",
+    "zoom": 2,
     "reticle": "mildot",
-    "adsFovReduction": 60,
-    "adsSensMul": 0.32,
-    "description": "6x magnification. Sniper-grade optic, very slow ADS."
+    "adsFovReduction": 33,
+    "adsSensMul": 0.58,
+    "description": "2x low-magnification scope. Fast target acquisition with modest long-range precision."
   },
   "thermal": {
     "type": "thermal",
-    "name": "Thermal 2x",
-    "zoom": 2,
+    "name": "Thermal 6x",
+    "zoom": 6,
     "reticle": "thermal",
-    "adsFovReduction": 38,
-    "adsSensMul": 0.55,
-    "description": "2x thermal. Highlights heat signatures through cover fog.",
+    "adsFovReduction": 60,
+    "adsSensMul": 0.3,
+    "description": "6x thermal scope. Highlights heat signatures at long range with slower handling.",
     "overlay": "thermal"
   },
   "nvg": {

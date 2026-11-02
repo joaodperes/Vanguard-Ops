@@ -19,12 +19,30 @@ model Player {
   level           Int      @default(1)
   xp              Int      @default(0)
   credits         Int      @default(0)
+  /// Career promotions consume fresh post-cap XP and credits; no equipment reset.
+  careerRank      Int      @default(0)
+  /// Capped progress toward the NEXT promotion, reset to zero on promotion.
+  careerXp        Int      @default(0)
+  /// Monotonic tokens spent in the Career Shop (optimistic checkout guard).
+  careerTokensSpent Int @default(0)
+  /// Once-only conversion of pre-ledger Wonder redemptions.
+  wonderTokenLedgerReady Boolean @default(false)
+  /// Covers historical purchases with no identifiable earned weapon source.
+  wonderLegacyCredits Int @default(0)
   kills           Int      @default(0)
   deaths          Int      @default(0)
   matchesPlayed   Int      @default(0)
   matchesWon      Int      @default(0)
   survivalBestWave Int     @default(0)
   selectedSkin    String   @default("default")
+  /// The equipped title achievement id (never arbitrary user text).
+  selectedTitle   String   @default("")
+  selectedReticle String @default("classic")
+  selectedNameplate String @default("standard")
+  /// Per-weapon charm IDs; server validated against account purchases.
+  equippedCharms String @default("{}")
+  /// Non-Survival streak record; Survival kill streaks do not award PvP streak achievements.
+  pvpBestKillstreak Int    @default(0)
   // 17-C: Quest-completion lifetime counters (used by the 4 quest achievements).
   // Incremented in applyMatchResult when a challenge transitions to awarded=true.
   dailyChallengesCompleted   Int @default(0)
@@ -51,6 +69,10 @@ model Player {
   weaponProgress  WeaponProgress[]
   weaponPrestiges WeaponPrestige[]
   wonderUnlocks WonderUnlock[]
+  wonderTokenAwards WonderTokenAward[]
+  careerContracts CareerContract[]
+  careerRewards CareerReward[]
+  careerShopPurchases CareerShopPurchase[]
 
   @@index([playerKey])
 }
@@ -130,6 +152,8 @@ model Loadout {
   primaryWeapon   String   @default("rifle_ar")
   secondaryWeapon String   @default("pistol_side")
   meleeWeapon     String   @default("knife_tactical")
+  /// Account-persistent active passive perk, separate from named preset snapshots.
+  perkId          String   @default("battle_hardened")
   /// Skin for the PRIMARY weapon (per-weapon, like attachments).
   weaponSkin      String   @default("default")
   /// Skin for the SECONDARY (sidearm) weapon. Per-weapon so changing a skin on
@@ -138,6 +162,12 @@ model Loadout {
   /// Skin for the MELEE weapon.
   meleeWeaponSkin     String @default("default")
   playerSkin      String   @default("default")
+  /// Active loadout cosmetics (independent for primary and secondary).
+  primaryReticle String @default("classic")
+  secondaryReticle String @default("classic")
+  primaryCharm String @default("none")
+  secondaryCharm String @default("none")
+  cosmeticsMigrated Boolean @default(false)
   /// JSON string of selected attachment ids keyed by slot for the PRIMARY weapon:
   /// {"sight":"red_dot","barrel":"suppressor","grip":"vertical"}
   attachments     String   @default("{}")
@@ -202,6 +232,8 @@ model WeaponProgress {
 /// One permanent Prestige award per mastered ordinary weapon.
 model WeaponPrestige {
   id String @id @default(cuid())
+  /// Old awards previously granted both camos; existing rows keep that reward.
+  legacyReward Boolean @default(true)
   playerId String
   weaponId String
   awardedAt DateTime @default(now())
@@ -210,8 +242,21 @@ model WeaponPrestige {
   @@index([playerId])
 }
 
-/// A token spent on a unique Wonder Weapon; token balance is awarded Prestiges
-/// minus Wonder unlocks, making replays and profile exports idempotent.
+/// Permanently earned Wonder entitlement. Once earned, never revoked by
+/// later mastery balance changes. One token award per ordinary weapon.
+model WonderTokenAward {
+  id String @id @default(cuid())
+  playerId String
+  weaponId String
+  legacy Boolean @default(false)
+  awardedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, weaponId])
+  @@index([playerId])
+}
+
+/// A Wonder purchase is permanent. Balance uses the permanent award ledger
+/// and compensation for previously spent historical tokens.
 model WonderUnlock {
   id String @id @default(cuid())
   playerId String
@@ -257,4 +302,43 @@ model DailyChallenge {
   @@unique([playerId, challengeId, dayKey])
   @@index([playerId, dayKey])
   @@index([playerId, type])
+}
+
+
+/// Five current challenges per cycle, three required to earn each Career Token.
+/// Progress is written only by the authoritative match-completion endpoint.
+model CareerContract {
+  id String @id @default(cuid())
+  playerId String
+  cycle Int
+  contractId String
+  goal Int
+  progress Int @default(0)
+  completed Boolean @default(false)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, cycle, contractId])
+  @@index([playerId, cycle])
+}
+
+/// Each completed set can be claimed exactly once.
+model CareerReward {
+  id String @id @default(cuid())
+  playerId String
+  cycle Int
+  claimedAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, cycle])
+}
+
+/// Permanent, server-priced credit or Career Token purchases.
+model CareerShopPurchase {
+  id String @id @default(cuid())
+  playerId String
+  itemKey String
+  currency String
+  cost Int
+  boughtAt DateTime @default(now())
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@unique([playerId, itemKey])
+  @@index([playerId])
 }

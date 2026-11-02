@@ -1,9 +1,11 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
-import { weaponChallengeProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
+import { weaponChallengeProgress, weaponMasteryProgress, parseWeaponConditionStats } from "@/lib/armory-challenges";
 import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
   const {
     playerKey: bodyKey,
     primaryWeapon,
-    secondaryWeapon,
+    secondaryWeapon: requestedSecondaryWeapon,
     perkId,
     meleeWeapon,
     weaponSkin,
@@ -89,6 +91,7 @@ export async function POST(req: NextRequest) {
     attachments,
     secondaryAttachments,
     meleeAttachments,
+    primaryReticle, secondaryReticle, primaryCharm, secondaryCharm,
   } = body as {
     playerKey?: string;
     primaryWeapon?: string;
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
     attachments?: Record<string, string | null>;
     secondaryAttachments?: Record<string, string | null>;
     meleeAttachments?: Record<string, string | null>;
+    primaryReticle?: string; secondaryReticle?: string; primaryCharm?: string; secondaryCharm?: string;
   };
   const { playerKey } = await resolvePlayerKey(req, bodyKey);
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
@@ -110,14 +114,25 @@ export async function POST(req: NextRequest) {
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
-  const selectedPerk = perkId ? perkById(perkId) : perkById(DEFAULT_PERK_ID);
-  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > player.level)) {
+  let selectedPerk = perkById(perkId ?? player.loadout?.perkId ?? DEFAULT_PERK_ID);
+  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > levelForXp(player.xp))) {
     return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
+  }
+  if (selectedPerk.unlockLevel > levelForXp(player.xp)) selectedPerk = perkById(DEFAULT_PERK_ID);
+  let secondaryWeapon = requestedSecondaryWeapon;
+  // A perk-only update must also remove a now-ineligible second primary.
+  // Pass the fallback through the normal attachment/skin/setup validation.
+  const storedSecondary = weaponById(player.loadout?.secondaryWeapon ?? "pistol_side");
+  if (secondaryWeapon === undefined && isPrimaryWeaponCategory(storedSecondary.category) &&
+      (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) ||
+       storedSecondary.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
+    secondaryWeapon = "pistol_side";
   }
   // Validate weapon selections against the catalog and their slot constraints.
   if (primaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === primaryWeapon);
     if (!w) return NextResponse.json({ error: "unknown primaryWeapon" }, { status: 400 });
+    if (w.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (w.wonder) {
       const owned = await db.wonderUnlock.findUnique({ where: {
         playerId_weaponId: { playerId: player.id, weaponId: w.id },
@@ -127,23 +142,25 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
     }
-    if (w.category === "sidearm" || w.category === "melee") {
+    if (!w.wonder && !isPrimaryWeaponCategory(w.category)) {
       return NextResponse.json({ error: "primaryWeapon must be a primary-slot weapon" }, { status: 400 });
     }
   }
   if (secondaryWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === secondaryWeapon);
+    if (w?.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (!w) return NextResponse.json({ error: "unknown secondaryWeapon" }, { status: 400 });
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
     }
+    if(w.wonder) return NextResponse.json({error:"Wonder Weapons use the Primary slot"},{status:403});
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
-    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, player.level) || w.wonder ||
+    if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
       return NextResponse.json({ error: "Second primary requires Well Prepared (LVL 28), must be different from your first, and cannot be a Wonder Weapon" }, { status: 403 });
     }
-    if (w.category !== "sidearm" && !anotherPrimary) {
-      return NextResponse.json({ error: "secondaryWeapon must be a sidearm or a permitted second primary" }, { status: 400 });
+    if (w.category === "melee") {
+      return NextResponse.json({ error: "secondaryWeapon must be a pistol, PDW, launcher or a permitted second primary" }, { status: 400 });
     }
     if (anotherPrimary && w.unlockCost > 0 &&
       !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
@@ -198,10 +215,18 @@ export async function POST(req: NextRequest) {
     const skinDef = WEAPON_SKINS.find(s => s.id === skinId);
     if (!skinDef) return undefined;
     if (skinDef.prestige) {
-      const earned = await db.weaponPrestige.findUnique({ where: {
-        playerId_weaponId: { playerId: player.id, weaponId },
-      } });
-      return earned ? skinId : undefined;
+      const prestige=await db.weaponPrestige.findUnique({where:{
+        playerId_weaponId:{playerId:player.id,weaponId},
+      }});
+      if(skinDef.prestige==="toxic")return prestige ? skinId:undefined;
+      // Eventide belongs to rank-5 Mastery, independent of Prestige.
+      // Historical pre-split Prestige awards retain their Eventide entitlement.
+      const progress=await db.weaponProgress.findUnique({where:{
+        playerId_weaponId:{playerId:player.id,weaponId},
+      }});
+      return prestige?.legacyReward || weaponMasteryProgress(
+        progress?.kills??0,progress?.headshots??0,weaponId,
+      ).rank===5 ? skinId:undefined;
     }
     const owned = await db.skinUnlock.findUnique({
       where: { playerId_weaponId_skinId: { playerId: player.id, weaponId, skinId } },
@@ -239,6 +264,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
   }
 
+  // Validate all paid cosmetic choices before committing an updated loadout.
+  const cosmeticSelections = { primaryReticle, secondaryReticle, primaryCharm, secondaryCharm };
+  const selections = Object.entries(cosmeticSelections).filter(([, id]) => id !== undefined);
+  if (selections.length) {
+    const purchases = await db.careerShopPurchase.findMany({ where: { playerId: player.id }, select: { itemKey: true } });
+    const owned = cosmeticShopOwnership(purchases.map(p => p.itemKey));
+    for (const [field, id] of selections) {
+      const kind = field.endsWith("Reticle") ? "reticle" : "charm";
+      if (typeof id !== "string" || !cosmeticById(id, kind)) return NextResponse.json({ error: "Unknown cosmetic option" }, { status: 400 });
+      if (!owned.includes(id)) return NextResponse.json({ error: "Buy this cosmetic in the Shop before equipping" }, { status: 403 });
+    }
+  }
   // Persist each newly chosen setup after ownership/compatibility checks,
   // preserving explicit None attachments and falling back to default when a
   // formerly owned skin is no longer available.
@@ -255,10 +292,15 @@ export async function POST(req: NextRequest) {
       primaryWeapon: primaryWeapon ?? "rifle_ar",
       secondaryWeapon: secondaryWeapon ?? "pistol_side",
       meleeWeapon: meleeWeapon ?? "knife_tactical",
+      perkId: selectedPerk.id,
       weaponSkin: sanitizedWeaponSkin ?? "default",
       secondaryWeaponSkin: sanitizedSecondarySkin ?? "default",
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
       playerSkin: playerSkin ?? "default",
+      primaryReticle: primaryReticle ?? "classic", secondaryReticle: secondaryReticle ?? "classic",
+      primaryCharm: primaryCharm ?? "none",
+      secondaryCharm: secondaryCharm ?? "none",
+      cosmeticsMigrated: true,
       attachments: attsJson ?? "{}",
       secondaryAttachments: secAttsJson ?? "{}",
       meleeAttachments: melAttsJson ?? "{}",
@@ -266,9 +308,15 @@ export async function POST(req: NextRequest) {
     },
     update: {
       weaponSetups:JSON.stringify(setups),
+      ...(primaryReticle !== undefined ? { primaryReticle } : {}),
+      ...(secondaryReticle !== undefined ? { secondaryReticle } : {}),
+      ...(primaryCharm !== undefined ? { primaryCharm } : {}),
+      ...(secondaryCharm !== undefined ? { secondaryCharm } : {}),
+      ...(selections.length ? { cosmeticsMigrated: true } : {}),
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
+      perkId: selectedPerk.id,
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),

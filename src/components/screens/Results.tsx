@@ -1,11 +1,20 @@
 "use client";
+import { achievementTitle, achievementRequirement } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
-import { weaponById } from "@/lib/game-data";
+import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS } from "@/lib/game-data";
+import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
+
+function unlockedGearLabel(id: string): string {
+  return WEAPONS.find(w => w.id === id)?.name
+    ?? WEAPON_SKINS.find(s => s.id === id)?.name
+    ?? ATTACHMENTS.find(a => a.id === id)?.name
+    ?? displayLabel(id);
+}
 
 export function Results() {
   const { matchResult, profile, setScreen, playConfig } = useGame();
@@ -28,7 +37,8 @@ export function Results() {
   const myStanding = standings.findIndex((s) => !s.isBot && s.name === profile?.name);
   const placement = r.placement ?? (myStanding >= 0 ? myStanding + 1 : 1);
   const rewards = r.rewards;
-  const isMvp = placement === 1;
+  const leftEarly = r.completed === false;
+  const isMvp = placement === 1 && !leftEarly && playConfig.mode !== "survival" && (r.participants ?? 0) >= 2;
   const durationMin = r.durationSec ? Math.floor(r.durationSec / 60) : 0;
   const durationSec = r.durationSec ? r.durationSec % 60 : 0;
   const w = weaponById(r.weaponId ?? "rifle_ar");
@@ -56,13 +66,13 @@ export function Results() {
           <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border mb-3 ${r.won ? "border-amber-500/40 bg-amber-500/10" : "border-white/10 bg-white/5"}`}>
             {r.won ? <Crown className="w-5 h-5 text-amber-400" /> : <Trophy className="w-5 h-5 text-white/60" />}
             <span className={`font-bold tracking-widest uppercase text-sm ${r.won ? "text-amber-300" : "text-white/70"}`}>
-              {r.won ? "Victory" : "Defeat"}
+              {leftEarly ? "Left Match" : r.won ? "Victory" : "Defeat"}
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
             {isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
-              : `${playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · Match Over`}
+              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · ${leftEarly ? "Match Left" : "Match Over"}`}
           </h1>
           {!isSurvival && (
             <p className="text-white/50 mt-2">
@@ -113,11 +123,34 @@ export function Results() {
                 </div>
               </div>
 
-              {(rewards.bonusXp ?? 0) > 0 && (
-                <div className="text-xs text-white/40 flex items-center gap-1.5">
-                  <Star className="w-3 h-3 text-amber-400" /> Bonus: <span className="text-amber-300">+{rewards.bonusXp} XP</span> · <span className="text-amber-300">+{rewards.bonusCredits} CR</span> from objectives, streaks &amp; challenges
+              {rewards.breakdown ? (
+                <div className="rounded-xl border border-white/10 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-5 border-b border-white/10 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-widest text-white/45">
+                    <span>Reward category</span><span className="w-16 text-right">XP</span><span className="w-16 text-right">Credits</span>
+                  </div>
+                  {([
+                    ["combat", "Combat"],
+                    ["objectives", "Objectives"],
+                    ["matchPerformance", "Match Performance"],
+                    ["challenges", "Challenges"],
+                    ["achievements", "Achievements"],
+                    ["survival", "Survival"],
+                  ] as const).filter(([key]) => (rewards.breakdown?.[key]?.xp ?? 0) > 0 ||
+                    (rewards.breakdown?.[key]?.credits ?? 0) > 0).map(([key, label]) => (
+                    <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-5 border-b border-white/5 px-4 py-3 text-sm last:border-b-0">
+                      <span className="text-white/80 font-medium">{label}</span>
+                      <span className="w-16 text-right tabular-nums text-cyan-300">+{rewards.breakdown?.[key]?.xp ?? 0}</span>
+                      <span className="w-16 text-right tabular-nums text-amber-300">+{rewards.breakdown?.[key]?.credits ?? 0}</span>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div className="text-xs text-white/45">Category breakdown unavailable for this match.</div>
               )}
+              {!isSurvival && leftEarly && (
+                <p className="text-xs text-white/45">Early exit: no match completion or placement bonuses. Earned combat and objective rewards are retained.</p>
+              )}
+              <div className="pt-2 text-xs uppercase tracking-widest text-white/50">Progression &amp; Unlocks</div>
 
               {rewards.leveledUp && (
                 <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-rose-500/15 border border-amber-500/30 flex items-center gap-3">
@@ -137,8 +170,12 @@ export function Results() {
                   <div className="space-y-1.5">
                     {rewards.newAchievements.map((a: any) => (
                       <div key={a.id} className="flex items-center justify-between text-xs">
-                        <span className="text-white/80 flex items-center gap-1.5"><Star className="w-3 h-3 text-amber-400" /> {a.title}</span>
-                        <span className="text-emerald-300">+{a.rewardXp} XP · +{a.rewardCredits} CR</span>
+                        <div className="min-w-0">
+                          <span className="text-white/80 flex items-center gap-1.5"><Star className="w-3 h-3 text-amber-400" /> {a.title}</span>
+                          <p className="mt-1 text-white/60">{achievementRequirement(a.id, a.description) ?? "Achievement conditions met"}</p>
+                          {achievementTitle(a.id) && <p className="mt-1 text-amber-300">Title unlocked: {achievementTitle(a.id)}</p>}
+                        </div>
+                        <span className="text-emerald-300">Unlocked</span>
                       </div>
                     ))}
                   </div>
@@ -160,7 +197,7 @@ export function Results() {
                         "text-cyan-200 border-cyan-500/30 bg-cyan-500/10";
                       return <div key={c.id} className={`rounded-lg border p-3 ${color}`}>
                         <div className="flex justify-between gap-2 text-[10px] uppercase tracking-wider font-semibold">
-                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : c.kind + " challenge"}</span>
+                          <span>{isWeapon ? "Weapon mastery" : isElite ? "Elite challenge" : `${displayLabel(c.kind)} challenge`}</span>
                           {c.completed ? <span className="text-emerald-300">Completed ✓</span> : <span>+{c.progress-c.before}</span>}
                         </div>
                         <div className="text-white font-semibold text-xs mt-1">{c.title}</div>
@@ -182,7 +219,7 @@ export function Results() {
                     {rewards.challengeAwards.map((c: any) => (
                       <div key={c.challengeId} className="flex items-center justify-between text-xs">
                         <span className="text-white/80 flex items-center gap-1.5"><Trophy className="w-3 h-3 text-purple-400" /> {c.title}</span>
-                        <span className="text-purple-300">+{c.rewardXp} XP · +{c.rewardCredits} CR</span>
+                        <span className="text-purple-300">Completed</span>
                       </div>
                     ))}
                   </div>
@@ -214,7 +251,7 @@ export function Results() {
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
                   <div className="flex flex-wrap gap-1.5">
                     {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments].map((id: string) => (
-                      <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{id}</span>
+                      <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{unlockedGearLabel(id)}</span>
                     ))}
                   </div>
                 </div>

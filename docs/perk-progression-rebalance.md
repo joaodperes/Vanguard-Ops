@@ -1,4 +1,4 @@
-# Weapon rarity progression and two new perks
+# Weapon rarity and perk progression
 
 Implementation: directly on `dev`.
 
@@ -19,6 +19,7 @@ thereafter. The perk menu is sorted in unlock order and shows locked levels.
 | 22 | Scavenger | Collect dropped ammunition |
 | 25 | Explonando | Drop a timed explosive upon death |
 | 28 | Well Prepared | Swap sidearm for a distinct, purchased, non-Wonder primary |
+| 31 | Silent Steps | Suppress your footstep sounds; gunfire and other actions remain audible |
 
 The current perk selection is stored on the browser; level entitlement is
 validated on both the web loadout API and the multiplayer game server.
@@ -83,5 +84,7 @@ reload each gun independently, customize its *secondary* attachments, then
 remove Well Prepared and confirm the backup becomes a pistol. Check old
 purchased high-tier weapons on an account under their new required level.
 
-**Status:** Code and regression tests have been committed to `dev`; the
-build and smoke tests have not been executed in this environment.
+The later save fix derives all perk entitlements from XP rather than the stale
+`Player.level` cache and includes named presets and the socket server. See
+[Economy and Career progression](economy-and-career-progression.md) for the
+updated curve, payout values, Career track and validation scope.
