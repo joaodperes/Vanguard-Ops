@@ -8692,9 +8692,9 @@ export class FPSEngine {
         ? ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map).goal,c.pos,this.map)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map)
         : null;
-      const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map.id) : null;
+      const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map) : null;
       ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
       const ctfCritical=ctfIntent?.role==="recover"||ctfIntent?.role==="escort";
       const base=c.team==="red"||c.team==="blue"?ctfBase(c.team,this.map.id):null;

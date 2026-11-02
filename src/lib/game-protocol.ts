@@ -1276,7 +1276,7 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
 export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(m,"ctf")).map(m=>m.id).sort((a,b)=>{
-  const priority=["forest_warfare","orbital_nexus","floodgate"];
+  const priority=["forest_warfare","orbital_nexus","floodgate","compound","skybridge","whiteout_depot"];
   const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
   return rank(a)-rank(b);
 });
