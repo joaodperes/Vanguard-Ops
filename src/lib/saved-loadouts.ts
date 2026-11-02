@@ -37,7 +37,7 @@ export function parseSavedLoadouts(raw: string | null | undefined): SavedLoadout
       return typeof item.id === "string" && typeof item.name === "string" &&
         typeof item.primaryWeapon === "string" && typeof item.secondaryWeapon === "string" &&
         typeof item.meleeWeapon === "string";
-    }).map(p => ({ ...p,
+    }).filter(p => !p.primaryWeapon.startsWith('wonder_')).map(p => ({ ...p,
       primaryReticle: typeof p.primaryReticle === "string" ? p.primaryReticle : "classic",
       secondaryReticle: typeof p.secondaryReticle === "string" ? p.secondaryReticle : "classic",
       primaryCharm: typeof p.primaryCharm === "string" ? p.primaryCharm : "none",
@@ -57,12 +57,13 @@ function safeAttachments(raw: string): Record<string, string | null> {
 /** Copy the active, server-validated Loadout row (not arbitrary client-provided weapons). */
 export function captureSavedLoadout(active: {
   primaryWeapon: string; secondaryWeapon: string; meleeWeapon: string;
+  wonderWeaponId?: string;
   weaponSkin: string; secondaryWeaponSkin: string; meleeWeaponSkin: string;
   playerSkin: string; attachments: string; secondaryAttachments: string; meleeAttachments: string;
   primaryReticle?: string; secondaryReticle?: string; primaryCharm?: string; secondaryCharm?: string;
 }, id: string, name: string, perkId: string): SavedLoadout {
   return {
-    id, name, perkId, primaryWeapon: active.primaryWeapon,
+    id, name, perkId, wonderWeaponId: active.wonderWeaponId ?? '', primaryWeapon: active.primaryWeapon,
     secondaryWeapon: active.secondaryWeapon, meleeWeapon: active.meleeWeapon,
     weaponSkin: active.weaponSkin, secondaryWeaponSkin: active.secondaryWeaponSkin,
     meleeWeaponSkin: active.meleeWeaponSkin, playerSkin: active.playerSkin,
