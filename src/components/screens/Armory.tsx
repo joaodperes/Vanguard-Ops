@@ -447,7 +447,7 @@ export function Armory() {
                     <Badge variant="outline" className="border-violet-400/40 text-violet-300">Wonder Weapon</Badge>
                   </div>
                   <p className="text-white/60 text-sm">{w.description}</p>
-                  {w.wonder!.kind === "turret" && <p className="text-white/45 text-xs">Deploy duration: 45s · Recharge: 55s per charge (reduced by kills).</p>}
+                  {w.wonder!.kind === "turret" && <p className="text-white/45 text-xs">Deploy duration: 25s · Recharge: {w.wonder!.rechargeMs/1000}s (reduced by ordinary kills).</p>}
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
                     <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
                     <span>{w.wonder!.kind === "shield" ? `Shield restores after ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
