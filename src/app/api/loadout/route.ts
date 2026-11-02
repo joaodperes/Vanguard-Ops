@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
     primaryWeapon,
     secondaryWeapon: requestedSecondaryWeapon,
     perkId,
+    wonderWeaponId: requestedWonderWeaponId,
     meleeWeapon,
     weaponSkin,
     secondaryWeaponSkin,
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
     primaryWeapon?: string;
     secondaryWeapon?: string;
     perkId?: string;
+    wonderWeaponId?: string;
     meleeWeapon?: string;
     weaponSkin?: string;
     secondaryWeaponSkin?: string;
@@ -119,6 +121,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
   }
   if (selectedPerk.unlockLevel > levelForXp(player.xp)) selectedPerk = perkById(DEFAULT_PERK_ID);
+  let wonderWeaponId = requestedWonderWeaponId ?? player.loadout?.wonderWeaponId ?? "";
+  if (selectedPerk.id === "wonder_weapon") {
+    const candidate = WEAPONS.find(w => w.id === wonderWeaponId);
+    if (!candidate?.wonder || candidate.disabled) return NextResponse.json(
+      { error: "Unlock and select a Wonder Weapon before equipping this perk" }, { status: 403 });
+    const owned = await db.wonderUnlock.findUnique({ where: {
+      playerId_weaponId: { playerId: player.id, weaponId: candidate.id },
+    } });
+    if (!owned) return NextResponse.json({ error: "This Wonder Weapon is not unlocked" }, { status: 403 });
+  } else if (requestedWonderWeaponId) {
+    const candidate = WEAPONS.find(w => w.id === requestedWonderWeaponId);
+    if (!candidate?.wonder || candidate.disabled) wonderWeaponId = "";
+    else {
+      const owned = await db.wonderUnlock.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId: candidate.id },
+      } });
+      if (!owned) wonderWeaponId = "";
+    }
+  }
   let secondaryWeapon = requestedSecondaryWeapon;
   // A perk-only update must also remove a now-ineligible second primary.
   // Pass the fallback through the normal attachment/skin/setup validation.
@@ -137,7 +158,7 @@ export async function POST(req: NextRequest) {
       const owned = await db.wonderUnlock.findUnique({ where: {
         playerId_weaponId: { playerId: player.id, weaponId: w.id },
       } });
-      if (!owned) return NextResponse.json({ error: "Unlock this Wonder Weapon using a Prestige token first" }, { status: 403 });
+      return NextResponse.json({ error: "Wonder Weapons must be equipped in slot 4" }, { status: 403 });
     }
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
@@ -293,6 +314,7 @@ export async function POST(req: NextRequest) {
       secondaryWeapon: secondaryWeapon ?? "pistol_side",
       meleeWeapon: meleeWeapon ?? "knife_tactical",
       perkId: selectedPerk.id,
+      wonderWeaponId,
       weaponSkin: sanitizedWeaponSkin ?? "default",
       secondaryWeaponSkin: sanitizedSecondarySkin ?? "default",
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
