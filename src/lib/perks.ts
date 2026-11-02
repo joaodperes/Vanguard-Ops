@@ -2,13 +2,14 @@
 // New choices arrive at roughly three-level intervals, beginning at level 4.
 export const PERKS = [
   { id: "battle_hardened", name: "Battle-Hardened", description: "Begin health regeneration 1 second sooner after damage.", icon: "shield", unlockLevel: 1 },
+  { id: "wonder_weapon", name: "Wonder Weapon", description: "Trade the passive perk for an owned rechargeable Wonder Weapon in slot 4.", icon: "zap", unlockLevel: 1 },
   { id: "field_loader", name: "Field Loader", description: "Reload and vent heat while sprinting.", icon: "refresh-cw", unlockLevel: 4 },
   { id: "recon_visor", name: "Recon Visor", description: "Enemy gunfire tracks moving targets on your minimap for 3.2 seconds instead of 2.2 seconds.", icon: "radar", unlockLevel: 7 },
   { id: "quickdraw", name: "Quickdraw", description: "Swap weapons 60% faster and reload 20% faster.", icon: "zap", unlockLevel: 10 },
   { id: "lightweight", name: "Lightweight", description: "Move 12% faster and jump slightly higher.", icon: "footprints", unlockLevel: 13 },
   { id: "steady", name: "Steady", description: "25% less recoil and 35% less weapon sway.", icon: "crosshair", unlockLevel: 16 },
   { id: "athlete", name: "Athlete", description: "Sprint for twice as long before stamina runs out.", icon: "activity", unlockLevel: 19 },
-  { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Each restores 35% of your firearm magazines.", icon: "package", unlockLevel: 22 },
+  { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Each completely reloads the currently equipped conventional firearm.", icon: "package", unlockLevel: 22 },
   { id: "explonando", name: "Explonando", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
   { id: "silent_steps", name: "Silent Steps", description: "Move without making footstep sounds. Gunfire and other actions remain audible.", icon: "volume-x", unlockLevel: 31 },
@@ -40,7 +41,7 @@ export const regenDelayMs = (perkId?: string | null) => perkId === "battle_harde
 export const sprintDrainMultiplier = (perkId?: string | null) => perkId === "athlete" ? 0.5 : 1;
 export const recoilMultiplier = (perkId?: string | null) => perkId === "steady" ? 0.75 : 1;
 export const swayMultiplier = (perkId?: string | null) => perkId === "steady" ? 0.65 : 1;
-export const scavengerAmmoAmount = (magSize: number) => Math.max(1, Math.ceil(magSize * 0.35));
+export const scavengerAmmoAmount = (magSize: number) => Math.max(0, magSize);
 export const SCAVENGER_PICKUP_RADIUS = 4.2;
 export const SCAVENGER_DROP_LIFETIME_MS = 20000;
 export const SCAVENGER_PICKUP_ARM_MS = 1500;
