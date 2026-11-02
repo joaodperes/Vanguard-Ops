@@ -1087,7 +1087,11 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       const dist=Math.hypot(dx,dz)||1;
       const pushed:Vec3=[victim.pos[0]+dx/dist*RIOT_BASH_KNOCKBACK,
         victim.pos[1],victim.pos[2]+dz/dist*RIOT_BASH_KNOCKBACK];
-      if(!blocksBotMotion(room.map.cover,victim.pos,pushed,victim.pos[1]))victim.pos=clampToArena(room,pushed);
+      if(!blocksBotMotion(room.map.cover,victim.pos,pushed,victim.pos[1])){
+        victim.pos=clampToArena(room,pushed);
+        if(!victim.isBot)io.to(victim.id).emit("message",
+          {t:"shieldBashPush",victimId:victim.id,pos:victim.pos} as S2C);
+      }
     }
     if(weaponId==="baton"&&victim.alive&&beingReloaded){
     room.reloadingPlayers.delete(victim.id);
