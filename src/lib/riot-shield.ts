@@ -2,6 +2,17 @@
 import type { Vec3 } from "./game-protocol";
 export const RIOT_SHIELD_ID = "wonder_riot_shield";
 export const RIOT_SHIELD_HP = 250;
+/** F only, when the intact shield is the active fourth-slot weapon. */
+export const RIOT_BASH_DAMAGE = 50;
+export const RIOT_BASH_REACH = 2;
+export const RIOT_BASH_COOLDOWN_MS = 900;
+export const RIOT_BASH_ARC_DEGREES = 40;
+export const RIOT_BASH_KNOCKBACK = 1.2;
+export function riotBashProfile() {
+  return { damage:RIOT_BASH_DAMAGE,reach:RIOT_BASH_REACH,
+    cooldownMs:RIOT_BASH_COOLDOWN_MS,halfArcDegrees:RIOT_BASH_ARC_DEGREES,
+    swingMs:440 };
+}
 /** The shield rebuilds in one step after destruction, independently of
  * P-9 ammo. All owner kills shorten cooldown, even Bulwark P-9 kills.
  * Death/respawn still restores durability immediately. */
