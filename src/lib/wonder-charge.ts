@@ -1,5 +1,6 @@
-/** A Wonder Weapon has NO reserve ammo. Each spent charge refills only after
- * its own timer; the timer survives death and can be shortened by ordinary kills.
+/** Charge-based Wonder Weapons have no reserve ammo or manual reload.
+ * Charges replenish over time (accelerated by ordinary kills) during each life.
+ * Every actual respawn/recovery restores the full capacity and clears cooldowns.
  * Functions are deterministic, shared by client, server and tests.
  */
 export interface WonderChargeState { charges: number; nextAt: number }
@@ -10,6 +11,26 @@ export interface WonderChargeRules {
 }
 export function fullWonderCharges(rules: WonderChargeRules): WonderChargeState {
   return { charges: rules.maxCharges, nextAt: 0 };
+}
+
+/** Restore full ammo at the start of a new life, without touching other players.
+ * Client maps use unprefixed weapon IDs; the server uses `${playerId}:` as prefix.
+ * Removing all prior entries for this owner also discards stale recharge timers
+ * from previously equipped Wonders. Bulwark has no charge state (rules = null).
+ */
+export function resetWonderChargesOnRespawn(
+  states: Map<string, WonderChargeState>,
+  ownerPrefix: string,
+  primaryWeaponId: string,
+  rules: WonderChargeRules | null,
+): WonderChargeState | null {
+  for (const key of states.keys()) {
+    if (key.startsWith(ownerPrefix)) states.delete(key);
+  }
+  if (!rules) return null;
+  const full = fullWonderCharges(rules);
+  states.set(ownerPrefix + primaryWeaponId, full);
+  return full;
 }
 export function tickWonderCharges(state: WonderChargeState, rules: WonderChargeRules, now: number): WonderChargeState {
   let { charges, nextAt } = state;
