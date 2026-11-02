@@ -87,10 +87,10 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(Math.abs(start.hand[2]-finish.hand[2])).toBeGreaterThan(.05);
   expect(start.prop[1]).toBeGreaterThan(0);
  });
- test("Hellfire has eight chargeable seconds, Storm mines are four seconds",()=>{
+ test("Hellfire has eight chargeable seconds, Storm mines are five seconds",()=>{
   expect(HELLFIRE_BURST_MS).toBe(8000);
   expect(weaponById("wonder_hellfire").wonder?.maxCharges).toBe(8);
-  expect(weaponById("wonder_stormweaver").description).toContain("4 seconds");
+  expect(weaponById("wonder_stormweaver").description).toContain("5 seconds");
  });
 });
 
