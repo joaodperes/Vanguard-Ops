@@ -12,7 +12,8 @@ export function resolveMatchLoadout(player: {
 }, requested: LoadoutWire): LoadoutWire {
   const level = levelForXp(player.xp);
   const perk = perkById(requested.perkId);
-  const perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
+  let perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
+  if(perkId==="wonder_weapon" && !player.wonderUnlocks?.some(w=>w.weaponId===requested.wonderWeaponId && w.weaponId===player.loadout?.wonderWeaponId))perkId=DEFAULT_PERK_ID;
   let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
   const w = WEAPONS.find(x => x.id === secondaryWeaponId);
   if (!w || w.disabled || w.wonder || w.category === "melee" ||
