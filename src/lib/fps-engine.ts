@@ -6530,7 +6530,7 @@ export class FPSEngine {
 
   private shieldRaised():boolean{
     return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting &&
-      this.riotShieldHp>0 && performance.now()-this.quickMeleeFeedbackAt>=riotBashProfile().swingMs;
+      this.riotShieldHp>0 && performance.now()-(this.quickMeleeFeedbackAt||0)>=riotBashProfile().swingMs;
   }
   private disposeRiotModel(model:THREE.Object3D){
     model.removeFromParent();
