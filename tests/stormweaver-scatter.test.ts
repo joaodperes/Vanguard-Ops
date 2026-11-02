@@ -50,7 +50,7 @@ describe("Stormweaver scattershot + deployable energy mines",()=>{
    expect(stormMineInReach(mine,[STORM_MINE_TRIGGER_RADIUS+.5,0,0])).toBe(false);
    expect(stormMineInReach(mine,[0,4,0])).toBe(false);
    expect(STORM_MINE_ARM_MS).toBeGreaterThanOrEqual(400);
-   expect(STORM_MINE_LIFETIME_MS).toBe(4000);
+   expect(STORM_MINE_LIFETIME_MS).toBe(5000);
  });
  test("nearest eligible chain target, no friendly fire / covered enemy / repeat",()=>{
    const foes=[enemy("near",[2,0,0]),enemy("far",[6,0,0]),

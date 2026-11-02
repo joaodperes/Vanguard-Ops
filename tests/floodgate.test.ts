@@ -12,7 +12,7 @@ import {steamPurgeStatus} from "../src/lib/map-event-status";
 import {buildSteamVent,updateSteamVent} from "../src/lib/steam-vent-visuals";
 import {legacyEnvironmentToHazard} from "../src/lib/map-object-actions";
 import {ctfDeliveryMarker} from "../src/lib/ctf-map-visuals";
-import {buildFloodgateBackdrop} from "../src/lib/floodgate-scenery";
+import {buildFloodgateBackdrop,setFloodgateBreachVisual,updateFloodgateBreachVisual} from "../src/lib/floodgate-scenery";
 
 const map=getMap("floodgate"),plan=MAP_BLUEPRINTS.maps.floodgate;
 const collision=makeEnvironmentMap(map).cover,index=new CoverSpatialIndex(collision);
@@ -40,12 +40,24 @@ function groundRoute(start:Vec3,goal:Vec3,zMin:number,zMax:number):boolean {
 describe("Floodgate 16v16 CTF",()=>{
   test("the reservoir, waterfalls and mountains cannot become invisible playable obstacles",()=>{
     const scene=new THREE.Scene(),backdrop=buildFloodgateBackdrop(scene);
-    expect(new THREE.Box3().setFromObject(backdrop).max.z).toBeLessThan(-108);
+    // The distant concrete remains outside the arena; the water is allowed to
+    // enter the playable strip only AFTER the authoritative breach.
+    const before=backdrop.getObjectByName("floodgate-flooded-spillway");
+    expect(before?.visible).toBe(false);
+    const solid=backdrop.children.filter(o=>o instanceof THREE.Mesh &&
+      o.material instanceof THREE.MeshStandardMaterial);
+    expect(solid.length).toBeGreaterThan(0);
+    expect(solid.every(o=>o.position.z< -106)).toBe(true);
+    setFloodgateBreachVisual(backdrop,true);
+    updateFloodgateBreachVisual(backdrop,14);
+    expect(backdrop.getObjectByName("floodgate-intact-gate")?.visible).toBe(false);
+    expect(backdrop.getObjectByName("floodgate-flooded-spillway")?.visible).toBe(true);
+    expect(backdrop.getObjectByName("floodgate-wave")?.visible).toBe(false);
     expect(backdrop.children.some(o=>o instanceof THREE.Light)).toBe(false);
     backdrop.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
   });
   test("fills the third CTF slot and authorizes 32 slots on client/server rules",()=>{
-    expect(CTF_MAP_IDS).toEqual(["forest_warfare","orbital_nexus","floodgate","compound","skybridge"]);
+    expect(CTF_MAP_IDS).toEqual(["forest_warfare","orbital_nexus","floodgate","compound","skybridge","whiteout_depot"]);
     expect(mapAllowedForMode("ctf",map.id)).toBe(true);
     for(const mode of ["ffa","survival","gungame"] as const)
       expect(mapAllowedForMode(mode,map.id)).toBe(false);
@@ -184,17 +196,17 @@ describe("Floodgate 16v16 CTF",()=>{
 });
 
 describe("Spillway pressure purge",()=>{
-  test("six-second warning precedes each six-second purge on a 48-second shared cycle",()=>{
+  test("seven-second warning precedes an eight-second purge on a 36-second shared cycle",()=>{
     expect(vents).toHaveLength(4);
     for(const vent of vents){
-      for(const [seconds,phase] of [[0,"idle"],[29.999,"idle"],[30,"warning"],[35.999,"warning"],
-        [36,"active"],[41.999,"active"],[42,"idle"],[78,"warning"],[84,"active"]] as const){
+      for(const [seconds,phase] of [[0,"idle"],[18.999,"idle"],[19,"warning"],[25.999,"warning"],
+        [26,"active"],[33.999,"active"],[34,"idle"],[55,"warning"],[62,"active"]] as const){
         expect(periodicHazardPhase(vent,seconds)).toBe(phase);
         expect(spikesActive(vent,seconds)).toBe(phase==="active");
       }
     }
-    expect(steamPurgeStatus(map.environment!,30)).toMatchObject({phase:"warning",secondsLeft:6});
-    expect(steamPurgeStatus(map.environment!,36)).toMatchObject({phase:"active",secondsLeft:6});
+    expect(steamPurgeStatus(map.environment!,19)).toMatchObject({phase:"warning",secondsLeft:7});
+    expect(steamPurgeStatus(map.environment!,26)).toMatchObject({phase:"active",secondsLeft:8});
     expect(steamPurgeStatus(getMap("orbital_nexus").environment!,36)).toBeUndefined();
   });
 
@@ -202,7 +214,7 @@ describe("Spillway pressure purge",()=>{
     const authored=plan.hazards!.find(h=>h.visual==="steam")!;
     const vent=authoredHazardEnvironment(authored);
     const copy=legacyEnvironmentToHazard(vent,"copy");
-    expect(copy).toMatchObject({visual:"steam",warningFor:6,period:48,activeFor:6,offset:12});
+    expect(copy).toMatchObject({visual:"steam",warningFor:7,period:36,activeFor:8,offset:10});
     expect(validateBlueprint({...plan,hazards:[{...authored,warningFor:43}]})).not.toEqual([]);
     expect(validateBlueprint({...plan,hazards:[{...authored,warningFor:-1}]})).not.toEqual([]);
   });
@@ -212,11 +224,11 @@ describe("Spillway pressure purge",()=>{
     const group=new THREE.Group();buildSteamVent(group,vent);
     const children=[...group.children],meshes=children as THREE.Mesh[];
     const geometries=meshes.map(m=>m.geometry),materials=meshes.map(m=>m.material);
-    updateSteamVent(group,vent,30);
+    updateSteamVent(group,vent,19);
     expect(children.filter(c=>c.userData.steamJet&&c.visible)).toHaveLength(0);
-    updateSteamVent(group,vent,36);
+    updateSteamVent(group,vent,26);
     expect(children.filter(c=>c.userData.steamJet&&c.visible)).toHaveLength(6);
-    for(let frame=0;frame<600;frame++)updateSteamVent(group,vent,36+frame/60);
+    for(let frame=0;frame<600;frame++)updateSteamVent(group,vent,26+frame/60);
     expect(group.children).toEqual(children);
     expect(meshes.map(m=>m.geometry)).toEqual(geometries);
     expect(meshes.map(m=>m.material)).toEqual(materials);

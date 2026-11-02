@@ -1,0 +1,136 @@
+{
+  "biome": "snow_rail",
+  "label": "Whiteout alpine freight depot",
+  "palette": {
+    "floor": "#c3cdd1",
+    "wall": "#657781",
+    "cover": "#526b78",
+    "accent": "#f6c56b",
+    "platform": "#718895",
+    "stair": "#9bafb7",
+    "sky": "#9aaebc",
+    "fog": "#bdcbd2",
+    "grid": "#a5b7c1"
+  },
+  "ambient": 1.9,
+  "vegetation": 0,
+  "surfaces": {
+    "floor": {
+      "pattern": "snow",
+      "tileSize": 5,
+      "roughness": 0.86
+    },
+    "wall": {
+      "pattern": "metal",
+      "tileSize": 4,
+      "roughness": 0.86
+    },
+    "cover": {
+      "pattern": "metal",
+      "tileSize": 3,
+      "roughness": 0.86
+    },
+    "platform": {
+      "pattern": "grate",
+      "tileSize": 2,
+      "roughness": 0.86
+    },
+    "stair": {
+      "pattern": "grate",
+      "tileSize": 2,
+      "roughness": 0.86
+    }
+  },
+  "props": [
+    {
+      "kind": "lamp",
+      "x": -94,
+      "z": -16,
+      "w": 1,
+      "d": 1,
+      "h": 6,
+      "color": "#ffd895"
+    },
+    {
+      "kind": "lamp",
+      "x": -94,
+      "z": 16,
+      "w": 1,
+      "d": 1,
+      "h": 6,
+      "color": "#ffd895"
+    },
+    {
+      "kind": "container",
+      "x": -60,
+      "z": -46,
+      "w": 24,
+      "d": 10,
+      "h": 5,
+      "color": "#8e4c3f"
+    },
+    {
+      "kind": "container",
+      "x": -20,
+      "z": -46,
+      "w": 24,
+      "d": 10,
+      "h": 5,
+      "color": "#446975"
+    },
+    {
+      "kind": "cargo_pallet",
+      "x": -80,
+      "z": 63,
+      "w": 9,
+      "d": 7,
+      "h": 2.6,
+      "color": "#9b825b"
+    },
+    {
+      "kind": "lamp",
+      "x": 94,
+      "z": -16,
+      "w": 1,
+      "d": 1,
+      "h": 6,
+      "color": "#ffd895"
+    },
+    {
+      "kind": "lamp",
+      "x": 94,
+      "z": 16,
+      "w": 1,
+      "d": 1,
+      "h": 6,
+      "color": "#ffd895"
+    },
+    {
+      "kind": "container",
+      "x": 60,
+      "z": -46,
+      "w": 24,
+      "d": 10,
+      "h": 5,
+      "color": "#8e4c3f"
+    },
+    {
+      "kind": "container",
+      "x": 20,
+      "z": -46,
+      "w": 24,
+      "d": 10,
+      "h": 5,
+      "color": "#446975"
+    },
+    {
+      "kind": "cargo_pallet",
+      "x": 80,
+      "z": 63,
+      "w": 9,
+      "d": 7,
+      "h": 2.6,
+      "color": "#9b825b"
+    }
+  ]
+}

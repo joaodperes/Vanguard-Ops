@@ -104,3 +104,7 @@ Forest Warfare, Orbital Nexus and Floodgate support CTF/TDM/Kill Confirmed. Verd
 The trials' rear spawn pools now live in each unified blueprint's optional `modeSpawns.ctf` alongside their editable objectives. The **Objectives and modes** section exposes these override coordinates. `getMap(id, mode)` and `compileMapStudioDraft(id, blueprint, theme, mode)` apply the same overrides; other modes keep their normal pools. Choose CTF in Playtest mode to use them. Legacy `src/data/ctf-layouts.json` remains a migration/reference snapshot, while runtime contact positions and spawn selection use the compiled unified document. Explicit empty objective arrays are never silently replaced.
 
 Regression checks compare Floodgate published/draft collision, hazards, spawns and objectives, and verify that unsaved trial edits affect neither other modes nor the published catalog. Live pointer/touch and offline/online gameplay review of this merged editor branch remains required.
+
+## Whiteout Depot
+
+The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).

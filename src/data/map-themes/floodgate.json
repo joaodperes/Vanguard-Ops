@@ -1,18 +1,18 @@
 {
   "biome": "hydroelectric",
-  "label": "Stormbound hydroelectric dam",
+  "label": "Teal turbine works, rust-red machinery and amber spillway lighting",
   "palette": {
-    "floor": "#46575b",
-    "wall": "#596b70",
-    "cover": "#73868a",
-    "accent": "#64d8dc",
-    "platform": "#4a646c",
-    "stair": "#adb8b6",
-    "sky": "#263b4c",
-    "fog": "#687e87",
-    "grid": "#344a50"
+    "floor": "#405b64",
+    "wall": "#71818a",
+    "cover": "#4c8895",
+    "accent": "#f2b44f",
+    "platform": "#2f7784",
+    "stair": "#d6a65c",
+    "sky": "#33566a",
+    "fog": "#668b9d",
+    "grid": "#385868"
   },
-  "ambient": 1.8,
+  "ambient": 1.75,
   "vegetation": 0,
   "surfaces": {
     "floor": {
@@ -43,24 +43,13 @@
   },
   "props": [
     {
-      "kind": "sign",
-      "x": -144,
-      "z": 0,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "y": 4,
-      "text": "WEST CONTROL",
-      "color": "#ff7882"
-    },
-    {
       "kind": "lamp",
       "x": -132,
       "z": -22,
       "w": 1,
       "d": 1,
       "h": 7,
-      "color": "#ff7882"
+      "color": "#ffbd6d"
     },
     {
       "kind": "lamp",
@@ -69,18 +58,7 @@
       "w": 1,
       "d": 1,
       "h": 7,
-      "color": "#ff7882"
-    },
-    {
-      "kind": "sign",
-      "x": 144,
-      "z": 0,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "y": 4,
-      "text": "EAST CONTROL",
-      "color": "#6cbfff"
+      "color": "#ffbd6d"
     },
     {
       "kind": "lamp",
@@ -89,7 +67,7 @@
       "w": 1,
       "d": 1,
       "h": 7,
-      "color": "#6cbfff"
+      "color": "#54dce9"
     },
     {
       "kind": "lamp",
@@ -98,7 +76,7 @@
       "w": 1,
       "d": 1,
       "h": 7,
-      "color": "#6cbfff"
+      "color": "#54dce9"
     },
     {
       "kind": "generator",
@@ -107,7 +85,7 @@
       "w": 14,
       "d": 24,
       "h": 6.5,
-      "color": "#507b80"
+      "color": "#13a4a4"
     },
     {
       "kind": "generator",
@@ -116,7 +94,7 @@
       "w": 14,
       "d": 24,
       "h": 6.5,
-      "color": "#507b80"
+      "color": "#ca713b"
     },
     {
       "kind": "generator",
@@ -125,7 +103,7 @@
       "w": 14,
       "d": 24,
       "h": 6.5,
-      "color": "#507b80"
+      "color": "#35a2b9"
     },
     {
       "kind": "generator",
@@ -134,80 +112,7 @@
       "w": 14,
       "d": 24,
       "h": 6.5,
-      "color": "#507b80"
-    },
-    {
-      "kind": "sign",
-      "x": -80,
-      "z": -28,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 5,
-      "text": "TURBINE HALL",
-      "color": "#b7e9e7"
-    },
-    {
-      "kind": "sign",
-      "x": 0,
-      "z": -28,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 5,
-      "text": "TURBINE HALL",
-      "color": "#b7e9e7"
-    },
-    {
-      "kind": "sign",
-      "x": 80,
-      "z": -28,
-      "w": 10,
-      "d": 1,
-      "h": 3,
-      "y": 5,
-      "text": "TURBINE HALL",
-      "color": "#b7e9e7"
-    },
-    {
-      "kind": "sign",
-      "x": -72,
-      "z": -96,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "text": "STEAM PURGE / CAUTION",
-      "color": "#f4c568"
-    },
-    {
-      "kind": "sign",
-      "x": -24,
-      "z": -96,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "text": "STEAM PURGE / CAUTION",
-      "color": "#f4c568"
-    },
-    {
-      "kind": "sign",
-      "x": 24,
-      "z": -96,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "text": "STEAM PURGE / CAUTION",
-      "color": "#f4c568"
-    },
-    {
-      "kind": "sign",
-      "x": 72,
-      "z": -96,
-      "w": 10,
-      "d": 1,
-      "h": 4,
-      "text": "STEAM PURGE / CAUTION",
-      "color": "#f4c568"
+      "color": "#d18f46"
     },
     {
       "kind": "container",
@@ -216,7 +121,7 @@
       "w": 16,
       "d": 12,
       "h": 6,
-      "color": "#9b7650"
+      "color": "#278b93"
     },
     {
       "kind": "container",
@@ -225,7 +130,7 @@
       "w": 16,
       "d": 12,
       "h": 6,
-      "color": "#466a75"
+      "color": "#278b93"
     },
     {
       "kind": "container",
@@ -234,7 +139,7 @@
       "w": 16,
       "d": 12,
       "h": 6,
-      "color": "#9b7650"
+      "color": "#e58a45"
     },
     {
       "kind": "container",
@@ -243,7 +148,7 @@
       "w": 16,
       "d": 12,
       "h": 6,
-      "color": "#466a75"
+      "color": "#c5a443"
     },
     {
       "kind": "container",
@@ -252,7 +157,7 @@
       "w": 16,
       "d": 12,
       "h": 6,
-      "color": "#9b7650"
+      "color": "#c5a443"
     },
     {
       "kind": "cargo_pallet",
@@ -293,7 +198,7 @@
       "w": 14,
       "d": 8,
       "h": 15,
-      "color": "#b9a262"
+      "color": "#e6a84e"
     },
     {
       "kind": "lamp",
@@ -302,7 +207,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#a1e4ed"
+      "color": "#67cfe5"
     },
     {
       "kind": "lamp",
@@ -311,7 +216,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#f4cf8b"
+      "color": "#ffb354"
     },
     {
       "kind": "lamp",
@@ -320,7 +225,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#a1e4ed"
+      "color": "#67cfe5"
     },
     {
       "kind": "lamp",
@@ -329,7 +234,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#f4cf8b"
+      "color": "#ffb354"
     },
     {
       "kind": "lamp",
@@ -338,7 +243,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#a1e4ed"
+      "color": "#67cfe5"
     },
     {
       "kind": "lamp",
@@ -347,7 +252,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#f4cf8b"
+      "color": "#ffb354"
     },
     {
       "kind": "lamp",
@@ -356,7 +261,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#a1e4ed"
+      "color": "#67cfe5"
     },
     {
       "kind": "lamp",
@@ -365,7 +270,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#f4cf8b"
+      "color": "#ffb354"
     },
     {
       "kind": "lamp",
@@ -374,7 +279,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#a1e4ed"
+      "color": "#67cfe5"
     },
     {
       "kind": "lamp",
@@ -383,27 +288,7 @@
       "w": 1,
       "d": 1,
       "h": 8,
-      "color": "#f4cf8b"
-    },
-    {
-      "kind": "sign",
-      "x": 0,
-      "z": 42,
-      "w": 14,
-      "d": 1,
-      "h": 4,
-      "text": "MAINTENANCE YARD",
-      "color": "#f4cf8b"
-    },
-    {
-      "kind": "sign",
-      "x": 0,
-      "z": -40,
-      "w": 14,
-      "d": 1,
-      "h": 4,
-      "text": "WATCH VENT LIGHTS",
-      "color": "#f4cf8b"
+      "color": "#ffb354"
     },
     {
       "kind": "vent_stack",
@@ -422,12 +307,94 @@
       "h": 18
     },
     {
-      "kind": "generator",
+      "kind": "lamp",
+      "x": -108,
+      "z": 14,
+      "w": 1,
+      "d": 1,
+      "h": 10,
+      "color": "#ffbd6d"
+    },
+    {
+      "kind": "lamp",
+      "x": -108,
+      "z": -47,
+      "w": 1,
+      "d": 1,
+      "h": 8,
+      "color": "#ffbd6d"
+    },
+    {
+      "kind": "lamp",
+      "x": -54,
+      "z": 14,
+      "w": 1,
+      "d": 1,
+      "h": 10,
+      "color": "#ffbd6d"
+    },
+    {
+      "kind": "lamp",
+      "x": -54,
+      "z": -47,
+      "w": 1,
+      "d": 1,
+      "h": 8,
+      "color": "#ffbd6d"
+    },
+    {
+      "kind": "lamp",
       "x": 0,
-      "z": -10,
-      "w": 8,
-      "d": 20,
-      "h": 7
+      "z": 14,
+      "w": 1,
+      "d": 1,
+      "h": 10,
+      "color": "#54dce9"
+    },
+    {
+      "kind": "lamp",
+      "x": 0,
+      "z": -47,
+      "w": 1,
+      "d": 1,
+      "h": 8,
+      "color": "#54dce9"
+    },
+    {
+      "kind": "lamp",
+      "x": 54,
+      "z": 14,
+      "w": 1,
+      "d": 1,
+      "h": 10,
+      "color": "#54dce9"
+    },
+    {
+      "kind": "lamp",
+      "x": 54,
+      "z": -47,
+      "w": 1,
+      "d": 1,
+      "h": 8,
+      "color": "#54dce9"
+    },
+    {
+      "kind": "lamp",
+      "x": 108,
+      "z": 14,
+      "w": 1,
+      "d": 1,
+      "h": 10,
+      "color": "#54dce9"
+    },
+    {
+      "kind": "lamp",
+      "x": 108,
+      "z": -47,
+      "w": 1,
+      "d": 1,
+      "h": 8,
+      "color": "#54dce9"
     }
   ]
 }

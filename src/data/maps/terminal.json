@@ -179,7 +179,13 @@
         ]
       ]
     },
-    "templateMapId": "terminal"
+    "templateMapId": "terminal",
+    "modes": [
+      "ffa",
+      "tdm",
+      "survival",
+      "gungame"
+    ]
   },
   "theme": {
     "biome": "city_day",

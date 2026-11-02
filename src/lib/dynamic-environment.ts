@@ -1,5 +1,6 @@
 /** Shared, deterministic environmental objects for offline and authoritative rooms. */
 import type { CoverBox, EnvironmentObject, MapDef, Vec3 } from "./game-protocol";
+import {initializeFloodgateFreight} from "./floodgate-topple";
 
 export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3 {
   if (o.type !== "moving_platform") return [...o.pos];
@@ -38,7 +39,9 @@ export function makeEnvironmentMap(base: MapDef): MapDef {
     const box = environmentCover(o);
     if (box) cover.push(box);
   }
-  return { ...base, cover };
+  const map={ ...base, cover };
+  if(map.id==="floodgate")initializeFloodgateFreight(map);
+  return map;
 }
 
 export function moveEnvironmentCover(map: MapDef, o: EnvironmentObject, seconds: number): void {

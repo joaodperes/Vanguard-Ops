@@ -276,13 +276,6 @@ export async function POST(req: NextRequest) {
       if (!owned.includes(id)) return NextResponse.json({ error: "Buy this cosmetic in the Shop before equipping" }, { status: 403 });
     }
   }
-  const primaryWonder = !!weaponById(effectivePrimary).wonder;
-  const secondaryWonder = !!weaponById(effectiveSecondary).wonder;
-  if ((primaryWonder && primaryCharm !== undefined && primaryCharm !== "none") ||
-      (secondaryWonder && secondaryCharm !== undefined && secondaryCharm !== "none")) {
-    return NextResponse.json({ error: "Wonder Weapons cannot equip charms" }, { status: 403 });
-  }
-
   // Persist each newly chosen setup after ownership/compatibility checks,
   // preserving explicit None attachments and falling back to default when a
   // formerly owned skin is no longer available.
@@ -305,8 +298,8 @@ export async function POST(req: NextRequest) {
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
       playerSkin: playerSkin ?? "default",
       primaryReticle: primaryReticle ?? "classic", secondaryReticle: secondaryReticle ?? "classic",
-      primaryCharm: primaryWonder ? "none" : primaryCharm ?? "none",
-      secondaryCharm: secondaryWonder ? "none" : secondaryCharm ?? "none",
+      primaryCharm: primaryCharm ?? "none",
+      secondaryCharm: secondaryCharm ?? "none",
       cosmeticsMigrated: true,
       attachments: attsJson ?? "{}",
       secondaryAttachments: secAttsJson ?? "{}",
@@ -317,8 +310,8 @@ export async function POST(req: NextRequest) {
       weaponSetups:JSON.stringify(setups),
       ...(primaryReticle !== undefined ? { primaryReticle } : {}),
       ...(secondaryReticle !== undefined ? { secondaryReticle } : {}),
-      ...(primaryCharm !== undefined || primaryWonder ? { primaryCharm: primaryWonder ? "none" : primaryCharm } : {}),
-      ...(secondaryCharm !== undefined || secondaryWonder ? { secondaryCharm: secondaryWonder ? "none" : secondaryCharm } : {}),
+      ...(primaryCharm !== undefined ? { primaryCharm } : {}),
+      ...(secondaryCharm !== undefined ? { secondaryCharm } : {}),
       ...(selections.length ? { cosmeticsMigrated: true } : {}),
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),

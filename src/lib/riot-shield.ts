@@ -2,6 +2,28 @@
 import type { Vec3 } from "./game-protocol";
 export const RIOT_SHIELD_ID = "wonder_riot_shield";
 export const RIOT_SHIELD_HP = 250;
+/** The shield rebuilds in one step after destruction, independently of
+ * P-9 ammo. All owner kills shorten cooldown, even Bulwark P-9 kills.
+ * Death/respawn still restores durability immediately. */
+export const RIOT_SHIELD_RECHARGE_MS = 27_000;
+export const RIOT_SHIELD_KILL_BONUS_MS = 3_000;
+export interface RiotShieldDurability { hp: number; readyAt: number }
+export function hitRiotShield(hp: number, readyAt: number, damage: number, now: number): RiotShieldDurability {
+  if (hp <= 0 || damage <= 0) return { hp, readyAt };
+  const remaining = damageRiotShield(hp, damage);
+  return { hp: remaining, readyAt: remaining <= 0 ? now + RIOT_SHIELD_RECHARGE_MS : readyAt };
+}
+export function tickRiotShield(hp: number, readyAt: number, now: number): RiotShieldDurability {
+  return hp <= 0 && readyAt > 0 && now >= readyAt
+    ? { hp: RIOT_SHIELD_HP, readyAt: 0 } : { hp, readyAt };
+}
+export function accelerateRiotShield(hp: number, readyAt: number, now: number): RiotShieldDurability {
+  return tickRiotShield(hp, hp <= 0 && readyAt > 0 ? Math.max(now, readyAt - RIOT_SHIELD_KILL_BONUS_MS) : readyAt, now);
+}
+export function riotShieldCooldownMs(hp: number, readyAt: number, now: number): number {
+  return hp <= 0 && readyAt > 0 ? Math.max(0, readyAt - now) : 0;
+}
+
 export interface ShieldCarrier { pos: Vec3; yaw: number; weaponId: string; riotShieldHp?: number; riotShieldRaised?: boolean }
 export function shieldPanel(raised: boolean) {
   return raised

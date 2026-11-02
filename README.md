@@ -19,11 +19,59 @@ Players can jump straight into combat against AI, create a room for friends, or 
 | **Free-for-All (FFA)** | Every operator for themselves; reach the kill limit. |
 | **Team Deathmatch (TDM)** | Two teams compete on eliminations. |
 | **Kill Confirmed** | Collect enemy tags to score; recover friendly tags to deny points. |
-| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Five maps: Forest Warfare, Orbital Nexus, 16v16 Floodgate with pressure purges, plus trial CTF layouts for Verdant Ruins and Ridgefall. All nine maps also support TDM and Kill Confirmed. |
+| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Six maps: Forest Warfare, Orbital Nexus, 16v16 Floodgate, snowbound Whiteout Depot, plus trial CTF layouts for Verdant Ruins and Ridgefall. All ten maps also support TDM and Kill Confirmed. |
 | **Gun Game** | Advance through a rotating weapon sequence by earning eliminations. |
 | **Survival** | Fight escalating enemy waves, including co-op and progressively harder tiers. |
 
 Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare, Orbital Nexus and Floodgate. Modes have different supported-map rules.
+
+## Bot personalities
+
+Bots have a **difficulty** (easy / normal / hard / veteran / mixed) and a separate,
+persistent **combat archetype**:
+
+| Archetype | Preferred weapons | Typical behaviour |
+| --- | --- | --- |
+| Rusher | SMGs / shotguns | Rapid close-range pushes, frequent sprints and hipfire |
+| Rifleman | Assault rifles | Balanced midrange fighting and strafing |
+| Marksman | DMRs / snipers | Longer standoff distance, ADS lane-watching, less sprinting, high-ground preference |
+| Support | LMGs | Longer bursts, steady lane coverage and more deliberate movement |
+
+Offline and multiplayer bots select from all **30 supported conventional ranged
+weapons**, with archetype-weighted pools so weapon choices fit their fighting
+style. This includes pistols and PDWs as the bot's equipped weapon; bots do not
+yet independently manage primary and secondary slots or switch weapons to
+finish an enemy. Wonder Weapons, launchers, melee weapons, and the Electron
+Rifle / Arc Pistol / Reclaimer Crossbow (bespoke mechanics) are excluded.
+Survival uses the same eligible catalog and derives its personality from the
+selected weapon. Gun Game continues to use its fixed progression.
+
+**Bot appearances:** Standard AI operatives use the entire current operative skin
+catalog, including Shop and high-rarity outfits. A rotating assignment spreads
+appearances across a full lobby before repeating. Skins are cosmetic, bypass
+human unlock requirements, and never determine team affiliation; team markings
+remain visible on the chest, nameplate, and ground ring. Gun Game bots retain
+randomized operative outfits even though their weapons follow fixed progression.
+
+**Survival bosses:** Elite and Nightmare have a juggernaut on every tenth wave.
+The boss wears distinctive reinforced crimson armor, broad shoulder guards,
+a luminous visor and reactor core. Accent lights change with its LMG / automatic
+shotgun / heavy rifle phase. A growing ground ring warns of the shockwave for
+2.2 seconds, followed by an expanding impact ring. Boss health bars reflect
+the boss's full boosted health in both offline and multiplayer matches.
+
+In CTF, roughly a quarter of each squad defends its base while others attack.
+Defenders patrol staggered positions **in front of** the flag and scan incoming
+approaches, instead of standing on the flag looking back at it. Enemy flag
+carriers and dropped flags override ordinary patrol objectives.
+
+**Enemy awareness:** A bot remembers the *last position it actually saw* an
+enemy, then investigates for a short, difficulty-dependent window. Rushers
+search around the last corner; marksmen hold the last visible sightline.
+Neither the server nor offline bots follows enemy coordinates through walls,
+and no shots are fired without current line of sight. Memory expires, is
+cleared on respawn, and yields to critical CTF / map objectives. This is
+short-term perception, not a permanent radar or an enemy-team position reveal.
 
 ## Controls
 

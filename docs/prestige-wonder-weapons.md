@@ -14,25 +14,36 @@ Run the safe schema update **before starting the new app/server build**.
 - **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
   players can equip it even without completing Prestige.
 - Completing both tracks on the same weapon grants a one-use **Wonder Weapon
-  unlock entitlement**, equal to uniquely dual-completed weapons minus already
-  purchased Wonder Weapons. This is displayed as 'Wonder unlocks available',
-  not as a separate reusable Shop currency. Old Prestige awards retain both
-  cosmetics, even if they predate the split. Repeated completions, reloads or
-  imports do not mint entitlements.
+  unlock entitlement**, stored as a one-time permanent `WonderTokenAward`
+  for that weapon. Later threshold increases never revoke an earned token.
+  Available tokens are immutable award rows plus any legacy purchase
+  compensation, minus previously redeemed Wonder Weapons. Old Prestige
+  awards retain both skins. No repeated awards on refresh, re-mastery or import.
 - Weapon Prestige does not reset rank, kills, or attachments.
+
+## Diagnosing a missing Wonder unlock
+
+Armory → Wonders shows Wonder Weapon choices and token redemption. The per-weapon challenge list remains
+under Armory → Weapons → Customize → Challenges, including the independent
+Mastery rank and Prestige status for that weapon.
+
+New Wonder awards require both server-confirmed Prestige and Mastery rank 5.
+Once earned, a token award is permanent even if balance requirements change.
+Historical Wonder purchases are grandfathered; an early match exit saves
+weapon progress when it successfully submits its match result.
 
 ## Wonder Weapons
 
 | Weapon | Behavior | Max ammo | Recharge per charge | Other-kill bonus |
 | --- | --- | ---: | ---: | ---: |
-| Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
-| Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
-| Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
-| Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
-| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
-| Thunderclap | Bouncing 120-damage / 6m shell with six delayed 75-damage / 4.5m bomblets | 2 | 32s | -1.6s |
-| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; shield restores on respawn | — |
+| Event Horizon | Large 9.5m gravity pull with delayed detonation | 1 | 44s | -2.4s |
+| Plagueheart | Corrosive 3.5m impact splash and lingering toxin (95 base damage) | 3 | 38s | -8.5s |
+| Bullet Spitter | Deployed 38-damage automatic turret lasting 45s | 1 | 55s | -2.0s |
+| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire (6s tags) | 2 | 26s | -1.6s |
+| Hellfire | True flamethrower; 13m range, 9 damage per tick; no gunshots or persistent floor patches | 8 fuel-seconds | 6.5s per fuel-second | -1.7s |
+| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses leave 5s proximity lightning mines | 2 | 31s | -1.8s |
+| Thunderclap | Bouncing 120-damage / 7m shell with six delayed 75-damage / 5.25m bomblets | 2 | 32s | -1.6s |
+| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; 27s rebuild or restores on respawn | -3s per kill |
 | Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
 A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
@@ -109,8 +120,17 @@ The startup sync intentionally omits `--accept-data-loss`.
 6. Export and reimport an account with a Prestige and Wonder purchase; ensure
    camos/ownership remain and available tokens do not increase.
 
-The added tables are `WeaponPrestige` and `WonderUnlock` with unique keys
-(playerId, weaponId). They add no destructive migration. Existing
+The progression schema now contains `WeaponPrestige`, `WonderUnlock`,
+and permanent `WonderTokenAward` records, all unique per player/weapon.
+New Player fields `wonderTokenLedgerReady` and `wonderLegacyCredits`
+enable one-time grandfathering. On first profile access, pre-existing
+Wonder purchases are treated as paid from the oldest Prestige awards
+earned before the most recent historical Wonder purchase; if those source
+records are incomplete, an offset credit covers the unmatched historic
+purchases without giving free spending power. Old purchase rows did not
+record the source weapon, so this reconciliation is necessarily
+best-effort and permanent. Run an additive `bun run db:push` before
+starting this server build. The changes are not destructive. Existing
 `WeaponProgress.conditionStats` is the earlier contextual challenge schema
 change and also needs migration if not already applied.
 

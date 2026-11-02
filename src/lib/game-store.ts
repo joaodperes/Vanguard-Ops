@@ -61,13 +61,15 @@ export interface MatchResultView {
   kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
   standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   rewards?: {
-    xpGained: number; creditsGained: number; leveledUp: boolean; newLevel: number;
+    xpGained: number; creditsGained: number; completionXp?: number; completionCredits?: number; breakdown?: import("./match-rewards").RewardBreakdown; leveledUp: boolean; newLevel: number;
     newUnlocks: any; newAchievements: any[]; challengeAwards: any[]; challengeProgress?: { id: string; kind: string; title: string; description?: string; before: number; progress: number; goal: number; completed: boolean }[]; bonusXp: number; bonusCredits: number;
   };
   /** Optional objective counters reported by Kill Confirmed matches. */
   confirmations?: number;
   denials?: number;
   durationSec?: number;
+  completed?: boolean;
+  participants?: number;
   placement?: number;
   multikills?: number;
   survivalWaves?: number;
@@ -125,7 +127,7 @@ export const useGame = create<GameStore>((set, get) => ({
   setRangeWeaponId: (id) => set({ rangeWeaponId: id }),
   playConfig: { mode: "ffa", botCount: 5, online: false, scoreLimit: 30, timeLimit: 8, mapId: "compound", botDifficulty: "normal" },
   matchResult: null,
-  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, tagLifetimeMs: 25000, ctfFlagResetMs: 30000, denialScoreEnabled: false, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 2, survivalTier: "default" },
+  roomConfig: { mode: "tdm", teamSize: 5, fillWithBots: true, mapId: "compound", password: "", roomName: "", botDifficulty: "normal", scoreLimit: 60, timeLimit: 360, tagLifetimeMs: 25000, ctfFlagResetMs: 30000, denialScoreEnabled: false, gungamePreset: "all", gungameMultiplier: 1, survivalPlayers: 1, survivalTier: "default" },
   roomConnect: null,
   authState: "checking",
   session: null,

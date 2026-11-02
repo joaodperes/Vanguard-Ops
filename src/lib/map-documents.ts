@@ -1,6 +1,7 @@
 /** Unified, versioned per-map JSON authoring sources, used by the client and server.
  * Add new static imports here when publishing new maps. */
 import floodgate from "../data/maps/floodgate.json";
+import whiteout_depot from "../data/maps/whiteout_depot.json";
 import bunker from "../data/maps/bunker.json";
 import shipyard from "../data/maps/shipyard.json";
 import compound from "../data/maps/compound.json";
@@ -21,6 +22,7 @@ export interface MapDocument {
 }
 export const MAP_DOCUMENTS: Record<string, MapDocument> = {
   floodgate: floodgate as unknown as MapDocument,
+  whiteout_depot: whiteout_depot as unknown as MapDocument,
   orbital_nexus: orbital_nexus as unknown as MapDocument,
   bunker: bunker as unknown as MapDocument,
   shipyard: shipyard as unknown as MapDocument,

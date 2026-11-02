@@ -1,3 +1,5 @@
+import { WEAPON_OUTPUT_SCALE, createOutputPeakGuard } from "./audio-mix";
+
 /**
  * VANGUARD OPS – lightweight, asset-free weapon sound signatures.
  *
@@ -194,7 +196,7 @@ export class WeaponAudio {
   setVolume(masterVolume: number): void {
     this.volume = Math.min(100, Math.max(0, masterVolume));
     if (this.ctx && this.output) {
-      this.output.gain.setTargetAtTime((this.volume / 100) * 0.32, this.ctx.currentTime, 0.012);
+      this.output.gain.setTargetAtTime((this.volume / 100) * WEAPON_OUTPUT_SCALE, this.ctx.currentTime, 0.012);
     }
   }
 
@@ -212,9 +214,12 @@ export class WeaponAudio {
         compressor.ratio.value = 2.2;
         compressor.attack.value = 0.008;
         compressor.release.value = 0.085;
-        compressor.connect(this.ctx.destination);
+        // Preserve the shot transient and tame concurrent-fire peaks.
+        const peakGuard = createOutputPeakGuard(this.ctx);
+        compressor.connect(peakGuard);
+        peakGuard.connect(this.ctx.destination);
         this.output = this.ctx.createGain();
-        this.output.gain.value = (this.volume / 100) * 0.32;
+        this.output.gain.value = (this.volume / 100) * WEAPON_OUTPUT_SCALE;
         this.output.connect(compressor);
 
         // Shared white-noise buffer is created once, not for every shot.

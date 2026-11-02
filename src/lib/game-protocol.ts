@@ -15,11 +15,11 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 4, 5, 7, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 9, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
 /** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
@@ -28,10 +28,16 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
-  return isAfterlightCityMap(mapId) || mapId === "floodgate" ? [3,5,7,16] : [3,5,7];
+  if (isAfterlightCityMap(mapId)) return mode === "ffa" || mode === "gungame" ? [5,7,9,16] : [5,7,9,16];
+  if (mapId === "floodgate") return [5,7,9,16];
+  if (mapId === "compound" || mapId === "skybridge") return [3,5,7,9];
+  return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
-  return mapId === "bunker" ? 3 : 5;
+  if(mapId==="bunker")return 3;
+  if(isAfterlightCityMap(mapId))return mode==="ffa"||mode==="gungame"?7:9;
+  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge")return 7;
+  return 5;
 }
 export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
   return teamSizesForMap(mapId,mode).some(size => size === teamSize);
@@ -41,7 +47,7 @@ export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: G
 // FFA: teamSize*2 total slots (no teams, just a player cap).
 // TDM: teamSize per side → teamSize*2 total.
 // Survival: configurable solo or duo lobby; wave bots are independent of capacity.
-export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers: 1 | 2 = 2): number {
+export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers: 1 | 2 = 1): number {
   if (mode === "survival") return survivalPlayers;
   return teamSize * 2;
 }
@@ -92,7 +98,7 @@ export interface CreateRoomConfig {
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
-  survivalPlayers?: 1 | 2; // max human co-op partners, solo is permitted
+  survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
   survivalTier?: SurvivalTier; // default / hard / elite / nightmare
 }
 
@@ -982,6 +988,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  whiteout_depot: [],
   floodgate: [],
   orbital_nexus: [],
   forest_warfare: [],
@@ -1029,6 +1036,17 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  whiteout_depot: {
+    id:"whiteout_depot",name:"Whiteout Depot",shortName:"WHD",
+    description:"A snowbound rail depot for up to 7v7 CTF.",
+    // Physical objects and all spawns are authored only in the blueprint/theme.
+    size:128,wallHeight:14,cover:TACTICAL_COVER.whiteout_depot,environment:ENVIRONMENTS.whiteout_depot,
+    spawns:OUTER_SPAWNS.whiteout_depot,biome:"snow_rail",accentColor:"#64d8dc",
+    theme:{floor:0x46575b,floorPattern:0x344a50,wall:0x596b70,cover:0x73868a,
+      coverAccent:0x64d8dc,stair:0xadb8b6,platform:0x4a646c,
+      sky:"#263b4c",fog:"#687e87",fogNear:65,fogFar:520,ambient:1.8,gridColor:0x344a50},
+    lights:[],
+  },
   floodgate: {
     id:"floodgate",name:"Floodgate",shortName:"FLD",
     description:"A stormbound hydroelectric complex built for 16v16 CTF.",
@@ -1230,6 +1248,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
 
 /** Expose fully scaled layouts consistently to solo and multiplayer clients. */
 export const MAPS: Record<string, MapDef> = {
+  whiteout_depot: applyMapFootprint(BASE_MAPS.whiteout_depot),
   orbital_nexus: applyMapFootprint(BASE_MAPS.orbital_nexus),
   forest_warfare: applyMapFootprint(BASE_MAPS.forest_warfare),
   compound: applyMapFootprint(BASE_MAPS.compound),
@@ -1343,6 +1362,7 @@ export interface PlayerNet {
   playerSkinId: string;
   charmId?: string;
   nameplateId?: string;
+  bossMaxHealth?: number;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1351,6 +1371,8 @@ export interface PlayerNet {
   // orient themselves before bots start shooting. 0 = no protection active.
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  /** Authoritative epoch-ms time of a broken Bulwark shield rebuild (0 if active). */
+  riotShieldReadyAt?: number;
   spawnProtectedUntil?: number;
 }
 
@@ -1368,6 +1390,7 @@ export type C2S =
   | { t: "useEquipment" } // deprecated; server ignores this packet
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" }   // player changed weapon slot
+  | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
   | { t: "listRooms" }
   | { t: "createRoom"; playerKey: string; name: string; loadout: LoadoutWire; config: CreateRoomConfig }
@@ -1403,12 +1426,17 @@ export interface SnapshotPlayer {
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string;
   charmId?: string; nameplateId?: string;
+  /** Optional Survival boss HUD/armor metadata sent by the server. */
+  bossMaxHealth?: number;
+  bossCharge?: number;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
   // shield aura while this is in the future. 0/undefined = no protection.
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
+  /** Authoritative epoch-ms time of a broken Bulwark shield rebuild (0 if active). */
+  riotShieldReadyAt?: number;
   spawnProtectedUntil?: number;
 }
 
@@ -1436,8 +1464,8 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
-  | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty }
+  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "orbitalReactor"; charge: number }
   | { t: "orbitalAbsorb"; pos: Vec3 }
@@ -1446,6 +1474,7 @@ export type S2C =
   | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
+  | { t: "loadoutQueued"; loadout: LoadoutWire } // authoritative validated pending loadout
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }

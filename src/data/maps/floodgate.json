@@ -370,22 +370,44 @@
         "kind": "cover"
       },
       {
-        "id": "hall-pillar-0--24",
-        "x": 0,
+        "id": "hall-pillar-0--24-west",
+        "x": -10,
         "z": -24,
-        "w": 3,
+        "w": 4,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "hall-pillar-0--24 west"
       },
       {
-        "id": "hall-pillar-0-24",
-        "x": 0,
-        "z": 24,
-        "w": 3,
+        "id": "hall-pillar-0--24-east",
+        "x": 10,
+        "z": -24,
+        "w": 4,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "hall-pillar-0--24 east"
+      },
+      {
+        "id": "hall-pillar-0-24-west",
+        "x": -10,
+        "z": 24,
+        "w": 4,
+        "d": 12,
+        "h": 10,
+        "kind": "cover",
+        "label": "hall-pillar-0-24 west"
+      },
+      {
+        "id": "hall-pillar-0-24-east",
+        "x": 10,
+        "z": 24,
+        "w": 4,
+        "d": 12,
+        "h": 10,
+        "kind": "cover",
+        "label": "hall-pillar-0-24 east"
       },
       {
         "id": "hall-pillar-54--24",
@@ -496,22 +518,24 @@
         "kind": "cover"
       },
       {
-        "id": "junction-cover-0--40",
-        "x": 0,
-        "z": -40,
-        "w": 7,
+        "id": "junction-cover-0-40-west",
+        "x": -10,
+        "z": 40,
+        "w": 5,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "junction-cover-0-40 west"
       },
       {
-        "id": "junction-cover-0-40",
-        "x": 0,
+        "id": "junction-cover-0-40-east",
+        "x": 10,
         "z": 40,
-        "w": 7,
+        "w": 5,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "junction-cover-0-40 east"
       },
       {
         "id": "junction-cover-50--40",
@@ -559,10 +583,19 @@
         "kind": "cover"
       },
       {
-        "id": "spillway-baffle-0",
-        "x": 0,
+        "id": "spillway-baffle-central-west",
+        "x": -10,
         "z": -54,
-        "w": 4,
+        "w": 5,
+        "d": 40,
+        "h": 8,
+        "kind": "cover"
+      },
+      {
+        "id": "spillway-baffle-central-east",
+        "x": 10,
+        "z": -54,
+        "w": 5,
         "d": 40,
         "h": 8,
         "kind": "cover"
@@ -578,7 +611,7 @@
       },
       {
         "id": "spillway-baffle--48",
-        "x": -48,
+        "x": -59,
         "z": -89,
         "w": 4,
         "d": 34,
@@ -587,7 +620,7 @@
       },
       {
         "id": "spillway-baffle-48",
-        "x": 48,
+        "x": 59,
         "z": -89,
         "w": 4,
         "d": 34,
@@ -707,13 +740,24 @@
         "kind": "cover"
       },
       {
-        "id": "yard-cover-0",
-        "x": 0,
+        "id": "yard-cover-0-west",
+        "x": -13,
         "z": 48,
-        "w": 10,
+        "w": 5,
         "d": 3,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "yard-cover-0 west"
+      },
+      {
+        "id": "yard-cover-0-east",
+        "x": 13,
+        "z": 48,
+        "w": 5,
+        "d": 3,
+        "h": 2.7,
+        "kind": "cover",
+        "label": "yard-cover-0 east"
       },
       {
         "id": "yard-cover-48",
@@ -918,13 +962,24 @@
         "kind": "cover"
       },
       {
-        "id": "central-switchgear",
-        "x": 0,
+        "id": "central-switchgear-west",
+        "x": -10,
         "z": -10,
-        "w": 8,
-        "d": 20,
+        "w": 5,
+        "d": 15,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "label": "central-switchgear west"
+      },
+      {
+        "id": "central-switchgear-east",
+        "x": 10,
+        "z": -10,
+        "w": 5,
+        "d": 15,
+        "h": 7,
+        "kind": "cover",
+        "label": "central-switchgear east"
       },
       {
         "id": "base-flank-screen--130--28",
@@ -961,6 +1016,226 @@
         "d": 4,
         "h": 7,
         "kind": "cover"
+      },
+      {
+        "id": "spillway-overlook-1",
+        "x": -84,
+        "z": -50,
+        "w": 18,
+        "d": 12,
+        "h": 3.4,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "spillway-overlook-2",
+        "x": -28,
+        "z": -50,
+        "w": 18,
+        "d": 12,
+        "h": 3.4,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "spillway-overlook-3",
+        "x": 28,
+        "z": -50,
+        "w": 18,
+        "d": 12,
+        "h": 3.4,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "spillway-overlook-4",
+        "x": 84,
+        "z": -50,
+        "w": 18,
+        "d": 12,
+        "h": 3.4,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "maintenance-overlook-1",
+        "x": -86,
+        "z": 72,
+        "w": 18,
+        "d": 12,
+        "h": 3.8,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "maintenance-overlook-2",
+        "x": -30,
+        "z": 72,
+        "w": 18,
+        "d": 12,
+        "h": 3.8,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "maintenance-overlook-3",
+        "x": 30,
+        "z": 72,
+        "w": 18,
+        "d": 12,
+        "h": 3.8,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "maintenance-overlook-4",
+        "x": 86,
+        "z": 72,
+        "w": 18,
+        "d": 12,
+        "h": 3.8,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "turbine-side-step-1",
+        "x": -78,
+        "z": 15,
+        "w": 13,
+        "d": 9,
+        "h": 2.6,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "turbine-side-step-2",
+        "x": 78,
+        "z": 15,
+        "w": 13,
+        "d": 9,
+        "h": 2.6,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "maintenance-overlook-1-single-access",
+        "x": -86,
+        "z": 65.92,
+        "w": 3.4,
+        "d": 7.6,
+        "h": 3.8,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1
+      },
+      {
+        "id": "maintenance-overlook-2-single-access",
+        "x": -30,
+        "z": 65.92,
+        "w": 3.4,
+        "d": 7.6,
+        "h": 3.8,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1
+      },
+      {
+        "id": "maintenance-overlook-3-single-access",
+        "x": 30,
+        "z": 65.92,
+        "w": 3.4,
+        "d": 7.6,
+        "h": 3.8,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1
+      },
+      {
+        "id": "maintenance-overlook-4-single-access",
+        "x": 86,
+        "z": 65.92,
+        "w": 3.4,
+        "d": 7.6,
+        "h": 3.8,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1
+      },
+      {
+        "id": "turbine-side-step-1-single-access",
+        "x": -78,
+        "z": 19.58,
+        "w": 3.4,
+        "d": 5.32,
+        "h": 2.6,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": 1
+      },
+      {
+        "id": "turbine-side-step-2-single-access",
+        "x": 78,
+        "z": 19.58,
+        "w": 3.4,
+        "d": 5.32,
+        "h": 2.6,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": 1
+      },
+      {
+        "id": "breach-spillway-deflector-west",
+        "x": -16,
+        "z": -96,
+        "w": 7,
+        "d": 16,
+        "h": 8,
+        "kind": "cover"
+      },
+      {
+        "id": "breach-spillway-deflector-east",
+        "x": 16,
+        "z": -96,
+        "w": 7,
+        "d": 16,
+        "h": 8,
+        "kind": "cover"
+      },
+      {
+        "id": "breach-baffle-inner-west",
+        "x": -32,
+        "z": -80,
+        "w": 6,
+        "d": 12,
+        "h": 7,
+        "kind": "cover"
+      },
+      {
+        "id": "breach-baffle-inner-east",
+        "x": 32,
+        "z": -80,
+        "w": 6,
+        "d": 12,
+        "h": 7,
+        "kind": "cover"
+      },
+      {
+        "id": "breach-route-anti-snipe-west",
+        "x": -78,
+        "z": -86,
+        "w": 9,
+        "d": 10,
+        "h": 8,
+        "kind": "cover"
+      },
+      {
+        "id": "breach-route-anti-snipe-east",
+        "x": 78,
+        "z": -86,
+        "w": 9,
+        "d": 10,
+        "h": 8,
+        "kind": "cover"
       }
     ],
     "hazards": [
@@ -974,11 +1249,11 @@
         "w": 14,
         "d": 12,
         "h": 5,
-        "damage": 28,
-        "period": 48,
-        "activeFor": 6,
-        "offset": 12,
-        "warningFor": 6
+        "damage": 42,
+        "period": 36,
+        "activeFor": 8,
+        "offset": 10,
+        "warningFor": 7
       },
       {
         "id": "floodgate-purge--24",
@@ -990,11 +1265,11 @@
         "w": 14,
         "d": 12,
         "h": 5,
-        "damage": 28,
-        "period": 48,
-        "activeFor": 6,
-        "offset": 12,
-        "warningFor": 6
+        "damage": 42,
+        "period": 36,
+        "activeFor": 8,
+        "offset": 10,
+        "warningFor": 7
       },
       {
         "id": "floodgate-purge-24",
@@ -1006,11 +1281,11 @@
         "w": 14,
         "d": 12,
         "h": 5,
-        "damage": 28,
-        "period": 48,
-        "activeFor": 6,
-        "offset": 12,
-        "warningFor": 6
+        "damage": 42,
+        "period": 36,
+        "activeFor": 8,
+        "offset": 10,
+        "warningFor": 7
       },
       {
         "id": "floodgate-purge-72",
@@ -1022,11 +1297,11 @@
         "w": 14,
         "d": 12,
         "h": 5,
-        "damage": 28,
-        "period": 48,
-        "activeFor": 6,
-        "offset": 12,
-        "warningFor": 6
+        "damage": 42,
+        "period": 36,
+        "activeFor": 8,
+        "offset": 10,
+        "warningFor": 7
       },
       {
         "id": "floodgate_maintenance_shutter",
@@ -1038,6 +1313,61 @@
         "d": 1.2,
         "h": 4,
         "hp": 240
+      },
+      {
+        "id": "floodgate_dam_core",
+        "type": "destructible_wall",
+        "x": 0,
+        "z": -99,
+        "y": 5,
+        "w": 16,
+        "d": 8,
+        "h": 10,
+        "hp": 3000
+      },
+      {
+        "id": "floodgate_dam_west_outer",
+        "type": "destructible_wall",
+        "x": -44,
+        "z": -99,
+        "y": 5,
+        "w": 24,
+        "d": 8,
+        "h": 10,
+        "hp": 3000
+      },
+      {
+        "id": "floodgate_dam_west",
+        "type": "destructible_wall",
+        "x": -20,
+        "z": -99,
+        "y": 5,
+        "w": 24,
+        "d": 8,
+        "h": 10,
+        "hp": 3000
+      },
+      {
+        "id": "floodgate_dam_east",
+        "type": "destructible_wall",
+        "x": 20,
+        "z": -99,
+        "y": 5,
+        "w": 24,
+        "d": 8,
+        "h": 10,
+        "hp": 3000
+      },
+      {
+        "id": "floodgate_dam_east_outer",
+        "type": "destructible_wall",
+        "x": 44,
+        "z": -99,
+        "y": 5,
+        "w": 24,
+        "d": 8,
+        "h": 10,
+        "hp": 3000
       }
     ],
     "spawns": {
@@ -1426,19 +1756,19 @@
   },
   "theme": {
     "biome": "hydroelectric",
-    "label": "Stormbound hydroelectric dam",
+    "label": "Teal turbine works, rust-red machinery and amber spillway lighting",
     "palette": {
-      "floor": "#46575b",
-      "wall": "#596b70",
-      "cover": "#73868a",
-      "accent": "#64d8dc",
-      "platform": "#4a646c",
-      "stair": "#adb8b6",
-      "sky": "#263b4c",
-      "fog": "#687e87",
-      "grid": "#344a50"
+      "floor": "#405b64",
+      "wall": "#71818a",
+      "cover": "#4c8895",
+      "accent": "#f2b44f",
+      "platform": "#2f7784",
+      "stair": "#d6a65c",
+      "sky": "#33566a",
+      "fog": "#668b9d",
+      "grid": "#385868"
     },
-    "ambient": 1.8,
+    "ambient": 1.75,
     "vegetation": 0,
     "surfaces": {
       "floor": {
@@ -1469,24 +1799,13 @@
     },
     "props": [
       {
-        "kind": "sign",
-        "x": -144,
-        "z": 0,
-        "w": 10,
-        "d": 1,
-        "h": 4,
-        "y": 4,
-        "text": "WEST CONTROL",
-        "color": "#ff7882"
-      },
-      {
         "kind": "lamp",
         "x": -132,
         "z": -22,
         "w": 1,
         "d": 1,
         "h": 7,
-        "color": "#ff7882"
+        "color": "#ffbd6d"
       },
       {
         "kind": "lamp",
@@ -1495,6 +1814,353 @@
         "w": 1,
         "d": 1,
         "h": 7,
+        "color": "#ffbd6d"
+      },
+      {
+        "kind": "lamp",
+        "x": 132,
+        "z": -22,
+        "w": 1,
+        "d": 1,
+        "h": 7,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 132,
+        "z": 22,
+        "w": 1,
+        "d": 1,
+        "h": 7,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "generator",
+        "x": -72,
+        "z": -8,
+        "w": 14,
+        "d": 24,
+        "h": 6.5,
+        "color": "#13a4a4"
+      },
+      {
+        "kind": "generator",
+        "x": -24,
+        "z": 8,
+        "w": 14,
+        "d": 24,
+        "h": 6.5,
+        "color": "#ca713b"
+      },
+      {
+        "kind": "generator",
+        "x": 24,
+        "z": 8,
+        "w": 14,
+        "d": 24,
+        "h": 6.5,
+        "color": "#35a2b9"
+      },
+      {
+        "kind": "generator",
+        "x": 72,
+        "z": -8,
+        "w": 14,
+        "d": 24,
+        "h": 6.5,
+        "color": "#d18f46"
+      },
+      {
+        "kind": "container",
+        "x": -96,
+        "z": 68,
+        "w": 16,
+        "d": 12,
+        "h": 6,
+        "color": "#278b93"
+      },
+      {
+        "kind": "container",
+        "x": -48,
+        "z": 88,
+        "w": 16,
+        "d": 12,
+        "h": 6,
+        "color": "#278b93"
+      },
+      {
+        "kind": "container",
+        "x": 0,
+        "z": 68,
+        "w": 16,
+        "d": 12,
+        "h": 6,
+        "color": "#e58a45"
+      },
+      {
+        "kind": "container",
+        "x": 48,
+        "z": 88,
+        "w": 16,
+        "d": 12,
+        "h": 6,
+        "color": "#c5a443"
+      },
+      {
+        "kind": "container",
+        "x": 96,
+        "z": 68,
+        "w": 16,
+        "d": 12,
+        "h": 6,
+        "color": "#c5a443"
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -72,
+        "z": 58,
+        "w": 7,
+        "d": 6,
+        "h": 2.6
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -24,
+        "z": 58,
+        "w": 7,
+        "d": 6,
+        "h": 2.6
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": 24,
+        "z": 58,
+        "w": 7,
+        "d": 6,
+        "h": 2.6
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": 72,
+        "z": 58,
+        "w": 7,
+        "d": 6,
+        "h": 2.6
+      },
+      {
+        "kind": "crane",
+        "x": 0,
+        "z": 96,
+        "w": 14,
+        "d": 8,
+        "h": 15,
+        "color": "#e6a84e"
+      },
+      {
+        "kind": "lamp",
+        "x": -112,
+        "z": -102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#67cfe5"
+      },
+      {
+        "kind": "lamp",
+        "x": -112,
+        "z": 102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffb354"
+      },
+      {
+        "kind": "lamp",
+        "x": -56,
+        "z": -102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#67cfe5"
+      },
+      {
+        "kind": "lamp",
+        "x": -56,
+        "z": 102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffb354"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": -102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#67cfe5"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": 102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffb354"
+      },
+      {
+        "kind": "lamp",
+        "x": 56,
+        "z": -102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#67cfe5"
+      },
+      {
+        "kind": "lamp",
+        "x": 56,
+        "z": 102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffb354"
+      },
+      {
+        "kind": "lamp",
+        "x": 112,
+        "z": -102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#67cfe5"
+      },
+      {
+        "kind": "lamp",
+        "x": 112,
+        "z": 102,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffb354"
+      },
+      {
+        "kind": "vent_stack",
+        "x": -152,
+        "z": -68,
+        "w": 12,
+        "d": 12,
+        "h": 18
+      },
+      {
+        "kind": "vent_stack",
+        "x": 152,
+        "z": -68,
+        "w": 12,
+        "d": 12,
+        "h": 18
+      },
+      {
+        "kind": "lamp",
+        "x": -108,
+        "z": 14,
+        "w": 1,
+        "d": 1,
+        "h": 10,
+        "color": "#ffbd6d"
+      },
+      {
+        "kind": "lamp",
+        "x": -108,
+        "z": -47,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffbd6d"
+      },
+      {
+        "kind": "lamp",
+        "x": -54,
+        "z": 14,
+        "w": 1,
+        "d": 1,
+        "h": 10,
+        "color": "#ffbd6d"
+      },
+      {
+        "kind": "lamp",
+        "x": -54,
+        "z": -47,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#ffbd6d"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": 14,
+        "w": 1,
+        "d": 1,
+        "h": 10,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": -47,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 54,
+        "z": 14,
+        "w": 1,
+        "d": 1,
+        "h": 10,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 54,
+        "z": -47,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 108,
+        "z": 14,
+        "w": 1,
+        "d": 1,
+        "h": 10,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "lamp",
+        "x": 108,
+        "z": -47,
+        "w": 1,
+        "d": 1,
+        "h": 8,
+        "color": "#54dce9"
+      },
+      {
+        "kind": "sign",
+        "x": -144,
+        "z": 0,
+        "w": 10,
+        "d": 1,
+        "h": 4,
+        "y": 4,
+        "text": "WEST CONTROL",
         "color": "#ff7882"
       },
       {
@@ -1507,60 +2173,6 @@
         "y": 4,
         "text": "EAST CONTROL",
         "color": "#6cbfff"
-      },
-      {
-        "kind": "lamp",
-        "x": 132,
-        "z": -22,
-        "w": 1,
-        "d": 1,
-        "h": 7,
-        "color": "#6cbfff"
-      },
-      {
-        "kind": "lamp",
-        "x": 132,
-        "z": 22,
-        "w": 1,
-        "d": 1,
-        "h": 7,
-        "color": "#6cbfff"
-      },
-      {
-        "kind": "generator",
-        "x": -72,
-        "z": -8,
-        "w": 14,
-        "d": 24,
-        "h": 6.5,
-        "color": "#507b80"
-      },
-      {
-        "kind": "generator",
-        "x": -24,
-        "z": 8,
-        "w": 14,
-        "d": 24,
-        "h": 6.5,
-        "color": "#507b80"
-      },
-      {
-        "kind": "generator",
-        "x": 24,
-        "z": 8,
-        "w": 14,
-        "d": 24,
-        "h": 6.5,
-        "color": "#507b80"
-      },
-      {
-        "kind": "generator",
-        "x": 72,
-        "z": -8,
-        "w": 14,
-        "d": 24,
-        "h": 6.5,
-        "color": "#507b80"
       },
       {
         "kind": "sign",
@@ -1636,182 +2248,6 @@
         "color": "#f4c568"
       },
       {
-        "kind": "container",
-        "x": -96,
-        "z": 68,
-        "w": 16,
-        "d": 12,
-        "h": 6,
-        "color": "#9b7650"
-      },
-      {
-        "kind": "container",
-        "x": -48,
-        "z": 88,
-        "w": 16,
-        "d": 12,
-        "h": 6,
-        "color": "#466a75"
-      },
-      {
-        "kind": "container",
-        "x": 0,
-        "z": 68,
-        "w": 16,
-        "d": 12,
-        "h": 6,
-        "color": "#9b7650"
-      },
-      {
-        "kind": "container",
-        "x": 48,
-        "z": 88,
-        "w": 16,
-        "d": 12,
-        "h": 6,
-        "color": "#466a75"
-      },
-      {
-        "kind": "container",
-        "x": 96,
-        "z": 68,
-        "w": 16,
-        "d": 12,
-        "h": 6,
-        "color": "#9b7650"
-      },
-      {
-        "kind": "cargo_pallet",
-        "x": -72,
-        "z": 58,
-        "w": 7,
-        "d": 6,
-        "h": 2.6
-      },
-      {
-        "kind": "cargo_pallet",
-        "x": -24,
-        "z": 58,
-        "w": 7,
-        "d": 6,
-        "h": 2.6
-      },
-      {
-        "kind": "cargo_pallet",
-        "x": 24,
-        "z": 58,
-        "w": 7,
-        "d": 6,
-        "h": 2.6
-      },
-      {
-        "kind": "cargo_pallet",
-        "x": 72,
-        "z": 58,
-        "w": 7,
-        "d": 6,
-        "h": 2.6
-      },
-      {
-        "kind": "crane",
-        "x": 0,
-        "z": 96,
-        "w": 14,
-        "d": 8,
-        "h": 15,
-        "color": "#b9a262"
-      },
-      {
-        "kind": "lamp",
-        "x": -112,
-        "z": -102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#a1e4ed"
-      },
-      {
-        "kind": "lamp",
-        "x": -112,
-        "z": 102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#f4cf8b"
-      },
-      {
-        "kind": "lamp",
-        "x": -56,
-        "z": -102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#a1e4ed"
-      },
-      {
-        "kind": "lamp",
-        "x": -56,
-        "z": 102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#f4cf8b"
-      },
-      {
-        "kind": "lamp",
-        "x": 0,
-        "z": -102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#a1e4ed"
-      },
-      {
-        "kind": "lamp",
-        "x": 0,
-        "z": 102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#f4cf8b"
-      },
-      {
-        "kind": "lamp",
-        "x": 56,
-        "z": -102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#a1e4ed"
-      },
-      {
-        "kind": "lamp",
-        "x": 56,
-        "z": 102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#f4cf8b"
-      },
-      {
-        "kind": "lamp",
-        "x": 112,
-        "z": -102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#a1e4ed"
-      },
-      {
-        "kind": "lamp",
-        "x": 112,
-        "z": 102,
-        "w": 1,
-        "d": 1,
-        "h": 8,
-        "color": "#f4cf8b"
-      },
-      {
         "kind": "sign",
         "x": 0,
         "z": 42,
@@ -1830,22 +2266,6 @@
         "h": 4,
         "text": "WATCH VENT LIGHTS",
         "color": "#f4cf8b"
-      },
-      {
-        "kind": "vent_stack",
-        "x": -152,
-        "z": -68,
-        "w": 12,
-        "d": 12,
-        "h": 18
-      },
-      {
-        "kind": "vent_stack",
-        "x": 152,
-        "z": -68,
-        "w": 12,
-        "d": 12,
-        "h": 18
       },
       {
         "kind": "generator",

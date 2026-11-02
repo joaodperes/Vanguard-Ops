@@ -55,6 +55,8 @@ export interface MatchResultInput {
   denials?: number;
   online?: boolean;
   durationSec?: number;
+  /** True when the round finishes naturally, false for early exit. */
+  completed?: boolean;
   placement?: number;
   weaponId?: string;
   multikills?: number;       // number of double-kill or better streaks achieved in this match
@@ -67,6 +69,11 @@ export interface MatchResultInput {
   // (Player model column) which drives the Triple Threat / Killstreak King /
   // Untouchable Force tiered achievements.
   bestStreak?: number;
+  maxNoDeathStreak?: number;
+  defenseKills?: number;
+  flagReturns?: number;
+  maxScoreDeficit?: number;
+  participants?: number;
   // Per-kill difficulty breakdown (one entry per kill). Values: "easy"|"normal"|"hard"|"veteran"|"enemy_player".
   // Used to scale XP/credits by victim difficulty. Optional — legacy callers omit it.
   killDifficulties?: string[];
@@ -177,6 +184,62 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
   return earned;
 }
 
+/** Persist a one-time entitlement when Prestige and Mastery 5 coincide.
+ * Historical Wonder purchases prove past tokens were paid, even if mastery
+ * requirements were raised afterward. Pair them with the oldest Prestige
+ * awards that predate the last historic Wonder purchase. If that source is
+ * unavailable, a one-time non-spendable compensation offsets the purchase.
+ * The old purchase table does not link a Wonder to its source weapon.
+ */
+const wonderTokenReconciling=new Map<string,Promise<{awardedWeapons:string[];legacyCredits:number}>>();
+export async function reconcileWonderTokenAwards(playerId:string):Promise<{
+  awardedWeapons:string[];legacyCredits:number;
+}> {
+  const active=wonderTokenReconciling.get(playerId);
+  if(active)return active;
+  // SQLite's interactive transactions can time out under concurrent initial
+  // profile reads. Use a singleflight per player; each award is protected by
+  // a database unique key and persisted before the migration marker.
+  const pending=(async()=>{
+    const [player,prestiges,progress,purchases,prior]=await Promise.all([
+      db.player.findUniqueOrThrow({where:{id:playerId},
+        select:{wonderTokenLedgerReady:true,wonderLegacyCredits:true}}),
+      db.weaponPrestige.findMany({where:{playerId},select:{weaponId:true,awardedAt:true}}),
+      db.weaponProgress.findMany({where:{playerId},select:{weaponId:true,kills:true,headshots:true}}),
+      db.wonderUnlock.findMany({where:{playerId},select:{weaponId:true,unlockedAt:true}}),
+      db.wonderTokenAward.findMany({where:{playerId},select:{weaponId:true}}),
+    ]);
+    const totals=Object.fromEntries(progress.map(p=>[p.weaponId,{kills:p.kills,headshots:p.headshots}]));
+    const qualified=tokenEligiblePrestiges(prestiges.map(p=>p.weaponId),totals);
+    const latestPurchase=purchases.reduce((time,p)=>Math.max(time,p.unlockedAt.getTime()),0);
+    const historical=player.wonderTokenLedgerReady?[]:
+      prestiges.filter(p=>p.awardedAt.getTime()<=latestPurchase)
+        .sort((a,b)=>a.awardedAt.getTime()-b.awardedAt.getTime()||
+          a.weaponId.localeCompare(b.weaponId))
+        .slice(0,purchases.length).map(p=>p.weaponId);
+    const legacyCredits=player.wonderTokenLedgerReady?player.wonderLegacyCredits:
+      Math.max(0,purchases.length-historical.length);
+    const awarded=new Set(prior.map(a=>a.weaponId));
+    for(const weaponId of new Set([...historical,...qualified])){
+      if(awarded.has(weaponId))continue;
+      await db.wonderTokenAward.upsert({
+        where:{playerId_weaponId:{playerId,weaponId}},
+        create:{playerId,weaponId,legacy:historical.includes(weaponId)},update:{},
+      });
+      awarded.add(weaponId);
+    }
+    if(!player.wonderTokenLedgerReady)await db.player.updateMany({
+      where:{id:playerId,wonderTokenLedgerReady:false},
+      data:{wonderTokenLedgerReady:true,wonderLegacyCredits:legacyCredits},
+    });
+    return {awardedWeapons:[...awarded],legacyCredits};
+  })();
+  wonderTokenReconciling.set(playerId,pending);
+  try{return await pending;}finally{
+    if(wonderTokenReconciling.get(playerId)===pending)wonderTokenReconciling.delete(playerId);
+  }
+}
+
 /** Backfill mastery-title awards for existing weapon specialists.
  * Creating the achievement and credit/XP payout in one transaction ensures
  * reopening Profile never pays the same title twice. */
@@ -274,7 +337,7 @@ export interface PlayerProfileView {
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
   career: Awaited<ReturnType<typeof careerContractsView>>;
-  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[] };
+  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[]; legacyCredits: number };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
@@ -283,6 +346,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const player = granted ? await getOrCreatePlayer(playerKey) : initial;
   if (!player) return null;
   await grantWeaponPrestiges(player.id);
+  const wonderLedger=await reconcileWonderTokenAwards(player.id);
   await grantCollectorAchievements(player.id);
   const [prestigeRows, wonderRows] = await Promise.all([
     db.weaponPrestige.findMany({ where: { playerId: player.id } }),
@@ -400,7 +464,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   for (const row of wpRows) {
     weaponProgress[row.weaponId] = { kills: row.kills, headshots: row.headshots, conditionStats: parseWeaponConditionStats(row.conditionStats) };
   }
-  const tokenReadyWeapons = tokenEligiblePrestiges(masteredWeapons,weaponProgress);
+  // Reaching Mastery 5 creates a permanent reward, not a recalculated currency.
+  const tokenReadyWeapons = wonderLedger.awardedWeapons;
   const unlockedTitles = [
     ...unlockedAchievementTitles(p.achievements?.map(a => a.achievementId) ?? []),
     ...CAREER_TITLES.filter(t => p.careerRank >= t.rank).map(t => ({ id: t.id, title: t.title })),
@@ -414,7 +479,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Account ownership gates persisted cosmetic choices even for old backup data.
   loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
   loadout.secondaryReticle=ownedCosmetics.includes(loadout.secondaryReticle)?loadout.secondaryReticle:"classic";
-  loadout.primaryCharm=!loadout.weapon.wonder&&loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
+  loadout.primaryCharm=loadout.weapon.category!=="melee"&&ownedCosmetics.includes(loadout.primaryCharm)?loadout.primaryCharm:"none";
   loadout.secondaryCharm=!loadout.secondary.wonder&&loadout.secondary.category!=="melee"&&ownedCosmetics.includes(loadout.secondaryCharm)?loadout.secondaryCharm:"none";
   if (selectedTitle !== p.selectedTitle) await db.player.updateMany({
     where: { id: p.id, selectedTitle: p.selectedTitle }, data: { selectedTitle },
@@ -449,7 +514,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     weaponProgress,
     operatorContracts,
     career: await careerContractsView(p),
-    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons },
+    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length + wonderLedger.legacyCredits, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons, legacyCredits: wonderLedger.legacyCredits },
   };
 }
 
@@ -481,6 +546,9 @@ export function effectiveUnlocks(level: number, dbUnlocks: { weapons: string[]; 
 export interface AwardResult {
   xpGained: number;
   creditsGained: number;
+  completionXp: number;
+  completionCredits: number;
+  breakdown: import("./match-rewards").RewardBreakdown;
   leveledUp: boolean;
   newLevel: number;
   newUnlocks: { weapons: string[]; purchasableWeapons: string[]; perks: string[]; weaponSkins: string[]; playerSkins: string[]; attachments: string[] };
@@ -607,8 +675,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const oldLevel = levelForXp(player.xp);
 
   const rewards = calculateMatchRewards(input);
-  const { killXp, killCredits, winXp, winCredits, survivalWaves } = rewards;
+  const { killXp, killCredits, winXp, winCredits, survivalWaves, completionXp, completionCredits } = rewards;
   let { xpGained, creditsGained } = rewards;
+  const breakdown = rewards.breakdown;
 
   // --- 17-C: Quest-completion counters ---
   // Local accumulators for how many challenges (by type) were newly awarded
@@ -657,6 +726,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         data: { awarded: true },
       });
       challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      breakdown.challenges.xp += ch.rewardXp;
+      breakdown.challenges.credits += ch.rewardCredits;
       xpGained += ch.rewardXp;
       creditsGained += ch.rewardCredits;
       // Increment the appropriate quest counter. Elite variants count toward
@@ -698,6 +769,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         data: { awarded: true },
       });
       challengeAwards.push({ challengeId: ch.id, title: ch.title, rewardXp: ch.rewardXp, rewardCredits: ch.rewardCredits });
+      breakdown.challenges.xp += ch.rewardXp;
+      breakdown.challenges.credits += ch.rewardCredits;
       xpGained += ch.rewardXp;
       creditsGained += ch.rewardCredits;
       if (isElite) eliteAwardedCount++;
@@ -802,6 +875,8 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     if (earnedAchievementIds.has(ach.id)) continue;
     if (getStatValue(ach.metric) >= ach.goal) {
       newAchievements.push({ id: ach.id, title: ach.title, description: ach.description, rewardXp: ach.rewardXp, rewardCredits: ach.rewardCredits });
+      breakdown.achievements.xp += ach.rewardXp;
+      breakdown.achievements.credits += ach.rewardCredits;
       xpGained += ach.rewardXp;
       creditsGained += ach.rewardCredits;
     }
@@ -832,8 +907,9 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     }
   }
 
-  const bonusXp = xpGained - (killXp + winXp + REWARDS.participationXp);
-  const bonusCredits = creditsGained - (killCredits + winCredits + REWARDS.participationCredits);
+  // Report non-completion bonuses separately: end-of-match rewards have their own Results row.
+  const bonusXp = xpGained - (killXp + winXp + completionXp);
+  const bonusCredits = creditsGained - (killCredits + winCredits + completionCredits);
 
   // --- Per-weapon skin challenges (kills / headshots milestones) ---
   // Completing the goal opens the CREDIT PURCHASE in the Armory.
@@ -1022,7 +1098,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   });
 
   const newPrestiges = await grantWeaponPrestiges(player.id);
-  return { xpGained, creditsGained, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
+  return { xpGained, creditsGained, completionXp, completionCredits, breakdown, leveledUp, newLevel: Math.max(newLevel, oldLevel), newUnlocks, newWeaponChallenges, newPrestiges, newAchievements, challengeAwards, challengeProgress, bonusXp, bonusCredits };
 }
 
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---

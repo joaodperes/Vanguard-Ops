@@ -66,6 +66,7 @@ Check all nine playable map IDs: six general-purpose maps (including both Afterl
 | `skybridge` | Ridgefall — **enclosed industrial steelworks factory**, gantries, freight gate and multi-height paths |
 | `forest_warfare` | Forest Warfare — **CTF / TDM / KC**; raised treetop flag positions, climbable access and flag-carrier paths |
 | `orbital_nexus` | Orbital Nexus — **CTF / TDM / KC**; opposing flag routes, launch pads, reactor objective and platform clearance |
+| `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC, up to 7v7**; twelve spawns per team, boxcar lanes, freight sheds, service gallery, breach hatch and snow visibility |
 | `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
@@ -129,5 +130,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 ## Map compatibility and spawn changes
 
 Run `bun test tests/map-mode-layouts.test.ts` for mode availability, Blacksite limits, UI configuration clamping, usable unique spawn counts and physical CTF pickup/capture routes. Follow the human playtest list in [map modes and spawns](map-modes-and-spawns.md), especially the two CTF trial conversions and TDM/KC reactor/purge HUD behavior.
+
+Run `bun test tests/whiteout-depot.test.ts` and the [Whiteout Depot](whiteout-depot.md) human playtests when changing its layout. Confirm six CTF cards at desktop and a usable single-column picker on phones.
 
 On the synchronized editor branch, verify Floodgate steam appearance/warning edits, mode-specific trial spawn overrides and selected-mode draft playtests. Repeat live online event/weapon checks after redeploying the combined client and server; prior dev gameplay sign-off does not sign off this merge.

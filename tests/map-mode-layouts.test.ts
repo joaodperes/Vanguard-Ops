@@ -10,10 +10,20 @@ import {CoverSpatialIndex} from "../src/lib/cover-spatial-index";
 import {useGame} from "../src/lib/game-store";
 
 describe("mode availability and spawn capacity",()=>{
- test("all nine maps allow TDM/KC; only five allow CTF",()=>{
-  for(const map of MAP_LIST){expect(mapAllowedForMode("tdm",map.id)).toBe(true);expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);}
-  for(const id of ["forest_warfare","orbital_nexus","floodgate"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
-  expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(5);
+ test("TDM and Kill Confirmed each have nine maps, with opposite Afterlight variants removed",()=>{
+  expect(MAP_LIST).toHaveLength(10);
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("tdm",m.id))).toHaveLength(9);
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("killconfirmed",m.id))).toHaveLength(9);
+  expect(mapAllowedForMode("tdm","arena_neon")).toBe(false); // Afterlight City (night)
+  expect(mapAllowedForMode("tdm","terminal")).toBe(true);    // Afterlight City (Day)
+  expect(mapAllowedForMode("killconfirmed","terminal")).toBe(false);
+  expect(mapAllowedForMode("killconfirmed","arena_neon")).toBe(true);
+  for(const map of MAP_LIST){
+   if(map.id!=="arena_neon")expect(mapAllowedForMode("tdm",map.id)).toBe(true);
+   if(map.id!=="terminal")expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);
+  }
+  for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
+  expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
  test("Blacksite mode caps and UI transitions agree",()=>{
   expect(teamSizesForMap("bunker","tdm")).toEqual([3,5]);expect(teamSizesForMap("bunker","ffa")).toEqual([3,4]);
@@ -23,6 +33,21 @@ describe("mode availability and spawn capacity",()=>{
   store.setRoomConfig({mapId:"bunker"});expect(useGame.getState().roomConfig.teamSize).toBe(3);
   store.setRoomConfig({teamSize:5});store.setRoomConfig({mode:"ffa"});expect(useGame.getState().roomConfig.teamSize).toBe(4);
   store.setRoomConfig({mapId:"shipyard",mode:"tdm"});expect(useGame.getState().roomConfig.teamSize).toBe(5);
+ });
+ test("per-map recommended and expanded player counts are consistent",()=>{
+  const {recommendedTeamSize}=require("../src/lib/game-protocol") as typeof import("../src/lib/game-protocol");
+  for(const id of ["terminal","arena_neon"]){
+    expect(teamSizesForMap(id,"tdm")).toEqual([5,7,9,16]);
+    expect(teamSizesForMap(id,"ffa")).toEqual([5,7,9,16]);
+    expect(recommendedTeamSize(id,"tdm")).toBe(9);
+    expect(recommendedTeamSize(id,"ffa")).toBe(7);
+  }
+  expect(teamSizesForMap("floodgate","tdm")).toEqual([5,7,9,16]);
+  expect(recommendedTeamSize("floodgate")).toBe(7);
+  for(const id of ["compound","skybridge"]){
+    expect(teamSizesForMap(id,"ctf")).toEqual([3,5,7,9]);
+    expect(recommendedTeamSize(id)).toBe(7);
+  }
  });
  test("every enabled PvP map/mode has enough unique collision-safe spawn points",()=>{
   for(const base of MAP_LIST)for(const mode of ["tdm","killconfirmed","ctf","ffa","gungame"] as const){
@@ -36,7 +61,7 @@ describe("mode availability and spawn capacity",()=>{
  });
 });
 
-describe("Verdant Ruins and Ridgefall CTF trials",()=>{
+describe("Verdant Ruins and Ridgefall CTF",()=>{
  for(const id of ["compound","skybridge"] as const){
   const map=makeEnvironmentMap(getMap(id,"ctf")),index=new CoverSpatialIndex(map.cover);
   test(`${id}: objectives and rear spawn pools are clear without mutating other modes`,()=>{

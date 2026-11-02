@@ -109,6 +109,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const showHsMarker = hsMarkerAge < 400;
   const dmgAge = now - dmgFlash;
   const showDmg = dmgAge < 350;
+  const shieldAge = now - (hud.riotShieldHitFlash ?? 0);
+  const showShieldHit = hud.alive && hud.riotShieldHp !== undefined && shieldAge >= 0 && shieldAge < 320;
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
@@ -146,6 +148,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {/* damage vignette */}
       {showDmg && (
         <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 200px 40px rgba(239,68,68,0.55)", opacity: 1 - dmgAge / 350 }} />
+      )}
+      {/* Absorbed shield rounds get a distinct, gentle steel-blue edge flash,
+          never the full red health-damage vignette or health-regen penalty. */}
+      {showShieldHit && (
+        <div className="absolute inset-0" style={{
+          boxShadow:"inset 0 0 110px 18px rgba(107,185,213,0.28)",
+          opacity:Math.max(0,1-shieldAge/320),
+        }} />
       )}
       {/* Round 20h: Spawn protection overlay — cyan vignette + "PROTECTED" label */}
       {hud.alive && hud.selfSpawnProtected && (
@@ -415,14 +425,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </svg>
       </div>}
       {/* top right: exit + ping */}
-      <div className={`absolute right-4 flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
+      <div className={`absolute right-4 z-[45] flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
         {showPing && (
           <div className="bg-black/55 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 flex items-center gap-1">
             <Zap className="w-3 h-3" /> {hud.ping}ms
           </div>
         )}
         <button onClick={onExit} className="bg-black/55 hover:bg-rose-900/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-white/80 hover:text-white text-xs flex items-center gap-1 transition-colors">
-          <LogOut className="w-3 h-3" /> Leave
+          <LogOut className="w-3 h-3" /> Menu
         </button>
       </div>
 
@@ -519,7 +529,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
         {hud.reloading && <div className="text-amber-400 text-xs animate-pulse mt-1">{hud.heat !== undefined ? "VENTING…" : "RELOADING…"}</div>}
-        {hud.riotShieldHp!==undefined&&<div className="text-sky-200 text-xs mt-1">SHIELD {Math.ceil(hud.riotShieldHp)} / 250 · {hud.riotShieldHp<=0?"BROKEN":hud.riotShieldRaised?"FRONT COVER · P-9 LOWERED":"LEFT COVER · HOLD ADS TO BRACE"}</div>}
+        {hud.riotShieldHp!==undefined&&<div className="text-sky-200 text-xs mt-1">
+          SHIELD {Math.ceil(hud.riotShieldHp)} / 250 · {hud.riotShieldHp<=0
+            ? `BROKEN · REBUILDING ${((hud.riotShieldRechargeMs??0)/1000).toFixed(1)}s`
+            : hud.riotShieldRaised?"FRONT COVER · P-9 LOWERED":"LEFT COVER · HOLD ADS TO BRACE"}
+        </div>}
         {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
         {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}

@@ -17,9 +17,11 @@ export function isFactoryMachineKind(kind:string):kind is FactoryMachineKind{
 
 export function buildFactoryMachinery(
   group:THREE.Group,kind:FactoryMachineKind,w:number,d:number,h:number,
+  paintColor?:string,
 ):void{
   if(w<=0||d<=0||h<=0)return;
   const steel=new THREE.MeshStandardMaterial({color:0x46545c,roughness:.6,metalness:.72});
+  const paint=paintColor?new THREE.MeshStandardMaterial({color:paintColor,roughness:.62,metalness:.32}):steel;
   const iron=new THREE.MeshStandardMaterial({color:0x29363d,roughness:.8,metalness:.52});
   const silver=new THREE.MeshStandardMaterial({color:0x8d9ea5,roughness:.36,metalness:.86});
   const rust=new THREE.MeshStandardMaterial({color:0x9b6550,roughness:.87,metalness:.24});
@@ -96,12 +98,15 @@ export function buildFactoryMachinery(
     }
   }else if(kind==="generator"){
     // Alternator skid with louvres, top manifolds and circular cooling fan.
-    box(steel,0,h*.31,front+.1,w*.94,h*.53,.25);
+    box(paint,0,h*.31,front+.1,w*.94,h*.53,.25);
     for(let i=0;i<7;i++){
       const x=-w*.40+i*w*.8/6;
       box(black,x,h*.33,front+.24,.16,h*.36,.10);
     }
     box(hazard,0,h*.69,front+.14,w*.75,.17,.24);
+    // Authored factory colors cover large machine faces, not just one trim pixel.
+    for(const side of [-1,1])box(paint,side*(w*.43),h*.50,0,.24,h*.83,d*.90);
+    box(paint,0,h+.055,0,w*.84,.11,d*.81);
     for(const side of [-1,1]){
       cylinder(iron,side*w*.27,h+.26,0,Math.min(d*.24,1),.32);
       box(silver,side*w*.38,h*.56,-d/2-.1,.18,h*.50,.21);

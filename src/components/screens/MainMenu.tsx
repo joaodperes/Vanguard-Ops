@@ -4,24 +4,11 @@ import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { WEAPONS, weaponById, attachmentById, RARITY_COLORS, rankForLevel, nextRank } from "@/lib/game-data";
 import {
   Crosshair, Trophy, Backpack, Zap, ChevronRight, Target,
-  Crown, Sparkles, Calendar, TrendingUp, Skull, Play as PlayIcon, Star, Wrench, ShoppingBag,
+  TrendingUp, Skull, Play as PlayIcon, Wrench, ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
-
-interface ChallengeView {
-  challengeId: string; title: string; description: string; icon: string;
-  goal: number; progress: number; completed: boolean; awarded: boolean;
-  rewardXp: number; rewardCredits: number;
-  // 17-C: true if this is an elite-promoted variant (3× goal, 3× reward,
-  // purple/pink UI treatment). Optional for backward-compat with older
-  // API responses that didn't include the flag.
-  isElite?: boolean;
-}
-interface WeeklyChallengeView extends ChallengeView {
-  weekKey: string;
-}
+import { QuestSections, type ChallengeView, type WeeklyChallengeView } from "@/components/game/QuestPanel";
 
 export function MainMenu() {
   const { profile, setScreen } = useGame();
@@ -153,135 +140,7 @@ export function MainMenu() {
           </div>
         </div>
 
-        {/* daily challenges */}
-        {challenges.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900/60 to-black/40 p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-400" />
-                <span className="text-white font-bold tracking-wide uppercase text-sm">Daily Challenges</span>
-                <span className="text-white/40 text-xs">Resets at midnight</span>
-              </div>
-              {challenges.some((c) => c.isElite) && (
-                <Badge variant="outline" className="border-purple-500/40 text-purple-300/80 text-[10px] uppercase">
-                  <Sparkles className="w-3 h-3 mr-1" /> Elite Active
-                </Badge>
-              )}
-            </div>
-            <div className="grid sm:grid-cols-3 gap-3">
-              {challenges.map((c) => {
-                const pct = Math.min(100, (c.progress / c.goal) * 100);
-                const elite = c.isElite === true;
-                return (
-                  <div
-                    key={c.challengeId}
-                    className={`relative rounded-xl border p-3 overflow-hidden ${
-                      c.completed
-                        ? elite
-                          ? "border-purple-500/50 bg-purple-500/10"
-                          : "border-emerald-500/40 bg-emerald-500/5"
-                        : elite
-                          ? "border-purple-500/40 bg-purple-900/15"
-                          : "border-white/10 bg-black/30"
-                    }`}
-                  >
-                    {elite && (
-                      <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "linear-gradient(90deg, #a855f7, #ec4899)" }} />
-                    )}
-                    <div className="flex items-start justify-between mb-1">
-                      <div className="text-white font-semibold text-sm flex items-center gap-1.5">
-                        {elite && <Sparkles className="w-3.5 h-3.5 text-purple-300" />}
-                        {c.title}
-                      </div>
-                      {elite && (
-                        <Badge variant="outline" className="border-purple-500/50 text-purple-300 text-[9px] uppercase px-1 py-0">Elite</Badge>
-                      )}
-                      {c.completed && <Crown className={`w-3.5 h-3.5 ${elite ? "text-purple-300" : "text-emerald-400"}`} />}
-                    </div>
-                    <div className="text-white/50 text-xs mb-2">{c.description}</div>
-                    <div className="h-1.5 bg-black/60 rounded-full overflow-hidden mb-1.5">
-                      <div
-                        className={`h-full ${c.completed ? (elite ? "bg-purple-500" : "bg-emerald-500") : elite ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-gradient-to-r from-amber-500 to-rose-500"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className={`flex items-center justify-between text-[10px] ${elite ? "text-purple-200" : "text-white/50"}`}>
-                      <span className="tabular-nums">{c.progress} / {c.goal}</span>
-                      <span className={`flex items-center gap-0.5 ${elite ? "text-purple-200 font-bold" : "text-amber-300"}`}>
-                        <Zap className={elite ? "w-3 h-3" : "w-2.5 h-2.5"} />{c.rewardXp} · {c.rewardCredits} CR
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* weekly challenges — 2 rotating objectives with bigger rewards + elite variants */}
-        {weekly.length > 0 && (
-          <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-zinc-900/60 to-black/40 p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-purple-400" />
-                <span className="text-white font-bold tracking-wide uppercase text-sm">Weekly Challenges</span>
-                <span className="text-white/40 text-xs">Resets every Monday · Week {weekly[0]?.weekKey}</span>
-              </div>
-              {weekly.some((c) => c.isElite) && (
-                <Badge variant="outline" className="border-purple-500/40 text-purple-300/80 text-[10px] uppercase">
-                  <Sparkles className="w-3 h-3 mr-1" /> Elite Active
-                </Badge>
-              )}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {weekly.map((c) => {
-                const pct = Math.min(100, (c.progress / c.goal) * 100);
-                const elite = c.isElite === true;
-                return (
-                  <div
-                    key={c.challengeId}
-                    className={`relative rounded-xl border p-4 overflow-hidden ${
-                      c.completed
-                        ? elite
-                          ? "border-purple-500/50 bg-purple-500/10"
-                          : "border-emerald-500/40 bg-emerald-500/5"
-                        : elite
-                          ? "border-purple-500/50 bg-purple-900/20"
-                          : "border-purple-500/30 bg-purple-900/10"
-                    }`}
-                  >
-                    {elite && (
-                      <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "linear-gradient(90deg, #a855f7, #ec4899)" }} />
-                    )}
-                    <div className="flex items-start justify-between mb-1.5">
-                      <div className="text-white font-semibold text-sm flex items-center gap-1.5">
-                        {elite && <Sparkles className="w-4 h-4 text-purple-300" />}
-                        {c.title}
-                      </div>
-                      {elite && (
-                        <Badge variant="outline" className="border-purple-500/50 text-purple-300 text-[9px] uppercase px-1 py-0">Elite</Badge>
-                      )}
-                      {c.completed && <Crown className={`w-4 h-4 ${elite ? "text-purple-300" : "text-emerald-400"}`} />}
-                    </div>
-                    <div className="text-white/50 text-xs mb-2.5">{c.description}</div>
-                    <div className="h-2 bg-black/60 rounded-full overflow-hidden mb-2">
-                      <div
-                        className={`h-full ${c.completed ? (elite ? "bg-purple-500" : "bg-emerald-500") : elite ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-gradient-to-r from-purple-500 to-pink-500"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className={`flex items-center justify-between text-[11px] ${elite ? "text-purple-200" : "text-white/60"}`}>
-                      <span className="tabular-nums">{c.progress} / {c.goal}</span>
-                      <span className={`flex items-center gap-0.5 ${elite ? "text-purple-200 font-bold" : "text-purple-300 font-semibold"}`}>
-                        <Zap className={elite ? "w-3.5 h-3.5" : "w-3 h-3"} />{c.rewardXp} XP · {c.rewardCredits} CR
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <QuestSections daily={challenges} weekly={weekly} />
 
       </main>
 

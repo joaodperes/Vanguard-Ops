@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { db } from "../../src/lib/db";
 import { POST as saveLoadout } from "../../src/app/api/loadout/route";
+import { POST as redeemWonder } from "../../src/app/api/unlock/route";
 import { POST as preset } from "../../src/app/api/loadout/presets/route";
 import { POST as claimCareer } from "../../src/app/api/profile/career/route";
 import { POST as shopCosmetic } from "../../src/app/api/shop/route";
@@ -18,6 +19,7 @@ import { PERKS } from "../../src/lib/perks";
 import { shopItemsForCategory } from "../../src/lib/shop-catalog";
 import { dailyShopRotation } from "../../src/lib/shop-rotation";
 import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
+import { WEAPON_CONDITION_METRICS } from "../../src/lib/armory-challenges";
 
 const req = (body: unknown) => new NextRequest("http://localhost/api/test", {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -94,6 +96,80 @@ try {
   await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
   assert.notEqual((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
 
+  // A Marksman DMR reaches Mastery 5 on a live early-exit match report.
+  // Existing Prestige + the saved last kill/headshot must mint exactly one
+  // Wonder entitlement, even though won=false and the match ended early.
+  const dmr = await create("early-exit-dmr-player", totalXpForLevel(25));
+  const completedContext = Object.fromEntries(WEAPON_CONDITION_METRICS.map(metric => [metric, 999]));
+  await db.weaponProgress.create({ data: {
+    playerId: dmr.id, weaponId: "rifle_dm", kills: 599, headshots: 329,
+    conditionStats: JSON.stringify(completedContext),
+  } });
+  const dmrBefore = (await buildProfileView(dmr.playerKey))!;
+  assert(dmrBefore.prestige.masteredWeapons.includes("rifle_dm"), "7/7 cosmetics should already be Prestiged");
+  assert.equal(dmrBefore.prestige.tokens, 0, "Mastery 4 must not award a Wonder unlock");
+  const dmrExitResult = await applyMatchResult({
+    playerKey: dmr.playerKey, kills: 1, deaths: 0, headshots: 1, won: false,
+    mode: "ffa", score: 1, online: true, durationSec: 150, placement: 2,
+    weaponId: "rifle_dm",
+    perWeaponKills: { rifle_dm: { kills: 1, headshots: 1 } },
+  });
+  assert(dmrExitResult.newAchievements.some(a => a.id === "mastery_5"));
+  const dmrAfter = (await buildProfileView(dmr.playerKey))!;
+  assert.equal(dmrAfter.weaponProgress.rifle_dm.kills, 600);
+  assert.equal(dmrAfter.weaponProgress.rifle_dm.headshots, 330);
+  assert(dmrAfter.prestige.tokenReadyWeapons.includes("rifle_dm"));
+  assert.equal(dmrAfter.prestige.tokens, 1, "Early exit must not withhold a Wonder token");
+  assert.equal((await buildProfileView(dmr.playerKey))!.prestige.tokens, 1, "Refresh must be idempotent");
+
+  // Regression: three prior Wonder purchases before the 110->330 headshot
+  // threshold change cannot create negative entitlement debt. A NEW DMR
+  // completion must give its first token, not pay off that hidden debt.
+  const legacyWonders = await create("legacy-wonder-owner",totalXpForLevel(25));
+  const oldSources=["rifle_ar","smg_kp","pistol_side"];
+  for(const [index,weaponId] of oldSources.entries()){
+    await db.weaponPrestige.create({data:{playerId:legacyWonders.id,weaponId,
+      legacyReward:true,awardedAt:new Date(Date.UTC(2026,9,19,index))}});
+    await db.weaponProgress.create({data:{playerId:legacyWonders.id,weaponId,
+      kills:600,headshots:110}});
+  }
+  const ownedWonders=WEAPONS.filter(w=>!!w.wonder&&!w.disabled).slice(0,3);
+  assert.equal(ownedWonders.length,3);
+  for(const [index,w] of ownedWonders.entries())
+    await db.wonderUnlock.create({data:{playerId:legacyWonders.id,weaponId:w.id,
+      unlockedAt:new Date(Date.UTC(2026,9,22,index))}});
+  const beforeLedger=(await buildProfileView(legacyWonders.playerKey))!.prestige;
+  assert.equal(beforeLedger.tokens,0);
+  assert.equal(beforeLedger.tokenReadyWeapons.length,3);
+  assert.equal(beforeLedger.wonderWeapons.length,3);
+  assert.equal(beforeLedger.legacyCredits,0);
+  // Re-earning rank 5 on a previously spent source cannot duplicate the token.
+  await db.weaponProgress.updateMany({where:{playerId:legacyWonders.id,
+    weaponId:{in:oldSources.slice(0,2)}},data:{headshots:330}});
+  assert.equal((await buildProfileView(legacyWonders.playerKey))!.prestige.tokens,0);
+  await db.weaponProgress.create({data:{playerId:legacyWonders.id,weaponId:"rifle_dm",
+    kills:600,headshots:330,conditionStats:JSON.stringify(completedContext)}});
+  const newAward=(await buildProfileView(legacyWonders.playerKey))!.prestige;
+  assert.equal(newAward.tokens,1,"New DMR award must not cover old purchases");
+  assert(newAward.tokenReadyWeapons.includes("rifle_dm"));
+  const fourthWonder=WEAPONS.find(w=>!!w.wonder&&!w.disabled&&!ownedWonders.some(p=>p.id===w.id))!;
+  await status(await redeemWonder(req({playerKey:legacyWonders.playerKey,
+    kind:"wonderWeapon",itemId:fourthWonder.id})),200);
+  assert.equal((await buildProfileView(legacyWonders.playerKey))!.prestige.tokens,0);
+  const fifthWonder=WEAPONS.find(w=>!!w.wonder&&!w.disabled&&
+    ![...ownedWonders,fourthWonder].some(p=>p.id===w.id))!;
+  await status(await redeemWonder(req({playerKey:legacyWonders.playerKey,
+    kind:"wonderWeapon",itemId:fifthWonder.id})),403);
+  assert.equal(await db.wonderTokenAward.count({where:{playerId:legacyWonders.id}}),4);
+  const missingSources=await create("legacy-wonder-without-source",totalXpForLevel(25));
+  await db.wonderUnlock.createMany({data:ownedWonders.map(w=>({
+    playerId:missingSources.id,weaponId:w.id,
+  }))});
+  const unmatched=(await buildProfileView(missingSources.playerKey))!.prestige;
+  assert.equal(unmatched.legacyCredits,3);
+  assert.equal(unmatched.tokens,0);
+  assert.equal((await buildProfileView(missingSources.playerKey))!.prestige.legacyCredits,3);
+
   // Quest/achievement XP must be included in both returned and persisted level.
   const q = await create("quest-player", totalXpForLevel(12) - 200);
   const award = await applyMatchResult({ playerKey: q.playerKey, kills: 200, deaths: 1, headshots: 100, won: true, mode: "ffa", score: 200, weaponId: "rifle_ar" });
@@ -106,7 +182,7 @@ try {
   const cap = totalXpForLevel(MAX_PLAYER_LEVEL);
   const crossing = await create("crossing-player", cap - 1);
   await suppressAwards(crossing.id);
-  const crossingResult = await applyMatchResult({ playerKey: crossing.playerKey, kills: 0, deaths: 0, headshots: 0, won: false, mode: "ffa", score: 0 });
+  const crossingResult = await applyMatchResult({ playerKey: crossing.playerKey, kills: 0, deaths: 0, headshots: 0, won: false, completed: true, mode: "ffa", score: 0 });
   const crossed = await db.player.findUniqueOrThrow({ where: { id: crossing.id } });
   assert.equal(crossed.careerXp, crossingResult.xpGained - 1);
   assert.equal(crossingResult.newLevel, MAX_PLAYER_LEVEL);
@@ -213,6 +289,24 @@ try {
   await status(await cosmeticEquip("reticle","classic","primary"),200);
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,todayReticle.cosmeticId);
+
+  // Wonder customization is cosmetic-only, but it must actually persist the
+  // owned reticle and charm through the same API and profile as normal guns.
+  await db.wonderUnlock.create({data:{playerId:cosmeticsPlayer.id,weaponId:"wonder_riot_shield"}});
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryWeapon:"wonder_riot_shield"})),200);
+  await status(await cosmeticEquip("reticle",todayReticle.cosmeticId!,"primary","wonder_riot_shield"),200);
+  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","wonder_riot_shield"),200);
+  // Persist the selection via the general loadout endpoint too. Previously
+  // this route rejected Wonder charms and/or silently reset them to "none".
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryCharm:todayCharm.cosmeticId!,primaryReticle:todayReticle.cosmeticId!})),200);
+  const wonderCosmeticView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(wonderCosmeticView.loadout.weapon.id,"wonder_riot_shield");
+  assert.equal(wonderCosmeticView.loadout.primaryReticle,todayReticle.cosmeticId);
+  assert.equal(wonderCosmeticView.loadout.primaryCharm,todayCharm.cosmeticId);
+  await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
+    primaryWeapon:"rifle_ar"})),200);
 
   // Store finishes remain specific to a weapon even when the global rotation
   // continues to advertise the same finish to every player.

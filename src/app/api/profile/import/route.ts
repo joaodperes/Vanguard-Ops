@@ -31,6 +31,8 @@ interface ExportData {
     careerRank?: number;
     careerXp?: number;
     careerTokensSpent?: number;
+    wonderTokenLedgerReady?: boolean;
+    wonderLegacyCredits?: number;
     selectedTitle?: string;
     selectedReticle?: string;
     selectedNameplate?: string;
@@ -76,6 +78,7 @@ interface ExportData {
   weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
   weaponPrestiges?: { weaponId: string; legacyReward?: boolean }[];
   wonderUnlocks?: { weaponId: string }[];
+  wonderTokenAwards?: { weaponId: string; legacy?: boolean }[];
   careerContracts?: {cycle:number;contractId:string;goal:number;progress:number;completed:boolean}[];
   careerRewards?: {cycle:number}[];
   careerShopPurchases?: {itemKey:string;currency:string;cost:number}[];
@@ -132,6 +135,12 @@ export async function POST(req: NextRequest) {
   const restoredTokensSpent=Math.max(existing?.careerTokensSpent??0,
     Number.isSafeInteger(p.careerTokensSpent)&&p.careerTokensSpent!>=0?p.careerTokensSpent!:0);
   const restoredXp = Math.max(existing?.xp ?? 0, p.xp);
+  // Pre-ledger backups have neither property and are reconciled after import.
+  const restoredWonderCredits = Math.max(existing?.wonderLegacyCredits ?? 0,
+    Number.isSafeInteger(p.wonderLegacyCredits) && p.wonderLegacyCredits! >= 0
+      ? Math.min(100, p.wonderLegacyCredits!) : 0);
+  const restoredWonderReady = (existing?.wonderTokenLedgerReady ?? false) ||
+    p.wonderTokenLedgerReady === true;
   const restoredPerk = perkById(data.loadout?.perkId);
   // Legacy backups had one reticle and weapon-ID charms; convert to the two active slots.
   const legacyCharms=parseEquippedCharms(p.equippedCharms);
@@ -159,6 +168,8 @@ export async function POST(req: NextRequest) {
         level: levelForXp(restoredXp),
         ...career,
         careerTokensSpent:restoredTokensSpent,
+        wonderTokenLedgerReady:restoredWonderReady,
+        wonderLegacyCredits:restoredWonderCredits,
         ...(p.selectedTitle !== undefined ? { selectedTitle: p.selectedTitle } : {}),
         ...(p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?{selectedReticle:p.selectedReticle}:{}),
         ...(p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?{selectedNameplate:p.selectedNameplate}:{}),
@@ -191,6 +202,8 @@ export async function POST(req: NextRequest) {
         level: levelForXp(p.xp),
         ...career,
         careerTokensSpent:restoredTokensSpent,
+        wonderTokenLedgerReady:restoredWonderReady,
+        wonderLegacyCredits:restoredWonderCredits,
         selectedTitle: p.selectedTitle ?? "",
         selectedReticle: p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
         selectedNameplate: p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?p.selectedNameplate:"standard",
@@ -325,14 +338,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // --- Restore one-time Prestige awards and Wonder purchases (dedup by key).
-  // Balance is derived from these two tables, not from a mutable imported counter.
+  // --- Restore permanent Prestige awards, token entitlements and Wonder purchases.
   if (data.weaponPrestiges?.length) {
     for (const { weaponId, legacyReward } of data.weaponPrestiges) {
       if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
       await db.weaponPrestige.upsert({
         where: { playerId_weaponId: { playerId: player.id, weaponId } },
         create: { playerId: player.id, weaponId, legacyReward: legacyReward !== false }, update: {},
+      });
+    }
+  }
+  if (data.wonderTokenAwards?.length) {
+    for (const { weaponId, legacy } of data.wonderTokenAwards) {
+      if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
+      const prestige = await db.weaponPrestige.findUnique({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+      });
+      if (!prestige) continue;
+      await db.wonderTokenAward.upsert({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+        create: { playerId: player.id, weaponId, legacy: legacy === true },
+        update: {},
       });
     }
   }
@@ -343,11 +369,16 @@ export async function POST(req: NextRequest) {
         where: { playerId_weaponId: { playerId: player.id, weaponId } },
       });
       if (owned) continue;
-      const [earned, spent] = await Promise.all([
-        db.weaponPrestige.count({ where: { playerId: player.id } }),
+      const [earned, spent, account, legacyPrestiges] = await Promise.all([
+        db.wonderTokenAward.count({ where: { playerId: player.id } }),
         db.wonderUnlock.count({ where: { playerId: player.id } }),
+        db.player.findUniqueOrThrow({ where: { id: player.id },
+          select: { wonderTokenLedgerReady: true, wonderLegacyCredits: true } }),
+        db.weaponPrestige.count({ where: { playerId: player.id } }),
       ]);
-      if (spent < earned) {
+      const allowed = account.wonderTokenLedgerReady
+        ? earned + account.wonderLegacyCredits : Math.max(earned, legacyPrestiges);
+      if (spent < allowed) {
         await db.wonderUnlock.create({ data: { playerId: player.id, weaponId } });
       }
     }

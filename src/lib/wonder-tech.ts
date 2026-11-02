@@ -26,7 +26,8 @@ export function selectSmartTarget(origin:V3,dir:V3,candidates:WonderCandidate[],
  * passages, but never damages enemies behind the operator or through cover.
  */
 export const HELLFIRE_HALF_ARC_DEGREES = 70;
-export function inFlameCone(origin:V3,dir:V3,target:V3,range=14):boolean{
+export const HELLFIRE_RANGE = 13;
+export function inFlameCone(origin:V3,dir:V3,target:V3,range=HELLFIRE_RANGE):boolean{
  const dx=target[0]-origin[0],dz=target[2]-origin[2];
  const dist=Math.hypot(dx,dz),aimLen=Math.hypot(dir[0],dir[2]);
  if(dist<=0||dist>range||aimLen===0)return false;
@@ -47,7 +48,7 @@ export function sludgeMovementFactor(pos:V3,team:string,now:number,pools:readonl
 
 /** Deadlock stores up to three persistent exposed target tags per owner. */
 export const SMART_MAX_TAGS = 3;
-export const SMART_TAG_MS = 4500;
+export const SMART_TAG_MS = 6000;
 export function selectSmartTargets(
   origin:V3,dir:V3,candidates:WonderCandidate[],team:string,ffa:boolean,
   range:number,canSee:(p:V3)=>boolean,limit=SMART_MAX_TAGS,
@@ -67,7 +68,6 @@ export function selectSmartTargets(
 export const HELLFIRE_BURST_MS = 8000; // fully charged fuel reserve (8 seconds)
 export const HELLFIRE_FUEL_STEP_MS = 1000; // each held second spends ONE charge
 export const HELLFIRE_TICK_MS = 125;
-export const HELLFIRE_RANGE = 11;
 export function hellfireRemainingMs(until:number,now:number):number {
   return Math.max(0,until-now);
 }

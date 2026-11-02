@@ -9,6 +9,7 @@ export interface GameSettings extends AudioMixSettings {
   crosshairSize: number;   // 4 .. 14
   showFps: boolean;
   showPing: boolean;
+  showHealthBars: boolean; // Floating health bars over other operatives (not your HUD health)
   damageNumbers: boolean;
   autoAdsOnFire: boolean;  // automatically ADS when firing (great for mobile)
   invertY: boolean;        // invert vertical look (flight-sim style)
@@ -23,6 +24,7 @@ const DEFAULTS: GameSettings = {
   crosshairSize: 8,
   showFps: false,
   showPing: true,
+  showHealthBars: true,
   damageNumbers: true,
   ...DEFAULT_AUDIO_MIX,
   autoAdsOnFire: false,

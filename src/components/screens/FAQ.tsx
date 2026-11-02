@@ -67,6 +67,9 @@ export function FAQ() {
             <FaqItem q="What are credits?">
               <p>Credits are the in-game currency earned by playing matches. You spend them in the <strong>Armory</strong> to unlock new weapons, attachments, and player skins. Credits are earned from kills, match completion bonuses, daily challenges, and achievements. <strong>You cannot buy credits with real money</strong> — there are no microtransactions.</p>
             </FaqItem>
+            <FaqItem q="Is there a bonus for staying until the end of a match?">
+              <p>Yes. Completing a non-Survival match (FFA, TDM, Gun Game, Kill Confirmed, or CTF) awards <strong>+{REWARDS.completionXp} XP and +{REWARDS.completionCredits} credits</strong>, whether you win or lose. There is no automatic participation reward. Leaving early keeps rewards earned from kills, assists, and objectives, but forfeits the match completion bonus. Survival instead awards wave and milestone rewards.</p>
+            </FaqItem>
             <FaqItem q="How much XP/credits do I earn per kill?">
               <p>Rewards scale with the difficulty of the enemy you killed:</p>
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">

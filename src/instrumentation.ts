@@ -39,17 +39,14 @@ export async function register() {
   // proceed if it's "nodejs" OR undefined (to avoid skipping on local dev).
   const runtime = process.env.NEXT_RUNTIME;
   if (runtime && runtime !== "nodejs") {
-    console.log("[VANGUARD] Instrumentation: skipping (NEXT_RUNTIME =", runtime + ")");
     return
   }
 
   // CRITICAL: Do NOT start the game server during `next build`.
   if (isBuildPhase()) {
-    console.log("[VANGUARD] Instrumentation: skipping (build phase, NEXT_PHASE =", process.env.NEXT_PHASE + ")");
     return
   }
 
-  console.log("[VANGUARD] Instrumentation: starting game server on port 3003 (NEXT_RUNTIME =", runtime || "undefined", ", NODE_ENV =", process.env.NODE_ENV + ")...");
   // At runtime (next start / next dev), dynamically import the game server
   // module. The dynamic import ensures that all Node-only APIs (process.on,
   // http.createServer, socket.io) are only evaluated in the Node.js runtime

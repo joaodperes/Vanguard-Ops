@@ -31,7 +31,7 @@ export async function POST(req:NextRequest){
     if(body.weaponId!==undefined&&body.weaponId!==weaponId)
       return NextResponse.json({error:"Equip this weapon before customizing it"},{status:409});
     const w=WEAPONS.find(x=>x.id===weaponId);
-    if(!w||w.disabled||w.category==="melee"||(kind==="charm"&&w.wonder))
+    if(!w||w.disabled||w.category==="melee")
       return NextResponse.json({error:"This weapon cannot equip that cosmetic"},{status:403});
     const field=slot==="primary"?(kind==="charm"?"primaryCharm":"primaryReticle")
       :(kind==="charm"?"secondaryCharm":"secondaryReticle");

@@ -14,6 +14,12 @@ export interface CtfFlag {
 }
 export type CtfFlags = { red: CtfFlag; blue: CtfFlag };
 export const CTF_SPEED_MULTIPLIER = 1.10;
+/** The flag already grants a 10% escape bonus. Do not stack a faster weapon\x27s
+ * (especially melee\x27s) mobility bonus on top of that while carrying.
+ * Ordinary melee movement and combat remain unchanged outside carrying. */
+export function ctfCarrierWeaponSpeed(weaponSpeed:number,carrying:boolean):number {
+  return carrying ? Math.min(1,weaponSpeed) : weaponSpeed;
+}
 export const CTF_PICKUP_RADIUS = 2.4;
 export const CTF_CAPTURE_RADIUS = 4.7; // Covers the entire visible 4.25-radius delivery marker.
 export const CTF_TREE_X = 94;
@@ -92,6 +98,7 @@ export function ctfEngageThreat(enemyDistance:number, weaponId:string):boolean {
 export function ctfBotIntent(
   flags:CtfFlags, team:FlagTeam, id:string, pos:Vec3, weaponId:string,
   squadIds:readonly string[] = [], carriers:Readonly<Record<string,Vec3>> = {}, mapId:ObjectiveSource="forest_warfare",
+  now=Date.now(),
 ):CtfBotIntent {
   const own=flags[team], enemyTeam=otherFlag(team), enemy=flags[enemyTeam];
   const home=ctfHome(team,mapId), enemyHome=ctfHome(enemyTeam,mapId);
@@ -100,6 +107,8 @@ export function ctfBotIntent(
   const rank=ix>=0?ix:hash%9, lane=((hash+rank*7)%7)-3;
   const side=team==="red"?-1:1;
   const sniper=weaponId.startsWith("sniper_")||weaponId.startsWith("dmr_");
+  // Stagger patrol phases so defenders sweep approaches rather than clustering.
+  const phase=Math.floor((now+(hash%4000))/9000)%3;
   // All roles immediately become recovery/interception assignments.
   if(own.carrierId || own.dropped) {
     const position=own.carrierId?carriers[own.carrierId]??own.pos:own.pos;
@@ -129,13 +138,22 @@ export function ctfBotIntent(
     // One quarter of the squad guards its rear district. Raiders go directly
     // to the ground objective; the shared region/A* motor chooses factory or
     // jungle flanks without inheriting the Forest Warfare staircase route.
-    if(rank%4===0)return {role:"defend_flag",goal:[...home]};
+    if(rank%4===0){
+      const towardX=enemyHome[0]-home[0],towardZ=enemyHome[2]-home[2];
+      const length=Math.hypot(towardX,towardZ)||1;
+      const forwardX=towardX/length,forwardZ=towardZ/length;
+      const flankX=-forwardZ,flankZ=forwardX;
+      const station=Math.floor(rank/4)%4;
+      const flank=([-16,16,-9,9][station])+(phase===0?-4:phase===2?4:0);
+      const forward=phase===1?10:17;
+      return {role:"defend_flag",goal:[home[0]+forwardX*forward+flankX*flank,home[1],home[2]+forwardZ*forward+flankZ*flank]};
+    }
     return {role:"attack",goal:[...enemyHome]};
   }
   if(mapKey==="floodgate"){
     // Four of a full squad defend, while twelve raiders share three broad lanes.
     // Ground-level flags need neither forest stairs nor orbital launch routing.
-    if(rank%4===0)return {role:"defend_flag",goal:[home[0]-side*6,0,Math.floor(rank/4)%2===0?18:-18]};
+    if(rank%4===0)return {role:"defend_flag",goal:[home[0]-side*(phase===1?15:8),0,(Math.floor(rank/4)%2===0?1:-1)*(phase===0?24:phase===1?13:33)]};
     const flankZ=[-66,0,66][rank%3];
     if(Math.abs(pos[0]-enemyHome[0])>38)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*24,0,flankZ]};
     return {role:"attack",goal:[...enemyHome]};
@@ -146,13 +164,13 @@ export function ctfBotIntent(
   }
   // Default: long-range defenders stay on different edges of the high deck.
   if(sniper) {
-    const angle=((hash%12)/12)*Math.PI*2;
+    const angle=((hash%12)/12)*Math.PI*2+phase*.45;
     return {role:"defend_flag",goal:[
       home[0]+Math.cos(angle)*8.2,home[1],home[2]+Math.sin(angle)*8.2,
     ]};
   }
   if(rank%3===0)return {role:"defend_stairs",goal:[
-    home[0]+lane*1.8,0,home[2]+(hash%2?28:-28)+(rank%3)*2,
+    home[0]+lane*1.8-side*(phase===1?8:0),0,(hash%2?28:-28)+(phase===0?-5:phase===2?5:0),
   ]};
   // Alternate approach lanes across the valley before converging on the stairs.
   const approach=enemyHome[0]-Math.sign(enemyHome[0])*33;
@@ -161,6 +179,14 @@ export function ctfBotIntent(
   ]};
   return {role:"attack",goal:[...enemyHome]};
 }
+/** Defenders look into incoming lanes, not back at their own flag. */
+export function ctfDefenderScanYaw(team:FlagTeam,pos:Vec3,id:string,mapId="forest_warfare",now=Date.now()):number {
+  const opposing=ctfHome(otherFlag(team),mapId);
+  const hash=[...id].reduce((acc,ch)=>((acc*31+ch.charCodeAt(0))>>>0),7);
+  const direction=Math.atan2(opposing[0]-pos[0],opposing[2]-pos[2]);
+  return direction+Math.sin(now/2400+(hash%23))*.43;
+}
+
 /** Elevated flags and defenders use the objective's saved stair entrances/landings. */
 export function ctfStairWaypoint(goal:Vec3,pos:Vec3,mapId:ObjectiveSource="forest_warfare"):Vec3 {
   const objective=(objectiveMap(mapId).objectives??[]).find(o=>o.kind==="flag"&&

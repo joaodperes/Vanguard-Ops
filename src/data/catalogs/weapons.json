@@ -5,11 +5,11 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "a purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
+    "description": "A purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
-      "rechargeMs": 48000,
+      "rechargeMs": 44000,
       "killBonusMs": 2400,
       "radius": 9.5
     },
@@ -35,17 +35,17 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Corrosive bolt poisons enemies close to its impact (2.75m splash), then damages them over time. Three regenerating charges; ordinary kills accelerate recharge.",
+    "description": "Corrosive bolt poisons enemies close to its impact (3.5m splash), then damages them over time. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
       "rechargeMs": 38000,
       "killBonusMs": 8500,
-      "radius": 2.75
+      "radius": 3.5
     },
     "attachments": [],
     "stats": {
-      "damage": 85,
+      "damage": 95,
       "fireRate": 1.1,
       "magSize": 3,
       "reloadTime": 0,
@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Deploys an automated turret with a 140\u00b0 firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
+    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -75,7 +75,7 @@
     },
     "attachments": [],
     "stats": {
-      "damage": 17,
+      "damage": 38,
       "fireRate": 2.8,
       "magSize": 1,
       "reloadTime": 0,
@@ -857,7 +857,7 @@
     "category": "assault",
     "unlockLevel": 11,
     "unlockCost": 800,
-    "description": "Burst-fire assault rifle. Three rounds per trigger pull \u2014 deadly at mid range.",
+    "description": "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
     "stats": {
       "damage": 28,
       "fireRate": 9,
@@ -906,7 +906,7 @@
     "category": "smg",
     "unlockLevel": 3,
     "unlockCost": 500,
-    "description": "Ultra-compact budget SMG. Fast handling, low damage \u2014 a starter run-and-gun.",
+    "description": "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
     "stats": {
       "damage": 20,
       "fireRate": 12,
@@ -1069,11 +1069,11 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 4.5s; even hipfire smart bullets seek one tagged enemy per shot if still exposed.",
+    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 6s; even hipfire smart bullets seek one tagged enemy per shot if still exposed.",
     "wonder": {
       "kind": "smart",
       "maxCharges": 2,
-      "rechargeMs": 29000,
+      "rechargeMs": 26000,
       "killBonusMs": 1600,
       "radius": 0
     },
@@ -1099,7 +1099,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Hold fire to sweep flames across a broad 140\u00b0 forward arc, denying nearby approaches. Eight seconds of fuel; releasing the trigger preserves remaining charges. No burning ground.",
+    "description": "Hold fire to sweep flames across a broad 140° forward arc, denying nearby approaches up to 13m away. Eight seconds of fuel; releasing the trigger preserves remaining charges. No burning ground.",
     "wonder": {
       "kind": "flame",
       "maxCharges": 8,
@@ -1109,14 +1109,14 @@
     },
     "attachments": [],
     "stats": {
-      "damage": 6,
+      "damage": 9,
       "fireRate": 8,
       "magSize": 8,
       "reloadTime": 0,
       "spread": 0.05,
       "adsSpread": 0.012,
       "recoil": 1.2,
-      "range": 11,
+      "range": 13,
       "adsTime": 0.25,
       "moveSpeed": 0.87,
       "auto": true,
@@ -1129,7 +1129,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 4 seconds.",
+    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 5 seconds.",
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
@@ -1378,7 +1378,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "Wonder grenade launcher. A bouncing shell bursts after 1.4s into six bouncing cluster grenades. Powerful wide-area blasts; solid cover blocks damage. Follows map gravity. Two charges regenerate over time.",
+    "description": "Wonder grenade launcher. A bouncing shell bursts after 1.4s into six bouncing cluster grenades. Powerful 7m primary blast with wide-area bomblets; solid cover blocks damage. Follows map gravity. Two charges regenerate over time.",
     "stats": {
       "damage": 120,
       "fireRate": 0.8,
@@ -1398,10 +1398,10 @@
       "maxCharges": 2,
       "rechargeMs": 32000,
       "killBonusMs": 1600,
-      "radius": 6
+      "radius": 7
     },
     "explosive": {
-      "radius": 6
+      "radius": 7
     }
   },
   {
@@ -1411,7 +1411,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "250 HP riot shield and P-9 as one primary Wonder. Shield covers the left front while firing. Hold ADS for full frontal bullet cover; P-9 cannot fire while raised.",
+    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces full frontal cover and lowers the P-9. ",
     "stats": {
       "damage": 41,
       "fireRate": 5,
@@ -1431,8 +1431,8 @@
     "wonder": {
       "kind": "shield",
       "maxCharges": 1,
-      "rechargeMs": 32000,
-      "killBonusMs": 0,
+      "rechargeMs": 27000,
+      "killBonusMs": 3000,
       "radius": 0
     }
   }

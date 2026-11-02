@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId, grantWeaponPrestiges } from "@/lib/player-service";
+import { buildProfileView, getOrCreatePlayer, effectiveUnlocks, safeWeaponId, grantWeaponPrestiges, reconcileWonderTokenAwards } from "@/lib/player-service";
 import {
   WEAPONS,
   ATTACHMENTS,
@@ -13,7 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
-import { tokenEligiblePrestiges } from "@/lib/weapon-prestige";
+import { prestigeTokens } from "@/lib/weapon-prestige";
 import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeProgress } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
@@ -51,20 +51,20 @@ export async function POST(req: NextRequest) {
     if (!def) return NextResponse.json({ error: "Unknown Wonder Weapon" }, { status: 404 });
     // Legitimately earned legacy progress can be claimed on the first purchase.
     await grantWeaponPrestiges(player.id);
+    await reconcileWonderTokenAwards(player.id);
     try {
       await db.$transaction(async tx => {
-        const [prestigeRows, masteryRows, purchases, owned] = await Promise.all([
-          tx.weaponPrestige.findMany({ where: { playerId: player.id }, select: { weaponId: true } }),
-          tx.weaponProgress.findMany({ where: { playerId: player.id }, select: { weaponId: true, kills: true, headshots: true } }),
+        const [awards, account, purchases, owned] = await Promise.all([
+          tx.wonderTokenAward.count({ where: { playerId: player.id } }),
+          tx.player.findUniqueOrThrow({ where: { id: player.id }, select: { wonderLegacyCredits: true } }),
           tx.wonderUnlock.count({ where: { playerId: player.id } }),
           tx.wonderUnlock.findUnique({ where: {
             playerId_weaponId: { playerId: player.id, weaponId: def.id },
           } }),
         ]);
         if (owned) throw new Error("ALREADY_OWNED");
-        const mastery = Object.fromEntries(masteryRows.map(row=>[row.weaponId,{kills:row.kills,headshots:row.headshots}]));
-        const awards = tokenEligiblePrestiges(prestigeRows.map(row=>row.weaponId),mastery).length;
-        if (awards <= purchases) throw new Error("NO_PRESTIGE_TOKENS");
+        if (prestigeTokens(awards + account.wonderLegacyCredits, purchases) <= 0)
+          throw new Error("NO_PRESTIGE_TOKENS");
         await tx.wonderUnlock.create({ data: { playerId: player.id, weaponId: def.id } });
       });
     } catch (e: any) {

@@ -82,6 +82,7 @@ export default function Page() {
           playerKey, kills: r.kills, deaths: r.deaths, headshots: r.headshots, assists:r.assists??0,
           won: r.won, mode: r.mode, score: r.score,
           online: playConfig.online,
+          completed: r.completed === true,
           durationSec: r.durationSec ?? 0,
           placement: r.placement ?? 1,
           weaponId: r.weaponId ?? "rifle_ar",
@@ -90,6 +91,11 @@ export default function Page() {
           // can update the player's lifetime bestKillstreak (Triple Threat /
           // Killstreak King / Untouchable Force achievements).
           bestStreak: r.bestStreak ?? 0,
+          maxNoDeathStreak: r.maxNoDeathStreak ?? 0,
+          defenseKills: r.defenseKills ?? 0,
+          flagReturns: r.flagReturns ?? 0,
+          maxScoreDeficit: r.maxScoreDeficit ?? 0,
+          participants: r.participants ?? 0,
            confirmations: r.confirmations ?? 0,
            denials: r.denials ?? 0,
           survivalWaves: r.survivalWaves ?? 0,

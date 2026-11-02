@@ -1,7 +1,7 @@
 import { weaponById } from "../src/lib/game-data";
 import { describe, expect, test } from "bun:test";
 import { fullWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
-import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
+import { prestigeEligible, prestigeChallengeStatus, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
 import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
 import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
 
@@ -89,6 +89,24 @@ describe("One-time Prestige mastery", () => {
     expect(wonderUnlockChallenge("wonder_singularity",true,600,330).completed).toBe(false);
     const owned=new Set(allSkinChallengesForWeapon("rifle_ar").map(c=>c.skinId));
     expect(prestigeEligible("rifle_ar",{kills:0,headshots:0},owned)).toBe(true);
+  });
+  test("Marksman DMR audit agrees with Prestige and Wonder eligibility", () => {
+    const stats = { kills: 600, headshots: 330, conditionStats: {
+      bare_kills: 999, fully_equipped_kills: 999, ads_kills: 999,
+      hipfire_kills: 999, airborne_kills: 999, close_range_kills: 999,
+      long_range_kills: 999, multikill_kills: 999, suppressed_kills: 999,
+      critical_health_kills: 999, comeback_kills: 999,
+    } };
+    const status = prestigeChallengeStatus("rifle_dm", stats);
+    expect(status).toMatchObject({ completed: 7, total: 7, missingSkinIds: [], eligible: true });
+    expect(prestigeEligible("rifle_dm", stats)).toBe(true);
+    expect(tokenEligiblePrestiges(["rifle_dm"], { rifle_dm: stats })).toEqual(["rifle_dm"]);
+    expect(prestigeTokens(1, 0)).toBe(1);
+    expect(prestigeTokens(1, 1)).toBe(0);
+    // Account-wide Weapon Master alone does NOT meet the per-weapon Prestige gate.
+    const withoutCosmetics = { kills: 600, headshots: 330 };
+    expect(prestigeChallengeStatus("rifle_dm", withoutCosmetics).eligible).toBe(false);
+    expect(prestigeEligible("rifle_dm", withoutCosmetics)).toBe(false);
   });
   test("token balance is awards minus lifetime purchases (no double claim)", () => {
     expect(prestigeTokens(0, 0)).toBe(0);
