@@ -56,8 +56,8 @@ describe("physical 250 HP riot panel",()=>{
   const w=weaponById(RIOT_SHIELD_ID),p9=weaponById("pistol_side");
   expect(usesWonderCharges(w)).toBe(false);
   expect(w.stats.damage).toBe(p9.stats.damage);expect(w.stats.magSize).toBe(p9.stats.magSize);
-  const kit=resolveLoadout({primaryWeapon:w.id,secondaryWeapon:"launcher_rocket",meleeWeapon:"knife_tactical",perkId:"battle_hardened"} as any);
-  expect(kit.weapon.id).toBe(w.id);expect(kit.secondary.id).toBe("launcher_rocket");
+  const kit=resolveLoadout({primaryWeapon:"rifle_ar",wonderWeaponId:w.id,secondaryWeapon:"launcher_rocket",meleeWeapon:"knife_tactical",perkId:"wonder_weapon"} as any);
+  expect(kit.weapon.id).toBe("rifle_ar");expect(kit.wonderWeaponId).toBe(w.id);expect(kit.secondary.id).toBe("launcher_rocket");
   const invalid=resolveLoadout({primaryWeapon:"rifle_ar",secondaryWeapon:w.id} as any);expect(invalid.secondary.id).toBe("pistol_side");
  });
 });
@@ -138,13 +138,21 @@ test("Annihilator loads beside the receiver while Reclaimer stays above its arro
  expect(top.prop[0]).toBe(0);expect(top.prop[1]).toBeGreaterThan(0);
 });
 
-test("authoritative loadout accepts each Wonder as primary and rejects it as secondary",()=>{
- const player={xp:0,weaponUnlocks:[],loadout:null};
- for(const id of ["wonder_cluster",RIOT_SHIELD_ID]){
-  const request:any={weaponId:id,secondaryWeaponId:id,attachments:{}};
-  const kit=resolveMatchLoadout(player,request);expect(kit.weaponId).toBe(id);expect(kit.secondaryWeaponId).toBe("pistol_side");
- }
+test("authoritative loadout only allows owned and persisted slot-four Wonders",()=>{
+  for(const id of ["wonder_cluster",RIOT_SHIELD_ID]){
+    const player={xp:0,weaponUnlocks:[],wonderUnlocks:[{weaponId:id}],
+      loadout:{secondaryWeapon:"pistol_side",primaryReticle:"classic",secondaryReticle:"classic",
+        primaryCharm:"none",secondaryCharm:"none",wonderWeaponId:id}};
+    const request:any={weaponId:"rifle_ar",wonderWeaponId:id,perkId:"wonder_weapon",
+      secondaryWeaponId:id,attachments:{}};
+    const kit=resolveMatchLoadout(player,request);
+    expect(kit.weaponId).toBe("rifle_ar");expect(kit.wonderWeaponId).toBe(id);
+    expect(kit.secondaryWeaponId).toBe("pistol_side");
+    expect(resolveMatchLoadout({...player,wonderUnlocks:[]},request).wonderWeaponId).toBeUndefined();
+    expect(resolveMatchLoadout(player,{...request,perkId:"battle_hardened"}).wonderWeaponId).toBeUndefined();
+  }
 });
+
 test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
  const e:any=Object.create(FPSEngine.prototype);
  const victim:any={...carrier,id:"target",pos:[0,0,8],yaw:Math.PI,alive:true,team:"blue",health:100};
