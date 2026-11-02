@@ -6,6 +6,9 @@ import type {CoverBox,EnvironmentObject,MapDef} from "./game-protocol";
 import {FLOODGATE_FLOOD_START_Z,FLOODGATE_FLOOD_END_Z,FLOODGATE_SURGE_SECONDS} from "./map-battle-events";
 
 export const FLOODGATE_TOPPLE_SECONDS=3.2;
+// Contact time is a fraction; adding the duration can round a few ulps short.
+// Use one tolerance for collision stage and rendered pose so they cannot desync.
+const TOPPLE_TIME_EPSILON=1e-9;
 export const FLOODGATE_FREIGHT=[
   {id:"west-inner",x:-21,z:-74,color:0xda8539},
   {id:"east-inner",x:21,z:-74,color:0x36a6b0},
@@ -28,7 +31,7 @@ export function freightFallingAge(age:number|null,c:Freight):number|null {
 }
 export function freightStage(age:number|null,c:Freight=FLOODGATE_FREIGHT[0]):FreightStage {
   const t=freightFallingAge(age,c);
-  return t===null?"upright":t<FLOODGATE_TOPPLE_SECONDS?"falling":"fallen";
+  return t===null?"upright":t<FLOODGATE_TOPPLE_SECONDS-TOPPLE_TIME_EPSILON?"falling":"fallen";
 }
 export function freightCover(stage:Exclude<FreightStage,"falling">,only?:Freight):CoverBox[]{
   const boxes:CoverBox[]=[];
@@ -113,7 +116,8 @@ export function updateFloodgateFreight(group:THREE.Group,age:number|null):void{
   // Derive every pose from the shared hydraulic front for late joiners.
   for(const c of FLOODGATE_FREIGHT){
     const fallingAge=freightFallingAge(age,c);
-    const t=fallingAge===null?0:Math.min(1,fallingAge/FLOODGATE_TOPPLE_SECONDS);
+    const t=fallingAge===null?0:fallingAge>=FLOODGATE_TOPPLE_SECONDS-TOPPLE_TIME_EPSILON
+      ?1:Math.max(0,fallingAge/FLOODGATE_TOPPLE_SECONDS);
     const ease=t*t*(3-2*t);
     const mesh=group.getObjectByName(PREFIX+c.id);
     if(mesh){
