@@ -9,7 +9,7 @@ Players can jump straight into combat against AI, create a room for friends, or 
 1. **Enter the game.** Continue as a guest or register/sign in to keep your account's progression across devices. New players can run through the interactive tutorial.
 2. **Pick a match.** Open **Play** to create a room or join another player's room. Choose a mode, supported map, team size, bot fill and bot difficulty as appropriate. Room hosts start the match when ready. Offline play is available against bots.
 3. **Fight and complete objectives.** Earn XP, credits and weapon-specific progress from matches. Different modes use kills, collected tags, captured flags or survived waves to determine success.
-4. **Upgrade your loadout.** Open **Armory** to unlock weapons and attachments, select primary/secondary/melee weapons, equip a perk, unlock skins through challenges and save named loadouts. Visit **Shop** for available cosmetics and **Profile** for progress, challenges and achievements.
+4. **Upgrade your loadout.** Open **Armory** to unlock weapons and attachments, select primary/secondary/melee weapons, choose a perk (including an owned Wonder Weapon in optional slot 4), unlock skins through challenges and save named loadouts. Visit **Shop** for available cosmetics and **Profile** for progress, challenges and achievements.
 5. **Practice freely.** Enter **Firing Range** from the Armory. Select standard weapons, Wonder Weapons and compatible attachments without buying them. Range activity does not award progression or overwrite your saved loadout.
 
 ## Game modes
@@ -81,7 +81,7 @@ short-term perception, not a permanent radar or an enemy-team position reveal.
 | Fire / aim down sights | **Left mouse** / **right mouse** |
 | Sprint / jump | **Shift** / **Space** |
 | Reload | **R** |
-| Primary / secondary / melee | **1 / 2 / 3** |
+| Primary / secondary / melee / Wonder | **1 / 2 / 3 / 4** (fourth slot needs Wonder Weapon perk) |
 | Quick swap / quick melee | **Q / F** |
 | Release cursor / pause | **Esc** |
 
@@ -91,7 +91,7 @@ Touch devices provide a movement stick and on-screen firing, aiming, swapping, r
 
 - **Weapons and attachments:** Earn credits through gameplay. Purchase equipment once its level and challenge requirements are met. Attachments are owned separately for each weapon; a challenge being complete makes the attachment eligible to purchase, not automatically owned.
 - **Skins and mastery:** Complete per-weapon challenges to earn finishes. Weapon Mastery advances through kill/headshot milestones (melee uses kill-only targets). Reaching high mastery and completing cosmetics challenges unlocks additional Prestige rewards and Wonder Weapon opportunities.
-- **Loadouts and perks:** Equip a primary, secondary, melee weapon and one passive perk. Save several named loadouts for different modes and playstyles.
+- **Loadouts and perks:** Equip three conventional weapon slots and one perk. Battle-Hardened is the default; the alternative Wonder Weapon perk grants slot 4 for a permanently unlocked Wonder. Its recharges speed up with ordinary kills, a normal respawn guarantees one charge, and swapping a saved kit starts at zero charges. Save several named loadouts for different modes and playstyles.
 - **Achievements and Career:** Track challenges, titles and long-term progression in Profile.
 
 Credits are an in-game reward currency; the current game does not sell credits for real money.
