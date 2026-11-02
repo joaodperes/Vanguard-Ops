@@ -3446,6 +3446,12 @@ async function handle(socket: any, msg: C2S) {
             (loadout.perkId !== "well_prepared" || selected.wonder || newWeaponId === loadout.weaponId)) return;
       }
       else if (msg.slot === "melee") newWeaponId = room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(loadout.meleeWeaponId===ORBITAL_REAPER_ID?"knife_tactical":loadout.meleeWeaponId??"knife_tactical");
+      else if (msg.slot === "wonder") {
+        if(loadout.perkId!=="wonder_weapon" || !loadout.wonderWeaponId)return;
+        const selected=WEAPONS.find(w=>w.id===loadout.wonderWeaponId);
+        if(!selected?.wonder || selected.disabled)return;
+        newWeaponId=selected.id;
+      }
       // Validate the weapon exists.
       const w = weaponById(newWeaponId);
       if (!w) return;
