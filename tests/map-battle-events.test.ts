@@ -10,7 +10,7 @@ import {whiteoutWeatherStatus} from "../src/lib/map-event-status";
 import {buildFloodgateColorDressing} from "../src/lib/floodgate-color-dressing";
 import {buildFactoryMachinery} from "../src/lib/factory-machinery";
 import {botTraversableEdge} from "../src/lib/bot-routing";
-import {buildFloodgateFreight,freightCover,freightContactAge,freightStage,setFloodgateFreightStage,updateFloodgateFreight,floodgatePathHazards,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS} from "../src/lib/floodgate-topple";
+import {buildFloodgateFreight,freightCover,freightContactAge,freightStage,setFloodgateFreightStage,updateFloodgateFreight,floodgatePathHazards,FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS,FLOODGATE_ROOF_STEPS,FLOODGATE_ROOF_HEIGHT} from "../src/lib/floodgate-topple";
 import {buildFloodgateDamCracks,damCrackTier,updateFloodgateDamCracks} from "../src/lib/floodgate-dam-cracks";
 import {FLOODGATE_CORE_ID,FLOODGATE_DAM_PANELS,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,applyLinkedWallDamage,floodgateWaterEffect,floodgateSurgeFront,FLOODGATE_DAM_HP,FLOODGATE_SURGE_SECONDS,
   whiteoutIntensity,whiteoutVisibility,whiteoutExposure,whiteoutWindow,WHITEOUT_CYCLE_SECONDS}
@@ -189,10 +189,11 @@ describe("Floodgate one-time Levolution",()=>{
     expect(count(second)).toHaveLength(4); // Rooms do not share mutable collision
     setFloodgateFreightStage(first,contactAge+FLOODGATE_TOPPLE_SECONDS);
     const fallen=count(first);
-    expect(fallen).toHaveLength(FLOODGATE_FREIGHT.length*9);
-    expect(fallen.filter(b=>b.kind==="stair")).toHaveLength(FLOODGATE_FREIGHT.length*8);
+    expect(fallen).toHaveLength(FLOODGATE_FREIGHT.length*(9+FLOODGATE_ROOF_STEPS));
+    expect(fallen.filter(b=>b.kind==="stair")).toHaveLength(FLOODGATE_FREIGHT.length*(8+FLOODGATE_ROOF_STEPS));
     expect(fallen.filter(b=>b.kind==="platform")).toHaveLength(FLOODGATE_FREIGHT.length);
-    expect(fallen.filter(b=>b.kind==="stair").every(b=>b.pos[1]+b.size[1]<=3.36)).toBe(true);
+    expect(fallen.filter(b=>b.environmentId?.includes(":step-")).every(b=>b.pos[1]+b.size[1]<=3.36)).toBe(true);
+    expect(fallen.filter(b=>b.environmentId?.includes(":roof-step-"))).toHaveLength(FLOODGATE_FREIGHT.length*FLOODGATE_ROOF_STEPS);
     for(const item of FLOODGATE_FREIGHT){
       const ramp=fallen.filter(b=>b.environmentId?.startsWith("floodgate-freight:"+item.id+":step-"))
         .sort((a,b)=>a.pos[2]-b.pos[2]);
@@ -200,6 +201,9 @@ describe("Floodgate one-time Levolution",()=>{
       for(let i=1;i<ramp.length;i++)expect(
         ramp[i].pos[1]+ramp[i].size[1]-(ramp[i-1].pos[1]+ramp[i-1].size[1])
       ).toBeCloseTo(.42,5);
+      const roof=fallen.filter(b=>b.environmentId?.startsWith("floodgate-freight:"+item.id+":roof-step-")).sort((a,b)=>a.pos[2]-b.pos[2]);
+      expect(roof).toHaveLength(FLOODGATE_ROOF_STEPS);
+      expect(roof[roof.length-1].pos[1]+roof[roof.length-1].size[1]).toBeCloseTo(FLOODGATE_ROOF_HEIGHT);
       const landing=fallen.find(b=>b.environmentId==="floodgate-freight:"+item.id+":bridge")!;
       expect(landing.pos[1]+landing.size[1]).toBeCloseTo(3.36);
       const deck=first.cover.find(b=>b.kind==="platform"&&!b.environmentId &&
@@ -237,6 +241,11 @@ describe("Floodgate one-time Levolution",()=>{
     expect(group.getObjectByName("floodgate-freight:west-inner")?.rotation.x).toBeGreaterThan(-Math.PI/2);
     updateFloodgateFreight(group,contactAge+FLOODGATE_TOPPLE_SECONDS);
     expect(group.getObjectByName("floodgate-freight:west-inner:stairs")?.visible).toBe(true);
+    const pivot=group.getObjectByName("floodgate-freight:west-inner")!;
+    const north=new THREE.Vector3(0,0,-11.5).applyEuler(pivot.rotation);
+    const south=new THREE.Vector3(0,0,11.5).applyEuler(pivot.rotation);
+    expect(south.y).toBeGreaterThan(north.y);
+    expect(group.getObjectByName("floodgate-freight:west-inner:stairs")!.children.length).toBe(8+FLOODGATE_ROOF_STEPS+1);
     expect(group.children).toEqual(all);
     group.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();
       for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
