@@ -1129,6 +1129,7 @@ export class FPSEngine {
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.wonderSight=sightDefForType(this.wonderEff.sightType);
     this.wonderSight = sightDefForType(this.wonderEff.sightType);
     this.equipmentCharges = equipmentById(opts.loadout.equipmentId).charges;
     // Active slot = primary by default (gun game overrides weaponId but keeps slot=primary).
@@ -3827,20 +3828,27 @@ export class FPSEngine {
     this.primaryWeaponId = next.weaponId;
     this.secondaryWeaponId = next.secondaryWeaponId ?? "pistol_side";
     this.meleeWeaponId = next.meleeWeaponId ?? "knife_tactical";
+    this.wonderWeaponId=next.perkId==="wonder_weapon" && !!WEAPONS.find(w=>w.id===next.wonderWeaponId && w.wonder&&!w.disabled) ? next.wonderWeaponId! : "";
     const empty = { sight: null, barrel: null, grip: null, magazine: null };
     this.primaryEff = computeEffectiveStats(weaponById(this.primaryWeaponId), next.attachments);
     this.secondaryEff = computeEffectiveStats(weaponById(this.secondaryWeaponId), next.secondaryAttachments ?? empty);
     this.meleeEff = computeEffectiveStats(weaponById(this.meleeWeaponId), empty);
+    this.wonderEff=computeEffectiveStats(weaponById(this.wonderWeaponId||"rifle_ar"),empty);
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
     this.currentSlot = "primary"; this.lastSlot = "secondary";
     this.weaponId = this.primaryWeaponId;
     this.eff = this.primaryEff; this.sightDef = this.primarySight;
-    const primary = weaponById(this.primaryWeaponId);
-    if (usesWonderCharges(primary) && primary.wonder)
-      this.wonderStates.set(primary.id, fullWonderCharges(primary.wonder));
-    this.primaryAmmoInMag = usesWonderCharges(primary) ? (this.wonderStates.get(primary.id)?.charges ?? this.primaryEff.magSize) : this.primaryEff.magSize;
+    // Every loadout change starts its selected Wonder completely drained.
+    this.wonderStates.clear();
+    const selected=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+    if(selected?.wonder && usesWonderCharges(selected))
+      this.wonderStates.set(selected.id,drainedWonderCharges(selected.wonder,performance.now()));
+    if(this.wonderWeaponId===RIOT_SHIELD_ID){
+      this.riotShieldHp=0;this.riotShieldReadyAt=performance.now()+weaponById(RIOT_SHIELD_ID).wonder!.rechargeMs;
+    }
+    this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     this.ammoInMag = this.primaryAmmoInMag;
@@ -4373,7 +4381,7 @@ export class FPSEngine {
   private saveAmmoToSlot(slot: WeaponSlot) {
     if (slot === "primary") this.primaryAmmoInMag = this.ammoInMag;
     else if (slot === "secondary") this.secondaryAmmoInMag = this.ammoInMag;
-    else this.meleeAmmoInMag = this.ammoInMag;
+    else if (slot === "melee") this.meleeAmmoInMag = this.ammoInMag;
   }
 
   // ---- Live match stats (for mid-match exit progression saving) ----
@@ -4416,7 +4424,7 @@ export class FPSEngine {
   // primary). Gun Game always uses the primary's attachments (progression
   // weapons ignore sidearm attachments).
   private getCurrentAttachments(): Record<AttachmentSlot, string | null> {
-    if (this.opts.mode === "gungame") return { sight: null, barrel: null, grip: null, magazine: null };
+    if (this.opts.mode === "gungame" || this.currentSlot==="wonder") return { sight: null, barrel: null, grip: null, magazine: null };
     if (this.currentSlot === "secondary" && this.opts.loadout.secondaryAttachments) {
       return {
         sight: this.opts.loadout.secondaryAttachments.sight ?? null,
@@ -4441,7 +4449,7 @@ export class FPSEngine {
   // changing a skin on one weapon doesn't change it for the others. In Gun Game
   // the weapon cycles through a clean progression and ignores Armory skins.
   private getCurrentSkinId(): string {
-    if (this.opts.mode === "gungame") return "default";
+    if (this.opts.mode === "gungame" || this.currentSlot==="wonder") return "default";
     if (this.currentSlot === "secondary") return this.opts.loadout.secondaryWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     if (this.currentSlot === "melee") return this.opts.loadout.meleeWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     return this.opts.loadout.weaponSkinId;
