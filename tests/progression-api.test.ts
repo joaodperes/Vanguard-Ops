@@ -53,8 +53,8 @@ test("existing SQLite Loadout upgrades its Wonder column automatically without l
     const reopened=new Database(dbPath);
     const columns=reopened.query("PRAGMA table_info('Loadout')").all() as Array<{name:string}>;
     expect(columns.some(row=>row.name==="wonderWeaponId")).toBe(true);
-    const kit=reopened.query("SELECT primaryWeapon,perkId,wonderWeaponId FROM Loadout WHERE playerId='old'").get()
-      as {primaryWeapon:string;perkId:string;wonderWeaponId:string};
+    const kit=reopened.query("SELECT primaryWeapon,perkId,wonderWeaponId FROM Loadout WHERE playerId='old'").get() as
+      {primaryWeapon:string;perkId:string;wonderWeaponId:string};
     expect(kit).toEqual({primaryWeapon:"rifle_ar",perkId:"battle_hardened",wonderWeaponId:""});
     expect((reopened.query("SELECT credits FROM Player WHERE id='old'").get() as {credits:number}).credits).toBe(830);
     reopened.close();
