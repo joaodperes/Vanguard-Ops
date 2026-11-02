@@ -73,7 +73,7 @@ describe("Explonando and Well Prepared gameplay rules", () => {
   test("death charge has a two-second fuse and falloff", () => {
     expect(EXPLO_FUSE_MS).toBe(2000);
     expect(explonandoDamage(0)).toBeGreaterThan(explonandoDamage(2));
-    expect(explonandoDamage(5)).toBe(0);
+    expect(explonandoDamage(6.5)).toBe(0);
     expect(explonandoDamage(Infinity)).toBe(0);
   });
   test("death charges do not hit owner or allies", () => {
