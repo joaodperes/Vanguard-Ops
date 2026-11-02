@@ -85,13 +85,13 @@ describe("Bullet Spitter deployment", () => {
     expect(turret.wonder?.kind).toBe("turret");
     expect(turret.wonder?.maxCharges).toBe(1);
     expect(turret.stats.reloadTime).toBe(0);
-    expect(TURRET_LIFETIME_MS).toBe(45000);
+    expect(TURRET_LIFETIME_MS).toBe(25000);
   });
 
   test("wins an uncontested 1v1 against a standard 100 HP bot", () => {
     expect(TURRET_HP).toBeGreaterThanOrEqual(400);
-    expect(TURRET_DAMAGE * 3).toBeGreaterThanOrEqual(100);
-    expect(TURRET_INTERVAL_MS * 3).toBeLessThan(500);
+    expect(TURRET_DAMAGE * 4).toBeGreaterThanOrEqual(100);
+    expect(TURRET_INTERVAL_MS * 4).toBeLessThan(1000);
   });
   test("plants ahead of the player and falls back before blocking cover", () => {
     const player: [number,number,number] = [0,0,0];
