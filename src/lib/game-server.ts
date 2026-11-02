@@ -2800,7 +2800,8 @@ io.on("connection", (socket) => {
  */
 async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire): Promise<LoadoutWire> {
   const player = await getOrCreatePlayer(playerKey);
-  const resolved = resolveMatchLoadout(player, requested);
+  const wonderUnlocks=await db.wonderUnlock.findMany({where:{playerId:player.id},select:{weaponId:true}});
+  const resolved = resolveMatchLoadout({...player,wonderUnlocks}, requested);
   const purchases = await db.careerShopPurchase.findMany({where:{playerId:player.id},select:{itemKey:true}});
   const owned = cosmeticShopOwnership(purchases.map(p=>p.itemKey));
   // Match sockets cannot supply cosmetic IDs they did not purchase.
