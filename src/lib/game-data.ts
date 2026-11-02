@@ -32,7 +32,7 @@ export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | 
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
 // secondary -> pistol / pdw / launcher
 // melee    -> melee
-export type WeaponSlot = "primary" | "secondary" | "melee";
+export type WeaponSlot = "primary" | "secondary" | "melee" | "wonder";
 
 // The secondary accepts a second primary only with Well Prepared.
 export function isPrimaryWeaponCategory(category: WeaponCategory): boolean {
@@ -352,6 +352,7 @@ export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === 
 
 export interface ResolvedLoadout {
   perkId: PerkId;
+  wonderWeaponId: string;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
@@ -373,6 +374,7 @@ export interface ResolvedLoadout {
 
 export function resolveLoadout(input: {
   perkId?: string;
+  wonderWeaponId?: string;
   primaryWeapon: string;
   secondaryWeapon?: string;
   meleeWeapon?: string;
@@ -406,7 +408,7 @@ export function resolveLoadout(input: {
     };
   };
   const requestedPrimary = weaponById(input.primaryWeapon);
-  const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
+  const weapon = requestedPrimary.disabled || requestedPrimary.wonder ? weaponById("rifle_ar") : requestedPrimary;
   const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
   const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
@@ -415,11 +417,12 @@ export function resolveLoadout(input: {
     if (unlocked && !unlocked.includes(skinId)) return weaponSkinById("default");
     return weaponSkinById(skinId);
   };
-  const skinId = requestedPrimary.disabled ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
+  const skinId = requestedPrimary.disabled || requestedPrimary.wonder ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
   const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
     perkId: perkById(input.perkId).id,
+    wonderWeaponId: input.wonderWeaponId ?? "",
     weapon,
     secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
