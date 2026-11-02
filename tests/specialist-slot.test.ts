@@ -51,6 +51,26 @@ describe("Specialist perk and slot-four loadout",()=>{
     expect(e.ammoInMag).toBe(0);
     expect(e.scavengerAmmoGained).toBe(0);
   });
+  test("Bulwark P-9 ammo is not reloaded by weapon swapping",()=>{
+    const p9:any=Object.create(FPSEngine.prototype);
+    Object.assign(p9,{
+      opts:{mode:"tdm",online:false,loadout:{perkId:"wonder_weapon"}},
+      currentSlot:"wonder",wonderWeaponId:"wonder_riot_shield",weaponId:"wonder_riot_shield",
+      alive:true,ammoInMag:5,wonderAmmoInMag:12,primaryAmmoInMag:16,
+      secondaryAmmoInMag:9,meleeAmmoInMag:1,
+      primaryWeaponId:"rifle_ar",secondaryWeaponId:"pistol_side",meleeWeaponId:"knife_tactical",
+      primaryEff:{magSize:30},secondaryEff:{magSize:12},meleeEff:{magSize:1},
+      wonderEff:{magSize:12},primarySight:{},secondarySight:{},meleeSight:{},wonderSight:{},
+      sound:{play(){}},buildViewmodel(){},equipmentAction:null,survivalDowned:false,reloading:false,
+    });
+    p9.swapWeapon("primary");
+    expect(p9.wonderAmmoInMag).toBe(5);
+    p9.swapWeapon("wonder");
+    expect(p9.ammoInMag).toBe(5);
+    p9.refillAmmoOnRespawn();
+    expect(p9.wonderAmmoInMag).toBe(12);
+    expect(p9.ammoInMag).toBe(12);
+  });
   test("Bulwark bash replaces F but does not modify selected slot-three melee",()=>{
     expect(riotBashProfile().damage).toBe(RIOT_BASH_DAMAGE);
     expect(riotBashProfile().reach).toBe(RIOT_BASH_REACH);
