@@ -7,7 +7,8 @@ import type { LoadoutWire } from "./game-protocol";
 export function resolveMatchLoadout(player: {
   xp: number;
   weaponUnlocks: { weaponId: string }[];
-  loadout: { secondaryWeapon: string; primaryReticle: string; secondaryReticle: string; primaryCharm: string; secondaryCharm: string } | null;
+  wonderUnlocks?: { weaponId: string }[];
+  loadout: { secondaryWeapon: string; primaryReticle: string; secondaryReticle: string; primaryCharm: string; secondaryCharm: string; wonderWeaponId: string } | null;
 }, requested: LoadoutWire): LoadoutWire {
   const level = levelForXp(player.xp);
   const perk = perkById(requested.perkId);
@@ -24,6 +25,10 @@ export function resolveMatchLoadout(player: {
     secondaryWeaponId = "pistol_side";
   }
   const selectedPrimary=WEAPONS.find(x=>x.id===requested.weaponId);
-  const weaponId=!selectedPrimary || selectedPrimary.disabled ? "rifle_ar" : requested.weaponId;
-  return { ...requested, weaponId, perkId, secondaryWeaponId, primaryReticleId:player.loadout?.primaryReticle??"classic", secondaryReticleId:player.loadout?.secondaryReticle??"classic", primaryCharmId:player.loadout?.primaryCharm??"none", secondaryCharmId:player.loadout?.secondaryCharm??"none", meleeCharmId:"none" };
+  const weaponId=!selectedPrimary || selectedPrimary.disabled || !!selectedPrimary.wonder ? "rifle_ar" : requested.weaponId;
+  const candidate=WEAPONS.find(x=>x.id===requested.wonderWeaponId);
+  const wonderWeaponId=perkId==="wonder_weapon" && candidate?.wonder && !candidate.disabled &&
+    player.wonderUnlocks?.some(x=>x.weaponId===candidate.id) &&
+    candidate.id===player.loadout?.wonderWeaponId ? candidate.id : undefined;
+  return { ...requested, weaponId, perkId, wonderWeaponId, secondaryWeaponId, primaryReticleId:player.loadout?.primaryReticle??"classic", secondaryReticleId:player.loadout?.secondaryReticle??"classic", primaryCharmId:player.loadout?.primaryCharm??"none", secondaryCharmId:player.loadout?.secondaryCharm??"none", meleeCharmId:"none" };
 }
