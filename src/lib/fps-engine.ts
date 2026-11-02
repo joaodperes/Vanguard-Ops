@@ -661,6 +661,8 @@ export class FPSEngine {
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
+  // Bulwark's built-in P-9 has its own magazine, even when holstered.
+  private wonderAmmoInMag = 12;
   private riotShieldHp=RIOT_SHIELD_HP;
   private riotShieldReadyAt=0;
   private riotShieldHitFlashAt=0;
@@ -1157,6 +1159,7 @@ export class FPSEngine {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
     // ---- Sound manager ----
     this.sound = new SoundManager();
@@ -3859,6 +3862,7 @@ export class FPSEngine {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
     this.ammoInMag = this.primaryAmmoInMag;
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
     this.reloading = false; this.equipmentAction = null;
@@ -4379,7 +4383,7 @@ export class FPSEngine {
       this.sightDef=this.wonderSight;
       this.ammoInMag=usesWonderCharges(weaponById(this.wonderWeaponId))
         ? (this.wonderStates.get(this.wonderWeaponId)?.charges ?? 0)
-        : this.wonderEff.magSize;
+        : this.wonderAmmoInMag;
     }
     this.reloading = false;
     this.swapAnimAt = performance.now() - (this.activePerkId === "quickdraw" ? 155 : 0);
@@ -4407,6 +4411,8 @@ export class FPSEngine {
     if (slot === "primary") this.primaryAmmoInMag = this.ammoInMag;
     else if (slot === "secondary") this.secondaryAmmoInMag = this.ammoInMag;
     else if (slot === "melee") this.meleeAmmoInMag = this.ammoInMag;
+    else if (slot === "wonder" && this.wonderWeaponId === RIOT_SHIELD_ID)
+      this.wonderAmmoInMag = this.ammoInMag;
   }
 
   // ---- Live match stats (for mid-match exit progression saving) ----
@@ -5784,6 +5790,8 @@ export class FPSEngine {
         this.perWeaponActions = new Map();
         this.wonderStates.clear();
         this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;
+        this.wonderAmmoInMag=this.wonderEff.magSize;
+        if(this.weaponId===RIOT_SHIELD_ID)this.ammoInMag=this.wonderAmmoInMag;
         const matchPrimary = weaponById(this.primaryWeaponId);
         const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
         if(matchWonder?.wonder && usesWonderCharges(matchWonder))this.wonderStates.set(matchWonder.id,fullWonderCharges(matchWonder.wonder));
@@ -5978,6 +5986,7 @@ export class FPSEngine {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
     // Gun Game and temporary special weapons use the active weapon's stats.
     this.ammoInMag = usesWonderCharges(weaponById(this.weaponId))
       ? (this.wonderStates.get(this.weaponId)?.charges ?? this.eff.magSize)
