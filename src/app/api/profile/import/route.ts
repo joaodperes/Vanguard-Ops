@@ -1,3 +1,8 @@
+import { levelForXp } from "@/lib/progression";
+import { restoreCareer } from "@/lib/career";
+import { perkById, DEFAULT_PERK_ID } from "@/lib/perks";
+import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { cosmeticById, parseEquippedCharms } from "@/lib/cosmetics";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WEAPONS } from "@/lib/game-data";
@@ -23,6 +28,16 @@ interface ExportData {
   player: {
     name: string;
     level: number;
+    careerRank?: number;
+    careerXp?: number;
+    careerTokensSpent?: number;
+    wonderTokenLedgerReady?: boolean;
+    wonderLegacyCredits?: number;
+    selectedTitle?: string;
+    selectedReticle?: string;
+    selectedNameplate?: string;
+    equippedCharms?: string;
+    pvpBestKillstreak?: number;
     xp: number;
     credits: number;
     kills: number;
@@ -44,6 +59,12 @@ interface ExportData {
   attachmentUnlocks?: { weaponId: string; attachmentId: string }[];
   playerSkinUnlocks?: { skinId: string }[];
   loadout?: {
+    perkId?: string;
+    primaryReticle?: string;secondaryReticle?: string;primaryCharm?: string;secondaryCharm?: string;
+    secondaryWeaponSkin?: string;
+    meleeWeaponSkin?: string;
+    weaponSetups?: string;
+    savedLoadouts?: string;
     primaryWeapon: string;
     secondaryWeapon: string;
     meleeWeapon: string;
@@ -55,8 +76,12 @@ interface ExportData {
   } | null;
   achievements?: { achievementId: string; earnedAt: string }[];
   weaponProgress?: { weaponId: string; kills: number; headshots: number; conditionStats?: string }[];
-  weaponPrestiges?: { weaponId: string }[];
+  weaponPrestiges?: { weaponId: string; legacyReward?: boolean }[];
   wonderUnlocks?: { weaponId: string }[];
+  wonderTokenAwards?: { weaponId: string; legacy?: boolean }[];
+  careerContracts?: {cycle:number;contractId:string;goal:number;progress:number;completed:boolean}[];
+  careerRewards?: {cycle:number}[];
+  careerShopPurchases?: {itemKey:string;currency:string;cost:number}[];
   matchRecords?: {
     mode: string;
     online: boolean;
@@ -105,6 +130,34 @@ export async function POST(req: NextRequest) {
   });
 
   const p = data.player;
+  const career = restoreCareer(existing, p);
+  const existingShopPurchases=existing ? await db.careerShopPurchase.count({where:{playerId:existing.id}}):0;
+  const restoredTokensSpent=Math.max(existing?.careerTokensSpent??0,
+    Number.isSafeInteger(p.careerTokensSpent)&&p.careerTokensSpent!>=0?p.careerTokensSpent!:0);
+  const restoredXp = Math.max(existing?.xp ?? 0, p.xp);
+  // Pre-ledger backups have neither property and are reconciled after import.
+  const restoredWonderCredits = Math.max(existing?.wonderLegacyCredits ?? 0,
+    Number.isSafeInteger(p.wonderLegacyCredits) && p.wonderLegacyCredits! >= 0
+      ? Math.min(100, p.wonderLegacyCredits!) : 0);
+  const restoredWonderReady = (existing?.wonderTokenLedgerReady ?? false) ||
+    p.wonderTokenLedgerReady === true;
+  const restoredPerk = perkById(data.loadout?.perkId);
+  // Legacy backups had one reticle and weapon-ID charms; convert to the two active slots.
+  const legacyCharms=parseEquippedCharms(p.equippedCharms);
+  const cosmeticChoice=(id:string|undefined,kind:"reticle"|"charm",fallback:string)=>
+    typeof id==="string"&&cosmeticById(id,kind)?id:fallback;
+  const restoredLoadout = {
+    primaryReticle:cosmeticChoice(data.loadout?.primaryReticle??p.selectedReticle,"reticle","classic"),
+    secondaryReticle:cosmeticChoice(data.loadout?.secondaryReticle??p.selectedReticle,"reticle","classic"),
+    primaryCharm:cosmeticChoice(data.loadout?.primaryCharm??legacyCharms[data.loadout?.primaryWeapon??""],"charm","none"),
+    secondaryCharm:cosmeticChoice(data.loadout?.secondaryCharm??legacyCharms[data.loadout?.secondaryWeapon??""],"charm","none"),
+    cosmeticsMigrated:true,
+    perkId: restoredPerk.unlockLevel <= levelForXp(restoredXp) ? restoredPerk.id : DEFAULT_PERK_ID,
+    ...(data.loadout?.secondaryWeaponSkin !== undefined ? { secondaryWeaponSkin: data.loadout.secondaryWeaponSkin } : {}),
+    ...(data.loadout?.meleeWeaponSkin !== undefined ? { meleeWeaponSkin: data.loadout.meleeWeaponSkin } : {}),
+    ...(data.loadout?.weaponSetups !== undefined ? { weaponSetups: data.loadout.weaponSetups } : {}),
+    ...(data.loadout?.savedLoadouts !== undefined ? { savedLoadouts: JSON.stringify(parseSavedLoadouts(data.loadout.savedLoadouts)) } : {}),
+  };
 
   if (existing) {
     // Update — take MAX of numeric progression fields to avoid downgrading.
@@ -112,9 +165,19 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id },
       data: {
         name: p.name,
-        level: Math.max(existing.level, p.level),
+        level: levelForXp(restoredXp),
+        ...career,
+        careerTokensSpent:restoredTokensSpent,
+        wonderTokenLedgerReady:restoredWonderReady,
+        wonderLegacyCredits:restoredWonderCredits,
+        ...(p.selectedTitle !== undefined ? { selectedTitle: p.selectedTitle } : {}),
+        ...(p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?{selectedReticle:p.selectedReticle}:{}),
+        ...(p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?{selectedNameplate:p.selectedNameplate}:{}),
+        ...(p.equippedCharms?{equippedCharms:JSON.stringify({...parseEquippedCharms(existing.equippedCharms),...parseEquippedCharms(p.equippedCharms)})}:{}),
+        pvpBestKillstreak: Math.max(existing.pvpBestKillstreak, p.pvpBestKillstreak ?? 0),
         xp: Math.max(existing.xp, p.xp),
-        credits: Math.max(existing.credits, p.credits),
+        // Once Career spending starts, replaying a backup cannot refund it.
+        credits: existing.careerRank > 0 || existingShopPurchases>0 ? existing.credits : Math.max(existing.credits, p.credits),
         kills: Math.max(existing.kills, p.kills),
         deaths: Math.max(existing.deaths, p.deaths),
         matchesPlayed: Math.max(existing.matchesPlayed, p.matchesPlayed),
@@ -136,7 +199,16 @@ export async function POST(req: NextRequest) {
       data: {
         playerKey: targetKey,
         name: p.name,
-        level: p.level,
+        level: levelForXp(p.xp),
+        ...career,
+        careerTokensSpent:restoredTokensSpent,
+        wonderTokenLedgerReady:restoredWonderReady,
+        wonderLegacyCredits:restoredWonderCredits,
+        selectedTitle: p.selectedTitle ?? "",
+        selectedReticle: p.selectedReticle && cosmeticById(p.selectedReticle,"reticle")?p.selectedReticle:"classic",
+        selectedNameplate: p.selectedNameplate && cosmeticById(p.selectedNameplate,"nameplate")?p.selectedNameplate:"standard",
+        equippedCharms: JSON.stringify(parseEquippedCharms(p.equippedCharms)),
+        pvpBestKillstreak: p.pvpBestKillstreak ?? 0,
         xp: p.xp,
         credits: p.credits,
         kills: p.kills,
@@ -201,6 +273,7 @@ export async function POST(req: NextRequest) {
       await db.loadout.update({
         where: { playerId: player.id },
         data: {
+          ...restoredLoadout,
           primaryWeapon: data.loadout.primaryWeapon,
           secondaryWeapon: data.loadout.secondaryWeapon,
           meleeWeapon: data.loadout.meleeWeapon,
@@ -215,6 +288,7 @@ export async function POST(req: NextRequest) {
       await db.loadout.create({
         data: {
           playerId: player.id,
+          ...restoredLoadout,
           primaryWeapon: data.loadout.primaryWeapon,
           secondaryWeapon: data.loadout.secondaryWeapon,
           meleeWeapon: data.loadout.meleeWeapon,
@@ -264,14 +338,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // --- Restore one-time Prestige awards and Wonder purchases (dedup by key).
-  // Balance is derived from these two tables, not from a mutable imported counter.
+  // --- Restore permanent Prestige awards, token entitlements and Wonder purchases.
   if (data.weaponPrestiges?.length) {
-    for (const { weaponId } of data.weaponPrestiges) {
+    for (const { weaponId, legacyReward } of data.weaponPrestiges) {
       if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
       await db.weaponPrestige.upsert({
         where: { playerId_weaponId: { playerId: player.id, weaponId } },
-        create: { playerId: player.id, weaponId }, update: {},
+        create: { playerId: player.id, weaponId, legacyReward: legacyReward !== false }, update: {},
+      });
+    }
+  }
+  if (data.wonderTokenAwards?.length) {
+    for (const { weaponId, legacy } of data.wonderTokenAwards) {
+      if (!WEAPONS.some(w => w.id === weaponId && !w.wonder)) continue;
+      const prestige = await db.weaponPrestige.findUnique({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+      });
+      if (!prestige) continue;
+      await db.wonderTokenAward.upsert({
+        where: { playerId_weaponId: { playerId: player.id, weaponId } },
+        create: { playerId: player.id, weaponId, legacy: legacy === true },
+        update: {},
       });
     }
   }
@@ -282,14 +369,49 @@ export async function POST(req: NextRequest) {
         where: { playerId_weaponId: { playerId: player.id, weaponId } },
       });
       if (owned) continue;
-      const [earned, spent] = await Promise.all([
-        db.weaponPrestige.count({ where: { playerId: player.id } }),
+      const [earned, spent, account, legacyPrestiges] = await Promise.all([
+        db.wonderTokenAward.count({ where: { playerId: player.id } }),
         db.wonderUnlock.count({ where: { playerId: player.id } }),
+        db.player.findUniqueOrThrow({ where: { id: player.id },
+          select: { wonderTokenLedgerReady: true, wonderLegacyCredits: true } }),
+        db.weaponPrestige.count({ where: { playerId: player.id } }),
       ]);
-      if (spent < earned) {
+      const allowed = account.wonderTokenLedgerReady
+        ? earned + account.wonderLegacyCredits : Math.max(earned, legacyPrestiges);
+      if (spent < allowed) {
         await db.wonderUnlock.create({ data: { playerId: player.id, weaponId } });
       }
     }
+  }
+
+  // Career Contracts and purchase ledger survive backup/restore. Unique rows
+  // are permanent; imports can never lower spent tokens or repeat an award.
+  for(const record of data.careerRewards??[]){
+    if(!Number.isSafeInteger(record.cycle)||record.cycle<0)continue;
+    await db.careerReward.upsert({
+      where:{playerId_cycle:{playerId:player.id,cycle:record.cycle}},
+      create:{playerId:player.id,cycle:record.cycle},update:{},
+    });
+  }
+  for(const record of data.careerContracts??[]){
+    if(!Number.isSafeInteger(record.cycle)||record.cycle<0||typeof record.contractId!=="string"||record.contractId.length>80)continue;
+    if(!Number.isSafeInteger(record.goal)||record.goal<1||!Number.isSafeInteger(record.progress)||record.progress<0)continue;
+    const key={playerId:player.id,cycle:record.cycle,contractId:record.contractId};
+    const existingContract=await db.careerContract.findUnique({where:{playerId_cycle_contractId:key}});
+    await db.careerContract.upsert({
+      where:{playerId_cycle_contractId:key},
+      create:{...key,goal:record.goal,progress:Math.min(record.goal,record.progress),completed:!!record.completed},
+      update:existingContract?{progress:Math.max(existingContract.progress,Math.min(existingContract.goal,record.progress)),
+        completed:existingContract.completed||!!record.completed}:{},
+    });
+  }
+  for(const record of data.careerShopPurchases??[]){
+    if(typeof record.itemKey!=="string"||record.itemKey.length>128||
+      !["career","credits"].includes(record.currency)||!Number.isSafeInteger(record.cost)||record.cost<0)continue;
+    await db.careerShopPurchase.upsert({
+      where:{playerId_itemKey:{playerId:player.id,itemKey:record.itemKey}},
+      create:{playerId:player.id,itemKey:record.itemKey,currency:record.currency,cost:record.cost},update:{},
+    });
   }
 
   // --- Restore match records (skip duplicates by playedAt+score — best-effort) ---

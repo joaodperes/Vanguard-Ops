@@ -72,5 +72,89 @@
     "color": "#3f0a0a",
     "accent": "#ef4444",
     "emissive": "#ef4444"
+  },
+  {
+    "id": "shop_urban",
+    "name": "Urban Ghost",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "epic",
+    "shopCurrency": "credits",
+    "color": "#516478",
+    "accent": "#9bc1cc"
+  },
+  {
+    "id": "shop_phantom",
+    "name": "Starlight Vanguard",
+    "unlockLevel": 1,
+    "unlockCost": 0,
+    "rarity": "legendary",
+    "shopCurrency": "career",
+    "color": "#37235b",
+    "accent": "#ba96ff",
+    "emissive": "#7c3aed"
+  },
+  {
+    "id": "shop_wraith",
+    "name": "Ash Wraith",
+    "color": "#343a40",
+    "accent": "#fbbf24",
+    "shopCurrency": "credits",
+    "rarity": "rare",
+    "unlockLevel": 1,
+    "unlockCost": 0
+  },
+  {
+    "id": "shop_sandstorm",
+    "name": "Sandstorm Scout",
+    "color": "#7c6748",
+    "accent": "#d5bd8c",
+    "shopCurrency": "credits",
+    "rarity": "epic",
+    "unlockLevel": 1,
+    "unlockCost": 0
+  },
+  {
+    "id": "shop_tide",
+    "name": "Tidebreaker",
+    "color": "#235b6d",
+    "accent": "#67e8f9",
+    "shopCurrency": "credits",
+    "rarity": "epic",
+    "unlockLevel": 1,
+    "unlockCost": 0
+  },
+  {
+    "id": "shop_sentinel",
+    "name": "Solar Sentinel",
+    "color": "#4b3145",
+    "accent": "#ffb454",
+    "emissive": "#f97316",
+    "shopCurrency": "career",
+    "rarity": "legendary",
+    "unlockLevel": 1,
+    "unlockCost": 0
+  },
+  {
+    "id": "shop_ion",
+    "name": "Ion Phantom",
+    "color": "#273556",
+    "accent": "#5cbbff",
+    "emissive": "#60a5fa",
+    "shopCurrency": "career",
+    "rarity": "legendary",
+    "unlockLevel": 1,
+    "unlockCost": 0
+  },
+  {
+    "id": "shop_verdant",
+    "name": "Verdant Guard",
+    "color": "#25463e",
+    "accent": "#8fecb4",
+    "emissive": "#34d399",
+    "shopCurrency": "career",
+    "rarity": "legendary",
+    "unlockLevel": 1,
+    "unlockCost": 0
   }
 ]

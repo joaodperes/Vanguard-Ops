@@ -7,9 +7,21 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all six maps have dedicated tactical cover and playable outer spawns", () => {
-    expect(MAP_LIST).toHaveLength(6);
+  test("all ten maps have dedicated tactical cover and playable spawns", () => {
+    expect(MAP_LIST).toHaveLength(10);
     for (const map of MAP_LIST) {
+      if(map.id==="whiteout_depot"){
+        expect(MAP_BLUEPRINTS.maps.whiteout_depot.features.length).toBeGreaterThan(60);
+        expect(map.spawns.red.length).toBeGreaterThanOrEqual(7);
+        continue;
+      }
+      if(map.id==="floodgate"){
+        expect(MAP_BLUEPRINTS.maps.floodgate.features.length).toBeGreaterThanOrEqual(80);
+        expect(map.spawns.ffa).toHaveLength(32);
+        expect(map.spawns.red).toHaveLength(16);
+        expect(map.spawns.blue).toHaveLength(16);
+        continue;
+      }
       expect(TACTICAL_COVER[map.id].length).toBeGreaterThanOrEqual(16);
       expect(OUTER_SPAWNS[map.id].ffa.length).toBeGreaterThanOrEqual(6);
       expect(OUTER_SPAWNS[map.id].red.length).toBeGreaterThanOrEqual(3);
@@ -21,10 +33,14 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
-        if(map.id==="skybridge"){
+        if(map.id==="forest_warfare") {
+          for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
+          continue;
+        }
+        if(map.id==="skybridge"||map.id==="floodgate"||map.id==="whiteout_depot"){
           // Ridgefall's old outdoor spawn coordinates were deliberately removed.
           // The compiled factory must use only the new indoor JSON spawn set.
-          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps.skybridge.spawns[team]);
+          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps[map.id].spawns[team]);
           for(const point of map.spawns[team])expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
         }
@@ -32,7 +48,18 @@ describe("authored map combat layouts", () => {
         // MAP_LIST already scales every spawn, wall and hazard together.
         // Check the *actual* appended spawn positions, not unscaled design
         // coordinates against the compact/tactical arena bounds.
-        const points = map.spawns[team].slice(-authored.length);
+        // Afterlight expands its city spawn pool; inherited outer spawns remain
+        // valid but no longer necessarily appear at the end of the list.
+        const points = (map.id==="arena_neon"||map.id==="terminal")
+          ? authored.map(design=>{
+              const factor=MAP_FOOTPRINT[map.id].scale;
+              const found=map.spawns[team].find(point=>
+                Math.abs(point[0]-design[0]*factor)<.005&&
+                Math.abs(point[2]-design[2]*factor)<.005);
+              if(!found)throw new Error(`${map.id} missing inherited outer spawn ${design}`);
+              return found;
+            })
+          : map.spawns[team].slice(-authored.length);
         expect(points).toHaveLength(authored.length);
         for (let i = 0; i < points.length; i++) {
           const point = points[i];
@@ -71,7 +98,7 @@ describe("authored map combat layouts", () => {
     const ids = new Set<string>();
     for (const map of MAP_LIST) {
       const doors = map.environment?.filter(e => e.type === "destructible_wall") ?? [];
-      if (map.id === "arena_neon" || map.id === "terminal") {
+      if (map.id === "arena_neon" || map.id === "terminal" || map.id === "forest_warfare") {
         expect(doors).toHaveLength(0);
         expect(map.environment?.length ?? 0).toBe(0);
         continue;
@@ -82,20 +109,23 @@ describe("authored map combat layouts", () => {
         ids.add(environment.id);
       }
       for (const door of doors) {
+        // Floodgate's five interlocking dam shutters are one coordinated
+        // destructible objective, not independent flanked doorways.
+        if (map.id==="floodgate" && door.id.startsWith("floodgate_dam_")) continue;
+        // Doors can be authored along either horizontal axis.
+        const along = door.size[0] >= door.size[2] ? 0 : 2;
+        const across = along === 0 ? 2 : 0;
         const barriers = map.cover.filter(box => box.kind === "cover" &&
-          Math.abs(box.pos[2] - door.pos[2]) < 2 &&
-          Math.abs(box.pos[0] - door.pos[0]) < 14 &&
-          box.size[1] >= 1);
-        expect(barriers.some(box => box.pos[0] < door.pos[0] - 3)).toBe(true);
-        expect(barriers.some(box => box.pos[0] > door.pos[0] + 3)).toBe(true);
-        // The breach should matter: no gap wide enough to walk through
-        // before its central destructible panel is removed.
-        const left = barriers.filter(box => box.pos[0] < door.pos[0] - 3)
-          .reduce((edge,box) => Math.max(edge, box.pos[0] + box.size[0]), -Infinity);
-        const right = barriers.filter(box => box.pos[0] > door.pos[0] + 3)
-          .reduce((edge,box) => Math.min(edge, box.pos[0] - box.size[0]), Infinity);
-        expect(door.pos[0] - door.size[0] - left).toBeLessThan(0.9);
-        expect(right - (door.pos[0] + door.size[0])).toBeLessThan(0.9);
+          Math.abs(box.pos[across] - door.pos[across]) < 2 &&
+          Math.abs(box.pos[along] - door.pos[along]) < 14 && box.size[1] >= 1);
+        expect(barriers.some(box => box.pos[along] < door.pos[along] - 3)).toBe(true);
+        expect(barriers.some(box => box.pos[along] > door.pos[along] + 3)).toBe(true);
+        const left = barriers.filter(box => box.pos[along] < door.pos[along] - 3)
+          .reduce((edge,box) => Math.max(edge, box.pos[along] + box.size[along]), -Infinity);
+        const right = barriers.filter(box => box.pos[along] > door.pos[along] + 3)
+          .reduce((edge,box) => Math.min(edge, box.pos[along] - box.size[along]), Infinity);
+        expect(door.pos[along] - door.size[along] - left).toBeLessThan(0.9);
+        expect(right - (door.pos[along] + door.size[along])).toBeLessThan(0.9);
       }
     }
   });

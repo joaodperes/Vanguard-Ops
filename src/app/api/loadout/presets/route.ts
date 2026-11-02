@@ -1,3 +1,4 @@
+import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
@@ -14,30 +15,33 @@ export const dynamic = "force-dynamic";
 // owned weapons, skins, or attachments into a preset.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
-    playerKey?: string; action?: "save" | "rename" | "delete";
+    playerKey?: string; action?: "save" | "rename" | "delete" | "replace";
     id?: string; name?: string; perkId?: string;
   };
   const { playerKey } = await resolvePlayerKey(req, body.playerKey);
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
-  if (!["save", "rename", "delete"].includes(body.action ?? "")) {
+  if (!["save", "rename", "delete", "replace"].includes(body.action ?? "")) {
     return NextResponse.json({ error: "Invalid preset operation" }, { status: 400 });
   }
   const player = await getOrCreatePlayer(playerKey);
   const active = player.loadout ?? await db.loadout.create({ data: { playerId: player.id } });
   const presets = parseSavedLoadouts(active.savedLoadouts);
   let updated = presets;
-  if (body.action === "save") {
-    const name = cleanLoadoutName(body.name);
+  if (body.action === "save" || body.action === "replace") {
+    const existing = body.action === "replace" ? presets.find(p => p.id === body.id) : undefined;
+    if (body.action === "replace" && !existing) return NextResponse.json({ error: "Loadout not found" }, { status: 404 });
+    const name = existing?.name ?? cleanLoadoutName(body.name);
     if (!name) return NextResponse.json({ error: "Give your loadout a name" }, { status: 400 });
-    if (presets.length >= MAX_SAVED_LOADOUTS) {
+    if (body.action === "save" && presets.length >= MAX_SAVED_LOADOUTS) {
       return NextResponse.json({ error: "You can save up to five loadouts" }, { status: 409 });
     }
-    const perkId = body.perkId ?? DEFAULT_PERK_ID;
+    const perkId = active.perkId ?? DEFAULT_PERK_ID;
     const perk = perkById(perkId);
-    if (perk.id !== perkId || perk.unlockLevel > player.level) {
+    if (perk.id !== perkId || perk.unlockLevel > levelForXp(player.xp)) {
       return NextResponse.json({ error: "That perk is not unlocked" }, { status: 403 });
     }
-    updated = [...presets, captureSavedLoadout(active, randomUUID(), name, perkId)];
+    const snapshot = captureSavedLoadout(active, existing?.id ?? randomUUID(), name, perkId);
+    updated = existing ? presets.map(p => p.id === existing.id ? snapshot : p) : [...presets, snapshot];
   } else if (body.action === "rename") {
     const name = cleanLoadoutName(body.name);
     if (!name) return NextResponse.json({ error: "Give your loadout a name" }, { status: 400 });

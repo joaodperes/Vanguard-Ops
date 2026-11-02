@@ -118,6 +118,4 @@ client but does not modify the database by itself.
 
 ## Concurrency and billing
 
-The GitHub Actions workflow remains **manual-only**. No automatic hosted
-CI runs were enabled by this feature. Re-check `dev` before merging because
-Survival/achievement changes may arrive independently in adjacent modules.
+GitHub Actions validation runs on configured branch pushes and pull requests, including `dev` and `main` after these workflow changes are promoted. Re-check the run for the exact merge candidate and complete manual offline/online tests; this historical migration note does not replace the canonical QA checklist.

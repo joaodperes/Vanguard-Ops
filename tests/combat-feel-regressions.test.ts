@@ -109,8 +109,11 @@ describe("Bullet Spitter deployment", () => {
   });
 
   test("projector visuals remain independent of weapon skin rarity", () => {
-    for (const id of ["gold", "inferno", "prestige_cosmic", "prestige_toxic"]) {
+    for (const id of ["gold", "inferno"]) {
       expect(weaponSkinById(id).rarity).toBe("legendary");
+    }
+    for (const id of ["prestige_cosmic", "prestige_toxic"]) {
+      expect(weaponSkinById(id).rarity).toBe("prestige");
     }
   });
 });

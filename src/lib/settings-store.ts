@@ -1,18 +1,16 @@
 "use client";
 import { create } from "zustand";
+import { DEFAULT_AUDIO_MIX, type AudioMixSettings } from "./audio-mix";
 
-export interface GameSettings {
+export interface GameSettings extends AudioMixSettings {
   sensitivity: number;     // 0.5 .. 3.0
   fov: number;             // 70 .. 110
   crosshairColor: string;  // hex
   crosshairSize: number;   // 4 .. 14
   showFps: boolean;
   showPing: boolean;
+  showHealthBars: boolean; // Floating health bars over other operatives (not your HUD health)
   damageNumbers: boolean;
-  masterVolume: number;    // 0 .. 100 (music, footsteps and combat SFX)
-  musicVolume: number;     // 0 .. 100, relative to master
-  footstepVolume: number;  // 0 .. 100, relative to master
-  fxVolume: number;        // 0 .. 100, relative to master (weapons, UI, combat)
   autoAdsOnFire: boolean;  // automatically ADS when firing (great for mobile)
   invertY: boolean;        // invert vertical look (flight-sim style)
   botDifficulty: "easy" | "normal" | "hard" | "veteran";  // scales bot skill
@@ -26,11 +24,9 @@ const DEFAULTS: GameSettings = {
   crosshairSize: 8,
   showFps: false,
   showPing: true,
+  showHealthBars: true,
   damageNumbers: true,
-  masterVolume: 80,
-  musicVolume: 65,
-  footstepVolume: 85,
-  fxVolume: 100,
+  ...DEFAULT_AUDIO_MIX,
   autoAdsOnFire: false,
   invertY: false,
   botDifficulty: "normal",
@@ -44,7 +40,9 @@ function loadSettings(): GameSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    delete saved.musicVolume; // Discard legacy music preference.
+    return { ...DEFAULTS, ...saved } as GameSettings;
   } catch {
     return DEFAULTS;
   }

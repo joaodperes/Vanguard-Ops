@@ -26,13 +26,17 @@
       "assault",
       "smg",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "adsSpread": -12,
@@ -50,12 +54,14 @@
     "recommendedFor": [
       "assault",
       "smg",
-      "lmg"
+      "lmg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
-      "lmg"
+      "lmg",
+      "pdw"
     ],
     "effects": {
       "adsTime": -10,
@@ -73,12 +79,16 @@
     "recommendedFor": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "spread": -30
@@ -110,12 +120,12 @@
   },
   {
     "id": "sight_thermal",
-    "name": "Thermal 2x Scope",
+    "name": "Thermal 6x Scope",
     "slot": "sight",
     "sightType": "thermal",
     "unlockLevel": 12,
     "unlockCost": 300,
-    "description": "2x thermal. Highlights heat signatures through fog/darkness.",
+    "description": "6x thermal imaging for long-distance heat signatures. Slower ADS with long-range precision.",
     "recommendedFor": [
       "dmr",
       "sniper",
@@ -127,9 +137,9 @@
       "assault"
     ],
     "effects": {
-      "range": 15,
-      "adsSpread": -10,
-      "adsTime": 10
+      "range": 25,
+      "adsSpread": -18,
+      "adsTime": 26
     }
   },
   {
@@ -144,13 +154,15 @@
       "assault",
       "smg",
       "dmr",
-      "sniper"
+      "sniper",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "dmr",
-      "sniper"
+      "sniper",
+      "pdw"
     ],
     "effects": {
       "adsSpread": -8,
@@ -159,12 +171,12 @@
   },
   {
     "id": "sight_hunter",
-    "name": "Hunter 6x Scope",
+    "name": "Hunter 2x Scope",
     "slot": "sight",
     "sightType": "hunter",
     "unlockLevel": 16,
     "unlockCost": 300,
-    "description": "6x magnification. Sniper-grade optic, very slow ADS, extreme range.",
+    "description": "2x precision optic. Quick ADS and a clear, modest zoom for mid-range targets.",
     "recommendedFor": [
       "sniper",
       "dmr"
@@ -174,9 +186,9 @@
       "dmr"
     ],
     "effects": {
-      "range": 30,
-      "adsTime": 20,
-      "adsSpread": -20
+      "range": 12,
+      "adsTime": 8,
+      "adsSpread": -12
     }
   },
   {
@@ -190,13 +202,17 @@
       "assault",
       "smg",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "damage": -5,
@@ -214,12 +230,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "recoil": -22
@@ -279,12 +297,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "recoil": -15
@@ -300,12 +320,14 @@
     "recommendedFor": [
       "smg",
       "assault",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "weaponCategories": [
       "smg",
       "assault",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "effects": {
       "adsTime": -20,
@@ -322,12 +344,16 @@
     "recommendedFor": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "spread": -28
@@ -345,7 +371,9 @@
       "smg",
       "shotgun",
       "dmr",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "adsTime": 12,
@@ -363,13 +391,15 @@
       "assault",
       "smg",
       "lmg",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "lmg",
-      "shotgun"
+      "shotgun",
+      "pdw"
     ],
     "effects": {
       "magSize": 50
@@ -386,13 +416,15 @@
       "assault",
       "smg",
       "shotgun",
-      "dmr"
+      "dmr",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "smg",
       "shotgun",
-      "dmr"
+      "dmr",
+      "pdw"
     ],
     "effects": {
       "reloadTime": -25
@@ -408,12 +440,14 @@
     "recommendedFor": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "weaponCategories": [
       "assault",
       "lmg",
-      "smg"
+      "smg",
+      "pdw"
     ],
     "effects": {
       "magSize": 100,
@@ -444,16 +478,20 @@
     "slot": "barrel",
     "unlockLevel": 8,
     "unlockCost": 300,
-    "description": "Faster recovery and lower recoil, with a small range penalty.",
+    "description": "Agile close-range barrel: faster aim and tighter hipfire with lower recoil, at the cost of effective range.",
     "weaponCategories": [
       "smg",
       "shotgun",
       "lmg",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "recoil": -14,
-      "range": -7
+      "range": -7,
+      "adsTime": -16,
+      "spread": -8
     }
   },
   {
@@ -466,7 +504,9 @@
     "weaponCategories": [
       "smg",
       "shotgun",
-      "sidearm"
+      "pistol",
+      "pdw",
+      "launcher"
     ],
     "effects": {
       "moveSpeed": 6,
@@ -641,5 +681,254 @@
     ],
     "shotgunAmmo": "beanbag",
     "effects": {}
+  },
+  {
+    "id": "mag_bolt_quiver",
+    "name": "Bolt Quiver",
+    "slot": "magazine",
+    "unlockLevel": 21,
+    "unlockCost": 700,
+    "description": "10 lighter automatic bolts. Fired bolts cannot be reclaimed.",
+    "recommendedFor": [
+      "dmr"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "magSize": 900,
+      "damage": -27,
+      "fireRate": 250
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "mag_bolt_heavy",
+    "name": "Heavy Arrows",
+    "slot": "magazine",
+    "unlockLevel": 25,
+    "unlockCost": 850,
+    "description": "Two massive high-damage arrows. No normal reload: retrieve your fired bolts to refill.",
+    "recommendedFor": [
+      "dmr"
+    ],
+    "weaponCategories": [
+      "dmr"
+    ],
+    "effects": {
+      "magSize": 100,
+      "damage": 190,
+      "fireRate": -12
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "sight_compact_reflex",
+    "name": "Compact Reflex Sight",
+    "slot": "sight",
+    "unlockLevel": 18,
+    "unlockCost": 420,
+    "description": "Compact 1x red-dot optic; faster ADS and tighter aim.",
+    "effects": {
+      "adsTime": -12,
+      "adsSpread": -6
+    },
+    "sightType": "red_dot"
+  },
+  {
+    "id": "mag_lightweight",
+    "name": "Lightweight Magazine",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 420,
+    "description": "Improves movement at the cost of ammunition capacity.",
+    "effects": {
+      "moveSpeed": 6,
+      "magSize": -15
+    }
+  },
+  {
+    "id": "barrel_bolt_agile",
+    "name": "Agile Bolt Assembly",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 550,
+    "description": "Crossbow quick handling with shorter effective range.",
+    "effects": {
+      "adsTime": -14,
+      "moveSpeed": 4,
+      "range": -10
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "mag_bolt_light_quiver",
+    "name": "Light Quiver",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 600,
+    "description": "Crossbow reload and mobility upgrade at the cost of damage.",
+    "effects": {
+      "reloadTime": -15,
+      "moveSpeed": 5,
+      "damage": -8
+    },
+    "exclusiveWeaponIds": [
+      "crossbow_reclaimer"
+    ]
+  },
+  {
+    "id": "barrel_launcher_stabilizer",
+    "name": "Launcher Handling Kit",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 525,
+    "description": "Faster rocket handling and ADS, but reduced effective range.",
+    "effects": {
+      "adsTime": -12,
+      "range": -8
+    }
+  },
+  {
+    "id": "mag_launcher_reinforced",
+    "name": "Reinforced Warhead Rack",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 700,
+    "description": "Heavier ordnance for stronger direct hits, slower reload/movement.",
+    "effects": {
+      "damage": 8,
+      "reloadTime": 18,
+      "moveSpeed": -5
+    }
+  },
+  {
+    "id": "mag_antimaterial_match",
+    "name": "Match Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 600,
+    "description": "Annihilator precision ammunition, slower reload.",
+    "effects": {
+      "adsSpread": -10,
+      "range": 14,
+      "reloadTime": 12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_fastbolt",
+    "name": "Fast-Bolt Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 550,
+    "description": "Annihilator faster chamber cycling, stronger recoil.",
+    "effects": {
+      "reloadTime": -25,
+      "recoil": 15
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_lightchamber",
+    "name": "Light Chamber",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 550,
+    "description": "Annihilator lightweight ammo; faster movement, lower damage.",
+    "effects": {
+      "moveSpeed": 7,
+      "damage": -12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "mag_antimaterial_stabilizer",
+    "name": "Stabilized Cartridge",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 550,
+    "description": "Annihilator controlled recoil, slower ADS.",
+    "effects": {
+      "recoil": -20,
+      "adsTime": 12
+    },
+    "exclusiveWeaponIds": [
+      "sniper_heavy"
+    ]
+  },
+  {
+    "id": "barrel_launcher_blast",
+    "name": "Blast Chamber",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 650,
+    "description": "Launches heavier explosive ordnance with +10% damage, but range drops 15% and reload slows 12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "damage": 10,
+      "range": -15,
+      "reloadTime": 12
+    }
+  },
+  {
+    "id": "barrel_launcher_range",
+    "name": "Long-Range Launch Tube",
+    "slot": "barrel",
+    "unlockLevel": 18,
+    "unlockCost": 600,
+    "description": "Extends launcher effective range by 18%, at the cost of 12% slower ADS and 6% slower movement.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "range": 18,
+      "adsTime": 12,
+      "moveSpeed": -6
+    }
+  },
+  {
+    "id": "grip_launcher_loader",
+    "name": "Quick Loader Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 500,
+    "description": "Reload time -16%, but ADS time +8% for heavy launcher reloading hardware.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "reloadTime": -16,
+      "adsTime": 8
+    }
+  },
+  {
+    "id": "grip_launcher_carry",
+    "name": "Lightweight Carry Support",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 500,
+    "description": "Movement speed +6%, but launcher reload time +12%.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "moveSpeed": 6,
+      "reloadTime": 12
+    }
   }
 ]

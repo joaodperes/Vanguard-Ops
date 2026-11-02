@@ -4,7 +4,7 @@ import { ROUND_INSERT_FRACTION } from "./incremental-reload";
  * Timelines use elapsed time from an action's own start (never the weapon's
  * catalog reload time: recoverable bolts and active venting override it).
  */
-export type ReloadMotion = "magazine" | "shell" | "cylinder" | "bolt" | "vent";
+export type ReloadMotion = "magazine" | "shell" | "cylinder" | "side_bolt" | "bolt" | "vent";
 export type DeployMotion = "throw" | "place" | "aim";
 
 export interface ActionPose {
@@ -27,7 +27,8 @@ const mix = (a: [number, number, number], b: [number, number, number], t: number
 const empty: ActionPose = { dip:0, pitch:0,roll:0,hand:[-.10,-.12,-.12],prop:[-.10,-.20,-.12],handRoll:0,propVisible:false,hideFixedMagazine:false,released:false };
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
-  if (special === "bolt" || weaponId === "sniper_heavy") return "bolt";
+  if (weaponId === "sniper_heavy") return "side_bolt";
+  if (special === "bolt") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
   return "magazine";
@@ -63,13 +64,22 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
     return { ...empty, dip:-.095*weight,pitch:.28*weight,roll:-.12*weight,
       hand, prop:hand,handRoll:-.30*weight,propVisible:false };
   }
+  if (kind === "side_bolt") {
+    const port: [number,number,number] = [-.16,-.035,-.18];
+    const back: [number,number,number] = [-.21,-.035,.10];
+    const hand=p<.22?mix(home,port,ease(p/.22)):p<.5?mix(port,back,ease((p-.22)/.28)):p<.78?mix(back,port,ease((p-.5)/.28)):mix(port,home,ease((p-.78)/.22));
+    return {...empty,dip:-.07*weight,pitch:.08*weight,roll:-.18*weight,hand,prop:hand,handRoll:.35*weight,propVisible:p>.28&&p<.7};
+  }
   if (kind === "bolt") {
-    const draw: [number,number,number] = [-.05,.035,-.34];
-    const pull: [number,number,number] = [-.05,.035,.02];
+    // The offhand slides an arrow horizontally ALONG the crossbow's upper
+    // flight rail, not vertically through its underside.
+    const draw: [number,number,number] = [0,.075,-.38];
+    const pull: [number,number,number] = [0,.075,.06];
     const hand = p < .30 ? mix(home,draw,ease(p/.30)) : p < .61 ? mix(draw,pull,ease((p-.30)/.31))
       : p < .82 ? mix(pull,draw,ease((p-.61)/.21)) : mix(draw,home,ease((p-.82)/.18));
-    return { ...empty,dip:-.09*weight,pitch:.22*weight,roll:-.08*weight,hand,prop:hand,
-      handRoll:-.20*weight,propVisible:p>.29&&p<.75 };
+    return { ...empty,dip:-.035*weight,pitch:.045*weight,roll:0,hand,
+      prop:[hand[0],hand[1]+.025,hand[2]-.02],
+      handRoll:0,propVisible:p>.29&&p<.75 };
   }
   if (kind === "shell") {
     // ONE visible shell insertion per gameplay reload cycle. The previous

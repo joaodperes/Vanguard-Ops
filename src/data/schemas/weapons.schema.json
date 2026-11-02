@@ -33,13 +33,16 @@
           "dmr",
           "sniper",
           "lmg",
-          "sidearm",
-          "melee"
+          "melee",
+          "pistol",
+          "pdw",
+          "launcher"
         ]
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1
+        "minimum": 1,
+        "maximum": 36
       },
       "unlockCost": {
         "type": "integer",
@@ -83,13 +86,25 @@
             "enum": [
               "singularity",
               "corrosion",
-              "turret"
+              "turret",
+              "smart",
+              "flame",
+              "storm",
+              "sludge",
+              "cluster",
+              "shield"
             ]
           },
           "maxCharges": {
             "enum": [
               1,
-              2
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
             ]
           },
           "rechargeMs": {
@@ -201,9 +216,28 @@
           },
           "reloadStyle": {
             "const": "incremental"
+          },
+          "reloadOnlyWhenEmpty": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
+      },
+      "explosive": {
+        "type": "object",
+        "required": [
+          "radius"
+        ],
+        "properties": {
+          "radius": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "disabled": {
+        "type": "boolean"
       }
     },
     "additionalProperties": false

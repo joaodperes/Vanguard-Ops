@@ -150,6 +150,11 @@
                   },
                   "y": {
                     "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
                   }
                 },
                 "additionalProperties": false
@@ -291,6 +296,21 @@
                   },
                   "toZ": {
                     "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "warningFor": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "visual": {
+                    "enum": [
+                      "spikes",
+                      "steam"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -330,6 +350,11 @@
                     "d": {
                       "type": "number",
                       "exclusiveMinimum": 0
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
                     }
                   },
                   "additionalProperties": false
@@ -371,6 +396,11 @@
                     "d": {
                       "type": "number",
                       "exclusiveMinimum": 0
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
                     }
                   },
                   "additionalProperties": false
@@ -392,6 +422,14 @@
               "items": {
                 "type": "integer",
                 "minimum": 0
+              }
+            },
+            "cityBuildingDisabled": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^city:-?[0-9]+:-?[0-9]+$"
               }
             }
           },

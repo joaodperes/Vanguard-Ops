@@ -6,14 +6,21 @@ import { botHighGroundWaypoint } from "../src/lib/bot-routing";
 import { getMap } from "../src/lib/game-protocol";
 
 describe("ordinary firearm attachment catalogue", () => {
-  test("every normal firearm offers multiple compatible challenge-gated items in every slot", () => {
+  test("every supported firearm slot offers multiple compatible challenge-gated items", () => {
     const firearms = WEAPONS.filter(w => !w.wonder && w.category !== "melee");
     expect(firearms.length).toBeGreaterThan(20);
     for (const weapon of firearms) {
+      const slots = weaponAttachmentSlots(weapon);
+      // Every conventional firearm, including launchers, has four slots.
+      expect(slots).toEqual(ALL_ATTACHMENT_SLOTS);
       for (const slot of ALL_ATTACHMENT_SLOTS) {
-        expect(weaponAttachmentSlots(weapon)).toContain(slot);
+        // Weapon-authored slot restrictions are intentional (e.g. no heavy-sniper magazine).
+        if (!slots.includes(slot)) {
+          expect(compatibleAttachments(weapon.id, slot)).toEqual([]);
+          continue;
+        }
         const ids = compatibleAttachments(weapon.id, slot);
-        expect(ids.length).toBeGreaterThanOrEqual(2);
+        expect(ids.length).toBeGreaterThanOrEqual(4);
         for (const id of ids) {
           expect(ATTACHMENTS.some(a => a.id === id && a.slot === slot)).toBe(true);
           const challenge = attachmentChallenge(weapon.id, id);

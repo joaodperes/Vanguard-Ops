@@ -7,18 +7,23 @@ import {
   MAP_BLUEPRINTS, insideRegions, validateBlueprint, nearestPlatformSnap, snapCoverToPlatform, stairFeatureBoxes, regionRectangles,
   type MapBlueprint, type MapBlueprintFile, type MapFeature, type MapRegion, type MapHazard,
 } from "@/lib/map-blueprints";
-import { MAP_VISUAL_THEMES, visualThemeForMap, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
+import { MAP_VISUAL_THEMES, visualThemeForMap, mapProps, SURFACE_PATTERNS, type MapVisualTheme, type MapProp } from "@/lib/map-visuals";
 import { getMap } from "@/lib/game-protocol";
 import { overrideBox } from "@/lib/map-blueprints";
 import { stairFlightBounds, transformStairFlight, maxLegacyFlightRise } from "@/lib/legacy-stair-flights";
 import { legacyCoverToFeature, legacyFlightToFeature, legacyEnvironmentToHazard, toggleOriginalIndex } from "@/lib/map-object-actions";
 import { elevationSpan, yAtElevationFace, type ElevationAnchor } from "@/lib/map-studio-elevation";
-import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save } from "lucide-react";
+import {normalizeTurns,type StudioAxis} from "@/lib/map-studio-transform";
+import { STUDIO_BUILDING_PRESETS, studioBuildingPrefab, STUDIO_STRUCTURE_PRESETS, studioStructurePrefab,
+  type StudioBuildingPresetId, type StudioStructurePresetId } from "@/lib/map-studio-prefabs";
+import {studioBuildingPlacementIssues,studioMapIssues,studioRegionLinks} from "@/lib/map-studio-diagnostics";
+import { ArrowLeft, Copy, Download, FileUp, Plus, RotateCcw, Trash2, MousePointer2, Grid2x2, Layers3, Flag, AlertTriangle, Save, Play as PlayIcon } from "lucide-react";
 
 type BlueprintDoc = Omit<MapBlueprintFile,"maps"> & {maps:Record<string,MapBlueprint>};
+type StudioSnapshot = {doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
 type Team="ffa"|"red"|"blue";
 type Selection=StudioSelection;
-type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"ffa"|"red"|"blue";
+type Tool="select"|"region"|"circle"|"triangle"|"cover"|"platform"|"stairs"|"hazard"|"prop"|"kit"|"ffa"|"red"|"blue";
 type Point={x:number;z:number};
 type Drag =
   | {mode:"create";start:Point;tool:Tool}
@@ -36,6 +41,16 @@ export default function MapEditor() {
   const [editorTab,setEditorTab]=useState<"blueprint"|"theme">("blueprint");
   const [hazardKind,setHazardKind]=useState<MapHazard["type"]>("fire");
   const [propKind,setPropKind]=useState<MapProp["kind"]>("tree");
+  const [buildingPreset,setBuildingPreset]=useState<StudioBuildingPresetId>("house");
+  const [structurePreset,setStructurePreset]=useState<StudioStructurePresetId>("room");
+  const [playtestBots,setPlaytestBots]=useState(0);
+  const [showCollision,setShowCollision]=useState(false);
+  const [showSafety,setShowSafety]=useState(true);
+  const [showRoutes,setShowRoutes]=useState(false);
+  const [showGuide,setShowGuide]=useState(true);
+  useEffect(()=>{try{if(localStorage.getItem("vanguard-map-studio-guide-dismissed")==="yes")setShowGuide(false);}catch{}},[]);
+  const dismissGuide=()=>{setShowGuide(false);try{localStorage.setItem("vanguard-map-studio-guide-dismissed","yes");}catch{}};
+  const [stampMode,setStampMode]=useState(false);
   const [themes,setThemes]=useState<Record<string,MapVisualTheme>>(()=>clone(MAP_VISUAL_THEMES));
   const [tool,setTool]=useState<Tool>("select");
   const [selected,setSelected]=useState<Selection|null>(null);
@@ -44,6 +59,7 @@ export default function MapEditor() {
   const [zoom,setZoom]=useState(100);
   const [viewport,setViewport]=useState<"3d"|"2d">("3d");
   const [editMode,setEditMode]=useState<StudioMode>("select");
+  const [moveAxis,setMoveAxis]=useState<StudioAxis>("x");
   const [gridSnapEnabled,setGridSnapEnabled]=useState(true);
   const [gridSnapStep,setGridSnapStep]=useState(2);
   const [status,setStatus]=useState("Export the JSON into src/data/map-blueprints.json to publish changes.");
@@ -51,23 +67,54 @@ export default function MapEditor() {
   const fileRef=useRef<HTMLInputElement>(null);
   const themeFileRef=useRef<HTMLInputElement>(null);
   const drag=useRef<Drag|null>(null);
-  const history=useRef<BlueprintDoc[]>([]);
+  const history=useRef<StudioSnapshot[]>([]);
+  const redoHistory=useRef<StudioSnapshot[]>([]);
+  const [,setHistoryRevision]=useState(0);
   const map=doc.maps[mapId];
   // A newly authored map does not enter the compiled runtime registry until
   // export and rebuild; preview its chosen template rather than always compound.
   const compiledMap=getMap(mapId);
   const baseMap=compiledMap.id===mapId?compiledMap:getMap(map?.templateMapId);
   const canEditBuiltIn=compiledMap.id===mapId;
-  const theme=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
-  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme)=>setThemes(prev=>({
-    ...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))
-  }));
+  // Day and night share authored city objects; only their atmospheres differ.
+  const cityVariant=mapId==="arena_neon"||mapId==="terminal";
+  const propsOwner=mapId==="terminal"?"arena_neon":mapId;
+  const themeBase=themes[mapId]??visualThemeForMap(mapId,map?.templateMapId);
+  const theme:MapVisualTheme=cityVariant?{...themeBase,props:themes.arena_neon?.props??[]}:themeBase;
+  const runtimeSpawns=useMemo(()=>{
+    if(!cityVariant)return [];
+    const compiled=getMap(mapId);
+    return [...compiled.spawns.ffa.slice(-6),...compiled.spawns.red.slice(-3),...compiled.spawns.blue.slice(-3)];
+  },[cityVariant,mapId]);
+  const cityPreviewProps=useMemo(()=>mapProps(mapId,map,theme,runtimeSpawns),[mapId,map,themeBase,themes.arena_neon,runtimeSpawns]);
+  const generatedBuildings=cityPreviewProps.filter(p=>p.kind==="building"&&!!p.lotId&&!theme.props.includes(p));
+  const updateProps=(fn:(props:MapProp[])=>MapProp[],record=true)=>{
+    if(record)pushUndo();
+    setThemes(prev=>{
+      const old=prev[propsOwner]??clone(visualThemeForMap(propsOwner));
+      return {...prev,[propsOwner]:{...old,props:fn(old.props)}};
+    });
+  };
+  const updateTheme=(fn:(t:MapVisualTheme)=>MapVisualTheme,record=true)=>{
+    if(record)pushUndo();
+    setThemes(prev=>({...prev,[mapId]:fn(prev[mapId]??clone(visualThemeForMap(mapId,map?.templateMapId)))}));
+  };
+  const createThemeProp=(x:number,z:number,w?:number,d?:number):MapProp=>{
+    if(propKind==="building"){
+      const preset=studioBuildingPrefab(buildingPreset,x,z);
+      return {...preset,w:w&&w>=6?w:preset.w,d:d&&d>=6?d:preset.d};
+    }
+    return {kind:propKind,x,z,w:w??5,d:d??5,h:5};
+  };
   const downloadJSON=(name:string,value:unknown)=>{
     const blob=new Blob([JSON.stringify(value,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
-  const exportTheme=()=>{downloadJSON(mapId+".json",theme);setStatus("Exported "+mapId+".json. Register new themes in src/lib/map-visuals.ts.");};
+  const exportTheme=()=>{
+    downloadJSON(mapId+".json",themes[mapId]??theme);
+    setStatus("Exported "+mapId+".json. Install under src/data/map-themes before rebuilding.");
+  };
   const importTheme=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     try{
@@ -76,7 +123,7 @@ export default function MapEditor() {
         throw Error("Expected a map theme with biome, palette, ambient, vegetation and props.");
       for(const key of ["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const)
         if(!/^#[a-fA-F0-9]{6}$/.test(t.palette[key]))throw Error("Invalid palette color "+key);
-      setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
+      pushUndo();setThemes(old=>({...old,[mapId]:t}));setStatus("Imported theme for "+mapId+".");
     }catch(err){setStatus("Theme import failed: "+String(err));}
     e.target.value="";
   };
@@ -99,9 +146,20 @@ export default function MapEditor() {
     }catch{}
   },[]);
   useEffect(()=>{try{localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));}catch{}},[themes]);
-  const pushUndo=()=>{history.current=[...history.current.slice(-24),clone(doc)];};
+  const pushUndo=()=>{
+    history.current=[...history.current.slice(-39),{doc:clone(doc),themes:clone(themes)}];
+    redoHistory.current=[];setHistoryRevision(n=>n+1);
+  };
   const update=(fn:(m:MapBlueprint)=>MapBlueprint)=>{
-    setDoc(prev=>({...prev,maps:{...prev.maps,[mapId]:fn(prev.maps[mapId])}}));
+    setDoc(prev=>{
+      const next=fn(prev.maps[mapId]);
+      if(!cityVariant)return {...prev,maps:{...prev.maps,[mapId]:next}};
+      const otherId=mapId==="arena_neon"?"terminal":"arena_neon";
+      const other=prev.maps[otherId];
+      return {...prev,maps:{...prev.maps,[mapId]:next,
+        [otherId]:other?{...next,name:other.name,shortName:other.shortName,
+          description:other.description,templateMapId:other.templateMapId}:next}};
+    });
   };
   const getPoint=(e:React.PointerEvent<SVGSVGElement>):Point=>{
     const s=svg.current; if(!s)return {x:0,z:0};
@@ -137,8 +195,8 @@ export default function MapEditor() {
     if(d.mode==="create"){setPreview({start:d.start,end:p});return;}
     const dx=p.x-d.start.x,dz=p.z-d.start.z,source=d.source,sel=d.item;
     if(sel.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.map((item,i)=>i===sel.index?
-        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item)}));
+      updateProps(props=>props.map((item,i)=>i===sel.index?
+        {...item,x:(source as MapProp).x+dx,z:(source as MapProp).z+dz}:item),false);
       return;
     }
     update(m=>{
@@ -170,6 +228,12 @@ export default function MapEditor() {
           const index=map.regions.length;
           update(m=>({...m,regions:[...m.regions,{x,z,w,d:depth,shape:d.tool==="region"?"rect":d.tool as "circle"|"triangle"}]}));
           setSelected({type:"region",index});
+        }else if(d.tool==="kit"){
+          const index=map.features.length;
+          const suffix=Date.now().toString(36);
+          const pieces=studioStructurePrefab(structurePreset,x,z).map((piece,i)=>({...piece,id:"kit_"+suffix+"_"+i}));
+          update(m=>({...m,features:[...m.features,...pieces]}));
+          setSelected({type:"feature",index});
         }else if(d.tool==="hazard"){
           const index=(map.hazards??[]).length;
           const base:MapHazard={id:"hazard_"+Date.now().toString(36),type:hazardKind,x,z,y:1,w,d:depth,h:2,
@@ -178,9 +242,13 @@ export default function MapEditor() {
           setSelected({type:"hazard",index});
         }else if(d.tool==="prop"){
           const index=theme.props.length;
-          const p:MapProp={kind:propKind,x,z,w,d:depth,h:Math.max(2,w)};
-          updateTheme(t=>({...t,props:[...t.props,p]}));
-          setSelected({type:"prop",index});setEditorTab("theme");
+          const p=createThemeProp(x,z,w,depth);
+          const problem=p.kind==="building"?buildingProblem(x,z):null;
+          if(problem)setStatus("Cannot place building: "+problem);
+          else {
+            updateProps(props=>[...props,p],false);
+            setSelected({type:"prop",index});setEditorTab("theme");
+          }
         }else{
           const index=map.features.length;
           const kind=d.tool as "cover"|"platform"|"stairs";
@@ -192,7 +260,7 @@ export default function MapEditor() {
           setSelected({type:"feature",index});
         }
       }
-      setTool("select");
+      if(!stampMode)setTool("select");
     }
     drag.current=null;setPreview(null);
     try{svg.current?.releasePointerCapture(e.pointerId);}catch{}
@@ -218,9 +286,12 @@ export default function MapEditor() {
       setStatus(`This original flight has ${flight.indices.length} steps. Maximum safe rise: ${maximum.toFixed(2)}u. For taller stairs add a new authored flight, which generates more steps.`);
       return;
     }
-    const changes=transformStairFlight(effective,flight.indices,t);
+    const prior=normalizeTurns(map.legacyCoverOverrides?.[String(flight.start)]?.turns??0);
+    const delta=normalizeTurns(t.turns-prior);
+    const changes=transformStairFlight(effective,flight.indices,{...t,turns:delta});
     pushUndo();
-    update(m=>({...m,legacyCoverOverrides:{...(m.legacyCoverOverrides??{}),...changes}}));
+    update(m=>({...m,legacyCoverOverrides:{...(m.legacyCoverOverrides??{}),
+      ...Object.fromEntries(Object.entries(changes).map(([key,v])=>[key,{...v,turns:normalizeTurns(t.turns)}]))}}));
     setStatus(`Updated the entire staircase (${flight.indices.length} treads) in one edit.`);
   };
   const changeSelected=(key:string,value:string|number|boolean)=>{
@@ -245,8 +316,8 @@ export default function MapEditor() {
       return;
     }
     if(sel.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.map((p,i)=>i===sel.index?
-        {...p,[key]:["kind","text","color"].includes(key)?value:Number(value)}:p)}));
+      updateProps(props=>props.map((p,i)=>i===sel.index?
+        {...p,[key]:["kind","text","color","use","shape","stairSide","facade","roofAccess"].includes(key)?value:Number(value)}:p),false);
       return;
     }
     update(m=>{
@@ -289,7 +360,7 @@ export default function MapEditor() {
     }
     pushUndo();
     if(selectedItem.type==="prop"){
-      updateTheme(t=>({...t,props:t.props.filter((_,i)=>i!==selectedItem.index)}));
+      updateProps(props=>props.filter((_,i)=>i!==selectedItem.index),false);
       setSelected(null);return;
     }
     update(m=>selectedItem.type==="region"?{...m,regions:m.regions.filter((_,i)=>i!==selectedItem.index)}:
@@ -381,7 +452,7 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(item.type==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{...t.props[item.index],x:t.props[item.index].x+10}]}));
+      updateProps(props=>[...props,{...props[item.index],x:props[item.index].x+10}],false);
       setSelected({type:"prop",index});
     }else if(item.type==="feature"){
       const index=map.features.length;
@@ -400,7 +471,40 @@ export default function MapEditor() {
     setMapId(id);setSelected(null);setNewId("");setStatus(`Created ${id}. Export JSON and restart the game dev server to make it playable.`);
   };
   const undo=()=>{
-    const previous=history.current.pop();if(previous){setDoc(previous);setSelected(null);setStatus("Undid last edit.");}
+    const previous=history.current.pop();if(!previous)return;
+    redoHistory.current.push({doc:clone(doc),themes:clone(themes)});
+    setDoc(previous.doc);setThemes(previous.themes);setSelected(null);
+    setHistoryRevision(n=>n+1);setStatus("Undid last edit.");
+  };
+  const redo=()=>{
+    const next=redoHistory.current.pop();if(!next)return;
+    history.current.push({doc:clone(doc),themes:clone(themes)});
+    setDoc(next.doc);setThemes(next.themes);setSelected(null);
+    setHistoryRevision(n=>n+1);setStatus("Redid last edit.");
+  };
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{
+      if(!(event.metaKey||event.ctrlKey)||event.key.toLowerCase()!=="z")return;
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)))return;
+      event.preventDefault();if(event.shiftKey)redo();else undo();
+    };
+    window.addEventListener("keydown",onKey);
+    return ()=>window.removeEventListener("keydown",onKey);
+  });
+  const launchPlaytest=()=>{
+    try{
+      // Save a complete snapshot first: leaving the route never discards draft changes.
+      localStorage.setItem("vanguard-map-studio-v1",JSON.stringify(doc));
+      localStorage.setItem("vanguard-map-studio-themes-v1",JSON.stringify(themes));
+      sessionStorage.setItem("vanguard-map-studio-playtest-v1",JSON.stringify({mapId,blueprint:map,theme,botCount:playtestBots}));
+      window.location.assign("/map-editor/playtest");
+    }catch(err){setStatus("Unable to launch local playtest: "+String(err));}
+  };
+  const exportBundle=()=>{
+    downloadJSON("vanguard-map-studio-bundle.json",
+      {format:"vanguard-map-studio-bundle",version:1,doc,themes});
+    setStatus("Saved a portable bundle with all map blueprints and visual themes.");
   };
   const exportFile=()=>{
     const blob=new Blob([JSON.stringify(doc,null,2)+"\n"],{type:"application/json"});
@@ -412,14 +516,23 @@ export default function MapEditor() {
   const importFile=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     try {
-      const parsed=JSON.parse(await file.text()) as BlueprintDoc;
+      const uploaded=JSON.parse(await file.text()) as BlueprintDoc | {
+        format:string;version:number;doc:BlueprintDoc;themes:Record<string,MapVisualTheme>};
+      const bundle="format" in uploaded&&uploaded.format==="vanguard-map-studio-bundle";
+      const parsed=bundle?uploaded.doc:uploaded as BlueprintDoc;
       if(parsed.version!==1||!parsed.maps||!Object.keys(parsed.maps).length)throw new Error("Expected version 1 and a maps dictionary");
+      if(bundle){
+        if(!uploaded.themes||typeof uploaded.themes!=="object")throw Error("Bundle is missing visual themes.");
+        for(const [id,t] of Object.entries(uploaded.themes))
+          if(!t.palette||!Array.isArray(t.props))throw Error("Invalid theme "+id);
+      }
       for(const [id,b] of Object.entries(parsed.maps)){
         if(!/^[a-z0-9_-]+$/.test(id))throw new Error("Invalid map ID "+id);
         if(!b.regions||!b.features||!b.spawns)throw new Error("Missing fields on "+id);
       }
       pushUndo();setDoc(parsed);setMapId(Object.keys(parsed.maps)[0]);setSelected(null);
-      setStatus("JSON imported. Review validation warnings before publishing.");
+      if(bundle)setThemes({...uploaded.themes});
+      setStatus(bundle?"Restored blueprints and themes from bundle.":"Blueprint JSON imported. Review warnings before publishing.");
     }catch(err){setStatus("Import failed: "+(err instanceof Error?err.message:String(err)));}
     e.target.value="";
   };
@@ -438,12 +551,12 @@ export default function MapEditor() {
     if(sel.type==="legacyCover"||sel.type==="legacyEnvironment"){
       const key=sel.type==="legacyCover"?"legacyCoverOverrides":"legacyEnvironmentOverrides";
       update(m=>({...m,[key]:{...(m[key]??{}),
-        [sel.index]:{x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}}}));
+        [sel.index]:{x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}}}));
       return;
     }
     if(sel.type==="prop"){
-      updateTheme(current=>({...current,props:current.props.map((p,i)=>i===sel.index?
-        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:p)}));
+      updateProps(props=>props.map((p,i)=>i===sel.index?
+        {...p,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}:p),false);
       return;
     }
     update(current=>{
@@ -451,20 +564,19 @@ export default function MapEditor() {
         {...r,x:t.x,z:t.z,w:t.w,d:t.d}:r)};
       if(sel.type==="feature")return {...current,features:current.features.map((f,i)=>{
         if(i!==sel.index)return f;
-        const quarter=((t.turns%4)+4)%4;
+        const quarter=normalizeTurns(t.turns-(f.turns??0));
         const rotate=quarter*Math.PI/2;
         const axis=f.axis??"z",sign=f.sign??1;
         const dx=axis==="x"?sign:0,dz=axis==="z"?sign:0;
         const rotatedX=Math.round(Math.cos(rotate)*dx+Math.sin(rotate)*dz);
         const rotatedZ=Math.round(-Math.sin(rotate)*dx+Math.cos(rotate)*dz);
         return {...f,x:t.x,y:t.y,z:t.z,h:Math.max(.3,t.h),
-          w:f.kind==="stairs"&&quarter%2?t.d:t.w,
-          d:f.kind==="stairs"&&quarter%2?t.w:t.d,
+          w:t.w,d:t.d,turns:normalizeTurns(t.turns),
           ...(f.kind==="stairs"?{axis:rotatedX!==0?"x" as const:"z" as const,
             sign:(rotatedX!==0?rotatedX:rotatedZ) as 1|-1}:{})};
       })};
       if(sel.type==="hazard")return {...current,hazards:(current.hazards??[]).map((h,i)=>i===sel.index?
-        {...h,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d}:h)};
+        {...h,x:t.x,y:t.y,z:t.z,w:t.w,h:t.h,d:t.d,turns:normalizeTurns(t.turns)}:h)};
       if(sel.type==="spawn"){
         const team=sel.team!;
         return {...current,spawns:{...current.spawns,[team]:current.spawns[team].map((p,i)=>i===sel.index?
@@ -473,9 +585,19 @@ export default function MapEditor() {
       return current;
     });
   };
+  const buildingProblem=(x:number,z:number)=>{
+    if(tool!=="prop"||propKind!=="building")return null;
+    const candidate=createThemeProp(x,z);
+    const allSpawns=[...map.spawns.ffa,...map.spawns.red,...map.spawns.blue,...runtimeSpawns];
+    return studioBuildingPlacementIssues(candidate,map,cityPreviewProps,allSpawns)[0]?.message??null;
+  };
   const add3DAt=(kind:string,point:{x:number;z:number})=>{
     const x=gridSnapEnabled?snap(point.x,gridSnapStep):Math.round(point.x*100)/100;
     const z=gridSnapEnabled?snap(point.z,gridSnapStep):Math.round(point.z*100)/100;
+    if(kind==="prop"&&propKind==="building"){
+      const problem=buildingProblem(x,z);
+      if(problem){setStatus("Cannot place building: "+problem);return;}
+    }
     pushUndo();
     if(["region","circle","triangle"].includes(kind)){
       const index=map.regions.length;
@@ -491,6 +613,12 @@ export default function MapEditor() {
         ...(featureKind==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
       update(m=>({...m,features:[...m.features,feature]}));
       setSelected({type:"feature",index});
+    }else if(kind==="kit"){
+      const index=map.features.length;
+      const suffix=Date.now().toString(36);
+      const pieces=studioStructurePrefab(structurePreset,x,z).map((p,i)=>({...p,id:"kit_"+suffix+"_"+i}));
+      update(m=>({...m,features:[...m.features,...pieces]}));
+      setSelected({type:"feature",index});
     }else if(kind==="hazard"){
       const index=(map.hazards??[]).length;
       const item:MapHazard={id:"hazard_"+Date.now().toString(36)+"_"+index,
@@ -500,16 +628,26 @@ export default function MapEditor() {
       setSelected({type:"hazard",index});
     }else if(kind==="prop"){
       const index=theme.props.length;
-      updateTheme(t=>({...t,props:[...t.props,{kind:propKind,x,z,w:5,d:5,h:5}]}));
+      updateProps(props=>[...props,createThemeProp(x,z)],false);
       setSelected({type:"prop",index});
     }else if(["ffa","red","blue"].includes(kind)){
       const team=kind as Team,index=map.spawns[team].length;
       update(m=>({...m,spawns:{...m.spawns,[team]:[...m.spawns[team],[x,0,z]]}}));
       setSelected({type:"spawn",team,index});
     }
-    setTool("select");
+    if(!stampMode)setTool("select");
     setEditMode("move");
-    setStatus("Created object at the 3D camera focus. Move or resize it, then export JSON.");
+    setStatus(stampMode?"Placed object. Click again to stamp another.":"Placed object. Move or resize it, then export JSON.");
+  };
+  const promoteGenerated=(index:number)=>{
+    const generated=generatedBuildings[index];
+    if(!generated?.lotId)return;
+    pushUndo();
+    update(m=>({...m,cityBuildingDisabled:[...new Set([...(m.cityBuildingDisabled??[]),generated.lotId!])]}));
+    const newIndex=theme.props.length;
+    updateProps(props=>[...props,{...generated}],false);
+    setSelected({type:"prop",index:newIndex});setEditorTab("theme");setEditMode("move");
+    setStatus("Converted city building to an editable object shared by Afterlight Day and Night.");
   };
   const selectedObject=selected?(selected.type==="legacyStairs"?legacyFlightBounds(selected.index):
     selected.type==="legacyCover"||selected.type==="legacyEnvironment"?
@@ -555,6 +693,8 @@ export default function MapEditor() {
         problems.push(`Hazard ${h.id} intersects a ${team} spawn`);
     return problems;
   },[map]);
+  const visualIssues=useMemo(()=>studioMapIssues(map,cityPreviewProps,runtimeSpawns),[map,cityPreviewProps,runtimeSpawns]);
+  const navLinks=useMemo(()=>studioRegionLinks(map),[map]);
   if(!map)return <main className="p-10 bg-zinc-950 text-white">No map selected.</main>;
   const extent=Math.max(85,...map.regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+28;
   const uiHazards=map.hazards??[];
@@ -600,16 +740,29 @@ export default function MapEditor() {
       <div><div className="text-sm font-black tracking-[.22em]">VANGUARD / MAP STUDIO</div>
         <div className="text-[11px] text-zinc-500">Visual authoring • JSON source of truth • local drafts</div></div>
       <div className="ml-auto flex gap-2 flex-wrap">
-        <button className={btn} onClick={()=>{setEditorTab("blueprint");setSelected(null);}}>Geometry</button>
-        <button className={btn} onClick={()=>{setEditorTab("theme");setSelected(null);}}>Theme & props</button>
+        <button aria-pressed={editorTab==="blueprint"} className={btn+(editorTab==="blueprint"?" bg-amber-500 text-zinc-950":"")}
+          onClick={()=>{setEditorTab("blueprint");setSelected(null);setTool("select");}}>Construction kits</button>
+        <button aria-pressed={editorTab==="theme"} className={btn+(editorTab==="theme"?" bg-amber-500 text-zinc-950":"")}
+          onClick={()=>{setEditorTab("theme");setSelected(null);setTool("select");}}>Paint tools</button>
         {editorTab==="theme"&&<><button className={btn} onClick={()=>themeFileRef.current?.click()}><FileUp size={14}/> Import theme</button>
           <input ref={themeFileRef} type="file" accept=".json,application/json" className="hidden" onChange={importTheme}/>
           <button className={btn} onClick={exportTheme}><Download size={14}/> Export theme</button></>}
         <button className={btn} onClick={undo} disabled={!history.current.length}><RotateCcw size={14}/> Undo</button>
-        <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import JSON</button>
+        <button className={btn} onClick={redo} disabled={!redoHistory.current.length}>Redo</button>
+        <select aria-label="Playtest bots" title="AI opponents in the local draft test" className={fieldClass+" w-24"}
+          value={playtestBots} onChange={e=>setPlaytestBots(Number(e.target.value))}>
+          <option value={0}>No bots</option><option value={3}>3 bots</option><option value={6}>6 bots</option>
+        </select>
+        <button className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 text-xs" onClick={launchPlaytest}>
+          <PlayIcon size={14}/> Playtest draft
+        </button>
+        <button className={btn} onClick={()=>fileRef.current?.click()}><FileUp size={14}/> Import map / bundle</button>
         <input ref={fileRef} className="hidden" type="file" accept="application/json,.json" onChange={importFile}/>
         <button className={btn} onClick={async()=>{await navigator.clipboard.writeText(JSON.stringify(doc,null,2));setStatus("JSON copied to clipboard.");}}><Copy size={14}/> Copy JSON</button>
-        <button className="inline-flex gap-2 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 text-xs" onClick={exportFile}><Download size={14}/> Export JSON</button>
+        <button className="inline-flex gap-2 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 text-xs" onClick={exportBundle}>
+          <Save size={14}/> Save bundle
+        </button>
+        <button className={btn} onClick={exportFile}><Download size={14}/> Blueprint JSON</button>
       </div>
     </header>
     <div className="grid grid-cols-1 xl:grid-cols-[275px_minmax(0,1fr)_285px] min-h-[calc(100vh-70px)]">
@@ -624,8 +777,28 @@ export default function MapEditor() {
             <button className={btn} onClick={createMap}><Plus size={14}/> New</button>
           </div>
         </section>
+        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-200">First map guide</span>
+            {showGuide?<button className={btn+" text-amber-200"} onClick={dismissGuide}
+              aria-label="Dismiss first map guide">Dismiss guide ×</button>:
+              <button className={btn} onClick={()=>{setShowGuide(true);try{localStorage.removeItem("vanguard-map-studio-guide-dismissed");}catch{}}}
+                aria-label="Show first map guide">Show guide</button>}
+          </div>
+          {showGuide&&<div className="text-xs leading-relaxed text-zinc-300 mt-2 space-y-2">
+            <p><b>1.</b> Pick a map or choose New to duplicate its layout.</p>
+            <p><b>2.</b> Use Paint tools → Building kit, or Construction kits → Room / route kit.</p>
+            <p><b>3.</b> In 3D, move over the ground. Green is a valid building position; click to place.</p>
+            <p><b>4.</b> Select objects to move or resize. Toggle Collision and Safety overlay to diagnose problems.</p>
+            <p><b>5.</b> Choose 0/3/6 bots and Playtest draft. Return without losing your local draft.</p>
+            <p><b>6.</b> Save bundle to back up or share maps and themes as one file.</p>
+            <button className={btn+" w-full mt-2"} onClick={()=>{setEditorTab("theme");setPropKind("building");setTool("prop");}}>
+              Start with a building
+            </button>
+          </div>}
+        </section>
         <section>
-          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{editorTab==="theme"?"Theme props":"Paint tools"}</div>
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Tools · {editorTab==="theme"?"Paint tools":"Construction kits"}</div>
           <div className="grid grid-cols-2 gap-2">
             {([
               ["select","Select / Move",MousePointer2],
@@ -633,7 +806,7 @@ export default function MapEditor() {
                 ["region","Rectangle",Grid2x2],["circle","Circle / ellipse",Grid2x2],
                 ["triangle","Triangle",Grid2x2],
                 ["cover","Hard cover",Layers3],["platform","High platform",Layers3],
-                ["stairs","Independent stairs",Layers3],["hazard","Place hazard",AlertTriangle],
+                ["stairs","Independent stairs",Layers3],["kit","Room / route kit",Layers3],["hazard","Place hazard",AlertTriangle],
                 ["ffa","FFA spawn",Flag],["red","Red spawn",Flag],["blue","Blue spawn",Flag]
               ] as const)
             ] as readonly (readonly [Tool,string,typeof MousePointer2])[]).map(([key,label,Icon])=>
@@ -641,6 +814,10 @@ export default function MapEditor() {
                 <Icon size={14}/>{label}
               </button>)}
           </div>
+          {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">Construction kit
+            <select className={fieldClass} value={structurePreset} onChange={e=>setStructurePreset(e.target.value as StudioStructurePresetId)}>
+              {STUDIO_STRUCTURE_PRESETS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+            </select></label>}
           {editorTab==="blueprint"&&<label className="block text-xs text-zinc-400 mt-3">New hazard type
             <select value={hazardKind} className={fieldClass} onChange={e=>setHazardKind(e.target.value as MapHazard["type"])}>
               {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
@@ -648,9 +825,15 @@ export default function MapEditor() {
             </select></label>}
           {editorTab==="theme"&&<label className="block text-xs text-zinc-400 mt-3">New prop type
             <select value={propKind} className={fieldClass} onChange={e=>setPropKind(e.target.value as MapProp["kind"])}>
-              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const)
+              {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
+                "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet"] as const)
                 .map(kind=><option key={kind} value={kind}>{kind}</option>)}
             </select></label>}
+          {editorTab==="theme"&&propKind==="building"&&<label className="block text-xs text-zinc-400 mt-3">Building kit
+            <select className={fieldClass} value={buildingPreset} onChange={e=>setBuildingPreset(e.target.value as StudioBuildingPresetId)}>
+              {STUDIO_BUILDING_PRESETS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>}
           <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
             Drag on the grid to draw regions or structures. Click to place a spawn.
             Use Select to drag and reposition. Adjust exact dimensions in the inspector.
@@ -749,6 +932,14 @@ export default function MapEditor() {
               className={btn+(editMode===m?" bg-amber-500 text-zinc-950":"")}
               onClick={()=>setEditMode(m)}>{m==="select"?"Camera / select":m==="move"?"Move object":m==="rotate"?"Rotate 90°":"Resize object"}</button>)}
           </div>}
+          {viewport==="3d"&&editMode==="move"&&
+            <div className="inline-flex items-center rounded-md border border-emerald-400/40" aria-label="Move axis">
+              <span className="px-2 text-xs text-emerald-200">Lock direction</span>
+              {(["x","y","z"] as StudioAxis[]).map(axis=><button key={axis}
+                title={"Move along "+axis.toUpperCase()+" only"}
+                aria-pressed={moveAxis===axis} className={btn+(moveAxis===axis?" bg-emerald-500 text-zinc-950":"")}
+                onClick={()=>setMoveAxis(axis)}>{axis.toUpperCase()}</button>)}
+            </div>}
           {selected&&<div className="inline-flex items-center gap-1.5">
             <button className={btn} title="Copy the selected object, including built-in map geometry" onClick={duplicate}>
               <Copy size={14}/> Duplicate selected
@@ -757,13 +948,34 @@ export default function MapEditor() {
               <Trash2 size={14}/> Delete selected
             </button>
           </div>}
-          <span className="text-xs text-zinc-500">3D: drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showCollision} onChange={e=>setShowCollision(e.target.checked)}/> Collision
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showSafety} onChange={e=>setShowSafety(e.target.checked)}/> Safety overlay
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={showRoutes} onChange={e=>setShowRoutes(e.target.checked)}/> District links
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={stampMode} onChange={e=>setStampMode(e.target.checked)}/> Repeat placement
+          </label>
+          <span className="text-xs text-zinc-500">3D: click to place a selected piece · drag to orbit · right-drag to pan · wheel to zoom · WASD to fly · Q/E elevation · Shift faster</span>
         </div>
         <div className="rounded-xl border border-white/10 bg-[#0b1118] overflow-hidden shadow-2xl">
           {viewport==="3d"?
             <MapStudio3D mapId={mapId} map={map} theme={theme} selected={selected}
-              mode={editMode} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
-              onSelect={setSelected} onTransform={apply3DTransform} onAddAt={add3DAt}/>:
+              mode={editMode} moveAxis={moveAxis} snap={gridSnapEnabled?gridSnapStep:0} tool={tool}
+              placementProp={tool==="prop"?createThemeProp(0,0):undefined}
+              placementKit={tool==="kit"?(()=>{
+                const preset=STUDIO_STRUCTURE_PRESETS.find(p=>p.id===structurePreset);
+                return preset?{w:preset.width,d:preset.depth}:undefined;
+              })():undefined}
+              onSelect={sel=>sel?.type==="generatedBuilding"?promoteGenerated(sel.index):setSelected(sel)}
+              onTransform={apply3DTransform} onAddAt={add3DAt} legacySpawns={runtimeSpawns}
+              showCollision={showCollision} warnings={showSafety?visualIssues:[]}
+              regionLinks={showRoutes?navLinks:[]}
+              placementProblem={buildingProblem} onInvalidPlacement={reason=>setStatus(reason)}/>:
           <svg ref={svg} viewBox={`${-radius} ${-radius} ${radius*2} ${radius*2}`}
             className="w-full h-[63vh] min-h-[420px] max-h-[880px] select-none"
             style={{touchAction:"none"}} onPointerDown={onPointerDown}
@@ -786,6 +998,16 @@ export default function MapEditor() {
                 <polygon key={i} {...common} points={`${r.x},${r.z-r.d/2} ${r.x-r.w/2},${r.z+r.d/2} ${r.x+r.w/2},${r.z+r.d/2}`}/>:
                 <rect key={i} {...common} x={r.x-r.w/2} y={r.z-r.d/2} width={r.w} height={r.d}/>;
             })}
+            {generatedBuildings.map((p,i)=><rect key={"city-"+p.lotId}
+              x={p.x-(p.w??20)/2} y={p.z-(p.d??20)/2} width={p.w??20} height={p.d??20}
+              fill="#b7a08c" fillOpacity=".35" stroke="#fbbf24" strokeWidth=".4"
+              onPointerDown={e=>{if(tool!=="select")return;e.stopPropagation();promoteGenerated(i);}}
+              style={{cursor:tool==="select"?"pointer":"crosshair"}}/>)}
+            {showRoutes&&navLinks.map(link=><g key={"route-"+link.from+"-"+link.to} pointerEvents="none">
+              <path d={`M${link.ax} ${link.az} L${link.px} ${link.pz} L${link.bx} ${link.bz}`}
+                stroke="#5eead4" fill="none" strokeWidth=".75" strokeDasharray="2 1"/>
+              <circle cx={link.px} cy={link.pz} r="2.2" fill="#2dd4bf"/>
+            </g>)}
             {/* Pre-existing engine stairs are informative only: JSON export doesn't replace template geometry. */}
             {inheritedStairs.map((step,i)=><rect key={"legacy-stair-"+i} pointerEvents="none"
               x={step.pos[0]-step.size[0]} y={step.pos[2]-step.size[2]}
@@ -871,6 +1093,12 @@ export default function MapEditor() {
                 <circle r="1.7" fill={color[team]} stroke="#fff" strokeWidth=".35"/>
                 {selected?.type==="spawn"&&selected.team===team&&selected.index===i&&<circle r="5" fill="none" stroke="#fef08a" strokeWidth=".8"/>}
               </g>))}
+            {showSafety&&visualIssues.slice(0,90).map(issue=><g key={issue.code} pointerEvents="none">
+              <circle cx={issue.x} cy={issue.z} r={4} fill={issue.severity==="error"?"#ef4444":"#f59e0b"}
+                fillOpacity=".26" stroke={issue.severity==="error"?"#fca5a5":"#fde68a"} strokeWidth=".65"/>
+              <text x={issue.x} y={issue.z+1.4} fontSize="4" textAnchor="middle" fill="#ffffff">!</text>
+              <title>{issue.message}</title>
+            </g>)}
             {shape&&tool!=="select"&&!["ffa","blue","red"].includes(tool)&&
               (tool==="circle"?<ellipse cx={shape.x} cy={shape.z} rx={shape.w/2} ry={shape.d/2}
                 fill="#f59e0b" fillOpacity=".2" stroke="#fbbf24" pointerEvents="none"/>:
@@ -990,9 +1218,15 @@ export default function MapEditor() {
                         {(["fire","spikes","jump_pad","moving_platform","destructible_wall"] as const).map(kind=>
                           <option key={kind} value={kind}>{kind}</option>)}
                       </select></label>
-                    {(["dps","damage","period","activeFor","offset","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
+                    {selectedObject && (selectedObject as MapHazard).type==="spikes" &&
+                      <label className="block text-xs">Trap appearance
+                        <select className={fieldClass} value={(selectedObject as MapHazard).visual??"spikes"}
+                          onChange={e=>changeSelected("visual",e.target.value)}>
+                          <option value="spikes">Retracting spikes</option><option value="steam">Pressure steam vents</option>
+                        </select></label>}
+                    {(["dps","damage","period","activeFor","offset","warningFor","hp","launchX","launchY","launchZ","toX","toY","toZ"] as const)
                       .filter(key=>({
-                        fire:["dps"],spikes:["damage","period","activeFor","offset"],
+                        fire:["dps"],spikes:["damage","period","activeFor","offset","warningFor"],
                         jump_pad:["launchX","launchY","launchZ"],
                         moving_platform:["period","toX","toY","toZ"],destructible_wall:["hp"],
                       }[(selectedObject as MapHazard).type] as readonly string[]).includes(key))
@@ -1008,6 +1242,23 @@ export default function MapEditor() {
                         {(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand"] as const).map(kind=>
                           <option key={kind} value={kind}>{kind}</option>)}
                       </select></label>
+                    {(selectedObject as MapProp).kind==="building"&&<>
+                      <label className="block text-xs">Building purpose
+                        <select className={fieldClass} value={(selectedObject as MapProp).use??"house"} onChange={e=>changeSelected("use",e.target.value)}>
+                          {STUDIO_BUILDING_PRESETS.map(p=><option key={p.id} value={p.use}>{p.label}</option>)}
+                        </select></label>
+                      <label className="block text-xs">Building shape
+                        <select className={fieldClass} value={(selectedObject as MapProp).shape??"rect"} onChange={e=>changeSelected("shape",e.target.value)}>
+                          <option value="rect">Rectangular</option><option value="narrow">Narrow</option><option value="round">Round</option>
+                        </select></label>
+                      <label className="block text-xs">Stair position
+                        <select className={fieldClass} value={(selectedObject as MapProp).stairSide??"east"} onChange={e=>changeSelected("stairSide",e.target.value)}>
+                          <option value="east">East</option><option value="west">West</option>
+                        </select></label>
+                      <label className="flex gap-2 items-center text-xs">Roof access
+                        <input type="checkbox" checked={(selectedObject as MapProp).roofAccess!==false} onChange={e=>changeSelected("roofAccess",e.target.checked)}/>
+                      </label>
+                    </>}
                     <label className="block text-xs">Text (optional)
                       <input className={fieldClass} value={(selectedObject as MapProp).text??""}
                         onChange={e=>changeSelected("text",e.target.value)}/></label>
@@ -1063,6 +1314,10 @@ export default function MapEditor() {
         </section>}
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Design checks</h2>
+          {visualIssues.length>0&&<div className="text-xs text-amber-200 mb-2">
+            {visualIssues.length} positioned warnings — toggle Safety overlay to locate them.
+            {visualIssues.slice(0,12).map(issue=><p className="mt-1" key={issue.code}>({Math.round(issue.x)}, {Math.round(issue.z)}) {issue.message}</p>)}
+          </div>}
           {issues.length? <div className="space-y-2 max-h-64 overflow-auto">
             {issues.slice(0,30).map((err,i)=><div key={i} className="text-xs text-amber-200/80 border-l-2 border-amber-500/50 pl-2">{err}</div>)}
             {issues.length>30&&<div className="text-xs text-amber-300">+ {issues.length-30} more warnings</div>}</div>:
@@ -1072,9 +1327,10 @@ export default function MapEditor() {
         <section className="border-t border-white/10 pt-4">
           <h2 className="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-2">Publishing</h2>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Drafts auto-save only in this browser. <strong className="text-zinc-300">Export JSON</strong>,
-            replace <code className="text-amber-300">src/data/map-blueprints.json</code> in the repo,
-            then restart or rebuild Next.js. Both offline and online sessions use the same compiled map definitions.
+            Use <strong className="text-zinc-300">Playtest draft</strong> for offline testing with optional bots.
+            Drafts auto-save locally. <strong className="text-zinc-300">Save bundle</strong> backs up blueprints
+            and visual themes together. To publish in the game, export the blueprint and theme JSON files,
+            commit them under <code className="text-amber-300">src/data/</code>, and rebuild. Publishing is never automatic.
           </p>
           <button className={btn+" mt-3 w-full"} onClick={()=>{if(confirm("Discard local edits and restore committed blueprints?")){
             pushUndo();setDoc(clone(STARTER));setSelected(null);setStatus("Restored committed definitions.");}}}>

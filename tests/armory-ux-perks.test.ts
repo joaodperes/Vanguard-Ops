@@ -1,7 +1,7 @@
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "../src/lib/explonando";
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_PERK_ID, PERKS, perkById, perkUnlocked, perkSelection, canEquipSecondaryPrimary } from "../src/lib/perks";
-import { WEAPONS, computeEffectiveStats, compatibleAttachments, attachmentById, type AttachmentSlot } from "../src/lib/game-data";
+import { WEAPONS, resolveLoadout, computeEffectiveStats, compatibleAttachments, attachmentById, type AttachmentSlot } from "../src/lib/game-data";
 
 describe("level-ordered passive perk unlocks", () => {
   test("Battle-Hardened is the initial free perk", () => {
@@ -30,6 +30,19 @@ describe("level-ordered passive perk unlocks", () => {
     expect(Math.max(...common.map(w=>w.unlockLevel))).toBeLessThan(Math.min(...rare.map(w=>w.unlockLevel)));
     expect(Math.max(...rare.map(w=>w.unlockLevel))).toBeLessThan(Math.min(...epic.map(w=>w.unlockLevel)));
     expect(Math.max(...epic.map(w=>w.unlockLevel))).toBeLessThan(Math.min(...legendary.map(w=>w.unlockLevel)));
+  });
+});
+
+describe("server-backed active loadout perk",()=>{
+  const base={
+    primaryWeapon:"rifle_ar",secondaryWeapon:"pistol_side",meleeWeapon:"knife_tactical",
+    weaponSkin:"default",playerSkin:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null},
+  };
+  test("passes selected perk into match loadout rather than restoring Battle-Hardened",()=>{
+    expect(resolveLoadout({...base,perkId:"steady"}).perkId).toBe("steady");
+    expect(resolveLoadout({...base,perkId:"scavenger"}).perkId).toBe("scavenger");
+    expect(resolveLoadout({...base,perkId:"unknown"}).perkId).toBe(DEFAULT_PERK_ID);
+    expect(resolveLoadout(base).perkId).toBe(DEFAULT_PERK_ID);
   });
 });
 

@@ -10,30 +10,45 @@ Run the safe schema update **before starting the new app/server build**.
   Prestige cosmetics are not part of that checklist.
 - Completing all seven awards that particular weapon's Prestige exactly once.
   Bought legacy skins count as completed (preserves historical entitlement).
-- The award automatically makes **Eventide** (scrolling starfield) and
-  **Viridian Blight** (animated fluorescent sludge) equipable on that weapon,
-  with no credit price.
-- Each weapon Prestige contributes one token. Token balance is **unique weapon
-  Prestige awards minus unique Wonder Weapon purchases**, not a separately
-  incremented balance. Thus reloading a profile, completing a challenge again,
-  or re-importing a backup never generates repeat tokens.
+- **Prestige** awards **Viridian Blight** (animated toxic green) independently. Only the seven ordinary skin challenges count toward Prestige.
+- **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
+  players can equip it even without completing Prestige.
+- Completing both tracks on the same weapon grants a one-use **Wonder Weapon
+  unlock entitlement**, stored as a one-time permanent `WonderTokenAward`
+  for that weapon. Later threshold increases never revoke an earned token.
+  Available tokens are immutable award rows plus any legacy purchase
+  compensation, minus previously redeemed Wonder Weapons. Old Prestige
+  awards retain both skins. No repeated awards on refresh, re-mastery or import.
 - Weapon Prestige does not reset rank, kills, or attachments.
+
+## Diagnosing a missing Wonder unlock
+
+Armory → Wonders shows Wonder Weapon choices and token redemption. The per-weapon challenge list remains
+under Armory → Weapons → Customize → Challenges, including the independent
+Mastery rank and Prestige status for that weapon.
+
+New Wonder awards require both server-confirmed Prestige and Mastery rank 5.
+Once earned, a token award is permanent even if balance requirements change.
+Historical Wonder purchases are grandfathered; an early match exit saves
+weapon progress when it successfully submits its match result.
 
 ## Wonder Weapons
 
 | Weapon | Behavior | Max ammo | Recharge per charge | Other-kill bonus |
 | --- | --- | ---: | ---: | ---: |
-| Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
-| Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
-| Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Deadlock | ADS-validated guided bullet; cover breaks tag | 2 | 29s | -1.6s |
-| Hellfire | Short-range cone and persistent burning trails | 2 | 28s | -1.7s |
-| Stormweaver | Chain lightning and linked conductive anchors | 2 | 31s | -1.8s |
-| Bogfather | Damaging and movement-slowing sludge pools | 2 | 35s | -1.7s |
+| Event Horizon | Large 9.5m gravity pull with delayed detonation | 1 | 44s | -2.4s |
+| Plagueheart | Corrosive 3.5m impact splash and lingering toxin (95 base damage) | 3 | 38s | -8.5s |
+| Bullet Spitter | Deployed 38-damage automatic turret lasting 45s | 1 | 55s | -2.0s |
+| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire (6s tags) | 2 | 26s | -1.6s |
+| Hellfire | True flamethrower; 13m range, 9 damage per tick; no gunshots or persistent floor patches | 8 fuel-seconds | 6.5s per fuel-second | -1.7s |
+| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses leave 5s proximity lightning mines | 2 | 31s | -1.8s |
+| Thunderclap | Bouncing 120-damage / 7m shell with six delayed 75-damage / 5.25m bomblets | 2 | 32s | -1.6s |
+| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; 27s rebuild or restores on respawn | -3s per kill |
+| Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
-A Wonder Weapon costs **one token** and is permanently owned. It equips into
-the Primary slot, has no attachments or reserve ammo, and cannot manually
-reload. The recharge clock continues through death and while the gun is
+A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
+the Primary slot and has no attachments. Charge-based Wonders have no reserve ammo and cannot manually
+reload. Bulwark is the explicit exception: its P-9 uses a normal magazine/reload while shield HP is independent. See [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md). The recharge clock continues through death and while the gun is
 holstered, and it refills charges one at a time. Kills dealt directly by the Wonder Weapon **and its persistent effects** do not accelerate its own recharge.
 The server separately tracks and refuses premature online shots; the client
 tracks the clock for accurate firing, HUD and offline gameplay. Gun Game
@@ -97,21 +112,36 @@ The startup sync intentionally omits `--accept-data-loss`.
    bun run build
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
-   mastered weapon, confirm token +2 camos, spend it once, check purchase
+   mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
    rejection on replay and no free refill through swap, death or ammo cache.
-4. Verify all six Wonders in offline and online matches, including delayed gravity
+4. Verify all seven Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
 5. Verify Gun Game still uses 30 normal tiers and all legacy purchases remain.
 6. Export and reimport an account with a Prestige and Wonder purchase; ensure
    camos/ownership remain and available tokens do not increase.
 
-The added tables are `WeaponPrestige` and `WonderUnlock` with unique keys
-(playerId, weaponId). They add no destructive migration. Existing
+The progression schema now contains `WeaponPrestige`, `WonderUnlock`,
+and permanent `WonderTokenAward` records, all unique per player/weapon.
+New Player fields `wonderTokenLedgerReady` and `wonderLegacyCredits`
+enable one-time grandfathering. On first profile access, pre-existing
+Wonder purchases are treated as paid from the oldest Prestige awards
+earned before the most recent historical Wonder purchase; if those source
+records are incomplete, an offset credit covers the unmatched historic
+purchases without giving free spending power. Old purchase rows did not
+record the source weapon, so this reconciliation is necessarily
+best-effort and permanent. Run an additive `bun run db:push` before
+starting this server build. The changes are not destructive. Existing
 `WeaponProgress.conditionStats` is the earlier contextual challenge schema
 change and also needs migration if not already applied.
 
-**Status:** The implementation and tests were authored on `dev`, but the
-test suite and build were **not executed** in the linked GitHub environment.
-Do not deploy before running them and applying the schema changes.
+**Status:** The implementation is on `dev`. Confirm green validation for the exact candidate commit, complete manual gameplay checks and apply reviewed database updates before deployment.
 
-For the three later additions (Rift Needle, Miasma Bloom and Caustic Javelin), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for design trade-offs and the playtest gate.
+For the four later additions (Deadlock, Hellfire, Stormweaver and Bogfather), see [Wonder Weapon expansion](wonder-weapon-expansion.md) for their mechanics, limitations and playtest requirements.
+
+## Independent Wonder Weapon Unlock challenge
+
+The Armory Challenges tab also tracks **Wonder Weapon Unlock** as an independent
+0/2 to 2/2 milestone. Its two objectives are **Weapon Prestige (1/1)** and
+**Weapon Mastery (5/5)**. It never counts as one of the seven cosmetic Prestige
+challenges or delays Viridian Blight. Completing both awards a single Wonder
+Weapon unlock entitlement (not a Prestige token or another Shop currency).

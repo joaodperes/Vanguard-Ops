@@ -1,6 +1,6 @@
 # Content authoring handbook (developers and AI agents)
 
-**Status:** feature/json-content-catalogs. This is the content pipeline, NOT an API for untrusted players to upload content. Changes to JSON must be reviewed and deployed as code.
+**Status:** implemented on `dev` and reviewed for promotion to `main`. This is the content pipeline, NOT an API for untrusted players to upload content. Changes to JSON must be reviewed and deployed as code.
 
 ## Source of truth
 
@@ -67,9 +67,11 @@ Append an object to `weapons.json`. Required top-level fields: `id`, `name`, `de
 }
 ```
 
-`category` must be one of: `assault`, `smg`, `shotgun`, `dmr`, `sniper`, `lmg`, `sidearm`, `melee`. Optional stats include `burst`, `pellets`, `reloadStyle` (only `incremental`), `reloadPerRound`, `falloffEndMultiplier`, `minDamageMultiplier`. Omit `attachments` to use all four slots; specify `[]` for no slots. `baseSightType` must refer to a key in `sight-definitions.json`.
+`category` must be one of: `assault`, `smg`, `shotgun`, `dmr`, `sniper`, `lmg`, `pistol`, `pdw`, `launcher`, `melee`. Optional stats include `burst`, `pellets`, `reloadStyle` (only `incremental`), `reloadPerRound`, `reloadOnlyWhenEmpty` (en-bloc reloads, only when the magazine is empty), `falloffEndMultiplier`, `minDamageMultiplier`. Omit `attachments` to use all four slots; specify `[]` for no slots. `baseSightType` must refer to a key in `sight-definitions.json`.
 
-Special mechanics are **not** arbitrary JSON scripts. Only pre-coded `special.kind` (`heat`, `arc`, `bolt`) and `wonder.kind` (`singularity`, `corrosion`, `turret`) are recognized. Introducing a new special behavior needs coordinated changes to `src/lib/weapon-mechanics.ts`, `fps-engine.ts`, `game-server.ts`, client HUD/viewmodel, tests and any progression restrictions. Wonder weapons use Prestige unlock tokens, cannot equip ordinary attachments and do not use paid skin challenges.
+Special mechanics are **not** arbitrary JSON scripts. Only pre-coded `special.kind` (`heat`, `arc`, `bolt`) and `wonder.kind` (`singularity`, `corrosion`, `turret`, `smart`, `flame`, `storm`, `sludge`, `cluster`, `shield`) are recognized. Introducing a new special behavior needs coordinated changes to `src/lib/weapon-mechanics.ts`, `fps-engine.ts`, `game-server.ts`, client HUD/viewmodel, tests and any progression restrictions. Wonder weapons use Prestige unlock tokens, cannot equip ordinary attachments and do not use paid skin challenges. Regular `launcher` weapons require `explosive: { "radius": 3.5 }` (any positive radius) so offline and server damage agree. New launchers intentionally ship with `"attachments": []`; the RL-7 keeps its existing attachment support and an 8m blast. The currently supported `wonder.maxCharges` range is **1–8**; charge-based Wonders set `stats.magSize` to the same value and `stats.reloadTime` to 0. Shield Wonders keep an ordinary P-9 magazine/reload and are excluded by `usesWonderCharges()`. See [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md).
+
+**Gun Game:** each 30-tier cycle uses 28 distinct regular firearms, followed by a randomly chosen non-Wonder launcher and then a randomly chosen non-Wonder melee weapon. The final melee kill is the only win condition. Multiplayer and local matches use the same catalog-driven picker.
 
 **New weapon checklist:** add weapon JSON; choose existing category and appearance behavior; verify slot compatibility; check fallback contextual skin challenges (or author explicit weapon challenges); verify Gun Game inclusion/exclusions and bot selection if relevant; playtest offline and online; validate production build.
 
@@ -94,6 +96,12 @@ Append to `attachments.json`:
 
 Add its ID to `category-attachments.json` under the appropriate category and slot, and to `attachment-compatibility.json` for weapons with explicit overrides. A new attachment not listed in the relevant allowlist will not appear just because its definition exists. **Per-weapon overrides win per slot**: `attachment-compatibility.json` takes precedence over the category/slot list in `category-attachments.json`, and lists are not merged. When modifying a category list, retain the intended existing options; when an override exists, update that override too. `weaponCategories` is advisory; the allowlists are applied by the runtime. For new scopes, add a `sight-definitions.json` entry and use `sightType` on a compatible sight attachment.
 
+**Optic magnification:** `sight-definitions.json` provides the actual optical `zoom` multiplier. The FPS camera derives its scoped field of view geometrically so 2×, 4× and 6× remain accurate at different player FOV settings. Keep corresponding attachment names, descriptions and handling trade-offs in sync. The Armory exposes compatible attachments and their challenges/prices even when a weapon is not equipped (or not owned); equipping remains limited to the active slot and purchasing still requires weapon ownership.
+
+**Progression and weapon mastery:** The Tactical Knife has the same seven standard skin trials as other melee weapons; open **Skins & Challenges** from its weapon card or the melee loadout slot. Melee mastery remains kill-only. Firearm Weapon Mastery ranks 2–5 now require 25/70/150/330 headshots respectively (kill requirements unchanged at 60/150/300/600). Completed attachment challenge details disappear from the Armory once eligible, leaving the price and purchase action. The Marksman DMR has a 12-round standard magazine (18 with Extended Mag).
+
+**Attachment economy and balance:** standard early attachments typically cost 200–350 CR, mid-tier utility costs 375–550 CR and specialist/late-game variants cost about 500–850 CR. Higher level gates and contextual challenges provide progression without a tenfold price jump for comparable stats. Attachment purchases are per weapon (not account-wide). Where two compatible attachments share a slot, avoid a strictly dominated option: each should offer a meaningful handling, precision, damage, range or mobility trade-off in its `effects` and description. Compare using `computeEffectiveStats`, not copy alone.
+
 **Progression:** each eligible weapon/attachment pair receives a contextual permanent attachment challenge through `src/lib/armory-challenges.ts`. Challenges make purchases *eligible*, not owned; the original credit purchase is still required. Check compatibility and eligibility on both client and server.
 
 ## Add a weapon skin or operator skin
@@ -116,7 +124,7 @@ Append to `weapon-skins.json`:
 }
 ```
 
-`rarity` is `common` / `rare` / `epic` / `legendary`; `tier` is `standard` / `rare` / `legendary`; colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Existing prestige-only skins use special `prestige` values (`cosmic` or `toxic`) with coded rendering rules; **do not assign novel prestige values without implementing them**.
+`rarity` is `common` / `rare` / `epic` / `legendary` / `prestige` (the last is reserved for Prestige-only finishes); `tier` remains `standard` / `rare` / `legendary` and controls unlock classification independently. The required `artBrief` is a concise, player-facing description shown in the Armory. Colors use six-digit CSS hex. `metalness` and `roughness` are from 0 to 1. Prestige finishes use coded `prestige` variants (`cosmic` or `toxic`); **do not assign novel prestige values without implementing them**. See [Weapon skin art briefs](weapon-skin-art-briefs.md) for current finishes and the Gold plating contract.
 
 A cosmetic entry does not automatically create an authored unlock challenge: existing skin IDs have explicit/fallback support in `src/lib/armory-challenges.ts`, and new skin IDs require corresponding eligibility logic **for every weapon intended to use them**. An authored challenge for one gun does not establish an unlock path for all other guns. Edit that logic and add appropriate tests before publishing a new paid skin. Verify appearance in the weapon viewmodel/world model, in loadouts and under purchased ownership checks.
 
@@ -165,6 +173,10 @@ Use `/map-editor` and export the JSON; replace `src/data/map-blueprints.json` in
 Put this object under `maps.frost_yard` (not a top-level array) in the existing version-1 blueprint file. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
 
 ## Map color palettes, biomes and prop authoring
+
+Floodgate (`floodgate`) is a fully authored 16v16 CTF layout with no inherited template geometry. It is registered in `MapId`, the shared `CTF_MAP_IDS` allowlist and room-capacity rules; it also supports TDM and Kill Confirmed. Ground-level flag/delivery positions and bot lanes are implemented in `ctf-rules.ts`. A new CTF map must review all three contracts, not only append a blueprint or theme. See [Floodgate](floodgate.md).
+
+Periodic hazards support optional `visual: "spikes" | "steam"` and `warningFor` fields in both blueprint and protocol types. Their animation and damage phase use `periodicHazardPhase()` and the synchronized environment clock. Steam is an appearance of the existing periodic damage mechanic, not a new server object type. Update schema, validation, editor copy/export, visuals and tests together when extending these fields.
 
 Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
 
@@ -220,7 +232,7 @@ bun run typecheck
 bun run build
 ```
 
-CI on `feature/json-content-catalogs` checks all four commands. `tests/content-catalogs.test.ts` also includes **exact array-length assertions**: when adding an entry, review and intentionally update its expected count alongside the other contract tests. A failure in such an assertion may reflect test drift rather than malformed JSON; confirm the actual catalog before changing either. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. The structural validator does not prove that a new metric has a counter, a new cosmetic can be unlocked, a map has fair traversable paths, or an optic renders and behaves correctly. Standalone draft validators or JSON Schema checks are useful preflight only; they do not substitute for the commands above. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
+The `.github/workflows/dev-validation.yml` workflow runs these checks on pushes to `dev` / `main`, pull requests targeting either branch, and configured feature branches. `tests/content-catalogs.test.ts` also includes **exact array-length assertions**: when adding an entry, review and intentionally update its expected count alongside the other contract tests. A failure in such an assertion may reflect test drift rather than malformed JSON; confirm the actual catalog before changing either. The dedicated map smoke tests run too. Invalid IDs, missing references, malformed numeric fields and blueprints fail `content:validate`. The structural validator does not prove that a new metric has a counter, a new cosmetic can be unlocked, a map has fair traversable paths, or an optic renders and behaves correctly. Standalone draft validators or JSON Schema checks are useful preflight only; they do not substitute for the commands above. Refer to `tests/content-catalogs.test.ts` and `src/lib/content-validation.ts` when extending the format.
 
 **Compatibility:** preserve all existing IDs/prices unless an explicit balance/migration plan says otherwise. A JSON file is deployment-bundled configuration, not a live database migration. If adding saved profile fields, back up player data and plan a Prisma change independently. Review console/server logs, UI, real matches and FPS before merging.
 
@@ -228,10 +240,117 @@ CI on `feature/json-content-catalogs` checks all four commands. `tests/content-c
 
 Shotgun shell variants in `attachments.json` use the `shotgunAmmo` field: `slug`, `pellets`, `dragons_breath`, and `beanbag`. These override `EffectiveStats` for offline and server hit calculations. Incendiary hits apply a server-authored 5-second damage-over-time effect and delay ordinary health regeneration.
 
-Team assists are awarded from server-tracked damage: at least 15 damage within 10 seconds before another teammate kills the victim. Each assist grants one personal scoreboard point, 12 XP and 5 CR, as set in `rewards.json`, but does not count toward the team win condition. Single-player bots do not yet award teammate assists.
+Team assists are awarded from server-tracked damage: at least 15 damage within 10 seconds before another teammate kills the victim. Each assist grants one personal scoreboard point, 12 XP and 5 CR, as set in `rewards.json`, but does not count toward the team win condition. Offline team bot-assisted eliminations have their own contribution accounting; verify scoreboard and XP/credit rewards in both offline and online matches.
 
 Historic melee challenge IDs remain stable while authored headshot requirements become achievable close-range melee eliminations. Equipping melee grants a 19% movement speed multiplier.
 
 ## Game art, map textures and external asset safety
 
 Each map's JSON visual theme now contains a `surfaces` recipe for ground, wall, cover, stairs and platforms. Patterns/roughness/tile size are validated and rendered with shared world-space procedural textures; a map is no longer restricted to flat colors. See [Map art direction and vetted references](art-direction-and-materials.md). External stock/game textures are **not** silently imported: confirm license and asset provenance first and bundle only approved files. Preserve the retro art style and always test collision and FPS separately from visuals.
+
+## Secondary weapon families
+
+The normal Secondary slot accepts Pistols (`pistol`), PDWs / Compact SMGs (`pdw`), and Launchers (`launcher`). The existing `smg` category is Primary-only unless Well Prepared grants a second Primary. Each regular category contains a multiple of three guns. Preserve stable weapon IDs and do not mark Wonders as Secondary. Every regular launcher needs a positive `explosive.radius` in world meters; this drives both local and authoritative splash damage. Confirm the new weapon has a procedural 3D receiver and audio profile.
+
+## Plagueheart damage profile
+
+`wonder_corrosion` intentionally has a low immediate splash and a much stronger **6.5-second poison-over-time** effect. Server and offline simulation share `src/lib/corrosion-damage.ts` for both the impact damage and 500ms poison ticks, and new shots refresh the existing poison rather than stacking instant bursts. Other launchers keep their original direct splash. WebGL shadows use nearest-sampled basic shadow maps to avoid unsupported linear depth comparison warnings.
+
+## October 2026 weapon behavior and combat parity
+
+- Pistols: Magnum .50 and Bastion .45 now trade reduced damage, headshot lethality and range for weight; Ghost-18 reloads faster, reaches farther and has no raised top rail. Sentinel-45 rewards precision more than Machine Pistol.
+- Launchers: Breach-2 has a brighter, longer-lived illuminated projectile. Swarm-3 is the area-coverage option (9.5m fragment shockwave with a flatter shared blast falloff), distinct from RL-7's high-damage 8m direct-impact rocket. Use `launcherSplashFactor` in both offline and server damage; do not independently hardcode splash or visuals.
+- Hit detection: `src/lib/combat-hitboxes.ts` defines shared head, torso, arm and leg volumes for bots and human player avatars, matching humanoid geometry rather than only a head and chest block.
+- Automatic fire: prolonged trigger holds accumulate aim bloom offline and server-side; releasing the trigger resets the firing cone. The server owns its own independent variation and does not trust client spread values.
+- Melee: Use `src/lib/melee-model.ts` and `src/lib/melee-styles.ts` for all first-person, third-person and F quick-melee views. Knife and shiv have nearly touching range; machete and baton have medium reach, axe and hammer reach farther but have very different power and cadence. Both equipped swings and F use the same grounded, obstacle-aware, server-authoritative hit logic and the equipped weapon's cooldown. Batons briefly interrupt opponents caught reloading. New melee archetypes must be integrated in these shared helpers and their regression tests.
+
+## Wonder Weapon refresh
+
+- Deadlock: ADS acquires up to three exposed enemies after 250ms, with visible magenta overhead target diamonds; tags persist for 4.5 seconds after releasing ADS. Hipfire bullets continue seeking exposed tagged enemies. Normal direct shots remain possible with no live tags. Multiplayer tags are acquired authoritatively from server-observed direction.
+- Hellfire: all five fuel-seconds must recharge before ignition. For a five-second active window, holding the trigger sends a continuous 11m damage cone (8 ticks per second) using flame plumes emitted at the muzzle and a soft synthetic combustion hiss, not bullet muzzle flashes/reports. Releasing early forfeits remaining burst time; shots cannot start at partial charge. No persistent ground fire.
+- Stormweaver: one energy charge fires seven spread pellets, each colliding with cover and limb-inclusive hitboxes independently. An enemy hit causes immediate pellet damage plus up to two 9m chain jumps. A pellet that hits no enemy becomes a glowing proximity mine on the ground (450ms arm delay, 2.65m trigger, 4s lifetime), delivering a burst and two more jumps when an eligible enemy approaches. Mines do not require a second shot or linked anchors, cannot trigger through walls, are capped at 12 per owner, and include late-join multiplayer snapshots. Damage is server-authoritative; offline and multiplayer share `src/lib/stormweaver.ts` geometry and targeting. Up to three direct pellets and two chain hits per victim per shot count toward damage to avoid unbounded stacks.
+- Bogfather is temporarily disabled in loadouts, Armory and server combat, retaining its catalog ID for existing saves.
+- Default Wonder bodies use animated cosmic/toxic patterns with extra energy emitters; physical iron sight notches appear at crosshair height in ADS for unsighted conventional guns.
+- Triggering an empty conventional magazine, including semi-auto/burst guns, initiates reload.
+
+## Combat / camera calibration pass
+- Knife and Shiv reach 1.25m/1.15m centre-to-centre with broader weapon-specific forward arcs and clear line of sight; side/rear targets remain excluded. See [current combat tuning](wonder-defense-and-bot-tactics.md). Axe uses a single-bit flared wedge and restrained across-body chop referenced to USDA Forest Service axe swing guidance.
+- RL-7 radius 1.9m with 176 damage and a high direct impact factor. Breach-2 radius 2.9m with 74 base damage and its own sub-lethal direct-impact multiplier. Swarm-3 retains 9.5m fragmentation, with slightly slower projectile travel.
+- ADS uses `src/lib/viewmodel-clearance.ts` to lower receiver height while independently aligning the physically mounted iron sight with the camera crosshair. Renderer ballistics remain centred on camera yaw/pitch at eye height, not displaced by any weapon geometry. Regression tests exercise every unsighted non-melee weapon, including Hydra Twin, Reclaimer and rocket launchers.
+- The firing-range dropdowns group by type, order conventional weapons by level and alphabetize Wonders. Disabled Bogfather is excluded even from trial links. Practice overlays expose Resume and Leave and no longer show the purchases/profile notice.
+- Reclaimer base bolt damage/range reduced. Quiver is 10 lighter automatic bolts with no retrieval, Extended Mag remains the normal extension, Heavy Arrows allows 2 damaging bolts whose ammo can only be restored by picking up fired bolts. Arrow prop and hand insert move along the upper flight rail.
+- Stormweaver uses one visibly thicker electric arc per chain and its mines expire after 4 seconds. Deadlock smart volleys hit up to 3 acquired/visible targets per consumed charge. Default bodies of Plagueheart, Deadlock, Bullet Spitter and Event Horizon no longer force animated cosmetic finishes.
+
+## Economy and Career progression
+
+See [Economy and Career progression](economy-and-career-progression.md) for the
+current reward table, 40% faster XP curve, level-36 equipment cap and repeatable
+Career ranks. `rewards.json` owns difficulty-specific kill and objective payouts
+as well as base rewards; the runtime and archived Guide read those same numeric keys.
+Do not add a numeric reward setting without a consuming rule.
+
+Use XP-derived levels for every entitlement check; `Player.level` is a repaired
+cache, not an authority. Career rank and fresh-XP progress are distinct persisted
+fields and confer cosmetic titles. Do not spend lifetime XP or use historic
+overflow to satisfy fresh Career goals. New late equipment needs its own
+appropriate mastery/content objective; increasing a level gate or credit price
+alone does not solve veteran stockpiling. Preserve all historical ownership.
+
+## Achievement chains and nameplate titles
+
+`achievements.json` keeps every shipped achievement ID, metric, goal and XP/credit
+reward. Each entry now has a stable `series` ID and positive integer `seriesTier`.
+Tiers are unique within a series; catalog order and bronze/silver/gold/platinum
+colors do not decide which tier is last. All five mastery achievements form one
+`weapon_mastery` chain, ending at `mastery_5x8` (Arsenal Legend).
+
+Only the highest `seriesTier` may declare `rewardTitle`. The validator rejects
+duplicate tiers and intermediate title rewards; the title resolver also enforces
+the final-tier rule. New chains should declare one title at their endpoint. The
+current endpoints award titles for kills, headshots, wins, matches, leveling,
+streaks, quest counters, Survival difficulties, CTF and weapon mastery. Quest
+completion counters remain valid across all modes and are displayed separately
+from PvP combat achievements. Career promotion titles remain their separate,
+rank-based system.
+
+Titles use the existing server-owned achievement awards: no new purchase, counter
+or payout is introduced. Existing final-tier awards immediately expose the new
+title. Previously selected intermediate titles are cleared on profile refresh,
+while their achievement records and past rewards remain intact. Equipping checks
+actual ownership; a title name or unlocked lower tier is insufficient.
+
+## New-player tutorial and archived Guide
+
+The Guide component remains at `src/components/screens/FAQ.tsx` for reference,
+but has no navigation button, screen union entry or import in the game router.
+`Tutorial.tsx` replaces it with onboarding: welcome, live range drills, an
+interactive view of current equipment, mode briefings, and a final checklist.
+The main-menu Deploy area is removed; Play remains in the header. Account login
+and logout, plus tutorial replay/resume, are in Profile.
+
+New profiles with zero XP and zero matches enter training once. Existing players
+can opt in from Profile. Versioned checkpoints are stored per player key in this
+browser/device. Completing or skipping suppresses automatic prompts; leaving a
+drill saves its checkpoint, which resumes on the next visit or from Profile.
+Replaying completed/skipped training starts at the welcome step. An already
+offered tutorial does not reopen on every menu visit in the same session.
+
+The five range tasks observe actual simulation snapshots for distance walked,
+ADS, a fresh elimination, a completed reload, and a weapon change. Reloads
+cancelled by swapping do not complete the task. Keyboard/mouse and touch use
+the same observations with device-specific instructions. The ordinary starter
+kit runs through the existing `firingRange` path: no networking, purchases,
+loadout edits, match submissions, XP, credits, or achievement progression. A player
+can skip drills or the full tutorial; WebGL startup failures retain an exit.
+
+## Defensive Wonders and tactical difficulty
+
+Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated contact timestamps and detonation-only blast damage. Its helper derives shell/child damage and radii from the catalog and uses movement gravity times the map multiplier. Bulwark + P-9 (`shield`) is a Primary Wonder with a normal P-9 magazine and independent 250 HP bullet panel; bracing disables pistol fire. Neither may enter the Secondary slot even though their ballistic categories are launcher/pistol. New Wonder kinds need coordinated ownership/slot, ammo, rendering, protocol and damage integration; see [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md).
+
+## Explosion effects and rendering cost
+
+Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for transient blasts. Do not add/remove a realtime point light for every fragment: light-count changes generate shader variants across lit scene materials. The cosmetic pool is bounded independently of damage; even a culled/rejected visual must still resolve its full authoritative/offline combat effects. See [Explosion effect performance](explosion-effects-performance.md).
+
+Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in `src/data/ctf-layouts.json`. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).
+
+Whiteout Depot is a third consumer of the generic `ctf-layouts.json` ground-objective contract. Its blueprint owns all geometry and its snow/metal theme has a static registration. See [Whiteout Depot](whiteout-depot.md).

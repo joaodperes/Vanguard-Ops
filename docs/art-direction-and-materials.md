@@ -40,7 +40,7 @@ Available original procedural patterns: `concrete`, `metal`, `grate`, `planks`, 
 | Blacksite | Warm worn concrete | Brown concrete and industrial wall panels | Rust-red alarm lights, grates and yellow-brown stair treads |
 | Breakwater | Golden timber/planked dock | Ocean-blue/rust corrugated steel | Shipping containers, cranes, boats, dock bollards |
 | Verdant Ruins | Green overgrown stone | Pale sandstone/lichen masonry | Mossy rock, temple debris and trees |
-| Ridgefall | Bright blue-white snow | Slate rock faces | Rock/snow outcrops, antennas and conifers |
+| Ridgefall | Worn steel and concrete | Enclosed steelworks, assembly hall and gantries | Heavy machinery, maintenance bays, industrial lighting |
 | Afterlight City | Purple-blue worn asphalt | Mauve brick and painted masonry | Colourful shopfronts, lit windows, park grass and bandstand |
 | Afterlight City (Day) | Sunlit pale stone pavers | Warm cream brick | Same city geometry, brighter daylight and teal trim |
 

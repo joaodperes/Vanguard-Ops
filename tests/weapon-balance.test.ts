@@ -3,6 +3,7 @@ import {
   WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
+import { canStartWeaponReload } from "../src/lib/weapon-mechanics";
 
 describe("weapon range and damage falloff", () => {
   test("close shots do full damage and shots at the far edge use each weapon's floor", () => {
@@ -29,6 +30,37 @@ describe("weapon range and damage falloff", () => {
     expect(machine.range).toBeLessThan(magnum.range);
     expect(maxWeaponHitRange(machine.range, machine)).toBeLessThan(maxWeaponHitRange(magnum.range, magnum));
     expect(machine.minDamageMultiplier!).toBeLessThan(magnum.minDamageMultiplier!);
+  });
+});
+
+describe("Marksman DMR magazine balance", () => {
+  test("smaller 12-round base magazine still benefits from extended magazines", () => {
+    const weapon = weaponById("rifle_dm");
+    expect(weapon.stats.magSize).toBe(12);
+    const extended = computeEffectiveStats(weapon, { sight: null, barrel: null, grip: null, magazine: "mag_extended" });
+    expect(extended.magSize).toBe(18);
+  });
+});
+
+describe("DMR handling balance", () => {
+  test("Executioner is an 8-round slower DMR and can reload only empty", () => {
+    const executioner = weaponById("dmr_heavy").stats;
+    const whisper = weaponById("dmr_whisper").stats;
+    expect(executioner.magSize).toBe(8);
+    expect(executioner.fireRate).toBeLessThan(3);
+    expect(executioner.fireRate).toBeLessThan(whisper.fireRate);
+    expect(executioner.reloadOnlyWhenEmpty).toBe(true);
+    expect(canStartWeaponReload(executioner, 1)).toBe(false);
+    expect(canStartWeaponReload(executioner, 0)).toBe(true);
+    expect(canStartWeaponReload(whisper, 1)).toBe(true);
+  });
+  test("Whisper no longer one-taps 100 HP heads and fires faster", () => {
+    const stats = weaponById("dmr_whisper").stats;
+    expect(stats.damage * stats.headshotMult).toBeLessThan(100);
+    const withHeavyBarrel = computeEffectiveStats(weaponById("dmr_whisper"), { sight: null, barrel: "barrel_heavy", grip: null, magazine: null });
+    expect(withHeavyBarrel.damage * stats.headshotMult).toBeLessThan(100);
+    expect(stats.damage * stats.headshotMult * 2).toBeGreaterThanOrEqual(100);
+    expect(stats.fireRate).toBeGreaterThan(2.7);
   });
 });
 

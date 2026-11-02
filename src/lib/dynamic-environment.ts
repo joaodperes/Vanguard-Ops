@@ -1,5 +1,6 @@
 /** Shared, deterministic environmental objects for offline and authoritative rooms. */
 import type { CoverBox, EnvironmentObject, MapDef, Vec3 } from "./game-protocol";
+import {initializeFloodgateFreight} from "./floodgate-topple";
 
 export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3 {
   if (o.type !== "moving_platform") return [...o.pos];
@@ -9,10 +10,15 @@ export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3
   return o.pos.map((v, i) => v + (o.to[i] - v) * t) as Vec3;
 }
 
-export function spikesActive(o: EnvironmentObject, seconds: number): boolean {
-  if (o.type !== "spikes") return false;
+export function periodicHazardPhase(o: EnvironmentObject, seconds: number): "idle" | "warning" | "active" {
+  if (o.type !== "spikes") return "idle";
   const time = ((seconds + (o.offset ?? 0)) % o.period + o.period) % o.period;
-  return time < o.activeFor;
+  if(time < o.activeFor)return "active";
+  return (o.warningFor??0)>0 && time >= o.period-(o.warningFor??0) ? "warning" : "idle";
+}
+
+export function spikesActive(o: EnvironmentObject, seconds: number): boolean {
+  return periodicHazardPhase(o,seconds)==="active";
 }
 
 export function withinEnvironment(o: EnvironmentObject, feet: Vec3, radius = 0.45): boolean {
@@ -33,7 +39,9 @@ export function makeEnvironmentMap(base: MapDef): MapDef {
     const box = environmentCover(o);
     if (box) cover.push(box);
   }
-  return { ...base, cover };
+  const map={ ...base, cover };
+  if(map.id==="floodgate")initializeFloodgateFreight(map);
+  return map;
 }
 
 export function moveEnvironmentCover(map: MapDef, o: EnvironmentObject, seconds: number): void {

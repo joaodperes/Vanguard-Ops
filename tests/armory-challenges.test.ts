@@ -53,7 +53,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("each nonstandard operator appearance has a separate contract", () => {
-    const skins = PLAYER_SKINS.filter(s => s.id !== "default");
+    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency);
     expect(OPERATOR_CONTRACTS).toHaveLength(skins.length);
     expect(new Set(OPERATOR_CONTRACTS.map(ch => ch.rewardId)).size).toBe(skins.length);
     for (const skin of skins) {
@@ -69,7 +69,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   test("every paid weapon skin has a weapon-specific challenge", () => {
     // Wonder weapons use their own prestige progression and have no paid skins.
     for (const weapon of WEAPONS.filter(w => !w.wonder)) {
-      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige)) {
+      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)) {
         const challenges = skinChallengesForWeaponAndSkin(weapon.id, skin.id);
         expect(challenges.length).toBeGreaterThanOrEqual(1);
         expect(skin.unlockCost).toBeGreaterThan(0);
@@ -112,6 +112,28 @@ describe("permanent challenge-based Armory eligibility", () => {
     expect(metrics.size).toBeGreaterThanOrEqual(6);
   });
 
+  test("Tactical Knife has seven achievable skins and no impossible headshot trials", () => {
+    const knife = WEAPONS.find(w => w.id === "knife_tactical")!;
+    expect(knife.category).toBe("melee");
+    const skins = WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency);
+    expect(skins).toHaveLength(7);
+    for (const skin of skins) {
+      const trials = skinChallengesForWeaponAndSkin(knife.id, skin.id);
+      expect(trials).toHaveLength(1);
+      expect(trials[0].metric).not.toBe("headshots");
+      expect(trials[0].requirements?.some(r => r.metric === "headshots")).not.toBe(true);
+      const metrics = parseWeaponConditionStats(Object.fromEntries(WEAPON_CONDITION_METRICS.map(metric => [metric, 100000])));
+      expect(weaponChallengeProgress(trials[0], { kills: 100000, headshots: 0, conditionStats: metrics }).completed).toBe(true);
+    }
+    expect(weaponMasteryProgress(600,0,knife.id).rank).toBe(5);
+  });
+  test("higher firearm mastery ranks have significant precision requirements", () => {
+    expect(WEAPON_MASTERY_TIERS.map(t => t.kills)).toEqual([20,60,150,300,600]);
+    expect(WEAPON_MASTERY_TIERS.map(t => t.headshots)).toEqual([0,25,70,150,330]);
+    expect(weaponMasteryProgress(600,110,"rifle_dm").rank).toBe(3);
+    expect(weaponMasteryProgress(600,329,"rifle_dm").rank).toBe(4);
+    expect(weaponMasteryProgress(600,330,"rifle_dm").rank).toBe(5);
+  });
   test("weapon mastery is permanent and monotonic", () => {
     expect(WEAPON_MASTERY_TIERS).toHaveLength(5);
     expect(weaponMasteryProgress(0, 0).rank).toBe(0);

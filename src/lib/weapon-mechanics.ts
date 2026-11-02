@@ -1,4 +1,8 @@
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
+/** The Executioner and future en-bloc magazine weapons may only reload when empty. */
+export function canStartWeaponReload(stats: { reloadOnlyWhenEmpty?: boolean }, ammoInMag: number): boolean {
+  return !stats.reloadOnlyWhenEmpty || ammoInMag <= 0;
+}
 export interface HeatConfig {
   kind: "heat";
   heatPerShot: number;

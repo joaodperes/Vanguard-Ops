@@ -1,3 +1,5 @@
+import { EFFECTS_OUTPUT_BOOST, createOutputPeakGuard } from "./audio-mix";
+
 // ============================================================================
 // VANGUARD OPS — Sound Manager
 // ----------------------------------------------------------------------------
@@ -19,8 +21,6 @@
 // The browser requires a user gesture before audio can play. Call `resume()`
 // from a click/tap handler (the engine does this on pointer lock / touch start).
 // ============================================================================
-
-import { MUSIC_THEMES, type MusicThemeId } from "./music-themes";
 
 // Per-weapon-category identifier. Each maps to a distinct synthesis profile
 // in SHOT_PROFILES below. Bots/players firing any weapon in a category produce
@@ -55,13 +55,20 @@ export type SfxName =
   | "wave_start"
   | "hit_taken"
   | "footstep"
+  | "water_footstep"
   | "empty_click"
   | "swap"
   | "ads_in"
   | "ads_out"
+  | "countdown_tick"
   | "match_start"
   | "match_win"
-  | "match_lose";
+  | "match_lose"
+  | "flag_taken"
+  | "flag_scored"
+  | "flag_enemy_scored"
+  | "flag_returned"
+  | "flag_lost";
 
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
@@ -151,9 +158,10 @@ export class SoundManager {
   /** Legacy masterGain name is the FX bus; all existing SFX route through it. */
   private masterGain: GainNode | null = null;
   private outputGain: GainNode | null = null;
+  private outputBoost: GainNode | null = null;
+  private peakGuard: DynamicsCompressorNode | null = null;
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
-  private musicVolume = 0.65;
   private footstepVolume = 0.85;
   private fxVolume = 1;
   private muted = false;
@@ -162,17 +170,11 @@ export class SoundManager {
   // Throttle distant shots per-category (so 5 bots firing smg simultaneously
   // don't slam the audio graph with 5 overlapping synth nodes).
   private lastDistantPlayed: Map<WeaponShotCategory, number> = new Map();
+  private lastRemoteFootstepAt=-Infinity;
   // Noise buffer cache (reused for shot/death sounds).
   private noiseBuffer: AudioBuffer | null = null;
   // A small shared convolver for tail/reverb (cheap) — adds body to gunshots.
   private convolver: ConvolverNode | null = null;
-  private ambientGain: GainNode | null = null;
-  private musicLayer: GainNode | null = null;
-  private retiredMusicLayers: { node: GainNode; removeAt: number }[] = [];
-  private ambientTheme: MusicThemeId = "compound";
-  private ambientStep = 0;
-  private nextAmbientAt = 0;
-  private ambientActive = false;
 
   constructor() {
     // Defer AudioContext creation until the first resume() call — browsers
@@ -186,10 +188,17 @@ export class SoundManager {
       try {
         const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
         this.ctx = new AC();
-        // Master scales all channels. Music, footsteps, and FX are independent.
+        // Master scales footsteps and effects independently.
         this.outputGain = this.ctx.createGain();
         this.outputGain.gain.value = this.muted ? 0 : this.masterVolume;
-        this.outputGain.connect(this.ctx.destination);
+        // Apply the loudness adjustment after the master fader, then protect
+        // peaks caused by several simultaneous procedural effects.
+        this.outputBoost = this.ctx.createGain();
+        this.outputBoost.gain.value = EFFECTS_OUTPUT_BOOST;
+        this.peakGuard = createOutputPeakGuard(this.ctx);
+        this.outputGain.connect(this.outputBoost);
+        this.outputBoost.connect(this.peakGuard);
+        this.peakGuard.connect(this.ctx.destination);
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.value = this.fxVolume;
         this.masterGain.connect(this.outputGain);
@@ -202,12 +211,6 @@ export class SoundManager {
         this.convolver = this.ctx.createConvolver();
         this.convolver.buffer = this.makeImpulseResponse(0.18, 2.0);
         this.convolver.connect(this.masterGain);
-        this.ambientGain = this.ctx.createGain();
-        this.ambientGain.gain.value = 0;
-        this.ambientGain.connect(this.outputGain);
-        this.musicLayer = this.ctx.createGain();
-        this.musicLayer.gain.value = 1;
-        this.musicLayer.connect(this.ambientGain);
       } catch (e) {
         // Web Audio not available — silently degrade.
         this.ctx = null;
@@ -222,13 +225,6 @@ export class SoundManager {
     this.masterVolume = Math.max(0, Math.min(1, v));
     if (this.outputGain && this.ctx) {
       this.outputGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
-    }
-  }
-
-  setMusicVolume(v: number) {
-    this.musicVolume = Math.max(0, Math.min(1, v));
-    if (this.ambientGain && this.ctx) {
-      this.ambientGain.gain.setTargetAtTime(this.ambientActive ? this.musicVolume * 0.19 : 0, this.ctx.currentTime, 0.08);
     }
   }
 
@@ -281,6 +277,7 @@ export class SoundManager {
   /** Play a named SFX. Honors master volume + mute. Throttles repeats. */
   play(name: SfxName, opts: { volume?: number; throttleMs?: number } = {}) {
     if (!this.ctx || !this.masterGain || this.muted) return;
+    if(this.ctx.state==="suspended")void this.ctx.resume().catch(()=>{});
     const now = this.ctx.currentTime;
     const vol = opts.volume ?? 1.0;
     const throttle = opts.throttleMs ?? 0;
@@ -310,87 +307,33 @@ export class SoundManager {
       case "wave_start": this.synthWaveStart(vol); break;
       case "hit_taken": this.synthHitTaken(vol); break;
       case "footstep": this.synthFootstep(vol); break;
+      case "water_footstep": this.synthWaterFootstep(vol); break;
       case "empty_click": this.synthBlip(1200, 0.02, vol * 0.3, "square"); break;
       case "swap": this.synthSwap(vol); break;
       case "ads_in": this.synthBlip(440, 0.03, vol * 0.25, "sine"); break;
       case "ads_out": this.synthBlip(330, 0.03, vol * 0.25, "sine"); break;
       case "match_win": this.synthMatchWin(vol); break;
       case "match_lose": this.synthMatchLose(vol); break;
+      case "countdown_tick": this.synthBlip(740, .075, vol * .7, "sine"); break;
       case "match_start": this.synthMatchStart(vol); break;
-    }
-  }
-
-  /** Schedule the appropriate menu, lobby or map arrangement. The active theme
-   * is swapped with a short gain crossfade, even when a chord is still decaying.
-   */
-  tickAmbientMusic(active: boolean, themeId: MusicThemeId = "compound"): void {
-    const ctx = this.ctx, bus = this.ambientGain;
-    if (!ctx || !bus) return;
-    if (themeId !== this.ambientTheme) {
-      this.ambientTheme = themeId;
-      // Fade the prior arrangement, including already scheduled sustaining notes.
-      if (this.musicLayer) {
-        this.musicLayer.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
-        this.retiredMusicLayers.push({ node: this.musicLayer, removeAt: ctx.currentTime + 3 });
-      }
-      this.musicLayer = ctx.createGain();
-      this.musicLayer.gain.value = 0;
-      this.musicLayer.connect(bus);
-      this.musicLayer.gain.setTargetAtTime(1, ctx.currentTime, 0.2);
-      this.ambientStep = 0;
-      this.nextAmbientAt = ctx.currentTime + 0.07;
-    }
-    // After the final old note ends, dispose its routing bus.
-    this.retiredMusicLayers = this.retiredMusicLayers.filter(({ node, removeAt }) => {
-      if (ctx.currentTime < removeAt) return true;
-      node.disconnect();
-      return false;
-    });
-    if (active !== this.ambientActive) {
-      this.ambientActive = active;
-      bus.gain.setTargetAtTime(active ? this.musicVolume * 0.19 : 0, ctx.currentTime, 0.25);
-      if (active) this.nextAmbientAt = ctx.currentTime + 0.06;
-    }
-    if (!active || this.muted || this.musicVolume === 0 || ctx.state !== "running") return;
-    if (this.nextAmbientAt < ctx.currentTime - 0.4) this.nextAmbientAt = ctx.currentTime + 0.06;
-    const interval = 60 / MUSIC_THEMES[themeId].bpm / 2;
-    for (let count = 0; count < 5 && this.nextAmbientAt < ctx.currentTime + 0.42; count++) {
-      this.scheduleAmbientStep(this.nextAmbientAt, this.ambientStep, themeId, interval);
-      this.ambientStep = (this.ambientStep + 1) % 32;
-      this.nextAmbientAt += interval;
-    }
-  }
-
-  private scheduleAmbientStep(time: number, step: number, themeId: MusicThemeId, interval: number): void {
-    const ctx = this.ctx!, bus = this.musicLayer!;
-    const theme = MUSIC_THEMES[themeId];
-    const root = theme.roots[Math.floor(step / 8)];
-    const note = theme.melody[step % theme.melody.length];
-    const freq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
-    const voice = (midi: number, level: number, seconds: number, type: OscillatorType) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq(midi);
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(level, time + Math.min(0.11, seconds * 0.25));
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + seconds);
-      osc.connect(gain).connect(bus);
-      osc.start(time); osc.stop(time + seconds + 0.02);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-    };
-    if (note !== null) voice(root + note, theme.leadLevel, interval * theme.noteLength, theme.wave);
-    if (step % 8 === 0) {
-      const padDuration = interval * 7.2;
-      for (const offset of theme.chord) voice(root + offset, theme.padLevel, padDuration, "sine");
-      voice(root - 12, theme.bassLevel, interval * 4, "sine");
+      case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
+      case "flag_scored": this.synthFlagFanfare("score", vol); break;
+      case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
+      case "flag_returned": this.synthFlagFanfare("return", vol); break;
+      case "flag_lost": this.synthFlagFanfare("loss", vol); break;
     }
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
-  playFootstepAtDistance(distance: number, sprinting = false): void {
-    const volume = footstepVolumeAtDistance(distance, sprinting);
+  playFootstepAtDistance(distance: number, sprinting = false, inWater = false): void {
+    const volume = footstepVolumeAtDistance(distance, sprinting)*(inWater?1.65:1);
     if (volume < 0.004) return;
-    this.play("footstep", { volume });
+    const now=this.ctx?.currentTime??0;
+    // Ambient bot traffic should not allocate dozens of overlapping noise
+    // graphs and steal audio work from the player's own steps or shots.
+    if((now*1000)-this.lastRemoteFootstepAt<95)return;
+    this.lastRemoteFootstepAt=now*1000;
+    this.play(inWater?"water_footstep":"footstep", { volume });
   }
 
   // ---- Distant / enemy fire ----
@@ -698,6 +641,62 @@ export class SoundManager {
     osc.start(t); osc.stop(t + 1.05);
   }
 
+  /**
+   * Team-wide CTF cues. Layered, short brass-like motifs rather than ping
+   * oscillators: friendly scoring is a major fanfare; an enemy capture is a
+   * descending minor fanfare. Each client plays the same event locally, so
+   * there is no dependence on voice chat or spatial hearing distance.
+   */
+  private synthFlagFanfare(kind: "pickup" | "score" | "enemy_score" | "return" | "loss", vol: number) {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime;
+    const notes: Record<typeof kind, number[]> = {
+      pickup: [392, 523.25, 659.25],
+      score: [523.25, 659.25, 783.99, 1046.5],
+      enemy_score: [440, 369.99, 311.13, 220],
+      return: [523.25, 659.25, 783.99],
+      loss: [392, 329.63, 261.63],
+    };
+    const isScore = kind === "score" || kind === "enemy_score";
+    const step = isScore ? .125 : .10;
+    const peak = vol * (isScore ? .29 : .22);
+    notes[kind].forEach((freq, i) => {
+      const at = t0 + i * step;
+      // Richer harmonics provide a recognizable stinger even on small speakers.
+      const osc = ctx.createOscillator();
+      osc.type = kind === "enemy_score" || kind === "loss" ? "sawtooth" : "triangle";
+      osc.frequency.setValueAtTime(freq, at);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(kind === "enemy_score" ? 1250 : 2400, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(.0001, at);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, peak), at + .014);
+      gain.gain.exponentialRampToValueAtTime(.0001, at + (isScore ? .32 : .25));
+      osc.connect(filter).connect(gain).connect(this.masterGain!);
+      osc.start(at);
+      osc.stop(at + (isScore ? .34 : .27));
+      osc.onended = () => { osc.disconnect(); filter.disconnect(); gain.disconnect(); };
+    });
+    if (isScore) {
+      // Final resolution distinguishes a true team objective from a pickup.
+      const at = t0 + notes[kind].length * step;
+      const chord = kind === "score" ? [523.25, 783.99, 1046.5] : [220, 261.63, 311.13];
+      chord.forEach(freq => {
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(.0001, at);
+        gain.gain.exponentialRampToValueAtTime(vol * .13, at + .025);
+        gain.gain.exponentialRampToValueAtTime(.0001, at + .34);
+        osc.connect(gain).connect(this.masterGain!);
+        osc.start(at); osc.stop(at + .36);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      });
+    }
+  }
+
   /** Match win: ascending triumphant arpeggio (C-E-G-C major chord roll). */
   private synthMatchWin(vol: number) {
     const ctx = this.ctx!;
@@ -828,6 +827,31 @@ export class SoundManager {
     thump.onended = () => { thump.disconnect(); tg.disconnect(); };
   }
 
+  /** Splashy wet bootfall, mixed through the existing footstep-volume bus. */
+  private synthWaterFootstep(vol:number){
+    const ctx=this.ctx!;
+    const t=ctx.currentTime;
+    const splash=ctx.createBufferSource();
+    splash.buffer=this.noiseBuffer;
+    const band=ctx.createBiquadFilter();
+    band.type="bandpass";band.frequency.value=1550;band.Q.value=.65;
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(Math.max(.0001,vol*.65),t);
+    gain.gain.exponentialRampToValueAtTime(.0001,t+.19);
+    splash.connect(band).connect(gain).connect(this.footstepGain!);
+    splash.start(t);splash.stop(t+.20);
+    splash.onended=()=>{splash.disconnect();band.disconnect();gain.disconnect();};
+    const thump=ctx.createOscillator(),thumpGain=ctx.createGain();
+    thump.type="sine";
+    thump.frequency.setValueAtTime(95,t);
+    thump.frequency.exponentialRampToValueAtTime(48,t+.13);
+    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.22),t);
+    thumpGain.gain.exponentialRampToValueAtTime(.0001,t+.14);
+    thump.connect(thumpGain).connect(this.footstepGain!);
+    thump.start(t);thump.stop(t+.15);
+    thump.onended=()=>{thump.disconnect();thumpGain.disconnect();};
+  }
+
   /** Weapon swap: a quick swoosh + click. */
   private synthSwap(vol: number) {
     const ctx = this.ctx!;
@@ -902,10 +926,6 @@ export class SoundManager {
       this.footstepGain = null;
       this.noiseBuffer = null;
       this.convolver = null;
-      this.ambientGain = null;
-      this.musicLayer = null;
-      this.retiredMusicLayers = [];
-      this.ambientActive = false;
     }
   }
 }

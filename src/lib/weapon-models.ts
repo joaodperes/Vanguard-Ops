@@ -26,18 +26,20 @@ interface Profile {
 export const WEAPON_VISUALS: Record<string, Profile> = {
   // Experimental platforms deliberately have different physical silhouettes, not just new colours.
   // Different silhouette, powerplant and emitter for each mechanical family.
-  wonder_deadlock: { receiver:[.105,.13,.27],guardLength:.08,barrelLength:.18,bore:.02,stock:"none",magazine:"grip",body:"angular",features:["scope","muzzle","rail"],signature:0xff476f },
+  wonder_singularity: { receiver:[.115,.12,.26],guardLength:.075,barrelLength:.15,bore:.027,stock:"none",magazine:"grip",body:"tapered",features:["muzzle"],signature:0x748094 },
+  wonder_corrosion: { receiver:[.18,.16,.38],guardLength:.29,barrelLength:.24,bore:.052,stock:"folding",magazine:"tube",body:"ribbed",features:["vent","muzzle"],signature:0x587047 },
+  wonder_deadlock: { receiver:[.135,.15,.32],guardLength:.15,barrelLength:.18,bore:.028,stock:"none",magazine:"grip",body:"tapered",features:["muzzle","vent"],signature:0xb154d4 },
   wonder_hellfire: { receiver:[.24,.24,.52],guardLength:.49,barrelLength:.45,bore:.15,stock:"heavy",magazine:"drum",body:"ribbed",features:["dual","vent","shield"],signature:0xff7424 },
   wonder_stormweaver: { receiver:[.14,.18,.33],guardLength:.16,barrelLength:.23,bore:.075,stock:"none",magazine:"revolver",body:"tapered",features:["vent","muzzle","rail"],signature:0x48d6ff },
   wonder_bogfather: { receiver:[.23,.19,.48],guardLength:.4,barrelLength:.29,bore:.12,stock:"heavy",magazine:"drum",body:"block",features:["shield","dual","vent"],signature:0x86e042 },
   rifle_electron:   { receiver: [.180,.175,.48], guardLength:.32, barrelLength:.27, bore:.042, stock:"bullpup", magazine:"none", body:"ribbed", features:["vent","rail","muzzle"], signature:0x29d9fa },
-  crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x8bd36a },
+  crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x84919a },
   pistol_arc:       { receiver: [.120,.135,.26], guardLength:.085, barrelLength:.11, bore:.027, stock:"none", magazine:"grip", body:"tapered", features:["muzzle","vent"], signature:0xac82ff },
   rifle_falcon:    { receiver: [.108,.125,.47], guardLength:.43, barrelLength:.41, bore:.025, stock:"precision", magazine:"straight", body:"slim", features:["rail","brake"], signature:0xd19b63 },
   rifle_hydra:     { receiver: [.17,.145,.32], guardLength:.27, barrelLength:.18, bore:.025, stock:"bullpup", magazine:"curved", body:"ribbed", features:["dual","vent"], signature:0x4d99b1 },
   dmr_cyclone:     { receiver: [.135,.15,.50], guardLength:.40, barrelLength:.38, bore:.030, stock:"fixed", magazine:"box", body:"angular", features:["brake","rail"], signature:0xb78bdd },
   dmr_whisper:     { receiver: [.092,.10,.55], guardLength:.48, barrelLength:.47, bore:.019, stock:"precision", magazine:"straight", body:"tapered", features:["scope","muzzle"], signature:0x9abe8e },
-  rifle_ar:        { receiver: [.115,.128,.42], guardLength:.35, barrelLength:.24, bore:.023, stock:"fixed",     magazine:"curved",   body:"angular", features:["carry","rail"], signature:0x5378aa },
+  rifle_ar:        { receiver: [.115,.128,.42], guardLength:.35, barrelLength:.24, bore:.023, stock:"fixed",     magazine:"curved",   body:"angular", features:["guard"], signature:0x5378aa },
   rifle_burst:     { receiver: [.145,.15,.38],  guardLength:.23, barrelLength:.17, bore:.026, stock:"bullpup",   magazine:"straight", body:"tapered", features:["guard","brake"],signature:0x12b7a4 },
   rifle_heavy:     { receiver: [.17,.175,.57],  guardLength:.42, barrelLength:.30, bore:.037, stock:"heavy",     magazine:"box",      body:"block",   features:["brake","vent","rail"],signature:0xb66a55 },
   smg_kp:          { receiver: [.102,.112,.29],guardLength:.19, barrelLength:.13, bore:.018, stock:"folding",   magazine:"curved",   body:"angular", features:["rail","muzzle"],signature:0x2ac0b4 },
@@ -60,6 +62,14 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   pistol_burst:    { receiver: [.105,.12,.28], guardLength:.11, barrelLength:.12, bore:.019, stock:"none",      magazine:"grip",     body:"ribbed",features:["brake"],signature:0x66b3d0 },
   pistol_machine:  { receiver: [.105,.115,.29],guardLength:.13, barrelLength:.13, bore:.022, stock:"wire",      magazine:"straight", body:"block",features:["guard","rail"],signature:0xc85c5c },
   launcher_rocket: { receiver: [.23,.24,.61],  guardLength:.26, barrelLength:.70, bore:.115, stock:"none",      magazine:"rocket",   body:"block",features:["shield","carry","muzzle"],signature:0x93aa67 },
+  pistol_ghost:    { receiver: [.087,.088,.18],guardLength:.04, barrelLength:.07,bore:.016, stock:"none",magazine:"grip",body:"slim",features:[],signature:0x8fe7bf },
+  pistol_bastion:  { receiver: [.115,.13,.30],guardLength:.07, barrelLength:.22,bore:.033, stock:"none",magazine:"grip",body:"angular",features:["brake","muzzle"],signature:0xcaa07a },
+  pdw_mamba:       { receiver: [.112,.115,.25],guardLength:.075,barrelLength:.09,bore:.018, stock:"none",magazine:"straight",body:"ribbed",features:["vent","muzzle"],signature:0xd5db4a },
+  pdw_sentinel:    { receiver: [.13,.125,.29],guardLength:.12, barrelLength:.13,bore:.026, stock:"wire",magazine:"straight",body:"block",features:["rail","guard"],signature:0x6fe2b7 },
+  launcher_breach: { receiver: [.25,.22,.48],guardLength:.20, barrelLength:.46,bore:.105, stock:"none",magazine:"rocket",body:"angular",features:["shield","muzzle"],signature:0xb48b53 },
+  wonder_cluster: { receiver:[.20,.20,.35],guardLength:.22,barrelLength:.30,bore:.10,stock:"folding",magazine:"drum",body:"ribbed",features:["guard","muzzle"],signature:0xe5a538 },
+  wonder_riot_shield: { receiver:[.09,.095,.19],guardLength:.045,barrelLength:.065,bore:.017,stock:"none",magazine:"grip",body:"slim",features:[],signature:0x879aaa },
+  launcher_swarm:  { receiver: [.20,.18,.40],guardLength:.16, barrelLength:.34,bore:.076, stock:"none",magazine:"rocket",body:"ribbed",features:["rail","muzzle"],signature:0x58b9d3 },
 };
 
 /**
@@ -110,6 +120,7 @@ export function buildFirstPersonWeapon(
   darkMat: THREE.Material,
   add: WeaponPartAdder,
   fullSkinMaterial?: THREE.Material,
+  signatureMaterial?: THREE.Material,
 ): number {
   // Bullet Spitter is a deployable tool rather than a conventional LMG.
   // Show a compact placement controller in both first-person and world models;
@@ -119,7 +130,8 @@ export function buildFirstPersonWeapon(
     add(body,0,-.07,-.12);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(.10,.16,.11),darkMat);
     add(grip,0,-.19,-.03);
-    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),fullSkinMaterial ?? new THREE.MeshBasicMaterial({color:0xffad33}));
+    // Unskinned utilitarian remote; only a plain status stripe is visible.
+    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),new THREE.MeshBasicMaterial({color:0x6b8190}));
     add(indicator,0,.0,-.13);
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.21,8),darkMat);
     add(antenna,.08,.045,-.23);
@@ -128,10 +140,11 @@ export function buildFirstPersonWeapon(
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
   const [w,h,l] = p.receiver;
   const c = -0.12;
-  // Legendary finishes also cover the signature inserts, colored rails,
-  // magazine trim and bespoke energy parts. Ordinary skins retain each gun's
-  // recognizable colored furniture.
-  const sig = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
+  // Full-coating finishes may cover furniture; plated finishes like Gold retain
+  // colored signature inserts, dark rails, magazine trim and energy details.
+  // Non-default skins recolor every signature insert (stock butt, magazine foot
+  // and rail badges), avoiding the original weapon's gold/yellow accent bleeding through.
+  const sig = fullSkinMaterial ?? signatureMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
   const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
   const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
   const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {
@@ -224,7 +237,7 @@ export function buildFirstPersonWeapon(
   } else if (id === "crossbow_reclaimer") {
     // Wide compound-crossbow limbs and actual string, rather than a rifle barrel
     // with a new tint. All coordinates are local to the camera (-Z forward).
-    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xa8f26c });
+    const green = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x7f8994 }); // bare metal fletching, no neon-green base
     const addRod = (a: [number,number,number], b: [number,number,number], radius: number, material: THREE.Material) => {
       const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
       const d = vb.clone().sub(va);
@@ -257,6 +270,70 @@ export function buildFirstPersonWeapon(
     box(w*.62,.010,c,.025,.050,.145,violet);
     const cell = new THREE.Mesh(new THREE.SphereGeometry(.046,10,8), violet);
     add(cell, 0,-.125,c+.055);
+  }
+  // Wonder-only reactor architecture. Each emitter silhouette is physically
+  // distinct and uses its own emissive colour on top of the animated body skin.
+  if(id.startsWith("wonder_")){
+    const colours:Record<string,number>={
+      wonder_singularity:0x546078,wonder_corrosion:0x46643f,
+      wonder_turret:0x687782,wonder_deadlock:0x695b65,
+      wonder_hellfire:0xff6c1c,wonder_stormweaver:0x4defff,
+      wonder_bogfather:0x8dcc31,
+    };
+    const energy=fullSkinMaterial??new THREE.MeshBasicMaterial({color:colours[id]??0xb9f3ff});
+    const orb=(x:number,y:number,z:number,r:number)=>{
+      add(new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),energy),x,y,z);
+    };
+    if(id==="wonder_singularity"){
+      // Gravity generator: concentric offset field coils and a recessed core.
+      // Eventide still covers the whole receiver when it is actually equipped.
+      for(const z of [muzzle+.035,muzzle+.095,muzzle+.155]){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.06,.013,8,22),energy);
+        add(ring,0,.015,z);
+      }
+      for(const side of [-1,1]){
+        box(side*(w*.70),.012,c-.015,.025,.065,.15,energy);
+        box(side*(w*.53),.085,c-.07,.03,.022,.19,metal);
+      }
+      orb(0,.015,muzzle-.03,.046);
+    }else if(id==="wonder_deadlock"){
+      // Smart-targeting sidearm: paired asymmetric fins, three target-acquisition
+      // modules and a glowing vented barrel. Not a stock pistol silhouette.
+      for(const side of [-1,1]){
+        box(side*(w*.73),.055,c-.075,.032,.10,.24,energy);
+        box(side*(w*.85),.10,c-.16,.022,.045,.075,metal);
+      }
+      for(let n=0;n<3;n++)orb((n-1)*.053,.105,c-.065,.022);
+      const emitter=new THREE.Mesh(new THREE.TorusGeometry(.051,.016,7,18),energy);
+      add(emitter,0,.015,muzzle+.025);
+      box(0,-.13,c+.04,.087,.06,.14,energy);
+    }else if(id==="wonder_turret"){
+      // Bullet Spitter is built as a separate, grounded turret prop.
+    }else if(id==="wonder_corrosion"){
+      const olive=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0x4c6840});
+      for(const side of [-1,1]){
+        tube(side*.095,-.025,c-.11,.036,.26,olive,10);
+      }
+    }else if(id==="wonder_hellfire"){
+      const yellow=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0xffc12b});
+      const red=fullSkinMaterial??new THREE.MeshBasicMaterial({color:0xc31e0c});
+      for(const side of [-1,1]){
+        tube(side*.11,.03,barrelCenter,.065,barrelLength*.78,red,14);
+        orb(side*.11,.03,muzzle,.075);
+        for(let k=0;k<4;k++)box(side*.12,.13,c-.25+k*.10,.045,.032,.06,yellow);
+      }
+      box(0,.14,c-.15,.19,.055,.31,energy);
+      box(0,-.09,c+.12,.18,.06,.11,red);
+    }else if(id==="wonder_stormweaver"){
+      for(let n=0;n<5;n++){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.076,.015,6,20),energy);
+        add(ring,0,.055,c-.08-n*.085);
+      }
+      for(const side of [-1,1])box(side*.175,.07,guardZ,.025,.14,.49,energy);
+      orb(0,.09,muzzle,.10);
+    }else if(id==="wonder_bogfather"){
+      for(const side of [-1,1])orb(side*.11,.08,c-.1,.09);
+    }
   }
   if (p.features.includes("dual")) {
     tube(-.050,-.035,barrelCenter,p.bore*.80,barrelLength,metal,12);

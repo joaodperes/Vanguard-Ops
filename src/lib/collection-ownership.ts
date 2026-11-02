@@ -7,9 +7,9 @@ export function ownsWeapon(weapon: Pick<WeaponDef, "id"|"unlockCost"|"unlockLeve
   level: number, purchased: readonly string[]): boolean {
   return purchased.includes(weapon.id) || (!weapon.wonder && weapon.unlockCost === 0 && level >= weapon.unlockLevel);
 }
-export function ownsOperativeSkin(skin: Pick<PlayerSkinDef,"id"|"unlockCost"|"unlockLevel">,
+export function ownsOperativeSkin(skin: Pick<PlayerSkinDef,"id"|"unlockCost"|"unlockLevel"|"shopCurrency">,
   level: number, unlocked: readonly string[]): boolean {
-  return unlocked.includes(skin.id) || (skin.unlockCost === 0 && level >= skin.unlockLevel);
+  return unlocked.includes(skin.id) || (!skin.shopCurrency && skin.unlockCost === 0 && level >= skin.unlockLevel);
 }
 /** Skins are owned PER WEAPON, never just because their style was earned on
  * some other gun. Default finish belongs only to a weapon the player owns. */

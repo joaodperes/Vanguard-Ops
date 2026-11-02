@@ -40,3 +40,28 @@ export function wonderCooldownMs(state: WonderChargeState, rules: WonderChargeRu
   const current = tickWonderCharges(state, rules, now);
   return current.charges === rules.maxCharges ? 0 : Math.max(0, current.nextAt - now);
 }
+
+/** Hellfire's three fuel-seconds must be available together before ignition.
+ * On ignition, all fuel is committed; each second recharges sequentially.
+ */
+export function spendFullWonderCharge(
+ state:WonderChargeState,rules:WonderChargeRules,now:number,
+):WonderChargeState|null {
+ const current=tickWonderCharges(state,rules,now);
+ if(current.charges!==rules.maxCharges)return null;
+ return {charges:0,nextAt:now+rules.rechargeMs};
+}
+
+/** One fuel-second is paid on demand by a real Hellfire shot.
+ * Releasing the trigger calls nothing, so reserve charges cannot drain while
+ * idle. A held 8Hz stream reuses its already-paid slice.
+ */
+export function spendHellfireFuelOnShot(
+  state: WonderChargeState, rules: WonderChargeRules, now: number, paidThrough: number,
+  stepMs=1000,
+): { state: WonderChargeState; paidThrough: number } | null {
+  const current=tickWonderCharges(state,rules,now);
+  if(now<paidThrough)return {state:current,paidThrough};
+  const next=spendWonderCharge(current,rules,now);
+  return next?{state:next,paidThrough:now+stepMs}:null;
+}
