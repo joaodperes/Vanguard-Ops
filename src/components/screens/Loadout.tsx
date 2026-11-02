@@ -57,6 +57,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
   const [savedWonderWeaponId, setSavedWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
   useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
+  useEffect(() => { setWonderWeaponId(current?.wonderWeaponId ?? ""); setSavedWonderWeaponId(current?.wonderWeaponId ?? ""); }, [current?.wonderWeaponId]);
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
   // rules-of-hooks are satisfied.
@@ -92,7 +93,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
   const dirtyForPreset = !!current && (
     primary !== current.weapon.id || secondary !== current.secondary.id ||
-    melee !== current.melee.id || perkId !== savedPerk
+    melee !== current.melee.id || perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
   useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
 
@@ -101,7 +102,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
   }
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
-    if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && PRIMARY_CATEGORIES.includes(w.category));
+    if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && PRIMARY_CATEGORIES.includes(w.category));
     if (slot === "secondary") return WEAPONS.filter((w) =>
       ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
         isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
@@ -113,10 +114,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
     primary !== current.weapon.id ||
     secondary !== current.secondary.id ||
     melee !== current.melee.id ||
-    perkId !== savedPerk
+    perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
 
   const save = async () => {
+    if (perkId === "wonder_weapon" && !profile.prestige.wonderWeapons.includes(wonderWeaponId)) {
+      toast.error("Unlock and select a Wonder Weapon first"); return;
+    }
     if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
     setSaving(true);
     const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
@@ -130,11 +134,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           primaryWeapon: primary,
           secondaryWeapon: savedSecondary,
           perkId,
+          wonderWeaponId,
           meleeWeapon: melee,
         }),
       });
       if (res.ok) {
         setSavedPerk(perkId);
+        setSavedWonderWeaponId(wonderWeaponId);
         toast.success("Loadout confirmed");
         await refreshProfile();
         onSaved?.();
@@ -221,7 +227,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
             <div className="flex items-center gap-2 mb-2">
               <Package className="w-4 h-4 text-amber-400" />
-              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Passive Perk</span>
+              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
               <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
             </div>
             <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black`}>
@@ -244,7 +250,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
                   setOpenSlot(null);
                 }}
                 className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.unlockLevel === 1 ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
+                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
                 <span className="text-white/40 leading-relaxed">{perk.description}</span>
               </button>)}
             </div>
