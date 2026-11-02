@@ -1,7 +1,8 @@
 import {describe,expect,test} from "bun:test";
-import {lockedPosition,normalizeTurns,rotatedExtents} from "../src/lib/map-studio-transform";
+import {lockedPosition,normalizeTurns,rotatedExtents,preserveSavedGeometryOnMove} from "../src/lib/map-studio-transform";
+import {transformFeatureAssembly} from "../src/lib/map-studio-construction";
 import {containerSideStripes} from "../src/lib/container-details";
-import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
+import {MAP_BLUEPRINTS,featureFootprint,type MapFeature} from "../src/lib/map-blueprints";
 import {getMap} from "../src/lib/game-protocol";
 import {visualThemeForMap,cityBuildingBoxes} from "../src/lib/map-visuals";
 import {studioBuildingPrefab} from "../src/lib/map-studio-prefabs";
@@ -21,6 +22,36 @@ describe("Map Studio persistent orientation and axis locking",()=>{
     expect(resized).toEqual({w:15,h:3,d:24,turns:1});
     expect(normalizeTurns(-1)).toBe(3);
     expect(normalizeTurns(5)).toBe(1);
+  });
+  test("resize then move never reverts a saved feature's width, depth, height or turn",()=>{
+    const initial:MapFeature={id:"cover",kind:"cover",x:12,y:2,z:-9,w:8,d:3,h:4,turns:1};
+    const resized=transformFeatureAssembly([initial],initial.id,
+      {x:12,y:2,z:-9,w:15,d:7,h:9,turns:1},false)[0];
+    expect(featureFootprint(resized)).toEqual({x:12,y:2,z:-9,w:15,d:7,h:9});
+    // Simulate a Move gizmo whose initial geometry predates the resize.
+    const stale={x:34,y:2,z:-9,w:8,d:3,h:4,turns:0};
+    const move=preserveSavedGeometryOnMove(stale,{...featureFootprint(resized),turns:resized.turns});
+    const moved=transformFeatureAssembly([resized],resized.id,move,false)[0];
+    expect(moved.x).toBe(34);
+    expect(moved.z).toBe(-9);
+    expect(moved.y).toBe(2);
+    expect(featureFootprint(moved)).toEqual({x:34,y:2,z:-9,w:15,d:7,h:9});
+    expect(moved.turns).toBe(1);
+    // Subsequent moves on another axis must remain dimension-neutral.
+    const next=preserveSavedGeometryOnMove({...stale,x:moved.x,z:25},
+      {...featureFootprint(moved),turns:moved.turns});
+    const twice=transformFeatureAssembly([moved],moved.id,next,false)[0];
+    expect(featureFootprint(twice)).toEqual({x:34,y:2,z:25,w:15,d:7,h:9});
+    expect(twice.turns).toBe(1);
+  });
+  test("move keeps last saved geometry for other editable objects too",()=>{
+    const stale={x:4,y:6,z:8,w:4,h:4,d:4,turns:0};
+    const building=preserveSavedGeometryOnMove(stale,{w:28,h:11,d:19,turns:3});
+    const hazard=preserveSavedGeometryOnMove(stale,{w:13,h:2,d:9,turns:2});
+    const legacy=preserveSavedGeometryOnMove(stale,{w:3.5,h:8.25,d:1.5,turns:1});
+    expect(building).toEqual({x:4,y:6,z:8,w:28,h:11,d:19,turns:3});
+    expect(hazard).toEqual({x:4,y:6,z:8,w:13,h:2,d:9,turns:2});
+    expect(legacy).toEqual({x:4,y:6,z:8,w:3.5,h:8.25,d:1.5,turns:1});
   });
   test("a saved building turn rotates doors, furnishings, stairs and gameplay collision together",()=>{
     const original=studioBuildingPrefab("house",87,-80);

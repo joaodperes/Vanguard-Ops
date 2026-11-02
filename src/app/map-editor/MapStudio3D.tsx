@@ -141,7 +141,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       if(!group||!meta)return;
       const d=meta.initial;
       const angle=Math.round(group.rotation.y/(Math.PI/2));
-      const dimensions=rotatedExtents(d,angle,group.scale);
+      // Moving is position-only; a gizmo can still hold an older scale after
+      // switching from Resize to Move before the scene fully refreshes.
+      const dimensions=callbacks.current.mode==="move"
+        ? {w:d.w,h:d.h,d:d.d,turns:normalizeTurns(d.turns??0)}
+        : rotatedExtents(d,angle,group.scale);
       const position=callbacks.current.mode==="move"
         ?lockedPosition(d,group.position,callbacks.current.moveAxis):group.position;
       const transformData:StudioTransform={

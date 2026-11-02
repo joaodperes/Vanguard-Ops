@@ -18,6 +18,7 @@ import {STUDIO_BUILDING_PRESETS,STUDIO_STRUCTURE_PRESETS,studioBuildingPrefab,st
   type StudioBuildingPresetId,type StudioStructurePresetId} from "@/lib/map-studio-prefabs";
 import {legacyCoverToFeature,legacyFlightToFeature,legacyEnvironmentToHazard,toggleOriginalIndex} from "@/lib/map-object-actions";
 import {stairFlightBounds,transformStairFlight,maxLegacyFlightRise} from "@/lib/legacy-stair-flights";
+import {preserveSavedGeometryOnMove} from "@/lib/map-studio-transform";
 import {Undo2,Redo2,Download,Upload,Play,Copy,Trash2,RotateCcw,Plus} from "lucide-react";
 import {snapStudioFootprint,snapStudioElevation,STUDIO_STOREY_HEIGHT,
   type StudioSnapMode,type StudioSnapTarget,type StudioSnapResult} from "@/lib/map-studio-snapping";
@@ -439,8 +440,52 @@ export default function MapEditorClient(){
       }else if(item)Object.assign(item,{[key]:value});
     });
   };
+  // Reading the current authored dimensions here is essential. A 3D gizmo
+  // created before a resize can still emit its old W/H/D on the next drag.
+  // Translations must never replace the geometry stored by the previous edit.
+  const savedGeometry=(s:StudioSelection):{w:number;h:number;d:number;turns?:number}|undefined=>{
+    if(s.type==="feature"){
+      const f=plan.features[s.index];
+      return f?{...featureFootprint(f),turns:f.turns??0}:undefined;
+    }
+    if(s.type==="region"){
+      const r=plan.regions[s.index];
+      return r?{w:r.w,d:r.d,h:.2,turns:0}:undefined;
+    }
+    if(s.type==="hazard"){
+      const h=plan.hazards?.[s.index];
+      return h?{w:h.w,h:h.h,d:h.d,turns:h.turns??0}:undefined;
+    }
+    if(s.type==="prop"){
+      const p=theme.props[s.index];
+      return p?{w:p.w??4,h:p.h??5,d:p.d??4,turns:p.turns??0}:undefined;
+    }
+    if(s.type==="legacyStairs"){
+      const flight=base.editorLegacyStairFlights?.find(f=>f.start===s.index);
+      if(!flight)return;
+      const source=base.editorLegacyCoverSource??base.cover;
+      const saved=stairFlightBounds(flight.indices.map(i=>
+        overrideBox(source[i],plan.legacyCoverOverrides?.[String(i)])));
+      return {...saved,turns:plan.legacyCoverOverrides?.[String(flight.start)]?.turns??0};
+    }
+    if(s.type==="legacyCover"||s.type==="legacyEnvironment"){
+      const cover=s.type==="legacyCover";
+      const original=cover?(base.editorLegacyCoverSource??base.cover)[s.index]:
+        (base.editorLegacyEnvironmentSource??base.environment??[])[s.index];
+      if(!original)return;
+      const overrides=cover?plan.legacyCoverOverrides:plan.legacyEnvironmentOverrides;
+      const saved=overrideBox(original,overrides?.[String(s.index)]);
+      return {w:saved.size[0]*2,h:saved.size[1]*2,d:saved.size[2]*2,
+        turns:overrides?.[String(s.index)]?.turns??0};
+    }
+    return undefined;
+  };
   const transform=(s:StudioSelection,t:StudioTransform,precision=false)=>{
     if(s.type==="generatedBuilding")return;
+    if(mode==="move"){
+      const saved=savedGeometry(s);
+      if(saved)t=preserveSavedGeometryOnMove(t,saved);
+    }
     if(mode==="resize"&&grid>0&&!precision)t={...t,w:constructionDimension(t.w,grid),d:constructionDimension(t.d,grid),h:constructionDimension(t.h,grid)};
     if(s.type==="feature"){
       const f=plan.features[s.index];
