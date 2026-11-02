@@ -1,6 +1,6 @@
 import { weaponById } from "../src/lib/game-data";
 import { describe, expect, test } from "bun:test";
-import { fullWonderCharges, resetWonderChargesOnRespawn, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
 import { prestigeEligible, prestigeChallengeStatus, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
 import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
 import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
@@ -19,34 +19,24 @@ describe("Wonder charge economy", () => {
     expect(tickWonderCharges(empty, rules, 41000).charges).toBe(1);
     expect(tickWonderCharges(empty, rules, 81000).charges).toBe(2);
   });
-  test("every respawn restores full Wonder charges and clears the cooldown", () => {
-    const depleted = spendWonderCharge(spendWonderCharge(fullWonderCharges(rules), rules, 1000)!, rules, 2000)!;
-    const local = new Map([
-      ["wonder_deadlock", depleted],
-      ["wonder_old", { charges: 0, nextAt: 99000 }],
-    ]);
-    const restored = resetWonderChargesOnRespawn(local, "", "wonder_deadlock", rules);
-    expect(restored).toEqual({ charges: 2, nextAt: 0 });
-    expect(local.size).toBe(1);
-    expect(local.get("wonder_deadlock")).toEqual(restored);
-    expect(spendWonderCharge(restored!, rules, 3000)?.charges).toBe(1);
-    expect(wonderCooldownMs(restored!, rules, 3000)).toBe(0);
+  test("death does not refill the spent charge or reset its timer", () => {
+    const empty=spendWonderCharge(spendWonderCharge(fullWonderCharges(rules),rules,1000)!,rules,2000)!;
+    const throughDeath={...empty};
+    expect(throughDeath.charges).toBe(0);
+    expect(tickWonderCharges(throughDeath,rules,16000).charges).toBe(0);
+    expect(tickWonderCharges(throughDeath,rules,41000).charges).toBe(1);
   });
-  test("server respawn only restores the owner's Wonder ammo (including changed loadouts)", () => {
-    const empty = spendWonderCharge(spendWonderCharge(fullWonderCharges(rules), rules, 1000)!, rules, 2000)!;
-    const other = { ...empty };
-    const states = new Map([
-      ["alice:wonder_deadlock", empty],
-      ["alice:wonder_hellfire", { charges: 0, nextAt: 99000 }],
-      ["bob:wonder_deadlock", other],
+  test("a loadout swap starts zero charges without changing other players' states", () => {
+    const state=new Map([
+      ["alice:wonder_deadlock",spendWonderCharge(fullWonderCharges(rules),rules,1000)!],
+      ["bob:wonder_deadlock",fullWonderCharges(rules)],
     ]);
-    expect(resetWonderChargesOnRespawn(states, "alice:", "wonder_deadlock", rules))
-      .toEqual(fullWonderCharges(rules));
-    expect([...states.keys()].sort()).toEqual(["alice:wonder_deadlock", "bob:wonder_deadlock"]);
-    expect(states.get("bob:wonder_deadlock")).toEqual(other);
-    expect(resetWonderChargesOnRespawn(states, "alice:", "wonder_shield", null)).toBeNull();
-    expect(states.has("alice:wonder_deadlock")).toBe(false);
-    expect(states.get("bob:wonder_deadlock")).toEqual(other);
+    const next=drainedWonderCharges(rules,5000);
+    state.set("alice:wonder_deadlock",next);
+    expect(next).toEqual({charges:0,nextAt:45000});
+    expect(spendWonderCharge(next,rules,6000)).toBeNull();
+    expect(tickWonderCharges(next,rules,45000).charges).toBe(1);
+    expect(state.get("bob:wonder_deadlock")).toEqual(fullWonderCharges(rules));
   });
   test("three-charge weapons consume and recover one charge at a time", () => {
     const triple = { maxCharges: 3, rechargeMs: 10000, killBonusMs: 1000 };
