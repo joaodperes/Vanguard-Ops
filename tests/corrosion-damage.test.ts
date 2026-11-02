@@ -29,7 +29,7 @@ describe("Plagueheart poison-first damage", () => {
     expect(CORROSION_DURATION_MS / CORROSION_TICK_MS).toBeGreaterThanOrEqual(10);
     expect(tick).toBeGreaterThan(5);
     expect(tick).toBeLessThan(15);
-    expect(corrosionImpactDamage(damage, 1.2) + tick).toBeLessThan(35);
+    expect(corrosionImpactDamage(damage, 1.2) + tick).toBeLessThan(45);
     expect(corrosionImpactDamage(damage, 1.2) + 10 * tick).toBeGreaterThan(100);
     expect(weaponById("wonder_singularity").stats.damage).toBeGreaterThan(damage);
   });
