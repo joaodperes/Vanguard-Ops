@@ -10,7 +10,7 @@ describe("Wonder Weapon targeted balance pass",()=>{
   test("Event Horizon retains one charge but returns sooner",()=>{
     const w=weaponById("wonder_singularity");
     expect(w.wonder?.maxCharges).toBe(1);
-    expect(w.wonder?.rechargeMs).toBe(44000);
+    expect(w.wonder?.rechargeMs).toBe(55000);
   });
   test("Plagueheart gains splash coverage and poison tick strength without a one-hit kill",()=>{
     const w=weaponById("wonder_corrosion");
@@ -20,15 +20,15 @@ describe("Wonder Weapon targeted balance pass",()=>{
   });
   test("Bullet Spitter actually hits harder and its displayed stat matches both engines",()=>{
     const w=weaponById("wonder_turret");
-    expect(w.stats.damage).toBe(38);
+    expect(w.stats.damage).toBe(26);
     expect(TURRET_DAMAGE).toBe(w.stats.damage);
-    expect(TURRET_LIFETIME_MS).toBe(45000);
-    expect(w.wonder?.rechargeMs).toBe(55000);
+    expect(TURRET_LIFETIME_MS).toBe(25000);
+    expect(w.wonder?.rechargeMs).toBe(70000);
   });
   test("Deadlock tags persist six seconds with faster charge regeneration",()=>{
     const w=weaponById("wonder_deadlock");
     expect(SMART_TAG_MS).toBe(6000);
-    expect(w.wonder?.rechargeMs).toBe(26000);
+    expect(w.wonder?.rechargeMs).toBe(34000);
     expect(w.description).toContain("6s");
   });
   test("Hellfire gains short-range damage and reach without hitting past its cap",()=>{
@@ -41,8 +41,8 @@ describe("Wonder Weapon targeted balance pass",()=>{
   });
   test("Stormweaver uses five-second mines for local and server logic",()=>{
     const w=weaponById("wonder_stormweaver");
-    expect(STORM_MINE_LIFETIME_MS).toBe(5000);
-    expect(w.description).toContain("5 seconds");
+    expect(STORM_MINE_LIFETIME_MS).toBe(6500);
+    expect(w.description).toContain("6.5 seconds");
     expect(w.stats.pellets).toBe(7);
   });
   test("Thunderclap widens shell and submunition radii without more entities",()=>{
@@ -55,13 +55,13 @@ describe("Wonder Weapon targeted balance pass",()=>{
   });
   test("Bulwark repair time and kill acceleration match catalog and shared shield mechanics",()=>{
     const w=weaponById("wonder_riot_shield");
-    expect(RIOT_SHIELD_RECHARGE_MS).toBe(27000);
-    expect(RIOT_SHIELD_KILL_BONUS_MS).toBe(3000);
+    expect(RIOT_SHIELD_RECHARGE_MS).toBe(35000);
+    expect(RIOT_SHIELD_KILL_BONUS_MS).toBe(2000);
     expect(w.wonder?.rechargeMs).toBe(RIOT_SHIELD_RECHARGE_MS);
     expect(w.wonder?.killBonusMs).toBe(RIOT_SHIELD_KILL_BONUS_MS);
     const broken=hitRiotShield(100,0,100,1000);
-    expect(broken.readyAt).toBe(28000);
-    expect(accelerateRiotShield(broken.hp,broken.readyAt,2000).readyAt).toBe(25000);
+    expect(broken.readyAt).toBe(36000);
+    expect(accelerateRiotShield(broken.hp,broken.readyAt,2000).readyAt).toBe(34000);
   });
   test("disabled Bogfather is not inadvertently unlocked by the balance pass",()=>{
     expect(weaponById("wonder_bogfather").disabled).toBe(true);
