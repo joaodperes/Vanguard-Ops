@@ -4,7 +4,7 @@ import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShoc
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutVisibility} from "./map-battle-events";
 import {setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import { clusterShots, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotBashProfile, RIOT_BASH_KNOCKBACK } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
@@ -1061,7 +1061,8 @@ function destroyTurretsHitByMelee(room: Room, player: PlayerNet, range: number) 
  * Reach and facing are server-owned. Batons interrupt ongoing reload actions.
  */
 function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:number){
-  const weapon=weaponById(weaponId),attack=quickMeleeProfile(weapon.stats,weaponId);
+  const weapon=weaponById(weaponId),attack=weaponId===RIOT_SHIELD_ID
+    ? riotBashProfile() : quickMeleeProfile(weapon.stats,weaponId);
   destroyTurretsHitByMelee(room,attacker,attack.reach);
   const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,
     allCombatants(room).filter(c=>c.id!==attacker.id).map(c=>({
@@ -1081,6 +1082,13 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     const beingReloaded=(room.reloadingPlayers.get(victim.id)??0)>now ||
       (room.bots.get(victim.id)?.ai.reloadingUntil??0)>now;
     applyDamage(room,attacker.id,victim,attack.damage,false,weaponId);
+    if(weaponId===RIOT_SHIELD_ID && victim.alive){
+      const dx=victim.pos[0]-attacker.pos[0],dz=victim.pos[2]-attacker.pos[2];
+      const dist=Math.hypot(dx,dz)||1;
+      const pushed:Vec3=[victim.pos[0]+dx/dist*RIOT_BASH_KNOCKBACK,
+        victim.pos[1],victim.pos[2]+dz/dist*RIOT_BASH_KNOCKBACK];
+      if(!blocksBotMotion(room.map.cover,victim.pos,pushed,victim.pos[1]))victim.pos=clampToArena(room,pushed);
+    }
     if(weaponId==="baton"&&victim.alive&&beingReloaded){
     room.reloadingPlayers.delete(victim.id);
     const until=now+1100;
@@ -2959,10 +2967,11 @@ async function handle(socket: any, msg: C2S) {
       const p = room.players.get(socket.id);
       if (!p?.alive || room.downed.has(socket.id)) return;
       const requestedMelee=room.loadouts.get(socket.id)?.meleeWeaponId;
-      const meleeId=room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(requestedMelee===ORBITAL_REAPER_ID?"knife_tactical":requestedMelee??"knife_tactical");
+      const shieldBash=p.weaponId===RIOT_SHIELD_ID && (p.riotShieldHp??RIOT_SHIELD_HP)>0;
+      const meleeId=shieldBash?RIOT_SHIELD_ID:room.orbitalHolders.has(socket.id)?ORBITAL_REAPER_ID:(requestedMelee===ORBITAL_REAPER_ID?"knife_tactical":requestedMelee??"knife_tactical");
       const weapon=weaponById(meleeId);
-      if(weapon.category!=="melee")return;
-      const attack=quickMeleeProfile(weapon.stats,meleeId);
+      if(weapon.category!=="melee" && !shieldBash)return;
+      const attack=shieldBash?riotBashProfile():quickMeleeProfile(weapon.stats,meleeId);
       const now = Date.now();
       if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs ||
           (p.weaponId===meleeId && now - p.lastShotAt < attack.cooldownMs)) return;
