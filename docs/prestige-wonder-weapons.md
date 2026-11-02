@@ -59,8 +59,9 @@ Bogfather is archived and cannot be selected.
 | Bogfather | Archived | — | — | — |
 
 **Recharge persistence:** charge-based Wonders have no reserve ammo or manual
-reload. Recharge continues while holstered and after death; respawning never
-refills them. Ordinary-weapon kills shorten pending recharge by the listed
+reload. Recharge continues while holstered and after death. Ordinary respawns
+restore **at least one charge**, not a full magazine; remaining charge timers
+are preserved. A respawn that applies a new queued loadout still starts at zero. Ordinary-weapon kills shorten pending recharge by the listed
 bonus, but Wonder damage and its persistent effects do not accelerate its own
 charge. Bulwark's normal P-9 reload is independent of shield durability.
 Broken shield HP and its rebuild timer persist through respawn.
@@ -137,7 +138,7 @@ The startup sync intentionally omits `--accept-data-loss`.
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
    mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
-   rejection on replay, no refill from respawn, and zero initial charges after applying a queued loadout.
+   rejection on replay, one minimum charge on ordinary respawn, preserved pending cooldowns, and zero initial charges after applying a queued loadout.
 4. Verify all eight active Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
 5. Verify Gun Game still uses 30 normal tiers and all legacy purchases remain.
