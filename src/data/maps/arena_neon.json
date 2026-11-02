@@ -1,0 +1,234 @@
+{
+  "version": 2,
+  "id": "arena_neon",
+  "blueprint": {
+    "name": "Afterlight City",
+    "shortName": "ALC",
+    "description": "Nighttime streets in a glowing grid of shops, accessible rooftops and a central garden bandstand.",
+    "pace": "tactical",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 150,
+        "d": 150
+      },
+      {
+        "x": -132,
+        "z": -14,
+        "w": 156,
+        "d": 112
+      },
+      {
+        "x": 131,
+        "z": 35,
+        "w": 141,
+        "d": 111
+      },
+      {
+        "x": -25,
+        "z": -126,
+        "w": 132,
+        "d": 120
+      },
+      {
+        "x": 51,
+        "z": 125,
+        "w": 138,
+        "d": 119
+      },
+      {
+        "x": -126,
+        "z": -104,
+        "w": 100,
+        "d": 92
+      },
+      {
+        "x": -111,
+        "z": 74,
+        "w": 112,
+        "d": 103
+      }
+    ],
+    "features": [],
+    "spawns": {
+      "ffa": [
+        [
+          -184,
+          0,
+          -52
+        ],
+        [
+          -184,
+          0,
+          22
+        ],
+        [
+          -148,
+          0,
+          -129
+        ],
+        [
+          -102,
+          0,
+          -131
+        ],
+        [
+          -47,
+          0,
+          -169
+        ],
+        [
+          16,
+          0,
+          -169
+        ],
+        [
+          182,
+          0,
+          -1
+        ],
+        [
+          182,
+          0,
+          79
+        ],
+        [
+          110,
+          0,
+          73
+        ],
+        [
+          99,
+          0,
+          163
+        ],
+        [
+          26,
+          0,
+          167
+        ],
+        [
+          -152,
+          0,
+          106
+        ]
+      ],
+      "red": [
+        [
+          -181,
+          0,
+          -47
+        ],
+        [
+          -182,
+          0,
+          20
+        ],
+        [
+          -150,
+          0,
+          -131
+        ],
+        [
+          -98,
+          0,
+          -131
+        ],
+        [
+          -45,
+          0,
+          -167
+        ],
+        [
+          -156,
+          0,
+          101
+        ]
+      ],
+      "blue": [
+        [
+          183,
+          0,
+          0
+        ],
+        [
+          183,
+          0,
+          78
+        ],
+        [
+          116,
+          0,
+          70
+        ],
+        [
+          101,
+          0,
+          165
+        ],
+        [
+          27,
+          0,
+          163
+        ],
+        [
+          16,
+          0,
+          -168
+        ]
+      ]
+    },
+    "modes": [
+      "ffa",
+      "survival",
+      "gungame",
+      "killconfirmed"
+    ]
+  },
+  "theme": {
+    "biome": "city",
+    "label": "Afterlight city grid, gardens and lit store fronts",
+    "palette": {
+      "floor": "#66677c",
+      "wall": "#8778a6",
+      "cover": "#ae90a8",
+      "accent": "#fe72b9",
+      "platform": "#8996b6",
+      "stair": "#bba9c5",
+      "sky": "#243354",
+      "fog": "#4a587b",
+      "grid": "#70739a"
+    },
+    "ambient": 1.65,
+    "vegetation": 0,
+    "props": [],
+    "surfaces": {
+      "floor": {
+        "pattern": "asphalt",
+        "tileSize": 7,
+        "roughness": 0.91
+      },
+      "wall": {
+        "pattern": "brick",
+        "tileSize": 5,
+        "roughness": 0.79
+      },
+      "cover": {
+        "pattern": "concrete",
+        "tileSize": 4,
+        "roughness": 0.83
+      },
+      "stair": {
+        "pattern": "grate",
+        "tileSize": 3,
+        "roughness": 0.8
+      },
+      "platform": {
+        "pattern": "metal",
+        "tileSize": 5,
+        "roughness": 0.73
+      }
+    }
+  }
+}

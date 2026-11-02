@@ -1,3 +1,4 @@
+import {reactorObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge} from "./bot-appearances";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutVisibility} from "./map-battle-events";
@@ -8,7 +9,7 @@ import { usesWonderCharges } from "./game-data";
 import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
 import { db } from "./db";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -435,7 +436,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -597,7 +598,7 @@ function createLobbyRoom(
   const room: Room = {
     id, mode, config, map,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map.id), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
+    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
@@ -664,7 +665,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.elapsedSeconds = 0;
   // Reset scores/teamScores in case the lobby had any stale state.
   room.teamScores = { red: 0, blue: 0 };
-  room.flags = createCtfFlags(room.map.id);
+  room.flags = createCtfFlags(room.map);
   room.overtime = false;
   room.orbitalCharge=0;room.orbitalHolders.clear();
   room.tags.clear();
@@ -783,8 +784,8 @@ function snapshot(room: Room): S2C {
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
-      ctfBases: {red:ctfBase("red",room.map.id),blue:ctfBase("blue",room.map.id)}, ctfRulesVersion: 2 } : {}),
-    ...(room.map.id==="orbital_nexus"?{
+      ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
+    ...(reactorObjective(room.map)?{
       orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
     }:{}),
@@ -1480,10 +1481,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       }
       io.to(room.id).emit("message",{t:"orbitalReward",playerId:victim.id,active:false} as S2C);
     }
-    if(attacker && attacker.id!==victim.id && attacker.team!==victim.team && room.map.id==="orbital_nexus"){
+    if(attacker && attacker.id!==victim.id && (room.mode==="ffa"||room.mode==="gungame"||attacker.team!==victim.team) && reactorObjective(room.map)){
       // Either the attacker OR the defeated combatant can be in the central
       // charge zone; the server validates opponent ownership before counting.
-      const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map.id,attacker.pos);
+      const charge=orbitalRecordKill(room.orbitalCharge,victim.pos,room.map,attacker.pos);
       if(charge!==room.orbitalCharge){
         room.orbitalCharge=charge;
         io.to(room.id).emit("message",{t:"orbitalAbsorb",pos:[...victim.pos] as Vec3} as S2C);
@@ -1660,13 +1661,13 @@ function dropCarriedFlag(room: Room, carrierId: string, pos: Vec3): void {
 
 // Flag contacts are resolved once by the server on its 20 Hz simulation tick.
 function tickCaptureTheFlag(room: Room, now = Date.now()): void {
-  for (const flag of ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs, room.map.id)) {
+  for (const flag of ctfReturnExpired(room.flags, now, room.config.ctfFlagResetMs, room.map)) {
     io.to(room.id).emit("message",
       { t: "ctfEvent", action: "auto_return", flag, playerId: "server" } as S2C);
   }
   for (const player of allCombatants(room)) {
     if (!player.alive || (player.team !== "red" && player.team !== "blue")) continue;
-    const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos },room.map.id);
+    const event = ctfTouch(room.flags, { id: player.id, team: player.team as FlagTeam, pos: player.pos },room.map);
     if (!event) continue;
     io.to(room.id).emit("message", {t:"ctfEvent",action:event.kind,flag:event.flag,playerId:player.id} as S2C);
     if (event.kind === "capture") {
@@ -1906,13 +1907,13 @@ function tickRoom(room: Room) {
     }
   }
   if (room.preMatchCountdown <= 0) {
-    if(room.map.id==="orbital_nexus"&&room.orbitalCharge>=ORBITAL_KILLS_REQUIRED){
+    if(reactorObjective(room.map)&&room.orbitalCharge>=(reactorObjective(room.map)?.killsRequired??Infinity)){
       // Authoritative single pickup: first eligible combatant occupying the
       // deck wins. Equal-tick ties are resolved by proximity, not player type.
       const contenders=allCombatants(room).filter(p=>
         !room.orbitalHolders.has(p.id)&&
-        orbitalCanClaim(room.orbitalCharge,p.pos,room.map.id,p.alive))
-        .sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+        orbitalCanClaim(room.orbitalCharge,p.pos,room.map,p.alive))
+        .sort((a,b)=>objectiveDistance(room.map,a.pos)-objectiveDistance(room.map,b.pos)||
           a.id.localeCompare(b.id));
       const winner=contenders[0];
       if(winner){
@@ -2180,15 +2181,15 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       carryingFlag:room.flags.red.carrierId===b.id||room.flags.blue.carrierId===b.id,
       hasReward:room.orbitalHolders.has(b.id),
     }));
-    const orbitalObjective=orbitalBotShouldContest(room.map.id,room.orbitalCharge,
+    const orbitalObjective=orbitalBotShouldContest(room.map,room.orbitalCharge,
       roster.find(c=>c.id===bot.id)!,roster,threatDistance)
-      ?orbitalBotDeckGoal(bot.pos,bot.team):null;
+      ?orbitalBotDeckGoal(bot.pos,bot.team,room.map):null;
     const ctfIntent = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
       ? ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
           [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
-          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map.id)
+          Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map)
       : null;
-    const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,bot.pos,room.map.id) : null;
+    const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,bot.pos,room.map) : null;
     ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
     // Critical objectives retain priority. Defenders do not abandon their base
     // to chase memories of distant attackers.
@@ -2298,7 +2299,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
-    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map.id,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier;
+    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier;
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
@@ -2571,7 +2572,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     bot.pos = [bot.pos[0] + (bot.ai.envLaunchX ?? 0) / 20,
       bot.pos[1] + dy / 20,
       bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
-    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map.id,bot.weaponId) / 20;
+    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map,bot.weaponId) / 20;
     const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;
@@ -3107,7 +3108,7 @@ async function handle(socket: any, msg: C2S) {
 
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
-          shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map.id)};
+          shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map)};
         room.clusterVolleys.set(volley.id,{...volley,done:new Set(),dealt:new Map()});
         io.to(room.id).emit("message",{t:"clusterVolley",volley,serverNow:now} as S2C);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:p.id,skinId:msg.skinId,suppressed:false} as S2C);

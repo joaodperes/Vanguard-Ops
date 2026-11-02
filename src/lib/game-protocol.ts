@@ -3,6 +3,7 @@
 // Imported by BOTH the Next.js client (`@/lib/game-protocol`) and the
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
+import {supportsMapMode,type ObjectiveMap} from "./map-objectives";
 import type { ClusterVolley } from "./cluster-grenades";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
@@ -10,7 +11,6 @@ import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT } from "./forest-warfare";
-import { CTF_LAYOUTS } from "./ctf-layouts";
 import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
@@ -182,7 +182,9 @@ export type EnvironmentObject =
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
   | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
 
-export interface MapDef {
+export type MapModeSpawns=Partial<Record<GameMode,{red:Vec3[];blue:Vec3[]}>>;
+export interface MapDef extends ObjectiveMap {
+  modeSpawns?:MapModeSpawns;
   id: MapId;
   name: string;
   shortName: string;
@@ -1273,30 +1275,36 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
-export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge", "whiteout_depot"];
+export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(m,"ctf")).map(m=>m.id).sort((a,b)=>{
+  const priority=["forest_warfare","orbital_nexus","floodgate","compound","skybridge","whiteout_depot"];
+  const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
+  return rank(a)-rank(b);
+});
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) :
-  // Each team mode keeps nine maps without deleting either Afterlight lighting variant.
-  mode === "tdm" ? id in MAPS && id !== "arena_neon" :
-  mode === "killconfirmed" ? id in MAPS && id !== "terminal" :
-  !["forest_warfare", "orbital_nexus", "floodgate", "whiteout_depot"].includes(id);
+  !!MAPS[id] && supportsMapMode(MAPS[id],mode);
+
+export function mapForMode(map:MapDef,mode?:GameMode):MapDef {
+  const pools=mode?map.modeSpawns?.[mode]:undefined;
+  return pools?{...map,spawns:{...map.spawns,red:pools.red,blue:pools.blue}}:map;
+}
 
 export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {
   const map = id && id in MAPS ? MAPS[id as MapId] : MAPS.compound;
-  const layout = mode === "ctf" ? CTF_LAYOUTS[map.id] : undefined;
-  return layout ? {...map,spawns:{...map.spawns,red:layout.spawns.red,blue:layout.spawns.blue}} : map;
+  return mapForMode(map,mode);
 }
 
 /** Client-side, offline-only compilation for unsaved Map Studio drafts.
  * Never modifies MAPS or the server map catalog and cannot affect matchmaking. */
-export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme):MapDef {
-  const templateId=(blueprint.templateMapId||mapId) as MapId;
+export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme,mode?:GameMode):MapDef {
+  // Shipped maps can have an old fallback template ID (Orbital used bunker).
+  // Their draft must start from the SAME native base as the published map.
+  const templateId=(mapId in BASE_MAPS?mapId:(blueprint.templateMapId||mapId)) as MapId;
   const template=BASE_MAPS[templateId]??BASE_MAPS.compound;
   const base=templateId==="terminal"?{
     ...BASE_MAPS.arena_neon,id:"terminal" as MapId,theme:BASE_MAPS.terminal.theme,
     accentColor:BASE_MAPS.terminal.accentColor,lights:BASE_MAPS.terminal.lights,environment:[],
   }:template;
-  return applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme});
+  return mapForMode(applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme}),mode);
 }
 
 // Legacy single-map exports (default to compound) for backward compat

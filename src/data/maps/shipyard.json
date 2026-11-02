@@ -1,0 +1,384 @@
+{
+  "version": 2,
+  "id": "shipyard",
+  "blueprint": {
+    "name": "Breakwater",
+    "shortName": "BRK",
+    "description": "An intimate waterfront brawl: open container court, short warehouse flanks and crane-overlook skirmishes.",
+    "pace": "compact",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 110,
+        "d": 104
+      },
+      {
+        "x": -55,
+        "z": 0,
+        "w": 34,
+        "d": 48
+      },
+      {
+        "x": 0,
+        "z": 56,
+        "w": 70,
+        "d": 36
+      },
+      {
+        "x": 27,
+        "z": -55,
+        "w": 52,
+        "d": 37
+      },
+      {
+        "x": 32,
+        "z": 17,
+        "w": 80,
+        "d": 58
+      }
+    ],
+    "features": [
+      {
+        "id": "fish-market-stalls",
+        "x": -59,
+        "z": -9,
+        "w": 8,
+        "d": 5,
+        "h": 1.4,
+        "kind": "cover",
+        "label": "Market stalls"
+      },
+      {
+        "id": "drydock-crates",
+        "x": -63,
+        "z": 17,
+        "w": 5,
+        "d": 6,
+        "h": 1.8,
+        "kind": "cover",
+        "label": "Dry dock crates"
+      },
+      {
+        "id": "southern-containers",
+        "x": -17,
+        "z": 60,
+        "w": 8,
+        "d": 6,
+        "h": 2.9,
+        "kind": "cover",
+        "label": "Container stack"
+      },
+      {
+        "id": "forklift",
+        "x": 33,
+        "z": -62,
+        "w": 7,
+        "d": 4,
+        "h": 1.6,
+        "kind": "cover",
+        "label": "Forklift"
+      },
+      {
+        "id": "dock-bollards",
+        "x": -32,
+        "z": 49,
+        "w": 3,
+        "d": 3,
+        "h": 1.1,
+        "kind": "cover",
+        "label": "Mooring bollards"
+      }
+    ],
+    "spawns": {
+      "ffa": [
+        [
+          -65,
+          0,
+          -15
+        ],
+        [
+          24,
+          0,
+          -62
+        ],
+        [
+          -27,
+          0,
+          63
+        ],
+        [
+          9,
+          0,
+          69
+        ]
+      ],
+      "red": [
+        [
+          -65,
+          0,
+          -15
+        ],
+        [
+          -27,
+          0,
+          63
+        ]
+      ],
+      "blue": [
+        [
+          24,
+          0,
+          -62
+        ],
+        [
+          9,
+          0,
+          69
+        ]
+      ]
+    }
+  },
+  "theme": {
+    "biome": "harbor",
+    "label": "Golden-hour container wharf",
+    "palette": {
+      "floor": "#a58b6c",
+      "wall": "#527b89",
+      "cover": "#cb9468",
+      "accent": "#ffd18d",
+      "platform": "#a38161",
+      "stair": "#c7ad82",
+      "sky": "#99afc5",
+      "fog": "#9aa9b5",
+      "grid": "#977e5e"
+    },
+    "ambient": 1.65,
+    "vegetation": 0.06,
+    "props": [
+      {
+        "kind": "dock",
+        "x": -44,
+        "z": 42,
+        "w": 23,
+        "d": 6,
+        "h": 1.1
+      },
+      {
+        "kind": "dock",
+        "x": 31,
+        "z": -43,
+        "w": 23,
+        "d": 6,
+        "h": 1.1
+      },
+      {
+        "kind": "boat",
+        "x": -42,
+        "z": 31,
+        "w": 11,
+        "d": 5,
+        "h": 2.4
+      },
+      {
+        "kind": "boat",
+        "x": 34,
+        "z": -30,
+        "w": 9,
+        "d": 5,
+        "h": 2.1
+      },
+      {
+        "kind": "crane",
+        "x": 13,
+        "z": 59,
+        "w": 29,
+        "h": 12
+      },
+      {
+        "kind": "crane",
+        "x": -59,
+        "z": -5,
+        "w": 19,
+        "h": 10
+      },
+      {
+        "kind": "container",
+        "x": -35,
+        "z": 37,
+        "w": 9,
+        "d": 5,
+        "h": 3.3,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": 9,
+        "z": -48,
+        "w": 11,
+        "d": 5,
+        "h": 3.4,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": 44,
+        "z": 25,
+        "w": 10,
+        "d": 4,
+        "h": 3,
+        "color": "#e9bf42"
+      },
+      {
+        "kind": "container",
+        "x": -54,
+        "z": 23,
+        "w": 8,
+        "d": 4,
+        "h": 3,
+        "color": "#437c8f"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": 42
+      },
+      {
+        "kind": "lamp",
+        "x": 18,
+        "z": -44
+      },
+      {
+        "kind": "sign",
+        "x": 1,
+        "z": 47,
+        "w": 11,
+        "text": "BREAKWATER HARBOR"
+      },
+      {
+        "kind": "container",
+        "x": -48,
+        "z": 6,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#d45739"
+      },
+      {
+        "kind": "container",
+        "x": -20,
+        "z": 39,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#e3c046"
+      },
+      {
+        "kind": "container",
+        "x": 19,
+        "z": 37,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": 48,
+        "z": -30,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": -31,
+        "z": -47,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#e9bf42"
+      },
+      {
+        "kind": "container",
+        "x": -7,
+        "z": -58,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#437c8f"
+      },
+      {
+        "kind": "container",
+        "x": 39,
+        "z": 41,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#d45739"
+      },
+      {
+        "kind": "container",
+        "x": -49,
+        "z": -36,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#e3c046"
+      },
+      {
+        "kind": "container",
+        "x": 28,
+        "z": -16,
+        "w": 7.5,
+        "d": 3.8,
+        "h": 3.2,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": -18,
+        "z": -18,
+        "w": 4,
+        "d": 4,
+        "h": 4
+      },
+      {
+        "kind": "crane",
+        "x": 30,
+        "z": 0,
+        "w": 4,
+        "d": 4,
+        "h": 4
+      }
+    ],
+    "surfaces": {
+      "floor": {
+        "pattern": "planks",
+        "tileSize": 7,
+        "roughness": 0.89
+      },
+      "wall": {
+        "pattern": "rust",
+        "tileSize": 5.5,
+        "roughness": 0.78
+      },
+      "cover": {
+        "pattern": "metal",
+        "tileSize": 4,
+        "roughness": 0.79
+      },
+      "stair": {
+        "pattern": "grate",
+        "tileSize": 3,
+        "roughness": 0.65
+      },
+      "platform": {
+        "pattern": "planks",
+        "tileSize": 5,
+        "roughness": 0.86
+      }
+    }
+  }
+}

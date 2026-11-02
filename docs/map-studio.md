@@ -1,250 +1,114 @@
-# Map Studio — connected-district JSON maps
+# Map Studio — connected construction and editable assets
 
-Open **/map-editor** while running the Next.js development server. Map Studio is a developer tool and is not linked from the player main menu.
+Open `/map-editor`. The first-map guide, searchable Asset library, 2D plan and 3D view operate on the same browser draft. Select a recipe and click the viewport, or drag it from the palette. Playtest uses unsaved changes without awarding progression or changing multiplayer maps.
 
-## Object movement and rotation
+## Construction
 
-3D editing saves every quarter-turn (0°, 90°, 180°, 270°) with the object instead of resetting it when moving or reselecting. For authored geometry, theme props, standalone hazards and overridden built-in objects, the saved extents remain axis-aligned for physics. City-building doorways, external/internal stairs and furniture rotate with the saved orientation. In Move mode, explicitly choose **Lock direction X / Y / Z**: the gizmo exposes only that direction, and commits reject movement along the other two axes, including accidental plane dragging.
+- New construction uses 1-unit dimensions, 1-unit walls and 5-unit storeys; building presets are 5 or 10 units tall. Existing maps are not automatically quantized. Grid off enables free dimensions and sub-unit repairs.
+- Draw wall: drag between endpoints in 2D; choose start/end with two clicks in 3D. Collision remains axis-aligned.
+- Join faces attracts touching faces without an imposed gap. Align edges matches edges/centres. 3u clearance deliberately spaces pieces. Buildings retain access-space checks. Magnetic and Surfaces operate independently; Alt bypasses them while stamping.
+- The 3D grid follows the selected snap interval. The 2D plan labels its major-line interval, which is an integer multiple of the snap setting when zoomed out.
+- Join nearest wall face, or Close gap on a warning, extends one face while preserving the opposite end. Intentional openings can remain as warnings.
 
-The two prominent authoring modes are **Construction kits** (regions, walls, stairs, grouped kits and spawns) and **Paint tools** (buildings and themed scenery). Use **Dismiss guide** to hide the tutorial between visits; **Show guide** reopens it.
+## Connected stairs and assemblies
 
-### Breakwater polish
+Independent stairs use a top-landing anchor: x,z is the top edge; axis/sign describe the outward/downhill direction; w is width, d is horizontal run, y is the starting floor and h is rise. The plan, snapping and gizmos convert this to the same physical footprint used by collision.
 
-Containers now show stripes on **both long faces** whether they run along the X or Z axis. The floating moving cargo platform and independent authored crane platform have been removed, while the dock layout, normal cover, existing supported crane routes and container stacks remain.
-
-## Quick Build — dev workflow
-
-Map Studio now includes a first-map guide, direct cursor placement, eight reusable city building kits, and seven geometry kits (alley, room, rooftop, market stalls, checkpoint, stairwell, courtyard).
-
-In 3D, choose a building or kit and click the ground to stamp it. The building preview is green for a valid placement and red for a detected overlap, map-boundary or spawn problem. Repeat placement can stay enabled for bulk decoration. Existing procedural Afterlight buildings can be selected and converted into independently editable authored objects, suppressing their generated duplicates. The Day and Night variants share city geometry changes and authored props while retaining separate lighting palettes.
-
-The Collision toggle displays the real shared collider geometry. Safety overlay highlights positioned map problems. District links shows a coarse overlap/portal network, not actual bot pathfinding. 2D and 3D author the same draft.
-
-Playtest draft sends unsaved geometry directly into a non-rewarding offline FPS session with 0, 3 or 6 bots. Exit back to Map Studio to restore browser-local work. Save bundle exports one portable JSON containing both the complete blueprint document and visual themes; Import map / bundle restores either that bundle or a blueprint-only JSON.
-
-Publishing still requires exporting the blueprint and theme JSON source files, reviewing and committing them in the repository, and rebuilding. This is deliberate: browser drafts do not mutate live multiplayer maps. Automated tests cover map schemas, city physics, editing primitives, playtest compilation and build checks; final rendering, FPS performance, sightlines and bot quality still require an actual browser/in-game playtest.
-
-## Authoring
-
-Choose one of six maps or type a new unique ID and select **New** to clone the current template. The editor supports:
-
-- Draw connected **walkable regions** using rectangles and supported circle/triangle approximations; overlapping regions form larger districts and irregular footprints.
-- Regions may be non-square rectangles or approximated circles/triangles. Arbitrary freehand polygons are not supported.
-- Use **Select / Move** and drag inside a region or on its outline to reposition it. Regions are combined at runtime into one footprint: interior shared edges are not physical walls. The minimap also draws their **union outline**, while the editing view still shows individual rectangles for selection.
-- Draw **hard cover**, **elevated platforms** with automatically generated physical stair flights, and place team/FFA **spawns**.
-- Select, drag, edit precise dimensions, duplicate, delete, zoom and undo.
-- Enable/disable **Snap drawing and movement to grid** in Placement precision. Select 1, 2, 5 or 10 world-unit X/Z increments. This controls horizontal placement, **not** platform height.
-- Platforms expose height and generated stair geometry in the inspector. Independently authored stairs and elevation snapping are supported; see the object-authoring and 3D editing sections below.
-- Edit name, short name, description and pace; import/export all maps together as JSON.
-- Draft persistence to local browser storage, geometry and spawn validation.
-
-The authoritative JSON file is `src/data/map-blueprints.json`. Export from Map Studio and **replace that file in the repository** to publish; restart/rebuild the game. No production API accepts arbitrary player-authored map mutations, avoiding user-content injection into shared matches.
-
-A new map's `templateMapId` chooses one of the six core environments for its lighting, inherited buildings and environmental objects; the blueprint supplies its additional districts. After committing its JSON, the new map is added to the runtime `MAPS` registry/Play map list through the blueprints. **Integration still needs review:** `MapId` in `src/lib/game-protocol.ts` is a fixed TypeScript union, and a new key should be checked against typed protocol/config consumers, room creation and server selection before declaring the map ready.
-
-## Geometry specification
+Choose Attach to platform or Attach to nearest platform. New stairs close to a platform also attach when Magnetic is enabled. A saved connection contains:
 
 ```json
-{
-  "version": 1,
-  "maps": {
-    "my_map": {
-      "templateMapId": "compound",
-      "name": "MY MAP",
-      "shortName": "MYM",
-      "description": "Connected districts",
-      "pace": "balanced",
-      "regions": [{"x":0,"z":0,"w":150,"d":150},{"x":90,"z":15,"w":75,"d":80}],
-      "features": [{"id":"tower-a","x":88,"z":16,"w":12,"d":12,"h":5,"kind":"platform"}],
-      "spawns": {"ffa":[[0,0,0]],"red":[[-40,0,0]],"blue":[[110,0,30]]}
-    }
-  }
-}
+"attachment": { "platformId": "roof", "edge": "east", "offset": 0, "baseY": 0 }
 ```
 
-- Coordinates use world-space **X / Y / Z**, with the floor at Y=0. Region/feature centers are X/Z; `w,d` are **full** extents, unlike the engine's CoverBox half-extents.
-- A map footprint is the union of all regions. Shared edges disappear; the remaining segments become tall solid walls in the same collision/ballistics list on client and server. The legacy `size` is only the broadphase bounding square.
-- Platforms create stairs at **both north and south sides**. Leave approach space clear, especially near the boundary. A platform is not a magic jump/teleport.
-- New spawns must be inside the footprint, outside hard cover/hazards, and distributed across districts.
-- JSON files are bundled at build time. Browser drafts do **not** silently override live multiplayer maps.
+The landing follows platform movement, dimensions, height and quarter-turn rotation. Its rise/run and safe tread count are derived in both editor and shared runtime compilation. Adjust the landing edge, offset and starting floor in the Inspector. Detach landing permits manual placement. Moving stairs individually detaches them; assembly operations retain links. Explicit attachment disables that platform's automatic stairs to avoid duplicate flights; Auto stairs can be re-enabled deliberately.
 
+Construction kits retain an assemblyId. Edit entire assembly applies move, rotate, resize, duplicate and delete to all pieces in one undo action. Copies receive fresh IDs and internal references. Ungroup assembly allows separate editing while preserving landing attachments.
 
-## Per-map visual identity (new)
+## Precision and diagnostics
 
-A map is composed of **two independent JSON layers**:
+Exact bottom/top Y controls move a face without changing thickness for authored props, hazards and inherited boxes/stair flights. Authored geometry uses bottom-based Y; inherited boxes and hazards use centre-based Y. Legacy flights retain a safe maximum rise for their fixed tread count.
 
-1. `src/data/map-blueprints.json` — physical regions, cover, climbable platforms and spawns.
-2. **`src/data/map-themes/<mapId>.json`** — biome, floor/wall/cover/trim colors, ambient illumination, visual landmarks and vegetation density.
+Warnings measure small wall gaps, buried landings, height mismatches, missing platform references, and blocked stair routes/headroom. Stair tests use compiled boxes and shared bot traversal rules. Select an affected object directly from its warning. Checks do not prove exhaustive reachability, balance or rendering performance; still walk the routes and test with bots.
 
-The six shipped themes are:
+## Asset library
 
-| Map | Scale | Visual identity |
-| --- | --- | --- |
-| Blacksite (`bunker`) | compact | Warm concrete, emergency lights, tight vault chambers |
-| Breakwater (`shipyard`) | compact | Sunlit dock containers, crane silhouettes, shipping machinery |
-| Verdant Ruins (`compound`) | medium | Jungle canopy, moss-covered stone, ruined temples and boulders |
-| Glassline (`terminal`) | medium | Bright city transit plaza, shops, windows and planters |
-| Ridgefall (`skybridge`) | large indoor | Enclosed industrial steelworks, foundries, gantries and maintenance bays |
-| Afterlight City (`arena_neon`) | enormous | Colorful downtown, shop signage, glowing windows and street lights |
+The library holds editable recipes. Container, Red container and Blue container share one primitive and collision recipe; the variants supply different colors. Each placed copy stores its own supported dimensions, orientation and color. Editing a copy does not change other copies or the original preset.
 
-Example theme file (use hex CSS colors, not integer colors):
+Search Construction, Buildings, Props and My assets. Edit an object or geometry assembly, enter a name and choose Save to My assets. Recipes keep relative offsets and internal landing links; stamping allocates fresh IDs. Personal recipes persist in that browser under vanguard-studio-assets-v1. Export assets / Import assets transfer a version-1 recipe library. Updating a recipe does not retrospectively update placed copies.
+
+Current recipes use procedural game primitives. They do not import arbitrary model files, scripts or URLs. See `docs/asset-library-and-imports.md` for external art reuse.
+
+## Canonical map files and migration
+
+Each of the nine registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus, floodgate and whiteout_depot. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
+
+Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
+
+Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 maps, v2 backups, v1 blueprint JSON and old split bundles. Undo and JSON roundtrips preserve links and assemblies. Export map writes one file for review/rebuild; Backup all saves the editor library. New map IDs still need static registration and room/protocol review before publishing.
+
+## Validation and promotion
+
+Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck` and `bun run build`. Connection regressions cover all landing directions, multiple heights, ascent/descent, blocked headroom, rotation, resizing, copying and JSON roundtrips. Preserve client/server parity and Orbital reactor rules.
+
+Before promotion, verify real pointer/touch placement, player movement, inherited exact faces, undo/redo, draft recovery, map appearance and online behavior. See `docs/dev-test-checklist.md`; the previous guide is archived at `docs/archive/map-studio-before-connections.md`.
+
+## Bundled texture library
+
+Under Visual theme → Surface recipes, choose a bundled texture for floor, wall, cover, stair or platform. Each slot includes a preview, world-unit tile scale, roughness and a procedural fallback. Six Kenney CC0 prototype panel textures are bundled locally; no runtime CDN requests are made. Texture IDs survive map export/import. The 3D construction view remains a physics proxy; use Playtest to inspect the textured game rendering.
+
+## Map objectives and supported modes
+
+Under **Objectives and modes**, select a flag, capture zone or reactor, choose the team when applicable, and place its marker on a reachable surface. Markers appear in both 2D and 3D and in the Objectives layer. Select one to move it with the gizmo or edit exact X/Y/Z, horizontal trigger radius and vertical tolerance. Reactor records also expose charge radius and kills required. These are gameplay triggers; placing a marker does not construct a platform or stairs.
+
+Enable the map's supported modes using the checkboxes. CTF requires exactly one red flag, blue flag, red capture zone and blue capture zone. Missing or duplicate roles, unsupported objective kinds, invalid tuning and positions outside the walkable footprint block playtest and single-map export. Other modes do not require these CTF records. The current runtime supports one optional reactor per map; it awards the existing temporary Nexus Reaper and resets its charge after one eligible claimant wins. Multiple reactors with independent state or another reward mechanic require an explicit runtime extension.
+
+Choose **Playtest mode** to run that mode against the current draft, including its unsaved objective definitions. This works for a new draft ID without a map-name check. Draft previews remain offline and do not publish content or award progression. New deployed map IDs still require the existing static registration/protocol review.
+
+For an elevated flag or reactor, add approach points at actual stair entrances. Bots choose the nearest entrance before approaching the objective. Optional `approachLandings` holds matching upper waypoints for a second leg (used by Forest Warfare's existing tree stairs); each landing corresponds to the entry at the same index. Moving the objective moves both entry and landing points, but does not move physical geometry. Inspect and traverse the route after editing. Trigger validation does not prove collision-free access or balanced flag placement.
+
+The blueprint fields are shared by the editor, compiled maps, offline rules and authoritative server:
 
 ```json
 {
-  "biome": "jungle",
-  "label": "Lush jungle ruins",
-  "palette": {
-    "floor": "#566647", "wall": "#475340", "cover": "#849077",
-    "accent": "#b9cf77", "platform": "#7b8b71", "stair": "#9c9c7c",
-    "sky": "#9cc3b6", "fog": "#9fb9a5", "grid": "#53674a"
-  },
-  "ambient": 1.65,
-  "vegetation": 0.8,
-  "props": [
-    { "kind": "tree", "x": 127, "z": 42, "h": 13 },
-    { "kind": "rock", "x": 112, "z": -9, "w": 6, "d": 5, "h": 3 }
+  "modes": ["ctf", "tdm"],
+  "gravityScale": 1,
+  "objectives": [
+    {
+      "id": "central_reactor",
+      "kind": "reactor",
+      "pos": [20, 5, -10],
+      "radius": 3.5,
+      "verticalTolerance": 2.6,
+      "chargeRadius": 38,
+      "killsRequired": 10,
+      "approaches": [[20, 0, -23], [20, 0, 3]]
+    }
   ]
 }
 ```
 
-Supported `kind` values: `tree`, `bush`, `rock`, `ruin`, `temple`, `shop`, `lamp`, `container`, `crane`, `terminal`, `sign`, `antenna`, `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`. Many types accept optional `w`, `d`, `h`, `text`. `vegetation` ranges from 0 to 1 and scatters deterministic flora inside the walkable region while avoiding cover and spawn locations. JSON theme files are imported through `src/lib/map-visuals.ts`; **for a new map-specific theme file**, add its static import to that module. A map without its own theme can inherit the theme matching its `templateMapId`.
+This is a reactor-only fragment, not a complete CTF setup: include all four team records when enabling CTF. A flag/capture-zone record uses `team: "red"` or `"blue"` instead of the reactor's charge fields. CTF contacts use horizontal radius and symmetric vertical tolerance. Reactor charging uses horizontal distance from its saved center and counts an eligible enemy kill when either fighter is in range, regardless of elevation; claiming requires standing within its radius from 0.65 units below its saved Y to `verticalTolerance` above it. Claim ties use distance to that center and then stable player ID. Base map gravity is independent of reactor presence; equipped Reaper movement effects still require the reactor mechanic.
 
-**Important gameplay detail:** rock/tree/building silhouettes are shared with collision where appropriate; storefronts are **exterior buildings**, not modeled enterable interiors. To create an enterable interior, author real physical geometry and door paths; do not draw fake walkable doorways. The theme is not a replacement for the gameplay blueprint.
+Orbital Nexus objective positions, charge settings and 0.6 gravity are now stored in its canonical map JSON. Forest Warfare remains a native geometry template; its existing objective positions and stair waypoints live in `src/data/maps/forest-objectives.json`. Old orbital/forest imports that omit objective data receive their compatibility defaults; explicit empty arrays are preserved. Maps without a `modes` field retain the five previous non-CTF modes.
 
-**Route-design rules:** keep two or more viable flanks around perches, short and interrupted sightlines around open courts, obstacles sized for cover rather than 100-unit hallway walls, and accessible elevated positions with real stairs. Sniper perches should overlook contested space but should not lock every route. Retain truly compact maps for shotgun/SMG combat as well as vast outdoor maps. Before publishing, playtest spawn safety and A-to-B travel times in 1v1, 3v3 and 7v7. The map builder suppresses new features intersecting known spawns, but this is a fail-safe, not an excuse to author invalid positions.
+### Extending the system
 
-The built-in **Orbital Nexus** map (`orbital_nexus`) supports CTF, TDM and Kill Confirmed. Flags live on the ground at X=±76 and deliveries at X=±86, with flat three-lane bot navigation rather than Forest Warfare tree stairs. Its blueprint includes mirrored cover, command decks, a breachable north bulkhead and ten jump pads; its `orbital_nexus.json` theme provides the orbital palette and decorative props. Decorative gas-giant/reactor geometry is rendered separately and does not add invisible shared collision.
+`src/lib/map-objectives.ts` owns the typed objective grammar, mode requirement table, lookups, route helper and structural validation. New modes using existing flag/zone/reactor mechanics can share these definitions without adding coordinate checks for map names. Add the mode to `GameMode`, `MODE_OBJECTIVES`, its catalog/lobby and actual scoring/match handlers. For a new objective mechanic, add a discriminated kind and its schema/validator/editor fields, implement shared rules with client rendering and authoritative server state/events, and add regression tests. Arbitrary scripts, URLs and unknown behavior fields are rejected. Current `orbital*` wire event names are retained for compatibility; rules version 5 requires restarting/redeploying both client and server together.
 
-**Floodgate** (`floodgate`) is the third dedicated CTF layout, also available in TDM/KC, and supports 3v3, 5v5, 7v7 and 16v16. Its 352×212 footprint, collision-backed turbine roof, machinery, spillway baffles, maintenance yard, four stair-accessible decks and 16 spawns per team live in the blueprint/theme JSON. It starts with no inherited cover, spawns or hazards. Flags are at X=±132 and deliveries at X=±148, all on the ground. The optional maintenance shutter is breachable; it never seals the only route. See [layout and playtest notes](floodgate.md).
+## Synchronization with dev — 2026-10-30
 
-Periodic `spikes` hazards now accept `visual: "steam"` and `warningFor` (seconds), exposed as **Trap appearance** and **warningFor** in the Inspector. This reuses the existing server damage/cooldown and `environmentTime` synchronization. `warningFor` must be nonnegative and no greater than `period - activeFor`; offsets must be finite. Steam vents show teal idle rims, flashing amber warnings and fixed-mesh jets during activation. Copying, exporting and draft playtesting preserve these fields. No particle spawning or additional point lights are used. The HUD derives Floodgate's purge countdown from the same synchronized cycle; warnings cause no damage. Legacy traps keep their original behavior when these fields are omitted.
+Floodgate is registered as the eighth unified document, `src/data/maps/floodgate.json`. Its native empty base, authored geometry, theme, 16 unique spawns per team, four pressure vents and maintenance shutter are preserved. The editor exposes steam/spike appearance and warning duration for periodic hazards; exports, copies and draft playtests retain these fields. Full backdrop, purge rendering and synchronized event HUD remain in the game renderer. See [Floodgate](floodgate.md) for event timing and route notes.
 
-For a new map ID, preserve all existing entries in the version-1 `maps` object; do not replace the whole export with a single-map fragment. Adding `src/data/map-themes/<mapId>.json` alone is insufficient: add the import and map entry to `MAP_VISUAL_THEMES` in `src/lib/map-visuals.ts` or the runtime will use its template palette. Confirm props, physical cover and spawns do not disagree, and test bot movement around platforms and exits.
+Forest Warfare, Orbital Nexus and Floodgate support CTF/TDM/Kill Confirmed. Verdant Ruins and Ridgefall additionally support the CTF trial layouts from current dev. The CTF picker retains the three dedicated maps first. Updated map capacities, protected spawn selection and weapon/bot changes from dev are retained.
 
-**Editor scope:** Map Studio authors blueprint geometry, standalone stairs, supported hazards and local theme/prop drafts. Existing TypeScript template hazards, platform stairs and some scenery are displayed as read-only previews, not removed by blueprint exports. Theme exports are separate files and still require static import registration for new map IDs. The preview does not fully render Three.js materials, effects or scenery.
+The trials' rear spawn pools now live in each unified blueprint's optional `modeSpawns.ctf` alongside their editable objectives. The **Objectives and modes** section exposes these override coordinates. `getMap(id, mode)` and `compileMapStudioDraft(id, blueprint, theme, mode)` apply the same overrides; other modes keep their normal pools. Choose CTF in Playtest mode to use them. Legacy `src/data/ctf-layouts.json` remains a migration/reference snapshot, while runtime contact positions and spawn selection use the compiled unified document. Explicit empty objective arrays are never silently replaced.
 
-The editor loads as a browser-only Next.js component, avoiding hydration mismatches between server map labels and browser drafts. Drafts are stored under `vanguard-map-studio-v1` (blueprints) and `vanguard-map-studio-themes-v1` (themes). If an old draft has different map names, export it first before using **Restore shipped maps**. Restart the dev server if Turbopack displays stale code.
-
-Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`, `bun run build` and perform manual offline/online matches before requesting a merge.
-
-## 3D map editing and legacy objects
-
-Map Studio opens in **3D View** by default. Use the **2D View** button to return to the original precision drafting grid. Both views edit the same browser-local blueprint/theme drafts.
-
-### Precise vertical placement
-
-The 3D editor's original **Snap drawing and movement to grid** option was a 2-unit grid by default. Three.js's stock transform snap applies to all three axes, causing moving a wall, platform or stair flight up/down to jump between whole grid levels. **Map Studio now snaps X/Z only**; Y movement in Move mode remains free, even when the horizontal drawing grid is on.
-
-For exact placement, select an object and use **Exact vertical placement → Bottom Y** or **Top Y** in the Inspector. Enter any decimal (for example `5.25`), then press Enter or leave the field. Changing either face moves the whole object **without resizing it**. Authored cover/platform/stairs and props use bottom-based Y; built-in collision boxes, original staircase groups, and hazards have center-based Y internally. The Inspector handles that conversion automatically. Spawn points have zero height and their Y is their exact elevation.
-
-**Height (H)** is still the object's thickness/rise and can be edited separately. For example, a 2.5-unit-tall barrier with Bottom Y = 5.25 occupies Y = 5.25 through 7.75; setting Top Y to 8.0 moves it up to Bottom Y = 5.5 without stretching it.
-
-### Navigating the 3D viewport
-
-- **Camera / select:** Left-drag to orbit; right-drag to pan; scroll to zoom. While the mouse is over the viewport, **W/A/S/D** flies horizontally, **Q/E** moves down/up, and **Shift** increases speed. Click a selectable object to highlight it.
-- **Move object:** Select an object and choose **Move object**. Drag the red/green/blue gizmo arrows to change its coordinates.
-- **Rotate 90°:** Choose **Rotate 90°** to use a yaw-only rotation gizmo. The current collision engine uses axis-aligned boxes, so turning an object swaps its width/depth. Full arbitrary-angle rotations and rotated triangular region footprints are not supported.
-- **Resize object:** Choose **Resize object** and drag a gizmo axis; the right-hand **Inspector** also exposes exact dimensions. Changing the Y size of a cover, platform or stair object changes its height.
-- Use the left toolbar to select a shape/object type and click **Add [object] at camera focus** in the viewport. The editor creates it under the camera's orbit target. Select and transform the new object, then export JSON.
-
-### Editing pre-existing stairs, cover and hazards
-
-The 3D viewport can select the game's **original engine-authored collision boxes**, including **complete stair flights**, as well as authored JSON features, spawns, props and hazards. Engine-authored objects appear as semi-transparent gray or amber boxes, and the Inspector labels them **Existing game geometry**.
-
-These are not ordinary JSON `features` entries. Editing an original cover box adds a `legacyCoverOverrides[index]` entry to `src/data/map-blueprints.json`; original engine hazards similarly use `legacyEnvironmentOverrides[index]`. Each override stores an exact world-space center (`x,y,z`) and **full** dimensions (`w,h,d`). The runtime applies those overrides to the stable engine-authored prefix before adding JSON features and generated perimeter walls. The original TypeScript map source is not mutated.
-
-**Original stair flights are selected as complete staircases**, not individual treads. In 3D, click *any* stair tread in a flight and the whole staircase highlights; choose Move, Rotate or Resize, or edit the flight's six dimensions in the Inspector. The 2D view also shows a selectable outline for each flight. **Reset edits** discards all its tread overrides together. One edit is expanded into a set of `legacyCoverOverrides` values for the original steps; the runtime still uses individual collision treads, so player/bot collision is unaffected by this editor grouping.
-
-### Copying and deleting built-in objects
-
-Select a built-in cover box, platform, hazard or entire staircase in **2D or 3D**, then use the Inspector's **Duplicate**, **Reset edits** or **Delete** buttons. These are deliberately separate operations:
-
-- **Duplicate** makes a new independently editable JSON object, offset in X to avoid exact overlap. Built-in walls and platforms become `features`, a built-in staircase becomes one authored `stairs` feature whose treads are automatically generated, and built-in hazards become authored `hazards` retaining their gameplay properties. The original remains untouched. Copies can be moved, resized or deleted just like other authored objects.
-- **Delete** removes the selected original from the **compiled game map**, including its collision/hazard behavior, by adding source indices to `legacyCoverDisabled` or `legacyEnvironmentDisabled` in the blueprint. Deleting a legacy staircase disables *every tread* in that flight together. IDs and original indices remain stable so deleting one object does not shift saved edits to another object.
-- **Reset edits** resets the selected original's position/dimensions (or a full staircase's tread overrides); it does **not** delete the original.
-- Deleted originals can be brought back individually in the Inspector's **Deleted built-in objects** section, or with **Undo**. This is more practical than permanently removing geometry from TypeScript templates.
-
-**Copy and Delete affect local drafts first.** Use **Export JSON**, replace `src/data/map-blueprints.json`, and rebuild/restart to publish the changes to offline and online gameplay. The 3D editor is a physics-proxy preview, so copied staircases may not be an exact mesh match to the original; test clearances, stairs and bot routes after deleting structural support.
-
-**Legacy stair flights keep their original number of steps.** The Inspector enforces a maximum safe total rise for that fixed number to avoid creating unclimbable stairs. For a taller structure or a different step count, create an **Independent stairs** feature; those are already one authored object and automatically generate the needed steps from their height and run. Check landing alignment and bot traversal after changing a flight; 90-degree rotation is supported, not arbitrary diagonal rotations. The 3D viewer uses lightweight collision/prop proxies, not an exact rendered game match.
-
-**Export and rebuild:** 3D transformations are saved to your local editor draft; publish using **Export JSON** to replace `src/data/map-blueprints.json`. Theme edits still require their separate theme JSON export. Test the compiled map in an actual match after rebuilding. For new maps, update typed runtime registries as explained earlier.
-
-## Map Studio object authoring (October 2026)
-
-The feature branch `feat/map-studio-object-authoring-20261023` adds a **Geometry** tab and **Theme & props** tab. Both stay as browser-local drafts until the appropriate JSON files are exported, placed in the repository and rebuilt.
-
-### Walkable shapes and region union
-
-- **Rectangle**, **Circle / ellipse**, and **Triangle** tools draw regions. The inspector can switch their `shape`. The circle/ellipse uses its `w`/`d` bounding dimensions; the triangle has a north-facing tip and south-facing base. Regions can still be dragged and overlapped.
-- Overlapping regions form one walkable footprint, not internal physical walls. All shapes are translated into a union of **horizontal rectangle strips** (usually 2 world units, capped at 120 strips for very large shapes) for the existing axis-aligned collision and visible floor generation. This means round and sloping boundaries have intentional small steps, *not* perfect curved/diagonal hitboxes. Playtest near those edges.
-- The HUD minimap draws the union boundary, including curved regions approximated by their strips. Don't mistake individual editable region selection outlines for walls.
-
-### Hard cover on raised platforms
-
-A hard cover feature has two separate vertical coordinates: **`y` is the bottom elevation**, and **`h` is the wall's own height**. Previously the editor treated height as a ground-up solid, causing walls placed on floating platforms to extend down to y=0. Now select the cover, set Base elevation (Y) to the platform's top or click **Snap cover onto platform top**. Its height remains unchanged (for example a 2.3-unit barrier on a 5.2-unit catwalk occupies y=5.2–7.5). In 3D Move shifts the cover vertically without resizing it, and Resize changes its height.
-
-### Independent stairs, hazards and existing environment previews
-
-- **Independent stairs** are `features` with `kind: "stairs"`. `x,z` describe the top landing edge; `axis` is `x` or `z`; `sign` chooses the outward (descending) direction; `w` is width, `d` is horizontal run, and `h` is landing height. Steps automatically satisfy the engine's maximum approximately 0.42-unit rise. The selected stairs have **Snap to nearest platform**, which aligns them to the closest platform edge, matches height, selects axis/direction and derives the run. Review approach clearance and collision afterwards.
-- Existing platform features continue to generate north and south flights unless you uncheck **Auto-generate north/south stairs** (`autoStairs: false`). This prevents duplicating stairs when authoring custom access.
-- **Place hazard** supports `fire` (DPS), `spikes` (damage/period/active time), `jump_pad` (launch vector), `moving_platform` (destination/period) and `destructible_wall` (HP). Select an authored hazard for per-type parameters. These live under the blueprint's optional `hazards` array and convert to the existing shared `EnvironmentObject` representation used offline and by the server.
-- Existing hazards and legacy stair objects from the engine's TypeScript templates are read-only previews. To move/remove those, edit the source template or migrate them deliberately; exporting the new JSON does not erase the template objects. Avoid ID conflicts and placement over spawns.
-
-### Visual themes and props
-
-- **Theme & props** edits theme label, biome, palette colors, ambient intensity, vegetation density, optional surface patterns, tile sizes and roughness. Choose **Place prop** and drag a footprint; select it to edit the scenery kind, position, dimensions, height, text and optional color.
-- Click **Export theme** to download `<mapId>.json`, then replace or add `src/data/map-themes/<mapId>.json`. New map-specific themes require a **static import and registry entry** in `src/lib/map-visuals.ts`; they do not auto-load at runtime. Map blueprints still export separately via **Export JSON** into `src/data/map-blueprints.json`.
-- **Import theme** loads an existing theme file into the currently selected map's local editor draft. Drafts auto-save under `vanguard-map-studio-themes-v1` and `vanguard-map-studio-v1`. A theme edit is not reflected live in the game's 3D renderer before export and rebuild.
-
-### Shipping checks
-
-```sh
-bun run content:validate
-bun run test:smoke
-bun run typecheck
-bun run build
-```
-
-Test new hazards on both offline and authoritative-server matches; test stair traversal by players and bots, circle/triangle boundaries for leaks and stuck states, and new themes in 3D and on the minimap. Automated structural tests do not replace this.
-
-## Large-scale performance and gameplay
-
-Ridgefall's enclosed factory and Afterlight City's connected districts have substantial, distinct playable footprints. Validate travel time, sightlines, navigation and frame time against the **current exported blueprints**, not earlier map-size estimates.
-
-Recommended validation before merging from dev: `bun test`, `npx tsc --noEmit`, `bun run build`, followed by human/bot 3v3–7v7 playtests on all maps, especially distant spawn fairness, tunnel junctions, stair transitions, FPS and minimap readability. Manual gameplay tests are necessary; basic geometry validation is not sufficient.
-
-## October 2026 map art update
-
-- Afterlight City (Night) and Afterlight City (Day) share a single building/road generator in `src/lib/map-visuals.ts`; daytime palette inherits night prop definitions. Their current authored region and spawn arrays are identical; the visual themes differ.
-- Both city editions exclude hazards and legacy arena cover. New scenery prop types: `building`, `boat`, `dock`, `garden`, `bench`, `bandstand`.
-- Enterable buildings have physically open doorways, exterior stairs, and climbable roof geometry. City centers feature an open park and bandstand.
-- Breakwater has physical docklands, cranes, vessels and container props. Verdant Ruins uses foliage and ruined masonry; Ridgefall is now an enclosed steelworks, not an outdoor snowfield.
-- The renderer creates procedural worn surface textures without third-party binary assets. [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) is used for visual guidance; redistribute its individual textures only after verifying the exact license and retaining appropriate credits/notice.
-
-## Retro FPS material language
-
-Surface material patterns, physical repeat scale and roughness are now authored alongside each map's existing palette in its individual `src/data/map-themes/<mapId>.json` file. Each theme configures `floor`, `wall`, `cover`, `stair` and `platform`. These patterns are generated once as original 128px repeating textures and map to world units, eliminating large stretched grey surfaces. See [Art direction and researched materials](art-direction-and-materials.md) for palettes, source/license shortlist, authoring recipes and performance guidelines. Map Studio also edits authored props, theme palettes and surface material settings; exported JSON remains authoritative.
-
-## Afterlight interior and façade design
-
-Both Afterlight lighting variants share deterministic architectural plans. City lots now vary across additional shops and public uses (including clinics, gyms, florist shops, workshops and galleries), six façade materials, building height/footprint, furnishing plans and whether the roof can be climbed. Enterable street levels have collision-backed rear-room walls with a real center doorway and type-specific furniture such as beds, counters, bookshelves and reception desks. Only buildings with `roofAccess: true` have interior/exterior rooftop stairways. The no-access buildings have a solid, sealed roof. Visible partitions and furniture use the same `cityBuildingBoxes` / `cityInteriorFixtures` geometry as game collision. Avoid cluttering the front center entrance or the east-side roof hatch aisle; inspect both lighting variants for signs, room usability and frame rate.
-
-### Orbital Nexus reactor and gravity
-
-Orbital Nexus is an arena for CTF, TDM and Kill Confirmed with 60% of normal gravity (before its temporary Reaper boost), ten jump pads, and **32-unit-high boundary walls** to contain extended airborne traversal. The reactor counts **10 legitimate enemy eliminations** with either the killer or the victim inside a **38-unit-radius** circle in the arena's center (XZ distance, independent of elevation). Kills between two fighters both outside the zone, friendly fire, and environmental deaths do not charge it. The HUD displays only `Reactor 0/10` through `Reactor 10/10`: there are no activation totals, negative no-charge messages, charged banners, or center-claim pop-ups. The reactor itself changes color and animates when full.
-
-At full charge, the first eligible living human or bot who reaches the raised center deck at Y=3.2 claims the **Nexus Reaper** in melee slot 3. Both teams' bots compete for the reward; flag carriers continue to prioritize scoring, and immediate threats interrupt their route. Claiming the weapon resets the reactor to 0/10, and dying forfeits it. The Reaper's blade reaches **3.5 units** and every swing also emits a **purple 4.75-unit-radius pulse**, dealing **58 damage** to other valid enemy targets (never hitting the same enemy twice with the blade and pulse). The pulse can hit enemies to the sides/behind even when the blade misses; cover and spawn protection still apply. Purple rings visualize human and bot attacks in online and offline games.
-
-**Only while Nexus Reaper is actually selected/equipped** (not merely owned or accessed with the quick-melee hotkey), the holder gets 25% faster movement, 47% less sprint stamina drain, 30% less Orbital Nexus gravity, and 55% more momentum added at aligned running jump takeoff. The bonuses end immediately when switching weapons or losing the Reaper. Reaper blade/pulse eliminations contribute to a separate three-tier permanent achievement (10/35/100 kills; final reward title *Nexus Reaper*); they do not advance standard Armory mastery. The temporary weapon remains absent from the purchasable Armory catalog.
-
-
-**Troubleshooting live reactor charge:** The Socket.IO match server on port 3003 owns multiplayer scoring. Updating frontend files or getting a green GitHub Actions build does **not** update an already-running game-server instance. In local development, Next.js instrumentation starts the server once and keeps a singleton running: restart the Next.js development server after modifying `game-server.ts`, `orbital-reactor.ts`, or the game protocol. In deployment, redeploy/restart **both** the web frontend and the Socket.IO server from the same commit, then start a **new room**. Newer clients require `orbitalRulesVersion` in the server snapshots; when the server is outdated the HUD displays **"Reactor: server update required"** rather than a misleading `0/5`. On compatible servers each qualifying elimination updates `orbitalReactor`; unqualified eliminations do not display distracting pop-up warnings. CI validates the matching source protocol; it cannot verify or restart an external, live deployment.
-
-## Mode-specific objectives and spawns
-
-Map Studio edits the base geometry and spawn pools. The Verdant Ruins/Ridgefall CTF trial overrides are separate in `src/data/ctf-layouts.json`; a base-map edit must also check the CTF flag, delivery and spawn clearance tests. Both simulations use `getMap(mapId, mode)` to obtain those overrides. See [map modes and spawns](map-modes-and-spawns.md).
+Regression checks compare Floodgate published/draft collision, hazards, spawns and objectives, and verify that unsaved trial edits affect neither other modes nor the published catalog. Live pointer/touch and offline/online gameplay review of this merged editor branch remains required.
 
 ## Whiteout Depot
 
 The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).
+
+## November 2026 integration
+
+Whiteout Depot is the ninth unified map document (`src/data/maps/whiteout_depot.json`), with editable CTF flags/capture zones and its 12 rear spawns per team. Floodgate's unified blueprint now includes its destructible five-panel dam, 14-second flood surge, ten authored hazards and post-breach traverse geometry. These behaviors still depend on shared game-client/server implementations; the editor edits the underlying document, not the event scripts. The daytime Afterlight city edition is available for TDM, while the nighttime edition is used for Kill Confirmed under the current mode catalogue. Re-test all changed objectives and event routes in live offline/online matches after client/server redeploy.

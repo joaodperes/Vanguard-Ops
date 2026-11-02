@@ -17,10 +17,10 @@ Static data used by both the browser and multiplayer server is now read through 
 | Authored per-weapon challenge | `weapon-challenges.json` | `WEAPON_CHALLENGES` |
 | Daily/weekly goals | `daily-challenges.json`, `weekly-challenges.json` | `DAILY_CHALLENGE_POOL`, `WEEKLY_CHALLENGE_POOL` |
 | Lifetime achievements | `achievements.json` | `ACHIEVEMENTS` |
-| Map regions and objects | `src/data/map-blueprints.json` | `MAP_BLUEPRINTS` |
+| Map regions and objects | `src/data/maps/<mapId>.json` | `MAP_BLUEPRINTS` |
 | Other declarative content | `ranks.json`, `rewards.json`, `elite-quests.json`, `achievement-colors.json`, `match-modes.json`, `killstreak-callouts.json` | Existing exports |
 
-**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Six underlying template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
+**Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Built-in template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
 ## Choose the correct edit shape
 
@@ -31,7 +31,7 @@ Not every JSON catalog is an array of objects. Check the existing top-level shap
 | Arrays of entries | `weapons.json`, `attachments.json`, `weapon-skins.json`, `operator-skins.json`, `weapon-challenges.json`, `daily-challenges.json`, `weekly-challenges.json`, `elite-quests.json`, `achievements.json`, `ranks.json`, `killstreak-callouts.json` | Append an entry without deleting or reordering shipped entries; keep thresholds/levels in ascending order where applicable. Ranks and callouts have no `id` field. |
 | Objects keyed by identity | `sight-definitions.json`, `attachment-compatibility.json`, `category-attachments.json`, `match-modes.json`, `achievement-colors.json` | Add or deliberately replace one *key* while preserving siblings; only add keys supported by the runtime. |
 | Numeric settings object | `rewards.json` | Change an existing named scalar only after balance review; this changes rewards globally, not an individual object. |
-| Versioned map dictionary | `src/data/map-blueprints.json` | Add an entry under `maps.<map_id>` without replacing `version`, `units` or other maps. |
+| Versioned map dictionary | `src/data/maps/<mapId>.json` | Add an entry under `maps.<map_id>` without replacing `version`, `units` or other maps. |
 | Independent theme file | `src/data/map-themes/<map_id>.json` | Author a whole theme file, then register its static import in `src/lib/map-visuals.ts`. |
 
 Before merging a fragment, compare the existing entry and check every outgoing reference, ownership/unlock path, client/server consumer and relevant test. A schema accepting a field does **not** imply the engine interprets it.
@@ -146,7 +146,7 @@ Existing operator contracts are authored/evaluated in `src/lib/armory-challenges
 
 ## Add a map
 
-Use `/map-editor` and export the JSON; replace `src/data/map-blueprints.json` in the repo. Each unique ID maps to a blueprint:
+Use `/map-editor` and export the JSON; replace `src/data/maps/<mapId>.json` in the repo. Each unique ID maps to a blueprint:
 
 ```json
 {
@@ -343,6 +343,14 @@ kit runs through the existing `firingRange` path: no networking, purchases,
 loadout edits, match submissions, XP, credits, or achievement progression. A player
 can skip drills or the full tutorial; WebGL startup failures retain an exit.
 
+## Connected construction and asset recipes
+
+Map Studio publishes version-2 `src/data/maps/<mapId>.json` documents containing `id`, `blueprint`, and `theme`. `src/lib/map-documents.ts` registers all eight authored maps, including Orbital Nexus. The old split blueprints/themes are migration snapshots. Keep native TypeScript base environments and shared objective handlers when editing authored data. See `docs/map-studio.md` for stair attachments, assemblies, exact faces, geometry warnings, and editable asset recipes. Existing numeric coordinates are preserved during migration.
+
+## Objective authoring contracts
+
+Map blueprints may declare `objectives`, `modes` and `gravityScale`. See [Map Studio objective authoring](map-studio.md#map-objectives-and-supported-modes) for the full workflow and semantics. `map-objectives.ts` provides shared typed records and mode requirements; CTF/reward handlers consume compiled maps in both offline and authoritative server simulation. Publish positions/radii/team flags/capture zones/reactor charge rules in the canonical map JSON. The native Forest Warfare template reads `src/data/maps/forest-objectives.json`. Update `src/data/schemas/map-blueprints.schema.json` alongside validator/type changes. Unknown behavior fields and duplicate objective roles are rejected; there is currently one reactor state per match. Adding a new executable objective or mode still requires coordinated runtime and protocol implementation, not only a JSON entry. Restart/redeploy client and server together for reactor rules version 5.
+
 ## Defensive Wonders and tactical difficulty
 
 Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated contact timestamps and detonation-only blast damage. Its helper derives shell/child damage and radii from the catalog and uses movement gravity times the map multiplier. Bulwark + P-9 (`shield`) is a Primary Wonder with a normal P-9 magazine and independent 250 HP bullet panel; bracing disables pistol fire. Neither may enter the Secondary slot even though their ballistic categories are launcher/pistol. New Wonder kinds need coordinated ownership/slot, ammo, rendering, protocol and damage integration; see [Defensive Wonders and bot tactics](wonder-defense-and-bot-tactics.md).
@@ -351,6 +359,6 @@ Thunderclap (`cluster`) uses server-timed bouncing ballistic volleys, replicated
 
 Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for transient blasts. Do not add/remove a realtime point light for every fragment: light-count changes generate shader variants across lit scene materials. The cosmetic pool is bounded independently of damage; even a culled/rejected visual must still resolve its full authoritative/offline combat effects. See [Explosion effect performance](explosion-effects-performance.md).
 
-Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in `src/data/ctf-layouts.json`. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).
+Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in their unified `src/data/maps/<mapId>.json` documents (`objectives` and `modeSpawns.ctf`); `src/data/ctf-layouts.json` remains a migration/reference snapshot. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).
 
 Whiteout Depot is a third consumer of the generic `ctf-layouts.json` ground-objective contract. Its blueprint owns all geometry and its snow/metal theme has a static registration. See [Whiteout Depot](whiteout-depot.md).

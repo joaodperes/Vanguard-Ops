@@ -36,3 +36,11 @@ When editing the conversion JSON, keep each team pool unique, within walkable re
 - Run 32-human Floodgate/Afterlight matches on representative hardware. Automated spawn-count and bot tests do not establish human balance or performance.
 
 Whiteout Depot uses the same generic CTF layout contract with twelve spawn alternatives per team. Its base geometry already matches that pool. See [Whiteout Depot](whiteout-depot.md) for routes, hatch and playtests.
+
+### Unified Map Studio branch
+
+The unified branch migrates the trial objectives and CTF rear spawn pools into `src/data/maps/compound.json` and `skybridge.json` (`blueprint.objectives` and `blueprint.modeSpawns.ctf`). The split `ctf-layouts.json` is retained as a migration/reference snapshot. Both published and draft mode compilation read the unified data; see [Map Studio](map-studio.md#synchronization-with-dev--2026-10-30).
+
+## Editor sources (November 2026)
+
+Map Studio's canonical authoring source is `src/data/maps/<mapId>.json` for every registered authored map, including the CTF trials and Whiteout Depot. Edit each blueprint's `objectives`, `modes` and optional `modeSpawns.ctf` there; the older `src/data/ctf-layouts.json` remains a compatibility/migration reference. Floodgate now also stores its latest dam and flood geometry under the unified document. Preserve the shared CTF and spawn regressions whenever editing either source.

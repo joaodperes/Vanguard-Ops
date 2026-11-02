@@ -29,8 +29,8 @@ Before the dam collapses, four pressure vents use a 36-second shared repeating p
 
 ## Implementation and checks
 
-- Geometry, hazards and spawn points: `src/data/map-blueprints.json`
-- Colors and non-colliding machinery dressing: `src/data/map-themes/floodgate.json`
+- Geometry, hazards and spawn points: `src/data/maps/floodgate.json` (`blueprint`; old split file is a migration snapshot)
+- Colors and non-colliding machinery dressing: `src/data/maps/floodgate.json` (`theme`; old split file is a migration snapshot)
 - Shared flood geometry/damage predicates: `src/lib/map-battle-events.ts`
 - Server-authoritative breach time, flood damage, bot movement, timed-vent cancellation: `src/lib/game-server.ts`
 - Client prediction, offline damage and bot navigation: `src/lib/fps-engine.ts`
@@ -41,3 +41,6 @@ Before the dam collapses, four pressure vents use a 36-second shared repeating p
 - Regression tests: `tests/map-battle-events.test.ts`, `tests/floodgate.test.ts` and shared layout/bot suites.
 
 Regression checks should cover high-ground and flank safety, an actual 41-hit Marksman DMR sequence, absence of permanent cover masking the core, replicated breach age, flooded front animation with constant draw-call count, and all CTF routes remaining traversable. Human offline and multiplayer playtesting is still recommended before promoting to `main`.
+
+
+Map Studio uses the unified `src/data/maps/floodgate.json` blueprint and theme; the previous split files remain migration references. Update the unified document when changing dam geometry, flooding layout or steam grates.

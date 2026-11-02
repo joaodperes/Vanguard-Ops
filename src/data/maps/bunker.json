@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "id": "bunker",
+  "blueprint": {
+    "name": "Blacksite",
+    "shortName": "BLK",
+    "description": "A tight red-lit underground stronghold: interlocking rooms, a central vault and fast circular flanks.",
+    "pace": "compact",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 85,
+        "d": 82
+      },
+      {
+        "x": -42,
+        "z": -10,
+        "w": 22,
+        "d": 30
+      },
+      {
+        "x": 42,
+        "z": 12,
+        "w": 23,
+        "d": 31
+      }
+    ],
+    "features": [
+      {
+        "id": "vault-counter",
+        "x": -34,
+        "z": -8,
+        "w": 6,
+        "d": 3,
+        "h": 1.35,
+        "kind": "cover",
+        "label": "Vault counter"
+      },
+      {
+        "id": "generator",
+        "x": 32,
+        "z": 20,
+        "w": 5,
+        "d": 4,
+        "h": 2.6,
+        "kind": "cover",
+        "label": "Power generator"
+      },
+      {
+        "id": "security-console",
+        "x": -44,
+        "z": -14,
+        "w": 4,
+        "d": 3,
+        "h": 1.2,
+        "kind": "cover",
+        "label": "Security console"
+      },
+      {
+        "id": "maintenance-bench",
+        "x": 45,
+        "z": 13,
+        "w": 5,
+        "d": 2.6,
+        "h": 1.15,
+        "kind": "cover",
+        "label": "Maintenance bench"
+      }
+    ],
+    "spawns": {
+      "ffa": [
+        [
+          -48,
+          0,
+          -16
+        ],
+        [
+          46,
+          0,
+          24
+        ]
+      ],
+      "red": [
+        [
+          -48,
+          0,
+          -16
+        ]
+      ],
+      "blue": [
+        [
+          46,
+          0,
+          24
+        ]
+      ]
+    }
+  },
+  "theme": {
+    "biome": "bunker",
+    "label": "Emergency-lit underground facility",
+    "palette": {
+      "floor": "#8c735f",
+      "wall": "#735950",
+      "cover": "#ae977e",
+      "accent": "#ff6457",
+      "platform": "#947867",
+      "stair": "#c5ab8c",
+      "sky": "#2e2424",
+      "fog": "#4b3a34",
+      "grid": "#6f5147"
+    },
+    "ambient": 1.45,
+    "vegetation": 0,
+    "props": [
+      {
+        "kind": "lamp",
+        "x": -29,
+        "z": -21
+      },
+      {
+        "kind": "lamp",
+        "x": 26,
+        "z": 20
+      },
+      {
+        "kind": "terminal",
+        "x": -34,
+        "z": 15
+      },
+      {
+        "kind": "terminal",
+        "x": 35,
+        "z": -11
+      }
+    ],
+    "surfaces": {
+      "floor": {
+        "pattern": "concrete",
+        "tileSize": 6,
+        "roughness": 0.95
+      },
+      "wall": {
+        "pattern": "metal",
+        "tileSize": 5,
+        "roughness": 0.79
+      },
+      "cover": {
+        "pattern": "concrete",
+        "tileSize": 3.6,
+        "roughness": 0.9
+      },
+      "stair": {
+        "pattern": "grate",
+        "tileSize": 2.4,
+        "roughness": 0.72
+      },
+      "platform": {
+        "pattern": "metal",
+        "tileSize": 5,
+        "roughness": 0.74
+      }
+    }
+  }
+}

@@ -1,0 +1,1622 @@
+{
+  "version": 2,
+  "id": "skybridge",
+  "blueprint": {
+    "name": "Ridgefall",
+    "shortName": "RFL",
+    "description": "Inside a sprawling steelworks: two foundry wings, a noisy assembly hall, overhead inspection gantries, loading bays and a maintenance annex. Dense machinery creates close-range angles below elevated industrial walkways.",
+    "pace": "tactical",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 140,
+        "d": 118
+      },
+      {
+        "x": -90,
+        "z": -2,
+        "w": 85,
+        "d": 98
+      },
+      {
+        "x": 90,
+        "z": -2,
+        "w": 85,
+        "d": 98
+      },
+      {
+        "x": 0,
+        "z": -86,
+        "w": 116,
+        "d": 73
+      },
+      {
+        "x": 0,
+        "z": 88,
+        "w": 115,
+        "d": 78
+      }
+    ],
+    "features": [
+      {
+        "id": "press-line-west",
+        "x": -43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "kind": "cover",
+        "label": "West hydraulic press line"
+      },
+      {
+        "id": "press-line-east",
+        "x": 43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "kind": "cover",
+        "label": "East hydraulic press line"
+      },
+      {
+        "id": "assembly-divider-north",
+        "x": -16,
+        "z": -51,
+        "w": 3,
+        "d": 14,
+        "h": 9,
+        "kind": "cover",
+        "label": "North assembly divider"
+      },
+      {
+        "id": "assembly-divider-north-r",
+        "x": 16,
+        "z": -51,
+        "w": 3,
+        "d": 14,
+        "h": 9,
+        "kind": "cover",
+        "label": "North assembly divider"
+      },
+      {
+        "id": "conveyor-west",
+        "x": -21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "kind": "cover",
+        "label": "West conveyor"
+      },
+      {
+        "id": "conveyor-east",
+        "x": 21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "kind": "cover",
+        "label": "East conveyor"
+      },
+      {
+        "id": "furnace-housing",
+        "x": -83,
+        "z": -8,
+        "w": 12,
+        "d": 16,
+        "h": 7.8,
+        "kind": "cover",
+        "label": "Blast furnace casing"
+      },
+      {
+        "id": "furnace-exhaust",
+        "x": -110,
+        "z": 27,
+        "w": 8,
+        "d": 10,
+        "h": 5,
+        "kind": "cover",
+        "label": "Exhaust duct"
+      },
+      {
+        "id": "forge-crates",
+        "x": -104,
+        "z": -34,
+        "w": 10,
+        "d": 8,
+        "h": 2.8,
+        "kind": "cover",
+        "label": "Forge inventory stacks"
+      },
+      {
+        "id": "forge-baffle",
+        "x": -69,
+        "z": -35,
+        "w": 3,
+        "d": 32,
+        "h": 6.5,
+        "kind": "cover",
+        "label": "Foundry heat baffle"
+      },
+      {
+        "id": "east-racks",
+        "x": 83,
+        "z": -33,
+        "w": 14,
+        "d": 8,
+        "h": 5.5,
+        "kind": "cover",
+        "label": "Parts storage rack"
+      },
+      {
+        "id": "east-racks-south",
+        "x": 101,
+        "z": 12,
+        "w": 14,
+        "d": 8,
+        "h": 5.5,
+        "kind": "cover",
+        "label": "Parts storage rack"
+      },
+      {
+        "id": "east-loading-wall",
+        "x": 63,
+        "z": 36,
+        "w": 4,
+        "d": 25,
+        "h": 8,
+        "kind": "cover",
+        "label": "Loading dock partition"
+      },
+      {
+        "id": "east-tool-cabin",
+        "x": 119,
+        "z": -5,
+        "w": 9,
+        "d": 15,
+        "h": 4.2,
+        "kind": "cover",
+        "label": "Tool cage"
+      },
+      {
+        "id": "north-sorter",
+        "x": -37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "kind": "cover",
+        "label": "Freight sorting machine"
+      },
+      {
+        "id": "north-sorter-r",
+        "x": 37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "kind": "cover",
+        "label": "Freight sorting machine"
+      },
+      {
+        "id": "north-gantry-brace",
+        "x": 0,
+        "z": -105,
+        "w": 3,
+        "d": 24,
+        "h": 9,
+        "kind": "cover",
+        "label": "Overhead hoist support"
+      },
+      {
+        "id": "south-generator",
+        "x": -32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "kind": "cover",
+        "label": "Backup generator"
+      },
+      {
+        "id": "south-generator-r",
+        "x": 32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "kind": "cover",
+        "label": "Cooling skid"
+      },
+      {
+        "id": "south-service-divider",
+        "x": 0,
+        "z": 103,
+        "w": 3,
+        "d": 18,
+        "h": 7,
+        "kind": "cover",
+        "label": "Maintenance partition"
+      },
+      {
+        "id": "paint-booth-north",
+        "x": -12,
+        "z": 34,
+        "w": 22,
+        "d": 3,
+        "h": 8,
+        "kind": "cover",
+        "label": "Spray chamber wall"
+      },
+      {
+        "id": "paint-booth-east",
+        "x": -1,
+        "z": 40,
+        "w": 3,
+        "d": 15,
+        "h": 8,
+        "kind": "cover",
+        "label": "Spray chamber return"
+      },
+      {
+        "id": "paint-booth-south",
+        "x": -12,
+        "z": 47,
+        "w": 22,
+        "d": 3,
+        "h": 8,
+        "kind": "cover",
+        "label": "Spray chamber wall"
+      },
+      {
+        "id": "central-gantry",
+        "x": 0,
+        "z": -19,
+        "w": 34,
+        "d": 13,
+        "h": 5.2,
+        "kind": "platform",
+        "label": "Central overhead inspection gantry",
+        "autoStairs": false
+      },
+      {
+        "id": "west-mezzanine",
+        "x": -65,
+        "z": 27,
+        "w": 22,
+        "d": 23,
+        "h": 5.2,
+        "kind": "platform",
+        "label": "West furnace control deck",
+        "autoStairs": false
+      },
+      {
+        "id": "east-mezzanine",
+        "x": 65,
+        "z": -24,
+        "w": 22,
+        "d": 23,
+        "h": 5.2,
+        "kind": "platform",
+        "label": "East logistics mezzanine",
+        "autoStairs": false
+      },
+      {
+        "id": "shipping-overlook",
+        "x": 0,
+        "z": -77,
+        "w": 23,
+        "d": 17,
+        "h": 4.2,
+        "kind": "platform",
+        "label": "Shipping control tower",
+        "autoStairs": false
+      },
+      {
+        "id": "gantry-south-steps",
+        "x": 0,
+        "z": -12.5,
+        "w": 5,
+        "d": 10,
+        "h": 5.2,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": 1,
+        "label": "Central gantry south access"
+      },
+      {
+        "id": "gantry-north-steps",
+        "x": 0,
+        "z": -25.5,
+        "w": 5,
+        "d": 10,
+        "h": 5.2,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1,
+        "label": "Central gantry north access"
+      },
+      {
+        "id": "west-mezzanine-steps",
+        "x": -65,
+        "z": 38.5,
+        "w": 5,
+        "d": 10,
+        "h": 5.2,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": 1,
+        "label": "Foundry control stairs"
+      },
+      {
+        "id": "east-mezzanine-steps",
+        "x": 65,
+        "z": -35.5,
+        "w": 5,
+        "d": 10,
+        "h": 5.2,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": -1,
+        "label": "Warehouse stairs"
+      },
+      {
+        "id": "shipping-steps",
+        "x": 0,
+        "z": -68.5,
+        "w": 4,
+        "d": 8,
+        "h": 4.2,
+        "kind": "stairs",
+        "axis": "z",
+        "sign": 1,
+        "label": "Shipping tower stair"
+      },
+      {
+        "id": "gantry-north-railing",
+        "x": 0,
+        "z": -24.8,
+        "w": 28,
+        "d": 0.8,
+        "h": 1.4,
+        "y": 5.2,
+        "kind": "cover",
+        "label": "Upper gantry safety rail"
+      },
+      {
+        "id": "gantry-south-railing",
+        "x": -12,
+        "z": -12.8,
+        "w": 6,
+        "d": 0.8,
+        "h": 1.4,
+        "y": 5.2,
+        "kind": "cover",
+        "label": "Upper gantry guard"
+      },
+      {
+        "id": "gantry-south-railing-r",
+        "x": 12,
+        "z": -12.8,
+        "w": 6,
+        "d": 0.8,
+        "h": 1.4,
+        "y": 5.2,
+        "kind": "cover",
+        "label": "Upper gantry guard"
+      },
+      {
+        "id": "west-deck-barrier",
+        "x": -74.5,
+        "z": 27,
+        "w": 1,
+        "d": 17,
+        "h": 1.3,
+        "y": 5.2,
+        "kind": "cover",
+        "label": "West upper-level safety fence"
+      },
+      {
+        "id": "east-deck-barrier",
+        "x": 74.5,
+        "z": -24,
+        "w": 1,
+        "d": 17,
+        "h": 1.3,
+        "y": 5.2,
+        "kind": "cover",
+        "label": "East upper-level safety fence"
+      },
+      {
+        "id": "steel-crate-1",
+        "x": -20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "steel-crate-2",
+        "x": 20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "steel-crate-3",
+        "x": -19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "steel-crate-4",
+        "x": 19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "steel-crate-5",
+        "x": -89,
+        "z": 34,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "steel-crate-6",
+        "x": 92,
+        "z": 28,
+        "w": 6,
+        "d": 6,
+        "h": 2,
+        "kind": "cover",
+        "label": "Reinforced supply palette"
+      },
+      {
+        "id": "shipping-security-frame-west",
+        "x": -6.3,
+        "z": -57.5,
+        "w": 4,
+        "d": 2,
+        "h": 8,
+        "kind": "cover",
+        "label": "Freight blast-door west frame"
+      },
+      {
+        "id": "shipping-security-frame-east",
+        "x": 6.3,
+        "z": -57.5,
+        "w": 4,
+        "d": 2,
+        "h": 8,
+        "kind": "cover",
+        "label": "Freight blast-door east frame"
+      },
+      {
+        "id": "freight-security-left-wing",
+        "x": -30,
+        "z": -57.5,
+        "w": 44,
+        "d": 2,
+        "h": 8,
+        "kind": "cover",
+        "label": "Freight hall security partition; left"
+      },
+      {
+        "id": "freight-security-right-wing",
+        "x": 30,
+        "z": -57.5,
+        "w": 44,
+        "d": 2,
+        "h": 8,
+        "kind": "cover",
+        "label": "Freight hall security partition; right"
+      }
+    ],
+    "hazards": [
+      {
+        "id": "foundry-heat-west",
+        "type": "fire",
+        "x": -99,
+        "y": 0.45,
+        "z": -10,
+        "w": 8,
+        "d": 10,
+        "h": 0.9,
+        "dps": 6
+      },
+      {
+        "id": "foundry-heat-east",
+        "type": "fire",
+        "x": 104,
+        "y": 0.45,
+        "z": -10,
+        "w": 7,
+        "d": 9,
+        "h": 0.9,
+        "dps": 6
+      },
+      {
+        "id": "press-cycle",
+        "type": "spikes",
+        "x": -23,
+        "y": 0.45,
+        "z": 8,
+        "w": 7,
+        "d": 6,
+        "h": 0.9,
+        "damage": 22,
+        "period": 5,
+        "activeFor": 1.1,
+        "offset": 0
+      },
+      {
+        "id": "factory-blast-door",
+        "type": "destructible_wall",
+        "x": 0,
+        "y": 3,
+        "z": -57.5,
+        "w": 8,
+        "d": 2,
+        "h": 6,
+        "hp": 165
+      }
+    ],
+    "spawns": {
+      "ffa": [
+        [
+          -51,
+          0,
+          -43
+        ],
+        [
+          51,
+          0,
+          -43
+        ],
+        [
+          -55,
+          0,
+          44
+        ],
+        [
+          55,
+          0,
+          44
+        ],
+        [
+          -110,
+          0,
+          -16
+        ],
+        [
+          110,
+          0,
+          24
+        ],
+        [
+          -99,
+          0,
+          43
+        ],
+        [
+          99,
+          0,
+          -44
+        ],
+        [
+          -34,
+          0,
+          99
+        ],
+        [
+          36,
+          0,
+          99
+        ],
+        [
+          -35,
+          0,
+          -105
+        ],
+        [
+          35,
+          0,
+          -105
+        ],
+        [
+          -122,
+          0,
+          0
+        ],
+        [
+          122,
+          0,
+          8
+        ],
+        [
+          -112,
+          0,
+          -18
+        ],
+        [
+          114,
+          0,
+          -16
+        ],
+        [
+          -109,
+          0,
+          18
+        ],
+        [
+          109,
+          0,
+          18
+        ]
+      ],
+      "red": [
+        [
+          -51,
+          0,
+          -45
+        ],
+        [
+          -100,
+          0,
+          -48
+        ],
+        [
+          -109,
+          0,
+          18
+        ],
+        [
+          -52,
+          0,
+          42
+        ],
+        [
+          -33,
+          0,
+          96
+        ],
+        [
+          -38,
+          0,
+          -107
+        ],
+        [
+          -122,
+          0,
+          0
+        ],
+        [
+          -110,
+          0,
+          34
+        ],
+        [
+          -112,
+          0,
+          -18
+        ]
+      ],
+      "blue": [
+        [
+          51,
+          0,
+          43
+        ],
+        [
+          100,
+          0,
+          42
+        ],
+        [
+          111,
+          0,
+          -22
+        ],
+        [
+          52,
+          0,
+          -42
+        ],
+        [
+          33,
+          0,
+          98
+        ],
+        [
+          38,
+          0,
+          -107
+        ],
+        [
+          122,
+          0,
+          8
+        ],
+        [
+          110,
+          0,
+          22
+        ],
+        [
+          114,
+          0,
+          -16
+        ]
+      ]
+    },
+    "objectives": [
+      {
+        "id": "red_flag",
+        "kind": "flag",
+        "team": "red",
+        "pos": [
+          -108,
+          0,
+          0
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "blue_flag",
+        "kind": "flag",
+        "team": "blue",
+        "pos": [
+          108,
+          0,
+          4
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "red_capture_zone",
+        "kind": "capture_zone",
+        "team": "red",
+        "pos": [
+          -122,
+          0,
+          0
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      },
+      {
+        "id": "blue_capture_zone",
+        "kind": "capture_zone",
+        "team": "blue",
+        "pos": [
+          122,
+          0,
+          8
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      }
+    ],
+    "modes": [
+      "ffa",
+      "tdm",
+      "survival",
+      "gungame",
+      "killconfirmed",
+      "ctf"
+    ],
+    "modeSpawns": {
+      "ctf": {
+        "red": [
+          [
+            -128,
+            0,
+            -4
+          ],
+          [
+            -96,
+            0,
+            20
+          ],
+          [
+            -92,
+            0,
+            -22
+          ],
+          [
+            -130,
+            0,
+            34
+          ],
+          [
+            -122,
+            0,
+            -34
+          ],
+          [
+            -118,
+            0,
+            16
+          ],
+          [
+            -100,
+            0,
+            -2
+          ],
+          [
+            -110,
+            0,
+            34
+          ],
+          [
+            -112,
+            0,
+            -18
+          ],
+          [
+            -130,
+            0,
+            -20
+          ]
+        ],
+        "blue": [
+          [
+            116,
+            0,
+            4
+          ],
+          [
+            130,
+            0,
+            42
+          ],
+          [
+            96,
+            0,
+            -26
+          ],
+          [
+            96,
+            0,
+            34
+          ],
+          [
+            130,
+            0,
+            -26
+          ],
+          [
+            130,
+            0,
+            20
+          ],
+          [
+            96,
+            0,
+            -4
+          ],
+          [
+            114,
+            0,
+            -16
+          ],
+          [
+            110,
+            0,
+            22
+          ],
+          [
+            130,
+            0,
+            -8
+          ]
+        ]
+      }
+    }
+  },
+  "theme": {
+    "biome": "factory_interior",
+    "label": "Ridgefall steelworks — steel furnaces, conveyors, production cells and busy overhead utilities",
+    "palette": {
+      "floor": "#424a4f",
+      "wall": "#5b6870",
+      "cover": "#8b989e",
+      "accent": "#f9b04b",
+      "platform": "#697b87",
+      "stair": "#a6adb2",
+      "sky": "#1c242d",
+      "fog": "#253038",
+      "grid": "#53616a"
+    },
+    "ambient": 1.32,
+    "vegetation": 0,
+    "props": [
+      {
+        "kind": "lamp",
+        "x": -58,
+        "z": -44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": 58,
+        "z": -44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": -58,
+        "z": 44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": 58,
+        "z": 44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": -109,
+        "z": -44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": 109,
+        "z": 44,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": -97,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "lamp",
+        "x": 0,
+        "z": 98,
+        "w": 1.5,
+        "d": 1.5,
+        "h": 10,
+        "color": "#ffd282"
+      },
+      {
+        "kind": "crane",
+        "x": 0,
+        "z": -38,
+        "w": 18,
+        "d": 14,
+        "h": 15,
+        "color": "#e8a23b"
+      },
+      {
+        "kind": "crane",
+        "x": -87,
+        "z": 3,
+        "w": 16,
+        "d": 13,
+        "h": 14,
+        "color": "#e7ab50"
+      },
+      {
+        "kind": "crane",
+        "x": 88,
+        "z": 3,
+        "w": 16,
+        "d": 13,
+        "h": 14,
+        "color": "#e7ab50"
+      },
+      {
+        "kind": "terminal",
+        "x": -65,
+        "z": 22,
+        "w": 3,
+        "d": 2.5,
+        "h": 2.4,
+        "color": "#50bed4",
+        "text": "FURNACE CONTROL"
+      },
+      {
+        "kind": "terminal",
+        "x": 64,
+        "z": -15,
+        "w": 3,
+        "d": 2.5,
+        "h": 2.4,
+        "color": "#50bed4",
+        "text": "LOADOUT CONTROL"
+      },
+      {
+        "kind": "terminal",
+        "x": 0,
+        "z": -82,
+        "w": 3,
+        "d": 2.5,
+        "h": 2.4,
+        "color": "#50bed4",
+        "text": "SHIPMENT MONITOR"
+      },
+      {
+        "kind": "container",
+        "x": -110,
+        "z": -22,
+        "w": 9,
+        "d": 6,
+        "h": 4,
+        "color": "#ac583b"
+      },
+      {
+        "kind": "container",
+        "x": -102,
+        "z": 23,
+        "w": 8,
+        "d": 6,
+        "h": 3.5,
+        "color": "#8bafba"
+      },
+      {
+        "kind": "container",
+        "x": 113,
+        "z": 31,
+        "w": 8,
+        "d": 6,
+        "h": 3.5,
+        "color": "#ba883f"
+      },
+      {
+        "kind": "container",
+        "x": 87,
+        "z": -42,
+        "w": 7,
+        "d": 6,
+        "h": 3.5,
+        "color": "#677b89"
+      },
+      {
+        "kind": "container",
+        "x": -40,
+        "z": 105,
+        "w": 9,
+        "d": 6,
+        "h": 3.6,
+        "color": "#667b8d"
+      },
+      {
+        "kind": "container",
+        "x": 42,
+        "z": 106,
+        "w": 9,
+        "d": 6,
+        "h": 3.6,
+        "color": "#ba723f"
+      },
+      {
+        "kind": "rock",
+        "x": -115,
+        "z": 35,
+        "w": 3,
+        "d": 3,
+        "h": 1.7,
+        "color": "#616f76"
+      },
+      {
+        "kind": "furnace",
+        "x": -83,
+        "z": -8,
+        "w": 12,
+        "d": 16,
+        "h": 7.8,
+        "text": "BLAST FURNACE 01"
+      },
+      {
+        "kind": "conveyor",
+        "x": -21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "text": "WEST TRANSFER LINE"
+      },
+      {
+        "kind": "conveyor",
+        "x": 21,
+        "z": 5,
+        "w": 13,
+        "d": 4,
+        "h": 1.7,
+        "text": "EAST TRANSFER LINE"
+      },
+      {
+        "kind": "hydraulic_press",
+        "x": -43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "text": "PRESS LINE W"
+      },
+      {
+        "kind": "hydraulic_press",
+        "x": 43,
+        "z": -12,
+        "w": 5,
+        "d": 40,
+        "h": 5.8,
+        "text": "PRESS LINE E"
+      },
+      {
+        "kind": "vent_stack",
+        "x": -110,
+        "z": 27,
+        "w": 8,
+        "d": 10,
+        "h": 5,
+        "text": "EXHAUST DUCT"
+      },
+      {
+        "kind": "storage_rack",
+        "x": 83,
+        "z": -33,
+        "w": 14,
+        "d": 8,
+        "h": 5.5
+      },
+      {
+        "kind": "storage_rack",
+        "x": 101,
+        "z": 12,
+        "w": 14,
+        "d": 8,
+        "h": 5.5
+      },
+      {
+        "kind": "storage_rack",
+        "x": 119,
+        "z": -5,
+        "w": 9,
+        "d": 15,
+        "h": 4.2
+      },
+      {
+        "kind": "conveyor",
+        "x": -37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "text": "NORTH SORTER W"
+      },
+      {
+        "kind": "conveyor",
+        "x": 37,
+        "z": -88,
+        "w": 18,
+        "d": 8,
+        "h": 3.3,
+        "text": "NORTH SORTER E"
+      },
+      {
+        "kind": "generator",
+        "x": -32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "text": "BACKUP GENERATOR"
+      },
+      {
+        "kind": "generator",
+        "x": 32,
+        "z": 84,
+        "w": 12,
+        "d": 16,
+        "h": 4.6,
+        "text": "COOLING SKID"
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -104,
+        "z": -34,
+        "w": 10,
+        "d": 8,
+        "h": 2.8
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": -89,
+        "z": 34,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "cargo_pallet",
+        "x": 92,
+        "z": 28,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": -20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": 20,
+        "z": -39,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": -19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "steel_coil",
+        "x": 19,
+        "z": 18,
+        "w": 6,
+        "d": 6,
+        "h": 2
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -62,
+        "z": -5,
+        "w": 28,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.4
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 60,
+        "z": 7,
+        "w": 29,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.4
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": -43,
+        "w": 44,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": 72,
+        "w": 34,
+        "d": 2,
+        "h": 1.4,
+        "y": 12.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -105,
+        "z": -16,
+        "w": 2,
+        "d": 35,
+        "h": 1.2,
+        "y": 13
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 105,
+        "z": 14,
+        "w": 2,
+        "d": 35,
+        "h": 1.2,
+        "y": 13
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -68,
+        "z": -28,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -68,
+        "z": 16,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -95,
+        "z": -36,
+        "w": 1.3,
+        "d": 23,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -95,
+        "z": 34,
+        "w": 1.3,
+        "d": 20,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 68,
+        "z": -34,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 68,
+        "z": 18,
+        "w": 22,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.7
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 95,
+        "z": -34,
+        "w": 1.3,
+        "d": 22,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 95,
+        "z": 34,
+        "w": 1.3,
+        "d": 22,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -33,
+        "z": -52,
+        "w": 28,
+        "d": 1.5,
+        "h": 1.15,
+        "y": 12.9
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 33,
+        "z": -52,
+        "w": 28,
+        "d": 1.5,
+        "h": 1.15,
+        "y": 12.9
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -32,
+        "z": 48,
+        "w": 27,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 31,
+        "z": 48,
+        "w": 27,
+        "d": 1.3,
+        "h": 1.15,
+        "y": 13.1
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": -93,
+        "w": 42,
+        "d": 1.2,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 0,
+        "z": 95,
+        "w": 42,
+        "d": 1.2,
+        "h": 1.15,
+        "y": 14.5
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": -105,
+        "z": 0,
+        "w": 1.4,
+        "d": 22,
+        "h": 1.15,
+        "y": 13.2
+      },
+      {
+        "kind": "industrial_pipe",
+        "x": 105,
+        "z": 0,
+        "w": 1.4,
+        "d": 22,
+        "h": 1.15,
+        "y": 13.2
+      },
+      {
+        "kind": "terminal",
+        "x": -58,
+        "z": 14,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "FURNACE PRESSURE"
+      },
+      {
+        "kind": "terminal",
+        "x": -36,
+        "z": 25,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "PRESS STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 36,
+        "z": 25,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "ASSEMBLY STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 56,
+        "z": 12,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "LOAD MONITOR"
+      },
+      {
+        "kind": "terminal",
+        "x": -15,
+        "z": 72,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "GENERATOR STATUS"
+      },
+      {
+        "kind": "terminal",
+        "x": 15,
+        "z": 72,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "COOLANT FLOW"
+      },
+      {
+        "kind": "terminal",
+        "x": -50,
+        "z": -75,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "SORTING CONTROL"
+      },
+      {
+        "kind": "terminal",
+        "x": 50,
+        "z": -75,
+        "w": 2.1,
+        "d": 1.7,
+        "h": 2.4,
+        "color": "#6ccdd8",
+        "text": "FREIGHT CONTROL"
+      }
+    ],
+    "surfaces": {
+      "floor": {
+        "pattern": "concrete",
+        "tileSize": 7,
+        "roughness": 0.92
+      },
+      "wall": {
+        "pattern": "metal",
+        "tileSize": 6,
+        "roughness": 0.78
+      },
+      "cover": {
+        "pattern": "rust",
+        "tileSize": 3.5,
+        "roughness": 0.84
+      },
+      "stair": {
+        "pattern": "grate",
+        "tileSize": 3,
+        "roughness": 0.78
+      },
+      "platform": {
+        "pattern": "grate",
+        "tileSize": 4,
+        "roughness": 0.72
+      }
+    }
+  }
+}

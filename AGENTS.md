@@ -11,7 +11,7 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 
 ## Authoritative ownership
 - JSON data in `src/data/catalogs/*.json` is the content source of truth. `src/lib/game-data.ts` provides stable exported types and lookup/runtime functions; never reintroduce a second hardcoded declaration of an object there.
-- `src/data/map-blueprints.json` is the source for walkable regions, cover/platform features and spawns. The six existing base map templates remain partly in TypeScript, so do not claim the *entire* map engine is data-driven.
+- `src/data/maps/<mapId>.json` is the unified source for authored geometry and themes; register shipped documents in `src/lib/map-documents.ts`. The split JSON files are migration snapshots. Existing base map templates remain partly in TypeScript, so do not claim the *entire* map engine is data-driven.
 - Do not add new JSON keys that imply executable behavior unless the relevant client and server code explicitly implements them.
 - Keep stable IDs and all existing player unlock references. Never rename, remove or recycle a shipped ID without a separately approved migration.
 - Follow the actual attachment allowlists, challenge eligibility vs purchase ownership, and Wonder/Prestige exceptions explained in the handbook.
@@ -30,7 +30,7 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - Promote tested `dev` changes to `main` through a normal pull request after reviewing branch divergence, verifying the merge result and signing off on gameplay and data migration. Keep tests, CI and useful engineering documentation on both branches; they do not enter the browser bundle.
 
 ## JSON object recipes
-- Map: author in `/map-editor`, export to `src/data/map-blueprints.json`; check open plazas, multiple flanks, spawn clearance and stairs. Theme palette and scenery are in individual `src/data/map-themes/<mapId>.json` files. Add a static theme import to `src/lib/map-visuals.ts` for new map IDs. Do not reintroduce inherited sealed perimeter walls.
+- Map: author in `/map-editor`, export a single map JSON to `src/data/maps/<mapId>.json`; check open plazas, multiple flanks, spawn clearance and stairs. Theme palette and scenery are in that document’s `theme`. Add a static import to `src/lib/map-documents.ts` for new map IDs. Do not reintroduce inherited sealed perimeter walls.
 - Weapon: append to `weapons.json`, check category/stats/allowlists/challenges, Gun Game and visual behavior.
 - Attachment: append to `attachments.json`, update compatibility JSON, check stats and challenge eligibility.
 - Weapon skin: append to `weapon-skins.json` and implement any missing skin-challenge fallback or visuals.

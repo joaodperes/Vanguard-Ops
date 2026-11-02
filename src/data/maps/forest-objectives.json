@@ -1,0 +1,105 @@
+{
+  "modes": [
+    "ctf",
+    "tdm",
+    "killconfirmed"
+  ],
+  "objectives": [
+    {
+      "id": "red_flag",
+      "kind": "flag",
+      "team": "red",
+      "pos": [
+        -94,
+        12.2,
+        0
+      ],
+      "radius": 2.4,
+      "verticalTolerance": 2.6,
+      "approaches": [
+        [
+          -94,
+          0,
+          -34.5
+        ],
+        [
+          -94,
+          0,
+          34.5
+        ]
+      ],
+      "approachLandings": [
+        [
+          -94,
+          12,
+          -8.7
+        ],
+        [
+          -94,
+          12,
+          8.7
+        ]
+      ]
+    },
+    {
+      "id": "blue_flag",
+      "kind": "flag",
+      "team": "blue",
+      "pos": [
+        94,
+        12.2,
+        0
+      ],
+      "radius": 2.4,
+      "verticalTolerance": 2.6,
+      "approaches": [
+        [
+          94,
+          0,
+          -34.5
+        ],
+        [
+          94,
+          0,
+          34.5
+        ]
+      ],
+      "approachLandings": [
+        [
+          94,
+          12,
+          -8.7
+        ],
+        [
+          94,
+          12,
+          8.7
+        ]
+      ]
+    },
+    {
+      "id": "red_capture",
+      "kind": "capture_zone",
+      "team": "red",
+      "pos": [
+        -107,
+        0,
+        0
+      ],
+      "radius": 4.7,
+      "verticalTolerance": 3
+    },
+    {
+      "id": "blue_capture",
+      "kind": "capture_zone",
+      "team": "blue",
+      "pos": [
+        107,
+        0,
+        0
+      ],
+      "radius": 4.7,
+      "verticalTolerance": 3
+    }
+  ]
+}

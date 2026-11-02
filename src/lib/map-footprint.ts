@@ -5,10 +5,12 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, type MapBlueprint } from "./map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, resolveStairAttachments, type MapBlueprint } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type MapVisualTheme } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
 import { expandCitySpawnPositions } from "./city-spawn-layout";
+
+import {legacyObjectiveMap} from "./map-objectives";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
@@ -33,10 +35,16 @@ function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
 export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;theme:MapVisualTheme}):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
-  const plan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
+  const sourcePlan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
+  const plan=sourcePlan?{...sourcePlan,features:resolveStairAttachments(sourcePlan.features)}:null;
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
-    ...base,size:Math.round(base.size*factor*1000)/1000,
+    ...base,
+    modeSpawns:plan?.modeSpawns?structuredClone(plan.modeSpawns):base.modeSpawns,
+    objectives:structuredClone(plan?.objectives??base.objectives??legacyObjectiveMap(base.id).objectives??[]),
+    modes:[...(plan?.modes??base.modes??legacyObjectiveMap(base.id).modes??["ffa","tdm","survival","gungame","killconfirmed"])],
+    gravityScale:plan?.gravityScale??base.gravityScale??legacyObjectiveMap(base.id).gravityScale??1,
+    size:Math.round(base.size*factor*1000)/1000,
     // Old maps included a full rectangular perimeter. Leaving these walls
     // behind turns the new outdoor districts into inaccessible rings.
     // Region-union walls replace these, without blocking core-to-flank travel.

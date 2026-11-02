@@ -1,0 +1,667 @@
+{
+  "version": 2,
+  "id": "compound",
+  "blueprint": {
+    "name": "Verdant Ruins",
+    "shortName": "IRD",
+    "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
+    "pace": "balanced",
+    "regions": [
+      {
+        "x": 0,
+        "z": 0,
+        "w": 148,
+        "d": 148
+      },
+      {
+        "x": 96,
+        "z": 15,
+        "w": 82,
+        "d": 80
+      },
+      {
+        "x": -20,
+        "z": -98,
+        "w": 92,
+        "d": 74
+      },
+      {
+        "x": -82,
+        "z": 44,
+        "w": 68,
+        "d": 65
+      }
+    ],
+    "features": [
+      {
+        "id": "quarry-berm",
+        "x": 97,
+        "z": 0,
+        "w": 16,
+        "d": 3,
+        "h": 3.2,
+        "kind": "cover",
+        "label": "Quarry berm"
+      },
+      {
+        "id": "quarry-overlook",
+        "x": 99,
+        "z": 38,
+        "w": 13,
+        "d": 11,
+        "h": 4.5,
+        "kind": "platform",
+        "label": "Overwatch tower"
+      },
+      {
+        "id": "relay-platform",
+        "x": -16,
+        "z": -113,
+        "w": 12,
+        "d": 10,
+        "h": 3.6,
+        "kind": "platform",
+        "label": "Relay overlook"
+      },
+      {
+        "id": "lane-1-12",
+        "x": -4,
+        "z": -77,
+        "w": 7,
+        "d": 2.4,
+        "h": 2.9,
+        "kind": "cover",
+        "label": "compound district 2 hard cover"
+      },
+      {
+        "id": "fallen-column-1",
+        "x": 76,
+        "z": 5,
+        "w": 7,
+        "d": 6,
+        "h": 1.8,
+        "kind": "cover",
+        "label": "fallen column"
+      },
+      {
+        "id": "mossy-boulder-1",
+        "x": 109,
+        "z": 38,
+        "w": 4.5,
+        "d": 8,
+        "h": 1.1,
+        "kind": "cover",
+        "label": "mossy boulder"
+      },
+      {
+        "id": "broken-plinth-1",
+        "x": 125,
+        "z": -11,
+        "w": 6,
+        "d": 5,
+        "h": 2.2,
+        "kind": "cover",
+        "label": "broken plinth"
+      },
+      {
+        "id": "fallen-column-2",
+        "x": -42,
+        "z": -107,
+        "w": 7,
+        "d": 6,
+        "h": 1.8,
+        "kind": "cover",
+        "label": "fallen column"
+      },
+      {
+        "id": "mossy-boulder-2",
+        "x": -5,
+        "z": -77,
+        "w": 4.5,
+        "d": 8,
+        "h": 1.1,
+        "kind": "cover",
+        "label": "mossy boulder"
+      },
+      {
+        "id": "mossy-boulder-3",
+        "x": -71,
+        "z": 63,
+        "w": 4.5,
+        "d": 8,
+        "h": 1.1,
+        "kind": "cover",
+        "label": "mossy boulder"
+      },
+      {
+        "id": "broken-plinth-3",
+        "x": -58,
+        "z": 23,
+        "w": 6,
+        "d": 5,
+        "h": 2.2,
+        "kind": "cover",
+        "label": "broken plinth"
+      },
+      {
+        "id": "editor_mvl57cxp_11",
+        "kind": "cover",
+        "x": 40.58171321278338,
+        "z": 43.55760455349407,
+        "w": 6.671082119381326,
+        "d": 1.150521295597434,
+        "h": 6.2424376338873735
+      }
+    ],
+    "spawns": {
+      "ffa": [
+        [
+          108,
+          0,
+          -18
+        ],
+        [
+          113,
+          0,
+          51
+        ],
+        [
+          -45,
+          0,
+          -117
+        ],
+        [
+          5,
+          0,
+          -118
+        ],
+        [
+          -95,
+          0,
+          35
+        ],
+        [
+          -95,
+          0,
+          66
+        ]
+      ],
+      "red": [
+        [
+          -95,
+          0,
+          35
+        ],
+        [
+          -94,
+          0,
+          66
+        ],
+        [
+          -43,
+          0,
+          -119
+        ],
+        [
+          -11,
+          0,
+          -126
+        ]
+      ],
+      "blue": [
+        [
+          110,
+          0,
+          -22
+        ],
+        [
+          110,
+          0,
+          49
+        ],
+        [
+          21,
+          0,
+          -115
+        ],
+        [
+          24,
+          0,
+          -127
+        ]
+      ]
+    },
+    "legacyCoverOverrides": {
+      "0": {
+        "x": -6,
+        "y": 2,
+        "z": 34,
+        "w": 8.571352621027756,
+        "h": 3,
+        "d": 0.98
+      },
+      "1": {
+        "x": 6,
+        "y": 2,
+        "z": 34,
+        "w": 6.462384641900691,
+        "h": 3,
+        "d": 0.98
+      },
+      "16": {
+        "x": 10,
+        "y": 2,
+        "z": -14,
+        "w": 1.96,
+        "h": 3,
+        "d": 7.84
+      },
+      "45": {
+        "x": -8.82,
+        "y": 0.6,
+        "z": 2,
+        "w": 2.352,
+        "h": 1.2,
+        "d": 2.352
+      },
+      "46": {
+        "x": 8,
+        "y": 0,
+        "z": -2,
+        "w": 2.352,
+        "h": 1.2,
+        "d": 2.352
+      },
+      "47": {
+        "x": -2,
+        "y": 0,
+        "z": -14,
+        "w": 2.352,
+        "h": 1.2,
+        "d": 2.352
+      },
+      "48": {
+        "x": -14,
+        "y": -2,
+        "z": 8,
+        "w": 2.352,
+        "h": 1.2,
+        "d": 2.352
+      },
+      "50": {
+        "x": 12,
+        "y": 0,
+        "z": 0,
+        "w": 0.98,
+        "h": 1.5,
+        "d": 7.84
+      },
+      "104": {
+        "x": 0,
+        "y": 3,
+        "z": 0,
+        "w": 19.6,
+        "h": 0.5,
+        "d": 2.352
+      },
+      "157": {
+        "x": -14,
+        "y": 2,
+        "z": 34,
+        "w": 7.84,
+        "h": 2.8,
+        "d": 0.98
+      },
+      "158": {
+        "x": 10,
+        "y": 0,
+        "z": 34,
+        "w": 7.84,
+        "h": 2.8,
+        "d": 0.98
+      }
+    },
+    "legacyEnvironmentOverrides": {
+      "3": {
+        "x": 0,
+        "y": 1.5,
+        "z": -33.32,
+        "w": 6.603660066178609,
+        "h": 3.609872485155945,
+        "d": 1.0613025106358478
+      },
+      "4": {
+        "x": 0,
+        "y": 2,
+        "z": 34,
+        "w": 5.488,
+        "h": 3,
+        "d": 0.882
+      }
+    },
+    "objectives": [
+      {
+        "id": "red_flag",
+        "kind": "flag",
+        "team": "red",
+        "pos": [
+          -92,
+          0,
+          48
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "blue_flag",
+        "kind": "flag",
+        "team": "blue",
+        "pos": [
+          112,
+          0,
+          20
+        ],
+        "radius": 2.4,
+        "verticalTolerance": 2.6
+      },
+      {
+        "id": "red_capture_zone",
+        "kind": "capture_zone",
+        "team": "red",
+        "pos": [
+          -108,
+          0,
+          48
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      },
+      {
+        "id": "blue_capture_zone",
+        "kind": "capture_zone",
+        "team": "blue",
+        "pos": [
+          126,
+          0,
+          20
+        ],
+        "radius": 4.7,
+        "verticalTolerance": 3
+      }
+    ],
+    "modes": [
+      "ffa",
+      "tdm",
+      "survival",
+      "gungame",
+      "killconfirmed",
+      "ctf"
+    ],
+    "modeSpawns": {
+      "ctf": {
+        "red": [
+          [
+            -114,
+            0,
+            44
+          ],
+          [
+            -86,
+            0,
+            74
+          ],
+          [
+            -86,
+            0,
+            14
+          ],
+          [
+            -86,
+            0,
+            44
+          ],
+          [
+            -114,
+            0,
+            72
+          ],
+          [
+            -114,
+            0,
+            16
+          ],
+          [
+            -100,
+            0,
+            58
+          ],
+          [
+            -100,
+            0,
+            30
+          ],
+          [
+            -100,
+            0,
+            44
+          ],
+          [
+            -114,
+            0,
+            58
+          ]
+        ],
+        "blue": [
+          [
+            120,
+            0,
+            16
+          ],
+          [
+            104,
+            0,
+            52
+          ],
+          [
+            96,
+            0,
+            -14
+          ],
+          [
+            130,
+            0,
+            -14
+          ],
+          [
+            130,
+            0,
+            42
+          ],
+          [
+            96,
+            0,
+            22
+          ],
+          [
+            112,
+            0,
+            -2
+          ],
+          [
+            114,
+            0,
+            34
+          ],
+          [
+            96,
+            0,
+            4
+          ],
+          [
+            128,
+            0,
+            2
+          ]
+        ]
+      }
+    }
+  },
+  "theme": {
+    "biome": "jungle",
+    "label": "Lush jungle ruins",
+    "palette": {
+      "floor": "#738360",
+      "wall": "#657953",
+      "cover": "#a69e7d",
+      "accent": "#b9cf77",
+      "platform": "#86936f",
+      "stair": "#c0b38f",
+      "sky": "#9cc3b6",
+      "fog": "#9fb9a5",
+      "grid": "#65875a"
+    },
+    "ambient": 1.65,
+    "vegetation": 1,
+    "props": [
+      {
+        "kind": "temple",
+        "x": 101,
+        "z": 33,
+        "w": 12,
+        "d": 12,
+        "h": 5
+      },
+      {
+        "kind": "rock",
+        "x": 111,
+        "z": -10,
+        "w": 6,
+        "d": 5,
+        "h": 3
+      },
+      {
+        "kind": "tree",
+        "x": -110,
+        "z": 37,
+        "h": 13
+      },
+      {
+        "kind": "ruin",
+        "x": -12,
+        "z": -109,
+        "w": 14,
+        "d": 9,
+        "h": 4
+      },
+      {
+        "kind": "tree",
+        "x": 128,
+        "z": 41,
+        "h": 14
+      },
+      {
+        "kind": "tree",
+        "x": 69,
+        "z": 39,
+        "h": 15
+      },
+      {
+        "kind": "tree",
+        "x": 118,
+        "z": -24,
+        "h": 13
+      },
+      {
+        "kind": "tree",
+        "x": -97,
+        "z": 49,
+        "h": 16
+      },
+      {
+        "kind": "ruin",
+        "x": -86,
+        "z": 77,
+        "w": 11,
+        "d": 11,
+        "h": 5
+      },
+      {
+        "kind": "rock",
+        "x": 98,
+        "z": 58,
+        "w": 9,
+        "d": 8,
+        "h": 3.5
+      },
+      {
+        "kind": "rock",
+        "x": 121,
+        "z": 10,
+        "w": 9,
+        "d": 7,
+        "h": 3.9
+      },
+      {
+        "kind": "tree",
+        "x": -23,
+        "z": -126,
+        "h": 15
+      },
+      {
+        "kind": "temple",
+        "x": -36,
+        "z": -106,
+        "w": 13,
+        "d": 11,
+        "h": 7
+      },
+      {
+        "kind": "bush",
+        "x": 60,
+        "z": 56,
+        "h": 3
+      },
+      {
+        "kind": "bush",
+        "x": -74,
+        "z": 58,
+        "h": 3
+      },
+      {
+        "kind": "ruin",
+        "x": -58,
+        "z": -84,
+        "w": 9,
+        "d": 9,
+        "h": 4
+      }
+    ],
+    "surfaces": {
+      "floor": {
+        "pattern": "moss",
+        "tileSize": 7,
+        "roughness": 0.95
+      },
+      "wall": {
+        "pattern": "brick",
+        "tileSize": 6,
+        "roughness": 0.9
+      },
+      "cover": {
+        "pattern": "stone",
+        "tileSize": 3.8,
+        "roughness": 0.94
+      },
+      "stair": {
+        "pattern": "stone",
+        "tileSize": 2.8,
+        "roughness": 0.9
+      },
+      "platform": {
+        "pattern": "stone",
+        "tileSize": 5,
+        "roughness": 0.9
+      }
+    }
+  }
+}

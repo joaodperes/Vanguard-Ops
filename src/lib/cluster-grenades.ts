@@ -3,6 +3,7 @@ import type { Vec3, CoverBox } from "./game-protocol";
 import { weaponById, projectileSplashRadius } from "./game-data";
 import { CoverSpatialIndex } from "./cover-spatial-index";
 import { MOVEMENT } from "./movement-rules";
+import type {ObjectiveSource} from "./map-objectives";
 import { orbitalGravity } from "./orbital-reactor";
 import { bouncingProjectilePath, type TimedProjectilePath } from "./bouncing-projectile";
 export { projectilePositionAt as clusterPositionAt } from "./bouncing-projectile";
@@ -13,9 +14,9 @@ export interface ClusterShot { path: TimedProjectilePath; delayMs: number; damag
 export interface ClusterVolley { id: string; ownerId: string; ownerTeam: string; launchedAt: number; shots: ClusterShot[] }
 
 /** Ordnance follows the map's gravity, independently of an operator's equipped perk/weapon. */
-export function clusterGravity(mapId:string):number { return MOVEMENT.gravity*orbitalGravity(mapId); }
+export function clusterGravity(mapId:ObjectiveSource):number { return MOVEMENT.gravity*orbitalGravity(mapId); }
 
-export function clusterShots(origin:Vec3,direction:Vec3,cover:CoverBox[],mapId="compound"):ClusterShot[] {
+export function clusterShots(origin:Vec3,direction:Vec3,cover:CoverBox[],mapId:ObjectiveSource="compound"):ClusterShot[] {
   const len=Math.hypot(...direction)||1, dir=direction.map(v=>v/len) as Vec3;
   const weapon=weaponById(CLUSTER_ID), damage=weapon.stats.damage, radius=projectileSplashRadius(weapon);
   const gravity=clusterGravity(mapId);

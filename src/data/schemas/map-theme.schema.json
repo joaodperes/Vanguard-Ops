@@ -254,6 +254,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "textureId": {
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
             }
           },
           "additionalProperties": false
@@ -291,6 +301,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "textureId": {
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
             }
           },
           "additionalProperties": false
@@ -328,6 +348,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "textureId": {
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
             }
           },
           "additionalProperties": false
@@ -365,6 +395,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "textureId": {
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
             }
           },
           "additionalProperties": false
@@ -402,6 +442,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "textureId": {
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
             }
           },
           "additionalProperties": false

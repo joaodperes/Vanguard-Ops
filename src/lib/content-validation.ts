@@ -16,6 +16,10 @@ import {
   ACHIEVEMENT_TIER_COLORS,
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
+import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
+import {MAPS} from "./game-protocol";
+import {validateObjectives} from "./map-objectives";
+import {mapTexture} from "./map-textures";
 import { MAP_VISUAL_THEMES } from "./map-visuals";
 
 const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
@@ -232,6 +236,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       z.enum(["floor","wall","cover","stair","platform"]),
       z.object({
         pattern:z.enum(["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]),tileSize:pos.max(100),roughness:unit,
+        textureId:z.string().refine(id=>!!mapTexture(id),"Unknown bundled texture").optional(),
       }).strict(),
     ).refine(s=>["floor","wall","cover","stair","platform"].every(k=>k in s),
       "Every map requires floor/wall/cover/stair/platform surface recipes").optional(),
@@ -252,11 +257,15 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (MAP_BLUEPRINTS.version !== 1) issues.push("map blueprints: unsupported version");
   if (!Object.keys(MAP_BLUEPRINTS.maps).length) issues.push("map blueprints: no maps");
   for (const [mapId, bp] of Object.entries(MAP_BLUEPRINTS.maps)) {
+    for(const problem of validateMapDocument(MAP_DOCUMENTS[mapId]))issues.push("map document "+mapId+": "+problem);
     if (!id.safeParse(mapId).success) issues.push("map " + mapId + ": invalid ID");
     for (const problem of validateBlueprint(bp)) issues.push("map " + mapId + ": " + problem);
     if (bp.templateMapId && !(bp.templateMapId in MAP_BLUEPRINTS.maps))
       issues.push("map " + mapId + ": unknown base template " + bp.templateMapId);
   }
+  for(const [mapId,map] of Object.entries(MAPS))
+    for(const problem of validateObjectives(map))issues.push("runtime map "+mapId+": "+problem);
+
   for(const [mapId,layout] of Object.entries(CTF_LAYOUTS)) {
     const bp=MAP_BLUEPRINTS.maps[mapId];
     if(!bp)issues.push("CTF layout: unknown map "+mapId);
