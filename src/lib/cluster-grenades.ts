@@ -8,7 +8,7 @@ import { orbitalGravity } from "./orbital-reactor";
 import { bouncingProjectilePath, type TimedProjectilePath } from "./bouncing-projectile";
 export { projectilePositionAt as clusterPositionAt } from "./bouncing-projectile";
 export const CLUSTER_ID = "wonder_cluster";
-export const CLUSTER_MAX_DAMAGE = 240;
+export const CLUSTER_MAX_DAMAGE = 175;
 export const CLUSTER_SHELL_FUSE_MS = 1400;
 export interface ClusterShot { path: TimedProjectilePath; delayMs: number; damage: number; radius: number }
 export interface ClusterVolley { id: string; ownerId: string; ownerTeam: string; launchedAt: number; shots: ClusterShot[] }
