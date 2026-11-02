@@ -11,13 +11,13 @@ describe("Plagueheart three-charge recharge", () => {
     expect(plagueheart.stats.magSize).toBe(3);
     expect(fullWonderCharges(rules).charges).toBe(3);
   });
-  test("ordinary kills accelerate the next charge by 8.5 seconds", () => {
+  test("ordinary kills accelerate the next charge by 4.5 seconds", () => {
     const spent = spendWonderCharge(fullWonderCharges(rules), rules, 10000)!;
     expect(spent.charges).toBe(2);
-    expect(spent.nextAt).toBe(48000);
+    expect(spent.nextAt).toBe(57500);
     const afterKill = accelerateWonderCharge(spent, rules, 12000);
     expect(afterKill.charges).toBe(2);
-    expect(afterKill.nextAt).toBe(39500);
+    expect(afterKill.nextAt).toBe(53000);
   });
   test("recharges one missing charge per recharge cycle", () => {
     let state = fullWonderCharges(rules);
@@ -25,8 +25,8 @@ describe("Plagueheart three-charge recharge", () => {
     state = spendWonderCharge(state, rules, 2000)!;
     state = spendWonderCharge(state, rules, 3000)!;
     expect(state.charges).toBe(0);
-    expect(tickWonderCharges(state, rules, 39000).charges).toBe(1);
-    expect(tickWonderCharges(state, rules, 77000).charges).toBe(2);
-    expect(tickWonderCharges(state, rules, 115000).charges).toBe(3);
+    expect(tickWonderCharges(state, rules, 48500).charges).toBe(1);
+    expect(tickWonderCharges(state, rules, 96000).charges).toBe(2);
+    expect(tickWonderCharges(state, rules, 143500).charges).toBe(3);
   });
 });
