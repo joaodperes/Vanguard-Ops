@@ -35,7 +35,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Corrosive bolt poisons enemies close to its impact (3.5m splash), then damages them over time. Three regenerating charges; ordinary kills accelerate recharge.",
+    "description": "Corrosive bolt poisons enemies close to its impact (3.5m splash), then deals poison damage for 5 seconds. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
@@ -65,7 +65,7 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
+    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 25 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
@@ -1069,7 +1069,7 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 6s; even hipfire smart bullets seek one tagged enemy per shot if still exposed.",
+    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 6s; one shot hits up to three exposed tagged enemies.",
     "wonder": {
       "kind": "smart",
       "maxCharges": 2,
@@ -1129,7 +1129,7 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 5 seconds.",
+    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 6.5 seconds.",
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
@@ -1411,7 +1411,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces full frontal cover and lowers the P-9. ",
+    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces frontal cover and lowers the P-9. Quick melee bash deals 50 damage while the shield is intact. ",
     "stats": {
       "damage": 41,
       "fireRate": 5,
