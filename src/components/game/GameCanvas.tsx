@@ -189,6 +189,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     const wire: LoadoutWire = {
       ...loadout,
       perkId: saved.perkId,
+      wonderWeaponId: saved.perkId === "wonder_weapon" ? saved.wonderWeaponId : undefined,
       weaponId: saved.weapon.id,
       secondaryWeaponId: saved.perkId === "well_prepared" || !isPrimaryWeaponCategory(saved.secondary.category)
         ? saved.secondary.id : "pistol_side",
