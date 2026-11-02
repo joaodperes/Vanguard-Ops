@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, resetWonderChargesOnRespawn, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -5426,13 +5426,11 @@ export class FPSEngine {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
-          this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          // A new life grants full Wonder charges, as well as ordinary magazines.
+          // This mirrors the authoritative server reset for this player.
+          this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
-          // Round 20: Refill ALL weapon slots on respawn (not just the active one).
-          this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
-          this.secondaryAmmoInMag = this.secondaryEff.magSize;
-          this.meleeAmmoInMag = this.meleeEff.magSize;
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
@@ -5506,9 +5504,8 @@ export class FPSEngine {
           this.alive = true; this.health = msg.health; this.respawnAt = 0;
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
-          this.primaryAmmoInMag = this.primaryEff.magSize;
-          this.secondaryAmmoInMag = this.secondaryEff.magSize;
-          this.ammoInMag = this.primaryAmmoInMag; this.buildViewmodel();
+          // Survival wave recovery is also a fresh deployment with full ammo.
+          this.refillAmmoOnRespawn(); this.buildViewmodel();
         }
         break;
       case "deathBomb":
@@ -5931,6 +5928,23 @@ export class FPSEngine {
     return chooseSpawn(this,this.map,team,occupants);
   }
 
+  /** Refill every slot on a new life. Charge-based Wonders also lose their
+   * old recharge timers, while Bulwark keeps its standard P-9 magazine. */
+  private refillAmmoOnRespawn() {
+    const primary = weaponById(this.primaryWeaponId);
+    const full = resetWonderChargesOnRespawn(
+      this.wonderStates, "", primary.id,
+      usesWonderCharges(primary) ? primary.wonder! : null,
+    );
+    this.primaryAmmoInMag = full?.charges ?? this.primaryEff.magSize;
+    this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    this.meleeAmmoInMag = this.meleeEff.magSize;
+    // Gun Game and temporary special weapons use the active weapon's stats.
+    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId))
+      ? (this.wonderStates.get(this.weaponId)?.charges ?? this.eff.magSize)
+      : this.eff.magSize;
+  }
+
   private respawnSelf() {
     this.equipQueuedLoadout();
     const sp = this.pickSpawn(this.opts.team as string);
@@ -5948,14 +5962,10 @@ export class FPSEngine {
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
+    this.refillAmmoOnRespawn();
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
-    // Round 19o: refill ALL slots on respawn (not just the active one).
-    this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
-    this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    this.meleeAmmoInMag = this.meleeEff.magSize;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
