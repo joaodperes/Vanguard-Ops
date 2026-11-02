@@ -204,6 +204,24 @@ export function Armory() {
     } finally { setBusy(null); }
   };
 
+  // Wonders occupy slot four and replace a passive perk, not the primary gun.
+  const equipWonder = async (weapon: WeaponDef) => {
+    if (!profile?.prestige?.wonderWeapons.includes(weapon.id) || !weapon.wonder || weapon.disabled) return;
+    setBusy("equip:" + weapon.id);
+    try {
+      await enqueueAttachmentSave(async () => {
+        const response = await fetch("/api/loadout", {
+          method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({playerKey,perkId:"wonder_weapon",wonderWeaponId:weapon.id}),
+        });
+        if(!response.ok)throw new Error((await response.json()).error || "Cannot equip Wonder");
+        await refreshProfile();
+      });
+      toast.success(`Equipped ${weapon.name} in slot 4`);
+    }catch(error){toast.error(error instanceof Error?error.message:"Equip failed");}
+    finally{setBusy(null);}
+  };
+
   // Equip an attachment (or unequip by passing null) for the given slot. Saves
   // immediately via /api/loadout. The slot determines which field is updated:
   //   primary  -> attachments
@@ -454,17 +472,14 @@ export function Armory() {
                     <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
                   {owned
-                    ? <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" disabled={profile?.loadout.weapon.id === w.id || busy === "equip:" + w.id}
-                          onClick={() => equipWeapon(w, "primary")}
-                          className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
-                          {profile?.loadout.weapon.id === w.id ? <><Check className="w-4 h-4 mr-1.5" /> Equipped</> : "Equip as Primary"}
-                        </Button>
-                        <Button variant="outline" onClick={() => setCustomizing({weapon:w,slot:"primary"})}
-                          className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
-                          <Palette className="w-4 h-4 mr-1.5" /> Customize
-                        </Button>
-                      </div>
+                    ? <Button variant="outline"
+                        disabled={(profile?.loadout.perkId==="wonder_weapon" && profile?.loadout.wonderWeaponId===w.id) || busy === "equip:" + w.id}
+                        onClick={() => equipWonder(w)}
+                        className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                        {profile?.loadout.perkId==="wonder_weapon" && profile?.loadout.wonderWeaponId===w.id
+                          ? <><Check className="w-4 h-4 mr-1.5" /> Equipped in slot 4</>
+                          : "Equip as Wonder Perk"}
+                      </Button>
                     : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
                         <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Redeem · 1 Wonder unlock" : "Requires 1 Wonder unlock"}
                       </Button>}
