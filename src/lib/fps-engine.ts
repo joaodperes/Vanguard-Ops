@@ -10,7 +10,7 @@ import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs, riotBashProfile, RIOT_BASH_KNOCKBACK } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { createRiotShieldModel, applyRiotShieldDamageVisual } from "./riot-shield-model";
 import { shieldPanel } from "./riot-shield";
@@ -3719,13 +3719,14 @@ export class FPSEngine {
     if (!this.quickMeleeModel) return false;
     const progress = (now - this.quickMeleeFeedbackAt) / this.meleeSwingDur;
     const active = this.quickMeleeFeedbackAt > 0 && progress >= 0 && progress < 1;
-    this.quickMeleeModel.visible = active && this.alive;
+    const bash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
+    this.quickMeleeModel.visible = active && this.alive && !bash;
     if (active) {
       const pose=meleeSwingPose(this.meleeWeaponId,progress);
       this.quickMeleeModel.position.set(.37+pose.x,-.3+pose.y,-.56+pose.z);
       this.quickMeleeModel.rotation.set(.95+pose.pitch,pose.yaw,-.55+pose.roll);
     }
-    return active;
+    return active && !bash;
   }
 
   // ---- Input ----
@@ -3949,7 +3950,8 @@ export class FPSEngine {
   private quickMelee() {
     if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
     const now = performance.now();
-    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
+    const shieldBash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
+    const melee=shieldBash?riotBashProfile():quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
     if (now - this.quickMeleeLastAt < melee.cooldownMs ||
         (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
     this.quickMeleeLastAt = now;
@@ -3959,7 +3961,7 @@ export class FPSEngine {
     this.meleeSwingAt = 0; // quick-melee viewmodel has its own animation
     this.meleeSwingDur = melee.swingMs;
     this.manualAiming = false;
-    this.weaponAudio.play("melee", { weaponId: this.meleeWeaponId, volume: 0.9 });
+    this.weaponAudio.play("melee", { weaponId: shieldBash?RIOT_SHIELD_ID:this.meleeWeaponId, volume: 0.9 });
     if (this.opts.online) {
       this.socket?.emit("message", { t: "quickMelee" });
       return;
@@ -3980,7 +3982,14 @@ export class FPSEngine {
     if(candidate){
       const target=this.combatants.get(candidate.id);
       if(target){
-        this.applyDamageLocal(target,melee.damage,false,this.meleeWeaponId);
+        this.applyDamageLocal(target,melee.damage,false,shieldBash?RIOT_SHIELD_ID:this.meleeWeaponId);
+        if(shieldBash && target.alive){
+          const dx=target.pos[0]-this.pos.x,dz=target.pos[2]-this.pos.z;
+          const distance=Math.hypot(dx,dz)||1;
+          const pushed:Vec3=[target.pos[0]+dx/distance*RIOT_BASH_KNOCKBACK,
+            target.pos[1],target.pos[2]+dz/distance*RIOT_BASH_KNOCKBACK];
+          if(!blocksBotMotion(this.map.cover,target.pos,pushed,target.pos[1]))target.pos=pushed;
+        }
         if(this.meleeWeaponId==="baton"&&target.ai&&target.ai.reloadingUntil>now){
           target.ai.reloadingUntil=now+1100;
           target.ai.nextShotAt=Math.max(target.ai.nextShotAt,now+1100);
@@ -6520,7 +6529,8 @@ export class FPSEngine {
   }
 
   private shieldRaised():boolean{
-    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting && this.riotShieldHp>0;
+    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting &&
+      this.riotShieldHp>0 && performance.now()-this.quickMeleeFeedbackAt>=riotBashProfile().swingMs;
   }
   private disposeRiotModel(model:THREE.Object3D){
     model.removeFromParent();
@@ -6540,6 +6550,9 @@ export class FPSEngine {
       applyRiotShieldDamageVisual(model,this.riotShieldHp);
       model.scale.set(panel.width/full.width,panel.height/full.height,1);
       model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
+      const bashProgress=(performance.now()-this.quickMeleeFeedbackAt)/riotBashProfile().swingMs;
+      if(this.weaponId===RIOT_SHIELD_ID && bashProgress>=0 && bashProgress<1)
+        model.position.z-=.4*Math.sin(Math.PI*bashProgress);
       // Camera forward is -Z; the same panel angle is required, not its mirror.
       model.rotation.set(0,panel.yawOffset,0);
     }
