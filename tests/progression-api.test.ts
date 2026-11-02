@@ -27,3 +27,36 @@ test("real SQLite API regressions: perk saves, quest levels, Career spending and
     expect(result.stdout).toContain("All progression API scenarios passed");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }, 65000);
+
+test("existing SQLite Loadout upgrades its Wonder column automatically without losing rows", () => {
+  const dir=mkdtempSync(join(tmpdir(),"vanguard-wonder-upgrade-"));
+  try {
+    const dbPath=join(dir,"legacy.db");
+    const env={...process.env,DATABASE_URL:`file:${dbPath}`};
+    const original=readFileSync("prisma/schema.prisma","utf8");
+    const old=original.replace(/^  wonderWeaponId\s+String[^\n]*\n/m,"");
+    expect(old).not.toBe(original);
+    const schemaPath=join(dir,"legacy.prisma");
+    writeFileSync(schemaPath,old);
+    const setup=spawnSync("node",["node_modules/prisma/build/index.js","db","push","--skip-generate","--schema",schemaPath],
+      {env,encoding:"utf8",timeout:30000});
+    expect(setup.status,setup.stdout+setup.stderr).toBe(0);
+    const sqlite=new Database(dbPath);
+    sqlite.run("INSERT INTO Player (id,playerKey,name,level,xp,credits,updatedAt) VALUES ('old','old-wonder-slot-player','Legacy Wonder User',7,12345,830,CURRENT_TIMESTAMP)");
+    sqlite.run("INSERT INTO Loadout (id,playerId,primaryWeapon,perkId,updatedAt) VALUES ('old-kit','old','rifle_ar','battle_hardened',CURRENT_TIMESTAMP)");
+    expect(sqlite.query("PRAGMA table_info('Loadout')").all().some((row:any)=>row.name==="wonderWeaponId")).toBe(false);
+    sqlite.close();
+    const upgraded=spawnSync(process.execPath,["tests/helpers/wonder-schema-upgrade-runner.ts"],
+      {env,encoding:"utf8",timeout:30000});
+    expect(upgraded.status,upgraded.stdout+upgraded.stderr).toBe(0);
+    expect(upgraded.stdout).toContain("Legacy Wonder slot upgraded");
+    const reopened=new Database(dbPath);
+    const columns=reopened.query("PRAGMA table_info('Loadout')").all() as Array<{name:string}>;
+    expect(columns.some(row=>row.name==="wonderWeaponId")).toBe(true);
+    const kit=reopened.query("SELECT primaryWeapon,perkId,wonderWeaponId FROM Loadout WHERE playerId='old'").get()
+      as {primaryWeapon:string;perkId:string;wonderWeaponId:string};
+    expect(kit).toEqual({primaryWeapon:"rifle_ar",perkId:"battle_hardened",wonderWeaponId:""});
+    expect((reopened.query("SELECT credits FROM Player WHERE id='old'").get() as {credits:number}).credits).toBe(830);
+    reopened.close();
+  }finally{rmSync(dir,{recursive:true,force:true});}
+},65000);
