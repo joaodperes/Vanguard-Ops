@@ -5368,6 +5368,15 @@ export class FPSEngine {
           }
         }
         break;
+      case "shieldBashPush":
+        if(msg.victimId===this.selfId && this.alive){
+          // The authoritative server collision-checked the shove. Apply it to
+          // the owning client so client-sent movement cannot cancel the push.
+          this.pos.set(msg.pos[0],msg.pos[1],msg.pos[2]);
+          this.sprinting=false;
+          this.sound.play("melee_hit",{volume:.55});
+        }
+        break;
       case "hit": {
         if (msg.victimId === this.selfId) {
           this.damageFlashAt = performance.now();
@@ -5474,8 +5483,8 @@ export class FPSEngine {
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
-          // A new life grants full Wonder charges, as well as ordinary magazines.
-          // This mirrors the authoritative server reset for this player.
+          // A normal respawn guarantees one Wonder charge; a newly queued kit
+          // still starts drained. The server follows the same rule.
           this.refillAmmoOnRespawn(changedKit); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
