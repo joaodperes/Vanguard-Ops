@@ -3785,6 +3785,7 @@ export class FPSEngine {
       if (e.code === "Digit1") this.swapWeapon("primary");
       if (e.code === "Digit2") this.swapWeapon("secondary");
       if (e.code === "Digit3") this.swapWeapon("melee");
+      if (e.code === "Digit4") this.swapWeapon("wonder");
       if (e.code === "KeyQ" && !e.repeat) {
         e.preventDefault();
         // Q swaps between the last two distinct equipped weapons. With no
@@ -4326,6 +4327,7 @@ export class FPSEngine {
     if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
     if (this.currentSlot === slot) return;
+    if (slot === "wonder" && !this.wonderWeaponId) return;
     if (!this.alive) return;
     // ---- Round 19o: Save current slot's ammo before swapping ----
     // Previously, swapping reset ammo to full (this.ammoInMag = this.eff.magSize),
@@ -4351,11 +4353,18 @@ export class FPSEngine {
       this.eff = this.secondaryEff;
       this.sightDef = this.secondarySight;
       this.ammoInMag = this.secondaryAmmoInMag;
-    } else {
+    } else if (slot === "melee") {
       this.weaponId = this.meleeWeaponId;
       this.eff = this.meleeEff;
       this.sightDef = this.meleeSight;
       this.ammoInMag = this.meleeAmmoInMag;
+    } else {
+      this.weaponId=this.wonderWeaponId;
+      this.eff=this.wonderEff;
+      this.sightDef=this.wonderSight;
+      this.ammoInMag=usesWonderCharges(weaponById(this.wonderWeaponId))
+        ? (this.wonderStates.get(this.wonderWeaponId)?.charges ?? 0)
+        : this.wonderEff.magSize;
     }
     this.reloading = false;
     this.swapAnimAt = performance.now() - (this.activePerkId === "quickdraw" ? 155 : 0);
@@ -4372,6 +4381,7 @@ export class FPSEngine {
 
   // Public getter for the current slot (used by the HUD).
   getCurrentSlot(): WeaponSlot { return this.currentSlot; }
+  hasWonderSlot(): boolean { return !!this.wonderWeaponId && this.opts.mode!=="gungame"; }
 
   // Round 20a: Public getter for socket connection state (used by GameCanvas lobby UI).
   getSocketConnected(): boolean { return !!this.socket?.connected; }
@@ -5760,7 +5770,8 @@ export class FPSEngine {
         this.wonderStates.clear();
         this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;
         const matchPrimary = weaponById(this.primaryWeaponId);
-        if (usesWonderCharges(matchPrimary) && matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
+        const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+        if(matchWonder?.wonder && usesWonderCharges(matchWonder))this.wonderStates.set(matchWonder.id,fullWonderCharges(matchWonder.wonder));
         this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
         if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
@@ -5948,11 +5959,8 @@ export class FPSEngine {
    * old recharge timers, while Bulwark keeps its standard P-9 magazine. */
   private refillAmmoOnRespawn() {
     const primary = weaponById(this.primaryWeaponId);
-    const full = resetWonderChargesOnRespawn(
-      this.wonderStates, "", primary.id,
-      usesWonderCharges(primary) ? primary.wonder! : null,
-    );
-    this.primaryAmmoInMag = full?.charges ?? this.primaryEff.magSize;
+    // Wonder charges deliberately survive death (the cooldown continues).
+    this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     // Gun Game and temporary special weapons use the active weapon's stats.
@@ -5973,8 +5981,7 @@ export class FPSEngine {
     this.wasJumpHeld = !!this.keys["Space"];
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
-    this.riotShieldHp=RIOT_SHIELD_HP;
-    this.riotShieldReadyAt=0;
+    if(this.wonderWeaponId!==RIOT_SHIELD_ID){this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;}
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
