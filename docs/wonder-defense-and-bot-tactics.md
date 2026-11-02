@@ -1,5 +1,17 @@
 # Defensive Wonders and combat feel — October 2026
 
+> **November 2026 specialist-slot update:** The notes below document the
+> earlier primary-slot implementation and some superseded values. The current
+> authoritative rules are in [Prestige and Wonder Weapons](prestige-wonder-weapons.md).
+> Thunderclap and Bulwark are now equipped through the level-one Wonder Weapon
+> perk in **slot 4**, not as ordinary primaries. Thunderclap recharges in 40s
+> with a 1.1s ordinary-kill bonus, and caps total volley damage at 175 per
+> target. Bulwark shield rebuilds in 35s, accelerated by 2s per kill, and
+> its F quick-melee performs a 50-damage shield bash. Recharge and rebuild
+> persist through deaths; queued loadout swaps start empty. Existing unlocked
+> Wonders are preserved; Wonder-primary saved presets are removed.
+
+
 Implemented on `dev`. No database schema change; both new weapons use the existing permanent Wonder unlock entitlement and Primary slot. The catalog now has 51 weapons, including nine Wonders (Bogfather remains disabled).
 
 ## Thunderclap (`wonder_cluster`)
