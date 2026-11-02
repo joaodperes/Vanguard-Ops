@@ -72,14 +72,14 @@ describe("fuse-timed grenade ricochets",()=>{
 describe("Thunderclap blast and map gravity",()=>{
  test("uses the stronger catalog profile for both the shell and its six children",()=>{
   const weapon=weaponById("wonder_cluster"),shots=clusterShots([0,1.62,0],[0,0,1],[]);
-  expect(weapon.stats.damage).toBe(120);expect(projectileSplashRadius(weapon)).toBe(6);
-  expect(shots[0].damage).toBe(weapon.stats.damage);expect(shots[0].radius).toBe(6);
+  expect(weapon.stats.damage).toBe(120);expect(projectileSplashRadius(weapon)).toBe(7);
+  expect(shots[0].damage).toBe(weapon.stats.damage);expect(shots[0].radius).toBe(7);
   expect(shots[0].path.flightMs).toBe(CLUSTER_SHELL_FUSE_MS);
-  for(const s of shots.slice(1)){expect(s.damage).toBe(75);expect(s.radius).toBe(4.5);expect(s.delayMs).toBe(1400);}
+  for(const s of shots.slice(1)){expect(s.damage).toBe(75);expect(s.radius).toBe(5.25);expect(s.delayMs).toBe(1400);}
   expect(shots.slice(1).some(s=>s.path.bounces!.length>0)).toBe(true);
   expect(clusterDamage(3,shots[0])).toBeGreaterThan(75);
   expect(clusterDamage(3,shots[1])).toBeGreaterThan(40);
-  expect(clusterDamage(6,shots[0])).toBe(0);expect(CLUSTER_MAX_DAMAGE).toBe(240);
+  expect(clusterDamage(7,shots[0])).toBe(0);expect(CLUSTER_MAX_DAMAGE).toBe(240);
  });
  test("Orbital Nexus uses its lower world gravity in both flight and ricochets",()=>{
   const ordinary=clusterShots([0,1.62,0],[0,0,1],[],"compound");

@@ -36,7 +36,7 @@ describe("Bulwark shield cooldown and hit effects", () => {
     const broken=hitRiotShield(70,0,70,1000);
     let state=accelerateRiotShield(broken.hp,broken.readyAt,3000);
     expect(riotShieldCooldownMs(state.hp,state.readyAt,3000))
-      .toBe(RIOT_SHIELD_RECHARGE_MS-4000);
+      .toBe(RIOT_SHIELD_RECHARGE_MS-5000);
     for(let i=0;i<15;i++)state=accelerateRiotShield(state.hp,state.readyAt,3000);
     expect(state).toEqual({hp:RIOT_SHIELD_HP,readyAt:0});
     expect(accelerateRiotShield(state.hp,state.readyAt,3000)).toEqual(state);

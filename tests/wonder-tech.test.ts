@@ -44,7 +44,7 @@ describe("persistent smart tags and held flame fuel",()=>{
   const fuel=WEAPONS.find(w=>w.id==="wonder_hellfire")!;
   expect(fuel.wonder?.maxCharges).toBe(8);
   expect(fuel.stats.magSize).toBe(8);
-  expect(fuel.stats.range).toBe(11);
+  expect(fuel.stats.range).toBe(13);
  });
  test("Bogfather remains in historical IDs but is unavailable",()=>{
   expect(WEAPONS.find(w=>w.id==="wonder_bogfather")?.disabled).toBe(true);

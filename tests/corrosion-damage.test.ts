@@ -10,7 +10,7 @@ describe("Plagueheart poison-first damage", () => {
   });
   test("poison radius applies at detonation, not along a 60m projectile path", () => {
     const radius = weaponById("wonder_corrosion").wonder!.radius;
-    expect(radius).toBeCloseTo(2.75);
+    expect(radius).toBeCloseTo(3.5);
     expect(corrosionImpactDistance([0,1,60],[0,1,59])).toBeLessThan(radius);
     expect(corrosionImpactDistance([0,1,60],[0,1,30])).toBeGreaterThan(radius);
     expect(corrosionImpactDistance([0,1,60],[0,1,0])).toBeGreaterThan(radius);
