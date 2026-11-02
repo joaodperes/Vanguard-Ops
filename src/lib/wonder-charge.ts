@@ -13,25 +13,6 @@ export function fullWonderCharges(rules: WonderChargeRules): WonderChargeState {
   return { charges: rules.maxCharges, nextAt: 0 };
 }
 
-/** Restore full ammo at the start of a new life, without touching other players.
- * Client maps use unprefixed weapon IDs; the server uses `${playerId}:` as prefix.
- * Removing all prior entries for this owner also discards stale recharge timers
- * from previously equipped Wonders. Bulwark has no charge state (rules = null).
- */
-export function resetWonderChargesOnRespawn(
-  states: Map<string, WonderChargeState>,
-  ownerPrefix: string,
-  primaryWeaponId: string,
-  rules: WonderChargeRules | null,
-): WonderChargeState | null {
-  for (const key of states.keys()) {
-    if (key.startsWith(ownerPrefix)) states.delete(key);
-  }
-  if (!rules) return null;
-  const full = fullWonderCharges(rules);
-  states.set(ownerPrefix + primaryWeaponId, full);
-  return full;
-}
 /** On a genuine in-match loadout change, the new Wonder must recharge from zero. */
 export function drainedWonderCharges(rules: WonderChargeRules, now: number): WonderChargeState {
   return { charges: 0, nextAt: now + rules.rechargeMs };
