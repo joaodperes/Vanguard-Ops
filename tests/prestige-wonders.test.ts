@@ -1,6 +1,6 @@
 import { weaponById } from "../src/lib/game-data";
 import { describe, expect, test } from "bun:test";
-import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, minimumWonderChargeOnRespawn, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
 import { prestigeEligible, prestigeChallengeStatus, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
 import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
 import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
@@ -19,12 +19,15 @@ describe("Wonder charge economy", () => {
     expect(tickWonderCharges(empty, rules, 41000).charges).toBe(1);
     expect(tickWonderCharges(empty, rules, 81000).charges).toBe(2);
   });
-  test("death does not refill the spent charge or reset its timer", () => {
+  test("respawn guarantees one charge without resetting other pending recharges", () => {
     const empty=spendWonderCharge(spendWonderCharge(fullWonderCharges(rules),rules,1000)!,rules,2000)!;
-    const throughDeath={...empty};
-    expect(throughDeath.charges).toBe(0);
-    expect(tickWonderCharges(throughDeath,rules,16000).charges).toBe(0);
-    expect(tickWonderCharges(throughDeath,rules,41000).charges).toBe(1);
+    expect(empty).toEqual({charges:0,nextAt:41000});
+    const revived=minimumWonderChargeOnRespawn(empty,rules,16000);
+    expect(revived).toEqual({charges:1,nextAt:41000});
+    expect(tickWonderCharges(revived,rules,40999).charges).toBe(1);
+    expect(tickWonderCharges(revived,rules,41000)).toEqual(fullWonderCharges(rules));
+    expect(minimumWonderChargeOnRespawn(fullWonderCharges(rules),rules,16000)).toEqual(fullWonderCharges(rules));
+    expect(minimumWonderChargeOnRespawn({charges:0,nextAt:41000},{...rules,maxCharges:1},16000)).toEqual({charges:1,nextAt:0});
   });
   test("a loadout swap starts zero charges without changing other players' states", () => {
     const state=new Map([
