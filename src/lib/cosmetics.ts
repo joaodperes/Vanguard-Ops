@@ -39,6 +39,10 @@ export const COSMETICS:readonly CosmeticDefinition[]=[
   {id:"plate_crimson",name:"Crimson Command",kind:"nameplate",color:"#fb7185",symbol:"◆",description:"Deep scarlet command banner with steel edges."},
   {id:"plate_eventide",name:"Eventide Crest",kind:"nameplate",color:"#c4b5fd",symbol:"✦",description:"Celestial purple frame with star accents."},
   {id:"plate_legend",name:"Vanguard Legend",kind:"nameplate",color:"#fbbf24",symbol:"★",description:"Gold-enamel champion nameplate with a crown motif."},
+  {id:"plate_verdant_signal",name:"Verdant Signal",kind:"nameplate",color:"#4ade80",symbol:"▦",description:"Emerald telemetry-grid nameplate for frontline signal specialists."},
+  {id:"plate_cinder_guard",name:"Cinder Guard",kind:"nameplate",color:"#fdba74",symbol:"▲",description:"Copper-orange command pennant for veteran defenders."},
+  {id:"plate_umbra_cipher",name:"Umbra Cipher",kind:"nameplate",color:"#a5b4fc",symbol:"◈",description:"Indigo cipher-diamond frame for covert career operatives."},
+  {id:"plate_auric_horizon",name:"Auric Horizon",kind:"nameplate",color:"#fde68a",symbol:"✺",description:"Pale-gold sunburst command frame for decorated career veterans."},
 ];
 export const DEFAULT_COSMETICS={reticle:"classic",charm:"none",nameplate:"standard"} as const;
 export function cosmeticById(id:string,kind?:CosmeticKind):CosmeticDefinition|undefined{
