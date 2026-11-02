@@ -245,7 +245,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
               </select>
               {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
                 <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
-            </div>
+            </div>}
             <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
             <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
               className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
