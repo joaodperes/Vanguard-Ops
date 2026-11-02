@@ -8,6 +8,7 @@ export interface SavedLoadout {
   id: string;
   name: string;
   perkId: string;
+  wonderWeaponId?: string;
   primaryWeapon: string;
   secondaryWeapon: string;
   meleeWeapon: string;
