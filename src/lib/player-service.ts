@@ -433,6 +433,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const unlockedSkinsForMelee = skinsByWeapon[meleeId] ?? ["default"];
   const loadout = resolveLoadout({
     perkId: p.loadout?.perkId ?? "battle_hardened",
+    wonderWeaponId: p.loadout?.wonderWeaponId ?? "",
     primaryWeapon: primaryId,
     secondaryWeapon: secondaryId,
     meleeWeapon: meleeId,
