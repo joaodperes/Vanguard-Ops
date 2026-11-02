@@ -1,6 +1,8 @@
+> **Archived implementation record.** Historical map layout audit from October 2026. Its coordinates, map counts and design proposals predate several gameplay updates. Consult current map JSON, Map Studio documentation and tests for live behavior.
+
 # Vanguard Ops — map layout and interaction audit
 
-> **Historical source audit (21 October 2026).** The counts, map geometries and design proposals below are retained as an earlier snapshot, **not current release specifications**. In particular, Ridgefall is now an enclosed steelworks factory and the two Afterlight editions share current authored region/spawn arrays. Use [Map Studio](map-studio.md), the current map catalogs and [the QA checklist](dev-test-checklist.md) for active behavior and acceptance.
+> **Historical source audit (21 October 2026).** The counts, map geometries and design proposals below are retained as an earlier snapshot, **not current release specifications**. In particular, Ridgefall is now an enclosed steelworks factory and the two Afterlight editions share current authored region/spawn arrays. Use [Map Studio](../map-studio.md), the current map catalogs and [the QA checklist](../dev-test-checklist.md) for active behavior and acceptance.
 
 Source baseline: `src/lib/game-protocol.ts`, `src/lib/dynamic-environment.ts`,
 `src/lib/bot-routing.ts`, `src/lib/bot-physics.ts` on `dev` (21 October 2026).

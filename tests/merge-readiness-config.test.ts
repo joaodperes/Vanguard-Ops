@@ -38,21 +38,21 @@ describe("merge-readiness configuration", () => {
     expect(nextConfig).toContain('output: "standalone"');
   });
 
-  test("map CI watches and tests orbital CTF and Afterlight roof regressions", () => {
-    const workflow = read(".github/workflows/afterlight-dev-validation.yml");
+  test("one full workflow protects both dev and main, including shipped Afterlight regressions", () => {
+    const workflow = read(".github/workflows/dev-validation.yml");
+    expect(workflow).toContain("      - dev");
+    expect(workflow).toContain("      - main");
+    expect(workflow).toContain("        run: bun run test:smoke");
     for (const path of [
       "tests/afterlight-ridgefall-polish.test.ts",
       "tests/afterlight-performance-roof-bots.test.ts",
+      "tests/afterlight-performance-and-elevation.test.ts",
       "tests/ctf-rules.test.ts",
       "tests/ctf-feedback.test.ts",
-      "src/lib/forest-warfare.ts",
-      "src/data/map-themes/orbital_nexus.json",
-    ]) {
-      expect(workflow).toContain("      - " + path);
-    }
-    expect(workflow).not.toContain(
-      "      - tests/afterlight-ridgefall-polish.test.ts tests/afterlight-performance-roof-bots.test.ts",
-    );
-    expect(workflow).toContain("tests/afterlight-performance-roof-bots.test.ts tests/afterlight-performance-and-elevation.test.ts");
+    ]) expect(existsSync(join(root, path))).toBe(true);
+    expect(existsSync(join(root, ".github/workflows/afterlight-dev-validation.yml"))).toBe(false);
+    expect(existsSync(join(root, "docs/README.md"))).toBe(true);
+    expect(existsSync(join(root, "docs/archive/survival-bullet-spitter.md"))).toBe(true);
+    expect(existsSync(join(root, "docs/survival-bullet-spitter.md"))).toBe(false);
   });
 });

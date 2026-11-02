@@ -2,6 +2,8 @@
 
 One computer **hosts both services**: the Next.js website on **TCP 3000** and the authoritative Socket.IO game server on **TCP 3003**. The host also owns the SQLite player/progression database. Other players only need a modern browser; they do **not** install Bun, clone the project, or start a game server.
 
+**Use the `main` branch for a stable LAN party.** Choose `dev` only when intentionally playtesting unreleased features (including the current Map Studio work). The source branch and the runtime are separate choices: `bun run lan` runs the development HTTP server on whichever branch you checked out.
+
 This guide is for a **trusted private LAN** or a **private Tailscale tailnet**, not for public internet hosting. The game server currently permits browser origins broadly; do not forward either port from your router to the public internet.
 
 ## 1. Prepare the host (Windows PowerShell)
@@ -10,18 +12,18 @@ Install [Bun](https://bun.sh/docs/installation) and Git, then open PowerShell in
 
 ```powershell
 git fetch origin
-git switch dev
-git pull --ff-only origin dev
+git switch main
+git pull --ff-only origin main
 bun install --frozen-lockfile
 ```
 
 Create an untracked `.env` **once** if you do not already have one:
 
 ```powershell
-Set-Content -Path .env -Value 'DATABASE_URL="file:./dev.db"'
+Set-Content -Path .env -Value 'DATABASE_URL="file:./vanguard-lan.db"'
 ```
 
-The example database is `prisma/dev.db` (Prisma resolves relative SQLite URLs from `prisma/`). **Keep an existing `.env` and database if you have player data**; do not overwrite them. Back up your `*.db` file before updating game versions or running schema updates.
+The example database is `prisma/vanguard-lan.db` (Prisma resolves relative SQLite URLs from `prisma/`). **Keep an existing `.env` and database if you have player data**; do not overwrite them. Back up your `*.db` file before updating game versions or running schema updates. **Avoid pointing the stable `main` build and experimental `dev` builds at the same database**: changes to the Prisma schema can be incompatible with older releases.
 
 Initialize/update the local database and start the LAN listener:
 
@@ -34,7 +36,11 @@ bun run lan
 
 Look for `[VANGUARD] Game server listening on port 3003` in the host console. Leave the command running for the entire party. Test `http://localhost:3000` on the host first.
 
-On Linux/macOS, run the same `git`, `bun install --frozen-lockfile`, `bun run db:setup`, and `bun run lan` commands in a terminal; create `.env` with `DATABASE_URL="file:./dev.db"` if needed.
+On Linux/macOS, run the same `git`, `bun install --frozen-lockfile`, `bun run db:setup`, and `bun run lan` commands in a terminal; create `.env` with `DATABASE_URL="file:./vanguard-lan.db"` if needed.
+
+### Testing unreleased changes instead
+
+If the purpose of the session is explicitly to test changes on `dev`, replace **only the checkout steps** with `git switch dev` and `git pull --ff-only origin dev`, and use a **separate, backed-up test database**. Do not switch a running host between branches or expose experimental profiles to schema changes without a backup. For a regular party, return to `main`.
 
 ## 2. Join on the same router / LAN
 

@@ -1,3 +1,5 @@
+> **Archived implementation record.** Completed November 2026 content rollout record. Prices, inventories, and branch pointers are historical snapshots; catalog JSON and Shop logic are authoritative.
+
 # November 2026 — Monthly nameplate collection
 
 **PR base:** `dev` (content and Shop integration branch). `main` has a separate merge commit; this addition deliberately avoids merging or rewriting either integration branch.
