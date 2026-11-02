@@ -11,7 +11,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { fullWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, resetWonderChargesOnRespawn, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -672,7 +672,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.clusterVolleys.clear();
-  room.wonderCharges.clear(); // fresh match only; never clear on respawn
+  room.wonderCharges.clear(); // Fresh match: all owners start with full Wonder charges.
   room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.deathBombs.clear();
@@ -1594,6 +1594,18 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   room.smartTags.delete(p.id);
 }
 
+/** The server is authoritative for online Wonder spending. Refill only the
+ * revived player's charges; other players' cooldowns remain untouched. */
+function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
+  const primary = weaponById(room.loadouts.get(p.id)?.weaponId ?? p.weaponId);
+  resetWonderChargesOnRespawn(
+    room.wonderCharges, `${p.id}:`, primary.id,
+    room.mode !== "gungame" && usesWonderCharges(primary) ? primary.wonder! : null,
+  );
+  // No fuel-second from the previous life may count toward Hellfire's next shot.
+  room.hellfireUntil.delete(p.id);
+}
+
 function scheduleRespawn(room: Room, p: PlayerNet) {
   room.burstState.delete(p.id);
   room.poison.delete(p.id);
@@ -1608,6 +1620,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     p.health = MAX_HEALTH; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; room.lastDamagedAt.delete(p.id);
     p.alive = true;
     applyQueuedLoadout(room, p);
+    refillPlayerWonderAmmo(room, p);
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
     if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.lastAlert=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
@@ -1783,6 +1796,7 @@ function recoverSurvivalPlayers(room: Room) {
     p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
     applyQueuedLoadout(room, p);
     p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
+    refillPlayerWonderAmmo(room, p);
     p.spawnProtectedUntil = 0;
     room.lastDamagedAt.delete(p.id);
     io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos, health: MAX_HEALTH } as S2C);
