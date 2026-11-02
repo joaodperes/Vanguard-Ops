@@ -1,6 +1,6 @@
 /** Charge-based Wonder Weapons have no reserve ammo or manual reload.
- * Charges replenish over time (accelerated by ordinary kills) during each life.
- * Every actual respawn/recovery restores the full capacity and clears cooldowns.
+ * Ordinary kills accelerate charges; time advances across death and while holstered.
+ * A changed Wonder loadout begins empty with a fresh cooldown.
  * Functions are deterministic, shared by client, server and tests.
  */
 export interface WonderChargeState { charges: number; nextAt: number }
@@ -31,6 +31,10 @@ export function resetWonderChargesOnRespawn(
   const full = fullWonderCharges(rules);
   states.set(ownerPrefix + primaryWeaponId, full);
   return full;
+}
+/** On a genuine in-match loadout change, the new Wonder must recharge from zero. */
+export function drainedWonderCharges(rules: WonderChargeRules, now: number): WonderChargeState {
+  return { charges: 0, nextAt: now + rules.rechargeMs };
 }
 export function tickWonderCharges(state: WonderChargeState, rules: WonderChargeRules, now: number): WonderChargeState {
   let { charges, nextAt } = state;
