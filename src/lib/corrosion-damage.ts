@@ -4,9 +4,9 @@
  */
 export const CORROSION_DURATION_MS = 5000;
 export const CORROSION_TICK_MS = 500;
-/** Moderate direct hit; a 95-damage profile delivers 28 immediately. */
+/** Moderate direct hit; a 95-damage profile delivers 26 immediately. */
 export function corrosionImpactDamage(baseDamage: number, trajectoryFalloff: number): number {
-  return Math.max(0, Math.min(28, baseDamage * 0.30) * Math.max(0, Math.min(1.2, trajectoryFalloff)));
+  return Math.max(0, Math.min(26, baseDamage * 0.30) * Math.max(0, Math.min(1.2, trajectoryFalloff)));
 }
 /** Ten ticks over five seconds; reapplication refreshes instead of stacking. */
 export function corrosionTickDamage(baseDamage: number): number {
