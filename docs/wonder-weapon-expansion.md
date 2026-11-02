@@ -1,6 +1,6 @@
 # Wonder Weapon mechanics
 
-The following Wonder abilities use their existing permanent Prestige-token unlocks and stable catalog IDs. Every shot/resource is validated on the match server; offline bot games mirror damage, collisions and special effects.
+The following Wonder abilities use their existing permanent Prestige-token unlocks and stable catalog IDs. Wonders now occupy slot 4 when the level-one Wonder Weapon perk is selected, replacing passive perks rather than conventional primary weapons. Recharge survives death; changing a loadout starts the selected Wonder with no charges. Every shot/resource is validated on the match server; offline bot games mirror damage, collisions and special effects.
 
 | Weapon | Behavior | Resource |
 | --- | --- | --- |
