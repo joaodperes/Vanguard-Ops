@@ -11,7 +11,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { fullWonderCharges, resetWonderChargesOnRespawn, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -1592,6 +1592,16 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   p.nameplateId = queued.nameplateId ?? "standard";
   p.riotShieldRaised = false;
   room.smartTags.delete(p.id);
+  // Every newly applied kit drains its Wonder to prevent cooldown bypasses.
+  for(const key of room.wonderCharges.keys())
+    if(key.startsWith(p.id+":"))room.wonderCharges.delete(key);
+  const selected=WEAPONS.find(w=>w.id===queued.wonderWeaponId);
+  if(queued.perkId==="wonder_weapon" && selected?.wonder && !selected.disabled){
+    room.wonderCharges.set(p.id+":"+selected.id,drainedWonderCharges(selected.wonder,Date.now()));
+    if(selected.id===RIOT_SHIELD_ID){
+      p.riotShieldHp=0;p.riotShieldReadyAt=Date.now()+RIOT_SHIELD_RECHARGE_MS;
+    }
+  }
 }
 
 /** The server is authoritative for online Wonder spending. Refill only the
