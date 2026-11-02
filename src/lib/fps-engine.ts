@@ -6034,29 +6034,17 @@ export class FPSEngine {
   }
 
   private collectScavengerAmmo() {
-    this.saveAmmoToSlot(this.currentSlot); // reconcile shots spent since last weapon swap
-    // A cache always replenishes conventional primary and secondary magazines,
-    // including the one currently held. Heat/melee weapons have no ammo, but
-    // their holstered firearms still benefit. Ammo reserve is unlimited in
-    // this game; restore the actual magazine values used by weapon swapping.
-    const beforePrimary = this.primaryAmmoInMag;
-    const beforeSecondary = this.secondaryAmmoInMag;
-    if (this.primaryWeaponId && !usesWonderCharges(weaponById(this.primaryWeaponId)) && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
-        weaponById(this.primaryWeaponId).category !== "melee") {
-      this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
-        this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
+    this.saveAmmoToSlot(this.currentSlot);
+    const w=weaponById(this.weaponId);
+    const eligible=(this.currentSlot==="primary" || this.currentSlot==="secondary") &&
+      !w.wonder && w.category!=="melee" && w.special?.kind!=="heat";
+    this.scavengerAmmoGained=eligible ? Math.max(0,this.eff.magSize-this.ammoInMag) : 0;
+    if(eligible){
+      this.ammoInMag=scavengerAmmoAmount(this.eff.magSize);
+      this.saveAmmoToSlot(this.currentSlot);
     }
-    if (this.secondaryWeaponId && weaponById(this.secondaryWeaponId).special?.kind !== "heat" &&
-        weaponById(this.secondaryWeaponId).category !== "melee") {
-      this.secondaryAmmoInMag = Math.min(this.secondaryEff.magSize,
-        this.secondaryAmmoInMag + scavengerAmmoAmount(this.secondaryEff.magSize));
-    }
-    if (this.currentSlot === "primary") this.ammoInMag = this.primaryAmmoInMag;
-    if (this.currentSlot === "secondary") this.ammoInMag = this.secondaryAmmoInMag;
-    this.scavengerAmmoGained = (this.primaryAmmoInMag - beforePrimary) +
-      (this.secondaryAmmoInMag - beforeSecondary);
-    this.scavengerFeedbackAt = performance.now();
-    this.sound.play("reload", { volume: 0.34 });
+    this.scavengerFeedbackAt=performance.now();
+    if(eligible)this.sound.play("reload",{volume:.34});
   }
 
   // ---- Special-weapon resources & ground pickups ----
