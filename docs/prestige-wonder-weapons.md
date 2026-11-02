@@ -23,8 +23,7 @@ Run the safe schema update **before starting the new app/server build**.
 
 ## Diagnosing a missing Wonder unlock
 
-Armory → Wonders shows permanent Wonder awards, lifetime unlocks earned,
-redemptions and available unlocks. The per-weapon challenge list remains
+Armory → Wonders shows Wonder Weapon choices and token redemption. The per-weapon challenge list remains
 under Armory → Weapons → Customize → Challenges, including the independent
 Mastery rank and Prestige status for that weapon.
 
@@ -37,14 +36,14 @@ weapon progress when it successfully submits its match result.
 
 | Weapon | Behavior | Max ammo | Recharge per charge | Other-kill bonus |
 | --- | --- | ---: | ---: | ---: |
-| Event Horizon | Large 14m gravity pull with delayed detonation | 1 | 48s | -2.4s |
-| Plagueheart | Corrosive 9m blast and lingering toxin | 2 | 38s | -1.8s |
-| Bullet Spitter | Deployed automatic turret (see `survival-bullet-spitter.md`) | 1 | 55s | -2.0s |
-| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire | 2 | 29s | -1.6s |
-| Hellfire | True flamethrower; five-second full-tank burst, no gunshots or persistent floor patches | 5 fuel-seconds | 6.5s per fuel-second | -1.7s |
-| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses become short-lived proximity lightning mines | 2 | 31s | -1.8s |
-| Thunderclap | Bouncing 120-damage / 6m shell with six delayed 75-damage / 4.5m bomblets | 2 | 32s | -1.6s |
-| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; shield restores on respawn | — |
+| Event Horizon | Large 9.5m gravity pull with delayed detonation | 1 | 44s | -2.4s |
+| Plagueheart | Corrosive 3.5m impact splash and lingering toxin (95 base damage) | 3 | 38s | -8.5s |
+| Bullet Spitter | Deployed 38-damage automatic turret lasting 45s | 1 | 55s | -2.0s |
+| Deadlock | One charged shot damages up to three exposed tagged enemies, including from hipfire (6s tags) | 2 | 26s | -1.6s |
+| Hellfire | True flamethrower; 13m range, 9 damage per tick; no gunshots or persistent floor patches | 8 fuel-seconds | 6.5s per fuel-second | -1.7s |
+| Stormweaver | Seven lightning pellets; enemy hits chain twice, misses leave 5s proximity lightning mines | 2 | 31s | -1.8s |
+| Thunderclap | Bouncing 120-damage / 7m shell with six delayed 75-damage / 5.25m bomblets | 2 | 32s | -1.6s |
+| Bulwark + P-9 | 250 HP bullet shield; ADS braces it and lowers P-9 | Normal P-9 magazine | Normal reload; 27s rebuild or restores on respawn | -3s per kill |
 | Bogfather | Disabled pending redesign; cannot be selected | — | — | — |
 
 A Wonder Weapon redeems **one Wonder unlock entitlement** and is permanently owned. It equips into
