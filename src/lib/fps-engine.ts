@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, minimumWonderChargeOnRespawn, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -5469,13 +5469,14 @@ export class FPSEngine {
         break;
       case "respawn":
         if (msg.playerId === this.selfId) {
+          const changedKit=!!this.pendingLoadout;
           this.equipQueuedLoadout();
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
           // A new life grants full Wonder charges, as well as ordinary magazines.
           // This mirrors the authoritative server reset for this player.
-          this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
+          this.refillAmmoOnRespawn(changedKit); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           this.lastServerHealth = MAX_HEALTH;
@@ -5544,6 +5545,7 @@ export class FPSEngine {
         break;
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
+          const changedKit=!!this.pendingLoadout;
           this.equipQueuedLoadout();
           this.survivalDowned = false;
           this.lastPlayerRespawnAt = performance.now();
@@ -5552,7 +5554,7 @@ export class FPSEngine {
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
-          this.refillAmmoOnRespawn(); this.buildViewmodel();
+          this.refillAmmoOnRespawn(changedKit); this.buildViewmodel();
         }
         break;
       case "deathBomb":
@@ -5978,11 +5980,16 @@ export class FPSEngine {
     return chooseSpawn(this,this.map,team,occupants);
   }
 
-  /** Refill every slot on a new life. Charge-based Wonders also lose their
-   * old recharge timers, while Bulwark keeps its standard P-9 magazine. */
-  private refillAmmoOnRespawn() {
-    const primary = weaponById(this.primaryWeaponId);
-    // Wonder charges deliberately survive death (the cooldown continues).
+  /** Ordinary guns reload on respawn; a Wonder gets at least one charge.
+   * A newly applied kit must remain fully drained to prevent the swap exploit. */
+  private refillAmmoOnRespawn(changedKit=false) {
+    if(!changedKit){
+      const chosen=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+      if(chosen?.wonder && usesWonderCharges(chosen)){
+        const prior=this.wonderStates.get(chosen.id)??fullWonderCharges(chosen.wonder);
+        this.wonderStates.set(chosen.id,minimumWonderChargeOnRespawn(prior,chosen.wonder,performance.now()));
+      }
+    }
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
@@ -5994,6 +6001,7 @@ export class FPSEngine {
   }
 
   private respawnSelf() {
+    const changedKit=!!this.pendingLoadout;
     this.equipQueuedLoadout();
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
@@ -6009,7 +6017,7 @@ export class FPSEngine {
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.refillAmmoOnRespawn();
+    this.refillAmmoOnRespawn(changedKit);
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
