@@ -15,7 +15,7 @@ export function riotBashProfile() {
 }
 /** The shield rebuilds in one step after destruction, independently of
  * P-9 ammo. All owner kills shorten cooldown, even Bulwark P-9 kills.
- * Death/respawn still restores durability immediately. */
+ * The rebuild timer persists through death; match start restores durability. */
 export const RIOT_SHIELD_RECHARGE_MS = 35_000;
 export const RIOT_SHIELD_KILL_BONUS_MS = 2_000;
 export interface RiotShieldDurability { hp: number; readyAt: number }
