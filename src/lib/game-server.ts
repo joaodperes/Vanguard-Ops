@@ -2917,7 +2917,7 @@ async function handle(socket: any, msg: C2S) {
       room.lastMotionAt.set(socket.id,moveNow);
       if(msg.aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
       room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
-      p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && !!msg.aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0;
+      p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && !!msg.aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
       // Server-owned Deadlock tags: ADS continuously acquires up to three
@@ -2976,6 +2976,7 @@ async function handle(socket: any, msg: C2S) {
       if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs ||
           (p.weaponId===meleeId && now - p.lastShotAt < attack.cooldownMs)) return;
       room.quickMeleeAt.set(socket.id, now);
+      if(shieldBash)p.riotShieldRaised=false;
       if(p.weaponId===meleeId)p.lastShotAt=now;
       clearSpawnProtection(room, p);
       applyMeleeStrike(room,p,meleeId,now);
