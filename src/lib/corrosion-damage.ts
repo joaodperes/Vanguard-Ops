@@ -2,15 +2,15 @@
  * Its rocket-like trajectory does NOT imply rocket-like instant damage.
  * Other explosives and poison sources retain their existing behavior.
  */
-export const CORROSION_DURATION_MS = 6500;
+export const CORROSION_DURATION_MS = 5000;
 export const CORROSION_TICK_MS = 500;
-/** Small immediate hit; even a direct 95-damage Plagueheart shot cannot one-shot. */
+/** Moderate direct hit; a 95-damage profile delivers 28 immediately. */
 export function corrosionImpactDamage(baseDamage: number, trajectoryFalloff: number): number {
-  return Math.max(0, Math.min(18, baseDamage * 0.17) * Math.max(0, Math.min(1.2, trajectoryFalloff)));
+  return Math.max(0, Math.min(28, baseDamage * 0.30) * Math.max(0, Math.min(1.2, trajectoryFalloff)));
 }
-/** 13 periodic ticks over 6.5s; reapplication refreshes instead of stacking. */
+/** Ten ticks over five seconds; reapplication refreshes instead of stacking. */
 export function corrosionTickDamage(baseDamage: number): number {
-  return Math.max(3, Math.round(Math.max(0, baseDamage) * 0.11));
+  return Math.max(3, Math.round(Math.max(0, baseDamage) * 0.085));
 }
 
 /** Area around the actual Plagueheart detonation, not the projectile's
