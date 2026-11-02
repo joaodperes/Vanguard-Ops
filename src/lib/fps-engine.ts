@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, resetWonderChargesOnRespawn, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -905,13 +905,16 @@ export class FPSEngine {
   private primaryWeaponId: string;
   private secondaryWeaponId: string;
   private meleeWeaponId: string;
+  private wonderWeaponId: string;
   // Per-slot effective stats (precomputed on swap to avoid recompute each shot).
   private primaryEff: EffectiveStats;
   private secondaryEff: EffectiveStats;
   private meleeEff: EffectiveStats;
+  private wonderEff: EffectiveStats;
   private primarySight: SightDef;
   private secondarySight: SightDef;
   private meleeSight: SightDef;
+  private wonderSight: SightDef;
   // Swap animation: timestamp the player last swapped weapons. The viewmodel
   // dips down + back up over ~250ms for a visible swap.
   private swapAnimAt = 0;
@@ -1087,6 +1090,7 @@ export class FPSEngine {
     this.secondaryWeaponId = weaponById(opts.loadout.secondaryWeaponId ?? "pistol_side").disabled
       ? "pistol_side" : (opts.loadout.secondaryWeaponId ?? "pistol_side");
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
+    this.wonderWeaponId = opts.mode !== "gungame" && opts.loadout.perkId === "wonder_weapon" && !!WEAPONS.find(w=>w.id===opts.loadout.wonderWeaponId && w.wonder&&!w.disabled) ? opts.loadout.wonderWeaponId! : "";
     this.weaponId = this.primaryWeaponId;
     // Gun Game: the local player starts on the FIRST progression weapon,
     // regardless of their equipped loadout. Effective stats + viewmodel are
@@ -1121,9 +1125,11 @@ export class FPSEngine {
       : emptyAtts;
     this.secondaryEff = computeEffectiveStats(secW, secAtts);
     this.meleeEff = computeEffectiveStats(melW, emptyAtts);
+    this.wonderEff = computeEffectiveStats(weaponById(this.wonderWeaponId || "rifle_ar"), emptyAtts);
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.wonderSight = sightDefForType(this.wonderEff.sightType);
     this.equipmentCharges = equipmentById(opts.loadout.equipmentId).charges;
     // Active slot = primary by default (gun game overrides weaponId but keeps slot=primary).
     if (opts.mode === "gungame") {
@@ -1139,8 +1145,10 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    if (usesWonderCharges(primW) && primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
-    this.primaryAmmoInMag = usesWonderCharges(primW) ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
+    const initialWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+    if(initialWonder && usesWonderCharges(initialWonder) && initialWonder.wonder)
+      this.wonderStates.set(initialWonder.id,fullWonderCharges(initialWonder.wonder));
+    this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
