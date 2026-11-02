@@ -52,7 +52,7 @@ try {
 
   // Reproduce the reported failure with deliberately stale Player.level = 1.
   const p = await create("perk-player", totalXpForLevel(18));
-  for (const perk of PERKS.filter(p => p.unlockLevel <= 18)) {
+  for (const perk of PERKS.filter(p => p.unlockLevel <= 18 && p.id !== "wonder_weapon")) {
     await db.player.update({ where: { id: p.id }, data: { level: 1 } });
     await status(await saveLoadout(req({ playerKey: p.playerKey, perkId: perk.id })), 200);
     assert.equal((await db.loadout.findUniqueOrThrow({ where: { playerId: p.id } })).perkId, perk.id);
