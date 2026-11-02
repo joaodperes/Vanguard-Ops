@@ -2,6 +2,7 @@
 // New choices arrive at roughly three-level intervals, beginning at level 4.
 export const PERKS = [
   { id: "battle_hardened", name: "Battle-Hardened", description: "Begin health regeneration 1 second sooner after damage.", icon: "shield", unlockLevel: 1 },
+  { id: "wonder_weapon", name: "Wonder Weapon", description: "Trade a passive perk for a rechargeable Wonder in slot 4.", icon: "zap", unlockLevel: 1 },
   { id: "field_loader", name: "Field Loader", description: "Reload and vent heat while sprinting.", icon: "refresh-cw", unlockLevel: 4 },
   { id: "recon_visor", name: "Recon Visor", description: "Enemy gunfire tracks moving targets on your minimap for 3.2 seconds instead of 2.2 seconds.", icon: "radar", unlockLevel: 7 },
   { id: "quickdraw", name: "Quickdraw", description: "Swap weapons 60% faster and reload 20% faster.", icon: "zap", unlockLevel: 10 },
