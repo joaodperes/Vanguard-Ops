@@ -259,10 +259,15 @@ export interface HudState {
   primaryName: string;
   secondaryName: string;
   meleeName: string;
+  wonderName?: string;
   // Per-slot weapon IDs (so the HUD can show a category-color dot per slot).
   primaryWeaponId: string;
   secondaryWeaponId: string;
   meleeWeaponId: string;
+  wonderWeaponId?: string;
+  wonderCharges?: number;
+  wonderChargeMax?: number;
+  wonderSlotCooldownMs?: number;
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
   riotShieldRechargeMs?: number;
@@ -9548,9 +9553,15 @@ export class FPSEngine {
       primaryName: weaponById(this.primaryWeaponId).name,
       secondaryName: weaponById(this.secondaryWeaponId).name,
       meleeName: weaponById(this.meleeWeaponId).name,
+      ...(this.wonderWeaponId ? {wonderName:weaponById(this.wonderWeaponId).name,wonderWeaponId:this.wonderWeaponId} : {}),
       primaryWeaponId: this.primaryWeaponId,
       secondaryWeaponId: this.secondaryWeaponId,
       meleeWeaponId: this.meleeWeaponId,
+      ...(this.wonderWeaponId && usesWonderCharges(weaponById(this.wonderWeaponId)) ? {
+        wonderCharges:this.wonderStates.get(this.wonderWeaponId)?.charges??0,
+        wonderChargeMax:weaponById(this.wonderWeaponId).wonder!.maxCharges,
+        wonderSlotCooldownMs:wonderCooldownMs(this.wonderStates.get(this.wonderWeaponId)??fullWonderCharges(weaponById(this.wonderWeaponId).wonder!),weaponById(this.wonderWeaponId).wonder!,now),
+      }:{}),
       ...(this.weaponId === "wonder_turret" ? {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
