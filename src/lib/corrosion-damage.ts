@@ -4,7 +4,7 @@
  */
 export const CORROSION_DURATION_MS = 6500;
 export const CORROSION_TICK_MS = 500;
-/** Small immediate hit; even a direct 85-damage Plagueheart shot cannot one-shot. */
+/** Small immediate hit; even a direct 95-damage Plagueheart shot cannot one-shot. */
 export function corrosionImpactDamage(baseDamage: number, trajectoryFalloff: number): number {
   return Math.max(0, Math.min(18, baseDamage * 0.17) * Math.max(0, Math.min(1.2, trajectoryFalloff)));
 }
