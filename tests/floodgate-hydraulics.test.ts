@@ -2,12 +2,13 @@ import {describe,expect,test} from "bun:test";
 import {MAP_LIST} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {makeEnvironmentMap} from "../src/lib/dynamic-environment";
+import {botTraversableEdge,botNextWaypoint,botFloodFallbackWaypoint} from "../src/lib/bot-routing";
 import {
   FLOODGATE_SURGE_SECONDS,floodgateSurgeFront,floodgateWaterEffect,
   floodgateRouteNeedsDetour,
 } from "../src/lib/map-battle-events";
 import {
-  FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS,freightContactAge,
+  FLOODGATE_FREIGHT,FLOODGATE_TOPPLE_SECONDS,FLOODGATE_ROOF_STEPS,FLOODGATE_ROOF_HEIGHT,freightContactAge,
   freightStage,setFloodgateFreightStage,
 } from "../src/lib/floodgate-topple";
 
@@ -78,6 +79,31 @@ describe("Floodgate hydraulic progression",()=>{
       expect(Math.min(bridgeZ[1],deckZ[1])-Math.max(bridgeZ[0],deckZ[0])).toBeGreaterThan(0);
       expect(Math.abs(deck.h-3.36)).toBeLessThan(.1);
     }
+  });
+
+  test("freight routes physically ascend from overlook to central turbine roof",()=>{
+    const map=makeEnvironmentMap(MAP_LIST.find(m=>m.id==="floodgate")!);
+    setFloodgateFreightStage(map,30);
+    for(const pillar of FLOODGATE_FREIGHT){
+      const roof=map.cover.filter(c=>c.environmentId?.startsWith("floodgate-freight:"+pillar.id+":roof-step-"));
+      expect(roof).toHaveLength(FLOODGATE_ROOF_STEPS);
+      expect(Math.max(...roof.map(b=>b.pos[1]+b.size[1]))).toBeCloseTo(FLOODGATE_ROOF_HEIGHT);
+      // The continuation is physical, so bots and players can actually climb it.
+      expect(botTraversableEdge([pillar.x,3.4,-49],pillar.x,-27,map.cover)).toBeCloseTo(FLOODGATE_ROOF_HEIGHT);
+    }
+  });
+
+  test("flood route fallback enters water instead of looping at its shoreline",()=>{
+    const start:[number,number,number]=[0,0,-90],goal:[number,number,number]=[0,0,-45];
+    const immediate=botFloodFallbackWaypoint(start,goal,[]);
+    expect(immediate).not.toBeNull();
+    expect(immediate![2]).toBeGreaterThan(start[2]);
+    const fromLimitedSearch=botNextWaypoint(start,goal,[],176,3,[],[],undefined,1,30);
+    expect(fromLimitedSearch).not.toBeNull();
+    expect(fromLimitedSearch![2]).toBeGreaterThan(start[2]);
+    const obstacle=[{pos:[0,2,-87],size:[3,2,1],kind:"cover" as const}];
+    const detour=botFloodFallbackWaypoint(start,goal,obstacle);
+    expect(detour===null || Math.abs(detour[0])>0).toBe(true);
   });
 
   test("bot route planning detects water, but never penalizes elevated access",()=>{
