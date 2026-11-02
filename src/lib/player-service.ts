@@ -87,7 +87,26 @@ export interface MatchResultInput {
   perWeaponActions?: Record<string, Partial<WeaponConditionStats>>;
 }
 
+/** Older hosted SQLite files predate the dedicated Wonder slot.
+ * Add this single, non-destructive column before Prisma selects Loadout rows.
+ * A shared promise ensures concurrent auth/profile requests never race ALTER TABLE.
+ * No owned weapons, named presets or progression rows are dropped here.
+ */
+let wonderSlotSchemaReady:Promise<void>|null=null;
+export function ensureWonderSlotColumn():Promise<void>{
+  if(!wonderSlotSchemaReady){
+    wonderSlotSchemaReady=(async()=>{
+      const columns=await db.$queryRawUnsafe<Array<{name:string}>>('PRAGMA table_info("Loadout")');
+      if(columns.length && !columns.some(column=>column.name==="wonderWeaponId")){
+        await db.$executeRawUnsafe('ALTER TABLE "Loadout" ADD COLUMN "wonderWeaponId" TEXT NOT NULL DEFAULT \'\'');
+      }
+    })().catch(error=>{wonderSlotSchemaReady=null;throw error});
+  }
+  return wonderSlotSchemaReady;
+}
+
 export async function getOrCreatePlayer(playerKey: string, name?: string) {
+  await ensureWonderSlotColumn();
   let player = await db.player.findUnique({
     where: { playerKey },
     include: {
