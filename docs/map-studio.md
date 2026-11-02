@@ -40,7 +40,7 @@ Current recipes use procedural game primitives. They do not import arbitrary mod
 
 ## Canonical map files and migration
 
-Each authored map is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus and floodgate. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
+Each of the nine registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus, floodgate and whiteout_depot. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
 
 Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
 
@@ -108,3 +108,7 @@ Regression checks compare Floodgate published/draft collision, hazards, spawns a
 ## Whiteout Depot
 
 The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).
+
+## November 2026 integration
+
+Whiteout Depot is the ninth unified map document (`src/data/maps/whiteout_depot.json`), with editable CTF flags/capture zones and its 12 rear spawns per team. Floodgate's unified blueprint now includes its destructible five-panel dam, 14-second flood surge, ten authored hazards and post-breach traverse geometry. These behaviors still depend on shared game-client/server implementations; the editor edits the underlying document, not the event scripts. The daytime Afterlight city edition is available for TDM, while the nighttime edition is used for Kill Confirmed under the current mode catalogue. Re-test all changed objectives and event routes in live offline/online matches after client/server redeploy.

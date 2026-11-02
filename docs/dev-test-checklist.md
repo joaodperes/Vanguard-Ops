@@ -54,7 +54,7 @@ Test desktop keyboard/mouse **and** touch/mobile:
 
 ## 4. Map and bot acceptance
 
-Check all nine playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and three Capture the Flag-only maps:
+Check all ten playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and four purpose-built Capture the Flag maps:
 
 | Map ID | Current map / primary risk |
 | --- | --- |
@@ -67,7 +67,8 @@ Check all nine playable map IDs: six general-purpose maps (including both Afterl
 | `forest_warfare` | Forest Warfare — **CTF / TDM / KC**; raised treetop flag positions, climbable access and flag-carrier paths |
 | `orbital_nexus` | Orbital Nexus — **CTF / TDM / KC**; opposing flag routes, launch pads, reactor objective and platform clearance |
 | `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC, up to 7v7**; twelve spawns per team, boxcar lanes, freight sheds, service gallery, breach hatch and snow visibility |
-| `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
+| `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, pressure grates, destructible dam, advancing flood and sheltered spawns |
+| `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC**; blizzard visibility, three freight routes, covered bases and twelve spawns per side |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -116,7 +117,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Reproduce a tiny wall gap and a buried stair landing; verify measured markers, object selection and Close gap. Keep intentional openings available.
 - Edit exact bottom/top faces of inherited boxes and stair groups without changing thickness.
 - Place red/blue containers, recolor/resize one copy, save it to My assets, export/import its recipe library and confirm fresh instance IDs.
-- Roundtrip all eight unified map documents, including Orbital Nexus and Floodgate. Confirm Afterlight day/night retain different footprints and serialize their visible shared props.
+- Roundtrip all nine unified map documents, including Orbital Nexus, Floodgate and Whiteout Depot. Confirm Afterlight day/night retain different footprints and serialize their visible shared props.
 - Verify new editor/browser changes on touch and small screens. Walk actual player routes and check multiplayer reactor/client-server parity before promotion.
 
 ## Map objective authoring regression review

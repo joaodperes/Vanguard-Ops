@@ -12,7 +12,7 @@ West/east bases mirror each other. Ground flags are at X=±92, delivery rings at
 
 ## Authoring and validation
 
-Geometry/spawns/hatch: `src/data/map-blueprints.json`. Theme: `src/data/map-themes/whiteout_depot.json`. Objectives and CTF spawn selection: `src/data/ctf-layouts.json`, using the same generic layout contract as Verdant/Ridgefall. The map has empty legacy cover, spawn and environment arrays, so no unrelated template objects are inherited. Theme props use existing primitives; all gameplay solids come from shared geometry.
+Canonical geometry/spawns/hatch, visual theme, objective positions, and optional CTF spawn selection: `src/data/maps/whiteout_depot.json`. The former `src/data/map-blueprints.json`, `src/data/map-themes/whiteout_depot.json` and `src/data/ctf-layouts.json` are migration/reference snapshots. The unified document uses the same generic objective contract as Verdant/Ridgefall. The map has empty legacy cover, spawn and environment arrays, so no unrelated template objects are inherited. Theme props use existing primitives; all gameplay solids come from shared geometry.
 
 Run `bun test tests/whiteout-depot.test.ts` for unique safe spawn batches, objective clearance, full pickup/delivery routes for both sides, three independent ground routes with the hatch intact, horizontal sightline checks and per-room hatch isolation. Horizontal samples are not proof against every diagonal or elevated sniper angle. Run the full content/smoke/typecheck/build gates before publishing.
 

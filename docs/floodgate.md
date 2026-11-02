@@ -29,8 +29,8 @@ Before the dam collapses, four pressure vents use a 36-second shared repeating p
 
 ## Implementation and checks
 
-- Geometry, hazards and spawn points: `src/data/map-blueprints.json`
-- Colors and non-colliding machinery dressing: `src/data/map-themes/floodgate.json`
+- Geometry, hazards and spawn points: `src/data/maps/floodgate.json` (`blueprint`; old split file is a migration snapshot)
+- Colors and non-colliding machinery dressing: `src/data/maps/floodgate.json` (`theme`; old split file is a migration snapshot)
 - Shared flood geometry/damage predicates: `src/lib/map-battle-events.ts`
 - Server-authoritative breach time, flood damage, bot movement, timed-vent cancellation: `src/lib/game-server.ts`
 - Client prediction, offline damage and bot navigation: `src/lib/fps-engine.ts`
