@@ -290,23 +290,21 @@ try {
   await status(await importProfile(req({playerKey:cosmeticsPlayer.playerKey,data:cosmeticBackup})),200);
   assert.equal((await buildProfileView(cosmeticsPlayer.playerKey))!.loadout.primaryReticle,todayReticle.cosmeticId);
 
-  // Wonder customization is cosmetic-only, but it must actually persist the
-  // owned reticle and charm through the same API and profile as normal guns.
+  // Selecting an unlocked Wonder occupies slot 4 and preserves the
+  // conventional primary's purchased cosmetic selection.
   await db.wonderUnlock.create({data:{playerId:cosmeticsPlayer.id,weaponId:"wonder_riot_shield"}});
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
-    primaryWeapon:"wonder_riot_shield"})),200);
-  await status(await cosmeticEquip("reticle",todayReticle.cosmeticId!,"primary","wonder_riot_shield"),200);
-  await status(await cosmeticEquip("charm",todayCharm.cosmeticId!,"primary","wonder_riot_shield"),200);
-  // Persist the selection via the general loadout endpoint too. Previously
-  // this route rejected Wonder charms and/or silently reset them to "none".
+    perkId:"wonder_weapon",wonderWeaponId:"wonder_riot_shield"})),200);
+  const wonderView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
+  assert.equal(wonderView.loadout.weapon.id,"rifle_ar");
+  assert.equal(wonderView.loadout.wonderWeaponId,"wonder_riot_shield");
+  assert.equal(wonderView.loadout.primaryReticle,todayReticle.cosmeticId);
+  assert.equal(wonderView.loadout.primaryCharm,todayCharm.cosmeticId);
+  // Legacy placement must be rejected rather than accidentally duplicating a Wonder.
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
-    primaryCharm:todayCharm.cosmeticId!,primaryReticle:todayReticle.cosmeticId!})),200);
-  const wonderCosmeticView=(await buildProfileView(cosmeticsPlayer.playerKey))!;
-  assert.equal(wonderCosmeticView.loadout.weapon.id,"wonder_riot_shield");
-  assert.equal(wonderCosmeticView.loadout.primaryReticle,todayReticle.cosmeticId);
-  assert.equal(wonderCosmeticView.loadout.primaryCharm,todayCharm.cosmeticId);
+    primaryWeapon:"wonder_riot_shield"})),403);
   await status(await saveLoadout(req({playerKey:cosmeticsPlayer.playerKey,
-    primaryWeapon:"rifle_ar"})),200);
+    perkId:"battle_hardened"})),200);
 
   // Store finishes remain specific to a weapon even when the global rotation
   // continues to advertise the same finish to every player.
