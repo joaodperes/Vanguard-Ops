@@ -131,7 +131,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const regenWaiting = regenMs > 0 && hud.alive && hud.health < hud.maxHealth;
   const regenSec = Math.ceil(regenMs / 1000);
   // ---- Weapon slot indicator (1/2/3) ----
-  const slotNum = hud.weaponSlot === "primary" ? 1 : hud.weaponSlot === "secondary" ? 2 : 3;
+  const slotNum = hud.weaponSlot === "primary" ? 1 : hud.weaponSlot === "secondary" ? 2 : hud.weaponSlot === "melee" ? 3 : 4;
 
   // ---- Local player's team (TDM scoreboard grouping) ----
   // In TDM mode the scoreboard is split into Red/Blue panels; we use this to
@@ -543,6 +543,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <SlotPip n={1} name={hud.primaryName} active={slotNum === 1} color="emerald" weaponId={hud.primaryWeaponId} />
           <SlotPip n={2} name={hud.secondaryName} active={slotNum === 2} color="amber" weaponId={hud.secondaryWeaponId} />
           <SlotPip n={3} name={hud.meleeName} active={slotNum === 3} color="rose" weaponId={hud.meleeWeaponId} />
+          {hud.wonderWeaponId && <SlotPip n={4} name={hud.wonderName??"Wonder"} active={slotNum===4} color="violet" weaponId={hud.wonderWeaponId} />}
         </div>
       </div>
       )}
@@ -852,11 +853,12 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit }: { team: "
 // ---- Weapon slot indicator pip ----
 // Small badge showing the slot number (1/2/3) + a short weapon name. The active
 // slot is highlighted with the slot's accent color; inactive slots are dim.
-function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose"; weaponId?: string }) {
+function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose" | "violet"; weaponId?: string }) {
   const colorClasses = {
     emerald: active ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-200" : "border-white/10 bg-black/40 text-white/40",
     amber: active ? "border-amber-400/70 bg-amber-500/20 text-amber-200" : "border-white/10 bg-black/40 text-white/40",
     rose: active ? "border-rose-400/70 bg-rose-500/20 text-rose-200" : "border-white/10 bg-black/40 text-white/40",
+    violet: active ? "border-violet-400/70 bg-violet-500/20 text-violet-200" : "border-white/10 bg-black/40 text-white/40",
   };
   // Category dot — shows the weapon's category color (matches the 3D band).
   const catDot = weaponId ? (() => {
