@@ -138,6 +138,14 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
       }
     }
   }
+  // Upgrade a legacy equipped primary Wonder to the independent fourth slot.
+  if(player?.loadout?.primaryWeapon.startsWith("wonder_")){
+    const existing=player.loadout;
+    const upgraded={primaryWeapon:"rifle_ar",wonderWeaponId:existing.primaryWeapon,
+      perkId:"wonder_weapon",weaponSkin:"default",attachments:"{}"};
+    await db.loadout.update({where:{playerId:player.id},data:upgraded});
+    player.loadout={...existing,...upgraded};
+  }
   // At this point `player` is non-null in practice — either it existed, we
   // just created it, or we re-fetched after a P2002 race. The non-null assertion
   // lets downstream code use `player.id` etc. without per-call null checks.
