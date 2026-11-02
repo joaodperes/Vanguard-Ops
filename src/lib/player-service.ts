@@ -146,6 +146,15 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
     await db.loadout.update({where:{playerId:player.id},data:upgraded});
     player.loadout={...existing,...upgraded};
   }
+  // Persistently discard legacy presets with a Wonder occupying primary.
+  // Permanent Wonder unlock ownership is stored separately and never deleted.
+  if(player?.loadout){
+    const clean=JSON.stringify(parseSavedLoadouts(player.loadout.savedLoadouts));
+    if(clean!==player.loadout.savedLoadouts){
+      await db.loadout.update({where:{playerId:player.id},data:{savedLoadouts:clean}});
+      player.loadout={...player.loadout,savedLoadouts:clean};
+    }
+  }
   // At this point `player` is non-null in practice — either it existed, we
   // just created it, or we re-fetched after a P2002 race. The non-null assertion
   // lets downstream code use `player.id` etc. without per-call null checks.
