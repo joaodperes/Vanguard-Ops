@@ -5,7 +5,7 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "a purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
+    "description": "A purple gravity orb locks near aimed enemies, pulls them inward, then detonates. One charge.",
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
@@ -1411,7 +1411,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces full frontal cover and lowers the P-9. On breaking, shield rebuilds after 32s; each kill reduces the timer by 2s. Visible scratches and a softer hit flash show absorbed damage.",
+    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces full frontal cover and lowers the P-9. ",
     "stats": {
       "damage": 41,
       "fireRate": 5,

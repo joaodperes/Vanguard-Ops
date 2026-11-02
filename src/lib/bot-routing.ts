@@ -144,7 +144,9 @@ export function botNextWaypoint(
       // This is a cost, not an impassable wall: bots can still contest CTF
       // objectives or chase an enemy when there is no dry alternative.
       const water=floodgateWaterEffect(wx,nextY,wz,floodAge,cover);
-      const floodPenalty=water.surge?24:water.flooded?8:0;
+      // Water is undesirable, not forbidden. Excessive penalties exhaust the
+      // small A* expansion budget exploring dry shoreline and strand bots there.
+      const floodPenalty=water.surge?2.5:water.flooded?0.75:0;
       const cost = cur.g + Math.hypot(dx,dz)*(1+floodPenalty) + Math.abs(nextY - cur.y) * 0.65;
       if (cost >= (bestCost.get(nextKey) ?? Infinity) - 1e-6) continue;
       const h = heuristic(x,z,nextY);
@@ -158,6 +160,13 @@ export function botNextWaypoint(
 
   // Do not return an arbitrary unproved detour if no destination was reached.
   // The existing avoidance/recovery system is a safer fallback in that case.
+  // If the search budget was exhausted, do not keep sending an operative to
+  // the same dry shoreline. Take a verified short crossing step instead;
+  // collision and active steam hazards remain authoritative.
+  if(floodAge!==null && !destination){
+    const crossing=botFloodFallbackWaypoint(start,target,cover,hazards,index);
+    if(crossing)return crossing;
+  }
   const found = destination ?? (closest !== startNode &&
     closest.f - closest.g + 2 < startNode.f ? closest : null);
   if (!found) return null;
@@ -167,6 +176,26 @@ export function botNextWaypoint(
   }
   const next = nodes.get(cursor);
   return next ? [next.x * GRID, next.y, next.z * GRID] : null;
+}
+
+/** Bounded, collision-proved progress when the flood makes A* too expensive.
+ * Search toward the objective first, then diagonal flanks. Unlike a detour
+ * toward the water's edge this advances through water when necessary. */
+export function botFloodFallbackWaypoint(
+  start:readonly number[],goal:readonly number[],cover:CoverBox[],
+  hazards:readonly Hazard[]=[],index?:CoverSpatialIndex,
+):Vec3|null {
+  const dx=goal[0]-start[0],dz=goal[2]-start[2],distance=Math.hypot(dx,dz);
+  if(distance<1.5)return null;
+  const yaw=Math.atan2(dz,dx);
+  for(const angle of [0,Math.PI/6,-Math.PI/6,Math.PI/3,-Math.PI/3,Math.PI/2,-Math.PI/2]){
+    const travel=Math.min(4,distance);
+    const x=start[0]+Math.cos(yaw+angle)*travel;
+    const z=start[2]+Math.sin(yaw+angle)*travel;
+    const y=botTraversableEdge([start[0],start[1],start[2]],x,z,cover,hazards,index);
+    if(y!==null)return [x,y,z];
+  }
+  return null;
 }
 
 /** Staircase fallback for a target on a bridge/balcony: the 2m A* grid

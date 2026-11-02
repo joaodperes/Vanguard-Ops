@@ -435,9 +435,7 @@ export function Armory() {
           <TabsContent value="wonders" className="mt-5">
             <div className="mb-4 rounded-lg border border-violet-500/25 bg-violet-500/5 p-4">
               <h3 className="text-violet-200 font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Prestige Arsenal</h3>
-              <p className="mt-1 text-white/60 text-sm">Complete the seven cosmetic challenges to unlock Viridian Blight. Reach Weapon Mastery rank 5/5 to unlock Eventide independently. Completing BOTH earns one Wonder Weapon unlock. Redeem a Wonder unlock entitlement for one permanent Wonder Weapon. Charge-based Wonders recharge over time. Bulwark uses a P-9 magazine and a separate 250 HP shield that rebuilds after breaking or restores on respawn.</p>
-              <p className="text-xs text-violet-300 mt-2">Prestiged weapons: {profile?.prestige?.masteredWeapons.length ?? 0} · Permanent Wonder awards: {profile?.prestige?.tokenReadyWeapons.length ?? 0} · Wonder unlocks available: {profile?.prestige?.tokens ?? 0}</p>
-              <p className="text-xs text-white/50 mt-1">Lifetime Wonder unlocks earned: {(profile?.prestige?.tokenReadyWeapons.length ?? 0) + (profile?.prestige?.legacyCredits ?? 0)} · Already redeemed: {profile?.prestige?.wonderWeapons.length ?? 0}. Earned awards stay permanent even when Mastery thresholds change.</p>
+              <p className="mt-1 text-white/60 text-sm">Completing all weapon challenges &amp; mastery grants a Wonder Weapon token, which can be used on the weapon of your choice. Wonder Weapons are very limited in use, recharging over time and with kills.</p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {WEAPONS.filter(w => !!w.wonder && !w.disabled).map(w => {
@@ -449,10 +447,11 @@ export function Armory() {
                     <Badge variant="outline" className="border-violet-400/40 text-violet-300">Wonder Weapon</Badge>
                   </div>
                   <p className="text-white/60 text-sm">{w.description}</p>
+                  {w.wonder!.kind === "turret" && <p className="text-white/45 text-xs">Deploy duration: 45s · Recharge: 55s per charge (reduced by kills).</p>}
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
                     <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
-                    <span>{w.wonder!.kind === "shield" ? `Broken shield rebuilds in ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
-                    <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill · also restores on respawn` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
+                    <span>{w.wonder!.kind === "shield" ? `Shield restores after ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
+                    <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
                   {owned
                     ? <div className="grid grid-cols-2 gap-2">
@@ -798,8 +797,7 @@ function WeaponCard(props: WeaponCardProps) {
           onClick={() => onCustomize(w)}
           className="h-9 w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold"
         >
-          <Wrench className="w-4 h-4 mr-1.5" /> {w.category === "melee" ? "Skins & Challenges" : isOwned ? "Customize" : "View Customization"}
-          {w.category === "melee" && <span className="ml-1.5 text-[10px] opacity-70 normal-case">· 7 skin trials</span>}
+          <Wrench className="w-4 h-4 mr-1.5" /> {isOwned ? "Customize" : "View Customization"}
           {supportedSlots.length > 0 && (
             <span className="ml-1.5 text-[10px] opacity-70 normal-case">
               · {supportedSlots.length} slot{supportedSlots.length === 1 ? "" : "s"}

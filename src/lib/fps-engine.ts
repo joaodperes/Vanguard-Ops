@@ -74,7 +74,7 @@ import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHor
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
-import { CTF_SPEED_MULTIPLIER, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
+import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
@@ -8459,12 +8459,13 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
-    if(reaperMovement)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
-    if (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId)) speedMul *= CTF_SPEED_MULTIPLIER;
+    const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
+    if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
+    if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
     const water=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,
       this.map.id==="floodgate"&&this.floodgateBreachAt!==null
         ?this.environmentTime-this.floodgateBreachAt:null,this.map.cover);
-    const baseSpeed = MOVEMENT.walk * this.eff.moveSpeed * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * water.speedMultiplier;
+    const baseSpeed = MOVEMENT.walk * ctfCarrierWeaponSpeed(this.eff.moveSpeed,carryingFlag) * speedMul * sludgeMovementFactor([this.pos.x,this.pos.y,this.pos.z],this.opts.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * water.speedMultiplier;
     // Footstep SFX: every ~320ms while running on ground. Louder/faster when sprinting.
     if (this.onGround && move.lengthSq() > 0.1) {
       const stepInterval = this.sprinting ? 260 : 360;
@@ -8822,8 +8823,9 @@ export class FPSEngine {
         ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
         ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
       }
-      const speed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * eff.moveSpeed *
-        (orbitalReaperEquipped(this.map.id,c.weaponId)?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
+      const botCarryingFlag=this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===c.id||this.ctfFlags.blue.carrierId===c.id);
+      const speed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) *
+        (orbitalReaperEquipped(this.map.id,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
       const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
       const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
       // Determine the desired movement vector for this frame.

@@ -9,6 +9,8 @@ export const FLOODGATE_TOPPLE_SECONDS=3.2;
 // Contact time is a fraction; adding the duration can round a few ulps short.
 // Use one tolerance for collision stage and rendered pose so they cannot desync.
 const TOPPLE_TIME_EPSILON=1e-9;
+export const FLOODGATE_ROOF_STEPS=18;
+export const FLOODGATE_ROOF_HEIGHT=11; // Existing turbine roof: y=10 base + 1-unit slab
 export const FLOODGATE_FREIGHT=[
   {id:"west-inner",x:-21,z:-74,color:0xda8539},
   {id:"east-inner",x:21,z:-74,color:0x36a6b0},
@@ -49,6 +51,15 @@ export function freightCover(stage:Exclude<FreightStage,"falling">,only?:Freight
       }
       boxes.push({pos:[c.x,1.68,-59.3],size:[4.15,1.68,4.1],
         kind:"platform",environmentId:PREFIX+c.id+":bridge"});
+      // The freight first reaches the 3.4m spillway overlook. A second
+      // narrow flight then connects that overlook to the real turbine roof
+      // (top y=11 at z=-28), crossing the hall wall above its 8m parapet.
+      // These are genuine authored collision treads, not visual-only props.
+      for(let i=0;i<FLOODGATE_ROOF_STEPS;i++){
+        const top=3.4+(FLOODGATE_ROOF_HEIGHT-3.4)*(i+1)/FLOODGATE_ROOF_STEPS;
+        boxes.push({pos:[c.x,top/2,-46+(i+.5)],size:[2.7,top/2,.52],
+          kind:"stair",environmentId:PREFIX+c.id+":roof-step-"+i});
+      }
     }
   }
   return boxes;
@@ -99,7 +110,7 @@ export function buildFloodgateFreight(scene:THREE.Scene):THREE.Group{
     }
     group.add(pivot);
     const steps=new THREE.Group();steps.name=PREFIX+c.id+":stairs";
-    for(const box of freightCover("fallen").filter(b=>b.environmentId?.startsWith(PREFIX+c.id+":step-"))){
+    for(const box of freightCover("fallen",c).filter(b=>b.kind==="stair")){
       const plank=new THREE.Mesh(new THREE.BoxGeometry(box.size[0]*2,.12,box.size[2]*2),decking);
       plank.position.set(box.pos[0],box.pos[1]+box.size[1]+.06,box.pos[2]);
       plank.receiveShadow=true;steps.add(plank);
@@ -121,9 +132,10 @@ export function updateFloodgateFreight(group:THREE.Group,age:number|null):void{
     const ease=t*t*(3-2*t);
     const mesh=group.getObjectByName(PREFIX+c.id);
     if(mesh){
-      mesh.position.set(c.x,11.5+(1.67-11.5)*ease,c.z+(-72.2-c.z)*ease);
-      // The southern end must be HIGHER to match the actual stair colliders.
-      mesh.rotation.x=-Math.PI/2+(Math.PI/2+Math.atan2(3.36,23))*ease;
+      mesh.position.set(c.x,11.5+(1.68-11.5)*ease,c.z+(-72.2-c.z)*ease);
+      // In THREE a NEGATIVE X rotation raises the +Z (southern) end. The
+      // former positive slope put the container opposite its stair colliders.
+      mesh.rotation.x=-Math.PI/2+(Math.PI/2-Math.atan2(3.36,23))*ease;
     }
     const stairs=group.getObjectByName(PREFIX+c.id+":stairs");
     if(stairs)stairs.visible=t>=1;

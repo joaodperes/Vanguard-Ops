@@ -13,6 +13,12 @@ export interface CtfFlag {
 }
 export type CtfFlags = { red: CtfFlag; blue: CtfFlag };
 export const CTF_SPEED_MULTIPLIER = 1.10;
+/** The flag already grants a 10% escape bonus. Do not stack a faster weapon\x27s
+ * (especially melee\x27s) mobility bonus on top of that while carrying.
+ * Ordinary melee movement and combat remain unchanged outside carrying. */
+export function ctfCarrierWeaponSpeed(weaponSpeed:number,carrying:boolean):number {
+  return carrying ? Math.min(1,weaponSpeed) : weaponSpeed;
+}
 export const CTF_PICKUP_RADIUS = 2.4;
 export const CTF_CAPTURE_RADIUS = 4.7; // Covers the entire visible 4.25-radius delivery marker.
 export const CTF_TREE_X = 94;
