@@ -6769,7 +6769,7 @@ export class FPSEngine {
     const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds);
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
-    const multiPelletShotgun = w.category === "shotgun" && (this.eff.pellets ?? 1) > 1;
+    const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
     const dir = this.aimDir(multiPelletShotgun ? 0 : spread);
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
@@ -9006,7 +9006,7 @@ export class FPSEngine {
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
       const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
-      const botShotgun = w.category === "shotgun" && (eff.pellets ?? 1) > 1;
+      const botShotgun = w.category === "shotgun" && !w.wonder && (eff.pellets ?? 1) > 1;
       const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
       if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
@@ -9596,7 +9596,7 @@ export class FPSEngine {
       // firing/movement bloom. High-spread weapons no longer show a misleading
       // pin-point reticle just because the player is standing still.
       spreadFactor: Math.min(2, this.currentSpread + Math.min(2,
-        (weaponById(this.weaponId).category === "shotgun" && (this.eff.pellets ?? 1) > 1
+        (weaponById(this.weaponId).category === "shotgun" && !weaponById(this.weaponId).wonder && (this.eff.pellets ?? 1) > 1
           ? shotgunConeRadians(this.eff, this.aiming)
           : shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true)) / 0.12
       ) * (this.aiming ? 0.12 : 0.8)),
