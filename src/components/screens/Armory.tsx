@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
-import { formatWeaponNumber } from "@/lib/weapon-numbers";
-import { shotSpread } from "@/lib/weapon-accuracy";
+import { formatWeaponNumber, formatSpreadMrad } from "@/lib/weapon-numbers";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { attachmentViewPermissions, showPendingAttachmentChallenge } from "@/lib/armory-attachment-browse";
@@ -785,8 +784,8 @@ function WeaponCard(props: WeaponCardProps) {
       </div>
       {/* handling stats */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
-        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={fmtSpread(shotSpread(w.stats, w.category, false, 0, 0, false))} />
-        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={fmtSpread(shotSpread(w.stats, w.category, true, 0, 0, true))} />
+        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={`${formatSpreadMrad(w.stats.spread)} mrad`} />
+        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={`${formatSpreadMrad(w.stats.adsSpread)} mrad`} />
         <HandlingStat icon={<TrendingUp className="w-3 h-3" />} label="RECOIL" value={w.stats.recoil.toFixed(1)} />
         <HandlingStat icon={<ZoomIn className="w-3 h-3" />} label="ADS-t" value={`${Math.round(w.stats.adsTime * 1000)}ms`} />
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
@@ -1505,13 +1504,6 @@ function ModalStatBar({ label, value, max, color }: { label: string; value: numb
       </div>
     </div>
   );
-}
-
-// Format a spread value (radians) as a compact "accuracy" percentage — lower spread = higher accuracy.
-function fmtSpread(rad: number): string {
-  if (rad <= 0) return "100%";
-  const acc = Math.max(0, Math.round((1 - rad / 0.09) * 100));
-  return `${acc}%`;
 }
 
 // Compact handling stat tile.
