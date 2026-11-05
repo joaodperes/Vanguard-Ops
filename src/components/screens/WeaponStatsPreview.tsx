@@ -11,8 +11,8 @@ const STAT_DEFS: { key: keyof WeaponStats; label: string; unit: string; max: num
   { key: "magSize", label: "Magazine", unit: "", max: 100, decimals: 0 },
   { key: "range", label: "Range", unit: "m", max: 200, decimals: 0 },
   { key: "recoil", label: "Recoil", unit: "", max: 3, decimals: 2, lowerBetter: true },
-  { key: "spread", label: "Hip spread", unit: " mrad", max: 0.08, decimals: 1, lowerBetter: true },
-  { key: "adsSpread", label: "ADS spread", unit: " mrad", max: 0.05, decimals: 1, lowerBetter: true },
+  { key: "spread", label: "Hip spread", unit: "", max: 0.08, decimals: 1, lowerBetter: true },
+  { key: "adsSpread", label: "ADS spread", unit: "", max: 0.05, decimals: 1, lowerBetter: true },
   { key: "adsTime", label: "ADS time", unit: "s", max: 0.8, decimals: 2, lowerBetter: true },
   { key: "reloadTime", label: "Reload", unit: "s", max: 5, decimals: 2, lowerBetter: true },
   { key: "moveSpeed", label: "Mobility", unit: "×", max: 1.5, decimals: 2 },
@@ -68,7 +68,7 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
           </div>;
         })}
       </div>
-      {!compact && weapon.category !== "melee" && <p className="text-[10px] text-white/45 leading-relaxed">Spread is shown in milliradians (mrad): lower means tighter grouping. These are base weapon values; movement, sustained fire and category-specific accuracy limits affect actual shots.</p>}
+      {!compact && weapon.category !== "melee" && <p className="text-[10px] text-white/45 leading-relaxed">Lower spread means tighter grouping. These are base weapon values; movement, sustained fire and category-specific accuracy limits affect actual shots.</p>}
       {!compact && <p className="text-[10px] text-white/35 leading-relaxed">Green indicates an improvement; red indicates a trade-off. Hover or focus an attachment to compare before equipping it.</p>}
     </div>
   );
