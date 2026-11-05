@@ -794,6 +794,13 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
+      {w.stats.bodyPenetration && (
+        <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-200/85"
+          title="Bullets pass through aligned enemies, losing damage after each hit. Cover and riot shields stop them.">
+          <span className="font-bold tracking-wide">BODY PENETRATION</span>
+          <span className="ml-1.5 text-white/65">Up to {w.stats.bodyPenetration.maxTargets} targets · {Math.round(w.stats.bodyPenetration.damageRetention * 100)}% retained per hit</span>
+        </div>
+      )}
       {/* Both owned and locked cards reserve the same two action rows. Keeping
           the spacing on the container (rather than only on Equip) aligns Buy,
           Equip, and Customize across adjacent cards regardless of ownership. */}
