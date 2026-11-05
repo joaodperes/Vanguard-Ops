@@ -1,3 +1,4 @@
+import {addOperativeSkinDetails} from "./operative-appearance";
 import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss} from "./bot-appearances";
@@ -4876,6 +4877,14 @@ export class FPSEngine {
     };
     const legL = makeLeg(1);
     const legR = makeLeg(-1);
+
+    // Visual-only, skin-specific equipment with shared geometry for the Armory.
+    // Details follow articulated limbs, but never alter combat hitboxes.
+    addOperativeSkinDetails(skin, {
+      torso: torsoGroup, head: headGroup,
+      upperArmL: armL.upper, upperArmR: armR.upper,
+      upperLegL: legL.upper, upperLegR: legR.upper,
+    });
 
     // Larger-than-life armor is a cosmetic overlay over the standard hitbox.
     // Online boss identity is the authoritative name (IDs are random svbot IDs).
