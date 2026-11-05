@@ -9,7 +9,7 @@
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
-      "rechargeMs": 55000,
+      "rechargeMs": 80000,
       "killBonusMs": 1600,
       "radius": 9.5
     },
@@ -39,7 +39,7 @@
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
-      "rechargeMs": 47500,
+      "rechargeMs": 70000,
       "killBonusMs": 4500,
       "radius": 3.5
     },
@@ -69,7 +69,7 @@
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
-      "rechargeMs": 70000,
+      "rechargeMs": 105000,
       "killBonusMs": 1500,
       "radius": 0
     },
@@ -1073,7 +1073,7 @@
     "wonder": {
       "kind": "smart",
       "maxCharges": 2,
-      "rechargeMs": 34000,
+      "rechargeMs": 50000,
       "killBonusMs": 1000,
       "radius": 0
     },
@@ -1103,7 +1103,7 @@
     "wonder": {
       "kind": "flame",
       "maxCharges": 8,
-      "rechargeMs": 8000,
+      "rechargeMs": 12000,
       "killBonusMs": 1000,
       "radius": 0
     },
@@ -1133,7 +1133,7 @@
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
-      "rechargeMs": 40000,
+      "rechargeMs": 60000,
       "killBonusMs": 1000,
       "radius": 9
     },
@@ -1396,7 +1396,7 @@
     "wonder": {
       "kind": "cluster",
       "maxCharges": 2,
-      "rechargeMs": 40000,
+      "rechargeMs": 60000,
       "killBonusMs": 1100,
       "radius": 7
     },
@@ -1431,7 +1431,7 @@
     "wonder": {
       "kind": "shield",
       "maxCharges": 1,
-      "rechargeMs": 35000,
+      "rechargeMs": 55000,
       "killBonusMs": 2000,
       "radius": 0
     }
