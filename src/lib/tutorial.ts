@@ -1,4 +1,39 @@
 /** Client-only onboarding state. Each guest/account keeps its own checkpoint. */
+import type { GameMode } from "./game-protocol";
+
+// The PvP briefing must cover every GameMode except Survival. Keep this
+// exhaustive when a new mode is added; tests also compare with the catalog.
+export type CompetitiveModeId = Exclude<GameMode, "survival">;
+export const COMPETITIVE_MODE_IDS = ["ffa", "tdm", "gungame", "killconfirmed", "ctf"] as const satisfies readonly CompetitiveModeId[];
+export const COMPETITIVE_MODE_GUIDES = {
+  ffa: {
+    label: "Free-For-All",
+    objective: "Every operative fights for themselves. Reach the kill limit first, or finish with the most kills when time runs out.",
+    tip: "There are no teammates — check every angle and pick your fights.",
+  },
+  tdm: {
+    label: "Team Deathmatch",
+    objective: "Red versus Blue. Every elimination adds to your team's score; the first team to the kill limit wins.",
+    tip: "Stay near your squad and cover each other's approaches.",
+  },
+  gungame: {
+    label: "Gun Game",
+    objective: "Each kill advances you to a new weapon. Work through the full rotation and score a kill with the final melee weapon to win.",
+    tip: "Adapt your distance and positioning as your weapon changes.",
+  },
+  killconfirmed: {
+    label: "Kill Confirmed",
+    objective: "Eliminated players drop dog tags. Collect enemy tags to score and recover friendly tags to stop opponents scoring.",
+    tip: "Guard teammates collecting tags; a kill alone does not confirm the point.",
+  },
+  ctf: {
+    label: "Capture the Flag",
+    objective: "Steal the enemy flag and bring it to your base while your own flag is home. The team with the required captures wins.",
+    tip: "Escort your carrier, defend your flag and return it when stolen.",
+  },
+} as const satisfies Record<CompetitiveModeId, { label: string; objective: string; tip: string }>;
+
+
 export const TUTORIAL_VERSION = 1;
 export const TUTORIAL_PHASES = ["welcome", "practice", "loadout", "modes", "ready"] as const;
 export type TutorialPhase = typeof TUTORIAL_PHASES[number];
