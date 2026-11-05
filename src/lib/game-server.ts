@@ -30,6 +30,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { shotgunPelletDirection } from "./shotgun-pattern";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
@@ -2436,11 +2437,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
     const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
+    const botShotgun = weapon.category === "shotgun" && (eff.pellets ?? 1) > 1;
+    const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
     // shooting
     if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
-      const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
-      const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+      const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
+      const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
@@ -2450,7 +2453,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         applyMeleeStrike(room,bot,weapon.id,now);
         didHit=true;
       }else for (let i = 0; i < pellets; i++) {
-        const pdir = pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
+        const pdir = botShotgun
+          ? shotgunPelletDirection(dir, eff, !!ai.aiming)
+          : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
         const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range, eff.falloffEndMultiplier);
         if (hit) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
@@ -3061,7 +3066,17 @@ async function handle(socket: any, msg: C2S) {
         : equippedLoadout?.attachments?.magazine;
       const quiver=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_quiver";
       const heavy=weapon.id==="crossbow_reclaimer"&&crossbowMag==="mag_bolt_heavy";
-      const interval = 1000 / Math.max(.1,quiver?weapon.stats.fireRate*3.5:weapon.stats.fireRate);
+      // Match the client cadence after shell and attachment fire-rate modifiers.
+      // In particular, beanbags must not be throttled to the base weapon rate.
+      const cadenceLoadout = room.loadouts.get(socket.id);
+      const cadenceAtts = cadenceLoadout?.secondaryWeaponId === p.weaponId
+        ? cadenceLoadout.secondaryAttachments : cadenceLoadout?.attachments;
+      const cadenceEff = cadenceLoadout && cadenceAtts
+        ? computeEffectiveStats(weapon, room.mode === "gungame"
+          ? { sight:null, barrel:null, grip:null, magazine:null }
+          : cadenceAtts)
+        : weapon.stats;
+      const interval = 1000 / Math.max(.1, quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
       if(weapon.category==="melee" &&
         now-(room.quickMeleeAt.get(socket.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
@@ -3145,7 +3160,7 @@ async function handle(socket: any, msg: C2S) {
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
       let shotDir:Vec3=msg.dir;
-      if(weapon.stats.auto&&!weapon.wonder){
+      if(weapon.stats.auto && !(weapon.category === "shotgun" && (eff.pellets ?? 1) > 1) && !weapon.wonder){
         const previous=room.autoBloom.get(socket.id);
         const bloom=automaticBloom(previous?.weaponId===weapon.id?previous.value:0,
           eff.fireRate,now-(previous?.at??0));
@@ -3359,8 +3374,12 @@ async function handle(socket: any, msg: C2S) {
       } else {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
+        const multiPelletShotgun = weapon.category === "shotgun" && pellets > 1;
+        const shotgunAds = msg.aiming ?? room.adsStartedAt.has(socket.id);
         for (let i = 0; i < pellets; i++) {
-          const dir = pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
+          const dir = multiPelletShotgun
+            ? shotgunPelletDirection(shotDir, eff, shotgunAds)
+            : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
           const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
@@ -3376,7 +3395,7 @@ async function handle(socket: any, msg: C2S) {
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId,hit.shield);
             if (!hit.shield && incendiary && hit.victim.alive)
               room.poison.set(hit.victim.id, { attackerId:socket.id, weaponId:msg.weaponId,
-                expiresAt:now+5000, tickAt:now+500, damagePerTick:4 });
+                expiresAt:now+3000, tickAt:now+500, damagePerTick:2 });
             if (!hit.shield && weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (!hit.shield && weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
               room.poison.set(hit.victim.id, { attackerId: socket.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });
