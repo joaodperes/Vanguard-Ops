@@ -4,12 +4,14 @@
 > earlier primary-slot implementation and some superseded values. The current
 > authoritative rules are in [Prestige and Wonder Weapons](prestige-wonder-weapons.md).
 > Thunderclap and Bulwark are now equipped through the level-one Wonder Weapon
-> perk in **slot 4**, not as ordinary primaries. Thunderclap recharges in 40s
-> with a 1.1s ordinary-kill bonus, and caps total volley damage at 175 per
-> target. Bulwark shield rebuilds in 35s, accelerated by 2s per kill, and
-> its F quick-melee performs a 50-damage shield bash. Recharge and rebuild
-> persist through deaths; queued loadout swaps start empty. Existing unlocked
-> Wonders are preserved; Wonder-primary saved presets are removed.
+> perk in **slot 4**, not as ordinary primaries. Thunderclap starts at
+> zero charges and recharges in 60s per charge, accelerated by 1.1s per
+> ordinary kill; total volley damage remains capped at 175 per target.
+> Bulwark starts with a broken shield and rebuilds in 55s, accelerated by 2s
+> per kill; its F quick-melee performs a 50-damage bash when the shield is up.
+> Recharge persists through death and never refills on respawn; queued loadout
+> swaps also start empty. Existing Wonder ownership is preserved and legacy
+> Wonder-primary presets are removed.
 
 
 Implemented on `dev`. No database schema change; both new weapons use the existing permanent Wonder unlock entitlement and Primary slot. The catalog now has 51 weapons, including nine Wonders (Bogfather remains disabled).
