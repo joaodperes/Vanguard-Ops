@@ -91,7 +91,7 @@ Touch devices provide a movement stick and on-screen firing, aiming, swapping, r
 
 - **Weapons and attachments:** Earn credits through gameplay. Purchase equipment once its level and challenge requirements are met. Attachments are owned separately for each weapon; a challenge being complete makes the attachment eligible to purchase, not automatically owned.
 - **Skins and mastery:** Complete per-weapon challenges to earn finishes. Weapon Mastery advances through kill/headshot milestones (melee uses kill-only targets). Reaching high mastery and completing cosmetics challenges unlocks additional Prestige rewards and Wonder Weapon opportunities.
-- **Loadouts and perks:** Equip three conventional weapon slots and one perk. Battle-Hardened is the default; the alternative Wonder Weapon perk grants slot 4 for a permanently unlocked Wonder. Its recharges speed up with ordinary kills, a normal respawn guarantees one charge, and swapping a saved kit starts at zero charges. Save several named loadouts for different modes and playstyles.
+- **Loadouts and perks:** Equip three conventional weapon slots and one perk. Battle-Hardened is the default; the alternative Wonder Weapon perk grants slot 4 for a permanently unlocked Wonder. Wonders start every match empty and have longer recharge timers. Ordinary kills speed up charging, but dying never provides a free charge; equipping another saved kit restarts that Wonder at zero. Save several named loadouts for different modes and playstyles.
 - **Achievements and Career:** Track challenges, titles and long-term progression in Profile.
 
 Credits are an in-game reward currency; the current game does not sell credits for real money.
