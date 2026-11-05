@@ -32,6 +32,28 @@ export function supportHandRestMode(
 /** Blend the shared support hand smoothly out of the grip and back after an
  * action. At 0 and 1 it is fully attached to the weapon; between the ramps it
  * follows the reload/deploy animation without a duplicated stationary hand. */
+/** Camera-local elbow for the support arm. Both sleeve segments are placed
+ * between the shoulder -> elbow -> wrist every frame. Unlike a static sleeve
+ * attached to the glove, this keeps the arm connected even when a long
+ * sniper, launcher, or recoil pose moves the hand far from the body. */
+export function supportElbowPosition(
+  shoulder: readonly [number, number, number],
+  wrist: readonly [number, number, number],
+): [number, number, number] {
+  const dx = wrist[0] - shoulder[0];
+  const dy = wrist[1] - shoulder[1];
+  const dz = wrist[2] - shoulder[2];
+  const reach = Math.hypot(dx, dy, dz);
+  // Prefer an outward/downward elbow. Scale the bend for short weapons and
+  // action poses, so the arm never folds into a spike near its shoulder.
+  const bend = Math.min(.18, reach * .16);
+  return [
+    shoulder[0] + dx * .50 - bend * .62,
+    shoulder[1] + dy * .50 - bend * .67,
+    shoulder[2] + dz * .50 + bend * .36,
+  ];
+}
+
 export function supportActionWeight(progress: number): number {
   const p = Math.max(0, Math.min(1, progress));
   const smooth = (t: number) => {

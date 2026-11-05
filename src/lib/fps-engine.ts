@@ -51,7 +51,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
@@ -755,6 +755,15 @@ export class FPSEngine {
   private fpSupportGrip = new THREE.Vector3();
   private fpRestHand = new THREE.Vector3();
   private fpActionHand: THREE.Group | null = null;
+  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh } | null = null;
+  // A shoulder fixed to the camera-relative torso, rather than to the gun.
+  // It sits behind the lower-left edge of the view. The elbow and wrist are
+  // solved to the active weapon each frame, including ADS and reloads.
+  private readonly fpShoulder = new THREE.Vector3(-.39, -.47, .30);
+  private readonly fpWrist = new THREE.Vector3();
+  private readonly fpElbow = new THREE.Vector3();
+  private readonly fpArmDirection = new THREE.Vector3();
+  private readonly fpArmUp = new THREE.Vector3(0, 1, 0);
   private fpActionProp: THREE.Group | null = null;
   private fpActionPropId = "";
   private fpHandMat = new THREE.MeshBasicMaterial({color:0x384c58});
@@ -3260,17 +3269,23 @@ export class FPSEngine {
     this.fpSupportGrip.set(...weaponHoldPoints(contactId).support);
 
     const hand = new THREE.Group();
-    // Palm at the real handguard/grip contact. Sleeve runs toward the player's
-    // lower-left shoulder and backwards into camera space, not through the gun.
-    const wrist = new THREE.Vector3(-.022, -.085, .065);
-    const elbow = new THREE.Vector3(-.22, -.36, .31);
-    const sleeveDir = elbow.clone().sub(wrist);
-    const sleeve = new THREE.Mesh(
-      new THREE.CylinderGeometry(.078, .052, sleeveDir.length(), 10), this.fpCuffMat,
-    );
-    sleeve.position.copy(wrist).add(elbow).multiplyScalar(.5);
-    sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sleeveDir.normalize());
-    hand.add(sleeve);
+    // The glove follows the weapon contact. The arm segments live in a
+    // separate camera-local group: their ends are rebuilt from the fixed
+    // shoulder and the animated glove wrist, so they cannot disconnect when
+    // the weapon is long or the hand moves during a reload.
+    const arm = new THREE.Group();
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(.076, .10, 1, 10), this.fpCuffMat);
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.055, .079, 1, 10), this.fpCuffMat);
+    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.075, 10, 8), this.fpCuffMat);
+    const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(.101, 10, 8), this.fpCuffMat);
+    shoulderJoint.position.copy(this.fpShoulder);
+    for (const mesh of [upper, forearm, elbowJoint, shoulderJoint]) {
+      mesh.frustumCulled = false;
+      arm.add(mesh);
+    }
+    arm.visible = false;
+    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint };
+    this.camera.add(arm);
 
     const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
     glove.position.set(0, -.028, .015);
@@ -3297,7 +3312,7 @@ export class FPSEngine {
   }
 
   private clearFirstPersonRig() {
-    for (const root of [this.fpActionHand, this.fpActionProp]) {
+    for (const root of [this.fpActionHand, this.fpSupportArm?.root, this.fpActionProp]) {
       if (!root) continue;
       this.camera.remove(root);
       root.traverse(obj => {
@@ -3311,6 +3326,7 @@ export class FPSEngine {
       });
     }
     this.fpActionHand = null;
+    this.fpSupportArm = null;
     this.fpActionProp = null;
     this.fpActionPropId = "";
   }
@@ -3388,6 +3404,38 @@ export class FPSEngine {
     for (const m of materials.values()) if (!used.has(m)) m.dispose();
   }
 
+  /** Connect shoulder, elbow and hand without ever generating new meshes.
+   * The sleeve stretches just enough to bridge extreme long-gun and equipment
+   * poses, while retaining a two-piece elbow bend. No geometry allocations
+   * occur during animation; only transforms of the existing cylinders change. */
+  private poseFirstPersonArm() {
+    const hand = this.fpActionHand;
+    const arm = this.fpSupportArm;
+    if (!hand || !arm) return;
+    arm.root.visible = hand.visible;
+    if (!hand.visible) return;
+
+    // Start inside the glove's cuff; apply its animated roll so the forearm
+    // remains joined even when the hand tilts to reload or throw equipment.
+    this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
+    const joint = supportElbowPosition(
+      [this.fpShoulder.x, this.fpShoulder.y, this.fpShoulder.z],
+      [this.fpWrist.x, this.fpWrist.y, this.fpWrist.z],
+    );
+    this.fpElbow.set(...joint);
+
+    const alignSleeve = (mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3) => {
+      this.fpArmDirection.copy(to).sub(from);
+      const length = Math.max(.001, this.fpArmDirection.length());
+      mesh.position.copy(from).addScaledVector(this.fpArmDirection, .5);
+      mesh.quaternion.setFromUnitVectors(this.fpArmUp, this.fpArmDirection.multiplyScalar(1 / length));
+      mesh.scale.set(1, length, 1); // unit-height cylinder ends meet both joints
+    };
+    alignSleeve(arm.upper, this.fpShoulder, this.fpElbow);
+    alignSleeve(arm.forearm, this.fpElbow, this.fpWrist);
+    arm.elbow.position.copy(this.fpElbow);
+  }
+
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {
     const hand = this.fpActionHand, prop = this.fpActionProp;
     if (!hand || !prop) return;
@@ -3425,10 +3473,14 @@ export class FPSEngine {
     // Melee holds stay one-handed, except during an equipment action.
     hand.visible = this.alive && visibleWeapon && (restMode !== "none" || !!pose);
     prop.visible = this.alive && visibleWeapon && !!pose?.propVisible;
-    if (!hand.visible) return;
+    if (!hand.visible) {
+      this.poseFirstPersonArm(); // hide the entire sleeve too
+      return;
+    }
     if (!pose) {
       hand.position.copy(restPosition);
       hand.quaternion.copy(restRotation);
+      this.poseFirstPersonArm();
       return;
     }
     this.ensureFirstPersonProp(propId);
@@ -3446,6 +3498,7 @@ export class FPSEngine {
       hand.position.lerp(restPosition, 1 - blend);
       hand.quaternion.slerp(restRotation, 1 - blend);
     }
+    this.poseFirstPersonArm();
   }
 
   // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
