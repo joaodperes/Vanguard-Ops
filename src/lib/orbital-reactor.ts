@@ -6,6 +6,10 @@ export const ORBITAL_REAPER_ID="orbital_reaper";
 /** Bump when the authoritative reactor protocol or eligibility rule changes. */
 export const ORBITAL_RULES_VERSION=5;
 export const ORBITAL_KILLS_REQUIRED=10;
+/** HUD status: keep progress while charging, then show readiness instead of 10/10. */
+export function orbitalChargeLabel(charge:number,required:number=ORBITAL_KILLS_REQUIRED):string {
+  return charge>=required ? "Reactor fully charged" : `Reactor ${charge}/${required}`;
+}
 /** Flat X/Z radius around the central reactor; flag bases remain outside it. */
 export const ORBITAL_CHARGE_RADIUS=38;
 export const ORBITAL_PICKUP_RADIUS=3.5;
