@@ -42,6 +42,11 @@ const stats = z.object({
   minDamageMultiplier: unit.optional(), burst: pos.int().optional(),
   pellets: pos.int().optional(), reloadStyle: z.literal("incremental").optional(),
   reloadPerRound: pos.optional(),
+  // Opt-in human-body hitscan only (cover/shields remain impenetrable).
+  bodyPenetration: z.object({
+    maxTargets: pos.int().min(2).max(3),
+    damageRetention: unit.refine(v => v > 0, "Retention must be positive"),
+  }).optional(),
 });
 const heat = z.object({
   kind: z.literal("heat"), heatPerShot: pos, coolPerSecond: pos, coolDelayMs: count,
