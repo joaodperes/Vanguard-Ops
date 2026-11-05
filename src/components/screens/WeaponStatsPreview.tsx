@@ -1,6 +1,6 @@
 "use client";
 import { computeEffectiveStats, sightDefForAttachments, type AttachmentSlot, type WeaponDef, type WeaponStats } from "@/lib/game-data";
-import { formatSpreadMrad } from "@/lib/weapon-numbers";
+import { formatSpreadMrad, weaponStatDelta } from "@/lib/weapon-numbers";
 
 export type AttachmentMap = Record<AttachmentSlot, string | null>;
 export const EMPTY_ATTACHMENTS: AttachmentMap = { sight: null, barrel: null, grip: null, magazine: null };
@@ -47,18 +47,16 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
           const val = displayed[s.key] as number;
           const previous = (hasPreview ? current[s.key] : baseline[s.key]) as number;
           const change = val - previous;
-          const isGood = s.lowerBetter ? change < 0 : change > 0;
-          const difference = Math.abs(change) > 0.000001;
+          const { changed: difference, improved: isGood, arrow, percent: delta } = weaponStatDelta(previous, val, s.lowerBetter);
           const fmt = (n: number) => (s.key === "spread" || s.key === "adsSpread") ? formatSpreadMrad(n) : n.toFixed(s.decimals);
           const pct = Math.min(100, Math.max(0, val / s.max * 100));
-          const delta = previous !== 0 ? Math.round(Math.abs(change / previous * 100)) : 0;
           return <div key={s.key} className="min-w-0">
             <div className="flex justify-between gap-2 items-baseline text-[11px]">
               <span className="text-white/55">{weapon.category === "melee" && s.key === "fireRate" ? "Swings / sec" : weapon.category === "melee" && s.key === "range" ? "Reach" : s.label}</span>
               <span className="tabular-nums font-mono whitespace-nowrap">
                 <span className="text-white font-semibold">{fmt(val)}{s.unit}</span>
                 {difference && <span className={`ml-1 ${isGood ? "text-emerald-300" : "text-rose-300"}`}>
-                  {isGood ? "▲" : "▼"} {delta ? `${delta}%` : fmt(Math.abs(change))}
+                  {arrow} {delta ? `${delta}%` : fmt(Math.abs(change))}
                 </span>}
               </span>
             </div>
@@ -69,7 +67,7 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
         })}
       </div>
       {!compact && weapon.category !== "melee" && <p className="text-[10px] text-white/45 leading-relaxed">Lower spread means tighter grouping. These are base weapon values; movement, sustained fire and category-specific accuracy limits affect actual shots.</p>}
-      {!compact && <p className="text-[10px] text-white/35 leading-relaxed">Green indicates an improvement; red indicates a trade-off. Hover or focus an attachment to compare before equipping it.</p>}
+      {!compact && <p className="text-[10px] text-white/35 leading-relaxed">Arrows show whether the value increases (▲) or decreases (▼). Green means better performance; red means a trade-off. Hover or focus an attachment to compare before equipping it.</p>}
     </div>
   );
 }
