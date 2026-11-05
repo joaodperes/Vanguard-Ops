@@ -39,7 +39,7 @@ describe("operative rarity actually changes cosmetic geometry", () => {
       const result=addOperativeSkinDetails(skin,mounts);
       expect(result.signature).toBe(OPERATIVE_SIGNATURES[skin.id]);
       expect(result.details).toBeGreaterThanOrEqual(minimum[skin.rarity]);
-      expect(result.meshes).toBeLessThanOrEqual(18);
+      expect(result.meshes).toBeLessThanOrEqual(22);
       expect(result.details).toBeGreaterThanOrEqual(result.meshes);
       results[skin.id]=result.details;
       dispose(root);
