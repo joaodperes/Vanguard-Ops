@@ -48,29 +48,30 @@ Bogfather is archived and cannot be selected.
 
 | Weapon | Behavior | Capacity | Recharge | Ordinary kill bonus |
 | --- | --- | ---: | ---: | ---: |
-| Event Horizon | 9.5m gravity pull and delayed explosion | 1 | 55s | -1.6s |
-| Plagueheart | 3.5m corrosive splash; stronger impact and 5s poison | 3 | 47.5s per charge | -4.5s |
-| Bullet Spitter | Autonomous 26-damage turret; 25s lifetime, 42m reach | 1 | 70s | -1.5s |
-| Deadlock | Up to 3 exposed marked targets per charged shot | 2 | 34s per charge | -1.0s |
-| Hellfire | 13m flame cone, 8 fuel-seconds, 9 damage per tick | 8 | 8s per fuel-second | -1.0s |
-| Stormweaver | Lightning pellets, chains, 6.5s proximity mines | 2 | 40s per charge | -1.0s |
-| Thunderclap | Bouncing 7m shell and six 5.25m bomblets; 175 damage cap per target/volley | 2 | 40s per charge | -1.1s |
-| Bulwark + P-9 | 250 HP frontal/left shield, P-9 magazine; F performs 50-damage shield bash | Standard P-9 magazine | Shield rebuild 35s | -2s shield rebuild |
+| Event Horizon | 9.5m gravity pull and delayed explosion | 1 | 80s | -1.6s |
+| Plagueheart | 3.5m corrosive splash; stronger impact and 5s poison | 3 | 70s per charge | -4.5s |
+| Bullet Spitter | Autonomous 26-damage turret; 25s lifetime, 42m reach | 1 | 105s | -1.5s |
+| Deadlock | Up to 3 exposed marked targets per charged shot | 2 | 50s per charge | -1.0s |
+| Hellfire | 13m flame cone, 8 fuel-seconds, 9 damage per tick | 8 | 12s per fuel-second | -1.0s |
+| Stormweaver | Lightning pellets, chains, 6.5s proximity mines | 2 | 60s per charge | -1.0s |
+| Thunderclap | Bouncing 7m shell and six 5.25m bomblets; 175 damage cap per target/volley | 2 | 60s per charge | -1.1s |
+| Bulwark + P-9 | 250 HP frontal/left shield, P-9 magazine; F performs 50-damage shield bash | Standard P-9 magazine | Shield rebuild 55s | -2s shield rebuild |
 | Bogfather | Archived | — | — | — |
 
-**Recharge persistence:** charge-based Wonders have no reserve ammo or manual
-reload. Recharge continues while holstered and after death. Ordinary respawns
-restore **at least one charge**, not a full magazine; remaining charge timers
-are preserved. A respawn that applies a new queued loadout still starts at zero. Ordinary-weapon kills shorten pending recharge by the listed
-bonus, but Wonder damage and its persistent effects do not accelerate its own
-charge. Bulwark's normal P-9 reload is independent of shield durability.
-Broken shield HP and its rebuild timer persist through respawn.
+**Recharge persistence:** all enabled Wonders start each match **empty**, with
+a full recharge countdown. No charge is granted on death or respawn; recharging
+continues while holstered and dead without resetting the existing timer.
+Ordinary-weapon kills shorten the pending recharge by the listed bonus, but
+Wonder damage and its persistent effects cannot accelerate their own charges.
+Wonder charges cannot be manually reloaded. Bulwark starts with a **broken shield**
+and a 55-second rebuild timer; its standard P-9 magazine still works and reloads
+normally. Shield HP and rebuild countdown persist across death.
 
 **Anti-abuse:** applying a queued loadout on spawn clears the player's existing
 Wonder state and starts the new selected Wonder at **zero charges** with a full
 recharge timer. This also applies if a player reselects the same kit. A queued
-Bulwark begins broken and rebuilds on its own cooldown. A new match starts with
-full Wonder charges and full shield durability. The online server authorizes
+Bulwark begins broken and rebuilds on its own cooldown. A new match also starts
+with zero charges and a broken Bulwark shield. The online server authorizes
 the equipped slot 4 and charge consumption; client controls and visuals use the
 same charge rules.
 
@@ -138,7 +139,7 @@ The startup sync intentionally omits `--accept-data-loss`.
    ```
 3. Verify a fresh account cannot select an unowned Wonder. Earn a Prestige on a
    mastered weapon, confirm independent Mastery/Prestige camos and one Wonder entitlement after both, spend it once, check purchase
-   rejection on replay, one minimum charge on ordinary respawn, preserved pending cooldowns, and zero initial charges after applying a queued loadout.
+   rejection on replay, zero charges on match start, no respawn refill, preserved pending cooldowns, and zero initial charges after applying a queued loadout.
 4. Verify all eight active Wonders in offline and online matches, including delayed gravity
    damage attribution, poison attribution and regular-kill time reduction.
 5. Verify Gun Game still uses 30 normal tiers and all legacy purchases remain.
