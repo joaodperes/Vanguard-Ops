@@ -481,10 +481,10 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
   const shell = weapon.category === "shotgun" ? ammoAttachment?.shotgunAmmo : undefined;
-  const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.0, spreadMul: .18, rangeMul: 3.2, rateMul: .8 } :
-    shell === "dragons_breath" ? { pellets: 1, damageMul: 1.9, spreadMul: .24, rangeMul: 2.2, rateMul: .85 } :
-    shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .63, spreadMul: 1.8, rangeMul: .87, rateMul: 1 } :
-    shell === "beanbag" ? { pellets: 4, damageMul: .65, spreadMul: .66, rangeMul: 1.08, rateMul: 1.35 } :
+  const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
+    shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
+    shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .70, spreadMul: 1.8, rangeMul: .75, rateMul: 1 } :
+    shell === "beanbag" ? { pellets: 5, damageMul: .85, spreadMul: .72, rangeMul: .9, rateMul: 1.35 } :
     null;
     const magBonus = acc.magSize ?? 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
