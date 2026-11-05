@@ -5,6 +5,7 @@ import {
 } from "../src/lib/game-data";
 import { rayCombatantHit } from "../src/lib/combat-hitboxes";
 import { shotgunConeRadians, shotgunPelletDirection } from "../src/lib/shotgun-pattern";
+import { shotSpread } from "../src/lib/weapon-accuracy";
 import type { Vec3 } from "../src/lib/game-protocol";
 
 const shotguns = WEAPONS.filter(w => w.category === "shotgun" && !w.wonder);
@@ -41,9 +42,20 @@ function benchmark(stats: EffectiveStats, distance: number, aiming: boolean, sho
   for (let shot = 0; shot < shots; shot++) {
     let volleyDamage = 0;
     for (let i = 0; i < (stats.pellets ?? 1); i++) {
+      // Slugs retain the standard single-projectile aim jitter, unlike the
+      // centered multi-pellet cone shared by buckshot and special shells.
       const dir = (stats.pellets ?? 1) > 1
         ? shotgunPelletDirection(center, stats, aiming, random)
-        : center;
+        : (() => {
+            const spread = shotSpread(stats, "shotgun", aiming, 0, 0, aiming);
+            const ray: Vec3 = [
+              center[0] + (random() - .5) * spread,
+              center[1] + (random() - .5) * spread,
+              center[2] + (random() - .5) * spread,
+            ];
+            const mag = Math.hypot(...ray);
+            return [ray[0] / mag, ray[1] / mag, ray[2] / mag] as Vec3;
+          })();
       const hit = rayCombatantHit(origin, dir, feet);
       if (hit && hit.t <= maxWeaponHitRange(stats.range, stats)) {
         hits++;
@@ -104,6 +116,8 @@ describe("shotgun attachment combinations", () => {
       expect(slug.pellets).toBe(1);
       expect(slug.range).toBeGreaterThan(base.range);
       expect(slug.range).toBeLessThan(base.range * 2.5);
+      expect(benchmark(slug, 8, true, 1000).pelletHitRate)
+        .toBeGreaterThan(benchmark(slug, 8, false, 1000).pelletHitRate);
       expect(swarm.pellets).toBe(14);
       expect(swarm.spread).toBeGreaterThan(base.spread);
       expect(swarm.range).toBeLessThan(base.range);
