@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
+import { weaponAvailability } from "@/lib/weapon-availability";
 import { weaponCategoryLabel } from "@/lib/display-labels";
 import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
 import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
@@ -12,6 +13,7 @@ import {
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Check, Coins, Save, Crosshair, Zap, Swords, ChevronDown, Package } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,8 +44,10 @@ interface LoadoutSelectorProps {
 }
 
 export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, children }: LoadoutSelectorProps) {
-  const { profile, refreshProfile, playerKey } = useGame();
+  const { profile, refreshProfile, setProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [pendingPurchase, setPendingPurchase] = useState<{ weapon: WeaponDef; slot: WeaponSlot } | null>(null);
   const current = profile?.loadout ?? null;
   const level = profile?.level ?? 1;
   const [primary, setPrimary] = useState(current?.weapon.id ?? "rifle_ar");
@@ -109,6 +113,55 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
     return WEAPONS.filter((w) => w.category === "melee");
   };
 
+  // Unlock in the swap menu, then select the weapon in the draft loadout.
+  // Only Confirm Loadout actually equips it.
+  const selectWeapon = (slot: WeaponSlot, id: string) => {
+    if (slot === "primary") {
+      setPrimary(id);
+      if (id === secondary) setSecondary("pistol_side");
+    } else if (slot === "secondary") {
+      setSecondary(id);
+    } else {
+      setMelee(id);
+    }
+    setOpenSlot(null);
+  };
+
+  const confirmPurchase = async () => {
+    if (!pendingPurchase || purchasing) return;
+    const { weapon, slot } = pendingPurchase;
+    if (weaponAvailability(weapon, level, ownedWeaponIds) !== "purchasable") return;
+    if (profile.credits < weapon.unlockCost) return;
+
+    setPurchasing(true);
+    try {
+      const res = await fetch("/api/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, kind: "weapon", itemId: weapon.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Weapon unlock failed");
+        return;
+      }
+      // Use the authoritative updated profile returned by the unlock API.
+      if (data.profile) setProfile(data.profile);
+      else await refreshProfile();
+      selectWeapon(slot, weapon.id);
+      setPendingPurchase(null);
+      toast.success(`Unlocked ${weapon.name}`, {
+        description: weapon.unlockCost
+          ? `-${weapon.unlockCost} CR · Confirm your loadout to equip`
+          : "Confirm your loadout to equip",
+      });
+    } catch {
+      toast.error("Network error — weapon was not selected");
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   // Has the user made unsaved changes?
   const dirty = current && (
     primary !== current.weapon.id ||
@@ -167,7 +220,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
         </div>
         <Button
           onClick={save}
-          disabled={saving || !dirty}
+          disabled={saving || purchasing || !dirty}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50"
           size="sm"
         >
@@ -181,11 +234,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           icon={<Zap className="w-4 h-4 text-amber-400" />}
           weapon={weaponById(primary)}
           ownedWeaponIds={ownedWeaponIds}
+          level={level}
           ownedForSlot={ownedForSlot}
           open={openSlot === "primary"}
           onToggle={() => setOpenSlot(openSlot === "primary" ? null : "primary")}
-          onSelect={(id) => { setPrimary(id); if (id === secondary) setSecondary("pistol_side"); setOpenSlot(null); }}
+          onSelect={(id) => selectWeapon("primary", id)}
           compact={compact}
+          onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
           attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(primary), "primary") : undefined}
@@ -197,11 +252,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           icon={<Crosshair className="w-4 h-4 text-amber-400" />}
           weapon={weaponById(perkId !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category) ? "pistol_side" : secondary)}
           ownedWeaponIds={ownedWeaponIds}
+          level={level}
           ownedForSlot={ownedForSlot}
           open={openSlot === "secondary"}
           onToggle={() => setOpenSlot(openSlot === "secondary" ? null : "secondary")}
-          onSelect={(id) => { setSecondary(id); setOpenSlot(null); }}
+          onSelect={(id) => selectWeapon("secondary", id)}
           compact={compact}
+          onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
           attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
@@ -213,11 +270,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           icon={<Swords className="w-4 h-4 text-amber-400" />}
           weapon={weaponById(melee)}
           ownedWeaponIds={ownedWeaponIds}
+          level={level}
           ownedForSlot={ownedForSlot}
           open={openSlot === "melee"}
           onToggle={() => setOpenSlot(openSlot === "melee" ? null : "melee")}
-          onSelect={(id) => { setMelee(id); setOpenSlot(null); }}
+          onSelect={(id) => selectWeapon("melee", id)}
           compact={compact}
+          onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
           attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
@@ -269,6 +328,46 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
         </div>
       </div>
       {children}
+      <Dialog open={!!pendingPurchase} onOpenChange={(open) => { if (!open && !purchasing) setPendingPurchase(null); }}>
+        <DialogContent className="border-white/15 bg-zinc-950 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unlock {pendingPurchase?.weapon.name}?</DialogTitle>
+            <DialogDescription className="text-white/60">
+              Purchase this weapon for your {pendingPurchase?.slot} slot. It will be
+              selected in your draft loadout; confirm the loadout to equip it.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingPurchase && (
+            <div className="rounded-lg border border-white/10 bg-black/40 p-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-white/60">Unlock price</span>
+                <span className="font-semibold text-amber-300 flex items-center gap-1">
+                  <Coins className="w-4 h-4" /> {pendingPurchase.weapon.unlockCost.toLocaleString()} CR
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-white/60">Your balance</span>
+                <span className="text-white">{profile.credits.toLocaleString()} CR</span>
+              </div>
+              {profile.credits < pendingPurchase.weapon.unlockCost && (
+                <p className="text-rose-300 text-xs">
+                  Not enough credits. You need {(pendingPurchase.weapon.unlockCost - profile.credits).toLocaleString()} more CR.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={purchasing} onClick={() => setPendingPurchase(null)}
+              className="border-white/20 bg-transparent text-white hover:bg-white/10">Cancel</Button>
+            <Button type="button" onClick={confirmPurchase}
+              disabled={purchasing || !pendingPurchase || profile.credits < pendingPurchase.weapon.unlockCost}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold">
+              <Coins className="w-4 h-4 mr-1.5" />
+              {purchasing ? "Unlocking…" : "Confirm Unlock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -282,7 +381,9 @@ interface SlotCardProps {
   icon: React.ReactNode;
   weapon: WeaponDef;
   ownedWeaponIds: Set<string>;
+  level: number;
   ownedForSlot: (slot: WeaponSlot) => WeaponDef[];
+  onPurchaseRequest: (weapon: WeaponDef, slot: WeaponSlot) => void;
   open: boolean;
   onToggle: () => void;
   onSelect: (id: string) => void;
@@ -292,7 +393,7 @@ interface SlotCardProps {
   canCustomize?: boolean;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSlot, onPurchaseRequest, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
   const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
   const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
@@ -318,7 +419,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
         <div className="flex items-center justify-between mb-1">
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
         </div>
-        <div className="text-white/40 text-[10px] uppercase mb-2">{weaponCategoryLabel(weapon.category)} · LVL {weapon.unlockLevel}</div>
+        <div className="text-white/40 text-[10px] uppercase mb-2">{weaponCategoryLabel(weapon.category)}</div>
         <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3 h-[227px] overflow-y-auto">
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
@@ -337,19 +438,20 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
           <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
-      {/* Dropdown list of owned weapons for this slot */}
+      {/* All eligible slot weapons: owned, purchasable, and level-locked. */}
       {open && (
         <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
           {candidates.map((w) => {
-            const isOwned = ownedWeaponIds.has(w.id);
+            const availability = weaponAvailability(w, level, ownedWeaponIds);
+            const isOwned = availability === "owned";
             const selected = w.id === weapon.id;
             return (
               <button
                 key={w.id}
-                disabled={!isOwned}
-                onClick={() => onSelect(w.id)}
+                disabled={availability === "level-locked"}
+                onClick={() => isOwned ? onSelect(w.id) : onPurchaseRequest(w, slot)}
                 className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                  selected ? "bg-amber-500/15 text-amber-300" : isOwned ? "text-white/80 hover:bg-white/5" : "text-white/30 cursor-not-allowed"
+                  selected ? "bg-amber-500/15 text-amber-300" : isOwned ? "text-white/80 hover:bg-white/5" : availability === "purchasable" ? "text-amber-100 hover:bg-amber-500/10" : "text-white/30 cursor-not-allowed"
                 }`}
               >
                 <span className="flex items-center gap-2 min-w-0">
@@ -357,12 +459,12 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
                   <span className="font-semibold truncate">{w.name}</span>
                   <span className="text-white/40 text-[10px] uppercase shrink-0">{weaponCategoryLabel(w.category)}</span>
                 </span>
-                {!isOwned && (
+                {availability === "level-locked" && (
                   <span className="text-rose-400/70 text-[10px] shrink-0">LVL {w.unlockLevel}</span>
                 )}
-                {isOwned && !selected && w.unlockCost > 0 && (
-                  <span className="text-amber-300/60 text-[10px] shrink-0 flex items-center gap-0.5">
-                    <Coins className="w-2.5 h-2.5" /> {w.unlockCost}
+                {availability === "purchasable" && (
+                  <span className="text-amber-300 text-[10px] shrink-0 flex items-center gap-0.5">
+                    <Coins className="w-2.5 h-2.5" /> {w.unlockCost.toLocaleString()} CR
                   </span>
                 )}
               </button>
