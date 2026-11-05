@@ -7,10 +7,10 @@ import {ownsOperativeSkin} from "@/lib/collection-ownership";
 
 /** Solo preview uses the same body palette and proportions as the combatant
  * mesh builder in fps-engine. No fake player, network peer or dev cheat needed. */
-export function OperatorPreview({equippedId="default",ownedIds=[],level=1}:{equippedId?:string;ownedIds?:readonly string[];level?:number}){
+export function OperatorPreview({equippedId="default",previewId,ownedIds=[],level=1}:{equippedId?:string;previewId?:string;ownedIds?:readonly string[];level?:number}){
   const mount=useRef<HTMLDivElement>(null);
-  const [selected,setSelected]=useState(equippedId);
-  useEffect(()=>setSelected(equippedId),[equippedId]);
+  const [selected,setSelected]=useState(previewId??equippedId);
+  useEffect(()=>setSelected(previewId??equippedId),[equippedId,previewId]);
   useEffect(()=>{
     const host=mount.current;
     if(!host)return;
