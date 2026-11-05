@@ -468,6 +468,7 @@
       "adsTime": 0.6,
       "moveSpeed": 0.7,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.55 },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6
@@ -604,6 +605,7 @@
       "adsTime": 0.25,
       "moveSpeed": 0.98,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
       "headshotMult": 1.75,
       "falloffEndMultiplier": 2,
       "minDamageMultiplier": 0.62
@@ -839,6 +841,7 @@
       "adsTime": 0.45,
       "moveSpeed": 0.82,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.45 },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6
@@ -895,6 +898,7 @@
       "adsTime": 0.32,
       "moveSpeed": 0.85,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
       "headshotMult": 1.6,
       "falloffEndMultiplier": 1.55,
       "minDamageMultiplier": 0.3
@@ -977,6 +981,7 @@
       "adsTime": 0.4,
       "moveSpeed": 0.82,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.4 },
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
@@ -1012,7 +1017,7 @@
     "category": "sniper",
     "unlockLevel": 28,
     "unlockCost": 1200,
-    "description": "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
+    "description": "Heavy anti-material sniper. Devastating one-shot body kills; penetrates up to three aligned enemies with damage loss. Glacial fire rate and massive recoil.",
     "stats": {
       "damage": 170,
       "fireRate": 0.6,
@@ -1025,6 +1030,7 @@
       "adsTime": 0.75,
       "moveSpeed": 0.65,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 3, "damageRetention": 0.65 },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
@@ -1058,6 +1064,7 @@
       "adsTime": 0.5,
       "moveSpeed": 0.68,
       "auto": true,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.25 },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.28
