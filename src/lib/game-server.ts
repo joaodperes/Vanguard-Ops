@@ -1826,10 +1826,9 @@ function recoverSurvivalPlayers(room: Room) {
     if (!p) continue;
     const pos = pickSpawn(p.team, room);
     p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
-    const changedKit=room.pendingLoadouts.has(p.id);
     applyQueuedLoadout(room, p);
     p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
-    refillPlayerWonderAmmo(room, p,changedKit);
+    refillPlayerWonderAmmo(room, p);
     p.spawnProtectedUntil = 0;
     room.lastDamagedAt.delete(p.id);
     io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos, health: MAX_HEALTH } as S2C);
