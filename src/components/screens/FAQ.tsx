@@ -124,8 +124,8 @@ export function FAQ() {
             <FaqItem q="What do the handling stats mean?">
               <p>Each weapon card shows these stats:</p>
               <div className="mt-2 space-y-1 text-xs">
-                <StatLine label="HIP" desc="Standing hipfire accuracy — lower dispersion produces a higher %. Movement and sustained firing make shots less accurate." />
-                <StatLine label="ADS" desc="Steady aimed accuracy — higher % = tighter while aiming. ADS reduces spread but does not eliminate it." />
+                <StatLine label="HIP" desc="Base hipfire spread in milliradians (mrad); lower is more accurate. Movement, firing bloom and category-specific limits affect actual shots." />
+                <StatLine label="ADS" desc="Base aimed spread in mrad; lower means tighter shots. Aiming generally reduces spread but does not eliminate it." />
                 <StatLine label="RECOIL" desc="Camera kick per shot — lower is steadier. Automatic fire also accumulates temporary accuracy bloom." />
                 <StatLine label="ADS-t" desc="Time to aim down sights (seconds) — lower is faster." />
                 <StatLine label="HS×" desc="Headshot damage multiplier — 1.5× means a headshot does 50% more damage." />
