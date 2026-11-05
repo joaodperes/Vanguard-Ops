@@ -11,7 +11,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { fullWonderCharges, drainedWonderCharges, minimumWonderChargeOnRespawn, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -672,7 +672,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagConfirmations.clear();
   room.tagDenials.clear();
   room.clusterVolleys.clear();
-  room.wonderCharges.clear(); // Fresh match: all owners start with full Wonder charges.
+  room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
   room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.deathBombs.clear();
@@ -695,6 +695,16 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   }
   for (const p of room.players.values()) {
     p.kills = 0; p.deaths = 0; p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldRaised=false;p.riotShieldReadyAt=0; p.health = MAX_HEALTH; p.alive = true;
+    const kit=room.loadouts.get(p.id);
+    const wonder=kit?.perkId==="wonder_weapon" ? WEAPONS.find(w=>w.id===kit.wonderWeaponId&&!w.disabled) : undefined;
+    if(wonder?.wonder){
+      if(usesWonderCharges(wonder))
+        room.wonderCharges.set(p.id+":"+wonder.id,drainedWonderCharges(wonder.wonder,room.startTime));
+      if(wonder.id===RIOT_SHIELD_ID){
+        p.riotShieldHp=0;
+        p.riotShieldReadyAt=room.startTime+RIOT_SHIELD_RECHARGE_MS;
+      }
+    }
     room.burstState.delete(p.id);
     // Reset gungame progress + weaponId for everyone (in case of restart).
     if (room.mode === "gungame") {
@@ -1616,18 +1626,10 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   }
 }
 
-/** A normal respawn guarantees one charge without resetting the other
- * recharge timers. Applying a queued kit deliberately starts at zero. */
-function refillPlayerWonderAmmo(room: Room, p: PlayerNet, changedKit: boolean) {
+/** Spawning never changes Wonder charges or their recharge deadlines.
+ * A queued kit is drained independently by applyQueuedLoadout. */
+function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
   room.hellfireUntil.delete(p.id);
-  if(changedKit)return;
-  const kit=room.loadouts.get(p.id);
-  if(kit?.perkId!=="wonder_weapon")return;
-  const selected=WEAPONS.find(w=>w.id===kit.wonderWeaponId);
-  if(!selected?.wonder || !usesWonderCharges(selected))return;
-  const key=p.id+":"+selected.id;
-  const prior=room.wonderCharges.get(key)??fullWonderCharges(selected.wonder);
-  room.wonderCharges.set(key,minimumWonderChargeOnRespawn(prior,selected.wonder,Date.now()));
 }
 
 function scheduleRespawn(room: Room, p: PlayerNet) {
@@ -1649,9 +1651,8 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     }
     room.lastDamagedAt.delete(p.id);
     p.alive = true;
-    const changedKit=room.pendingLoadouts.has(p.id);
     applyQueuedLoadout(room, p);
-    refillPlayerWonderAmmo(room, p,changedKit);
+    refillPlayerWonderAmmo(room, p);
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
     if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.lastAlert=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
