@@ -9,7 +9,8 @@ import type { LoadoutWire } from "@/lib/game-protocol";
 import { perkById } from "@/lib/perks";
 import {
   advancePractice, loadTutorialProgress, newTutorialProgress, saveTutorialProgress,
-  PRACTICE_TASKS, TUTORIAL_PHASES, type PracticeSample, type PracticeState, type TutorialPhase,
+  PRACTICE_TASKS, TUTORIAL_PHASES, COMPETITIVE_MODE_IDS, COMPETITIVE_MODE_GUIDES,
+  type PracticeSample, type PracticeState, type TutorialPhase,
 } from "@/lib/tutorial";
 
 // Always train with an ordinary starter kit. The range never equips, purchases,
@@ -141,7 +142,23 @@ export function Tutorial() {
               <button aria-pressed={mode === "pvp"} onClick={() => setMode("pvp")} className={`rounded-xl border p-5 text-left ${mode === "pvp" ? "border-rose-400/60 bg-rose-500/10" : "border-white/10 bg-black/30"}`}><Swords className="mb-2 h-6 w-6 text-rose-300" /><h2 className="font-bold">Competitive modes</h2><p className="mt-2 text-xs leading-relaxed text-white/55">Free-for-all, team battles, weapon progression and objective modes. Practise against bots before joining others.</p></button>
               <button aria-pressed={mode === "survival"} onClick={() => setMode("survival")} className={`rounded-xl border p-5 text-left ${mode === "survival" ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-black/30"}`}><Shield className="mb-2 h-6 w-6 text-emerald-300" /><h2 className="font-bold">Survival</h2><p className="mt-2 text-xs leading-relaxed text-white/55">Fight escalating waves solo or in co-op. Clear the default 30 waves, then tackle tougher difficulties.</p></button>
             </div>
-            <p className="mt-4 rounded-lg border border-white/10 bg-black/30 p-4 text-sm leading-relaxed text-white/65" aria-live="polite">{mode === "pvp" ? "In Kill Confirmed, collect enemy tags to score and friendly tags to deny points. In Capture the Flag, bring the enemy flag to your base while your own flag is home." : "In Solo Survival, dying ends the run. In co-op, help a downed teammate get back into the fight. Keep moving and watch your ammunition."}</p>
+            {mode === "pvp" ? (
+              <div className="mt-4" aria-live="polite">
+                <p className="mb-3 text-xs text-white/50">Five competitive modes, five different ways to win:</p>
+                <ul className="grid gap-2 sm:grid-cols-2" aria-label="Competitive mode rules">
+                  {COMPETITIVE_MODE_IDS.map(id => {
+                    const guide = COMPETITIVE_MODE_GUIDES[id];
+                    return <li key={id} className="rounded-lg border border-white/10 bg-black/30 p-4">
+                      <h3 className="text-sm font-bold text-amber-200">{guide.label}</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-white/70">{guide.objective}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-white/45"><span className="font-semibold text-white/60">Tip:</span> {guide.tip}</p>
+                    </li>;
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <p className="mt-4 rounded-lg border border-white/10 bg-black/30 p-4 text-sm leading-relaxed text-white/65" aria-live="polite">In Solo Survival, dying ends the run. In co-op, help a downed teammate get back into the fight. Keep moving and watch your ammunition.</p>
+            )}
           </>}
           {progress.phase === "ready" && <>
             <Trophy className="mb-4 h-10 w-10 text-amber-400" />
