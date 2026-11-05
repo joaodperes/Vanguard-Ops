@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, drainedWonderCharges, minimumWonderChargeOnRespawn, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -1154,8 +1154,15 @@ export class FPSEngine {
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
     const initialWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
-    if(initialWonder && usesWonderCharges(initialWonder) && initialWonder.wonder)
-      this.wonderStates.set(initialWonder.id,fullWonderCharges(initialWonder.wonder));
+    if(initialWonder?.wonder){
+      const now=performance.now();
+      if(usesWonderCharges(initialWonder))
+        this.wonderStates.set(initialWonder.id,drainedWonderCharges(initialWonder.wonder,now));
+      if(initialWonder.id===RIOT_SHIELD_ID){
+        this.riotShieldHp=0;
+        this.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
+      }
+    }
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
@@ -5478,14 +5485,12 @@ export class FPSEngine {
         break;
       case "respawn":
         if (msg.playerId === this.selfId) {
-          const changedKit=!!this.pendingLoadout;
           this.equipQueuedLoadout();
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
           this.lastPlayerRespawnAt = performance.now();
-          // A normal respawn guarantees one Wonder charge; a newly queued kit
-          // still starts drained. The server follows the same rule.
-          this.refillAmmoOnRespawn(changedKit); this.reloading = false; this.equipmentAction = null;
+          // Wonder charges persist without a refill. New queued kits start empty.
+          this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
           this.lastServerHealth = MAX_HEALTH;
@@ -5800,13 +5805,16 @@ export class FPSEngine {
         this.perWeaponKills = new Map();
         this.perWeaponActions = new Map();
         this.wonderStates.clear();
-        this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;
+        const startTime=performance.now();
+        const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+        if(matchWonder?.wonder && usesWonderCharges(matchWonder))
+          this.wonderStates.set(matchWonder.id,drainedWonderCharges(matchWonder.wonder,startTime));
+        this.riotShieldHp=matchWonder?.id===RIOT_SHIELD_ID?0:RIOT_SHIELD_HP;
+        this.riotShieldReadyAt=matchWonder?.id===RIOT_SHIELD_ID
+          ? startTime+RIOT_SHIELD_RECHARGE_MS:0;
         this.wonderAmmoInMag=this.wonderEff.magSize;
         if(this.weaponId===RIOT_SHIELD_ID)this.ammoInMag=this.wonderAmmoInMag;
-        const matchPrimary = weaponById(this.primaryWeaponId);
-        const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
-        if(matchWonder?.wonder && usesWonderCharges(matchWonder))this.wonderStates.set(matchWonder.id,fullWonderCharges(matchWonder.wonder));
-        this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
+        this.primaryAmmoInMag=this.primaryEff.magSize;
         if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
@@ -5989,28 +5997,20 @@ export class FPSEngine {
     return chooseSpawn(this,this.map,team,occupants);
   }
 
-  /** Ordinary guns reload on respawn; a Wonder gets at least one charge.
-   * A newly applied kit must remain fully drained to prevent the swap exploit. */
-  private refillAmmoOnRespawn(changedKit=false) {
-    if(!changedKit){
-      const chosen=WEAPONS.find(w=>w.id===this.wonderWeaponId);
-      if(chosen?.wonder && usesWonderCharges(chosen)){
-        const prior=this.wonderStates.get(chosen.id)??fullWonderCharges(chosen.wonder);
-        this.wonderStates.set(chosen.id,minimumWonderChargeOnRespawn(prior,chosen.wonder,performance.now()));
-      }
-    }
+  /** Ordinary firearms refill on spawn; Wonder charges and cooldowns do not.
+   * Applying a queued kit separately drains its selected Wonder to zero. */
+  private refillAmmoOnRespawn() {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     this.meleeAmmoInMag = this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
     // Gun Game and temporary special weapons use the active weapon's stats.
     this.ammoInMag = usesWonderCharges(weaponById(this.weaponId))
-      ? (this.wonderStates.get(this.weaponId)?.charges ?? this.eff.magSize)
+      ? (this.wonderStates.get(this.weaponId)?.charges ?? 0)
       : this.eff.magSize;
   }
 
   private respawnSelf() {
-    const changedKit=!!this.pendingLoadout;
     this.equipQueuedLoadout();
     const sp = this.pickSpawn(this.opts.team as string);
     this.pos.set(sp[0], sp[1], sp[2]);
