@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatSpreadMrad } from "../src/lib/weapon-numbers";
+import { formatSpreadMrad, weaponStatDelta } from "../src/lib/weapon-numbers";
 import { shotSpread } from "../src/lib/weapon-accuracy";
 
 describe("weapon spread display", () => {
@@ -22,5 +22,28 @@ describe("weapon spread display", () => {
     formatSpreadMrad(stats.adsSpread);
     expect(shotSpread(stats, "assault", false, 0, 0, false)).toBe(hip);
     expect(shotSpread(stats, "assault", true, 0, 0, true)).toBe(ads);
+  });
+});
+
+describe("attachment stat comparisons", () => {
+  test("lower ADS spread is a green decrease, not an increase", () => {
+    expect(weaponStatDelta(0.002, 0.00148, true)).toEqual({
+      changed: true, improved: true, arrow: "▼", percent: 26,
+    });
+  });
+
+  test("slower ADS time is a red increase, not a decrease", () => {
+    expect(weaponStatDelta(0.28, 0.3528, true)).toEqual({
+      changed: true, improved: false, arrow: "▲", percent: 26,
+    });
+  });
+
+  test("faster ADS time and increased damage are both improvements", () => {
+    expect(weaponStatDelta(0.35, 0.28, true)).toMatchObject({ improved: true, arrow: "▼", percent: 20 });
+    expect(weaponStatDelta(25, 30, false)).toMatchObject({ improved: true, arrow: "▲", percent: 20 });
+  });
+
+  test("unchanged stats do not display a change", () => {
+    expect(weaponStatDelta(2, 2, true)).toMatchObject({ changed: false, arrow: "", percent: 0 });
   });
 });
