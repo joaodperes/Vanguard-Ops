@@ -8,6 +8,7 @@ import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
 import { matchHudInfo } from "@/lib/match-hud";
+import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
@@ -340,7 +341,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <>
                   <span className="text-white/30">·</span>
                   <span className="text-[10px] font-bold uppercase text-violet-300">
-                    Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}
+                    {orbitalChargeLabel(hud.orbitalCharge, hud.orbitalKillsRequired)}
                     {hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
                   </span>
                 </>
@@ -361,7 +362,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           "border-cyan-300/20 bg-black/60 text-cyan-100/80"
         }`} role="status">{hud.mapEvent.label}</div>}
         {mode !== "ctf" && hud.orbitalCharge !== undefined && <div className="rounded-md border border-violet-400/20 bg-black/60 px-3 py-1 text-center text-xs font-bold text-violet-300" role="status">
-          Reactor {hud.orbitalCharge}/{hud.orbitalKillsRequired??10}{hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
+          {orbitalChargeLabel(hud.orbitalCharge, hud.orbitalKillsRequired)}{hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
         </div>}
         {mode !== "ctf" && hud.orbitalWarning && <div className="rounded px-2 py-1 bg-amber-950/80 text-amber-300 text-xs text-center">{hud.orbitalWarning}</div>}
 
