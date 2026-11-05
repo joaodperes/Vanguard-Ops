@@ -28,6 +28,7 @@ import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-pre
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 import { OperatorPreview } from "@/components/game/OperatorPreview";
+import { OperativeCardArt } from "@/components/game/OperativeCardArt";
 
 // ----------------------------------------------------------------------------
 // Per-weapon progress + challenges view (fetched from /api/weapon-progress).
@@ -106,6 +107,7 @@ export function Armory() {
   const [presetBusy, setPresetBusy] = useState(false);
   const [unconfirmedLoadout, setUnconfirmedLoadout] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [previewOperativeId, setPreviewOperativeId] = useState<string | null>(null);
   const [progress, setProgress] = useState<WeaponProgressMap>({});
   const [challenges, setChallenges] = useState<WeaponChallengesMap>({});
   // Currently open customize modal: { weapon, slot }. Null when closed.
@@ -548,7 +550,7 @@ export function Armory() {
 
           {/* PLAYER SKINS */}
           <TabsContent value="pskins" className="mt-5">
-            <OperatorPreview equippedId={profile?.loadout.playerSkin.id??"default"} level={level} ownedIds={profile?.unlocks.playerSkins??[]} />
+            <OperatorPreview equippedId={profile?.loadout.playerSkin.id??"default"} previewId={previewOperativeId??undefined} level={level} ownedIds={profile?.unlocks.playerSkins??[]} />
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {PLAYER_SKINS.map((s) => {
                 const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (!s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0);
@@ -568,12 +570,13 @@ export function Armory() {
                           : <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30"><Check className="w-3 h-3" /></Badge>}
                       </div>
                     )}
-                    <div className="w-full h-28 rounded-lg mb-3 relative overflow-hidden flex items-center justify-center" style={{ background: `radial-gradient(circle at 50% 40%, ${s.accent}33, #000)` }}>
-                      <div className="w-14 h-20 rounded-t-full relative" style={{ background: s.color, boxShadow: s.emissive ? `0 0 20px ${s.emissive}` : "none" }}>
-                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full" style={{ background: s.color, boxShadow: s.emissive ? `0 0 12px ${s.emissive}` : "none" }} />
-                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-9 h-1.5 rounded-full" style={{ background: s.accent }} />
-                      </div>
-                    </div>
+                    <button type="button" onClick={() => setPreviewOperativeId(s.id)}
+                      aria-label={`Preview ${s.name} 3D model`}
+                      className="w-full h-28 rounded-lg mb-3 relative overflow-hidden flex items-center justify-center border transition-colors hover:border-white/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                      style={{ background: `radial-gradient(circle at 50% 40%, ${s.accent}33, #000)`, borderColor: previewOperativeId === s.id ? s.accent : "rgba(255,255,255,.08)" }}>
+                      <OperativeCardArt skin={s} />
+                      <span className="absolute bottom-0 right-0 px-2 py-0.5 rounded-tl bg-black/75 text-[9px] text-white/65">3D Preview</span>
+                    </button>
                     <div className="text-white font-bold text-sm">{s.name}</div>
                     <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{displayLabel(s.rarity)}</div>
                     {!isOwned && contract && (
