@@ -27,6 +27,7 @@ import { equipmentById } from "./equipment"; // retained only for legacy interna
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { rayCombatantHit } from "./combat-hitboxes";
+import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
@@ -903,6 +904,35 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   if (!nearest) return null;
   if (losBlocked(room, origin, dir, nearest.t)) return null;
   return nearest;
+}
+
+/** Conventional bullets can pass through aligned bodies, but not map cover,
+ * Bulwark shields or protected spawns. Special weapons use their own rules. */
+function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
+  range: number, eff: EffectiveStats): { victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[] {
+  if (!eff.bodyPenetration) {
+    const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
+    return first ? [{ ...first, damageScale: 1 }] : [];
+  }
+  const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
+  const maxDistance = maxWeaponHitRange(range, eff);
+  const coverDistance = closestCoverHit(room.map.cover, origin, dir, maxDistance, rayBox)?.distance ?? Infinity;
+  const contacts: BodyRayContact<PlayerNet>[] = [];
+  for (const target of allCombatants(room)) {
+    if (!target.alive || target.id === attackerId) continue;
+    if (room.config.friendlyFire === false && target.team === attacker?.team &&
+        room.mode !== "ffa" && room.mode !== "gungame") continue;
+    const panel = rayRiotShield(origin, dir, target);
+    const body = rayCombatantHit(origin, dir, target.pos);
+    const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
+    const t = shieldFirst ? panel! : body?.t;
+    if (t === undefined) continue;
+    contacts.push({ target, t, head: shieldFirst ? false : !!body?.head,
+      shield: shieldFirst,
+      protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
+  }
+  return selectBodyPenetrationHits(contacts, maxDistance, coverDistance, eff.bodyPenetration)
+    .map(({ target, t, head, shield, damageScale }) => ({ victim: target, t, head, shield, damageScale }));
 }
 
 // Determine the victim's "kill difficulty" for rewards scaling. Bot victims
@@ -2456,12 +2486,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         const pdir = botShotgun
           ? shotgunPelletDirection(dir, eff, !!ai.aiming)
           : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
-        const hit = fireRay(room, bot.id, origin, pdir, bot.weaponId, eff.range, eff.falloffEndMultiplier);
-        if (hit) {
+        for (const hit of firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff)) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
-          const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
+          const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff) * hit.damageScale;
           applyDamage(room, bot.id, hit.victim, dmg, hit.head, bot.weaponId,hit.shield);
           didHit = true;
+          if (room.ended) break;
         }
       }
       // Reaper has its own purple pulse FX. It must not generate a gunshot
@@ -3383,15 +3413,15 @@ async function handle(socket: any, msg: C2S) {
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
           const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
-          const hit = fireRay(room, socket.id, msg.origin, dir, msg.weaponId, eff.range, eff.falloffEndMultiplier);
+          const hits = firePenetratingRay(room, socket.id, msg.origin, dir, eff.range, eff);
           if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
-              (!hit || hit.t >= coverHit.distance)) {
+              hits.length === 0) {
             damageEnvironmentWall(room, coverHit.box.environmentId, eff.damage);
             continue;
           }
-          if (hit) {
+          for (const hit of hits) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
-            const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff);
+            const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff) * hit.damageScale;
             applyDamage(room, socket.id, hit.victim, dmg, hit.head, msg.weaponId,hit.shield);
             if (!hit.shield && incendiary && hit.victim.alive)
               room.poison.set(hit.victim.id, { attackerId:socket.id, weaponId:msg.weaponId,
@@ -3400,6 +3430,7 @@ async function handle(socket: any, msg: C2S) {
             if (!hit.shield && weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
               room.poison.set(hit.victim.id, { attackerId: socket.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });
             }
+            if (room.ended) break;
           }
         }
       }
