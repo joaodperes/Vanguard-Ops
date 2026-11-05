@@ -35,23 +35,23 @@ describe("Specialist perk and slot-four loadout",()=>{
     expect(tickWonderCharges(afterKill,rules,40000).charges).toBe(1);
     expect(spendWonderCharge(afterDeath,rules,20000)).toBeNull();
   });
-  test("engine respawn restores one charge except when a loadout is newly equipped",()=>{
+  test("engine starts with a drained Wonder and respawns never grant a charge",()=>{
     const weapon="wonder_deadlock";
-    const rules={maxCharges:2,rechargeMs:34000,killBonusMs:1000};
     const now=performance.now();
+    const state=drainedWonderCharges({maxCharges:2,rechargeMs:50000,killBonusMs:1000},now);
     const e:any=Object.create(FPSEngine.prototype);
     Object.assign(e,{weaponId:weapon,wonderWeaponId:weapon,primaryWeaponId:"rifle_ar",
       primaryEff:{magSize:30},secondaryEff:{magSize:12},meleeEff:{magSize:1},
-      wonderEff:{magSize:2},wonderStates:new Map([[weapon,{charges:0,nextAt:now+34000}]]),
+      wonderEff:{magSize:2},wonderStates:new Map([[weapon,state]]),
     });
-    e.refillAmmoOnRespawn(false);
-    expect(e.wonderStates.get(weapon).charges).toBe(1);
-    expect(e.wonderStates.get(weapon).nextAt).toBeGreaterThan(now+32000);
-    expect(e.ammoInMag).toBe(1);
-    e.wonderStates.set(weapon,drainedWonderCharges(rules,performance.now()));
-    e.refillAmmoOnRespawn(true);
     expect(e.wonderStates.get(weapon).charges).toBe(0);
+    e.refillAmmoOnRespawn();
+    expect(e.wonderStates.get(weapon)).toEqual(state);
     expect(e.ammoInMag).toBe(0);
+    expect(e.primaryAmmoInMag).toBe(30);
+    e.wonderStates.set(weapon,{charges:1,nextAt:now+50000});
+    e.refillAmmoOnRespawn();
+    expect(e.wonderStates.get(weapon)).toEqual({charges:1,nextAt:now+50000});
   });
   test("Scavenger fills the active conventional magazine but not holstered slots",()=>{
     const e:any=Object.create(FPSEngine.prototype);
