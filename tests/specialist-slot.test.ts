@@ -53,6 +53,18 @@ describe("Specialist perk and slot-four loadout",()=>{
     e.refillAmmoOnRespawn();
     expect(e.wonderStates.get(weapon)).toEqual({charges:1,nextAt:now+50000});
   });
+  test("missing match charge state is empty; Firing Range may test Wonders immediately",()=>{
+    const rules={maxCharges:2,rechargeMs:50000,killBonusMs:1000};
+    const engine:any=Object.create(FPSEngine.prototype);
+    engine.wonderStates=new Map();
+    engine.opts={firingRange:false};
+    const state=engine.ensureWonderState("wonder_deadlock",rules,1000);
+    expect(state).toEqual({charges:0,nextAt:51000});
+    expect(engine.ensureWonderState("wonder_deadlock",rules,9000)).toBe(state);
+    engine.wonderStates.clear();
+    engine.opts.firingRange=true;
+    expect(engine.ensureWonderState("wonder_deadlock",rules,1000).charges).toBe(2);
+  });
   test("Scavenger fills the active conventional magazine but not holstered slots",()=>{
     const e:any=Object.create(FPSEngine.prototype);
     Object.assign(e,{currentSlot:"secondary",weaponId:"pistol_side",ammoInMag:3,
