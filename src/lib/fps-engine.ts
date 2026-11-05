@@ -67,6 +67,7 @@ import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
+import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
@@ -6764,7 +6765,10 @@ export class FPSEngine {
     const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
       && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
     const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds);
-    const dir = this.aimDir(spread);
+    // Buckshot pellets originate at the true crosshair ray. Their individual
+    // deviations are resolved once by the shared shotgun pattern function.
+    const multiPelletShotgun = w.category === "shotgun" && (this.eff.pellets ?? 1) > 1;
+    const dir = this.aimDir(multiPelletShotgun ? 0 : spread);
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
@@ -6816,11 +6820,13 @@ export class FPSEngine {
         }
       }
     } else if (this.opts.online) {
-      this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
+      this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId(), aiming: this.aiming });
       this.spawnTracer(origin, dir, this.getCurrentSkinId());
     } else {
       for (let i = 0; i < pellets; i++) {
-        const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
+        const pdir = multiPelletShotgun
+          ? shotgunPelletDirection(dir, this.eff, this.aiming)
+          : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
         const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
       }
@@ -6936,8 +6942,8 @@ export class FPSEngine {
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
       if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive)
-        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+5000,
-          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:4 });
+        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+3000,
+          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:2 });
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }
@@ -8998,12 +9004,14 @@ export class FPSEngine {
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
       const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
+      const botShotgun = w.category === "shotgun" && (eff.pellets ?? 1) > 1;
+      const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
       if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
-        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
-        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
+        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
         if(w.category==="melee"){
           if(w.id===ORBITAL_REAPER_ID)this.offlineOrbitalBotSwing(c);
@@ -9011,7 +9019,9 @@ export class FPSEngine {
         }else{
           const pellets = eff.pellets ?? 1;
           for (let i = 0; i < pellets; i++) {
-            const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
+            const pdir = botShotgun
+              ? shotgunPelletDirection(dir, eff, !!ai.aiming)
+              : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
         }
@@ -9584,7 +9594,9 @@ export class FPSEngine {
       // firing/movement bloom. High-spread weapons no longer show a misleading
       // pin-point reticle just because the player is standing still.
       spreadFactor: Math.min(2, this.currentSpread + Math.min(2,
-        shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true) / 0.12
+        (weaponById(this.weaponId).category === "shotgun" && (this.eff.pellets ?? 1) > 1
+          ? shotgunConeRadians(this.eff, this.aiming)
+          : shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true)) / 0.12
       ) * (this.aiming ? 0.12 : 0.8)),
       // Sprinting flag (HUD shows sprint indicator + tighter weapon-sway logic).
       sprinting: this.sprinting,
