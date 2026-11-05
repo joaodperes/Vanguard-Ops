@@ -111,6 +111,33 @@ export function weaponHoldPoints(id: string): {
   };
 }
 
+/**
+ * Camera viewmodel-only support grip. Long receivers (snipers, battle rifles
+ * and heavy LMGs) used to carry the left glove too far down the fore-end,
+ * creating an unnaturally long visible arm once the shoulder was connected.
+ *
+ * Place the palm against the *forward portion of the receiver* instead.
+ * The receiver is centered at z=-.12, so this stays on real geometry while
+ * shortening the reach; the weapon still moves as one rigid assembly.
+ * World-model bot contact points deliberately remain unchanged.
+ */
+export function firstPersonSupportGrip(id: string): [number, number, number] {
+  const original = weaponHoldPoints(id).support;
+  const profile = WEAPON_VISUALS[id];
+  if (!profile || ( !id.startsWith("sniper_") && profile.receiver[2] < .55 )
+      || profile.magazine === "rocket" || id.startsWith("pistol_")) return original;
+
+  const [width, height, length] = profile.receiver;
+  // Move rearward from the handguard onto the receiver, not onto the trigger
+  // hand or beyond the rear of the gun. The palm is pressed against its side
+  // (negative X), at a height just below the bore.
+  return [
+    -Math.max(.105, width / 2 + .021),
+    -Math.max(.085, height * .42),
+    Math.max(original[2], -.12 - length * .15),
+  ];
+}
+
 export type WeaponPartAdder = (mesh: THREE.Object3D, x: number, y: number, z: number) => void;
 
 /** Returns exact camera-local muzzle Z, used by existing flash/suppressor code. */

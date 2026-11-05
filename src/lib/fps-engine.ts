@@ -94,7 +94,7 @@ import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
 import { canStartWeaponReload } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
@@ -3266,7 +3266,7 @@ export class FPSEngine {
     // Riot shield weapons render a sidearm under the shield. When the shield is
     // destroyed, the offhand resumes a conventional two-handed pistol grip.
     const contactId = this.weaponId === RIOT_SHIELD_ID ? "pistol_side" : this.weaponId;
-    this.fpSupportGrip.set(...weaponHoldPoints(contactId).support);
+    this.fpSupportGrip.set(...firstPersonSupportGrip(contactId));
 
     const hand = new THREE.Group();
     // The glove follows the weapon contact. The arm segments live in a
