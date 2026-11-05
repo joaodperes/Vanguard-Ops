@@ -184,9 +184,10 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
  * Each (player, weapon) row is unique; token balance derives from award rows.
  */
 export async function grantWeaponPrestiges(playerId: string): Promise<string[]> {
-  const [progress, skins, claimed] = await Promise.all([
+  const [progress, skins, attachments, claimed] = await Promise.all([
     db.weaponProgress.findMany({ where: { playerId } }),
     db.skinUnlock.findMany({ where: { playerId } }),
+    db.attachmentUnlock.findMany({ where: { playerId } }),
     db.weaponPrestige.findMany({ where: { playerId } }),
   ]);
   const byWeapon = new Map(progress.map(p => [p.weaponId, p]));
@@ -196,13 +197,18 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
     if (!owned.has(s.weaponId)) owned.set(s.weaponId, new Set());
     owned.get(s.weaponId)!.add(s.skinId);
   }
+  const ownedAttachments = new Map<string, Set<string>>();
+  for (const a of attachments) {
+    if (!ownedAttachments.has(a.weaponId)) ownedAttachments.set(a.weaponId, new Set());
+    ownedAttachments.get(a.weaponId)!.add(a.attachmentId);
+  }
   const already = new Set(claimed.map(p => p.weaponId));
   const eligible = WEAPONS.filter(w => !w.wonder && !already.has(w.id)).filter(w => {
     const p = byWeapon.get(w.id);
     return prestigeEligible(w.id, {
       kills: p?.kills ?? 0, headshots: p?.headshots ?? 0,
       conditionStats: parseWeaponConditionStats(p?.conditionStats),
-    }, owned.get(w.id));
+    }, owned.get(w.id), ownedAttachments.get(w.id));
   });
   if (!eligible.length) return [];
   const earned: string[] = [];

@@ -18,7 +18,7 @@ import { MAX_PLAYER_LEVEL, totalXpForLevel, levelForXp } from "../../src/lib/pro
 import { PERKS } from "../../src/lib/perks";
 import { shopItemsForCategory } from "../../src/lib/shop-catalog";
 import { dailyShopRotation } from "../../src/lib/shop-rotation";
-import { ACHIEVEMENTS, WEAPONS } from "../../src/lib/game-data";
+import { ACHIEVEMENTS, WEAPONS, WEAPON_SKINS } from "../../src/lib/game-data";
 import { WEAPON_CONDITION_METRICS } from "../../src/lib/armory-challenges";
 
 const req = (body: unknown) => new NextRequest("http://localhost/api/test", {
@@ -96,6 +96,25 @@ try {
   await status(await saveLoadout(req({playerKey:prestigeSkinPlayer.playerKey,weaponSkin:"prestige_cosmic"})),200);
   assert.notEqual((await buildProfileView(prestigeSkinPlayer.playerKey))!.loadout.weaponSkin.id,"prestige_cosmic");
 
+  // Seven purchased legacy skins alone cannot prematurely award a new Prestige.
+  const attachmentGate = await create("attachment-prestige-gate-player", totalXpForLevel(25));
+  await db.skinUnlock.createMany({ data: WEAPON_SKINS.filter(s =>
+    s.id !== "default" && !s.prestige && !s.shopCurrency
+  ).map(s => ({ playerId: attachmentGate.id, weaponId: "rifle_ar", skinId: s.id })) });
+  const skinOnly = (await buildProfileView(attachmentGate.playerKey))!;
+  assert(!skinOnly.prestige.masteredWeapons.includes("rifle_ar"),
+    "All seven owned skins must not bypass incomplete attachment challenges");
+  const completeContext = Object.fromEntries(WEAPON_CONDITION_METRICS.map(metric => [metric, 999]));
+  await db.weaponProgress.create({ data: {
+    playerId: attachmentGate.id, weaponId: "rifle_ar", kills: 999, headshots: 999,
+    conditionStats: JSON.stringify(completeContext),
+  } });
+  const fullyComplete = (await buildProfileView(attachmentGate.playerKey))!;
+  assert(fullyComplete.prestige.masteredWeapons.includes("rifle_ar"),
+    "Completing attachment objectives must award Prestige even without attachment purchases");
+  assert.equal(await db.weaponPrestige.count({ where: { playerId: attachmentGate.id, weaponId: "rifle_ar" } }), 1,
+    "Prestige must be a one-time permanent award");
+
   // A Marksman DMR reaches Mastery 5 on a live early-exit match report.
   // Existing Prestige + the saved last kill/headshot must mint exactly one
   // Wonder entitlement, even though won=false and the match ended early.
@@ -106,7 +125,7 @@ try {
     conditionStats: JSON.stringify(completedContext),
   } });
   const dmrBefore = (await buildProfileView(dmr.playerKey))!;
-  assert(dmrBefore.prestige.masteredWeapons.includes("rifle_dm"), "7/7 cosmetics should already be Prestiged");
+  assert(dmrBefore.prestige.masteredWeapons.includes("rifle_dm"), "All cosmetic and attachment objectives should already be Prestiged");
   assert.equal(dmrBefore.prestige.tokens, 0, "Mastery 4 must not award a Wonder unlock");
   const dmrExitResult = await applyMatchResult({
     playerKey: dmr.playerKey, kills: 1, deaths: 0, headshots: 1, won: false,

@@ -2,8 +2,8 @@ import { weaponById } from "../src/lib/game-data";
 import { describe, expect, test } from "bun:test";
 import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, tickWonderCharges, accelerateWonderCharge, wonderCooldownMs } from "../src/lib/wonder-charge";
 import { prestigeEligible, prestigeChallengeStatus, prestigeTokens, tokenEligiblePrestiges, wonderUnlockChallenge } from "../src/lib/weapon-prestige";
-import { WEAPONS, WEAPON_SKINS } from "../src/lib/game-data";
-import { allSkinChallengesForWeapon, parseWeaponConditionStats } from "../src/lib/armory-challenges";
+import { WEAPONS, WEAPON_SKINS, compatibleAttachments, weaponAttachmentSlots } from "../src/lib/game-data";
+import { allSkinChallengesForWeapon, attachmentChallenge, parseWeaponConditionStats } from "../src/lib/armory-challenges";
 
 describe("Wonder charge economy", () => {
   const rules = { maxCharges: 2, rechargeMs: 40000, killBonusMs: 2000 };
@@ -78,16 +78,48 @@ describe("Wonder charge economy", () => {
 });
 
 describe("One-time Prestige mastery", () => {
-  test("all ordinary skin trials must complete, not merely Gold", () => {
+  test("Prestige requires both all ordinary skins and every compatible attachment trial", () => {
     const weapon = WEAPONS.find(w => !w.wonder && w.category === "assault")!;
-    const all = allSkinChallengesForWeapon(weapon.id);
+    const skins = allSkinChallengesForWeapon(weapon.id);
     const allowedSkins = WEAPON_SKINS.filter(s => !s.prestige && !s.shopCurrency && s.id !== "default");
-    expect(all).toHaveLength(allowedSkins.length);
-    const owned = new Set(all.map(ch => ch.skinId));
-    expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, owned)).toBe(true);
-    owned.delete("arctic");
-    expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, owned)).toBe(false);
-    expect(prestigeEligible("wonder_singularity", { kills: 999999, headshots: 999999 }, owned)).toBe(false);
+    expect(skins).toHaveLength(allowedSkins.length);
+    const ownedSkins = new Set(skins.map(ch => ch.skinId));
+    const attachmentIds = [...new Set(weaponAttachmentSlots(weapon).flatMap(slot => compatibleAttachments(weapon.id, slot)))];
+    expect(attachmentIds.length).toBeGreaterThan(0);
+    const unearned = prestigeChallengeStatus(weapon.id, { kills: 0, headshots: 0 }, ownedSkins);
+    expect(unearned).toMatchObject({
+      skinCompleted: 7, skinTotal: 7, attachmentCompleted: 0,
+      attachmentTotal: attachmentIds.length, missingAttachmentIds: attachmentIds, eligible: false,
+    });
+    // Existing per-weapon purchases remain valid proof of completion.
+    const ownedAttachments = new Set(attachmentIds);
+    expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, ownedSkins, ownedAttachments)).toBe(true);
+    ownedSkins.delete("arctic");
+    expect(prestigeEligible(weapon.id, { kills: 0, headshots: 0 }, ownedSkins, ownedAttachments)).toBe(false);
+    expect(prestigeEligible("wonder_singularity", { kills: 999999, headshots: 999999 }, ownedSkins, ownedAttachments)).toBe(false);
+  });
+
+  test("Completing attachment objectives suffices without spending credits", () => {
+    const weapon = WEAPONS.find(w => !w.wonder && w.category === "assault")!;
+    const skins = new Set(allSkinChallengesForWeapon(weapon.id).map(ch => ch.skinId));
+    const attachmentIds = [...new Set(weaponAttachmentSlots(weapon).flatMap(slot => compatibleAttachments(weapon.id, slot)))];
+    const ownedAttachments = new Set(attachmentIds.slice(1));
+    const outstanding = attachmentChallenge(weapon.id, attachmentIds[0])!;
+    expect(outstanding).not.toBeNull();
+    const before = prestigeChallengeStatus(weapon.id, { kills: 0, headshots: 0 }, skins, ownedAttachments);
+    expect(before.missingAttachmentIds).toEqual([attachmentIds[0]]);
+    expect(before.eligible).toBe(false);
+    const progress = {
+      kills: outstanding.metric === "kills" ? outstanding.goal : 0,
+      headshots: outstanding.metric === "headshots" ? outstanding.goal : 0,
+      conditionStats: parseWeaponConditionStats({ [outstanding.metric]: outstanding.goal }),
+    };
+    expect(prestigeEligible(weapon.id, progress, skins, ownedAttachments)).toBe(true);
+    const melee = WEAPONS.find(w => !w.wonder && w.category === "melee")!;
+    const ownedMeleeSkins = new Set(allSkinChallengesForWeapon(melee.id).map(ch => ch.skinId));
+    expect(prestigeChallengeStatus(melee.id, { kills: 0, headshots: 0 }, ownedMeleeSkins)).toMatchObject({
+      attachmentTotal: 0, skinTotal: 7, completed: 7, total: 7, eligible: true,
+    });
   });
   test("Prestige and Mastery skins unlock separately; their combined entitlement is unique",()=>{
     const progress={rifle_ar:{kills:150,headshots:70},smg_kp:{kills:600,headshots:330}};
@@ -112,7 +144,7 @@ describe("One-time Prestige mastery", () => {
     expect(allSkinChallengesForWeapon("rifle_ar").some(c=>c.id===complete.id)).toBe(false);
     expect(wonderUnlockChallenge("wonder_singularity",true,600,330).completed).toBe(false);
     const owned=new Set(allSkinChallengesForWeapon("rifle_ar").map(c=>c.skinId));
-    expect(prestigeEligible("rifle_ar",{kills:0,headshots:0},owned)).toBe(true);
+    expect(prestigeEligible("rifle_ar",{kills:0,headshots:0},owned)).toBe(false);
   });
   test("Marksman DMR audit agrees with Prestige and Wonder eligibility", () => {
     const stats = { kills: 600, headshots: 330, conditionStats: {
@@ -122,7 +154,11 @@ describe("One-time Prestige mastery", () => {
       critical_health_kills: 999, comeback_kills: 999,
     } };
     const status = prestigeChallengeStatus("rifle_dm", stats);
-    expect(status).toMatchObject({ completed: 7, total: 7, missingSkinIds: [], eligible: true });
+    expect(status).toMatchObject({
+      skinCompleted: 7, skinTotal: 7, missingSkinIds: [],
+      attachmentCompleted: status.attachmentTotal, missingAttachmentIds: [], eligible: true,
+    });
+    expect(status.completed).toBe(status.total);
     expect(prestigeEligible("rifle_dm", stats)).toBe(true);
     expect(tokenEligiblePrestiges(["rifle_dm"], { rifle_dm: stats })).toEqual(["rifle_dm"]);
     expect(prestigeTokens(1, 0)).toBe(1);

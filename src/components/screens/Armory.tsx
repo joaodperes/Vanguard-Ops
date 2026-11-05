@@ -25,7 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
-import { wonderUnlockChallenge } from "@/lib/weapon-prestige";
+import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
 import { OperatorPreview } from "@/components/game/OperatorPreview";
@@ -910,6 +910,18 @@ function CustomizeModal(props: CustomizeModalProps) {
       ? (profile.meleeWeaponSkin?.id ?? "default")
       : profile.weaponSkin.id;
   const unlockedSkinsForWeapon = new Set(skinsByWeapon[w.id] ?? ["default"]);
+  const prestigeStatus = prestigeChallengeStatus(w.id, {
+    kills: progress?.kills ?? 0, headshots: progress?.headshots ?? 0,
+    conditionStats: progress?.conditionStats,
+  }, unlockedSkinsForWeapon, new Set(unlockedForWeapon));
+  const pendingAttachmentTrials = prestigeStatus.missingAttachmentIds.flatMap(id => {
+    const ch = attachmentChallenge(w.id, id);
+    return ch ? [armoryChallengeProgress(ch, {
+      kills: progress?.kills ?? 0, headshots: progress?.headshots ?? 0,
+      conditionStats: progress?.conditionStats,
+      matches: 0, wins: 0, totalKills: 0, totalHeadshots: 0,
+    })] : [];
+  });
   // Previously this was restricted to primary-only, which was confusing:
   // users opened the knife's modal, saw "Unlocked" on a skin, but couldn't
   // find an Equip button.
@@ -1201,19 +1213,22 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
           </TabsContent>
 
-          {/* CHALLENGES TAB — per-weapon skin challenges with progress */}
+          {/* CHALLENGES TAB — cosmetic and compatible attachment trials share the Prestige gate. */}
           <TabsContent value="challenges" className="mt-4">
             <div className={`mb-3 rounded-lg border p-3 text-xs ${prestiged ? "border-violet-400/40 bg-violet-500/10" : "border-white/10 bg-black/30"}`}>
               <div className="flex justify-between gap-2 items-center mb-2">
                 <span className={prestiged ? "font-bold text-violet-200" : "font-bold text-white/70"}>
-                  {prestiged ? "✦ PRESTIGED — Viridian Blight earned" : `Prestige: ${challengeViews.filter(ch => ch.completed).length}/${challengeViews.length} challenges`}
+                  {prestiged ? "✦ PRESTIGED — Viridian Blight earned" : `Prestige: ${prestigeStatus.completed}/${prestigeStatus.total} challenges`}
                 </span>
                 {prestiged ? <Sparkles className="w-4 h-4 text-violet-300" /> : <span className="text-white/40">Reward: Viridian Blight</span>}
               </div>
               <div className="h-1 bg-black/60 rounded overflow-hidden mb-2">
-                <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : challengeViews.length ? 100 * challengeViews.filter(ch => ch.completed).length / challengeViews.length : 0}%` }} />
+                <div className={prestiged ? "h-full bg-violet-400" : "h-full bg-amber-400"} style={{ width: `${prestiged ? 100 : prestigeStatus.total ? 100 * prestigeStatus.completed / prestigeStatus.total : 0}%` }} />
               </div>
-              <p className="text-white/50">{prestiged ? "Viridian Blight earned." : "Complete every regular cosmetic challenge to earn Viridian Blight."}</p>
+              <p className="text-white/60">
+                Skin trials: {prestigeStatus.skinCompleted}/{prestigeStatus.skinTotal} · Attachment trials: {prestigeStatus.attachmentCompleted}/{prestigeStatus.attachmentTotal}
+              </p>
+              <p className="text-white/50 mt-1">{prestiged ? "Viridian Blight earned; previously awarded Prestige is never revoked." : "Complete all regular skin and compatible attachment challenges to earn Viridian Blight. Buying attachments is not required."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
@@ -1249,8 +1264,12 @@ function CustomizeModal(props: CustomizeModalProps) {
                 </div>
               </div>
             )}
+            <div className="flex justify-between text-xs font-semibold text-white/60 mb-2">
+              <span>Skin challenges</span>
+              <span>{prestigeStatus.skinCompleted}/{prestigeStatus.skinTotal}</span>
+            </div>
             {challengeViews.filter(c => !c.completed).length === 0 ? (
-              <div className="text-white/40 text-sm italic py-6 text-center">{challengeViews.length ? "All challenges completed." : "No challenges defined for this weapon."}</div>
+              <div className="text-white/40 text-sm italic py-3 text-center">{challengeViews.length ? "All skin challenges completed." : "No skin challenges defined for this weapon."}</div>
             ) : (
               <div className="space-y-2">
                 {challengeViews.filter(c => !c.completed).map((c) => {
@@ -1292,6 +1311,33 @@ function CustomizeModal(props: CustomizeModalProps) {
                 })}
               </div>
             )}
+            <div className="mt-5 border-t border-white/10 pt-4">
+              <div className="flex justify-between text-xs font-semibold text-white/60 mb-2">
+                <span>Attachment challenges</span>
+                <span>{prestigeStatus.attachmentCompleted}/{prestigeStatus.attachmentTotal}</span>
+              </div>
+              <p className="text-white/45 text-xs mb-3">All attachments compatible with this weapon count. Completing their objectives is sufficient; purchasing them is optional. Owned legacy attachments count as complete.</p>
+              {prestigeStatus.attachmentTotal === 0 ? (
+                <p className="text-white/40 text-xs italic">This weapon has no compatible attachments.</p>
+              ) : pendingAttachmentTrials.length === 0 ? (
+                <p className="text-emerald-300/80 text-xs">All attachment challenges completed.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pendingAttachmentTrials.map(ch => (
+                    <div key={ch.id} className="rounded-lg border border-white/10 bg-black/30 p-3">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-white text-sm font-semibold">{ch.title}</span>
+                        <span className="text-xs font-mono text-amber-200 shrink-0">{ch.progress}/{ch.goal}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-white/60">{ch.description}</p>
+                      <div className="h-1.5 mt-2 bg-black/60 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, ch.goal ? 100 * ch.progress / ch.goal : 0)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
           </div>
           <aside className="min-h-0 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-4">

@@ -6,11 +6,17 @@ Run the safe schema update **before starting the new app/server build**.
 
 ## Earning Prestige
 
-- Every non-Wonder weapon has seven regular cosmetic challenges; the two
-  Prestige cosmetics are not part of that checklist.
-- Completing all seven awards that particular weapon's Prestige exactly once.
-  Bought legacy skins count as completed (preserves historical entitlement).
-- **Prestige** awards **Viridian Blight** (animated toxic green) independently. Only the seven ordinary skin challenges count toward Prestige.
+- Every non-Wonder weapon has seven regular cosmetic challenges **plus one
+  permanent trial per compatible attachment**. The two Prestige cosmetics,
+  Weapon Mastery and Wonder Weapon Unlock do not count toward this checklist.
+- Completing all seven skin challenges **and all compatible attachment trials**
+  awards that particular weapon's Prestige exactly once. Buying every attachment
+  is **not** required; completing its objective is sufficient. Previously owned
+  per-weapon skins and attachments count as completed (legacy protection).
+  Melee weapons have no attachment trials, so require only the seven skins.
+- **Prestige** awards **Viridian Blight** (animated toxic green) independently.
+  Existing awarded Prestige rows, finishes and Wonder tokens are permanent and
+  are never revoked when the checklist changes.
 - **Mastery rank 5/5** awards **Eventide** (scrolling starfield) independently;
   players can equip it even without completing Prestige.
 - Completing both tracks on the same weapon grants a one-use **Wonder Weapon
@@ -24,8 +30,8 @@ Run the safe schema update **before starting the new app/server build**.
 ## Diagnosing a missing Wonder unlock
 
 Armory → Wonders shows Wonder Weapon choices and token redemption. The per-weapon challenge list remains
-under Armory → Weapons → Customize → Challenges, including the independent
-Mastery rank and Prestige status for that weapon.
+under Armory → Weapons → Customize → Challenges, with distinct skin/attachment
+totals, pending attachment objectives and the independent Mastery/Prestige status.
 
 New Wonder awards require both server-confirmed Prestige and Mastery rank 5.
 Once earned, a token award is permanent even if balance requirements change.
