@@ -70,6 +70,8 @@ export interface WeaponStats {
   pellets?: number;      // for shotguns
   burst?: number;        // shots per burst (e.g. 3 = 3-round burst). Default 1 (no burst).
   headshotMult: number;  // headshot damage multiplier
+  /** Optional body-to-body hitscan penetration (not walls / shields). */
+  bodyPenetration?: { maxTargets: number; damageRetention: number };
 }
 
 export interface WeaponDef {
