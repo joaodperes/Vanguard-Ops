@@ -784,8 +784,8 @@ function WeaponCard(props: WeaponCardProps) {
       </div>
       {/* handling stats */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
-        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={`${formatSpreadMrad(w.stats.spread)} mrad`} />
-        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={`${formatSpreadMrad(w.stats.adsSpread)} mrad`} />
+        <HandlingStat icon={<Wind className="w-3 h-3" />} label="HIP" value={formatSpreadMrad(w.stats.spread)} />
+        <HandlingStat icon={<Target className="w-3 h-3" />} label="ADS" value={formatSpreadMrad(w.stats.adsSpread)} />
         <HandlingStat icon={<TrendingUp className="w-3 h-3" />} label="RECOIL" value={w.stats.recoil.toFixed(1)} />
         <HandlingStat icon={<ZoomIn className="w-3 h-3" />} label="ADS-t" value={`${Math.round(w.stats.adsTime * 1000)}ms`} />
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
