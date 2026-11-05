@@ -10,7 +10,7 @@ import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs, riotBashProfile, RIOT_BASH_KNOCKBACK } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, RIOT_SHIELD_RECHARGE_MS, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs, riotBashProfile, RIOT_BASH_KNOCKBACK } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { createRiotShieldModel, applyRiotShieldDamageVisual } from "./riot-shield-model";
 import { shieldPanel } from "./riot-shield";
@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -5511,7 +5511,8 @@ export class FPSEngine {
           this.turretDeployPending = false;
           const id = "wonder_turret";
           const rules = weaponById(id).wonder!;
-          const prior = this.wonderStates.get(id) ?? fullWonderCharges(rules);
+          // This is an authoritative acceptance, not a speculative attempt to fire.
+          const prior = this.wonderStates.get(id) ?? {charges:1,nextAt:0};
           const charged = spendWonderCharge(prior, rules, performance.now());
           if (charged) {
             this.wonderStates.set(id, charged);
@@ -5559,7 +5560,6 @@ export class FPSEngine {
         break;
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
-          const changedKit=!!this.pendingLoadout;
           this.equipQueuedLoadout();
           this.survivalDowned = false;
           this.lastPlayerRespawnAt = performance.now();
@@ -5568,7 +5568,7 @@ export class FPSEngine {
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
-          this.refillAmmoOnRespawn(changedKit); this.buildViewmodel();
+          this.refillAmmoOnRespawn(); this.buildViewmodel();
         }
         break;
       case "deathBomb":
@@ -6026,7 +6026,7 @@ export class FPSEngine {
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.refillAmmoOnRespawn(changedKit);
+    this.refillAmmoOnRespawn();
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
@@ -6086,6 +6086,15 @@ export class FPSEngine {
     }
     this.scavengerFeedbackAt=performance.now();
     if(eligible)this.sound.play("reload",{volume:.34});
+  }
+
+  /** Missing state is never a free charge: start a persistent cooldown. */
+  private ensureWonderState(id: string, rules: WonderChargeRules, now: number): WonderChargeState {
+    const existing=this.wonderStates.get(id);
+    if(existing)return existing;
+    const fresh=drainedWonderCharges(rules,now);
+    this.wonderStates.set(id,fresh);
+    return fresh;
   }
 
   // ---- Special-weapon resources & ground pickups ----
@@ -6665,7 +6674,7 @@ export class FPSEngine {
     if (w.wonder?.kind === "turret" && this.opts.online) {
       if (this.turretDeployPending) return;
       const current = tickWonderCharges(
-        this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder), w.wonder, now,
+        this.ensureWonderState(w.id,w.wonder,now), w.wonder, now,
       );
       if (current.charges <= 0) { this.sound.play("empty_click", { volume: .4 }); return; }
       if (!this.socket?.connected) {
@@ -6680,7 +6689,7 @@ export class FPSEngine {
       return;
     }
     if (usesWonderCharges(w) && w.wonder) {
-      const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
+      const state = this.ensureWonderState(w.id,w.wonder,now);
       if(w.wonder.kind==="flame"){
         // Only accepted trigger-held shots call this function.
         const spent=spendHellfireFuelOnShot(state,w.wonder,now,
@@ -9600,14 +9609,14 @@ export class FPSEngine {
       ...(this.wonderWeaponId && usesWonderCharges(weaponById(this.wonderWeaponId)) ? {
         wonderCharges:this.wonderStates.get(this.wonderWeaponId)?.charges??0,
         wonderChargeMax:weaponById(this.wonderWeaponId).wonder!.maxCharges,
-        wonderSlotCooldownMs:wonderCooldownMs(this.wonderStates.get(this.wonderWeaponId)??fullWonderCharges(weaponById(this.wonderWeaponId).wonder!),weaponById(this.wonderWeaponId).wonder!,now),
+        wonderSlotCooldownMs:wonderCooldownMs(this.ensureWonderState(this.wonderWeaponId,weaponById(this.wonderWeaponId).wonder!,now),weaponById(this.wonderWeaponId).wonder!,now),
       }:{}),
       ...(this.weaponId === "wonder_turret" ? {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
       } : {}),
       ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised(),riotShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now)}:{}),
-      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
+      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.ensureWonderState(this.weaponId,weaponById(this.weaponId).wonder!,now), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
