@@ -2437,7 +2437,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
     const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
-    const botShotgun = weapon.category === "shotgun" && (eff.pellets ?? 1) > 1;
+    const botShotgun = weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1;
     const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
     // shooting
@@ -3160,7 +3160,7 @@ async function handle(socket: any, msg: C2S) {
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
       let shotDir:Vec3=msg.dir;
-      if(weapon.stats.auto && !(weapon.category === "shotgun" && (eff.pellets ?? 1) > 1) && !weapon.wonder){
+      if(weapon.stats.auto && !(weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1) && !weapon.wonder){
         const previous=room.autoBloom.get(socket.id);
         const bloom=automaticBloom(previous?.weaponId===weapon.id?previous.value:0,
           eff.fireRate,now-(previous?.at??0));
@@ -3374,7 +3374,7 @@ async function handle(socket: any, msg: C2S) {
       } else {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
-        const multiPelletShotgun = weapon.category === "shotgun" && pellets > 1;
+        const multiPelletShotgun = weapon.category === "shotgun" && !weapon.wonder && pellets > 1;
         const shotgunAds = msg.aiming ?? room.adsStartedAt.has(socket.id);
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
