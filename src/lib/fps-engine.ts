@@ -269,6 +269,8 @@ export interface HudState {
   wonderCharges?: number;
   wonderChargeMax?: number;
   wonderSlotCooldownMs?: number;
+  wonderShieldHp?: number;
+  wonderShieldRechargeMs?: number;
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
   riotShieldRechargeMs?: number;
@@ -9618,6 +9620,10 @@ export class FPSEngine {
       primaryWeaponId: this.primaryWeaponId,
       secondaryWeaponId: this.secondaryWeaponId,
       meleeWeaponId: this.meleeWeaponId,
+      ...(this.wonderWeaponId===RIOT_SHIELD_ID ? {
+        wonderShieldHp:this.riotShieldHp,
+        wonderShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now),
+      }:{}),
       ...(this.wonderWeaponId && usesWonderCharges(weaponById(this.wonderWeaponId)) ? {
         wonderCharges:this.wonderStates.get(this.wonderWeaponId)?.charges??0,
         wonderChargeMax:weaponById(this.wonderWeaponId).wonder!.maxCharges,
