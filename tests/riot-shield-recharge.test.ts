@@ -37,10 +37,10 @@ describe("Bulwark shield cooldown and hit effects", () => {
     let state=accelerateRiotShield(broken.hp,broken.readyAt,3000);
     expect(riotShieldCooldownMs(state.hp,state.readyAt,3000))
       .toBe(RIOT_SHIELD_RECHARGE_MS-4000);
-    for(let i=0;i<16;i++)state=accelerateRiotShield(state.hp,state.readyAt,3000);
+    for(let i=0;i<26;i++)state=accelerateRiotShield(state.hp,state.readyAt,3000);
     expect(state).toEqual({hp:RIOT_SHIELD_HP,readyAt:0});
     expect(accelerateRiotShield(state.hp,state.readyAt,3000)).toEqual(state);
-    // A new life with full durability never carries a prior rebuild deadline.
+    // A shield with full durability has no pending rebuild deadline; new matches start broken.
     expect(riotShieldCooldownMs(RIOT_SHIELD_HP,0,3000)).toBe(0);
   });
   test("first and third-person shield models show the same progressive damage",()=>{
