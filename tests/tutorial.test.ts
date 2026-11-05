@@ -1,8 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { advancePractice, newTutorialProgress, parseTutorialProgress, shouldOfferTutorial, tutorialStorageKey, type PracticeSample, type PracticeState } from "../src/lib/tutorial";
+import { advancePractice, COMPETITIVE_MODE_GUIDES, COMPETITIVE_MODE_IDS, newTutorialProgress, parseTutorialProgress, shouldOfferTutorial, tutorialStorageKey, type PracticeSample, type PracticeState } from "../src/lib/tutorial";
+import matchModes from "../src/data/catalogs/match-modes.json";
 
 const sample: PracticeSample = { x: 0, z: -32, aiming: false, kills: 0, ammo: 30, reloading: false, weaponId: "rifle_ar" };
 describe("new-player tutorial", () => {
+  test("competitive briefings cover every shipped PvP mode", () => {
+    const shippedCompetitiveModes = Object.keys(matchModes).filter(id => id !== "survival").sort();
+    expect([...COMPETITIVE_MODE_IDS].sort()).toEqual(shippedCompetitiveModes);
+    for (const id of COMPETITIVE_MODE_IDS) {
+      expect(COMPETITIVE_MODE_GUIDES[id].label).toBe(matchModes[id].label);
+      expect(COMPETITIVE_MODE_GUIDES[id].objective.length).toBeGreaterThan(50);
+      expect(COMPETITIVE_MODE_GUIDES[id].tip.length).toBeGreaterThan(20);
+    }
+  });
+
   test("new players are offered training; existing, completed and skipped profiles are left alone", () => {
     expect(shouldOfferTutorial({ xp: 0, matchesPlayed: 0 }, null)).toBe(true);
     expect(shouldOfferTutorial({ xp: 100, matchesPlayed: 0 }, null)).toBe(false);
