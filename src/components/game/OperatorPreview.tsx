@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import * as THREE from "three";
 import {PLAYER_SKINS} from "@/lib/game-data";
+import {addOperativeSkinDetails, operativeSignature} from "@/lib/operative-appearance";
 import {ownsOperativeSkin} from "@/lib/collection-ownership";
 
 /** Solo preview uses the same body palette and proportions as the combatant
@@ -22,8 +23,8 @@ export function OperatorPreview({equippedId="default",ownedIds=[],level=1}:{equi
     const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     renderer.setSize(width,height);host.appendChild(renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xffffff,0x29384d,2.1));
-    const light=new THREE.DirectionalLight(0xffffff,2.4);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x29384d,1.75));
+    const light=new THREE.DirectionalLight(0xffffff,2.0);
     light.position.set(-3,5,4);scene.add(light);
     const armor=new THREE.MeshStandardMaterial({color:skin.color,metalness:.3,roughness:.6,emissive:skin.emissive??"#000",emissiveIntensity:skin.emissive?.4:0});
     const accents=new THREE.MeshStandardMaterial({color:skin.accent,metalness:.4,roughness:.5,emissive:skin.emissive??skin.accent,emissiveIntensity:.3});
@@ -46,6 +47,15 @@ export function OperatorPreview({equippedId="default",ownedIds=[],level=1}:{equi
       box(.16,.40,.16,side*.13,.2,0,dark);
       box(.18,.08,.28,side*.13,.03,.05,armor);
     }
+    // Mirror the articulated in-game attachment coordinates. Preview limbs are
+    // static, but both scenes build exactly the same rarity and signature gear.
+    const torso = new THREE.Group(); root.add(torso);
+    const head = new THREE.Group(); head.position.y = 1.62; root.add(head);
+    const upperArmL = new THREE.Group(); upperArmL.position.set(.30, 1.40, 0); root.add(upperArmL);
+    const upperArmR = new THREE.Group(); upperArmR.position.set(-.30, 1.40, 0); root.add(upperArmR);
+    const upperLegL = new THREE.Group(); upperLegL.position.set(.13, .80, 0); root.add(upperLegL);
+    const upperLegR = new THREE.Group(); upperLegR.position.set(-.13, .80, 0); root.add(upperLegR);
+    addOperativeSkinDetails(skin, {torso, head, upperArmL, upperArmR, upperLegL, upperLegR});
     const floor=new THREE.Mesh(new THREE.CylinderGeometry(.78,.83,.05,48),new THREE.MeshStandardMaterial({color:0x182333,roughness:.8}));
     floor.position.set(0,-.035,0);scene.add(floor);
     let frame=0,angle=0;
@@ -67,6 +77,7 @@ export function OperatorPreview({equippedId="default",ownedIds=[],level=1}:{equi
       </select>
     </div>
     <div ref={mount} className="w-full rounded-xl overflow-hidden border border-white/10" style={{minHeight:268}}/>
+    <div className="mt-2 text-[11px] text-white/45">3D model preview · {operativeSignature(PLAYER_SKINS.find(s=>s.id===selected)??PLAYER_SKINS[0]).replaceAll("_"," ")} armor · cosmetic only</div>
 
   </section>;
 }
