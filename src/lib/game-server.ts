@@ -68,7 +68,7 @@ import {
   roomCapacity, mapAllowedForMode, teamSizeAllowed, teamSizesForMap, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot, type EffectiveStats,
+  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot, type WeaponStats,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -909,7 +909,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
 /** Conventional bullets can pass through aligned bodies, but not map cover,
  * Bulwark shields or protected spawns. Special weapons use their own rules. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
-  range: number, eff: EffectiveStats): { victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[] {
+  range: number, eff: WeaponStats): { victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[] {
   if (!eff.bodyPenetration) {
     const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
     return first ? [{ ...first, damageScale: 1 }] : [];
