@@ -39,6 +39,7 @@ import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando"
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { rayCombatantHit } from "./combat-hitboxes";
+import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
@@ -7035,6 +7036,55 @@ export class FPSEngine {
   }
 
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
+    // Heavy-caliber hitscan uses the same ordered ray contacts as the server.
+    // The range supports multiple aligned mannequins, never wall penetration.
+    if (this.eff.bodyPenetration && !isMelee) {
+      const maxDistance = maxWeaponHitRange(this.eff.range, this.eff);
+      const contacts: BodyRayContact<Combatant>[] = [];
+      for (const c of this.combatants.values()) {
+        if (!c.alive || (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team)) continue;
+        const panel = rayRiotShield(origin, dir, c);
+        const body = rayCombatantHit(origin, dir, c.pos);
+        const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
+        const t = shieldFirst ? panel! : body?.t;
+        if (t !== undefined) contacts.push({ target: c, t, head: shieldFirst ? false : !!body?.head,
+          shield: shieldFirst, protected: (c.spawnProtectedUntil ?? 0) > Date.now() });
+      }
+      const cover = closestCoverHit(this.map.cover, origin, dir, maxDistance, rayBox);
+      const firstBody = selectBodyPenetrationHits(contacts, maxDistance, Infinity)[0];
+      if (cover?.box.environmentId && this.environmentWalls.has(cover.box.environmentId) &&
+          (!firstBody || firstBody.t >= cover.distance)) {
+        this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
+        return null;
+      }
+      const hits = selectBodyPenetrationHits(contacts, maxDistance, cover?.distance ?? Infinity,
+        this.eff.bodyPenetration);
+      let firstVictim: Combatant | null = null;
+      for (const hit of hits) {
+        const victim = hit.target;
+        if (hit.protected) { this.hitMarkerAt = performance.now(); break; }
+        if (hit.shield) {
+          const next = hitRiotShield(victim.riotShieldHp ?? RIOT_SHIELD_HP,
+            victim.riotShieldReadyAt ?? 0, this.eff.damage * hit.damageScale, performance.now());
+          victim.riotShieldHp = next.hp; victim.riotShieldReadyAt = next.readyAt;
+          this.sound.play("melee_hit", { volume: .45 });
+          break;
+        }
+        const base = this.eff.damage * (hit.head ? headshotMult : 1);
+        const damage = damageAtRange(base, hit.t, this.eff.range, this.eff) * hit.damageScale;
+        const willKill = victim.health - damage <= 0 && victim.alive;
+        this.applyDamageLocal(victim, damage, hit.head);
+        if (!firstVictim) firstVictim = victim;
+        this.hitMarkerAt = performance.now();
+        if (hit.head) this.headshotMarkerAt = performance.now();
+        if (!willKill && performance.now() - this.lastHitSoundAt > 60) {
+          this.lastHitSoundAt = performance.now();
+          this.sound.play("hit_marker", { volume: .5 });
+        }
+        if (this.matchEnded) break;
+      }
+      return firstVictim;
+    }
     let nearest: { c: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
@@ -9433,7 +9483,7 @@ export class FPSEngine {
   }
 
   private botFireRay(attacker: Combatant, origin: Vec3, dir: Vec3, eff: EffectiveStats, headshotMult: number) {
-    let nearest: { victim: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
+    const contacts: BodyRayContact<Combatant>[] = [];
     const selfC: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
@@ -9444,35 +9494,36 @@ export class FPSEngine {
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
-      const panel=rayRiotShield(origin,dir,e);
-      if(panel!==null&&panel<=maxWeaponHitRange(eff.range,eff)&&(!nearest||panel<nearest.t))nearest={victim:e,t:panel,head:false,shield:true};
-      const hit = rayCombatantHit(origin, dir, e.pos);
-      if (hit && hit.t <= maxWeaponHitRange(eff.range, eff)) {
-        if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
-      }
+      const panel = rayRiotShield(origin, dir, e);
+      const body = rayCombatantHit(origin, dir, e.pos);
+      const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
+      const t = shieldFirst ? panel! : body?.t;
+      if (t !== undefined) contacts.push({ target: e, t, head: shieldFirst ? false : !!body?.head,
+        shield: shieldFirst, protected: e.id === this.selfId
+          ? this.selfSpawnProtectedUntil > Date.now() : (e.spawnProtectedUntil ?? 0) > Date.now() });
     }
-    let blockedT = Infinity;
-    for (const cov of this.map.cover) {
-      const t = rayBox(origin, dir, cov.pos, cov.size);
-      if (t !== null && t < blockedT) blockedT = t;
-    }
-    if (nearest && nearest.t < blockedT) {
+    const maxDistance = maxWeaponHitRange(eff.range, eff);
+    const coverDistance = closestCoverHit(this.map.cover, origin, dir, maxDistance, rayBox)?.distance ?? Infinity;
+    const hits = selectBodyPenetrationHits(contacts, maxDistance, coverDistance, eff.bodyPenetration);
+    for (const hit of hits) {
+      const nearest = { victim: hit.target, t: hit.t, head: hit.head, shield: hit.shield };
+      if (hit.protected) break;
       if(nearest.shield){
         if(nearest.victim.id===this.selfId){
           if(this.selfSpawnProtectedUntil>Date.now())return;
-          const next=hitRiotShield(this.riotShieldHp,this.riotShieldReadyAt,eff.damage,performance.now());
+          const next=hitRiotShield(this.riotShieldHp,this.riotShieldReadyAt,eff.damage * hit.damageScale,performance.now());
           this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
           this.riotShieldHitFlashAt=performance.now();
           this.sound.play("melee_hit",{volume:.35,throttleMs:90});
         }else{
           const next=hitRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,
-            nearest.victim.riotShieldReadyAt??0,eff.damage,performance.now());
+            nearest.victim.riotShieldReadyAt??0,eff.damage * hit.damageScale,performance.now());
           nearest.victim.riotShieldHp=next.hp;nearest.victim.riotShieldReadyAt=next.readyAt;
         }
-        return;
+        break;
       }
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
-      let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff);
+      let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff) * hit.damageScale;
       // Survival: bots hit harder as waves progress, BUT base damage is reduced
       // by 35% to give players more survivability (Round 18-b balance fix).
       // Net: wave 1 = 65% damage, wave 8 = 65%*1.42 = 92%, wave 14 = 65%*1.78 = 116%.
@@ -9481,7 +9532,7 @@ export class FPSEngine {
         dmg *= 0.65 * survivalWaveDamageMul(this.survivalWave) * survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
       // Round 20h: Check local player spawn protection — skip damage if protected.
       if (nearest.victim.id === this.selfId && this.selfSpawnProtectedUntil > Date.now()) {
-        return; // player is spawn-protected — no damage
+        break; // player is spawn-protected — bullet absorbed
       }
       if (nearest.victim.id === this.selfId) {
         const dx = this.pos.x - attacker.pos[0];
