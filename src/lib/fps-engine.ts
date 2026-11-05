@@ -43,7 +43,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botHasJumpClearance } from "./bot-physics";
@@ -1160,8 +1160,10 @@ export class FPSEngine {
     if(initialWonder?.wonder){
       const now=performance.now();
       if(usesWonderCharges(initialWonder))
-        this.wonderStates.set(initialWonder.id,drainedWonderCharges(initialWonder.wonder,now));
-      if(initialWonder.id===RIOT_SHIELD_ID){
+        this.wonderStates.set(initialWonder.id,this.opts.firingRange
+          ? fullWonderCharges(initialWonder.wonder)
+          : drainedWonderCharges(initialWonder.wonder,now));
+      if(initialWonder.id===RIOT_SHIELD_ID && !this.opts.firingRange){
         this.riotShieldHp=0;
         this.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
       }
@@ -6091,11 +6093,12 @@ export class FPSEngine {
     if(eligible)this.sound.play("reload",{volume:.34});
   }
 
-  /** Missing state is never a free charge: start a persistent cooldown. */
+  /** Missing match state starts an empty cooldown. The Firing Range is a
+   * practice sandbox and allows immediate shots without an unlock or wait. */
   private ensureWonderState(id: string, rules: WonderChargeRules, now: number): WonderChargeState {
     const existing=this.wonderStates.get(id);
     if(existing)return existing;
-    const fresh=drainedWonderCharges(rules,now);
+    const fresh=this.opts.firingRange ? fullWonderCharges(rules) : drainedWonderCharges(rules,now);
     this.wonderStates.set(id,fresh);
     return fresh;
   }
