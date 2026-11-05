@@ -11,7 +11,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { fullWonderCharges, drainedWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { drainedWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -2874,6 +2874,16 @@ async function handle(socket: any, msg: C2S) {
       room.sockets.set(socket.id, socket.id);
       room.scores.set(socket.id, 0);
       room.loadouts.set(socket.id, loadout);
+      // Late joiners start their own cooldown on entry, never with a ready Wonder.
+      if(room.state==="playing" && loadout.perkId==="wonder_weapon"){
+        const selected=WEAPONS.find(w=>w.id===loadout.wonderWeaponId&&!w.disabled);
+        const now=Date.now();
+        if(selected?.wonder && usesWonderCharges(selected))
+          room.wonderCharges.set(socket.id+":"+selected.id,drainedWonderCharges(selected.wonder,now));
+        if(selected?.id===RIOT_SHIELD_ID){
+          p.riotShieldHp=0;p.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
+        }
+      }
       if (room.mode === "gungame") room.gungameProgress.set(socket.id, 0);
       // ensure bots count matches (in case room was reused)
       spawnBots(room);
@@ -3014,7 +3024,9 @@ async function handle(socket: any, msg: C2S) {
       const now = Date.now();
       const weapon = weaponById(player.weaponId);
       const key = socket.id + ":" + weapon.id;
-      const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder!);
+      // If a room is recovered without state, initialize it empty, not ready.
+      const state = room.wonderCharges.get(key) ?? drainedWonderCharges(weapon.wonder!,now);
+      room.wonderCharges.set(key,state);
       const charged = spendWonderCharge(state, weapon.wonder!, now);
       if (!charged) {
         denied("Bullet Spitter has not recharged");
@@ -3082,7 +3094,8 @@ async function handle(socket: any, msg: C2S) {
       if (shieldBlocksFire(p.weaponId,!!p.riotShieldRaised,p.riotShieldHp??RIOT_SHIELD_HP)) return;
       if (usesWonderCharges(weapon) && weapon.wonder) {
         const key = socket.id + ":" + weapon.id;
-        const state = room.wonderCharges.get(key) ?? fullWonderCharges(weapon.wonder);
+        const state = room.wonderCharges.get(key) ?? drainedWonderCharges(weapon.wonder,now);
+        room.wonderCharges.set(key,state);
         if(weapon.wonder.kind==="flame"){
           const paid=spendHellfireFuelOnShot(state,weapon.wonder,now,
             room.hellfireUntil.get(socket.id)??0,HELLFIRE_FUEL_STEP_MS);
