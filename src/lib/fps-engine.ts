@@ -51,7 +51,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
@@ -750,6 +750,10 @@ export class FPSEngine {
     baseScale: THREE.Vector3;
   }[] = [];
   private vmScale = 1.20;
+  // Camera-local rest grip: the same contact point and rigid weapon transform
+  // used by every mesh in vmParts. Reused each frame without allocations.
+  private fpSupportGrip = new THREE.Vector3();
+  private fpRestHand = new THREE.Vector3();
   private fpActionHand: THREE.Group | null = null;
   private fpActionProp: THREE.Group | null = null;
   private fpActionPropId = "";
@@ -3214,9 +3218,8 @@ export class FPSEngine {
       addPart(laser, 0, -0.09, -0.2);
     }
 
-    // Permanent right-hand contact: the new articulated support hand appears
-    // only while operating equipment/reloading, but the weapon no longer looks
-    // like it is floating during idle, sprint and firing animations.
+    // Permanent right-hand contact at the trigger. The left hand has its own
+    // camera-space rig, so it can leave the handguard during reloads and throws.
     const gloveMaterial = new THREE.MeshBasicMaterial({ color: 0x354652 });
     const cuffMaterial = new THREE.MeshBasicMaterial({ color: 0x1c2832 });
     const triggerGlove = new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12), gloveMaterial);
@@ -3247,21 +3250,45 @@ export class FPSEngine {
     this.rebuildLaserIndicator();
   }
 
-  /** Procedural camera-space glove, forearm and held object. Kept separate from
-   *  vmParts so the support hand can reach down for a magazine or forward for
-   *  a grenade without warping the receiver/barrel meshes. */
+  /** One shared left-hand rig: it holds each firearm during regular gameplay,
+   *  then moves to the reload/equipment pose. It is not duplicated or embedded in
+   *  the rigid weapon meshes, so the magazine can be removed independently. */
   private buildFirstPersonRig() {
+    // Riot shield weapons render a sidearm under the shield. When the shield is
+    // destroyed, the offhand resumes a conventional two-handed pistol grip.
+    const contactId = this.weaponId === RIOT_SHIELD_ID ? "pistol_side" : this.weaponId;
+    this.fpSupportGrip.set(...weaponHoldPoints(contactId).support);
+
     const hand = new THREE.Group();
-    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.049,.065,.35,9), this.fpCuffMat);
-    forearm.rotation.set(.42,0,-.27); forearm.position.set(.12,-.14,.15);
-    hand.add(forearm);
-    const glove = new THREE.Mesh(new THREE.BoxGeometry(.135,.105,.145),this.fpHandMat);
-    glove.position.set(0,0,-.03); hand.add(glove);
-    const knuckles = new THREE.Mesh(new THREE.BoxGeometry(.113,.022,.05),this.fpCuffMat);
-    knuckles.position.set(0,.048,-.08); hand.add(knuckles);
-    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.044,.085,.058),this.fpHandMat);
-    thumb.position.set(-.08,-.027,-.02); thumb.rotation.z=.25; hand.add(thumb);
+    // Palm at the real handguard/grip contact. Sleeve runs toward the player's
+    // lower-left shoulder and backwards into camera space, not through the gun.
+    const wrist = new THREE.Vector3(-.022, -.085, .065);
+    const elbow = new THREE.Vector3(-.22, -.36, .31);
+    const sleeveDir = elbow.clone().sub(wrist);
+    const sleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(.078, .052, sleeveDir.length(), 10), this.fpCuffMat,
+    );
+    sleeve.position.copy(wrist).add(elbow).multiplyScalar(.5);
+    sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sleeveDir.normalize());
+    hand.add(sleeve);
+
+    const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
+    glove.position.set(0, -.028, .015);
+    hand.add(glove);
+    const knuckles = new THREE.Mesh(new THREE.BoxGeometry(.112, .023, .052), this.fpCuffMat);
+    knuckles.position.set(0, .029, -.043);
+    hand.add(knuckles);
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.042, .077, .065), this.fpHandMat);
+    thumb.position.set(.074, -.034, .017);
+    thumb.rotation.z = -.30;
+    hand.add(thumb);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(.061, .066, .115, 9), this.fpCuffMat);
+    cuff.position.set(-.045, -.117, .10);
+    cuff.rotation.set(-.58, 0, -.32);
+    hand.add(cuff);
+
     hand.visible = false;
+    hand.frustumCulled = false;
     this.fpActionHand = hand;
     this.camera.add(hand);
     this.fpActionProp = new THREE.Group();
@@ -3361,34 +3388,64 @@ export class FPSEngine {
     for (const m of materials.values()) if (!used.has(m)) m.dispose();
   }
 
-  private renderFirstPersonAction(now: number, visibleWeapon: boolean) {
-    const hand=this.fpActionHand, prop=this.fpActionProp;
+  private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {
+    const hand = this.fpActionHand, prop = this.fpActionProp;
     if (!hand || !prop) return;
+    const isShield = this.weaponId === RIOT_SHIELD_ID;
+    const restMode = supportHandRestMode(
+      weaponById(this.weaponId).category, isShield, !!this.riotShieldModel?.visible,
+    );
+    let restRotation: THREE.Quaternion = this._vmTotalQuat;
+    if (restMode === "shield" && this.riotShieldModel) {
+      // The raised and side-held Bulwark shield have their own camera-space
+      // poses. Attach the LEFT glove to its inner grip, never to the pistol.
+      const shield = this.riotShieldModel;
+      restPosition.set(-.13, -.24, .115).multiply(shield.scale)
+        .applyQuaternion(shield.quaternion).add(shield.position);
+      restRotation = shield.quaternion;
+    }
+
     let pose: ActionPose | null = null;
     let propId = "";
+    let progress = 0;
     if (this.equipmentAction) {
-      const a=this.equipmentAction;
-      pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
-      propId=a.id;
+      const a = this.equipmentAction;
+      progress = (now - a.startedAt) / a.duration;
+      pose = sampleDeployMotion(progress, a.kind);
+      propId = a.id;
     } else if (this.reloading) {
-      const def=weaponById(this.weaponId);
-      const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
-      propId=style;
+      const def = weaponById(this.weaponId);
+      const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
+      progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
+      pose = sampleReloadMotion(progress, style);
+      propId = style;
     }
-    hand.visible=!!pose && this.alive && visibleWeapon;
-    prop.visible=!!pose?.propVisible && this.alive && visibleWeapon;
-    if (!pose || !visibleWeapon) return;
+
+    // The offhand is present every frame for guns and an intact shield.
+    // Melee holds stay one-handed, except during an equipment action.
+    hand.visible = this.alive && visibleWeapon && (restMode !== "none" || !!pose);
+    prop.visible = this.alive && visibleWeapon && !!pose?.propVisible;
+    if (!hand.visible) return;
+    if (!pose) {
+      hand.position.copy(restPosition);
+      hand.quaternion.copy(restRotation);
+      return;
+    }
     this.ensureFirstPersonProp(propId);
     if (this.equipmentAction) {
       hand.position.set(...pose.hand);
       prop.position.set(...pose.prop);
     } else {
-      hand.position.set(pose.hand[0]+this.vmOffset.x,pose.hand[1]+this.vmOffset.y,pose.hand[2]+this.vmOffset.z);
-      prop.position.set(pose.prop[0]+this.vmOffset.x,pose.prop[1]+this.vmOffset.y,pose.prop[2]+this.vmOffset.z);
+      hand.position.set(pose.hand[0] + this.vmOffset.x, pose.hand[1] + this.vmOffset.y, pose.hand[2] + this.vmOffset.z);
+      prop.position.set(pose.prop[0] + this.vmOffset.x, pose.prop[1] + this.vmOffset.y, pose.prop[2] + this.vmOffset.z);
     }
-    hand.rotation.set(pose.handRoll*.25,0,pose.handRoll);
-    prop.rotation.set(0,0,pose.handRoll*.6);
+    hand.rotation.set(pose.handRoll * .25, 0, pose.handRoll);
+    prop.rotation.set(0, 0, pose.handRoll * .6);
+    if (restMode !== "none") {
+      const blend = supportActionWeight(progress);
+      hand.position.lerp(restPosition, 1 - blend);
+      hand.quaternion.slerp(restRotation, 1 - blend);
+    }
   }
 
   // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
@@ -3614,7 +3671,18 @@ export class FPSEngine {
     if (this.sightMesh) {
       this.sightMesh.visible = !quickMeleeActive && !hideEntireViewmodel && !hideSightDuringADS;
     }
-    this.renderFirstPersonAction(now, !hideEntireViewmodel);
+    // Solve the offhand's grip with the EXACT rigid-body transform that moved
+    // each weapon part (including recoil, sprint, swapping, reload and ADS).
+    // Unlike a screen-space approximation, its palm cannot drift off the gun.
+    this.fpRestHand.copy(this.fpSupportGrip).multiplyScalar(this.vmScale);
+    this.fpRestHand.x -= pivotX;
+    this.fpRestHand.y -= pivotY;
+    this.fpRestHand.z -= pivotZ;
+    this.fpRestHand.applyQuaternion(this._vmTotalQuat);
+    this.fpRestHand.x += pivotX + ox;
+    this.fpRestHand.y += pivotY + oy;
+    this.fpRestHand.z += pivotZ + oz;
+    this.renderFirstPersonAction(now, !hideEntireViewmodel && !quickMeleeActive, this.fpRestHand);
   }
 
   // ---- Laser indicator ----

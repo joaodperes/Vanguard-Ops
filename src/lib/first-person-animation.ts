@@ -20,6 +20,27 @@ export interface ActionPose {
   hideFixedMagazine: boolean;
   released: boolean;
 }
+/** The offhand supports guns in normal play, but never a melee weapon.
+ * When the Bulwark shield breaks, it returns to supporting the sidearm. */
+export function supportHandRestMode(
+  category: string, shieldEquipped: boolean, shieldUsable: boolean,
+): "weapon" | "shield" | "none" {
+  if (category === "melee") return "none";
+  return shieldEquipped && shieldUsable ? "shield" : "weapon";
+}
+
+/** Blend the shared support hand smoothly out of the grip and back after an
+ * action. At 0 and 1 it is fully attached to the weapon; between the ramps it
+ * follows the reload/deploy animation without a duplicated stationary hand. */
+export function supportActionWeight(progress: number): number {
+  const p = Math.max(0, Math.min(1, progress));
+  const smooth = (t: number) => {
+    const c = Math.max(0, Math.min(1, t));
+    return c * c * (3 - 2 * c);
+  };
+  return smooth(p / .16) * (1 - smooth((p - .84) / .16));
+}
+
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const ease = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
