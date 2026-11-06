@@ -17,7 +17,7 @@ import {
 } from "@/lib/game-protocol";
 import {
   ArrowLeft, Swords, Users, Shield, Skull, Bot, Lock, KeyRound, Plus, ListVideo,
-  RefreshCw, Map as MapIcon, Layers, Mountain, Building2, Boxes, ChevronRight,
+  RefreshCw, Map as MapIcon, ChevronRight,
   Zap, Crosshair, UserCircle, DoorOpen, Globe, Wifi, WifiOff, Radio, Check, Gauge, Loader2,
   Target, Clock, Trophy, AlertTriangle,
 } from "lucide-react";
@@ -30,6 +30,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { getMapIcon } from "./map-icons";
 import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnlocked, type SurvivalProgress } from "@/lib/survival";
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
@@ -467,7 +468,7 @@ export function Play() {
                   <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                     {MAP_LIST.filter((m) => mapAllowedForMode(roomConfig.mode, m.id) && (roomConfig.mode === "ctf" || mapPaceFilter === "all" || (MAP_BLUEPRINTS.maps[m.id]?.pace ?? MAP_FOOTPRINT[m.id]?.pace ?? "balanced") === mapPaceFilter)).map((m) => {
                       const selected = roomConfig.mapId === m.id;
-                      const Icon = m.id === "compound" ? Building2 : m.id === "skybridge" ? Mountain : m.id === "shipyard" ? Boxes : m.id === "terminal" ? Building2 : Layers;
+                      const Icon = getMapIcon(m.id);
                       return (
                         <button
                           key={m.id}
@@ -866,6 +867,7 @@ function RoomBrowser({
 function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
   const cfg = MATCH_MODES[room.mode];
   const mapDef = MAP_LIST.find((m) => m.id === room.mapId);
+  const MapGlyph = getMapIcon(room.mapId);
   const full = room.humans >= room.capacity;
   const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") ? Shield : room.mode === "gungame" ? Swords : Skull;
   const inLobby = room.state === "lobby";
@@ -901,7 +903,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] mb-3">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
-            <MapIcon className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {displayMapLabel(mapDef?.name ?? room.mapName ?? room.mapId)}
+            <MapGlyph className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {displayMapLabel(mapDef?.name ?? room.mapName ?? room.mapId)}
           </span>
           {room.mode === "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">
