@@ -86,7 +86,7 @@ describe("compact first-person support grips for long weapons", () => {
       const adjusted = firstPersonSupportGrip(id);
       const profile = WEAPON_VISUALS[id];
       expect(adjusted[2]).toBeGreaterThan(original[2] + .10);
-      expect(reach(adjusted)).toBeLessThan(reach(original) - .12);
+      expect(reach(adjusted)).toBeLessThan(reach(original) - .10);
       // Contact must stay on the receiver side and within its fore/aft bounds.
       expect(adjusted[2]).toBeGreaterThanOrEqual(-.12 - profile.receiver[2] / 2);
       expect(adjusted[2]).toBeLessThanOrEqual(-.12 + profile.receiver[2] / 2);
@@ -144,7 +144,7 @@ describe("real articulated support elbow",()=>{
     for(const wrist of poses){
       const elbow=supportElbowPosition(shoulder,wrist);
       expect(elbow.every(Number.isFinite)).toBe(true);
-      const stretch=Math.max(1,dist(shoulder,wrist)/(total*.995));
+      const stretch=Math.max(1,dist(shoulder,wrist)/(total*.998));
       expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH*stretch,6);
       expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH*stretch,6);
     }

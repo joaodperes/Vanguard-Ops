@@ -3465,7 +3465,7 @@ export class FPSEngine {
     arm.shoulder.position.copy(this.fpShoulder);
     // Anchor the forearm inside the glove cuff, following all hand rotations.
     this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
-    const isSidearm = weaponById(this.viewmodelWeaponId || this.weaponId).category === "sidearm"
+    const isSidearm = weaponById(this.viewmodelWeaponId || this.weaponId).category === "pistol"
       && this.viewmodelWeaponId !== RIOT_SHIELD_ID && this.weaponId !== RIOT_SHIELD_ID;
     const joint = supportElbowPosition(
       frame.shoulder,
