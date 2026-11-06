@@ -1333,11 +1333,10 @@ function CustomizeModal(props: CustomizeModalProps) {
                 <span>Attachment challenges</span>
                 <span>{prestigeStatus.attachmentCompleted}/{prestigeStatus.attachmentTotal}</span>
               </div>
-              <p className="text-white/45 text-xs mb-3">All attachments compatible with this weapon count. Completing their objectives is sufficient; purchasing them is optional. Owned legacy attachments count as complete.</p>
               {prestigeStatus.attachmentTotal === 0 ? (
                 <p className="text-white/40 text-xs italic">This weapon has no compatible attachments.</p>
               ) : pendingAttachmentTrials.length === 0 ? (
-                <p className="text-emerald-300/80 text-xs">All attachment challenges completed.</p>
+                <div className="text-white/40 text-sm italic py-3 text-center">All attachment challenges completed.</div>
               ) : (
                 <div className="space-y-2">
                   {pendingAttachmentTrials.map(ch => (
