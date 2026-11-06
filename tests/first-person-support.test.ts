@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { supportActionWeight, supportHandRestMode, supportElbowPosition } from "../src/lib/first-person-animation";
+import { supportActionWeight, supportHandRestMode, supportElbowPosition, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH } from "../src/lib/first-person-animation";
 import { firstPersonSupportGrip, weaponHoldPoints, WEAPON_VISUALS } from "../src/lib/weapon-models";
 
 describe("first-person support hand", () => {
@@ -31,7 +31,7 @@ describe("first-person support hand", () => {
 });
 
 describe("support-arm shoulder continuity", () => {
-  const shoulder: [number, number, number] = [-.39, -.47, .30];
+  const shoulder: [number, number, number] = [-.38, -.52, .09];
   const length = (a: readonly number[], b: readonly number[]) =>
     Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -74,7 +74,7 @@ describe("support-arm shoulder continuity", () => {
 });
 
 describe("compact first-person support grips for long weapons", () => {
-  const shoulder: [number, number, number] = [-.39, -.47, .30];
+  const shoulder: [number, number, number] = [-.38, -.52, .09];
   const reach = (grip: readonly number[]) => {
     const wrist = [grip[0] * 1.2 + .30 - .045, grip[1] * 1.2 - .18 - .125, grip[2] * 1.2 - .48 + .10];
     return Math.hypot(wrist[0] - shoulder[0], wrist[1] - shoulder[1], wrist[2] - shoulder[2]);
@@ -107,5 +107,68 @@ describe("compact first-person support grips for long weapons", () => {
     for (const id of ["rifle_ar", "smg_kp", "shotgun_br", "pistol_side", "launcher_rocket", "wonder_riot_shield"]) {
       expect(firstPersonSupportGrip(id)).toEqual(weaponHoldPoints(id).support);
     }
+  });
+});
+
+describe("real articulated support elbow",()=>{
+  const shoulder: [number,number,number]=[-.38,-.52,.09];
+  const dist=(a:readonly number[],b:readonly number[])=>
+    Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  const total=SUPPORT_UPPER_ARM_LENGTH+SUPPORT_FOREARM_LENGTH;
+
+  test("sniper grips keep a fixed-length upper arm/forearm with actual elbow bend",()=>{
+    for(const id of ["sniper_lr","sniper_scout","sniper_heavy","dmr_heavy","lmg_heavy"]){
+      const grip=firstPersonSupportGrip(id);
+      const wrist:[number,number,number]=[
+        grip[0]*1.2+.30-.045,grip[1]*1.2-.18-.125,grip[2]*1.2-.48+.10
+      ];
+      const elbow=supportElbowPosition(shoulder,wrist);
+      const reach=dist(shoulder,wrist);
+      expect(reach).toBeLessThan(total);
+      expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH,6);
+      expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH,6);
+      const along=((elbow[0]-shoulder[0])*(wrist[0]-shoulder[0])
+        +(elbow[1]-shoulder[1])*(wrist[1]-shoulder[1])
+        +(elbow[2]-shoulder[2])*(wrist[2]-shoulder[2]))/(reach*reach);
+      const axis=shoulder.map((v,i)=>v+along*(wrist[i]-v));
+      expect(dist(elbow,axis)).toBeGreaterThan(.08);
+    }
+  });
+
+  test("supports ADS, action poses and extreme reach without detached joints",()=>{
+    const poses:[number,number,number][]=[
+      [.18,-.30,-.45],[-.04,-.42,-.74],[-.21,-.66,-.55],[-.17,-.14,-.85],
+      [-.60,-.80,-.60],[-.13,-.77,-.70],[.06,-.14,-.38],
+      [.45,-.36,.02],[-.10,.18,-.68],[.05,-.58,-.63]
+    ];
+    for(const wrist of poses){
+      const elbow=supportElbowPosition(shoulder,wrist);
+      expect(elbow.every(Number.isFinite)).toBe(true);
+      const stretch=Math.max(1,dist(shoulder,wrist)/(total*.995));
+      expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH*stretch,6);
+      expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH*stretch,6);
+    }
+  });
+
+  test("recoil/sway produces a continuous elbow path instead of flips",()=>{
+    const base:[number,number,number]=[.12,-.40,-.64];
+    const elbow=supportElbowPosition(shoulder,base);
+    for(let n=-10;n<=10;n++){
+      const wrist:[number,number,number]=[base[0]+n*.004,base[1]+n*.001,base[2]-n*.002];
+      expect(dist(elbow,supportElbowPosition(shoulder,wrist))).toBeLessThan(.065);
+    }
+  });
+
+  test("aligned pole and zero-length targets are finite",()=>{
+    const pole=[-.8,-.52,.30],norm=Math.hypot(...pole);
+    const wrist:[number,number,number]=[
+      shoulder[0]+pole[0]*.65/norm,shoulder[1]+pole[1]*.65/norm,
+      shoulder[2]+pole[2]*.65/norm
+    ];
+    const elbow=supportElbowPosition(shoulder,wrist);
+    expect(elbow.every(Number.isFinite)).toBe(true);
+    expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH,6);
+    expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH,6);
+    expect(supportElbowPosition(shoulder,shoulder).every(Number.isFinite)).toBe(true);
   });
 });

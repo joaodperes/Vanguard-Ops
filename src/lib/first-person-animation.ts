@@ -39,31 +39,48 @@ export function supportHandRestMode(
   return shieldEquipped && shieldUsable ? "shield" : "weapon";
 }
 
-/** Blend the shared support hand smoothly out of the grip and back after an
- * action. At 0 and 1 it is fully attached to the weapon; between the ramps it
- * follows the reload/deploy animation without a duplicated stationary hand. */
-/** Camera-local elbow for the support arm. Both sleeve segments are placed
- * between the shoulder -> elbow -> wrist every frame. Unlike a static sleeve
- * attached to the glove, this keeps the arm connected even when a long
- * sniper, launcher, or recoil pose moves the hand far from the body. */
+/** Nominal camera-space upper arm and forearm lengths (for the FPS rig). */
+export const SUPPORT_UPPER_ARM_LENGTH = .48;
+export const SUPPORT_FOREARM_LENGTH = .49;
+
+/** Solve the elbow by two-bone inverse kinematics, keeping a consistent
+ * outward/downward bend pole and the hand firmly on its moving weapon grip.
+ * Normal poses preserve fixed segment lengths; exceptional targets stretch
+ * both uniformly rather than disconnect from the shoulder or wrist. */
 export function supportElbowPosition(
   shoulder: readonly [number, number, number],
   wrist: readonly [number, number, number],
 ): [number, number, number] {
-  const dx = wrist[0] - shoulder[0];
-  const dy = wrist[1] - shoulder[1];
-  const dz = wrist[2] - shoulder[2];
-  const reach = Math.hypot(dx, dy, dz);
-  // Prefer an outward/downward elbow. Scale the bend for short weapons and
-  // action poses, so the arm never folds into a spike near its shoulder.
-  const bend = Math.min(.18, reach * .16);
+  let dx = wrist[0] - shoulder[0], dy = wrist[1] - shoulder[1], dz = wrist[2] - shoulder[2];
+  const reach = Math.hypot(dx,dy,dz);
+  if (reach < 1e-6) return [shoulder[0]-SUPPORT_UPPER_ARM_LENGTH,shoulder[1],shoulder[2]];
+  dx/=reach; dy/=reach; dz/=reach;
+  const total = SUPPORT_UPPER_ARM_LENGTH + SUPPORT_FOREARM_LENGTH;
+  const stretch = Math.max(1,reach/(total*.995));
+  const upper = SUPPORT_UPPER_ARM_LENGTH*stretch, forearm = SUPPORT_FOREARM_LENGTH*stretch;
+  const along = (upper*upper - forearm*forearm + reach*reach)/(2*reach);
+  const side = Math.sqrt(Math.max(0,upper*upper-along*along));
+  // Pole stays in the camera's down-left quadrant during weapon roll/recoil.
+  let px=-.8,py=-.52,pz=.30;
+  let dot=px*dx+py*dy+pz*dz;
+  px-=dot*dx;py-=dot*dy;pz-=dot*dz;
+  let mag=Math.hypot(px,py,pz);
+  if(mag<1e-5){
+    px=0;py=-1;pz=0;
+    dot=py*dy;
+    px-=dot*dx;py-=dot*dy;pz-=dot*dz;
+    mag=Math.hypot(px,py,pz);
+  }
   return [
-    shoulder[0] + dx * .50 - bend * .62,
-    shoulder[1] + dy * .50 - bend * .67,
-    shoulder[2] + dz * .50 + bend * .36,
+    shoulder[0]+dx*along+px*side/mag,
+    shoulder[1]+dy*along+py*side/mag,
+    shoulder[2]+dz*along+pz*side/mag,
   ];
 }
 
+/** Blend the shared support hand smoothly out of the grip and back after an
+ * action. At 0 and 1 it is fully attached to the weapon; between the ramps it
+ * follows the reload/deploy animation without a duplicated stationary hand. */
 export function supportActionWeight(progress: number): number {
   const p = Math.max(0, Math.min(1, progress));
   const smooth = (t: number) => {

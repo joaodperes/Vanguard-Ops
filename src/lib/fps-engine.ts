@@ -760,11 +760,11 @@ export class FPSEngine {
   private fpSupportGrip = new THREE.Vector3();
   private fpRestHand = new THREE.Vector3();
   private fpActionHand: THREE.Group | null = null;
-  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh } | null = null;
+  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; elbowPad: THREE.Mesh } | null = null;
   // A shoulder fixed to the camera-relative torso, rather than to the gun.
   // It sits behind the lower-left edge of the view. The elbow and wrist are
   // solved to the active weapon each frame, including ADS and reloads.
-  private readonly fpShoulder = new THREE.Vector3(-.39, -.47, .30);
+  private readonly fpShoulder = new THREE.Vector3(-.38, -.52, .09);
   private readonly fpWrist = new THREE.Vector3();
   private readonly fpElbow = new THREE.Vector3();
   private readonly fpArmDirection = new THREE.Vector3();
@@ -3288,15 +3288,18 @@ export class FPSEngine {
     const arm = new THREE.Group();
     const upper = new THREE.Mesh(new THREE.CylinderGeometry(.076, .10, 1, 10), this.fpCuffMat);
     const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.055, .079, 1, 10), this.fpCuffMat);
-    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.075, 10, 8), this.fpCuffMat);
+    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.078, 12, 10), this.fpCuffMat);
+    // Lightly raised protective elbow pad makes the articulation visible.
+    const elbowPad = new THREE.Mesh(new THREE.SphereGeometry(.084, 12, 10), this.fpHandMat);
+    elbowPad.scale.set(1.04, .74, .86);
     const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(.101, 10, 8), this.fpCuffMat);
     shoulderJoint.position.copy(this.fpShoulder);
-    for (const mesh of [upper, forearm, elbowJoint, shoulderJoint]) {
+    for (const mesh of [upper, forearm, elbowJoint, elbowPad, shoulderJoint]) {
       mesh.frustumCulled = false;
       arm.add(mesh);
     }
     arm.visible = false;
-    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint };
+    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, elbowPad };
     this.camera.add(arm);
 
     const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
@@ -3416,10 +3419,8 @@ export class FPSEngine {
     for (const m of materials.values()) if (!used.has(m)) m.dispose();
   }
 
-  /** Connect shoulder, elbow and hand without ever generating new meshes.
-   * The sleeve stretches just enough to bridge extreme long-gun and equipment
-   * poses, while retaining a two-piece elbow bend. No geometry allocations
-   * occur during animation; only transforms of the existing cylinders change. */
+  /** Articulated shoulder/elbow/wrist IK with fixed lengths in normal poses.
+   * Geometry is reused every frame; extreme reaches only minimally stretch. */
   private poseFirstPersonArm() {
     const hand = this.fpActionHand;
     const arm = this.fpSupportArm;
@@ -3446,6 +3447,9 @@ export class FPSEngine {
     alignSleeve(arm.upper, this.fpShoulder, this.fpElbow);
     alignSleeve(arm.forearm, this.fpElbow, this.fpWrist);
     arm.elbow.position.copy(this.fpElbow);
+    arm.elbowPad.position.copy(this.fpElbow).addScaledVector(this.fpArmUp,-.014);
+    arm.elbowPad.position.x -= .033;
+    arm.elbowPad.position.z += .035;
   }
 
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {
