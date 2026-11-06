@@ -425,7 +425,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <div className="text-2xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
           <div className="text-amber-100/70 text-[10px] mt-1 tracking-widest uppercase">Slow-motion finish · Hold TAB for final scores</div>
         </div>
-      </div>
+      </div>}
       {hud.quickMeleeAt && now - hud.quickMeleeAt < 350 && <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
         <svg width="170" height="170" viewBox="0 0 170 170" style={{opacity:Math.max(0,1-(now-hud.quickMeleeAt)/350)}}>
           <path d="M140 34 Q105 105 28 137" fill="none" stroke="#f4e0c2" strokeWidth="8" strokeLinecap="round"/>
