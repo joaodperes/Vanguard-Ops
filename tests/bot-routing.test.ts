@@ -93,6 +93,16 @@ describe("Emberhold Castle bot routes",()=>{
     });
   }
 
+  for(const e of entrances){
+    test(e.id+" produces collision-valid A* steps at either end",()=>{
+      for(const [from,to] of [[e.upper,e.lower],[e.lower,e.upper]] as const){
+        const waypoint=botNextWaypoint(from,to,map.cover,map.size,3,map.environment,map.regions);
+        expect(waypoint).not.toBeNull();
+        expect(botTraversableEdge(from,waypoint![0],waypoint![2],map.cover,map.environment)).not.toBeNull();
+      }
+    });
+  }
+
   test("cross-floor targets stage at a real stair and other maps stay unchanged",()=>{
     const from:[number,number,number]=[40,5,20],goal:[number,number,number]=[-24,.5,1];
     const staged=botMapRouteGoal("emberhold",from,goal);
