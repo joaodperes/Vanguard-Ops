@@ -8,6 +8,12 @@ describe("shared height-aware bot navigation", () => {
     expect(botTraversableEdge([-4,0,0],4,0,cover)).toBe(0);
   });
 
+  test("never accepts its own grid cell as an unearned route waypoint",()=>{
+    const next=botNextWaypoint([0,0,0],[1.8,0,0],[],25);
+    expect(next).not.toBeNull();
+    expect(Math.hypot(next![0],next![2])).toBeGreaterThan(.2);
+  });
+
   test("cannot climb a vertical wall higher than step reach", () => {
     const cover: CoverBox[] = [{ pos:[0,2,0],size:[2,2,2],kind:"cover" }];
     expect(botTraversableEdge([0,0,5],0,0,cover)).toBeNull();

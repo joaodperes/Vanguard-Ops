@@ -139,7 +139,11 @@ export function botNextWaypoint(
     const cur = heap.pop()!;
     if (cur.g > (bestCost.get(cur.key) ?? Infinity) + 1e-6) continue;
     if (cur.f - cur.g < closest.f - closest.g) closest = cur;
-    if (Math.hypot(cur.x - goalX, cur.z - goalZ) <= 1.1 &&
+    // Grid tolerance is intentionally generous for non-start nodes, but the
+    // start node itself must not count as an A* destination: it can be as far
+    // as 2m away or one stair tread below a landing. Returning it as the next
+    // waypoint makes bots stop in place mid-flight.
+    if (cur.key !== startKey && Math.hypot(cur.x - goalX, cur.z - goalZ) <= 1.1 &&
         Math.abs(cur.y - target[1]) < 1.25) {
       destination = cur;
       break;
