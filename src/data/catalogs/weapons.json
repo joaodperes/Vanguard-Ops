@@ -106,7 +106,7 @@
       "ventSeconds": 0.85
     },
     "stats": {
-      "damage": 24,
+      "damage": 27,
       "fireRate": 9,
       "magSize": 100,
       "reloadTime": 1.25,
@@ -244,7 +244,10 @@
       "adsTime": 0.24,
       "moveSpeed": 0.94,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.3
+      },
       "headshotMult": 1.45,
       "falloffEndMultiplier": 1.55,
       "minDamageMultiplier": 0.3
@@ -258,8 +261,8 @@
     "unlockCost": 1900,
     "description": "Two-shot burst marksman rifle for fast follow-up hits at medium-long range.",
     "stats": {
-      "damage": 39,
-      "fireRate": 9,
+      "damage": 36,
+      "fireRate": 8,
       "burst": 2,
       "magSize": 20,
       "reloadTime": 2.6,
@@ -270,7 +273,7 @@
       "adsTime": 0.33,
       "moveSpeed": 0.86,
       "auto": false,
-      "headshotMult": 1.75,
+      "headshotMult": 1.5,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
     }
@@ -469,7 +472,10 @@
       "adsTime": 0.6,
       "moveSpeed": 0.7,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.55 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.55
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6
@@ -501,7 +507,10 @@
       "adsTime": 0.4,
       "moveSpeed": 0.75,
       "auto": true,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.25 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.25
+      },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.28
@@ -545,7 +554,7 @@
     "unlockCost": 1200,
     "description": "Compact PDW with blistering fire rate. Shreds at point-blank.",
     "stats": {
-      "damage": 16,
+      "damage": 21,
       "fireRate": 16,
       "magSize": 40,
       "reloadTime": 2.1,
@@ -596,8 +605,8 @@
     "unlockCost": 1500,
     "description": "Heavy revolver with strong recoil, short pistol-effective range and deliberate follow-up shots. Precise hits reward aim without instant eliminations.",
     "stats": {
-      "damage": 48,
-      "fireRate": 1.5,
+      "damage": 56,
+      "fireRate": 2.3,
       "magSize": 6,
       "reloadTime": 2.4,
       "spread": 0.01,
@@ -607,7 +616,10 @@
       "adsTime": 0.25,
       "moveSpeed": 0.98,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.3
+      },
       "headshotMult": 1.75,
       "falloffEndMultiplier": 2,
       "minDamageMultiplier": 0.62
@@ -621,7 +633,7 @@
     "unlockCost": 500,
     "description": "Lightweight DMR. Faster handling than the Marksman, softer punch.",
     "stats": {
-      "damage": 51,
+      "damage": 53,
       "fireRate": 6,
       "magSize": 24,
       "reloadTime": 2.2,
@@ -737,7 +749,7 @@
     "unlockCost": 800,
     "description": "Three-round burst sidearm. High burst DPS at mid range.",
     "stats": {
-      "damage": 24,
+      "damage": 35,
       "fireRate": 4,
       "magSize": 21,
       "reloadTime": 2,
@@ -768,8 +780,8 @@
     "unlockCost": 2000,
     "description": "Full-auto machine pistol. Mag-dump to win at point-blank.",
     "stats": {
-      "damage": 19,
-      "fireRate": 11,
+      "damage": 22,
+      "fireRate": 13,
       "magSize": 25,
       "reloadTime": 1.8,
       "spread": 0.025,
@@ -843,7 +855,10 @@
       "adsTime": 0.45,
       "moveSpeed": 0.82,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.45 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.45
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6
@@ -913,7 +928,7 @@
     "unlockCost": 500,
     "description": "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
     "stats": {
-      "damage": 20,
+      "damage": 26,
       "fireRate": 12,
       "magSize": 24,
       "reloadTime": 1.7,
@@ -971,7 +986,7 @@
     "description": "Heavy 8-round en-bloc DMR. Devastating at range; the clip can only be reloaded when empty.",
     "stats": {
       "damage": 85,
-      "fireRate": 2.3,
+      "fireRate": 2.8,
       "magSize": 8,
       "reloadOnlyWhenEmpty": true,
       "reloadTime": 2.8,
@@ -982,7 +997,10 @@
       "adsTime": 0.4,
       "moveSpeed": 0.82,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.4 },
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.4
+      },
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46
@@ -1031,7 +1049,10 @@
       "adsTime": 0.75,
       "moveSpeed": 0.65,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 3, "damageRetention": 0.65 },
+      "bodyPenetration": {
+        "maxTargets": 3,
+        "damageRetention": 0.65
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
@@ -1054,7 +1075,7 @@
     "unlockCost": 1200,
     "description": "Heavy machine gun. 100-round belt, devastating suppressive fire, but sluggish handling.",
     "stats": {
-      "damage": 34,
+      "damage": 35,
       "fireRate": 8,
       "magSize": 100,
       "reloadTime": 5,
@@ -1200,7 +1221,7 @@
     "unlockCost": 500,
     "description": "Fast-reloading eighteen-round sidearm with precise sights, brisk handling and surprising pistol-range accuracy.",
     "stats": {
-      "damage": 30,
+      "damage": 35,
       "fireRate": 6,
       "magSize": 18,
       "reloadTime": 1.1,
@@ -1230,8 +1251,8 @@
     "unlockCost": 1100,
     "description": "Heavy-duty .45 backup; controlled two-to-three-shot engagements with more kick and less range than a rifle.",
     "stats": {
-      "damage": 43,
-      "fireRate": 2.5,
+      "damage": 52,
+      "fireRate": 2.9,
       "magSize": 8,
       "reloadTime": 2,
       "spread": 0.012,
@@ -1260,7 +1281,7 @@
     "unlockCost": 650,
     "description": "Rapid machine pistol that dominates close quarters but sheds damage quickly.",
     "stats": {
-      "damage": 16,
+      "damage": 19,
       "fireRate": 14,
       "magSize": 24,
       "reloadTime": 2.05,
@@ -1290,7 +1311,7 @@
     "unlockCost": 1400,
     "description": "Compact automatic with a small magazine but high headshot reward for controlled accurate fire.",
     "stats": {
-      "damage": 27,
+      "damage": 35,
       "fireRate": 7.5,
       "magSize": 18,
       "reloadTime": 2.2,

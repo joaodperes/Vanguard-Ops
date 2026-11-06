@@ -680,7 +680,7 @@
     "slot": "magazine",
     "unlockLevel": 24,
     "unlockCost": 520,
-    "description": "Specialized high-penetration ammunition. Reaches a second aligned target (35% retained damage), or improves existing penetration by 15 percentage points. -8% bullet damage, -20% capacity, +12% recoil.",
+    "description": "Specialized high-penetration ammunition. Reaches a second aligned target (35% retained damage), or improves existing penetration by 15 percentage points. -4% bullet damage, -20% capacity, +12% recoil.",
     "weaponCategories": [
       "assault",
       "dmr",
@@ -709,7 +709,7 @@
       "retentionBonus": 0.15
     },
     "effects": {
-      "damage": -8,
+      "damage": -4,
       "magSize": -20,
       "recoil": 12
     }

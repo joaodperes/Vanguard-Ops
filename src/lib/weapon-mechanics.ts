@@ -45,3 +45,15 @@ export function nextArcTarget(
   }
   return closest;
 }
+
+/**
+ * Burst cadence is faster than the displayed rate, but no longer 3x faster.
+ * DMRs have a deliberately slower precision cadence. Both the client
+ * simulation and authoritative server must use this same interval.
+ *
+ * fireRate measures inter-burst recovery / nominal shots per second.
+ */
+export function burstShotIntervalMs(fireRate: number, category: string): number {
+  const intraBurstMultiplier = category === "dmr" ? 1.25 : 1.65;
+  return 1000 / Math.max(0.1, fireRate * intraBurstMultiplier);
+}

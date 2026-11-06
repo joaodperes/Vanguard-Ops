@@ -55,7 +55,7 @@ import { isFlagDefenseKill } from "./match-bonus-tracking";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "./weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
@@ -3111,20 +3111,21 @@ async function handle(socket: any, msg: C2S) {
         now-(room.quickMeleeAt.get(socket.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
       if (burstSize > 1) {
+        const burstCadenceMs = burstShotIntervalMs(cadenceEff.fireRate, weapon.category);
         const previous = room.burstState.get(socket.id);
         if (previous?.weaponId === weapon.id && previous.shotsRemaining > 0 && now <= previous.until) {
-          // A burst's follow-up shots arrive roughly 3x faster than the stated
-          // fire rate. Permit only the remaining shots, in order and on cadence.
+          // Accept modest network jitter, but enforce the shared weapon-specific
+          // burst cadence; client and server must not disagree on fast bursts.
           if (now < previous.nextAt) return;
           previous.shotsRemaining--;
-          previous.nextAt = now + interval / 3 * 0.65;
-          if (previous.shotsRemaining === 0) previous.until = now + interval * 0.8;
+          previous.nextAt = now + burstCadenceMs * 0.85;
+          if (previous.shotsRemaining === 0) previous.until = now + interval * 0.9;
         } else {
           // Begin a new burst only after the previous burst's cooldown.
           if (previous?.weaponId === weapon.id && now < previous.until) return;
           room.burstState.set(socket.id, {
             weaponId: weapon.id, shotsRemaining: burstSize - 1,
-            nextAt: now + interval / 3 * 0.65,
+            nextAt: now + burstCadenceMs * 0.85,
             until: now + 1500, // abandoned bursts expire; never remain infinite
           });
         }

@@ -29,7 +29,7 @@ import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
 import {buildFloodgateFreight,updateFloodgateFreight,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import {buildFloodgateDamCracks,updateFloodgateDamCracks} from "./floodgate-dam-cracks";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
@@ -8156,9 +8156,9 @@ export class FPSEngine {
         this.fireOneShot(w);
         this.burstShotsLeft -= 1;
         if (this.burstShotsLeft > 0) {
-          // Next shot in the burst fires at the intra-burst cadence (much faster than the
-          // weapon's stated fireRate — the fireRate is the BETWEEN-burst cadence).
-          this.burstNextAt = now + 1000 / Math.max(1, this.eff.fireRate * 3);
+          // Shared burst cadence is faster than inter-burst recovery, but DMRs
+          // deliberately space precision shots further apart.
+          this.burstNextAt = now + burstShotIntervalMs(this.eff.fireRate, w.category);
         } else {
           // Burst complete — enforce a longer inter-burst delay (the weapon's stated fireRate).
           this.burstEndsAt = now + 1000 / Math.max(1, this.eff.fireRate);
