@@ -362,3 +362,34 @@ Use the engine's `spawnExplosion` route and `src/lib/explosion-effects.ts` for t
 Mode-specific CTF objectives and spawn overrides for Verdant Ruins and Ridgefall live in their unified `src/data/maps/<mapId>.json` documents (`objectives` and `modeSpawns.ctf`); `src/data/ctf-layouts.json` remains a migration/reference snapshot. Use `getMap(mapId, mode)` in simulations and mode-aware capacity helpers when exposing room options. See [map modes and spawns](map-modes-and-spawns.md).
 
 Whiteout Depot is a third consumer of the generic `ctf-layouts.json` ground-objective contract. Its blueprint owns all geometry and its snow/metal theme has a static registration. See [Whiteout Depot](whiteout-depot.md).
+
+## Body penetration and penetrator ammunition
+
+Body-to-body penetration is deliberately separate from destructible cover damage and material penetration.
+A weapon can optionally declare `stats.bodyPenetration: { maxTargets, damageRetention }`.
+The shared ray helper (`src/lib/body-penetration.ts`) sorts actual body hitbox contacts;
+up to three targets may be hit, each subsequent target multiplying remaining damage by
+`damageRetention`. Map cover, Bulwark shields and spawn immunity still absorb the shot.
+Offline player shots and bots, plus server-authoritative player and bot shots, consume
+the same resolved effective-stat property.
+
+Innate profiles are limited to selected higher-powered weapons. The Hydra Twin's
+two-round burst and Hailstorm LMG have innate two-body penetration rather than
+Behemoth / Leviathan, whose raw damage and magazines already offer their own strengths.
+The Annihilator is the sole innate three-body weapon.
+
+`mag_penetrator` is an optional magazine ammo tradeoff: -8% first-hit damage,
+-20% capacity and +12% recoil. It adds two-target penetration with 35% retention,
+or improves natural penetration retention by 15 percentage points without
+increasing target count. Its `exclusiveWeaponIds` whitelist limits compatibility
+to conventional assault rifles, DMRs, LMGs and two snipers; do not expose it to
+wonder weapons, explosive launchers, crossbows, shotguns or unrelated categories.
+Add catalog eligibility to both `category-attachments.json` and any affected
+per-weapon overrides in `attachment-compatibility.json`. The compatibility
+helper enforces `exclusiveWeaponIds`, and `computeEffectiveStats` also checks
+whitelisted ammo server-side instead of trusting raw loadout IDs.
+
+The Armory uses a compact base-stat PEN×N tag without altering card height.
+The weapon customization's `WeaponStatsPreview` displays effective penetration,
+including changes resulting from previewed magazine attachments. Regression cases
+live in `tests/body-penetration.test.ts`.
