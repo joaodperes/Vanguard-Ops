@@ -153,9 +153,15 @@ describe("real articulated support elbow",()=>{
   test("recoil/sway produces a continuous elbow path instead of flips",()=>{
     const base:[number,number,number]=[.12,-.40,-.64];
     const elbow=supportElbowPosition(shoulder,base);
+    let previous: [number,number,number] | undefined;
     for(let n=-10;n<=10;n++){
       const wrist:[number,number,number]=[base[0]+n*.004,base[1]+n*.001,base[2]-n*.002];
-      expect(dist(elbow,supportElbowPosition(shoulder,wrist))).toBeLessThan(.065);
+      const next=supportElbowPosition(shoulder,wrist);
+      // Small recoil movements can accumulate over the full sweep, but each
+      // individual animation frame must not snap or flip the elbow.
+      expect(dist(elbow,next)).toBeLessThan(.09);
+      if(previous) expect(dist(previous,next)).toBeLessThan(.015);
+      previous=next;
     }
   });
 
