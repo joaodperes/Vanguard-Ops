@@ -592,6 +592,46 @@
     }
   },
   {
+    "id": "mag_penetrator",
+    "name": "Penetrator Rounds",
+    "slot": "magazine",
+    "unlockLevel": 24,
+    "unlockCost": 520,
+    "description": "Specialized high-penetration ammunition. Reaches a second aligned target (35% retained damage), or improves existing penetration by 15 percentage points. -8% bullet damage, -20% capacity, +12% recoil.",
+    "weaponCategories": [
+      "assault",
+      "dmr",
+      "sniper",
+      "lmg"
+    ],
+    "exclusiveWeaponIds": [
+      "rifle_ar",
+      "rifle_falcon",
+      "rifle_burst",
+      "rifle_heavy",
+      "rifle_hydra",
+      "lmg_hv",
+      "lmg_light",
+      "lmg_heavy",
+      "rifle_dm",
+      "dmr_scout",
+      "dmr_whisper",
+      "dmr_heavy",
+      "sniper_lr",
+      "sniper_scout"
+    ],
+    "bodyPenetration": {
+      "maxTargets": 2,
+      "damageRetention": 0.35,
+      "retentionBonus": 0.15
+    },
+    "effects": {
+      "damage": -8,
+      "magSize": -20,
+      "recoil": 12
+    }
+  },
+  {
     "id": "mag_balanced",
     "name": "Balanced Magazine",
     "slot": "magazine",
