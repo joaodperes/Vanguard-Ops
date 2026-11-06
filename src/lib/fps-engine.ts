@@ -5877,7 +5877,9 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if(msg.weaponId===CLUSTER_ID){
+          if(isThrowingKnife(msg.weaponId)){
+             this.spawnThrowingKnifeProjectile(msg.origin,msg.dir);
+           } else if(msg.weaponId===CLUSTER_ID){
             // The server-authored volley owns every shell and bomblet visual.
           } else if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
@@ -5893,7 +5895,7 @@ export class FPSEngine {
           const shooter = this.combatants.get(msg.attackerId);
           if (shooter) shooter.lastFireRecoil = performance.now();
           // Enemy fire sound: distance-attenuated + muffled if suppressed.
-          this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
+          if(!isThrowingKnife(msg.weaponId))this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
         }
         break;
       case "orbitalAbsorb":
@@ -6048,7 +6050,8 @@ export class FPSEngine {
           const w = weaponById(this.weaponId);
           this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
-          this.ammoInMag = this.eff.magSize;
+          if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+          this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
           // Round 20: Rebuild the viewmodel so it shows the correct first-tier
           // weapon. The constructor built it from the initial weaponId, but
           // the server's gungame weapon list may differ from the local resolution.
@@ -6209,12 +6212,13 @@ export class FPSEngine {
   private refillAmmoOnRespawn() {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    this.meleeAmmoInMag = this.meleeEff.magSize;
+    if(this.opts.mode!=="gungame")this.throwingKnifeState=fullThrowingKnives();
+    this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
-    // Gun Game and temporary special weapons use the active weapon's stats.
-    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId))
-      ? (this.wonderStates.get(this.weaponId)?.charges ?? 0)
-      : this.eff.magSize;
+    this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:
+      usesWonderCharges(weaponById(this.weaponId))
+        ? (this.wonderStates.get(this.weaponId)?.charges ?? 0)
+        : this.eff.magSize;
   }
 
   private respawnSelf() {
@@ -8268,6 +8272,8 @@ export class FPSEngine {
         (t.line.material as THREE.Material).dispose();
       }
       this.tracers = [];
+      for(const k of this.thrownKnives){this.scene.remove(k.mesh);k.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});}
+      this.thrownKnives=[];
       for (const p of this.projectiles) {
         this.scene.remove(p.mesh);
         p.mesh.traverse((child) => {
@@ -8353,6 +8359,12 @@ export class FPSEngine {
     if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" &&
         this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
       this.reloading = false;
+    }
+    const refreshedKnives=tickThrowingKnives(this.throwingKnifeState,performance.now(),this.opts.mode==="gungame");
+    if(refreshedKnives!==this.throwingKnifeState){
+      this.throwingKnifeState=refreshedKnives;
+      this.meleeAmmoInMag=refreshedKnives.charges;
+      if(isThrowingKnife(this.weaponId))this.ammoInMag=refreshedKnives.charges;
     }
     const wantFire = !this.inputSuspended && ((this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
@@ -8455,6 +8467,13 @@ export class FPSEngine {
       return true;
     });
 
+    this.thrownKnives=this.thrownKnives.filter(knife=>{
+      const t=Math.min(1,(now-knife.born)/knife.travelMs);
+      if(t>=1){this.scene.remove(knife.mesh);knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});return false;}
+      knife.mesh.position.copy(knife.start).addScaledVector(knife.dir,knife.distance*t);
+      knife.mesh.quaternion.copy(knife.rotation).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),t*Math.PI*2));
+      return true;
+    });
     // ---- Update rocket projectiles: animate from start to end, spawn explosion on arrival ----
     this.projectiles = this.projectiles.filter((p) => {
       const age = now - p.born;
@@ -9927,6 +9946,7 @@ export class FPSEngine {
       heat: weaponById(this.weaponId).special?.kind === "heat" ? (this.heatStates.get(this.weaponId)?.heat ?? 0) : undefined,
       overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
       boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
+      knifeRechargeMs: isThrowingKnife(this.weaponId)?throwingKnifeRemainingMs(this.throwingKnifeState,now,this.opts.mode==="gungame"):undefined,
       perkName: perkById(this.opts.loadout.perkId).name,
       scavengerFeedbackAt: this.scavengerFeedbackAt,
       scavengerAmmoGained: this.scavengerAmmoGained,
