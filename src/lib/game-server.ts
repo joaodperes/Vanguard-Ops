@@ -26,6 +26,7 @@ import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from
 import { equipmentById } from "./equipment"; // retained only for legacy internal types
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
+import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
@@ -238,7 +239,8 @@ interface Room {
   equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
   equipmentStun: Map<string, number>;
   quickMeleeAt: Map<string, number>;
-  /** Track accepted reload attempts for Baton's reload-interrupt effect. */
+  throwingKnives: Map<string, ThrowingKnifeCharges>;
+  /** Track accepted reload attempts for combat effects. */
   reloadingPlayers: Map<string, number>;
   autoBloom: Map<string, { weaponId:string; value:number; at:number }>;
   lastDamagedAt: Map<string, number>;
@@ -455,7 +457,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -621,7 +623,7 @@ function createLobbyRoom(
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -708,6 +710,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
       }
     }
     room.burstState.delete(p.id);
+    room.throwingKnives.clear();
     // Reset gungame progress + weaponId for everyone (in case of restart).
     if (room.mode === "gungame") {
       room.gungameProgress.set(p.id, 0);
@@ -1098,8 +1101,51 @@ function destroyTurretsHitByMelee(room: Room, player: PlayerNet, range: number) 
   }
 }
 
+/** One authoritative ammo reserve shared by slot-3 throws and F quick throws.
+ * Both inputs pass through this short, cover-blocked ray with zero penetration. */
+function syncThrowingKnifeAmmo(room:Room,p:PlayerNet,now:number){
+  if(p.isBot)return;
+  const state=room.throwingKnives.get(p.id)??fullThrowingKnives();
+  io.to(p.id).emit("message",{t:"knifeAmmo",charges:state.charges,
+    rechargeMs:throwingKnifeRemainingMs(state,now,room.mode==="gungame")} as S2C);
+}
+function throwKnifeFrom(room:Room,p:PlayerNet,origin:Vec3,dir:Vec3,now:number,skinId="default"):boolean{
+  if(![...origin,...dir].every(Number.isFinite)||
+     Math.abs(Math.hypot(...dir)-1)>.2||
+     Math.hypot(origin[0]-p.pos[0],origin[1]-p.pos[1],origin[2]-p.pos[2])>3)return false;
+  const state=room.throwingKnives.get(p.id)??fullThrowingKnives();
+  const spent=spendThrowingKnife(state,now,room.mode==="gungame");
+  if(!spent){syncThrowingKnifeAmmo(room,p,now);return false;}
+  room.throwingKnives.set(p.id,spent);
+  const bot=room.bots.get(p.id);
+  if(bot)bot.ai.ammoInMag=spent.charges;
+  p.lastShotAt=now;
+  clearSpawnProtection(room,p);
+  syncThrowingKnifeAmmo(room,p,now);
+  const weapon=weaponById(THROWING_KNIVES_ID);
+  const hit=firePenetratingRay(room,p.id,origin,dir,THROWING_KNIFE_RANGE,weapon.stats)
+    .find(h=>h.t<=THROWING_KNIFE_RANGE);
+  if(hit)applyDamage(room,p.id,hit.victim,weapon.stats.damage*
+    (hit.head?weapon.stats.headshotMult:1),hit.head,THROWING_KNIVES_ID,hit.shield);
+  io.to(room.id).emit("message",{t:"shotFx",origin,dir,weaponId:THROWING_KNIVES_ID,
+    attackerId:p.id,skinId,suppressed:true} as S2C);
+  return true;
+}
+function tickThrowingKnifeRecovery(room:Room,now:number){
+  if(room.mode!=="gungame")return;
+  for(const [id,state] of room.throwingKnives){
+    const next=tickThrowingKnives(state,now,true);
+    if(next===state)continue;
+    room.throwingKnives.set(id,next);
+    const p=room.players.get(id)??room.bots.get(id);
+    if(!p)continue;
+    const bot=room.bots.get(id);if(bot)bot.ai.ammoInMag=next.charges;
+    syncThrowingKnifeAmmo(room,p,now);
+  }
+}
+
 /** Identical authoritative melee selection for equipped slot-3 swings and F.
- * Reach and facing are server-owned. Batons interrupt ongoing reload actions.
+ * Throwing knives use a dedicated limited-ammunition projectile, not this arc.
  */
 function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:number){
   const weapon=weaponById(weaponId),attack=weaponId===RIOT_SHIELD_ID
@@ -1120,8 +1166,6 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
   const hitIds:string[]=[];
   if(victim){
     hitIds.push(victim.id);
-    const beingReloaded=(room.reloadingPlayers.get(victim.id)??0)>now ||
-      (room.bots.get(victim.id)?.ai.reloadingUntil??0)>now;
     applyDamage(room,attacker.id,victim,attack.damage,false,weaponId);
     if(weaponId===RIOT_SHIELD_ID && victim.alive){
       const dx=victim.pos[0]-attacker.pos[0],dz=victim.pos[2]-attacker.pos[2];
@@ -1133,16 +1177,6 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
         if(!victim.isBot)io.to(victim.id).emit("message",
           {t:"shieldBashPush",victimId:victim.id,pos:victim.pos} as S2C);
       }
-    }
-    if(weaponId==="baton"&&victim.alive&&beingReloaded){
-    room.reloadingPlayers.delete(victim.id);
-    const until=now+1100;
-    room.equipmentStun.set(victim.id,until);
-    const bot=room.bots.get(victim.id);
-    if(bot){
-      bot.ai.reloadingUntil=until;
-      bot.ai.nextShotAt=Math.max(bot.ai.nextShotAt,until);
-    }else io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:1100} as S2C);
     }
   }
   // The Reaper pulse is a separate 360-degree area strike on EVERY swing,
@@ -1622,6 +1656,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
           room.gungameProgress.set(attackerId, newIdx);
           const newWeaponId = room.gungameWeapons[newIdx];
           attacker.weaponId = newWeaponId;
+          if(isThrowingKnife(newWeaponId)){
+            room.throwingKnives.set(attackerId,fullThrowingKnives());
+            syncThrowingKnifeAmmo(room,attacker,Date.now());
+          }
           if (attacker.isBot && room.bots.has(attacker.id)) { const botAI = room.bots.get(attacker.id)!.ai; botAI.ammoInMag = weaponById(newWeaponId).stats.magSize; botAI.reloadingUntil = 0; }
           io.to(room.id).emit("message", {
             t: "gungameProgress", playerId: attackerId, weaponIndex: newIdx, weaponId: newWeaponId,
@@ -1688,6 +1726,11 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     p.alive = true;
     applyQueuedLoadout(room, p);
     refillPlayerWonderAmmo(room, p);
+    // Death restores normal-mode knives, but never shortcuts Gun Game's recharge.
+    if(room.mode!=="gungame"){
+      room.throwingKnives.set(p.id,fullThrowingKnives());
+      syncThrowingKnifeAmmo(room,p,Date.now());
+    }
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
     if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.lastAlert=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
@@ -1870,6 +1913,8 @@ function recoverSurvivalPlayers(room: Room) {
     refillPlayerWonderAmmo(room, p);
     p.spawnProtectedUntil = 0;
     room.lastDamagedAt.delete(p.id);
+    room.throwingKnives.set(p.id,fullThrowingKnives());
+    syncThrowingKnifeAmmo(room,p,Date.now());
     io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos, health: MAX_HEALTH } as S2C);
   }
   room.downed.clear();
@@ -2028,6 +2073,7 @@ function tickRoom(room: Room) {
     if (!room.ended) {
       const gameNow = Date.now();
       tickSpecialEffects(room, gameNow);
+      tickThrowingKnifeRecovery(room,gameNow);
       // Server-authoritative regen; never heal during an active damage window.
       for (const c of allCombatants(room)) {
         if (c.alive && !room.downed.has(c.id) && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId))
@@ -2100,6 +2146,7 @@ function tickRoom(room: Room) {
     }
   }
   const now = Date.now();
+  tickThrowingKnifeRecovery(room,now);
   // Only run bot AI when the pre-match countdown is over.
   if (room.preMatchCountdown <= 0) {
     for (const bot of room.bots.values()) {
@@ -2218,6 +2265,11 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
   }
   const weapon = weaponById(bot.weaponId);
+  if(isThrowingKnife(bot.weaponId)){
+    const state=tickThrowingKnives(room.throwingKnives.get(bot.id)??fullThrowingKnives(),now,room.mode==="gungame");
+    room.throwingKnives.set(bot.id,state);
+    bot.ai.ammoInMag=state.charges;
+  }
   const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   const rival = nearestEnemy(room,bot);
@@ -2498,8 +2550,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
       let didHit = false;
-      if(weapon.category==="melee"){
-        // Gun Game final-tier bots use the same frontal arc, range and LoS as players.
+      if(isThrowingKnife(weapon.id)){
+        didHit=throwKnifeFrom(room,bot,origin,dir,now);
+      }else if(weapon.category==="melee"){
+        // Ordinary melee bots use the shared frontal arc.
         applyMeleeStrike(room,bot,weapon.id,now);
         didHit=true;
       }else for (let i = 0; i < pellets; i++) {
@@ -2551,7 +2605,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
     const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
       canStartWeaponReload(weapon.stats, ai.ammoInMag) && Math.random() < 0.02;
-    if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+    if (!isThrowingKnife(weapon.id) && !ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       const durationMs = weapon.stats.reloadStyle === "incremental"
         ? Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
             eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000)
@@ -3053,6 +3107,14 @@ async function handle(socket: any, msg: C2S) {
       if(weapon.category!=="melee" && !shieldBash)return;
       const attack=shieldBash?riotBashProfile():quickMeleeProfile(weapon.stats,meleeId);
       const now = Date.now();
+      if(isThrowingKnife(meleeId)&&!shieldBash){
+        if(now-(room.quickMeleeAt.get(socket.id)??0)<attack.cooldownMs||
+           now-p.lastShotAt<attack.cooldownMs)return;
+        const dir=dirFromYawPitch(p.yaw,p.pitch);
+        if(!throwKnifeFrom(room,p,[p.pos[0],p.pos[1]+EYE_HEIGHT,p.pos[2]],dir,now))return;
+        room.quickMeleeAt.set(socket.id,now);
+        break;
+      }
       if (now - (room.quickMeleeAt.get(socket.id) ?? 0) < attack.cooldownMs ||
           (p.weaponId===meleeId && now - p.lastShotAt < attack.cooldownMs)) return;
       room.quickMeleeAt.set(socket.id, now);
@@ -3180,6 +3242,11 @@ async function handle(socket: any, msg: C2S) {
         ? {sight:null,barrel:null,grip:null,magazine:null}
         : (heatAtts ?? {sight:null,barrel:null,grip:null,magazine:null}));
       if (heat && !allowHeatShot(room, socket.id, heat, now)) return;
+      if(isThrowingKnife(weapon.id)){
+        // Don't enter the infinite-ammo melee arc or the firearm reload path.
+        throwKnifeFrom(room,p,msg.origin,msg.dir,now,room.mode==="gungame"?"default":msg.skinId);
+        break;
+      }
       if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
       if(heavy && (room.boltCharges.get(socket.id)??2)<=0) return;
       if (weapon.special?.kind === "bolt") {
@@ -3482,7 +3549,7 @@ async function handle(socket: any, msg: C2S) {
       const magazine = loadout?.secondaryWeaponId === player.weaponId
         ? loadout.secondaryAttachments?.magazine : loadout?.attachments?.magazine;
       if (room.sprintState.get(socket.id) && loadout?.perkId !== "field_loader") return;
-      if (usesWonderCharges(weaponById(player.weaponId))) return; // Wonder ammo recharges only with time/kills.
+      if (usesWonderCharges(weaponById(player.weaponId)) || isThrowingKnife(player.weaponId)) return; // Never manually reload knives or Wonders.
       if(player.weaponId==="crossbow_reclaimer"&&magazine==="mag_bolt_heavy")
         return; // heavy bolts are never replenished by standard reload
       const special = weaponById(player.weaponId).special;
