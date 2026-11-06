@@ -51,3 +51,22 @@ Map Studio's canonical authoring source is `src/data/maps/<mapId>.json` for ever
 ## Emberhold vertical routes
 
 The four corner towers share a continuous wall walk over the gatehouses. Two routes reach the keep stairs and its rooftop firing positions. The west and east outer-bank stairs lead into passages below the bridges. The dungeon chambers occupy a 104 × 80 footprint inside the 124 × 100 castle platform. The outer tunnel floors sit above the lava surface. The ruined chapel leads to the dungeon from the courtyard. The keep’s spiral staircase continues from the ground-floor landing directly down into the dungeon beneath the tower.
+
+
+### Emberhold bot routes
+
+The castle now offers ten underground and two elevated corner-tower
+FFA/Gun Game/Survival spawn alternatives, in addition to the existing surface
+pool. Shared offline and authoritative AI deliberately patrols among dungeon,
+courtyard and battlements, while underground bots favour returning to the
+courtyard so firefights circulate between levels. Height-aware arrival checks
+prevent a bot from treating a point directly above the crypt as reached.
+Cross-floor patrol and pursuit targets are staged through the map's authored
+west/east passages, ruined chapel or central keep staircase; collision and
+normal stair climbing remain mandatory, with no AI teleportation.
+
+The bot-routing regressions check safe spawns, patrol floor selection, target
+staging and ascending/descending collision on all four stair flights. Manual
+sign-off should include observing bots chase a human down and up each flight,
+visit all levels without getting stuck, and avoid the lava moat in 32-player
+Gun Game and Survival matches.

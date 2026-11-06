@@ -49,3 +49,54 @@ describe("shared height-aware bot navigation", () => {
     expect(reached === null || reached[1] < 2).toBe(true);
   });
 });
+
+
+describe("Emberhold Castle bot routes",()=>{
+  const {getMap}=require("../src/lib/game-protocol") as typeof import("../src/lib/game-protocol");
+  const {MAP_BLUEPRINTS,stairFeatureBoxes}=require("../src/lib/map-blueprints") as typeof import("../src/lib/map-blueprints");
+  const {spawnClear}=require("../src/lib/spawn-selection") as typeof import("../src/lib/spawn-selection");
+  const {castleDungeonEntrances,botMapRouteGoal}=require("../src/lib/bot-routing") as typeof import("../src/lib/bot-routing");
+  const {chooseBotPatrolPoint,botPatrolDistance}=require("../src/lib/bot-patrol") as typeof import("../src/lib/bot-patrol");
+  const map=getMap("emberhold"),entrances=castleDungeonEntrances();
+
+  test("safe dungeon and battlement spawns with four physical entrances",()=>{
+    expect(entrances.map(e=>e.id).sort()).toEqual(["chapel-stairs","donjon-crypt-stair","east-sally-stairs","west-sally-stairs"]);
+    const dungeon=map.spawns.ffa.filter(p=>p[1]<2),battlement=map.spawns.ffa.filter(p=>p[1]>8);
+    expect(dungeon.length).toBeGreaterThanOrEqual(8);
+    expect(battlement.length).toBeGreaterThanOrEqual(2);
+    for(const p of [...dungeon,...battlement])expect(spawnClear(map,p)).toBe(true);
+  });
+
+  test("patrols visit the dungeon, but underground bots deliberately return upstairs",()=>{
+    const rng=(v:number)=>()=>v;
+    expect(chooseBotPatrolPoint("ffa","ffa",[-40,5,0],[],[],map.spawns.ffa,rng(0),"emberhold")[1]).toBe(.5);
+    expect(chooseBotPatrolPoint("ffa","ffa",[-40,.5,0],[],[],map.spawns.ffa,rng(0),"emberhold")[1]).toBe(5);
+    expect(chooseBotPatrolPoint("ffa","ffa",[-40,5,0],[],[],map.spawns.ffa,rng(.4),"emberhold")[1]).toBe(12);
+    expect(botPatrolDistance([-24,5,1],[-24,.5,1])).toBeGreaterThan(2.5);
+  });
+
+  for(const entrance of entrances){
+    test(entrance.id+" has traversable ascending and descending treads",()=>{
+      const f=MAP_BLUEPRINTS.maps.emberhold.features.find(f=>f.id===entrance.id)!;
+      const steps=stairFeatureBoxes(f);
+      expect(steps.length).toBeGreaterThan(10);
+      for(const trip of [steps,[...steps].reverse()]){
+        let position:[number,number,number]=[trip[0].pos[0],trip[0].pos[1]+trip[0].size[1],trip[0].pos[2]];
+        for(const next of trip.slice(1)){
+          const height=botTraversableEdge(position,next.pos[0],next.pos[2],map.cover);
+          expect(height).not.toBeNull();
+          position=[next.pos[0],height!,next.pos[2]];
+        }
+      }
+      expect(botMapRouteGoal("emberhold",entrance.upper,entrance.lower)).toEqual(entrance.lower);
+      expect(botMapRouteGoal("emberhold",entrance.lower,entrance.upper)).toEqual(entrance.upper);
+    });
+  }
+
+  test("cross-floor targets stage at a real stair and other maps stay unchanged",()=>{
+    const from:[number,number,number]=[40,5,20],goal:[number,number,number]=[-24,.5,1];
+    const staged=botMapRouteGoal("emberhold",from,goal);
+    expect(entrances.some(e=>e.upper.join(",")===staged.join(","))).toBe(true);
+    expect(botMapRouteGoal("bunker",from,goal)).toEqual(goal);
+  });
+});
