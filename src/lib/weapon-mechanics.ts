@@ -14,7 +14,8 @@ export interface HeatConfig {
 }
 export interface ArcConfig { kind: "arc"; jumps: number; radius: number; decay: number; }
 export interface BoltConfig { kind: "bolt"; pickupRadius: number; lifetimeMs: number; quickReloadSeconds: number; }
-export type WeaponSpecial = HeatConfig | ArcConfig | BoltConfig;
+export interface ThrowingKnifeConfig {kind:"throwing_knife"}
+export type WeaponSpecial = HeatConfig | ArcConfig | BoltConfig | ThrowingKnifeConfig;
 export interface HeatState { heat: number; lastShotAt: number; locked: boolean; }
 export const freshHeat = (): HeatState => ({ heat: 0, lastShotAt: -Infinity, locked: false });
 export function coolHeat(state: HeatState, config: HeatConfig, elapsedSeconds: number, nowMs: number): HeatState {

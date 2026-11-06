@@ -66,10 +66,14 @@ export function buildMeleeWeaponParts(
     return -.55;
   }
   if(id==="baton"){
-    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.027,.026,.63,12),metal);
-    shaft.rotation.x=Math.PI/2;place(shaft,0,-.05,-.16);
-    box(.10,.04,.045,grip,0,-.05,.08);
-    return -.47;
+    // Two compact knives with narrow blades and tapered points, not a baton.
+    for(const x of [-.055,.055]){
+      box(.035,.03,.18,grip,x,-.05,.07);
+      box(.045,.018,.05,metal,x,-.05,-.044);
+      const blade=new THREE.Mesh(new THREE.ConeGeometry(.04,.3,4),metal);
+      blade.rotation.x=-Math.PI/2;place(blade,x,-.05,-.22);
+    }
+    return -.37;
   }
   const isShiv=id==="shiv",isMachete=id==="machete";
   box(isShiv?.035:.04,isShiv?.035:.04,isShiv?.08:.10,grip,0,-.05,.08);
