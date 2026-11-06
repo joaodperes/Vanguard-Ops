@@ -22,7 +22,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_drum",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_penetrator"
     ]
   },
   "smg": {
@@ -101,7 +102,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper": {
@@ -127,7 +129,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "lmg": {
@@ -153,7 +156,8 @@
       "mag_extended",
       "mag_drum",
       "mag_balanced",
-      "mag_quickdraw"
+      "mag_quickdraw",
+      "mag_penetrator"
     ]
   },
   "pistol": {
