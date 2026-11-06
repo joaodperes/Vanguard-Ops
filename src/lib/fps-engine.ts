@@ -1,4 +1,5 @@
 import {addOperativeSkinDetails} from "./operative-appearance";
+import { captureThirdPersonDeathPose, applyThirdPersonDeathPose, resetThirdPersonDeathPose, type ThirdPersonDeathPoseStart } from "./third-person-death-pose";
 import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
 import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
@@ -464,6 +465,7 @@ interface Combatant {
   // while the fall animation plays out). 0 = not dead / no anim playing.
   deathAnimAt?: number;
   deathAnimDur?: number;   // total duration of the fall animation (ms)
+  deathPoseStart?: ThirdPersonDeathPoseStart; // held weapon/arm pose captured at the instant of death
   // Gun Game progression (offline gungame only) — 0-based tier index into
   // GUN_GAME_PROGRESSION. Undefined for non-gungame matches.
   gungameIndex?: number;
@@ -5204,6 +5206,8 @@ export class FPSEngine {
     this.scene.add(root);
     c.group = root;
 
+    // A rebuilt model has new joints; never reuse a pose captured from the old mesh.
+    c.deathPoseStart = undefined;
     c.parts = {
       root, torso: torsoGroup, head: headGroup,
       upperArmL: armL.upper, upperArmR: armR.upper,
@@ -7445,6 +7449,8 @@ export class FPSEngine {
       // Clear the death animation so the mesh renders normally after respawn.
       c.deathAnimAt = 0;
       c.deathAnimDur = 0;
+      if (c.parts) resetThirdPersonDeathPose(c.parts);
+      c.deathPoseStart = undefined;
       if (c.group) {
         c.group.rotation.x = 0;
         c.group.rotation.z = 0;
@@ -8648,6 +8654,13 @@ export class FPSEngine {
           if (c.shieldMesh) c.shieldMesh.visible = false;
         } else {
           c.group.visible = true;
+          // IK is only updated while alive. Without a death-specific arm
+          // pose, the left support hand remains extended at the weapon grip
+          // throughout lava/fire/spike deaths and ordinary combat deaths.
+          if (c.parts) {
+            c.deathPoseStart ??= captureThirdPersonDeathPose(c.parts);
+            applyThirdPersonDeathPose(c.parts, c.deathPoseStart, p);
+          }
           const ease = 1 - Math.pow(1 - p, 3);
           c.group.rotation.x = ease * (Math.PI / 2);
           c.group.position.y = c.pos[1] - ease * 0.4;
@@ -8666,6 +8679,12 @@ export class FPSEngine {
         if (c.friendlyMarker) c.friendlyMarker.visible = false;
         if (c.shieldMesh) c.shieldMesh.visible = false;
       } else {
+        // Server respawns and offline respawns both reset the entire rig.
+        // Otherwise the weapon can reappear at the fallen position for a frame.
+        if (c.deathPoseStart) {
+          if (c.parts) resetThirdPersonDeathPose(c.parts);
+          c.deathPoseStart = undefined;
+        }
         c.group.rotation.x = 0;
         c.group.rotation.z = 0;
         c.group.visible = true;
