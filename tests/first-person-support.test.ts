@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { supportActionWeight, supportHandRestMode, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH } from "../src/lib/first-person-animation";
+import { supportActionWeight, supportHandRestMode, supportElbowPosition, supportArmFraming, usesCompactSupportArm, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH } from "../src/lib/first-person-animation";
 import { firstPersonSupportGrip, weaponHoldPoints, WEAPON_VISUALS } from "../src/lib/weapon-models";
 
 describe("first-person support hand", () => {
@@ -223,12 +223,14 @@ describe("natural support arm anatomy, rather than forced elbow visibility", () 
   });
 
   test("sidearms tuck a compact elbow behind the wrist instead of a rifle-sized fold", () => {
-    const frame=supportArmFraming(16/9);
+    const frame=supportArmFraming(16/9, true);
     const wrist=restWrist("pistol_side");
     const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
       SUPPORT_SIDEARM_UPPER_LENGTH,SUPPORT_SIDEARM_FOREARM_LENGTH);
     expect(elbow[1]).toBeLessThan(wrist[1]);
-    expect(elbow[2]).toBeGreaterThanOrEqual(wrist[2] - .035);
+    // Arm segments advance toward the gun: shoulder -> elbow -> wrist in Z.
+    expect(frame.shoulder[2] - elbow[2]).toBeGreaterThan(.15);
+    expect(elbow[2] - wrist[2]).toBeGreaterThan(.15);
     expect(distance(elbow,wrist)).toBeCloseTo(SUPPORT_SIDEARM_FOREARM_LENGTH,6);
   });
 
@@ -246,6 +248,83 @@ describe("natural support arm anatomy, rather than forced elbow visibility", () 
     for(const wrist of [[-.21,-.66,-.55],[-.17,-.14,-.85],[.45,-.36,.02],
       [-.60,-.80,-.60],[-.10,.18,-.68]]) {
       expect(supportElbowPosition(frame.shoulder,wrist,frame.pole).every(Number.isFinite)).toBe(true);
+    }
+  });
+});
+
+describe("compact support arm never folds backward", () => {
+  const dist=(a:readonly number[],b:readonly number[])=>
+    Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  const wristFor=(id:string):[number,number,number]=>{
+    const g=firstPersonSupportGrip(id);
+    return [g[0]*1.2+.30-.045,g[1]*1.2-.18-.125,g[2]*1.2-.48+.10];
+  };
+
+  test("selects compact posing for pistols, PDWs, SMGs and destroyed shield only", () => {
+    for(const category of ["pistol","pdw","smg"])
+      expect(usesCompactSupportArm(category,false,false)).toBe(true);
+    for(const category of ["sniper","assault","shotgun","dmr","lmg","launcher","melee"])
+      expect(usesCompactSupportArm(category,false,false)).toBe(false);
+    expect(usesCompactSupportArm("pistol",true,true)).toBe(false);
+    expect(usesCompactSupportArm("pistol",true,false)).toBe(true);
+  });
+
+  test("on all compact grips, the elbow is behind the wrist and ahead of the shoulder", () => {
+    for(const aspect of [16/9,4/3,1,9/16]){
+      const frame=supportArmFraming(aspect,true);
+      for(const id of [
+        "pistol_side","pistol_magnum","pistol_burst","pistol_machine",
+        "pistol_ghost","pistol_bastion","pistol_arc",
+        "pdw_mamba","pdw_sentinel","smg_kp","smg_vector","smg_compact"
+      ]){
+        const wrist=wristFor(id);
+        const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
+          SUPPORT_SIDEARM_UPPER_LENGTH,SUPPORT_SIDEARM_FOREARM_LENGTH);
+        // In camera space -Z is toward the muzzle. Neither segment may
+        // reverse direction: the shoulder is back, then elbow, then hand.
+        expect(frame.shoulder[2]-elbow[2]).toBeGreaterThan(.09);
+        expect(elbow[2]-wrist[2]).toBeGreaterThan(.12);
+        expect(elbow[0]).toBeGreaterThan(frame.shoulder[0]);
+        expect(elbow[0]).toBeLessThan(wrist[0]);
+        expect(elbow[1]).toBeLessThan(wrist[1]+.01);
+        const reach=dist(frame.shoulder,wrist);
+        const stretch=Math.max(1,reach/((SUPPORT_SIDEARM_UPPER_LENGTH+SUPPORT_SIDEARM_FOREARM_LENGTH)*.998));
+        expect(dist(frame.shoulder,elbow)).toBeCloseTo(SUPPORT_SIDEARM_UPPER_LENGTH*stretch,6);
+        expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_SIDEARM_FOREARM_LENGTH*stretch,6);
+      }
+    }
+  });
+
+  test("rifle/sniper framing is unaffected",()=>{
+    for(const aspect of [16/9,4/3,1,9/16]){
+      const old=supportArmFraming(aspect);
+      const compact=supportArmFraming(aspect,true);
+      expect(old.shoulder[2]).toBe(-.25);
+      expect(old.pole[2]).toBe(-.50);
+      expect(compact.shoulder[2]).toBe(.10);
+      expect(compact.pole[2]).toBe(.30);
+    }
+  });
+
+  test("compact reload, ADS and sway maintain continuous connected IK",()=>{
+    const frame=supportArmFraming(16/9,true);
+    let previous:[number,number,number]|null=null;
+    for(let n=-10;n<=10;n++){
+      const base=wristFor("pistol_side");
+      const wrist:[number,number,number]=[
+        base[0]+n*.003, base[1]+n*.001, base[2]-n*.002,
+      ];
+      const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
+        SUPPORT_SIDEARM_UPPER_LENGTH,SUPPORT_SIDEARM_FOREARM_LENGTH);
+      expect(elbow.every(Number.isFinite)).toBe(true);
+      if(previous) expect(dist(elbow,previous)).toBeLessThan(.02);
+      previous=elbow;
+    }
+    for(const wrist of [[-.21,-.66,-.55],[-.17,-.14,-.85],[.45,-.36,.02],[.06,-.14,-.38]]){
+      const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
+        SUPPORT_SIDEARM_UPPER_LENGTH,SUPPORT_SIDEARM_FOREARM_LENGTH);
+      expect(elbow.every(Number.isFinite)).toBe(true);
+      expect(dist(frame.shoulder,elbow)+dist(elbow,wrist)).toBeGreaterThanOrEqual(dist(frame.shoulder,wrist)-1e-8);
     }
   });
 });

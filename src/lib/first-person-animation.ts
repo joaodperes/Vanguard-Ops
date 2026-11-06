@@ -45,19 +45,42 @@ export const SUPPORT_FOREARM_LENGTH = .34;
 
 // Camera-relative lengths for a compact, two-handed sidearm grip. A full rifle
 // arm would fold past the pistol and stick an elbow in front of the hand.
-export const SUPPORT_SIDEARM_UPPER_LENGTH = .28;
-export const SUPPORT_SIDEARM_FOREARM_LENGTH = .27;
+export const SUPPORT_SIDEARM_UPPER_LENGTH = .40;
+export const SUPPORT_SIDEARM_FOREARM_LENGTH = .43;
+
+/** Compact pistol/PDW/SMG viewmodels need their support elbow behind the wrist.
+ * A rifle's camera-local shoulder is moved forward for hip-fire framing, but
+ * reusing that shoulder for small guns puts the elbow beside or ahead of the
+ * pistol grip, causing the arm to appear to fold backwards.
+ * The Bulwark keeps its shield pose while intact and uses the compact pistol
+ * arm only once the shield is destroyed.
+ */
+export function usesCompactSupportArm(
+  category: string, shieldEquipped: boolean, shieldUsable: boolean,
+): boolean {
+  if (shieldEquipped) return !shieldUsable;
+  return category === "pistol" || category === "pdw" || category === "smg";
+}
 
 /** Camera-local *tucked* arm pose, not a screen-space elbow highlight.
  * The upper arm retreats under the view while the forearm supports the gun.
  * Keep the bend toward the torso and slightly downward: forcing the elbow
  * high into the viewport creates a visibly broken, backward-looking arm.
  */
-export function supportArmFraming(aspect: number): {
+export function supportArmFraming(aspect: number, compact = false): {
   shoulder: [number, number, number];
   pole: [number, number, number];
 } {
   const narrow = Math.max(0, Math.min(1, (1.1 - aspect) / (1.1 - 9/16)));
+  if (compact) {
+    // This anchor sits farther back near the torso. The elbow falls below
+    // the compact gun's wrist and BEHIND it on the camera's Z axis, so the
+    // forearm travels forward toward the hand instead of folding backwards.
+    return {
+      shoulder: [-.34 + .025 * narrow, -.50, .10],
+      pole: [-.50 + .03 * narrow, -.30, .30],
+    };
+  }
   return {
     shoulder: [-.30 + .035 * narrow, -.45, -.25],
     pole: [-.55 + .08 * narrow, -.10, -.50],

@@ -54,7 +54,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
@@ -3458,21 +3458,26 @@ export class FPSEngine {
     arm.root.visible = hand.visible;
     if (!hand.visible) return;
 
-    // Bend naturally toward the torso, allowing the joint to sit near the
-    // bottom edge rather than pulling it up into the middle of the screen.
-    const frame = supportArmFraming(this.camera.aspect);
+    // Compact guns use a true torso-side anchor rather than the forward
+    // rifle shoulder. The IK stays linked to the moving wrist in every pose.
+    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
+    const shieldEquipped = visualWeaponId === RIOT_SHIELD_ID;
+    const isCompact = usesCompactSupportArm(
+      weaponById(visualWeaponId).category,
+      shieldEquipped,
+      !!this.riotShieldModel?.visible,
+    );
+    const frame = supportArmFraming(this.camera.aspect, isCompact);
     this.fpShoulder.set(...frame.shoulder);
     arm.shoulder.position.copy(this.fpShoulder);
     // Anchor the forearm inside the glove cuff, following all hand rotations.
     this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
-    const isSidearm = weaponById(this.viewmodelWeaponId || this.weaponId).category === "pistol"
-      && this.viewmodelWeaponId !== RIOT_SHIELD_ID && this.weaponId !== RIOT_SHIELD_ID;
     const joint = supportElbowPosition(
       frame.shoulder,
       [this.fpWrist.x, this.fpWrist.y, this.fpWrist.z],
       frame.pole,
-      isSidearm ? SUPPORT_SIDEARM_UPPER_LENGTH : SUPPORT_UPPER_ARM_LENGTH,
-      isSidearm ? SUPPORT_SIDEARM_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH,
+      isCompact ? SUPPORT_SIDEARM_UPPER_LENGTH : SUPPORT_UPPER_ARM_LENGTH,
+      isCompact ? SUPPORT_SIDEARM_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH,
     );
     this.fpElbow.set(...joint);
 
