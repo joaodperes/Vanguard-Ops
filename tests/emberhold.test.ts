@@ -67,11 +67,12 @@ describe("Emberhold Castle", () => {
   test("wall walks, both keep approaches and all dungeon entrances have two-way routes", () => {
     const routes: Record<string, Vec3[]> = {
       battlements: [[-54,12,-43],[54,12,-43],[54,12,43],[-54,12,43],[-54,12,-43]],
-      spiral: [[-8,5,14],[-8,10,-8],[8,15,-8],[8,20,8],[-8,25,8],[-8,25,0]],
+      keepEntrance: [[-8,5,14],[-8,5,8]],
+      spiral: [[7,.5,8],[-8,5,8],[-8,10,-8],[8,15,-8],[8,20,8],[-8,25,8],[-8,25,0]],
       rearStair: [[8,5,-32],[8,15,-8]],
-      keepDungeon: [[-8,5,9],[-16,5,9],[-16,.5,-5],[-16,.5,-12],[4,.5,-12]],
+      keepDungeon: [[7,.5,8],[7,.5,16],[-6,.5,16]],
       westDungeon: [[-94,5,27],[-80.5,.5,27],[-80.5,.5,18],[-6,.5,18],[-6,.5,24],[-6,5,39]],
-      eastDungeon: [[94,5,-3],[80.5,.5,-3],[80.5,.5,-12],[4,.5,-12],[4,.5,16],[-6,.5,16],[-6,.5,24],[-6,5,39]],
+      eastDungeon: [[94,5,-3],[80.5,.5,-3],[80.5,.5,-12],[7,.5,-12],[7,.5,16],[-6,.5,16],[-6,.5,24],[-6,5,39]],
     };
     for (const [name, points] of Object.entries(routes)) {
       for (let i = 1; i < points.length; i++) {
@@ -82,6 +83,7 @@ describe("Emberhold Castle", () => {
     }
     expect(lavaAt(map.environment, [-70,.5,18])).toBe(false);
     expect(lavaAt(map.environment, [-70,0,18])).toBe(true);
+    expect(botTraversableEdge([-8,5,8], -16, 8, map.cover, map.environment)).toBeNull();
   });
 
 });

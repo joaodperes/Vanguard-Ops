@@ -50,4 +50,4 @@ Map Studio's canonical authoring source is `src/data/maps/<mapId>.json` for ever
 
 ## Emberhold vertical routes
 
-The four corner towers share a continuous wall walk over the gatehouses. Two routes reach the keep stairs and its rooftop firing positions. The west and east outer-bank stairs lead into passages below the bridges. The dungeon chambers occupy a 104 × 80 footprint inside the 124 × 100 castle platform. The outer tunnel floors sit above the lava surface. The ruined chapel and the bottom landing of the keep’s spiral staircase provide two entrances from inside the castle.
+The four corner towers share a continuous wall walk over the gatehouses. Two routes reach the keep stairs and its rooftop firing positions. The west and east outer-bank stairs lead into passages below the bridges. The dungeon chambers occupy a 104 × 80 footprint inside the 124 × 100 castle platform. The outer tunnel floors sit above the lava surface. The ruined chapel leads to the dungeon from the courtyard. The keep’s spiral staircase continues from the ground-floor landing directly down into the dungeon beneath the tower.
