@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  sampleWeaponSwapMotion, WEAPON_SWAP_HANDOFF, WEAPON_SWAP_VISUAL_MS,
+  sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_HANDOFF, WEAPON_SWAP_VISUAL_MS,
 } from "../src/lib/first-person-animation";
 
 describe("first-person weapon holster and draw", () => {
@@ -48,5 +48,49 @@ describe("first-person weapon holster and draw", () => {
   test("clamps values outside the visual window", () => {
     expect(sampleWeaponSwapMotion(-2)).toEqual(sampleWeaponSwapMotion(0));
     expect(sampleWeaponSwapMotion(3)).toEqual(sampleWeaponSwapMotion(1));
+  });
+});
+
+describe("Bulwark first-person shield draw", () => {
+  test("retains the existing holster motion while the shield is outgoing", () => {
+    for (const p of [0, .2, .499]) {
+      const gun = sampleWeaponSwapMotion(p);
+      const shield = sampleRiotShieldSwapMotion(p);
+      expect(shield.x).toBeCloseTo(gun.x);
+      expect(shield.y).toBeCloseTo(gun.y * 1.45);
+      expect(shield.roll).toBeCloseTo(gun.roll);
+      expect(shield.yaw).toBe(0);
+    }
+  });
+
+  test("starts the incoming shield out of view behind the left shoulder", () => {
+    const atHandoff = sampleRiotShieldSwapMotion(WEAPON_SWAP_HANDOFF);
+    expect(atHandoff.x).toBeLessThan(-1.5);
+    expect(atHandoff.y).toBeLessThan(-.6);
+    expect(atHandoff.yaw).toBeLessThan(-.7);
+    expect(atHandoff.z).toBeGreaterThan(0);
+  });
+
+  test("sweeps the incoming shield up and right, rotating into guard", () => {
+    const early = sampleRiotShieldSwapMotion(.6);
+    const mid = sampleRiotShieldSwapMotion(.75);
+    const late = sampleRiotShieldSwapMotion(.9);
+    expect(early.x).toBeLessThan(mid.x);
+    expect(mid.x).toBeLessThan(late.x);
+    expect(early.y).toBeLessThan(mid.y);
+    expect(mid.y).toBeLessThan(late.y);
+    expect(Math.abs(early.yaw)).toBeGreaterThan(Math.abs(mid.yaw));
+    expect(Math.abs(mid.yaw)).toBeGreaterThan(Math.abs(late.yaw));
+    // Keep a visible, progressive approach rather than jumping to ready.
+    expect(mid.x).toBeLessThan(-.3);
+    expect(mid.x).toBeGreaterThan(-.6);
+  });
+
+  test("returns exactly to its original guard orientation without extending the swap", () => {
+    const rest = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+    expect(sampleRiotShieldSwapMotion(-1)).toEqual(rest);
+    expect(sampleRiotShieldSwapMotion(1)).toEqual(rest);
+    expect(sampleRiotShieldSwapMotion(2)).toEqual(rest);
+    expect(WEAPON_SWAP_VISUAL_MS).toBe(450);
   });
 });
