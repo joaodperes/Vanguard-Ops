@@ -545,7 +545,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>}
         {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
-        {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
+        {hud.weaponId === "baton" && (
+          <div className="text-amber-200/80 text-[10px] mt-1">
+            {mode==="gungame"
+              ? hud.ammo>=2?"TWO KNIVES READY":`+1 KNIFE IN ${((hud.knifeRechargeMs??0)/1000).toFixed(1)}s`
+              : "TWO PER LIFE · REFILL ON DEATH"}
+          </div>
+        )}
+        {hud.wonderRechargeMs === undefined && hud.heat === undefined && hud.weaponId!=="baton" && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.
             The active slot is highlighted; others are dim. Weapon name shows under each. */}
         <div className="mt-2 flex items-center justify-end gap-1.5">
@@ -588,6 +595,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
+            {hud.weaponId==="baton" && <span className="text-amber-300 text-[9px]">
+              {mode==="gungame" ? `${Math.ceil((hud.knifeRechargeMs??0)/1000)}s recharge` : "per life"}
+            </span>}
             {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">{hud.heat !== undefined ? "VENT" : "RLD"}</span>}
             {hud.wonderRechargeMs !== undefined && <span className="ml-1 text-violet-300 text-[9px] font-mono">{hud.wonderRechargeMs > 0 ? `${Math.ceil(hud.wonderRechargeMs / 1000)}s` : "READY"}</span>}
             {hud.wonderWeaponId && slotNum!==4 && <span className="ml-1 text-violet-300 text-[9px] font-mono">W4 {wonderSlotStatus}</span>}
