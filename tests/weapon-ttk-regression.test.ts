@@ -4,6 +4,7 @@ import {
   type AttachmentSlot,
 } from "../src/lib/game-data";
 import { burstShotIntervalMs } from "../src/lib/weapon-mechanics";
+import { maxWeaponHitRange } from "../src/lib/game-data";
 import { hitsToEliminate, idealTimeToKillMs } from "../src/lib/weapon-balance";
 
 const empty: Record<AttachmentSlot,string|null> = { sight:null, barrel:null, grip:null, magazine:null };
@@ -67,6 +68,13 @@ describe("2026 weapon-role and burst TTK tuning",()=>{
       expect(hitsToEliminate(effective(id,"magazine","mag_penetrator"))).toBe(hitsToEliminate(effective(id)));
     }
     expect(effective("rifle_ar","magazine","mag_penetrator").bodyPenetration?.maxTargets).toBe(2);
+  });
+  test("damage falloff stops at the real collision range, not at an infinite damage floor",()=>{
+    const w=weaponById("smg_vector");
+    const far=maxWeaponHitRange(w.stats.range,w.stats);
+    expect(hitsToEliminate(w.stats,far+0.01)).toBeNull();
+    expect(idealTimeToKillMs(w,w.stats,far+0.01)).toBeNull();
+    expect(hitsToEliminate(w.stats,0)).toBe(5);
   });
   test("every legal single attachment resolves nonnegative combat stats and sane TTK",()=>{
     for(const w of WEAPONS.filter(w=>!w.wonder&&!w.disabled&&!["melee","shotgun","launcher"].includes(w.category))){

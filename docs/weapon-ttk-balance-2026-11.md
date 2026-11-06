@@ -38,7 +38,7 @@ Implemented on the **dev** branch, after the November attachment-balance pass.
 
 ## Reproducing and monitoring
 Run:
-- bun scripts/audit-weapon-ttk.ts — stock TTK at 0/20/40/60m; headshot-only potential; all legal single attachment breakpoint penalties; legal barrel+magazine pair scan.
+- bun scripts/audit-weapon-ttk.ts — stock TTK at 0/20/40/60m; headshot-only potential; all legal single-attachment breakpoint penalties; full enumeration of legal four-slot loadouts and their 0m/40m breakpoint changes. Unreachable targets show n/a.
 - bun test tests/weapon-ttk-regression.test.ts — timing, damage roles, attachment breakpoints and legal loadout sanity.
 - bun run content:validate, bun run test:smoke, bun run typecheck, bun run build.
 

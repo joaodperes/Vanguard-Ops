@@ -27,7 +27,7 @@ const evaluate = (weapon:WeaponDef, atts:Record<AttachmentSlot,string|null>, met
 };
 console.log("# Weapon TTK audit: ideal 100-HP first-magazine kills");
 console.log("Assumes perfect hits and nominal fire intervals; excludes aiming/recoil/heat/latency.");
-console.log("Burst cadence uses the same shared helper as the client/server. n/a means reload required.");
+console.log("Burst cadence uses the same shared helper as the client/server. n/a means reload required or out of hit range.");
 console.log("");
 console.log("| Weapon | Category | 0m hits | 0m TTK ms | 20m TTK | 40m TTK | 60m TTK | 0m all-head TTK |");
 console.log("|---|---|---:|---:|---:|---:|---:|---:|");
@@ -71,17 +71,35 @@ for (const row of findings) {
 }
 if(!findings.length)console.log("| None | - | - | - | - |");
 console.log("");
-console.log("## Barrel + magazine interactions");
-let pairCount=0, extraBreakpoints=0;
-for (const w of applicable) {
-  const b = evaluate(w,EMPTY,0);
-  for (const barrel of compatibleAttachments(w.id,"barrel")) {
-    for (const magazine of compatibleAttachments(w.id,"magazine")) {
-      const v=evaluate(w,{...EMPTY,barrel,magazine},0);
-      pairCount++;
-      if(b.hits !== null && v.hits !== null && v.hits>b.hits) extraBreakpoints++;
+console.log("## All legal four-slot loadouts");
+console.log("Includes stock and every allowed combination of sight, barrel, grip and magazine.");
+console.log("Counts are warnings of body-shot breakpoint changes, not evidence of real-game dominance.");
+console.log("| Weapon | Legal loadouts | +body hit at 0m | +body hit at 40m | Example of 0m breakpoint-changing loadout |");
+console.log("|---|---:|---:|---:|---|");
+let totalLoadouts=0, totalCloseChanges=0, totalFortyChanges=0;
+for(const weapon of applicable) {
+  const options=slots.map(slot=>[null,...compatibleAttachments(weapon.id,slot)]);
+  const zeroBase=evaluate(weapon,EMPTY,0), fortyBase=evaluate(weapon,EMPTY,40);
+  let tested=0,closeChanges=0,fortyChanges=0,example="-";
+  for(const sight of options[0])for(const barrel of options[1])
+  for(const grip of options[2])for(const magazine of options[3]){
+    const loadout:Record<AttachmentSlot,string|null>={sight,barrel,grip,magazine};
+    const close=evaluate(weapon,loadout,0);
+    const forty=evaluate(weapon,loadout,40);
+    tested++;
+    if(close.hits !== null && zeroBase.hits !== null && close.hits>zeroBase.hits){
+      closeChanges++;
+      if(example==="-")example=slots.filter(slot=>loadout[slot]).map(slot=>loadout[slot]).join(", ");
     }
+    if(forty.hits !== null && fortyBase.hits !== null && forty.hits>fortyBase.hits)
+      fortyChanges++;
   }
+  totalLoadouts+=tested;
+  totalCloseChanges+=closeChanges;
+  totalFortyChanges+=fortyChanges;
+  console.log("| "+[weapon.name,tested,closeChanges,fortyChanges,example].join(" | ")+" |");
 }
-console.log("Scanned "+pairCount+" legal barrel/magazine pairs; "+extraBreakpoints+
-  " increase point-blank body hits compared with stock. See single-attachment table for root causes.");
+console.log("");
+console.log("Total legal loadouts: "+totalLoadouts+
+  "; builds with additional close-range body hits: "+totalCloseChanges+
+  "; builds with additional 40m body hits: "+totalFortyChanges+".");

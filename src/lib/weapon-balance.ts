@@ -1,4 +1,4 @@
-import { damageAtRange, type WeaponDef, type WeaponStats } from "./game-data";
+import { damageAtRange, maxWeaponHitRange, type WeaponDef, type WeaponStats } from "./game-data";
 import { burstShotIntervalMs } from "./weapon-mechanics";
 
 /**
@@ -17,6 +17,8 @@ export function hitsToEliminate(
   targetHealth = BALANCE_TARGET_HEALTH,
 ): number | null {
   if (stats.damage <= 0 || targetHealth <= 0) return targetHealth <= 0 ? 0 : null;
+  // Damage falloff has a positive floor, but actual hits are impossible past max range.
+  if (distanceMeters > maxWeaponHitRange(stats.range, stats)) return null;
   let health = targetHealth;
   for (let shot = 1; shot <= 512; shot++) {
     const multiplier = shot <= headshotsFirst ? stats.headshotMult : 1;
