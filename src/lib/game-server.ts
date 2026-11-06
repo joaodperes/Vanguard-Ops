@@ -43,8 +43,8 @@ import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando"
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload } from "./weapon-mechanics";
-import { chooseBotPatrolPoint } from "./bot-patrol";
-import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "./bot-routing";
+import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
+import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
@@ -2381,9 +2381,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           }
         }
         if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
-        else if(Math.hypot(ai.wanderTarget[0]-bot.pos[0],ai.wanderTarget[2]-bot.pos[2])<2.5)
+        else if(botPatrolDistance(bot.pos,ai.wanderTarget)<2.5)
           ai.wanderTarget=chooseBotPatrolPoint(bot.team,room.mode,bot.pos,
-            room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa);
+            room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa,Math.random,room.map.id);
       }
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
@@ -2472,7 +2472,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       floodgateRouteNeedsDetour(bot.pos,target.pos,floodAge,room.map.cover))) {
       if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
         const index=cityIndex(room);
-        ai.routeWaypoint=botNextWaypoint(bot.pos,target.pos,room.map.cover,room.map.size,3,
+        ai.routeWaypoint=botNextWaypoint(bot.pos,botMapRouteGoal(room.map.id,bot.pos,target.pos),room.map.cover,room.map.size,3,
           floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge) ??
           botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850;
@@ -2621,11 +2621,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const patrolGoal=ai.highGroundPatrol;
     const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
       cityCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
-    const dx=patrolPoint[0]-bot.pos[0],dz=patrolPoint[2]-bot.pos[2];
+    const navPoint=botMapRouteGoal(room.map.id,bot.pos,patrolPoint);
+    const dx=navPoint[0]-bot.pos[0],dz=navPoint[2]-bot.pos[2];
     const d=Math.hypot(dx,dz);
+    const floorMismatch=Math.abs(navPoint[1]-bot.pos[1])>1.15;
     ai.aiming = ai.archetype === "marksman" && d <= 2.5;
     ai.sprinting=botPatrolSprint(d,ai.difficulty,ai.archetype);
-    if(d<=1.5){
+    if(d<=1.5&&!floorMismatch){
       if(ai.investigationLookAt){
         const last=ai.investigationLookAt;
         const dx=last[0]-bot.pos[0],dz=last[2]-bot.pos[2];
@@ -2638,21 +2640,21 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         bot.yaw=lerpAngle(bot.yaw,ai.idleLookYaw+Math.sin(now/2300+bot.id.length)*.5,.1);
       }
     }else ai.idleLookYaw=undefined;
-    if(d>(patrolGoal?.38:1.5)){
+    if(d>(patrolGoal?.38:1.5)||floorMismatch){
       // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the movement
       // direction. If blocked, rotate the movement direction by ±35° (sign
       // from ai.strafeDir) so the bot angles around the obstacle instead of
       // headbutting it. The yaw is set to the rotated direction so the bot
       // faces where it's going.
-      let fx = dx / d, fz = dz / d;
+      let fx = d>.001?dx/d:0, fz = d>.001?dz/d:0;
       const patrolBlocked = botMoveBlocked(room, bot.pos, [bot.pos[0]+fx*4, bot.pos[1], bot.pos[2]+fz*4], bot.pos[1]);
       if((patrolBlocked||(patrolGoal&&d>5)||
-          Math.abs(patrolPoint[1]-bot.pos[1])>1.3||room.map.id==="bunker" ||
+          floorMismatch||room.map.id==="bunker" ||
           floodgateRouteNeedsDetour(bot.pos,patrolPoint,floodAge,room.map.cover)) &&
           (!patrolGoal||d>4.5)){
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
           const index=cityIndex(room);
-          ai.routeWaypoint=botNextWaypoint(bot.pos,patrolPoint,room.map.cover,room.map.size,3,
+          ai.routeWaypoint=botNextWaypoint(bot.pos,navPoint,room.map.cover,room.map.size,3,
             floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge);
           ai.nextRouteAt=now+(index?1500:850);
         }
@@ -2756,7 +2758,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
       // Recovery: change patrol objective (prefer enemy territory in TDM).
       ai.wanderTarget=chooseBotPatrolPoint(bot.team,room.mode,bot.pos,
-        room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa);
+        room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa,Math.random,room.map.id);
       ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
       ai.targetId=null;        // wander instead of engaging
       ai.lastSighting=null;ai.investigationLookAt=null;

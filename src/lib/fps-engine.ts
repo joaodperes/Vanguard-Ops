@@ -57,8 +57,8 @@ import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
 import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
-import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
-import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
+import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
+import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
@@ -9295,9 +9295,9 @@ export class FPSEngine {
             }
           }
           if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
-          else if(Math.hypot(ai.wanderTarget[0]-c.pos[0],ai.wanderTarget[2]-c.pos[2])<2.5)
+          else if(botPatrolDistance(c.pos,ai.wanderTarget)<2.5)
             ai.wanderTarget=chooseBotPatrolPoint(c.team,this.opts.mode,c.pos,
-              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa);
+              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa,Math.random,this.map.id);
         }
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
@@ -9387,7 +9387,7 @@ export class FPSEngine {
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]) ||
           floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
         if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
+          ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
             this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850;
@@ -9557,11 +9557,13 @@ export class FPSEngine {
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
-      const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
+      const navPoint=botMapRouteGoal(this.map.id,c.pos,patrolPoint);
+      const dx=navPoint[0]-c.pos[0],dz=navPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
+      const floorMismatch=Math.abs(navPoint[1]-c.pos[1])>1.15;
       ai.aiming=ai.archetype==="marksman" && d<=2.5;
       ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
-      if(d<=1.5){
+      if(d<=1.5&&!floorMismatch){
         if(ai.investigationLookAt){
           const last=ai.investigationLookAt;
           const dx=last[0]-c.pos[0],dz=last[2]-c.pos[2];
@@ -9574,20 +9576,20 @@ export class FPSEngine {
           c.yaw=this.lerpAngle(c.yaw,ai.idleLookYaw+Math.sin(now/2300+c.id.length)*.5,.1);
         }
       }else ai.idleLookYaw=undefined;
-      if(d>(patrolGoal?.38:1.5)){
+      if(d>(patrolGoal?.38:1.5)||floorMismatch){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
         // ±35° (sign from ai.strafeDir) so the bot angles around the obstacle
         // instead of headbutting it. The yaw is set to the rotated direction
         // so the bot faces where it's going.
-        let fx = dx / d, fz = dz / d;
+        let fx = d>.001?dx/d:0, fz = d>.001?dz/d:0;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
         if((patrolBlocked || (patrolGoal&&d>5) ||
-            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker" ||
+            floorMismatch || this.opts.mapId==="bunker" ||
             floodgateRouteNeedsDetour(c.pos,patrolPoint,floodAge,this.map.cover)) &&
             (!patrolGoal||d>4.5)){
           if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
+            ai.routeWaypoint=botNextWaypoint(c.pos,navPoint,this.map.cover,this.map.size,3,
               floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge);
             ai.nextRouteAt=now+(this.coverIndex()?1500:850);
           }
@@ -9700,7 +9702,7 @@ export class FPSEngine {
       if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
         // Reset stuck patrol toward enemy territory, not the same team spawn.
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
-          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa,Math.random,this.map.id);
         ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
         ai.targetId = null;        // wander instead of engaging
         ai.lastSighting=null;ai.investigationLookAt=null;
