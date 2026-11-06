@@ -56,12 +56,13 @@ const arc = z.object({ kind: z.literal("arc"), jumps: pos.int(), radius: pos, de
 const bolt = z.object({
   kind: z.literal("bolt"), pickupRadius: pos, lifetimeMs: pos, quickReloadSeconds: pos,
 });
+const throwingKnife = z.object({kind:z.literal("throwing_knife")});
 const weapon = z.object({
   id, name: label, description: label, category,
   unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
   stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
   explosive: z.object({ radius: pos }).optional(),
-  special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
+  special: z.discriminatedUnion("kind", [heat, arc, bolt, throwingKnife]).optional(),
   wonder: z.object({
     kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
     maxCharges: z.number().int().min(1).max(8),
