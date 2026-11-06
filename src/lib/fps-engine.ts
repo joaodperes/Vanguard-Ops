@@ -6213,7 +6213,7 @@ export class FPSEngine {
   private refillAmmoOnRespawn() {
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    if(this.opts.mode!=="gungame")this.throwingKnifeState=fullThrowingKnives();
+    if(this.opts?.mode!=="gungame")this.throwingKnifeState=fullThrowingKnives();
     this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
     this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:
@@ -8273,7 +8273,7 @@ export class FPSEngine {
         (t.line.material as THREE.Material).dispose();
       }
       this.tracers = [];
-      for(const k of this.thrownKnives){this.scene.remove(k.mesh);k.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});}
+      for(const k of this.thrownKnives??[]){this.scene.remove(k.mesh);k.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});}
       this.thrownKnives=[];
       for (const p of this.projectiles) {
         this.scene.remove(p.mesh);
