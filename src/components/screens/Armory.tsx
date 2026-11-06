@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil, Award, Medal } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
 import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-prestige";
@@ -127,6 +127,9 @@ export function Armory() {
   // Per-weapon unlock maps (new shape from buildProfileView).
   const attachmentsByWeapon = profile?.unlocks.attachmentsByWeapon ?? {};
   const skinsByWeapon = profile?.unlocks.skinsByWeapon ?? {};
+  // Prestige remains earned after its original requirements change, so use the
+  // permanent award alongside the live challenge checklist for card medals.
+  const prestigedWeapons = new Set(profile?.prestige?.masteredWeapons ?? []);
   const ownedWeaponIds = new Set<string>([
     ...WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     ...(profile?.unlocks.weapons ?? []),
@@ -499,6 +502,11 @@ export function Armory() {
               Within each section, weapons are sorted by unlock level (ascending)
               so the expected unlock order is clear. */}
           <TabsContent value="weapons" className="mt-5">
+            <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-white/55" aria-label="Weapon progression medal legend">
+              <span className="inline-flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-violet-300" /> Prestige · completed challenges</span>
+              <span className="inline-flex items-center gap-1.5"><Medal className="w-3.5 h-3.5 text-cyan-300" /> Mastery · rank out of 5</span>
+              <span className="text-white/35">Bright medals mark completed milestones.</span>
+            </div>
             <WeaponSlotSection
               slot="primary"
               label="Primary"
@@ -508,6 +516,7 @@ export function Armory() {
               ownedWeaponIds={ownedWeaponIds}
               attachmentsByWeapon={attachmentsByWeapon}
               skinsByWeapon={skinsByWeapon}
+              prestigedWeapons={prestigedWeapons}
               progress={progress}
               challenges={challenges}
               busy={busy}
@@ -526,6 +535,7 @@ export function Armory() {
               ownedWeaponIds={ownedWeaponIds}
               attachmentsByWeapon={attachmentsByWeapon}
               skinsByWeapon={skinsByWeapon}
+              prestigedWeapons={prestigedWeapons}
               progress={progress}
               challenges={challenges}
               busy={busy}
@@ -543,6 +553,7 @@ export function Armory() {
               ownedWeaponIds={ownedWeaponIds}
               attachmentsByWeapon={attachmentsByWeapon}
               skinsByWeapon={skinsByWeapon}
+              prestigedWeapons={prestigedWeapons}
               progress={progress}
               challenges={challenges}
               busy={busy}
@@ -659,6 +670,7 @@ interface WeaponSlotSectionProps {
   ownedWeaponIds: Set<string>;
   attachmentsByWeapon: Record<string, string[]>;
   skinsByWeapon: Record<string, string[]>;
+  prestigedWeapons: ReadonlySet<string>;
   progress: WeaponProgressMap;
   challenges: WeaponChallengesMap;
   busy: string | null;
@@ -758,6 +770,27 @@ function WeaponCard(props: WeaponCardProps) {
   const canBuy = !isOwned && !lockedByLevel && credits >= w.unlockCost;
   const rarityColor = w.unlockCost >= 3500 ? RARITY_COLORS.legendary : w.unlockCost >= 2000 ? RARITY_COLORS.epic : w.unlockCost >= 800 ? RARITY_COLORS.rare : RARITY_COLORS.common;
   const supportedSlots = weaponAttachmentSlots(w);
+  // Use the same calculations as the Challenges tab and Wonder unlock gate.
+  // A permanent Prestige award must never disappear if challenges are revised.
+  const weaponProgress = props.progress[w.id] ?? { weaponId: w.id, kills: 0, headshots: 0 };
+  const prestige = prestigeChallengeStatus(
+    w.id, weaponProgress,
+    new Set(props.skinsByWeapon[w.id] ?? []),
+    new Set(props.attachmentsByWeapon[w.id] ?? []),
+  );
+  const prestiged = props.prestigedWeapons.has(w.id);
+  const prestigeComplete = prestiged || prestige.eligible;
+  const prestigeCount = prestiged ? prestige.total : prestige.completed;
+  const mastery = weaponMasteryProgress(weaponProgress.kills, weaponProgress.headshots, w.id);
+  const masteryComplete = mastery.rank === 5;
+  const hasProgress = weaponProgress.kills > 0 || weaponProgress.headshots > 0 ||
+    Object.values(weaponProgress.conditionStats ?? {}).some(value => (value ?? 0) > 0);
+  const prestigeTitle = prestiged
+    ? "Prestige earned · permanent award"
+    : prestige.eligible
+      ? "All Prestige challenges completed · awaiting award"
+      : `Prestige: ${prestige.completed}/${prestige.total} challenges completed`;
+  const masteryTitle = `Mastery: rank ${mastery.rank}/5 (${weaponProgress.kills} kills${w.category === "melee" ? "" : `, ${weaponProgress.headshots} headshots`})`;
 
   return (
     <div
@@ -780,7 +813,35 @@ function WeaponCard(props: WeaponCardProps) {
       )}
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: rarityColor, opacity: 0.6 }} />
       <div className="mb-2 pr-20">
-        <div className="text-white font-bold text-base">{w.name}</div>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span className="text-white font-bold text-base leading-tight">{w.name}</span>
+          <span
+            role="img"
+            aria-label={`${w.name} ${prestigeTitle}`}
+            title={prestigeTitle}
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-mono font-semibold tabular-nums shrink-0 ${prestigeComplete
+              ? "border-violet-400/60 bg-violet-500/20 text-violet-100"
+              : hasProgress || prestigeCount > 0
+                ? "border-violet-500/30 bg-violet-500/10 text-violet-300"
+                : "border-white/10 bg-white/[0.035] text-white/35"}`}
+          >
+            <Award className="w-3.5 h-3.5" aria-hidden="true" />
+            {prestigeCount}/{prestige.total}
+          </span>
+          <span
+            role="img"
+            aria-label={`${w.name} ${masteryTitle}`}
+            title={masteryTitle}
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-mono font-semibold tabular-nums shrink-0 ${masteryComplete
+              ? "border-amber-400/60 bg-amber-500/20 text-amber-200"
+              : hasProgress
+                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                : "border-white/10 bg-white/[0.035] text-white/35"}`}
+          >
+            <Medal className="w-3.5 h-3.5" aria-hidden="true" />
+            {mastery.rank}/5
+          </span>
+        </div>
         <div className="text-white/40 text-xs uppercase tracking-wide flex items-center gap-1.5 min-w-0">
           <span className="truncate">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</span>
           {w.stats.bodyPenetration && (
