@@ -135,6 +135,10 @@ describe("One-time Prestige mastery", () => {
     const prestigeOnly=wonderUnlockChallenge("rifle_ar",true,150,70);
     expect(prestigeOnly.progress).toBe(1);
     expect(prestigeOnly.requirements.map(r=>r.progress)).toEqual([1,3]);
+    // The objective title carries only the target rank; the UI renders 3/5 separately.
+    expect(prestigeOnly.requirements[1]).toMatchObject({
+      title: "Reach Weapon Mastery rank 5", progress: 3, goal: 5, completed: false,
+    });
     const masteryOnly=wonderUnlockChallenge("rifle_ar",false,600,330);
     expect(masteryOnly.progress).toBe(1);
     expect(masteryOnly.completed).toBe(false);
