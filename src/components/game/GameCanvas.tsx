@@ -13,6 +13,7 @@ import { useGame } from "@/lib/game-store";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
+import { escapeMenuAction, ignorePointerLockRelease, initialPointerLockMenuState, pointerLockMenuTransition } from "@/lib/in-game-menu-controls";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
 
 interface Props {
@@ -52,7 +53,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
   const menuOpenRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
-  const everPointerLockedRef = useRef(false);
+  const pointerLockMenuStateRef = useRef(initialPointerLockMenuState);
   const outroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
@@ -167,20 +168,26 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
 
   const openMenu = () => {
     if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    // The pointer-lock release caused by opening this menu is intentional.
+    // Its async event must not be allowed to reopen the menu after a quick Escape.
+    pointerLockMenuStateRef.current = ignorePointerLockRelease(pointerLockMenuStateRef.current);
     menuOpenRef.current = true;
     menuPageRef.current = "main";
     setMenuPage("main");
     setMenuOpen(true);
     engineRef.current?.setInputSuspended(true);
   };
-  const resumeGame = () => {
+  const resumeGame = (restorePointerLock = true) => {
     menuOpenRef.current = false;
     menuPageRef.current = "main";
     setMenuPage("main");
     setMenuOpen(false);
     engineRef.current?.setInputSuspended(false);
-    // Triggered directly from the Resume button / Escape key, a user gesture.
-    engineRef.current?.resumePointerLock();
+    // Pointer lock can be requested directly by the Resume button's click.
+    // Escape is the browser's own unlock key: requesting a new lock during its
+    // keydown can immediately release it again (and reopen the menu).
+    // On Escape, close cleanly; the next canvas click re-enters pointer lock.
+    if (restorePointerLock) engineRef.current?.resumePointerLock();
   };
   const queueSavedLoadout = () => {
     const profile = useGame.getState().profile;
@@ -220,17 +227,18 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       if (event.code !== "Escape" || event.repeat) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (menuOpenRef.current) {
-        if (menuPageRef.current !== "main") changeMenuPage("main");
-        else resumeGame();
-      } else openMenu();
+      const action = escapeMenuAction(menuOpenRef.current, menuPageRef.current);
+      if (action === "back") changeMenuPage("main");
+      else if (action === "resume") resumeGame(false);
+      else openMenu();
     };
     const onLockChange = () => {
-      const locked = !!document.pointerLockElement;
-      if (locked) everPointerLockedRef.current = true;
-      // Some browsers consume Escape in Pointer Lock before the keydown handler.
-      // Opening on lock release ensures Escape still opens the in-game menu.
-      if (!locked && everPointerLockedRef.current && !menuOpenRef.current) openMenu();
+      const locked = !!document.pointerLockElement && !!containerRef.current?.contains(document.pointerLockElement);
+      // Some browsers consume Escape before keydown fires, so a genuine loss
+      // of pointer lock still opens the menu. Ignore stale/intentional unlocks.
+      const transition = pointerLockMenuTransition(pointerLockMenuStateRef.current, locked, menuOpenRef.current);
+      pointerLockMenuStateRef.current = transition.state;
+      if (transition.openMenu) openMenu();
     };
     window.addEventListener("keydown", onEscape, true);
     document.addEventListener("pointerlockchange", onLockChange);
