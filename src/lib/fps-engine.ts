@@ -54,7 +54,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, supportArmFraming, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
@@ -765,11 +765,10 @@ export class FPSEngine {
   private fpSupportGrip = new THREE.Vector3();
   private fpRestHand = new THREE.Vector3();
   private fpActionHand: THREE.Group | null = null;
-  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; elbowPad: THREE.Mesh } | null = null;
-  // A shoulder fixed to the camera-relative torso, rather than to the gun.
-  // It sits behind the lower-left edge of the view. The elbow and wrist are
-  // solved to the active weapon each frame, including ADS and reloads.
-  private readonly fpShoulder = new THREE.Vector3(-.38, -.52, .09);
+  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; elbowPad: THREE.Mesh; shoulder: THREE.Mesh } | null = null;
+  // Torso anchor stays independent of the weapon; its x offset adapts
+  // slightly to the camera aspect so the elbow is visible on narrow screens.
+  private readonly fpShoulder = new THREE.Vector3(-.35, -.48, -.15);
   private readonly fpWrist = new THREE.Vector3();
   private readonly fpElbow = new THREE.Vector3();
   private readonly fpArmDirection = new THREE.Vector3();
@@ -3331,7 +3330,7 @@ export class FPSEngine {
       arm.add(mesh);
     }
     arm.visible = false;
-    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, elbowPad };
+    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, elbowPad, shoulder: shoulderJoint };
     this.camera.add(arm);
 
     const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
@@ -3460,12 +3459,17 @@ export class FPSEngine {
     arm.root.visible = hand.visible;
     if (!hand.visible) return;
 
-    // Start inside the glove's cuff; apply its animated roll so the forearm
-    // remains joined even when the hand tilts to reload or throw equipment.
+    // Position the joint *inside* the camera view. The prior down-left pole
+    // put the elbow below the viewport despite a valid two-bone IK solution.
+    const frame = supportArmFraming(this.camera.aspect);
+    this.fpShoulder.set(...frame.shoulder);
+    arm.shoulder.position.copy(this.fpShoulder);
+    // Anchor the forearm inside the glove cuff, following all hand rotations.
     this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
     const joint = supportElbowPosition(
-      [this.fpShoulder.x, this.fpShoulder.y, this.fpShoulder.z],
+      frame.shoulder,
       [this.fpWrist.x, this.fpWrist.y, this.fpWrist.z],
+      frame.pole,
     );
     this.fpElbow.set(...joint);
 

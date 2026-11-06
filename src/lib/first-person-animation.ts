@@ -43,6 +43,23 @@ export function supportHandRestMode(
 export const SUPPORT_UPPER_ARM_LENGTH = .48;
 export const SUPPORT_FOREARM_LENGTH = .49;
 
+/** Camera-local shoulder and elbow bend pole. The old elbow was mathematically
+ * connected but projected *below* the view (normal sniper vertical NDC ~-2).
+ * The torso anchor sits at the bottom-left while the elbow is in-frame.
+ * Narrow viewports swing the bend inward so it remains visible on phones.
+ */
+export function supportArmFraming(aspect: number): {
+  shoulder: [number, number, number];
+  pole: [number, number, number];
+} {
+  const narrow = Math.max(0, Math.min(1, (1.6 - aspect) / (1.6 - 9/16)));
+  const portrait = Math.sqrt(narrow); // bring the elbow inward early enough at 1:1
+  return {
+    shoulder: [-.35 + .12 * portrait, -.48, -.15],
+    pole: [-.8 + .8 * portrait, .4 - .1 * portrait, -.2 + .2 * portrait],
+  };
+}
+
 /** Solve the elbow by two-bone inverse kinematics, keeping a consistent
  * outward/downward bend pole and the hand firmly on its moving weapon grip.
  * Normal poses preserve fixed segment lengths; exceptional targets stretch
@@ -50,6 +67,7 @@ export const SUPPORT_FOREARM_LENGTH = .49;
 export function supportElbowPosition(
   shoulder: readonly [number, number, number],
   wrist: readonly [number, number, number],
+  pole: readonly [number, number, number] = [-.8, .4, -.2],
 ): [number, number, number] {
   let dx = wrist[0] - shoulder[0], dy = wrist[1] - shoulder[1], dz = wrist[2] - shoulder[2];
   const reach = Math.hypot(dx,dy,dz);
@@ -60,8 +78,9 @@ export function supportElbowPosition(
   const upper = SUPPORT_UPPER_ARM_LENGTH*stretch, forearm = SUPPORT_FOREARM_LENGTH*stretch;
   const along = (upper*upper - forearm*forearm + reach*reach)/(2*reach);
   const side = Math.sqrt(Math.max(0,upper*upper-along*along));
-  // Pole stays in the camera's down-left quadrant during weapon roll/recoil.
-  let px=-.8,py=-.52,pz=.30;
+  // The camera-relative pole points left/outward in landscape and inward
+  // when the aspect ratio is narrow, without rotating with the weapon.
+  let px=pole[0],py=pole[1],pz=pole[2];
   let dot=px*dx+py*dy+pz*dz;
   px-=dot*dx;py-=dot*dy;pz-=dot*dz;
   let mag=Math.hypot(px,py,pz);

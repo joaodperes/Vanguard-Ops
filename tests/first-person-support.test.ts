@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { supportActionWeight, supportHandRestMode, supportElbowPosition, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH } from "../src/lib/first-person-animation";
+import { supportActionWeight, supportHandRestMode, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH } from "../src/lib/first-person-animation";
 import { firstPersonSupportGrip, weaponHoldPoints, WEAPON_VISUALS } from "../src/lib/weapon-models";
 
 describe("first-person support hand", () => {
@@ -31,7 +31,7 @@ describe("first-person support hand", () => {
 });
 
 describe("support-arm shoulder continuity", () => {
-  const shoulder: [number, number, number] = [-.38, -.52, .09];
+  const shoulder = supportArmFraming(16/9).shoulder;
   const length = (a: readonly number[], b: readonly number[]) =>
     Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -74,7 +74,7 @@ describe("support-arm shoulder continuity", () => {
 });
 
 describe("compact first-person support grips for long weapons", () => {
-  const shoulder: [number, number, number] = [-.38, -.52, .09];
+  const shoulder = supportArmFraming(16/9).shoulder;
   const reach = (grip: readonly number[]) => {
     const wrist = [grip[0] * 1.2 + .30 - .045, grip[1] * 1.2 - .18 - .125, grip[2] * 1.2 - .48 + .10];
     return Math.hypot(wrist[0] - shoulder[0], wrist[1] - shoulder[1], wrist[2] - shoulder[2]);
@@ -111,7 +111,7 @@ describe("compact first-person support grips for long weapons", () => {
 });
 
 describe("real articulated support elbow",()=>{
-  const shoulder: [number,number,number]=[-.38,-.52,.09];
+  const shoulder=supportArmFraming(16/9).shoulder;
   const dist=(a:readonly number[],b:readonly number[])=>
     Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
   const total=SUPPORT_UPPER_ARM_LENGTH+SUPPORT_FOREARM_LENGTH;
@@ -166,7 +166,7 @@ describe("real articulated support elbow",()=>{
   });
 
   test("aligned pole and zero-length targets are finite",()=>{
-    const pole=[-.8,-.52,.30],norm=Math.hypot(...pole);
+    const pole=supportArmFraming(16/9).pole,norm=Math.hypot(...pole);
     const wrist:[number,number,number]=[
       shoulder[0]+pole[0]*.65/norm,shoulder[1]+pole[1]*.65/norm,
       shoulder[2]+pole[2]*.65/norm
@@ -176,5 +176,49 @@ describe("real articulated support elbow",()=>{
     expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH,6);
     expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH,6);
     expect(supportElbowPosition(shoulder,shoulder).every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe("elbow joint camera framing",()=>{
+  const wristFor=(id:string):[number,number,number]=>{
+    const g=firstPersonSupportGrip(id);
+    // Viewmodel rest transform: weapon scale + hipfire offset + glove cuff.
+    return [g[0]*1.2+.30-.045,g[1]*1.2-.18-.125,g[2]*1.2-.48+.10];
+  };
+  const projection=(p:readonly number[],fov:number,aspect:number):[number,number]=>{
+    const tanHalf=Math.tan(fov*Math.PI/360);
+    return [p[0]/(-p[2]*tanHalf*aspect),p[1]/(-p[2]*tanHalf)];
+  };
+
+  test("the actual IK elbow appears onscreen for representative guns and aspect ratios",()=>{
+    // Old IK passed all geometry tests while the sniper elbow had yNDC=-2.
+    // Verify visibility for desktop, square tablet, and portrait phone views.
+    for(const aspect of [16/9,1.6,4/3,1,0.9,0.75,9/16]){
+      const frame=supportArmFraming(aspect);
+      for(const weaponId of ["sniper_lr","sniper_scout","sniper_heavy",
+        "rifle_ar","shotgun_br","smg_kp","dmr_heavy","lmg_heavy"]){
+        const elbow=supportElbowPosition(frame.shoulder,wristFor(weaponId),frame.pole);
+        expect(elbow[2]).toBeLessThan(-.05); // in front of the camera near plane
+        for(const fov of [60,75]){
+          const [x,y]=projection(elbow,fov,aspect);
+          expect(Number.isFinite(x)&&Number.isFinite(y)).toBe(true);
+          expect(x).toBeGreaterThan(-.98);
+          expect(x).toBeLessThan(.95);
+          expect(y).toBeGreaterThan(-.98);
+          expect(y).toBeLessThan(-.12);
+        }
+      }
+    }
+  });
+
+  test("the elbow smoothly slides inward when resizing, without snapping",()=>{
+    const wrist=wristFor("sniper_lr");
+    let previous: [number,number,number] | null=null;
+    for(let aspect=9/16;aspect<=16/9;aspect+=.01){
+      const frame=supportArmFraming(aspect);
+      const next=supportElbowPosition(frame.shoulder,wrist,frame.pole);
+      if(previous)expect(Math.hypot(...next.map((v,i)=>v-previous![i]))).toBeLessThan(.03);
+      previous=next;
+    }
   });
 });
