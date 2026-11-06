@@ -305,11 +305,11 @@ export function Play() {
 
           {/* ============== CREATE A ROOM ============== */}
           <TabsContent value="create" className="mt-5">
-            {/* Equal-height match configuration panels on desktop; responsive stacking on mobile. */}
+            {/* The Game Mode panel defines the row height; other mode settings scroll within it on desktop. */}
             <div className="space-y-5">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch lg:h-[380px]">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
                 {/* Game mode */}
-                <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
+                <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
@@ -317,7 +317,8 @@ export function Play() {
                   </div>
                 </Section>
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf") && (
-                  <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
+                  <div className="relative min-h-0">
+                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                       <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
@@ -390,10 +391,12 @@ export function Play() {
                         </div>
                       )}
                     </div>
-                  </Section>
+                    </Section>
+                  </div>
                 )}
                 {roomConfig.mode === "survival" && (
-                  <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                  <div className="relative min-h-0">
+                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
                     <div className="grid sm:grid-cols-2 gap-3">
                       {SURVIVAL_TIERS.map(tier=>{
                         const info=SURVIVAL_TIER_INFO[tier];
@@ -413,10 +416,12 @@ export function Play() {
                     <div className="mt-3 text-xs text-white/50">
                       Standard wins: {survivalProgress.defaultWins} · Hard best: {survivalProgress.hardBest} · Elite best: {survivalProgress.eliteBest} · Nightmare best: {survivalProgress.nightmareBest}
                     </div>
-                  </Section>
+                    </Section>
+                  </div>
                 )}
                 {roomConfig.mode === "gungame" && (
-                  <div className="h-full lg:min-h-0 lg:overflow-y-auto rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
+                  <div className="relative min-h-0">
+                    <div className="lg:absolute lg:inset-0 lg:overflow-y-auto rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
                     <div>
                       <div className="text-white font-semibold text-sm mb-1">Gun Game weapon pool</div>
                       <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
@@ -440,6 +445,7 @@ export function Play() {
                         ))}
                       </div>
                       <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
+                    </div>
                     </div>
                   </div>
                 )}
