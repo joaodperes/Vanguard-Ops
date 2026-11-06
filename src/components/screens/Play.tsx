@@ -371,7 +371,7 @@ export function Play() {
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
-                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Denial Scoring</Label>
                           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Denial Scoring">
                             {([{ enabled: false, label: "Off" }, { enabled: true, label: "+1 Point" }] as const).map((option) => (
