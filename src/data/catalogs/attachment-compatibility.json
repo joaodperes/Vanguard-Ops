@@ -64,7 +64,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper_scout": {
@@ -84,7 +85,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper_heavy": {
