@@ -84,6 +84,10 @@ const empty: ActionPose = { dip:0, pitch:0,roll:0,hand:[-.10,-.12,-.12],prop:[-.
  * The model handoff is cosmetic: gameplay switches weapons immediately. */
 export function sampleWeaponSwapMotion(progress: number): WeaponSwapPose {
   const p = clamp01(progress);
+  // Exact zero rest transforms (avoid signed negative zero at the endpoints).
+  if (p === 0 || p === 1) {
+    return { x: 0, y: 0, z: 0, pitch: 0, roll: 0, incoming: p === 1 };
+  }
   if (p < WEAPON_SWAP_HANDOFF) {
     const t = ease(p / WEAPON_SWAP_HANDOFF);
     return { x: .32 * t, y: -.80 * t, z: .19 * t,
