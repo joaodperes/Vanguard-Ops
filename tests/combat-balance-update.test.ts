@@ -7,6 +7,7 @@ import { automaticBloom, autoSpreadRadians } from "../src/lib/automatic-spread";
 import { meleeStyle, meleeSwingPose } from "../src/lib/melee-styles";
 import { buildMeleeWeaponParts } from "../src/lib/melee-model";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "../src/lib/quick-melee";
+import { THROWING_KNIFE_RANGE,isThrowingKnife } from "../src/lib/throwing-knives";
 describe("secondary balance and projectile identity",()=>{
   test("Sentinel rewards precision more than Machine Pistol",()=>{
     expect(weaponById("pdw_sentinel").stats.headshotMult).toBeGreaterThan(weaponById("pistol_machine").stats.headshotMult);
@@ -65,7 +66,7 @@ describe("sustained automatic fire",()=>{
 describe("melee identity and identical F profiles",()=>{
   const ids=["knife_tactical","shiv","machete","baton","axe","hammer"];
   test("point-blank stabs, vertical chops, lateral axe, overhead hammer",()=>{
-    expect(ids.map(meleeStyle)).toEqual(["stab","stab","vertical","vertical","horizontal","slam"]);
+    expect(ids.map(meleeStyle)).toEqual(["stab","stab","vertical","throw","horizontal","slam"]);
     expect(meleeSwingPose("knife_tactical",.5).z).toBeLessThan(-.3);
     expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeGreaterThan(.4);
     expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeLessThan(.9);
@@ -80,17 +81,19 @@ describe("melee identity and identical F profiles",()=>{
     expect(shiv.fireRate).toBeGreaterThan(knife.fireRate);
     expect(machete.range).toBeGreaterThan(knife.range);
     expect(machete.damage*2).toBeGreaterThanOrEqual(100);
-    expect(baton.damage).toBeLessThan(machete.damage);
-    expect(baton.fireRate).toBeLessThan(machete.fireRate);
+    expect(baton.damage).toBeGreaterThanOrEqual(100);
+    expect(baton.range).toBe(THROWING_KNIFE_RANGE);
+    expect(isThrowingKnife("baton")).toBe(true);
     expect(hammer.range).toBeGreaterThan(axe.range);
     expect(hammer.damage).toBeGreaterThan(axe.damage);
     expect(hammer.fireRate).toBeLessThan(axe.fireRate);
-    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
+    for(const id of ids.filter(id=>!isThrowingKnife(id)))
+      expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
     const candidates=[{id:"enemy",pos:[0,0,1.3] as const,alive:true}];
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,shiv.range)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,machete.range)?.id).toBe("enemy");
     const distant=[{id:"distant",pos:[0,0,2.0] as const,alive:true}];
-    for(const id of ids)
+    for(const id of ids.filter(id=>!isThrowingKnife(id)))
       expect(chooseQuickMeleeTarget([0,0,0],0,distant,()=>true,quickMeleeProfile(weaponById(id).stats).reach)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.7] as const,alive:true}],()=>true,axe.range)?.id).toBe("axe-target");
     expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.7] as const,alive:true}],()=>true,machete.range)).toBeNull();
