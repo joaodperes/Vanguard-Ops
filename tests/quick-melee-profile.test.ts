@@ -1,10 +1,17 @@
 import { describe,expect,test } from "bun:test";
 import { weaponById } from "../src/lib/game-data";
 import { quickMeleeProfile,chooseQuickMeleeTarget } from "../src/lib/quick-melee";
+import { isThrowingKnife,THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
+
+test("throwing knives use aimed charges, not the melee arc",()=>{
+  expect(isThrowingKnife("baton")).toBe(true);
+  expect(weaponById("baton").stats.range).toBe(THROWING_KNIFE_RANGE);
+  expect(weaponById("baton").stats.magSize).toBe(2);
+});
 
 describe("equipped quick melee F",()=>{
   test("takes rate, damage and reach from the actual melee loadout",()=>{
-    for(const id of ["knife_tactical","machete","shiv","baton","axe","hammer"]){
+    for(const id of ["knife_tactical","machete","shiv","axe","hammer"]){
       const stats=weaponById(id).stats;
       const quick=quickMeleeProfile(stats,id);
       expect(quick.damage).toBe(stats.damage);
@@ -24,11 +31,11 @@ describe("equipped quick melee F",()=>{
     const targets=[{id:"target",pos:[0,0,1.3] as const,alive:true}];
     const from=[0,0,0] as const;
     expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("shiv").stats.range)).toBeNull();
-    expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("baton").stats.range)?.id).toBe("target");
+    expect(chooseQuickMeleeTarget(from,0,targets,()=>true,weaponById("machete").stats.range)?.id).toBe("target");
     const far=[{id:"far",pos:[0,0,2.05] as const,alive:true}];
     expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.85] as const,alive:true}],()=>true,weaponById("hammer").stats.range)?.id).toBe("hammer-only");
     expect(chooseQuickMeleeTarget(from,0,[{id:"hammer-only",pos:[0,0,1.85] as const,alive:true}],()=>true,weaponById("axe").stats.range)).toBeNull();
-    for(const id of ["knife_tactical","machete","shiv","baton","axe","hammer"]) {
+    for(const id of ["knife_tactical","machete","shiv","axe","hammer"]) {
       const reach=quickMeleeProfile(weaponById(id).stats).reach;
       expect(chooseQuickMeleeTarget(from,0,far,()=>true,reach)).toBeNull();
     }
@@ -59,7 +66,7 @@ describe("live-match melee arcs versus ideal stationary alignment",()=>{
       profile.reach,profile.halfArcDegrees);
   };
   test("ordinary melee can catch slight lateral movement on either side, not just centered dummies",()=>{
-    for(const weaponId of ["shiv","knife_tactical","baton","machete"]){
+    for(const weaponId of ["shiv","knife_tactical","machete"]){
       const reach=quickMeleeProfile(weaponById(weaponId).stats,weaponId).reach;
       expect(hit(weaponId,-21,reach*.93)?.id).toBe("opponent");
       expect(hit(weaponId,21,reach*.93)?.id).toBe("opponent");
