@@ -68,7 +68,7 @@ import {
   roomCapacity, mapAllowedForMode, teamSizeAllowed, teamSizesForMap, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot, type WeaponStats,
+  weaponById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot, type WeaponStats,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -3152,7 +3152,12 @@ async function handle(socket: any, msg: C2S) {
           room.wonderCharges.set(key,next);
         }
       }
-      if (weapon.special?.kind === "heat" && !allowHeatShot(room, socket.id, weapon.special, now)) return;
+      const heatAtts = equippedLoadout?.secondaryWeaponId === p.weaponId
+        ? equippedLoadout.secondaryAttachments : equippedLoadout?.attachments;
+      const heat = effectiveHeatConfig(weapon,room.mode==="gungame"
+        ? {sight:null,barrel:null,grip:null,magazine:null}
+        : (heatAtts ?? {sight:null,barrel:null,grip:null,magazine:null}));
+      if (heat && !allowHeatShot(room, socket.id, heat, now)) return;
       if (weapon.special?.kind === "bolt" && now < (room.boltReadyAt.get(socket.id) ?? 0)) return;
       if(heavy && (room.boltCharges.get(socket.id)??2)<=0) return;
       if (weapon.special?.kind === "bolt") {
@@ -3464,9 +3469,14 @@ async function handle(socket: any, msg: C2S) {
         const old = room.specialHeat.get(socket.id) ?? { ...freshHeat(), updatedAt: now, ventUntil: 0 };
         if (old.ventUntil > now) return;
         if (old.heat <= 0) return;
-        room.specialHeat.set(socket.id, { ...old, ventUntil: now + special.ventSeconds * (loadout?.perkId === "quickdraw" ? 0.8 : 1) * 1000 });
+        const equippedAtts = loadout?.secondaryWeaponId === player.weaponId
+          ? loadout.secondaryAttachments : loadout?.attachments;
+        const effective = effectiveHeatConfig(weaponById(player.weaponId),equippedAtts ?? {sight:null,barrel:null,grip:null,magazine:null}) ?? special;
+        room.specialHeat.set(socket.id, { ...old, ventUntil: now + effective.ventSeconds * (loadout?.perkId === "quickdraw" ? 0.8 : 1) * 1000 });
       }
-      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,weaponById(player.weaponId).stats.reloadTime*1000));
+      const reloadAtts = loadout?.secondaryWeaponId === player.weaponId ? loadout.secondaryAttachments : loadout?.attachments;
+      const reloadStats = computeEffectiveStats(weaponById(player.weaponId),reloadAtts ?? {sight:null,barrel:null,grip:null,magazine:null});
+      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadStats.reloadTime*1000));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
       break;
     }

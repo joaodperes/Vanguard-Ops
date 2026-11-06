@@ -31,6 +31,17 @@
       "grip_precision",
       "grip_runner_ads",
       "grip_angled"
+    ],
+    "barrel": [
+      "barrel_heat_sink",
+      "barrel_heat_focus",
+      "barrel_heat_compact"
+    ],
+    "magazine": [
+      "mag_heat_reservoir",
+      "mag_heat_quickvent",
+      "mag_heat_coolant",
+      "mag_heat_lightweight"
     ]
   },
   "pistol_arc": {

@@ -21,7 +21,7 @@
     "sightType": "red_dot",
     "unlockLevel": 2,
     "unlockCost": 200,
-    "description": "1x red dot. Clean reticle, tighter ADS spread.",
+    "description": "Unmagnified optic for clear target acquisition and slightly steadier aimed shots.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -50,7 +50,7 @@
     "sightType": "holo",
     "unlockLevel": 6,
     "unlockCost": 250,
-    "description": "1x holo. Wide FOV reticle for tracking fast targets.",
+    "description": "Unmagnified holographic reticle for tracking moving targets; faster aiming and modest precision.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -75,7 +75,7 @@
     "sightType": "laser",
     "unlockLevel": 5,
     "unlockCost": 250,
-    "description": "Iron sight + visible laser indicator. Dramatically tightens hipfire.",
+    "description": "Visible aiming laser tightens hipfire only, without improving ADS spread.",
     "recommendedFor": [
       "smg",
       "shotgun",
@@ -101,7 +101,7 @@
     "sightType": "acog",
     "unlockLevel": 10,
     "unlockCost": 300,
-    "description": "4x magnification. Extends effective range, tighter ADS at distance.",
+    "description": "Four-power magnification improves target acquisition at a distance but slows aiming.",
     "recommendedFor": [
       "assault",
       "dmr",
@@ -113,8 +113,7 @@
       "lmg"
     ],
     "effects": {
-      "range": 20,
-      "adsTime": 15,
+      "adsTime": 20,
       "adsSpread": -15
     }
   },
@@ -125,7 +124,7 @@
     "sightType": "thermal",
     "unlockLevel": 12,
     "unlockCost": 300,
-    "description": "6x thermal imaging for long-distance heat signatures. Slower ADS with long-range precision.",
+    "description": "Six-power thermal optic highlights heat signatures and steadies distant aiming, but is slow to raise.",
     "recommendedFor": [
       "dmr",
       "sniper",
@@ -137,9 +136,8 @@
       "assault"
     ],
     "effects": {
-      "range": 25,
-      "adsSpread": -18,
-      "adsTime": 26
+      "adsSpread": -16,
+      "adsTime": 30
     }
   },
   {
@@ -149,7 +147,7 @@
     "sightType": "nvg",
     "unlockLevel": 14,
     "unlockCost": 300,
-    "description": "1.5x night vision. Brightens dark scenes with green tint.",
+    "description": "Night-vision optic brightens low-light scenes through a green-tinted overlay.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -166,7 +164,7 @@
     ],
     "effects": {
       "adsSpread": -8,
-      "adsTime": 5
+      "adsTime": 7
     }
   },
   {
@@ -176,7 +174,7 @@
     "sightType": "hunter",
     "unlockLevel": 16,
     "unlockCost": 300,
-    "description": "2x precision optic. Quick ADS and a clear, modest zoom for mid-range targets.",
+    "description": "Two-power precision optic balances magnification and aimed precision.",
     "recommendedFor": [
       "sniper",
       "dmr"
@@ -186,7 +184,6 @@
       "dmr"
     ],
     "effects": {
-      "range": 12,
       "adsTime": 8,
       "adsSpread": -12
     }
@@ -197,7 +194,7 @@
     "slot": "barrel",
     "unlockLevel": 4,
     "unlockCost": 250,
-    "description": "Silences fire and hides muzzle flash. Slight damage drop, tighter hipfire.",
+    "description": "Reduces audible report and radar visibility, with a slight damage loss and slower aiming.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -215,9 +212,9 @@
       "launcher"
     ],
     "effects": {
-      "damage": -5,
-      "recoil": -10,
-      "spread": -8
+      "damage": -3,
+      "recoil": -6,
+      "adsTime": 6
     }
   },
   {
@@ -226,7 +223,7 @@
     "slot": "barrel",
     "unlockLevel": 7,
     "unlockCost": 200,
-    "description": "Redirects gas. Strong vertical recoil reduction.",
+    "description": "Redirects gases to reduce sustained muzzle climb, with slightly slower aiming.",
     "recommendedFor": [
       "assault",
       "lmg",
@@ -240,7 +237,8 @@
       "pdw"
     ],
     "effects": {
-      "recoil": -22
+      "recoil": -22,
+      "adsTime": 5
     }
   },
   {
@@ -249,7 +247,7 @@
     "slot": "barrel",
     "unlockLevel": 8,
     "unlockCost": 250,
-    "description": "Redirects muzzle climb. Strong recoil control + tighter hipfire.",
+    "description": "Reduces muzzle climb and slightly tightens hipfire, but adds aiming weight.",
     "recommendedFor": [
       "assault",
       "lmg"
@@ -259,8 +257,9 @@
       "lmg"
     ],
     "effects": {
-      "recoil": -18,
-      "spread": -5
+      "recoil": -17,
+      "spread": -5,
+      "adsTime": 5
     }
   },
   {
@@ -269,7 +268,7 @@
     "slot": "barrel",
     "unlockLevel": 11,
     "unlockCost": 300,
-    "description": "Stiffer barrel. More damage + range, but MORE recoil kick.",
+    "description": "Heavier rigid barrel improves stability and effective range but slows aiming and movement.",
     "recommendedFor": [
       "dmr",
       "sniper",
@@ -281,10 +280,11 @@
       "assault"
     ],
     "effects": {
-      "damage": 12,
-      "recoil": 15,
-      "range": 10,
-      "adsSpread": -8
+      "recoil": -10,
+      "range": 8,
+      "adsSpread": -10,
+      "adsTime": 14,
+      "moveSpeed": -4
     }
   },
   {
@@ -316,7 +316,7 @@
     "slot": "grip",
     "unlockLevel": 9,
     "unlockCost": 250,
-    "description": "Faster aim-down-sights. Slight hipfire recovery.",
+    "description": "Angled foregrip raises the weapon faster and slightly tightens hipfire.",
     "recommendedFor": [
       "smg",
       "assault",
@@ -330,8 +330,8 @@
       "pdw"
     ],
     "effects": {
-      "adsTime": -20,
-      "spread": -4
+      "adsTime": -14,
+      "spread": -3
     }
   },
   {
@@ -340,7 +340,7 @@
     "slot": "grip",
     "unlockLevel": 13,
     "unlockCost": 300,
-    "description": "Laser pointer grip. Tightens hipfire dramatically (no ADS effect).",
+    "description": "Integrated laser pointer tightens hipfire, not aimed precision.",
     "recommendedFor": [
       "smg",
       "shotgun",
@@ -361,11 +361,11 @@
   },
   {
     "id": "grip_runner_ads",
-    "name": "Run-and-Gun Grip",
+    "name": "Sprint ADS Grip",
     "slot": "grip",
     "unlockLevel": 16,
     "unlockCost": 400,
-    "description": "Allows aiming down sights while sprinting. Sprint speed is reduced during ADS.",
+    "description": "Allows ADS during a sprint, but firing still requires ending the sprint.",
     "weaponCategories": [
       "assault",
       "smg",
@@ -386,7 +386,7 @@
     "slot": "magazine",
     "unlockLevel": 5,
     "unlockCost": 200,
-    "description": "+50% magazine capacity.",
+    "description": "More rounds between reloads, at the cost of added weight and slower reloads.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -402,7 +402,42 @@
       "pdw"
     ],
     "effects": {
-      "magSize": 50
+      "magSize": 30,
+      "reloadTime": 10,
+      "moveSpeed": -2
+    },
+    "categoryEffects": {
+      "smg": {
+        "magSize": 25,
+        "reloadTime": 12,
+        "moveSpeed": -4
+      },
+      "pdw": {
+        "magSize": 25,
+        "reloadTime": 12,
+        "moveSpeed": -4
+      },
+      "lmg": {
+        "magSize": 20,
+        "reloadTime": 14,
+        "moveSpeed": -4,
+        "adsTime": 6
+      },
+      "pistol": {
+        "magSize": 25,
+        "reloadTime": 8,
+        "moveSpeed": -2
+      },
+      "dmr": {
+        "magSize": 25,
+        "reloadTime": 10,
+        "moveSpeed": -3
+      },
+      "sniper": {
+        "magSize": 20,
+        "reloadTime": 12,
+        "moveSpeed": -3
+      }
     }
   },
   {
@@ -411,7 +446,7 @@
     "slot": "magazine",
     "unlockLevel": 8,
     "unlockCost": 250,
-    "description": "Faster reloads.",
+    "description": "Shortens reload time with a reduced round capacity.",
     "recommendedFor": [
       "assault",
       "smg",
@@ -427,7 +462,23 @@
       "pdw"
     ],
     "effects": {
-      "reloadTime": -25
+      "reloadTime": -25,
+      "magSize": -10
+    },
+    "categoryEffects": {
+      "shotgun": {
+        "reloadTime": -22,
+        "magSize": -15
+      },
+      "sniper": {
+        "reloadTime": -20,
+        "magSize": -15
+      },
+      "lmg": {
+        "reloadTime": -22,
+        "magSize": -10,
+        "moveSpeed": -1
+      }
     }
   },
   {
@@ -436,7 +487,7 @@
     "slot": "magazine",
     "unlockLevel": 14,
     "unlockCost": 300,
-    "description": "Massive capacity, slower handling + reload.",
+    "description": "Large high-capacity drum slows movement, reloading and aiming.",
     "recommendedFor": [
       "assault",
       "lmg",
@@ -450,9 +501,30 @@
       "pdw"
     ],
     "effects": {
-      "magSize": 100,
-      "moveSpeed": -8,
-      "reloadTime": 15
+      "magSize": 65,
+      "moveSpeed": -7,
+      "reloadTime": 30,
+      "adsTime": 10
+    },
+    "categoryEffects": {
+      "lmg": {
+        "magSize": 35,
+        "moveSpeed": -10,
+        "reloadTime": 35,
+        "adsTime": 14
+      },
+      "smg": {
+        "magSize": 60,
+        "moveSpeed": -9,
+        "reloadTime": 32,
+        "adsTime": 12
+      },
+      "pdw": {
+        "magSize": 60,
+        "moveSpeed": -9,
+        "reloadTime": 32,
+        "adsTime": 12
+      }
     }
   },
   {
@@ -461,15 +533,14 @@
     "slot": "barrel",
     "unlockLevel": 12,
     "unlockCost": 380,
-    "description": "Precision rifling tightens aimed spread and adds range at the cost of slower ADS.",
+    "description": "Precision barrel improves consistency of aimed shots at the expense of handling speed.",
     "weaponCategories": [
       "dmr",
       "sniper"
     ],
     "effects": {
       "adsSpread": -18,
-      "range": 12,
-      "adsTime": 10
+      "adsTime": 12
     }
   },
   {
@@ -478,7 +549,7 @@
     "slot": "barrel",
     "unlockLevel": 8,
     "unlockCost": 300,
-    "description": "Agile close-range barrel: faster aim and tighter hipfire with lower recoil, at the cost of effective range.",
+    "description": "Compact ported barrel reduces climb and improves close handling, at the cost of range.",
     "weaponCategories": [
       "smg",
       "shotgun",
@@ -488,10 +559,10 @@
       "launcher"
     ],
     "effects": {
-      "recoil": -14,
-      "range": -7,
-      "adsTime": -16,
-      "spread": -8
+      "recoil": -12,
+      "range": -10,
+      "adsTime": -10,
+      "spread": -5
     }
   },
   {
@@ -500,7 +571,7 @@
     "slot": "barrel",
     "unlockLevel": 11,
     "unlockCost": 330,
-    "description": "Better handling and mobility, reduced damage at distance.",
+    "description": "Shorter and lighter barrel speeds aiming and movement but increases muzzle rise and causes earlier damage falloff.",
     "weaponCategories": [
       "smg",
       "shotgun",
@@ -509,9 +580,10 @@
       "launcher"
     ],
     "effects": {
-      "moveSpeed": 6,
+      "moveSpeed": 5,
       "adsTime": -12,
-      "range": -12
+      "range": -12,
+      "recoil": 12
     }
   },
   {
@@ -535,7 +607,7 @@
     "slot": "barrel",
     "unlockLevel": 10,
     "unlockCost": 300,
-    "description": "Improves crossbow bolt accuracy and effective range.",
+    "description": "Stabilized fletching improves bolt accuracy and trajectory stability.",
     "exclusiveWeaponIds": [
       "crossbow_reclaimer"
     ],
@@ -545,7 +617,7 @@
     "effects": {
       "spread": -16,
       "adsSpread": -14,
-      "range": 14
+      "range": 8
     }
   },
   {
@@ -554,7 +626,7 @@
     "slot": "barrel",
     "unlockLevel": 15,
     "unlockCost": 420,
-    "description": "Heavier bolt head deals more direct damage but is slower to reload.",
+    "description": "Penetrating bolt head can pass through a second target with less retained damage; longer to load.",
     "exclusiveWeaponIds": [
       "crossbow_reclaimer"
     ],
@@ -562,8 +634,12 @@
       "dmr"
     ],
     "effects": {
-      "damage": 10,
+      "damage": 3,
       "reloadTime": 12
+    },
+    "bodyPenetration": {
+      "maxTargets": 2,
+      "damageRetention": 0.5
     }
   },
   {
@@ -637,10 +713,29 @@
     "slot": "magazine",
     "unlockLevel": 10,
     "unlockCost": 310,
-    "description": "A few additional rounds and quicker reloads without the bulk of a drum.",
+    "description": "Modestly increases capacity and reduces reload time without the weight of a drum.",
     "effects": {
-      "magSize": 20,
-      "reloadTime": -12
+      "magSize": 15,
+      "reloadTime": -10
+    },
+    "categoryEffects": {
+      "smg": {
+        "magSize": 12,
+        "reloadTime": -10
+      },
+      "pdw": {
+        "magSize": 12,
+        "reloadTime": -10
+      },
+      "lmg": {
+        "magSize": 10,
+        "reloadTime": -8,
+        "moveSpeed": -2
+      },
+      "sniper": {
+        "magSize": 15,
+        "reloadTime": -8
+      }
     }
   },
   {
@@ -649,13 +744,13 @@
     "slot": "magazine",
     "unlockLevel": 12,
     "unlockCost": 325,
-    "description": "Carries a few additional shotgun shells and improves reload handling.",
+    "description": "Side-mounted spare-shell holder speeds shell-by-shell shotgun reloads without increasing tube capacity.",
     "weaponCategories": [
       "shotgun"
     ],
     "effects": {
-      "magSize": 25,
-      "reloadTime": -14
+      "reloadTime": -16,
+      "moveSpeed": -1
     }
   },
   {
@@ -708,8 +803,8 @@
   },
   {
     "id": "mag_beanbag",
-    "name": "Beanbag Rounds",
-    "description": "Fast-follow-up, tighter five-projectile shells with less damage per burst.",
+    "name": "Rubber Buckshot",
+    "description": "Five low-energy rubber pellets: tighter pattern and faster follow-up at reduced damage.",
     "slot": "magazine",
     "unlockLevel": 10,
     "unlockCost": 375,
@@ -750,7 +845,7 @@
     "slot": "magazine",
     "unlockLevel": 25,
     "unlockCost": 850,
-    "description": "Two massive high-damage arrows. No normal reload: retrieve your fired bolts to refill.",
+    "description": "Two heavy arrows increase damage but must be recovered after firing; conventional reloading is disabled.",
     "recommendedFor": [
       "dmr"
     ],
@@ -759,8 +854,8 @@
     ],
     "effects": {
       "magSize": 100,
-      "damage": 190,
-      "fireRate": -12
+      "damage": 65,
+      "fireRate": -18
     },
     "exclusiveWeaponIds": [
       "crossbow_reclaimer"
@@ -772,7 +867,7 @@
     "slot": "sight",
     "unlockLevel": 18,
     "unlockCost": 420,
-    "description": "Compact 1x red-dot optic; faster ADS and tighter aim.",
+    "description": "Compact unmagnified optic for quicker aiming and modestly better aimed precision.",
     "effects": {
       "adsTime": -12,
       "adsSpread": -6
@@ -785,10 +880,21 @@
     "slot": "magazine",
     "unlockLevel": 18,
     "unlockCost": 420,
-    "description": "Improves movement at the cost of ammunition capacity.",
+    "description": "Improves mobility by carrying fewer rounds.",
     "effects": {
       "moveSpeed": 6,
-      "magSize": -15
+      "magSize": -20
+    },
+    "categoryEffects": {
+      "sniper": {
+        "moveSpeed": 5,
+        "magSize": -25,
+        "adsTime": -5
+      },
+      "pistol": {
+        "moveSpeed": 5,
+        "magSize": -20
+      }
     }
   },
   {
@@ -829,7 +935,7 @@
     "slot": "barrel",
     "unlockLevel": 18,
     "unlockCost": 525,
-    "description": "Faster rocket handling and ADS, but reduced effective range.",
+    "description": "Compact launcher support speeds aiming, reducing effective range.",
     "effects": {
       "adsTime": -12,
       "range": -8
@@ -837,11 +943,11 @@
   },
   {
     "id": "mag_launcher_reinforced",
-    "name": "Reinforced Warhead Rack",
+    "name": "Heavy Warheads",
     "slot": "magazine",
     "unlockLevel": 18,
     "unlockCost": 700,
-    "description": "Heavier ordnance for stronger direct hits, slower reload/movement.",
+    "description": "Heavy warheads increase direct impact damage but slow handling and reloading.",
     "effects": {
       "damage": 8,
       "reloadTime": 18,
@@ -866,14 +972,16 @@
   },
   {
     "id": "mag_antimaterial_fastbolt",
-    "name": "Fast-Bolt Cartridge",
+    "name": "Quick-Cycle Chamber",
     "slot": "magazine",
     "unlockLevel": 18,
     "unlockCost": 550,
-    "description": "Annihilator faster chamber cycling, stronger recoil.",
+    "description": "Quick-cycle chamber speeds reloading at the cost of follow-up shot stability.",
     "effects": {
       "reloadTime": -25,
-      "recoil": 15
+      "adsSpread": 12,
+      "moveSpeed": -2,
+      "recoil": 8
     },
     "exclusiveWeaponIds": [
       "sniper_heavy"
@@ -885,10 +993,11 @@
     "slot": "magazine",
     "unlockLevel": 18,
     "unlockCost": 550,
-    "description": "Annihilator lightweight ammo; faster movement, lower damage.",
+    "description": "Lightweight cartridges increase movement speed while lowering damage and retained range.",
     "effects": {
       "moveSpeed": 7,
-      "damage": -12
+      "damage": -12,
+      "range": -12
     },
     "exclusiveWeaponIds": [
       "sniper_heavy"
@@ -896,14 +1005,15 @@
   },
   {
     "id": "mag_antimaterial_stabilizer",
-    "name": "Stabilized Cartridge",
+    "name": "Stabilized Chamber",
     "slot": "magazine",
     "unlockLevel": 18,
     "unlockCost": 550,
-    "description": "Annihilator controlled recoil, slower ADS.",
+    "description": "Stabilized chamber improves aimed accuracy at the expense of handling speed.",
     "effects": {
-      "recoil": -20,
-      "adsTime": 12
+      "adsSpread": -18,
+      "adsTime": 12,
+      "moveSpeed": -3
     },
     "exclusiveWeaponIds": [
       "sniper_heavy"
@@ -911,18 +1021,19 @@
   },
   {
     "id": "barrel_launcher_blast",
-    "name": "Blast Chamber",
+    "name": "High-Pressure Launch Tube",
     "slot": "barrel",
     "unlockLevel": 18,
     "unlockCost": 650,
-    "description": "Launches heavier explosive ordnance with +10% damage, but range drops 15% and reload slows 12%.",
+    "description": "High-pressure launch tube improves ordnance velocity and impact, but slows aim and reloading.",
     "weaponCategories": [
       "launcher"
     ],
     "effects": {
-      "damage": 10,
-      "range": -15,
-      "reloadTime": 12
+      "damage": 7,
+      "range": 6,
+      "reloadTime": 12,
+      "adsTime": 12
     }
   },
   {
@@ -931,7 +1042,7 @@
     "slot": "barrel",
     "unlockLevel": 18,
     "unlockCost": 600,
-    "description": "Extends launcher effective range by 18%, at the cost of 12% slower ADS and 6% slower movement.",
+    "description": "Extended launch tube improves projectile reach but adds substantial handling weight.",
     "weaponCategories": [
       "launcher"
     ],
@@ -970,5 +1081,145 @@
       "moveSpeed": 6,
       "reloadTime": 12
     }
+  },
+  {
+    "id": "barrel_heat_sink",
+    "name": "Thermal Heat Sink",
+    "slot": "barrel",
+    "unlockLevel": 7,
+    "unlockCost": 300,
+    "description": "Heavy heat-dissipation fins cool faster at the cost of weight.",
+    "effects": {
+      "adsTime": 8,
+      "moveSpeed": -3
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "coolPerSecond": 24
+    }
+  },
+  {
+    "id": "barrel_heat_focus",
+    "name": "Focused Emitter",
+    "slot": "barrel",
+    "unlockLevel": 12,
+    "unlockCost": 380,
+    "description": "Focused beam improves accuracy and range but accumulates heat faster.",
+    "effects": {
+      "range": 8,
+      "adsSpread": -12
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "heatPerShot": 20
+    }
+  },
+  {
+    "id": "barrel_heat_compact",
+    "name": "Compact Emitter",
+    "slot": "barrel",
+    "unlockLevel": 16,
+    "unlockCost": 420,
+    "description": "Light emitter assembly improves aiming and movement while reducing cooling.",
+    "effects": {
+      "moveSpeed": 5,
+      "adsTime": -12
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "coolPerSecond": -18
+    }
+  },
+  {
+    "id": "mag_heat_reservoir",
+    "name": "High-Capacity Heat Reservoir",
+    "slot": "magazine",
+    "unlockLevel": 5,
+    "unlockCost": 260,
+    "description": "Less heat per pulse extends firing strings but slows passive cooling.",
+    "effects": {
+      "moveSpeed": -2
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "heatPerShot": -22,
+      "coolPerSecond": -12
+    }
+  },
+  {
+    "id": "mag_heat_quickvent",
+    "name": "Rapid Vent Module",
+    "slot": "magazine",
+    "unlockLevel": 9,
+    "unlockCost": 320,
+    "description": "Faster manual venting but more heat is generated per shot.",
+    "effects": {},
+    "heatOnly": true,
+    "heatEffects": {
+      "ventSeconds": -30,
+      "heatPerShot": 10
+    }
+  },
+  {
+    "id": "mag_heat_coolant",
+    "name": "Active Coolant Cell",
+    "slot": "magazine",
+    "unlockLevel": 14,
+    "unlockCost": 400,
+    "description": "Faster passive cooling at the cost of weight and heat per pulse.",
+    "effects": {
+      "moveSpeed": -3
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "coolPerSecond": 32,
+      "heatPerShot": 8
+    }
+  },
+  {
+    "id": "mag_heat_lightweight",
+    "name": "Lightweight Energy Cell",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 450,
+    "description": "Slim battery increases movement speed but generates heat faster.",
+    "effects": {
+      "moveSpeed": 6
+    },
+    "heatOnly": true,
+    "heatEffects": {
+      "heatPerShot": 18
+    }
+  },
+  {
+    "id": "mag_launcher_quickload",
+    "name": "Rapid Loader Module",
+    "slot": "magazine",
+    "unlockLevel": 8,
+    "unlockCost": 350,
+    "description": "Reloads rockets faster at the cost of slower aiming.",
+    "effects": {
+      "reloadTime": -22,
+      "adsTime": 12
+    },
+    "weaponCategories": [
+      "launcher"
+    ]
+  },
+  {
+    "id": "mag_launcher_light_payload",
+    "name": "Lightweight Rocket Payload",
+    "slot": "magazine",
+    "unlockLevel": 13,
+    "unlockCost": 420,
+    "description": "Light rockets speed reload and movement but reduce impact damage.",
+    "effects": {
+      "damage": -15,
+      "reloadTime": -12,
+      "moveSpeed": 5
+    },
+    "weaponCategories": [
+      "launcher"
+    ]
   }
 ]

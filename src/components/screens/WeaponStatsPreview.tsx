@@ -1,5 +1,5 @@
 "use client";
-import { computeEffectiveStats, sightDefForAttachments, type AttachmentSlot, type WeaponDef, type WeaponStats } from "@/lib/game-data";
+import { computeEffectiveStats, effectiveHeatConfig, sightDefForAttachments, type AttachmentSlot, type WeaponDef, type WeaponStats } from "@/lib/game-data";
 import { formatSpreadMrad, weaponStatDelta } from "@/lib/weapon-numbers";
 
 export type AttachmentMap = Record<AttachmentSlot, string | null>;
@@ -28,15 +28,21 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
   const displayed = preview ? computeEffectiveStats(weapon, preview) : current;
   const currentSight = sightDefForAttachments(equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
   const shownSight = sightDefForAttachments(preview ?? equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
+  const currentHeat = effectiveHeatConfig(weapon,equipped ?? EMPTY_ATTACHMENTS);
+  const shownHeat = effectiveHeatConfig(weapon,preview ?? equipped ?? EMPTY_ATTACHMENTS);
   const hasPreview = !!preview && (
     currentSight.type !== shownSight.type ||
     STAT_DEFS.some(s => current[s.key] !== displayed[s.key]) ||
     current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets ||
-    current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention
+    current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention ||
+    currentHeat?.heatPerShot !== shownHeat?.heatPerShot ||
+    currentHeat?.coolPerSecond !== shownHeat?.coolPerSecond ||
+    currentHeat?.ventSeconds !== shownHeat?.ventSeconds
   );
   const baseline = computeEffectiveStats(weapon, EMPTY_ATTACHMENTS);
   // Melee has no magazine, reload, recoil or aiming optics. Keep only relevant stats.
-  const rows = weapon.category === "melee" ? STAT_DEFS.filter(s => ["damage", "fireRate", "range", "moveSpeed"].includes(s.key)) : STAT_DEFS;
+  const rows = weapon.category === "melee" ? STAT_DEFS.filter(s => ["damage", "fireRate", "range", "moveSpeed"].includes(s.key)) :
+    shownHeat ? STAT_DEFS.filter(s => !["magSize","reloadTime"].includes(s.key)) : STAT_DEFS;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -46,6 +52,12 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
       {!compact && weapon.category !== "melee" && <div className="flex items-center justify-between gap-2 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px]">
         <span className="text-white/55">Optic</span>
         <span className="text-white font-mono">{shownSight.name} · {shownSight.zoom}×</span>
+      </div>}
+      {shownHeat && <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-2 text-[11px] space-y-1">
+        <div className="text-cyan-200 font-semibold">Heat system · {Math.ceil(shownHeat.overheatAt/shownHeat.heatPerShot)} pulses from cold</div>
+        <div className="text-white/70">Heat / pulse: {shownHeat.heatPerShot.toFixed(1)} · Cooling: {shownHeat.coolPerSecond.toFixed(1)}/s</div>
+        <div className="text-white/70">Cooling delay: {(shownHeat.coolDelayMs/1000).toFixed(2)}s · Manual vent: {shownHeat.ventSeconds.toFixed(2)}s</div>
+        {hasPreview && currentHeat && <div className="text-white/45">Current: {currentHeat.heatPerShot.toFixed(1)} heat/pulse, {currentHeat.coolPerSecond.toFixed(1)} cooling/s, {currentHeat.ventSeconds.toFixed(2)}s vent</div>}
       </div>}
       {!compact && weapon.category !== "melee" && (current.bodyPenetration || displayed.bodyPenetration) && (
         <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[11px]">

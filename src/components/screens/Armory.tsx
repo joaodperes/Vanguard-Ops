@@ -10,7 +10,7 @@ import { COSMETICS } from "@/lib/cosmetics";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
-  weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats,
+  weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats, attachmentEffectsForWeapon,
   weaponSkinById, weaponById,
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
@@ -64,6 +64,12 @@ function effectLabelShort(key: string): string {
     case "reloadTime": return "reload";
     case "moveSpeed": return "mobility";
     case "range": return "range";
+    case "heatPerShot": return "heat/shot";
+    case "coolPerSecond": return "cooling/sec";
+    case "coolDelayMs": return "cool delay";
+    case "ventSeconds": return "vent time";
+    case "overheatAt": return "heat cap";
+    case "resumeAt": return "resume threshold";
     default: return key;
   }
 }
@@ -75,7 +81,7 @@ function effectLabelShort(key: string): string {
 // moveSpeed, headshotMult), a positive bonus is GOOD. Zero is treated as
 // neutral/good so a 0% bonus doesn't show as red.
 const LOWER_IS_BETTER_STATS = new Set([
-  "recoil", "adsTime", "spread", "adsSpread", "reloadTime",
+  "recoil", "adsTime", "spread", "adsSpread", "reloadTime", "heatPerShot", "coolDelayMs", "ventSeconds",
 ]);
 function isBonusGood(statKey: string, value: number): boolean {
   return LOWER_IS_BETTER_STATS.has(statKey) ? value <= 0 : value >= 0;
@@ -1451,11 +1457,13 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                   </div>
                 )}
                 <div className="flex flex-wrap gap-1">
-                  {Object.entries(a.effects).map(([k, v]) => (
+                  {Object.entries({ ...attachmentEffectsForWeapon(a,weaponById(weaponId)), ...(a.heatEffects ?? {}) }).map(([k, v]) => (
                     <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${isBonusGood(k, v!) ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-rose-500/15 text-rose-300 border border-rose-500/20"}`}>
                       {v! > 0 ? "+" : ""}{v}% {effectLabelShort(k)}
                     </span>
                   ))}
+                  {a.shotgunAmmo && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Shell type: {a.name}</span>}
+                  {a.bodyPenetration && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Penetrates {a.bodyPenetration.maxTargets} bodies</span>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">

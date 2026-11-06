@@ -3,7 +3,7 @@
 // Shared between API routes, the game server, and the client UI.
 // ============================================================================
 
-import type { WeaponSpecial } from "./weapon-mechanics";
+import type { WeaponSpecial, HeatConfig } from "./weapon-mechanics";
 import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
@@ -127,11 +127,19 @@ export const CATEGORY_ATTACHMENT_CHOICES: Partial<Record<WeaponCategory, Partial
 export function compatibleAttachments(weaponId: string, slot: AttachmentSlot): string[] {
   const weapon = weaponById(weaponId);
   if (!weaponAttachmentSlots(weapon).includes(slot)) return [];
+  // Heat weapons share a reusable pool of cooling, venting and emitter hardware.
+  // Explicit weapon overrides take precedence; conventional magazines never apply.
+  const heatOptions: Partial<Record<AttachmentSlot, string[]>> = {
+    barrel: ["barrel_heat_sink", "barrel_heat_focus", "barrel_heat_compact"],
+    magazine: ["mag_heat_reservoir", "mag_heat_quickvent", "mag_heat_coolant", "mag_heat_lightweight"],
+  };
   const allowed = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot] ??
-    CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot] ?? [];
+    (weapon.special?.kind === "heat" && heatOptions[slot]
+      ? heatOptions[slot] : CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot]) ?? [];
   return allowed.filter(id => ATTACHMENTS.some(a =>
     a.id === id && a.slot === slot &&
-    (!a.exclusiveWeaponIds || a.exclusiveWeaponIds.includes(weaponId))
+    (!a.exclusiveWeaponIds || a.exclusiveWeaponIds.includes(weaponId)) &&
+    (!a.heatOnly || weapon.special?.kind === "heat")
   ));
 }
 
@@ -222,11 +230,7 @@ export interface AttachmentDef {
   // For sight attachments: which SightType this attachment installs. Non-sight
   // attachments leave this undefined.
   sightType?: SightType;
-  // Weapon categories this attachment is compatible with. USED FOR FILTERING:
-  // the customizer only shows attachments whose `weaponCategories` includes the
-  // current weapon's category. Leave undefined to mean "all weapons". This is
-  // the canonical filter field — `compatibleAttachments()` reads it directly.
-  // Examples: suppressors don't fit launchers; scopes don't fit shotguns.
+  // Descriptive metadata; the curated per-weapon/category lists determine compatibility.
   weaponCategories?: WeaponCategory[];
   exclusiveWeaponIds?: string[];
   // Legacy alias for `weaponCategories` (kept for backward-compat with any
@@ -235,8 +239,13 @@ export interface AttachmentDef {
   recommendedFor?: WeaponCategory[];
   /** Only effective for shotguns; changes pellet count, spread and status effects. */
   shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
-  /** Optional ammo behavior; magazine-only and restricted through exclusiveWeaponIds. */
+  /** Optional piercing projectile profile (body targets, never walls). */
   bodyPenetration?: { maxTargets: number; damageRetention: number; retentionBonus?: number };
+  heatOnly?: boolean;
+  /** Overrides replace base effect percentages for the matching weapon class. */
+  categoryEffects?: Partial<Record<WeaponCategory, Partial<AttachmentDef["effects"]>>>;
+  /** Shared heat-mechanic percentages, resolved on both client and server. */
+  heatEffects?: Partial<Record<"heatPerShot" | "coolPerSecond" | "coolDelayMs" | "ventSeconds" | "overheatAt" | "resumeAt",number>>;
   effects: {
     damage?: number;       // additive percent e.g. 10 => +10%
     recoil?: number;       // additive percent (negative reduces)
@@ -251,6 +260,35 @@ export interface AttachmentDef {
 }
 
 export const ATTACHMENTS: AttachmentDef[] = attachmentsData as unknown as AttachmentDef[];
+
+export function attachmentEffectsForWeapon(att: AttachmentDef, weapon: WeaponDef): AttachmentDef["effects"] {
+  return { ...att.effects, ...(att.categoryEffects?.[weapon.category] ?? {}) };
+}
+
+/** Heat upgrades are defined by mechanic rather than weapon ID, so subsequent
+ * heat weapons inherit the same cooling hardware and authoritative handling. */
+export function effectiveHeatConfig(weapon: WeaponDef, atts: Partial<Record<AttachmentSlot,string|null>>): HeatConfig | null {
+  const special = weapon.special;
+  if (special?.kind !== "heat") return null;
+  const mods: Record<string, number> = {};
+  for (const slot of ALL_ATTACHMENT_SLOTS) {
+    const id = atts[slot];
+    if (!id || !compatibleAttachments(weapon.id,slot).includes(id)) continue;
+    const attachment = attachmentById(id);
+    for (const [key,value] of Object.entries(attachment?.heatEffects ?? {}))
+      mods[key] = (mods[key] ?? 0) + value;
+  }
+  const scaled = (key: keyof HeatConfig, base: number) => base * (1 + (mods[key] ?? 0)/100);
+  const overheatAt = Math.max(10,scaled("overheatAt",special.overheatAt));
+  return { ...special,
+    heatPerShot: Math.max(.1,scaled("heatPerShot",special.heatPerShot)),
+    coolPerSecond: Math.max(.1,scaled("coolPerSecond",special.coolPerSecond)),
+    coolDelayMs: Math.max(0,scaled("coolDelayMs",special.coolDelayMs)),
+    ventSeconds: Math.max(.2,scaled("ventSeconds",special.ventSeconds)),
+    overheatAt,
+    resumeAt: Math.min(overheatAt - 1,Math.max(0,scaled("resumeAt",special.resumeAt))),
+  };
+}
 
 export interface WeaponSkinDef {
   id: string;
@@ -459,11 +497,7 @@ export function damageAtRange(baseDamage: number, distance: number, range: numbe
 }
 
 // Compute effective stats after applying attachment effects.
-// `spread` (hipfire) and `adsSpread` (ADS) are tracked separately so attachments
-// can tune one without the other (e.g. laser sight only buffs hipfire; red dot
-// only buffs ADS). If an attachment sets only `spread`, the same modifier is
-// applied to ADS too (backward-compat with attachments authored before the
-// decoupling).
+// Hipfire and ADS dispersion are independent; hipfire lasers never buff ADS.
 export interface EffectiveStats extends WeaponStats {
   shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
   magSize: number;
@@ -478,8 +512,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     const id = atts[slot];
     if (!id) continue;
     const def = attachmentById(id);
-    if (!def || (def.exclusiveWeaponIds && !def.exclusiveWeaponIds.includes(weapon.id))) continue;
-    for (const [k, v] of Object.entries(def.effects)) {
+    if (!def || !compatibleAttachments(weapon.id,slot).includes(id)) continue;
+    for (const [k, v] of Object.entries(attachmentEffectsForWeapon(def, weapon))) {
       acc[k] = (acc[k] ?? 0) + (v as number);
     }
   }
@@ -488,9 +522,9 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
   // Magazine ammo effects are opt-in and must be legal for this exact weapon.
-  const piercingAmmo = ammoAttachment?.bodyPenetration &&
-    compatibleAttachments(weapon.id, "magazine").includes(ammoAttachment.id)
-    ? ammoAttachment.bodyPenetration : undefined;
+  const barrelAttachment = attachmentById(atts.barrel ?? "");
+  const piercingAmmo = [ammoAttachment,barrelAttachment].find(a =>
+    a?.bodyPenetration && compatibleAttachments(weapon.id,a.slot).includes(a.id))?.bodyPenetration;
   const bodyPenetration = !piercingAmmo ? base.bodyPenetration
     : base.bodyPenetration
       ? {
@@ -501,7 +535,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
           )),
         }
       : { maxTargets: piercingAmmo.maxTargets, damageRetention: piercingAmmo.damageRetention };
-  const shell = weapon.category === "shotgun" ? ammoAttachment?.shotgunAmmo : undefined;
+  const shell = weapon.category === "shotgun" && ammoAttachment &&
+    compatibleAttachments(weapon.id,"magazine").includes(ammoAttachment.id) ? ammoAttachment.shotgunAmmo : undefined;
   const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
     shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
     shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .70, spreadMul: 1.8, rangeMul: .75, rateMul: 1 } :
@@ -514,15 +549,16 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     ...base,
     bodyPenetration,
     shotgunAmmo: shell,
-    auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" ? true : base.auto,
+    auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" &&
+      compatibleAttachments(weapon.id,"magazine").includes("mag_bolt_quiver") ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
     fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1),
     damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.
     spread: Math.max(0.0005, base.spread * (1 + (acc.spread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
-    // ADS spread: uses adsSpread modifier if set, else falls back to spread modifier.
-    adsSpread: Math.max(0.0, base.adsSpread * (1 + ((acc.adsSpread ?? acc.spread) ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
+    // An explicit ADS effect is required to influence ADS accuracy.
+    adsSpread: Math.max(0.0, base.adsSpread * (1 + (acc.adsSpread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     adsTime: Math.max(0.05, base.adsTime * (1 + (acc.adsTime ?? 0) / 100)),
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),

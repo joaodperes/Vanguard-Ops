@@ -104,6 +104,94 @@
           "dragons_breath",
           "beanbag"
         ]
+      },
+      "categoryEffects": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "number"
+            },
+            "recoil": {
+              "type": "number"
+            },
+            "spread": {
+              "type": "number"
+            },
+            "adsSpread": {
+              "type": "number"
+            },
+            "adsTime": {
+              "type": "number"
+            },
+            "magSize": {
+              "type": "number"
+            },
+            "reloadTime": {
+              "type": "number"
+            },
+            "moveSpeed": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "heatOnly": {
+        "type": "boolean"
+      },
+      "heatEffects": {
+        "type": "object",
+        "properties": {
+          "heatPerShot": {
+            "type": "number"
+          },
+          "coolPerSecond": {
+            "type": "number"
+          },
+          "coolDelayMs": {
+            "type": "number"
+          },
+          "ventSeconds": {
+            "type": "number"
+          },
+          "overheatAt": {
+            "type": "number"
+          },
+          "resumeAt": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "bodyPenetration": {
+        "type": "object",
+        "required": [
+          "maxTargets",
+          "damageRetention"
+        ],
+        "properties": {
+          "maxTargets": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "damageRetention": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "retentionBonus": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
       }
     },
     "additionalProperties": false

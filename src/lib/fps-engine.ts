@@ -86,7 +86,7 @@ import {
   type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
-  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
+  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
   SIGHT_DEFS, sightDefForType, hasMountedSight, adsFieldOfView, weaponSlot, WEAPONS, weaponAttachmentSlots,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
@@ -6271,8 +6271,11 @@ export class FPSEngine {
       }
     }
     for (const [id, state] of this.heatStates) {
-      const special = weaponById(id).special;
-      if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
+      const heatAtts = id === this.primaryWeaponId ? this.opts.loadout.attachments :
+        id === this.secondaryWeaponId ? (this.opts.loadout.secondaryAttachments ?? {sight:null,barrel:null,grip:null,magazine:null}) :
+        {sight:null,barrel:null,grip:null,magazine:null};
+      const heat = effectiveHeatConfig(weaponById(id),heatAtts);
+      if (heat) this.heatStates.set(id, coolHeat(state, heat, dt, now));
     }
     const time=Date.now();
     this.updateStormMines(time);
@@ -6806,7 +6809,7 @@ export class FPSEngine {
     const special = w.special;
     if (special?.kind === "heat") {
       const state = this.heatStates.get(w.id) ?? freshHeat();
-      const next = addHeat(state, special, now);
+      const next = addHeat(state, effectiveHeatConfig(w,this.getCurrentAttachments()) ?? special, now);
       if (!next) return; // locked by overheat; no bullets or energy consumed
       this.heatStates.set(w.id, next);
     }
@@ -7619,10 +7622,11 @@ export class FPSEngine {
   private triggerMuzzleFlash() {
     // A mechanical crossbow does not emit a firearm-style muzzle flash.
     if (this.weaponId === "crossbow_reclaimer") return;
-    (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = 1;
-    this.muzzleFlash.scale.setScalar(1 + Math.random() * 0.6);
+    const suppressed = this.getCurrentAttachments().barrel === "barrel_suppressor";
+    (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = suppressed ? .14 : 1;
+    this.muzzleFlash.scale.setScalar(suppressed ? .65 : 1 + Math.random() * .6);
     this.muzzleFlash.rotation.z = Math.random() * Math.PI;
-    this.muzzleLight.intensity = 3;
+    this.muzzleLight.intensity = suppressed ? .25 : 3;
     this.muzzleFlashUntil = performance.now() + 60;
   }
 
@@ -7884,7 +7888,7 @@ export class FPSEngine {
       if (this.sprinting && this.activePerkId !== "field_loader") return;
       this.reloading = true;
       this.reloadStartedAt = performance.now();
-      this.reloadDurationMs = special.ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
+      this.reloadDurationMs = (effectiveHeatConfig(weaponById(this.weaponId),this.getCurrentAttachments()) ?? special).ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
       this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
       this.sound.play("reload", { volume: 0.55 });
       this.socket?.emit("message", { t: "reload" });
