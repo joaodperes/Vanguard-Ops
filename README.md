@@ -19,11 +19,11 @@ Players can jump straight into combat against AI, create a room for friends, or 
 | **Free-for-All (FFA)** | Every operator for themselves; reach the kill limit. |
 | **Team Deathmatch (TDM)** | Two teams compete on eliminations. |
 | **Kill Confirmed** | Collect enemy tags to score; recover friendly tags to deny points. |
-| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Six maps: Forest Warfare, Orbital Nexus, 16v16 Floodgate, snowbound Whiteout Depot, plus trial CTF layouts for Verdant Ruins and Ridgefall. All ten maps also support TDM and Kill Confirmed. |
+| **Capture the Flag (CTF)** | Steal and deliver the enemy flag while defending your own. Choose from Forest Warfare, Orbital Nexus, 16v16 Floodgate, snowbound Whiteout Depot, and trial layouts for Verdant Ruins and Ridgefall. |
 | **Gun Game** | Advance through a rotating weapon sequence by earning eliminations. |
 | **Survival** | Fight escalating enemy waves, including co-op and progressively harder tiers. |
 
-Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, Afterlight City (day and night), Forest Warfare, Orbital Nexus and Floodgate. Modes have different supported-map rules.
+Maps include Blacksite, Breakwater, Verdant Ruins, Ridgefall, both Afterlight City editions, Forest Warfare, Orbital Nexus, Floodgate, Whiteout Depot and Emberhold Castle. Emberhold is available in Free-for-All, Survival and Gun Game. Four bridges lead to the medieval keep, and the lava moat kills on contact. Afterlight City (Day) is available in Team Deathmatch.
 
 ## Bot personalities
 

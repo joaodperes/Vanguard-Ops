@@ -40,12 +40,15 @@ Current recipes use procedural game primitives. They do not import arbitrary mod
 
 ## Canonical map files and migration
 
-Each of the nine registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus, floodgate and whiteout_depot. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
+Each of the ten registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers those documents. Previous split JSON files remain migration snapshots. TypeScript implements engine geometry templates and objective behavior. Map documents define objective placements and supported modes.
 
 Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night currently share the same authored regions, initial spawn pools and city layout; their visual themes differ. Their exports include visible shared props instead of depending on another editor draft.
 
 Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 maps, v2 backups, v1 blueprint JSON and old split bundles. Undo and JSON roundtrips preserve links and assemblies. Export map writes one file for review/rebuild; Backup all saves the editor library. New map IDs still need static registration and room/protocol review before publishing.
 
+## Lava surfaces
+
+Choose **Hazard** and then **lava** to place a rectangular liquid surface. Its rendered height is `y + h / 2`, where `y` is the centre and `h` is the full height. A combatant dies when their feet reach or pass that height within the rectangle. Bridges and ledges above it stay safe. Leave a clear drop to the liquid and a supported path for bots. Emberhold's four moat pieces share one height and meet at their edges.
 
 ## Canonical map identities (legacy IDs)
 
@@ -63,6 +66,7 @@ Network/persistence map IDs must **not** be renamed merely to match the player-f
 | `orbital_nexus` | Orbital Nexus | Orbital station, reactor deck and vaults | Orbit |
 | `floodgate` | Floodgate | Hydroelectric plant with spillway | Waves |
 | `whiteout_depot` | Whiteout Depot | Snowbound railway depot | Snowflake |
+| `emberhold` | Emberhold Castle | Stone keep, battlements and lava moat | Castle |
 
 The older `BASE_MAPS` geometry templates in `src/lib/game-protocol.ts` reuse these blueprint labels rather than declaring misleading separate names. New maps must be registered in `src/lib/map-documents.ts` and assigned a distinct icon. If a new player-facing map name is needed, change the blueprint metadata, **not** the stable ID.
 

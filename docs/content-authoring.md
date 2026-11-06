@@ -170,13 +170,15 @@ Use `/map-editor` and export the JSON; replace `src/data/maps/<mapId>.json` in t
 }
 ```
 
-Put this object under `maps.frost_yard` (not a top-level array) in the existing version-1 blueprint file. `regions` are unioned walkable rectangles; `x,z` are centers and `w,d` are **full** extents. `features` may be `cover`, `accent` or `platform`; platforms generate stairs. Spawns are `[x,y,z]`. Give overlapping regions ample passage width; verify stairs do not leave walkable ground. Reuse an existing `templateMapId` for theme and legacy center structures. Map definitions are bundled, not dynamically uploaded to a live server.
+Use this object as the `blueprint` in the version-2 map document, alongside `id` and `theme`. Register the document in `src/lib/map-documents.ts`. Each rectangular region uses centre coordinates `x,z` and full extents `w,d`. Spawns are `[x,y,z]`. Give overlapping regions ample passage width and verify stairs connect to walkable landings. A `templateMapId` can reuse legacy centre structures. The build bundles these maps for offline and multiplayer play.
 
 ## Map color palettes, biomes and prop authoring
 
 Floodgate (`floodgate`) is a fully authored 16v16 CTF layout with no inherited template geometry. It is registered in `MapId`, the shared `CTF_MAP_IDS` allowlist and room-capacity rules; it also supports TDM and Kill Confirmed. Ground-level flag/delivery positions and bot lanes are implemented in `ctf-rules.ts`. A new CTF map must review all three contracts, not only append a blueprint or theme. See [Floodgate](floodgate.md).
 
 Periodic hazards support optional `visual: "spikes" | "steam"` and `warningFor` fields in both blueprint and protocol types. Their animation and damage phase use `periodicHazardPhase()` and the synchronized environment clock. Steam is an appearance of the existing periodic damage mechanic, not a new server object type. Update schema, validation, editor copy/export, visuals and tests together when extending these fields.
+
+The `lava` hazard uses only box geometry. The visible surface is at `y + h / 2`. Feet within the X/Z extents at or below that height are eliminated immediately, even during spawn protection. Place bridges above the surface and keep every spawn clear of it. The offline engine and multiplayer server share the contact rule, and bots look for support above the lava when choosing a route.
 
 Every shipped map has a dedicated JSON file in `src/data/map-themes/`. Edit its palette and landmarks to set a recognisable theme; it is independent of physical blueprint geometry. For a new map-specific file, add a static import to `src/lib/map-visuals.ts`, otherwise the map inherits its template theme. See `docs/map-studio.md` for the complete authoring example, supported scenery kinds, collision rules and route-design checklist.
 

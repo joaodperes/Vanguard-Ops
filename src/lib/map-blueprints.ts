@@ -53,8 +53,9 @@ export function compileVisibleLegacyBoxes<T extends {pos:Vec3;size:Vec3}>(
   return source.flatMap((box,index)=>
     hidden.has(index)?[]:[overrideBox(box,overrides?.[String(index)])]);
 }
+export const MAP_HAZARD_TYPES = ["fire", "lava", "spikes", "jump_pad", "moving_platform", "destructible_wall"] as const;
 export interface MapHazard {
-  id: string; type: "fire" | "spikes" | "jump_pad" | "moving_platform" | "destructible_wall";
+  id: string; type: (typeof MAP_HAZARD_TYPES)[number];
   x: number; z: number; y: number; w: number; d: number; h: number;
   dps?: number; damage?: number; period?: number; activeFor?: number; offset?: number;
   /** Periodic trap presentation and pre-activation telegraph, shared with gameplay time. */
@@ -236,6 +237,7 @@ export function authoredHazardEnvironment(h:MapHazard):import("./game-protocol")
   const base={id:h.id,pos:[h.x,h.y,h.z] as Vec3,size:[h.w/2,h.h/2,h.d/2] as Vec3};
   switch(h.type){
     case "fire":return {...base,type:"fire",dps:h.dps??7};
+    case "lava":return {...base,type:"lava"};
     case "spikes":return {...base,type:"spikes",damage:h.damage??25,period:h.period??5,activeFor:h.activeFor??2,offset:h.offset??0,
       warningFor:h.warningFor,visual:h.visual};
     case "jump_pad":return {...base,type:"jump_pad",launch:[h.launchX??0,h.launchY??18,h.launchZ??0] as Vec3};
@@ -273,7 +275,7 @@ export function validateBlueprint(b: MapBlueprint): string[] {
   for(const h of b.hazards??[]){
     if(!h.id||seen.has(h.id))issues.push(`Hazard ${h.id} missing/duplicate ID`);
     seen.add(h.id);
-    if(!["fire","spikes","jump_pad","moving_platform","destructible_wall"].includes(h.type))
+    if(!MAP_HAZARD_TYPES.includes(h.type))
       issues.push(`Hazard ${h.id} invalid type`);
     if(![h.x,h.z,h.y,h.w,h.d,h.h].every(Number.isFinite)||h.w<=0||h.d<=0||h.h<=0)
       issues.push(`Hazard ${h.id} invalid geometry`);

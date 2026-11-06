@@ -27,6 +27,27 @@ export function withinEnvironment(o: EnvironmentObject, feet: Vec3, radius = 0.4
     feet[1] >= o.pos[1] - 0.45 && feet[1] <= o.pos[1] + o.size[1] + 0.5;
 }
 
+export const LAVA_DEATH_SOURCE = "env_lava";
+
+type HazardBounds = { type: string; pos: readonly number[]; size: readonly number[] };
+
+export function lavaSurfaceY(o: HazardBounds): number {
+  return o.pos[1] + o.size[1];
+}
+
+export function overLava(o: HazardBounds, x: number, z: number): boolean {
+  return o.type === "lava" && Math.abs(x - o.pos[0]) <= o.size[0] && Math.abs(z - o.pos[2]) <= o.size[2];
+}
+
+/** Test feet against the visible liquid surface, including an overshot landing. */
+export function withinLava(o: HazardBounds, x: number, feetY: number, z: number): boolean {
+  return overLava(o, x, z) && feetY <= lavaSurfaceY(o);
+}
+
+export function lavaAt(objects: readonly EnvironmentObject[] | undefined, feet: Vec3): boolean {
+  return objects?.some(o => withinLava(o, ...feet)) ?? false;
+}
+
 export function environmentCover(o: EnvironmentObject): CoverBox | null {
   if (o.type !== "moving_platform" && o.type !== "destructible_wall") return null;
   return { pos: [...o.pos], size: [...o.size], kind: o.type === "moving_platform" ? "platform" : "cover", environmentId: o.id };

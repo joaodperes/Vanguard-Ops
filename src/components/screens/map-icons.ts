@@ -1,6 +1,6 @@
 import type { MapId } from "@/lib/game-protocol";
 import {
-  Building2, Factory, Landmark, LockKeyhole, Map as MapIcon, MoonStar,
+  Building2, Castle, Factory, Landmark, LockKeyhole, Map as MapIcon, MoonStar,
   Orbit, Ship, Snowflake, Trees, Waves, type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +16,7 @@ export const MAP_ICONS: Record<MapId, LucideIcon> = {
   skybridge: Factory,          // Ridgefall: industrial steelworks
   bunker: LockKeyhole,         // Blacksite: underground secure vault
   shipyard: Ship,              // Breakwater: harbor and container court
+  emberhold: Castle,          // Emberhold Castle: volcanic keep
   terminal: Building2,         // Afterlight City (Day): urban district
   arena_neon: MoonStar,        // Afterlight City (Night): neon streets
   forest_warfare: Trees,      // woodland

@@ -14,6 +14,7 @@ import {legacyObjectiveMap} from "./map-objectives";
 
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
+  emberhold: {scale:1,pace:"balanced",description:"A stone keep with four crossings over a lethal lava moat"},
   whiteout_depot: {scale:1,pace:"balanced",description:"Snowbound freight sheds, covered rail platforms and a sheltered service gallery"},
   floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
@@ -84,10 +85,11 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const allSpawns=[...activeLegacySpawns.ffa,...activeLegacySpawns.red,...activeLegacySpawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
   const props=mapProps(base.id,plan,visuals,allSpawns);
+  // A spawn on the top face of a platform is supported by it.
   const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
     Math.abs(p[0]-c.pos[0]) < c.size[0]+1.25 &&
     Math.abs(p[2]-c.pos[2]) < c.size[2]+1.25 &&
-    p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+.3);
+    p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+(c.kind==="platform"?0:.3));
   // Preserve all spawn choices. A cover island or its approach stairs must
   // not strand the surrounding playable district or spawn-kill a player.
   const flankFeatures=plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));

@@ -56,7 +56,7 @@ import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
 import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
-import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
+import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
@@ -103,8 +103,9 @@ import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
-  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit,
+  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit, lavaAt, LAVA_DEATH_SOURCE,
 } from "@/lib/dynamic-environment";
+import { buildLavaSurface } from "./lava-surface";
 import {
   BOT_STEP_HEIGHT, botGroundHeight, botMoveBlocked as blocksBotMotion,
   resolveBotOverlap, botNextFeetY,
@@ -241,7 +242,7 @@ export interface HudState {
   scoped: boolean;
   // Round 20h: Local player spawn protection (for first-person shield overlay).
   selfSpawnProtected?: boolean;
-  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
+  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; lava?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
   // Dynamic crosshair spread: 0 = tight, 1 = max bloom. Driven by movement,
   // sprinting, jumping, firing — the HUD uses this to size the crosshair gap.
   spreadFactor: number;
@@ -289,6 +290,7 @@ export interface HudState {
   survivalReinforcements?: number;
   survivalMaxReinforcements?: number;
   survivalDowned?: boolean;
+  survivalWaitingForWave?: boolean;
   survivalPrepLeft?: number;
   survivalWaveActive?: boolean;
   // Round 18-b: wave banner — timestamp (ms) when the current wave started.
@@ -636,6 +638,7 @@ export class FPSEngine {
   private floodgateBreachAt:number|null=null;
   private whiteoutSnow:THREE.Points|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
+  private lavaTime = { value: 0 };
   private environmentCooldown = new Map<string, number>();
 
 
@@ -1320,6 +1323,7 @@ export class FPSEngine {
     dir.shadow.camera.left = -shadowExtent; dir.shadow.camera.right = shadowExtent;
     dir.shadow.camera.top = shadowExtent; dir.shadow.camera.bottom = -shadowExtent;
     dir.shadow.camera.far = 120;
+    if (this.map.biome === "volcanic_castle") dir.shadow.bias = -.00035;
     this.scene.add(dir);
     const fill = new THREE.DirectionalLight(cityDay ? 0xaad9ee : 0x4a6080, cityDay ? 0.65 : 0.4);
     fill.position.set(-20, 20, -20);
@@ -2487,6 +2491,20 @@ export class FPSEngine {
       }else if(p.kind==="terminal"){
         cube(group,masonry,0,1.1,0,2,2.2,1.3);
         cube(group,glass,0,1.48,.7,1.5,.75,.08);
+      }else if(p.kind==="lamp" && biome==="volcanic_castle"){
+        const height = p.h ?? 3;
+        cube(group, masonry, 0, height * 0.38, 0, .23, height * .76, .23);
+        const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.46, .20, .32, 8), trim);
+        bowl.position.y = height * .76;
+        group.add(bowl);
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(.29, .73, 7),
+          new THREE.MeshBasicMaterial({ color: p.color ?? "#ff943f" }));
+        flame.position.set(.04, bowl.position.y + .43, 0);
+        flame.rotation.z = -.18;
+        group.add(flame);
+        const light = new THREE.PointLight(p.color ?? "#ff943f", 22, 11);
+        light.position.y = flame.position.y + .15;
+        group.add(light);
       }else if(p.kind==="lamp"){
         const postH=p.h??6.4;
         cube(group,masonry,0,postH/2,0,.19,postH,.19);
@@ -2533,7 +2551,9 @@ export class FPSEngine {
       const g = new THREE.Group();
       g.position.set(...o.pos);
       g.userData.environmentType = o.type;
-      if (o.type === "fire") {
+      if (o.type === "lava") {
+        g.add(buildLavaSurface(o, this.lavaTime));
+      } else if (o.type === "fire") {
         const floor = new THREE.Mesh(
           new THREE.CylinderGeometry(o.size[0], o.size[0], 0.06, 28),
           new THREE.MeshBasicMaterial({ color: 0xb6300c, transparent: true, opacity: 0.5, depthWrite: false })
@@ -2625,6 +2645,7 @@ export class FPSEngine {
   private updateEnvironment(dt: number): void {
     const previous = this.environmentTime;
     this.environmentTime += dt;
+    this.lavaTime.value = this.environmentTime;
     // The distant spillway and the playable steam grates share the exact same
     // authoritative active window. Decorative water no longer suggests damage
     // while the grates are safe.
@@ -2652,7 +2673,14 @@ export class FPSEngine {
         this.scene.background.set(this.map.theme.sky).lerp(new THREE.Color("#e2edf4"),strength*.48);
       if(this.whiteoutSnow)updateWhiteoutSnow(this.whiteoutSnow,strength,this.environmentTime,this.pos.x,this.pos.y+2,this.pos.z);
     }
-    for (const o of this.map.environment ?? []) {
+    const objects = this.map.environment ?? [];
+    if (!this.opts.online && objects.some(o => o.type === "lava")) {
+      const now = performance.now();
+      for (const bot of this.combatants.values()) {
+        if (bot.isBot && bot.alive && lavaAt(objects, bot.pos)) this.eliminateBotByEnvironment(bot, LAVA_DEATH_SOURCE, now);
+      }
+    }
+    for (const o of objects) {
       const g = this.environmentMeshes.get(o.id);
       if (!g) continue;
       if (o.type === "moving_platform") {
@@ -2759,6 +2787,11 @@ export class FPSEngine {
     if (!this.alive || this.matchEnded) return;
     const now = performance.now();
     const feet: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    const objects = this.map.environment ?? [];
+    if (!this.opts.online && lavaAt(objects, feet)) {
+      this.takeDamage(this.health, "Environment", "ffa", false, LAVA_DEATH_SOURCE);
+      return;
+    }
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
     const flood=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,floodAge,this.map.cover);
@@ -2768,7 +2801,7 @@ export class FPSEngine {
       this.takeDamage(28,"Environment","ffa",false,"env_floodgate_surge");
     }
 
-    for (const o of this.map.environment ?? []) {
+    for (const o of objects) {
       if (o.type === "jump_pad" && withinEnvironment(o, feet) && this.onGround && now >= (this.environmentCooldown.get(o.id) ?? 0)) {
         this.environmentCooldown.set(o.id, now + 700);
         this.vel.y = o.launch[1];
@@ -2799,20 +2832,12 @@ export class FPSEngine {
           this.environmentCooldown.set(key,now+900);
           c.health=Math.max(0,c.health-28);
           if(c.health<=0){
-            c.alive=false;c.deaths++;
-            if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(c.id,[...c.pos] as Vec3);
-            c.deathAnimAt=now;c.deathAnimDur=900;
-            const entry:KillFeedEntry={killer:"Environment",victim:c.name,weapon:"env_floodgate_surge",
-              headshot:false,killerTeam:"ffa",victimTeam:c.team};
-            this.killFeed.unshift(entry);
-            if(this.killFeed.length>6)this.killFeed.pop();
-            this.opts.onKillFeed(entry);
-            if(this.opts.mode!=="survival")this.scheduleRespawn(c);
+            this.eliminateBotByEnvironment(c, "env_floodgate_surge", now);
             continue;
           }
         }
       }
-      for (const o of this.map.environment ?? []) {
+      for (const o of objects) {
         if (o.type === "jump_pad" && c.ai && c.ai.envJumpVelocityY === undefined && withinEnvironment(o, c.pos)) {
           const key = `${c.id}|${o.id}|jump`;
           if (now >= (this.environmentCooldown.get(key) ?? 0)) {
@@ -2833,18 +2858,23 @@ export class FPSEngine {
         this.environmentCooldown.set(key, now + interval);
         c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
         if (c.health <= 0) {
-          c.alive = false; c.health = 0; c.deaths++;
-          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(c.id, [...c.pos] as Vec3);
-          c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
-          const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
-          this.killFeed.unshift(entry);
-          if (this.killFeed.length > 6) this.killFeed.pop();
-          this.opts.onKillFeed(entry);
-          if (this.opts.mode !== "survival") this.scheduleRespawn(c);
+          this.eliminateBotByEnvironment(c, o.type, now);
           break;
         }
       }
     }
+  }
+
+  private eliminateBotByEnvironment(bot: Combatant, weapon: string, now: number): void {
+    bot.alive = false; bot.health = 0; bot.deaths++;
+    if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(bot.id, [...bot.pos]);
+    bot.deathAnimAt = now; bot.deathAnimDur = 900;
+    const entry: KillFeedEntry = { killer: "Environment", victim: bot.name, weapon,
+      headshot: false, killerTeam: "ffa", victimTeam: bot.team };
+    this.killFeed.unshift(entry);
+    if (this.killFeed.length > 6) this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    if (this.opts.mode !== "survival") this.scheduleRespawn(bot);
   }
 
   /** Animated camo: scrolling procedural starfield or bioluminescent sludge.
@@ -5704,7 +5734,7 @@ export class FPSEngine {
           this.survivalDowned = false;
           this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
-          this.alive = true; this.health = msg.health; this.respawnAt = 0;
+          this.alive = true; this.health = msg.health; this.respawnAt = 0; this.lastDeath = undefined;
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
@@ -9677,7 +9707,7 @@ export class FPSEngine {
     dmg:number,attackerName:string,attackerTeam:string,head:boolean,
     weaponId="rifle_ar",attackerPos?:Vec3,
   ) {
-    if (!this.alive || this.selfSpawnProtectedUntil > Date.now()) return;
+    if (!this.alive || (weaponId !== LAVA_DEATH_SOURCE && this.selfSpawnProtectedUntil > Date.now())) return;
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
@@ -9821,6 +9851,12 @@ export class FPSEngine {
           x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
           w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,
         })) : undefined,
+        lava: this.map.environment?.filter(o => o.type === "lava").map(o => ({
+          x: radarToPercent(o.pos[0] - o.size[0], this.map.size),
+          z: radarToPercent(o.pos[2] - o.size[2], this.map.size),
+          w: o.size[0] / this.map.size * 100,
+          h: o.size[2] / this.map.size * 100,
+        })),
         cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
           x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
           z: radarToPercent(c.pos[2] - c.size[2], this.map.size),
@@ -9906,6 +9942,8 @@ export class FPSEngine {
         survivalReinforcements: this.survivalReinforcements,
         survivalMaxReinforcements: this.survivalMaxReinforcements,
         survivalDowned: this.survivalDowned,
+        survivalWaitingForWave: this.opts.online && !this.alive && !this.matchEnded &&
+          this.lastDeath?.weaponId === LAVA_DEATH_SOURCE,
         survivalPrepLeft: Math.max(0, Math.ceil(this.survivalPrepLeft)),
         survivalWaveActive: this.survivalWaveActive,
         // Round 18-b: wave banner timestamp (ms since page load). The HUD shows
@@ -10005,12 +10043,9 @@ export class FPSEngine {
   // "bot clips into wall then pops out" flicker, and prevents tunneling at
   // high speeds). The check is conservative — it samples the destination only.
   private botMoveBlocked(from: Vec3, to: Vec3, currentY: number): boolean {
-    if (blocksBotMotion(this.coverAlong(from,to,2), from, to, currentY)) return true;
-    for (const o of this.map.environment ?? []) {
-      if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, this.environmentTime))) continue;
-      if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
-    }
-    return false;
+    const cover = this.coverAlong(from, to, 2);
+    return blocksBotMotion(cover, from, to, currentY) ||
+      botEntersHazard(cover, this.map.environment, from, to, this.environmentTime);
   }
   private lerpAngle(a: number, b: number, t: number): number {
     let diff = b - a; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;

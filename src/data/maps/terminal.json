@@ -181,10 +181,7 @@
     },
     "templateMapId": "terminal",
     "modes": [
-      "ffa",
-      "tdm",
-      "survival",
-      "gungame"
+      "tdm"
     ]
   },
   "theme": {

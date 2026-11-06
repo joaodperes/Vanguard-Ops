@@ -8,6 +8,7 @@ import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
 import { matchHudInfo } from "@/lib/match-hud";
+import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
@@ -393,7 +394,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-[84px]" : "top-[88px]"}`}>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
           <div key={i} className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`} style={{ animation: "killfeedSlide 0.3s ease-out" }}>
-            <span className={teamColor(k.killerTeam)}>{k.killer}</span>
+            <span className={teamColor(k.killerTeam)}>{k.weapon === LAVA_DEATH_SOURCE ? "Lava" : k.killer}</span>
             <span className="text-white/40">{k.headshot ? "⊚" : "›"}</span>
             <span className={teamColor(k.victimTeam)}>{k.victim}</span>
           </div>
@@ -625,7 +626,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {!hud.alive && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
           <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
-          {hud.lastDeath && (
+          {hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
+            <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
+          ) : hud.lastDeath && (
             <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
               <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
               <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
@@ -638,7 +641,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </div>
           )}
           {mode === "survival" ? (
-            <div className="text-white/70 text-lg">Survival run ended</div>
+            <div className="text-white/70 text-lg">{hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended"}</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}

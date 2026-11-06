@@ -262,6 +262,7 @@
                   "type": {
                     "enum": [
                       "fire",
+                      "lava",
                       "spikes",
                       "jump_pad",
                       "moving_platform",

@@ -9,6 +9,7 @@ import terminal from "../data/maps/terminal.json";
 import skybridge from "../data/maps/skybridge.json";
 import orbital_nexus from "../data/maps/orbital_nexus.json";
 import arena_neon from "../data/maps/arena_neon.json";
+import emberhold from "../data/maps/emberhold.json";
 import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import {validateObjectives} from "./map-objectives";
@@ -30,6 +31,7 @@ export const MAP_DOCUMENTS: Record<string, MapDocument> = {
   terminal: terminal as unknown as MapDocument,
   skybridge: skybridge as unknown as MapDocument,
   arena_neon: arena_neon as unknown as MapDocument,
+  emberhold: emberhold as unknown as MapDocument,
 };
 
 /** Lightweight import validation; gameplay validation runs as a second pass. */

@@ -43,7 +43,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload } from "./weapon-mechanics";
 import { chooseBotPatrolPoint } from "./bot-patrol";
-import { botNextWaypoint, botHighGroundWaypoint } from "./bot-routing";
+import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "./bot-routing";
 import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
@@ -72,7 +72,7 @@ import {
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
-  environmentPosition, withinEnvironment, spikesActive, closestCoverHit,
+  environmentPosition, withinEnvironment, spikesActive, closestCoverHit, withinLava, lavaAt, LAVA_DEATH_SOURCE,
 } from "./dynamic-environment";
 import {
   botGroundHeight, botMoveBlocked as blocksBotMotion,
@@ -1443,10 +1443,11 @@ function tickSpecialEffects(room: Room, now: number) {
 
 function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string, shieldHit=false) {
   if (!victim.alive) return;
+  const fellInLava = attackerId === "world" && weaponId === LAVA_DEATH_SOURCE;
   // Spawn protection: skip damage entirely if the victim is within their grace period.
   // This prevents bots from killing a freshly-spawned player before they can react.
   if (room.mode === "survival" && room.downed.has(victim.id)) return;
-  if (victim.spawnProtectedUntil && victim.spawnProtectedUntil > Date.now()) return;
+  if (!fellInLava && victim.spawnProtectedUntil && victim.spawnProtectedUntil > Date.now()) return;
   if(shieldHit){
     const state=hitRiotShield(victim.riotShieldHp??RIOT_SHIELD_HP,victim.riotShieldReadyAt??0,damage,Date.now());
     victim.riotShieldHp=state.hp;victim.riotShieldReadyAt=state.readyAt;
@@ -1462,7 +1463,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     dmg *= 0.65 * survivalWaveDamageMul(room.wave) * mutators.damageMul;
   }
   // Boss armor: prevents burst weapons from trivializing boss encounters.
-  if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
+  if (fellInLava) dmg = victim.health;
+  else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
   room.lastDamagedAt.set(victim.id, Date.now());
   const hitSource=room.players.get(attackerId)??room.bots.get(attackerId);
   const hurtBot=room.bots.get(victim.id);
@@ -1576,7 +1578,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       room.tags.set(tag.id, tag);
     }
     const entry: KillFeedEntry = {
-      killer: attacker?.name ?? "World", victim: victim.name, weapon: weaponId, headshot: head,
+      killer: attacker?.name ?? (fellInLava ? "Environment" : "World"), victim: victim.name, weapon: weaponId, headshot: head,
       killerTeam: attacker?.team ?? "ffa", victimTeam: victim.team,
       botDifficulty: killDiff,
       attachments:(()=>{
@@ -1595,6 +1597,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
           p.id!==victim.id&&!p.isBot&&p.alive&&!room.downed.has(p.id));
         if(!hasRescuer){endMatch(room);return;}
         room.downed.add(victim.id);
+        // A fallen player stays eliminated until the partner clears the wave.
+        if (fellInLava) return;
         // Downed players can only shoot the secondary, cannot move or
         // take further damage; every-operative-downed ends the match.
         victim.health = 1;
@@ -1931,6 +1935,14 @@ function tickEnvironment(room: Room, dt: number): void {
       }
       continue;
     }
+    if (o.type === "lava") {
+      for (const player of allCombatants(room)) {
+        if (!player.alive || !withinLava(o, ...player.pos)) continue;
+        applyDamage(room, "world", player, player.health, false, LAVA_DEATH_SOURCE);
+        if (room.ended) return;
+      }
+      continue;
+    }
     if (o.type !== "fire" && o.type !== "spikes") continue;
     // Rushing water drowns the timed steam vents permanently.
     if (room.floodgateBreachAt!==null&&o.type==="spikes"&&o.visual==="steam")continue;
@@ -2029,6 +2041,10 @@ function tickRoom(room: Room) {
   // below the Survival early return, freezing its online HUD at 00:00.
   room.elapsedSeconds = advanceMatchElapsed(room.elapsedSeconds, 1 / 20, room.preMatchCountdown <= 0);
   if (room.mode === "survival") {
+    if (room.downed.size > 0 && ![...room.players.values()].some(p => p.alive && !room.downed.has(p.id))) {
+      endMatch(room);
+      return;
+    }
     // Survival: no time limit. Run wave state machine.
     // Only tick the wave prep/wave-active logic once the pre-match countdown
     // has finished — otherwise the wave-1 prep (prepLeft=5) counts down in
@@ -2742,12 +2758,9 @@ function randSpread(s: number): Vec3 {
 // would put the bot inside any blocking cover box. Uses 3 samples (from, to,
 // midpoint) so thin walls can't be tunneled.
 function botMoveBlocked(room: Room, from: Vec3, to: Vec3, currentY: number): boolean {
-  if (blocksBotMotion(cityCoverAlong(room,from,to,2), from, to, currentY)) return true;
-  for (const o of room.map.environment ?? []) {
-    if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, room.environmentTime))) continue;
-    if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
-  }
-  return false;
+  const cover = cityCoverAlong(room, from, to, 2);
+  return blocksBotMotion(cover, from, to, currentY) ||
+    botEntersHazard(cover, room.map.environment, from, to, room.environmentTime);
 }
 
 function collideBots(room: Room, pos: Vec3, currentY: number): Vec3 {
@@ -2967,6 +2980,10 @@ async function handle(socket: any, msg: C2S) {
        }
        const moved=Math.hypot(next[0]-p.pos[0],next[2]-p.pos[2]);
        p.pos=next;
+       if (!room.ended && room.preMatchCountdown <= 0 && lavaAt(room.map.environment, next)) {
+         applyDamage(room, "world", p, p.health, false, LAVA_DEATH_SOURCE);
+         break;
+       }
        if(moved>.08 && !room.downed.has(socket.id) &&
            room.loadouts.get(socket.id)?.perkId!=="silent_steps"){
          let steps=playerStepByRoom.get(room);

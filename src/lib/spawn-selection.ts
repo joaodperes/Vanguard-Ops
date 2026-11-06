@@ -1,13 +1,14 @@
 /** Identical spawn scoring for offline play and authoritative rooms. */
 import {PLAYER_HEIGHT,PLAYER_RADIUS,rayBox,type MapDef,type Vec3} from "./game-protocol";
 import {botGroundHeight} from "./bot-physics";
-import {withinEnvironment} from "./dynamic-environment";
+import {lavaAt, withinEnvironment} from "./dynamic-environment";
 
 export function spawnClear(map:MapDef,sp:Vec3):boolean {
   return !map.cover.some(c=>Math.abs(sp[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS &&
     Math.abs(sp[2]-c.pos[2])<c.size[2]+PLAYER_RADIUS &&
     c.pos[1]+c.size[1]>sp[1]+.5 && c.pos[1]-c.size[1]<sp[1]+PLAYER_HEIGHT) &&
-    !(map.environment??[]).some(o=>(o.type==="fire"||o.type==="spikes")&&withinEnvironment(o,sp,1));
+    !(map.environment??[]).some(o=>(o.type==="fire"||o.type==="spikes")&&withinEnvironment(o,sp,1)) &&
+    !lavaAt(map.environment,sp);
 }
 const histories=new WeakMap<object,Map<string,number>>();
 export function chooseSpawn(owner:object,map:MapDef,team:string,

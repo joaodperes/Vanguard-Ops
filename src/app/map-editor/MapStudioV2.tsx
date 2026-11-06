@@ -5,7 +5,7 @@ import MapStudio3D,{type StudioSelection,type StudioMode,type StudioTransform} f
 import {MAP_DOCUMENTS,validateMapDocument,type MapDocument} from "@/lib/map-documents";
 import {importMapDocuments,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
 import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
-  featureFootprint,reconcileFeatureAttachments,resolveStairAttachments,attachStairsToPlatform,
+  featureFootprint,reconcileFeatureAttachments,resolveStairAttachments,attachStairsToPlatform,MAP_HAZARD_TYPES,
   type PlatformEdge,type MapRegion,type MapFeature,type MapHazard} from "@/lib/map-blueprints";
 import {constructionDimension,wallBetween,transformFeatureAssembly,copyFeatureAssembly,joinFeatureFaces} from "@/lib/map-studio-construction";
 import {STUDIO_ASSETS,assetBounds,instantiateStudioAsset,saveStudioAsset,importStudioAssets,type StudioAsset} from "@/lib/map-studio-assets";
@@ -42,7 +42,6 @@ const tools:{heading:string;items:[Tool,string][]}[]=[
 const kinds:PropKind[]=["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
 "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack",
 "industrial_pipe","steel_coil","cargo_pallet"];
-const hazardKinds:MapHazard["type"][]=["fire","spikes","jump_pad","moving_platform","destructible_wall"];
 const paletteKeys=["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const;
 const clone=<T,>(value:T):T=>JSON.parse(JSON.stringify(value));
 const control="w-full rounded border border-white/15 bg-zinc-950 px-2 py-1.5 text-xs text-white focus:border-amber-400 outline-none";
@@ -332,7 +331,8 @@ export default function MapEditorClient(){
           {...common,kind:objectiveKind,team:objectiveTeam,radius:objectiveKind==="flag"?2.4:4.7});
       }else if(kind==="hazard"){
         bp.hazards??=[];chosen={type:"hazard",index:bp.hazards.length};
-        bp.hazards.push({id:unique("hazard"),type:hazardKind,x,z,y:y+1,w:w??6,d:d??6,h:2,
+        const common={id:unique("hazard"),type:hazardKind,x,z,w:w??6,d:d??6};
+        bp.hazards.push(hazardKind==="lava" ? {...common,y,h:.1} : {...common,y:y+1,h:2,
           dps:7,damage:25,period:5,activeFor:2,hp:120,launchY:18,toX:x+12,toY:y+1,toZ:z});
       }else if(kind==="prop"){
         const list=all[afterlight?"arena_neon":id].theme.props;
@@ -791,7 +791,7 @@ export default function MapEditorClient(){
         {tool==="prop"&&<><Picker label="Prop kind" value={propKind} options={kinds} save={v=>setPropKind(v as PropKind)}/>
           {propKind==="building"&&<Picker label="Building kit" value={buildingKit}
             options={STUDIO_BUILDING_PRESETS.map(p=>p.id)} save={v=>setBuildingKit(v as StudioBuildingPresetId)}/>}</>}
-        {tool==="hazard"&&<Picker label="Hazard" value={hazardKind} options={hazardKinds} save={v=>setHazardKind(v as MapHazard["type"])}/>}
+        {tool==="hazard"&&<Picker label="Hazard" value={hazardKind} options={MAP_HAZARD_TYPES} save={v=>setHazardKind(v as MapHazard["type"])}/>}
         {tool==="kit"&&<Picker label="Kit" value={structureKit} options={STUDIO_STRUCTURE_PRESETS.map(p=>p.id)}
           save={v=>setStructureKit(v as StudioStructurePresetId)}/>}
         <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400"><input type="checkbox" checked={stamp} onChange={e=>setStamp(e.target.checked)}/> Repeat placement</label>
@@ -917,7 +917,7 @@ export default function MapEditorClient(){
             stroke={selection?.type==="feature"&&selection.index===i?"#fbbf24":"#1f2937"} strokeWidth="1"
             onPointerDown={e=>objectDown(e,{type:"feature",index:i})}/>;})}
           {(plan.hazards??[]).map((h,i)=><rect key={h.id} x={h.x-h.w/2} y={h.z-h.d/2} width={h.w} height={h.d}
-            fill="#fb7185" fillOpacity=".65" stroke={selection?.type==="hazard"&&selection.index===i?"white":"#9333ea"}
+            fill={h.type==="lava"?"#f97316":"#fb7185"} fillOpacity=".65" stroke={selection?.type==="hazard"&&selection.index===i?"white":"#9333ea"}
             onPointerDown={e=>objectDown(e,{type:"hazard",index:i})}/>)}
           {theme.props.map((p,i)=><rect key={i} x={p.x-(p.w??5)/2} y={p.z-(p.d??5)/2} width={p.w??5} height={p.d??5}
             fill={p.color??(p.kind==="building"?"#a3ad9d":"#34d399")} fillOpacity=".64"
@@ -1004,10 +1004,11 @@ export default function MapEditorClient(){
             {feature.kind==="platform"&&<label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={feature.autoStairs!==false} onChange={e=>editSelected("autoStairs",e.target.checked)}/> Auto stairs</label>}
           </>}
           {hazard&&<>
-            <Picker label="Hazard type" value={hazard.type} options={hazardKinds} save={n=>editSelected("type",n)}/>
+            <Picker label="Hazard type" value={hazard.type} options={MAP_HAZARD_TYPES} save={n=>editSelected("type",n)}/>
+            {hazard.type==="lava"&&<p className="text-xs text-amber-300">Lethal when feet reach the top surface.</p>}
             {(hazard.type==="fire"?["dps"]:hazard.type==="spikes"?["damage","period","activeFor","offset"]:
               hazard.type==="jump_pad"?["launchX","launchY","launchZ"]:
-              hazard.type==="moving_platform"?["toX","toY","toZ","period"]:["hp"]).map(k=>
+              hazard.type==="moving_platform"?["toX","toY","toZ","period"]:hazard.type==="destructible_wall"?["hp"]:[]).map(k=>
               <NumberInput key={k} label={k} value={Number((hazard as unknown as Record<string,unknown>)[k]??0)} save={n=>editSelected(k,n)}/>)}
           </>}
           {prop&&<>

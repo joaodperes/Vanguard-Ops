@@ -30,6 +30,9 @@ export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar
         </g>
         <path d={outlineForRegions(radar.regions ?? [])} fill="none"
           stroke="#2dd4bf" strokeOpacity=".48" strokeWidth=".45"/>
+        <g fill="#f97316" opacity=".75">
+          {radar.lava?.map((r,i) => <rect key={i} x={r.x} y={r.z} width={r.w} height={r.h} />)}
+        </g>
         {radar.cover.map((wall, i) => <rect key={i} x={wall.x} y={wall.z} width={wall.w} height={wall.h} rx="0.6" fill="#64748b" fillOpacity="0.42" stroke="#94a3b8" strokeOpacity="0.36" strokeWidth="0.3" />)}
         {radar.markers.map(marker => marker.kind === "ally" ? (
           <circle key={marker.id} cx={clamp(marker.x)} cy={clamp(marker.z)} r="2.7" fill="#34d399" stroke="#064e3b" strokeWidth="0.9" />

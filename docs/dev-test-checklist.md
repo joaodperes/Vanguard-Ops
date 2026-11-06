@@ -54,7 +54,7 @@ Test desktop keyboard/mouse **and** touch/mobile:
 
 ## 4. Map and bot acceptance
 
-Check all ten playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and four purpose-built Capture the Flag maps:
+Check all eleven playable maps in their supported modes.
 
 | Map ID | Current map / primary risk |
 | --- | --- |
@@ -68,7 +68,7 @@ Check all ten playable map IDs: six general-purpose maps (including both Afterli
 | `orbital_nexus` | Orbital Nexus — **CTF / TDM / KC**; opposing flag routes, launch pads, reactor objective and platform clearance |
 | `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC, up to 7v7**; twelve spawns per team, boxcar lanes, freight sheds, service gallery, breach hatch and snow visibility |
 | `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, pressure grates, destructible dam, advancing flood and sheltered spawns |
-| `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC**; blizzard visibility, three freight routes, covered bases and twelve spawns per side |
+| `emberhold` | Emberhold Castle — **FFA / Survival / Gun Game** with four moat crossings, stairs to the battlements and lava that kills on contact |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -78,7 +78,8 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - On Ridgefall, inspect actual factory routes and freight/security gate. Old snowfield, rocky-outpost and outdoor-cliff checklists are historical, not release criteria.
 - For Forest Warfare and Orbital Nexus, test flag pickup, return, capture, carrier paths, timed drops and team-wide feedback. On Orbital Nexus also verify the reactor objective and launch pads in online and offline CTF matches.
 - On Floodgate, test 3v3 through 16v16, all three lanes in both directions, ground-level flags, carrier delivery and the optional maintenance shutter. Vents warn at 30 seconds, purge at 36–42 seconds and repeat every 48 seconds of active match time. Compare HUD, vent lights, damage and late joins against the authoritative environment clock. Confirm bots keep moving and covered lanes remain open during a purge. See [Floodgate](floodgate.md).
-- For authored changes, export Map Studio content and validate `src/data/map-blueprints.json`, matching theme JSON and client/server geometry. See [Map Studio](map-studio.md).
+- On Emberhold, cross all four bridges, check the battlement stairs, and fall into the moat in offline and online matches. Check that lava grants no kill or Gun Game tier. In co-op Survival, clear a wave after one player falls and confirm they respawn on safe ground.
+- For authored changes, export the versioned map document from Map Studio and validate client/server geometry. See [Map Studio](map-studio.md).
 
 ## 5. Survival, rewards and persistence
 
@@ -117,7 +118,7 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - Reproduce a tiny wall gap and a buried stair landing; verify measured markers, object selection and Close gap. Keep intentional openings available.
 - Edit exact bottom/top faces of inherited boxes and stair groups without changing thickness.
 - Place red/blue containers, recolor/resize one copy, save it to My assets, export/import its recipe library and confirm fresh instance IDs.
-- Roundtrip all nine unified map documents, including Orbital Nexus, Floodgate and Whiteout Depot. Confirm Afterlight day/night retain different footprints and serialize their visible shared props.
+- Roundtrip the unified map documents, including Orbital Nexus, Floodgate, Whiteout Depot and Emberhold. Confirm both Afterlight editions serialize their shared geometry and individual lighting.
 - Verify new editor/browser changes on touch and small screens. Walk actual player routes and check multiplayer reactor/client-server parity before promotion.
 
 ## Map objective authoring regression review

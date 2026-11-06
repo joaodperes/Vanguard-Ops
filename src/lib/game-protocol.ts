@@ -15,28 +15,28 @@ import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot" | "emberhold";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
 export const TEAM_SIZES = [3, 4, 5, 7, 9, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
-/** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
+/** The Afterlight editions share their city layout and room-size options. */
 export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
   if (isAfterlightCityMap(mapId)) return mode === "ffa" || mode === "gungame" ? [5,7,9,16] : [5,7,9,16];
-  if (mapId === "floodgate") return [5,7,9,16];
+  if (mapId === "floodgate" || (mapId === "emberhold" && (mode === "ffa" || mode === "gungame"))) return [5,7,9,16];
   if (mapId === "compound" || mapId === "skybridge") return [3,5,7,9];
   return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
   if(mapId==="bunker")return 3;
   if(isAfterlightCityMap(mapId))return mode==="ffa"||mode==="gungame"?7:9;
-  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge")return 7;
+  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge"||mapId==="emberhold")return 7;
   return 5;
 }
 export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
@@ -181,6 +181,7 @@ export interface MapAccentLight {
 /** Map-authored interactive objects. Coordinates follow CoverBox half-extents. */
 export type EnvironmentObject =
   | { id: string; type: "fire"; pos: Vec3; size: Vec3; dps: number }
+  | { id: string; type: "lava"; pos: Vec3; size: Vec3 }
   | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number; warningFor?: number; visual?: "spikes" | "steam" }
   | { id: string; type: "jump_pad"; pos: Vec3; size: Vec3; launch: Vec3 }
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
@@ -992,6 +993,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  emberhold: [],
   whiteout_depot: [],
   floodgate: [],
   orbital_nexus: [],
@@ -1040,6 +1042,15 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  emberhold: {
+    id: "emberhold", name: MAP_BLUEPRINTS.maps.emberhold.name, shortName: MAP_BLUEPRINTS.maps.emberhold.shortName,
+    description: MAP_BLUEPRINTS.maps.emberhold.description,
+    size: 100, wallHeight: 11, cover: TACTICAL_COVER.emberhold, environment: ENVIRONMENTS.emberhold,
+    spawns: OUTER_SPAWNS.emberhold, accentColor: "#ef924a",
+    theme: { floor: 0x332c2c, floorPattern: 0x575052, wall: 0x4e4546, cover: 0x797069,
+      coverAccent: 0xef924a, stair: 0x8c8176, platform: 0x6c6768,
+      sky: "#342c3c", fog: "#463b42", fogNear: 45, fogFar: 320, ambient: 1.2, gridColor: 0x575052 },
+  },
   whiteout_depot: {
     id:"whiteout_depot",name: MAP_BLUEPRINTS.maps.whiteout_depot.name,shortName: MAP_BLUEPRINTS.maps.whiteout_depot.shortName,
     description: MAP_BLUEPRINTS.maps.whiteout_depot.description,
@@ -1259,6 +1270,7 @@ export const MAPS: Record<string, MapDef> = {
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
   shipyard: applyMapFootprint(BASE_MAPS.shipyard),
+  emberhold: applyMapFootprint(BASE_MAPS.emberhold),
   terminal: applyMapFootprint({
     ...BASE_MAPS.arena_neon,
     id:"terminal",name:BASE_MAPS.terminal.name,shortName:BASE_MAPS.terminal.shortName,
