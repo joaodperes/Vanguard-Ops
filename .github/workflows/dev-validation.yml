@@ -43,6 +43,10 @@ jobs:
         id: tests
         continue-on-error: true
         run: bun run test:smoke
+      - name: Audit weapon TTK and attachment breakpoints
+        id: weapon_ttk
+        continue-on-error: true
+        run: bun scripts/audit-weapon-ttk.ts
       - name: TypeScript validation
         id: types
         continue-on-error: true
@@ -57,16 +61,19 @@ jobs:
           CATALOG: ${{ steps.catalog.outcome }}
           MAPS: ${{ steps.maps.outcome }}
           TESTS: ${{ steps.tests.outcome }}
+          WEAPON_TTK: ${{ steps.weapon_ttk.outcome }}
           TYPES: ${{ steps.types.outcome }}
           BUILD: ${{ steps.build.outcome }}
         run: |
           echo "Content: $CATALOG"
           echo "Maps: $MAPS"
           echo "Tests: $TESTS"
+          echo "TTK audit: $WEAPON_TTK"
           echo "Types: $TYPES"
           echo "Build: $BUILD"
           test "$CATALOG" = success
           test "$MAPS" = success
           test "$TESTS" = success
+          test "$WEAPON_TTK" = success
           test "$TYPES" = success
           test "$BUILD" = success
