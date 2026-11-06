@@ -98,6 +98,34 @@ export function sampleWeaponSwapMotion(progress: number): WeaponSwapPose {
     pitch: -.42 * (1 - t), roll: .22 * (1 - t), incoming: true };
 }
 
+
+/** The Bulwark shield is a separate, tall camera rig rather than a gun part.
+ * Keep its existing holster pose, but DRAW it from behind the left shoulder:
+ * entirely off-screen at the cosmetic weapon handoff, then swing forward and
+ * up into its normal left-side guard. The shield's gameplay collision/raised
+ * state does not use this pose. */
+export function sampleRiotShieldSwapMotion(progress: number): {
+  x: number; y: number; z: number; pitch: number; yaw: number; roll: number;
+} {
+  const p = clamp01(progress);
+  if (p === 0 || p === 1) {
+    return { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
+  }
+  if (p < WEAPON_SWAP_HANDOFF) {
+    const gun = sampleWeaponSwapMotion(p);
+    return { x: gun.x, y: gun.y * 1.45, z: gun.z,
+      pitch: gun.pitch * .5, yaw: 0, roll: gun.roll };
+  }
+  // Ease OUT of the shoulder draw so most of the distance is travelled early.
+  // As the tall panel enters the left edge, its broad face turns toward camera.
+  const t = (p - WEAPON_SWAP_HANDOFF) / (1 - WEAPON_SWAP_HANDOFF);
+  const remaining = (1 - t) * (1 - t);
+  return {
+    x: -1.65 * remaining, y: -.68 * remaining, z: .26 * remaining,
+    pitch: .18 * remaining, yaw: -.75 * remaining, roll: .35 * remaining,
+  };
+}
+
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
   if (weaponId === "sniper_heavy") return "side_bolt";
