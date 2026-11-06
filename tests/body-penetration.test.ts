@@ -88,14 +88,17 @@ describe("built-in penetration and Penetrator Rounds", () => {
     expect(weaponById("lmg_hv").stats.auto).toBe(true);
   });
 
-  test("magazine gives standard VK-12 a second-body hit while reducing first-hit power and capacity", () => {
+  test("Penetrator Rounds grant a second-body hit without breaking VK-12 three-shot body TTK", () => {
     const w = weaponById("rifle_ar");
     expect(compatibleAttachments(w.id, "magazine")).toContain("mag_penetrator");
     const before = computeEffectiveStats(w, empty);
     const after = computeEffectiveStats(w, penAmmo);
     expect(before.bodyPenetration).toBeUndefined();
     expect(after.bodyPenetration).toEqual({ maxTargets: 2, damageRetention: 0.35 });
-    expect(after.damage).toBe(32);
+    expect(after.damage).toBe(34);
+    expect(before.damage).toBe(35);
+    expect(after.damage * 3).toBeGreaterThanOrEqual(100);
+    expect(after.damage).toBeLessThan(before.damage);
     expect(after.magSize).toBe(24);
     expect(after.recoil).toBeGreaterThan(before.recoil);
     expect(selectBodyPenetrationHits(aligned, 200, Infinity, after.bodyPenetration).length).toBe(2);
