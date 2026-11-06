@@ -57,3 +57,16 @@ export function canCompleteGunGame(index: number, weapons: readonly string[], ac
   return last === activeWeaponId && WEAPONS.some(w => w.id === last && w.category === "melee" && !w.wonder && !w.disabled) &&
     WEAPONS.some(w => w.id === weapons[index - 1] && w.category === "launcher" && !w.wonder && !w.disabled);
 }
+
+/** F is an alternate attack key only when Gun Game has actually equipped a
+ * progression melee weapon. Never allow a loadout knife to bypass firearm tiers.
+ * This also covers the melee checkpoint at the end of each multiplier cycle. */
+export function gunGameMeleeShortcutWeapon(
+  index: number, weapons: readonly string[], activeWeaponId: string,
+): string | null {
+  if (!Number.isInteger(index) || index < 0 || index >= weapons.length ||
+      weapons[index] !== activeWeaponId) return null;
+  const active = WEAPONS.find(w => w.id === activeWeaponId);
+  return active && active.category === "melee" && !active.wonder && !active.disabled
+    ? active.id : null;
+}
