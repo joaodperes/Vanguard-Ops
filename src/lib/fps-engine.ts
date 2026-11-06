@@ -54,7 +54,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, supportArmFraming, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
@@ -765,10 +765,10 @@ export class FPSEngine {
   private fpSupportGrip = new THREE.Vector3();
   private fpRestHand = new THREE.Vector3();
   private fpActionHand: THREE.Group | null = null;
-  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; elbowPad: THREE.Mesh; shoulder: THREE.Mesh } | null = null;
-  // Torso anchor stays independent of the weapon; its x offset adapts
-  // slightly to the camera aspect so the elbow is visible on narrow screens.
-  private readonly fpShoulder = new THREE.Vector3(-.35, -.48, -.15);
+  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; shoulder: THREE.Mesh } | null = null;
+  // The shoulder stays under the viewmodel, independent of the gun.
+  // Its elbow is allowed to drop below the camera edge, as natural FPS arms do.
+  private readonly fpShoulder = new THREE.Vector3(-.30, -.45, -.25);
   private readonly fpWrist = new THREE.Vector3();
   private readonly fpElbow = new THREE.Vector3();
   private readonly fpArmDirection = new THREE.Vector3();
@@ -3317,20 +3317,19 @@ export class FPSEngine {
     // shoulder and the animated glove wrist, so they cannot disconnect when
     // the weapon is long or the hand moves during a reload.
     const arm = new THREE.Group();
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(.076, .10, 1, 10), this.fpCuffMat);
-    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.055, .079, 1, 10), this.fpCuffMat);
-    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.078, 12, 10), this.fpCuffMat);
-    // Lightly raised protective elbow pad makes the articulation visible.
-    const elbowPad = new THREE.Mesh(new THREE.SphereGeometry(.084, 12, 10), this.fpHandMat);
-    elbowPad.scale.set(1.04, .74, .86);
-    const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(.101, 10, 8), this.fpCuffMat);
+    // Two tapered sleeve pieces meet at a small joint. No enormous
+    // spherical/elbow pad geometry that protrudes from the arm silhouette.
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(.067, .079, 1, 10), this.fpCuffMat);
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.052, .066, 1, 10), this.fpCuffMat);
+    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.066, 10, 8), this.fpCuffMat);
+    const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(.080, 10, 8), this.fpCuffMat);
     shoulderJoint.position.copy(this.fpShoulder);
-    for (const mesh of [upper, forearm, elbowJoint, elbowPad, shoulderJoint]) {
+    for (const mesh of [upper, forearm, elbowJoint, shoulderJoint]) {
       mesh.frustumCulled = false;
       arm.add(mesh);
     }
     arm.visible = false;
-    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, elbowPad, shoulder: shoulderJoint };
+    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, shoulder: shoulderJoint };
     this.camera.add(arm);
 
     const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
@@ -3459,17 +3458,21 @@ export class FPSEngine {
     arm.root.visible = hand.visible;
     if (!hand.visible) return;
 
-    // Position the joint *inside* the camera view. The prior down-left pole
-    // put the elbow below the viewport despite a valid two-bone IK solution.
+    // Bend naturally toward the torso, allowing the joint to sit near the
+    // bottom edge rather than pulling it up into the middle of the screen.
     const frame = supportArmFraming(this.camera.aspect);
     this.fpShoulder.set(...frame.shoulder);
     arm.shoulder.position.copy(this.fpShoulder);
     // Anchor the forearm inside the glove cuff, following all hand rotations.
     this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
+    const isSidearm = weaponById(this.viewmodelWeaponId || this.weaponId).category === "sidearm"
+      && this.viewmodelWeaponId !== RIOT_SHIELD_ID && this.weaponId !== RIOT_SHIELD_ID;
     const joint = supportElbowPosition(
       frame.shoulder,
       [this.fpWrist.x, this.fpWrist.y, this.fpWrist.z],
       frame.pole,
+      isSidearm ? SUPPORT_SIDEARM_UPPER_LENGTH : SUPPORT_UPPER_ARM_LENGTH,
+      isSidearm ? SUPPORT_SIDEARM_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH,
     );
     this.fpElbow.set(...joint);
 
@@ -3483,9 +3486,6 @@ export class FPSEngine {
     alignSleeve(arm.upper, this.fpShoulder, this.fpElbow);
     alignSleeve(arm.forearm, this.fpElbow, this.fpWrist);
     arm.elbow.position.copy(this.fpElbow);
-    arm.elbowPad.position.copy(this.fpElbow).addScaledVector(this.fpArmUp,-.014);
-    arm.elbowPad.position.x -= .033;
-    arm.elbowPad.position.z += .035;
   }
 
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {

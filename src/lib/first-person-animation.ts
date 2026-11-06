@@ -40,23 +40,27 @@ export function supportHandRestMode(
 }
 
 /** Nominal camera-space upper arm and forearm lengths (for the FPS rig). */
-export const SUPPORT_UPPER_ARM_LENGTH = .48;
-export const SUPPORT_FOREARM_LENGTH = .49;
+export const SUPPORT_UPPER_ARM_LENGTH = .37;
+export const SUPPORT_FOREARM_LENGTH = .34;
 
-/** Camera-local shoulder and elbow bend pole. The old elbow was mathematically
- * connected but projected *below* the view (normal sniper vertical NDC ~-2).
- * The torso anchor sits at the bottom-left while the elbow is in-frame.
- * Narrow viewports swing the bend inward so it remains visible on phones.
+// Camera-relative lengths for a compact, two-handed sidearm grip. A full rifle
+// arm would fold past the pistol and stick an elbow in front of the hand.
+export const SUPPORT_SIDEARM_UPPER_LENGTH = .28;
+export const SUPPORT_SIDEARM_FOREARM_LENGTH = .27;
+
+/** Camera-local *tucked* arm pose, not a screen-space elbow highlight.
+ * The upper arm retreats under the view while the forearm supports the gun.
+ * Keep the bend toward the torso and slightly downward: forcing the elbow
+ * high into the viewport creates a visibly broken, backward-looking arm.
  */
 export function supportArmFraming(aspect: number): {
   shoulder: [number, number, number];
   pole: [number, number, number];
 } {
-  const narrow = Math.max(0, Math.min(1, (1.6 - aspect) / (1.6 - 9/16)));
-  const portrait = Math.sqrt(narrow); // bring the elbow inward early enough at 1:1
+  const narrow = Math.max(0, Math.min(1, (1.1 - aspect) / (1.1 - 9/16)));
   return {
-    shoulder: [-.35 + .12 * portrait, -.48, -.15],
-    pole: [-.8 + .8 * portrait, .4 - .1 * portrait, -.2 + .2 * portrait],
+    shoulder: [-.30 + .035 * narrow, -.45, -.25],
+    pole: [-.55 + .08 * narrow, -.10, -.50],
   };
 }
 
@@ -67,19 +71,21 @@ export function supportArmFraming(aspect: number): {
 export function supportElbowPosition(
   shoulder: readonly [number, number, number],
   wrist: readonly [number, number, number],
-  pole: readonly [number, number, number] = [-.8, .4, -.2],
+  pole: readonly [number, number, number] = [-.55, -.10, -.50],
+  upperLength = SUPPORT_UPPER_ARM_LENGTH,
+  forearmLength = SUPPORT_FOREARM_LENGTH,
 ): [number, number, number] {
   let dx = wrist[0] - shoulder[0], dy = wrist[1] - shoulder[1], dz = wrist[2] - shoulder[2];
   const reach = Math.hypot(dx,dy,dz);
-  if (reach < 1e-6) return [shoulder[0]-SUPPORT_UPPER_ARM_LENGTH,shoulder[1],shoulder[2]];
+  if (reach < 1e-6) return [shoulder[0] - upperLength, shoulder[1], shoulder[2]];
   dx/=reach; dy/=reach; dz/=reach;
-  const total = SUPPORT_UPPER_ARM_LENGTH + SUPPORT_FOREARM_LENGTH;
-  const stretch = Math.max(1,reach/(total*.995));
-  const upper = SUPPORT_UPPER_ARM_LENGTH*stretch, forearm = SUPPORT_FOREARM_LENGTH*stretch;
+  const total = upperLength + forearmLength;
+  const stretch = Math.max(1, reach / (total * .998));
+  const upper = upperLength * stretch, forearm = forearmLength * stretch;
   const along = (upper*upper - forearm*forearm + reach*reach)/(2*reach);
   const side = Math.sqrt(Math.max(0,upper*upper-along*along));
-  // The camera-relative pole points left/outward in landscape and inward
-  // when the aspect ratio is narrow, without rotating with the weapon.
+  // The bend pole stays tucked toward the body, with no forced upward elbow.
+  // It remains camera-relative, preventing a sudden flip on weapon recoil.
   let px=pole[0],py=pole[1],pz=pole[2];
   let dot=px*dx+py*dy+pz*dz;
   px-=dot*dx;py-=dot*dy;pz-=dot*dz;
