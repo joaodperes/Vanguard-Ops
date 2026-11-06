@@ -47,3 +47,7 @@ The unified branch migrates the trial objectives and CTF rear spawn pools into `
 ## Editor sources (November 2026)
 
 Map Studio's canonical authoring source is `src/data/maps/<mapId>.json` for every registered authored map, including the CTF trials and Whiteout Depot. Edit each blueprint's `objectives`, `modes` and optional `modeSpawns.ctf` there; the older `src/data/ctf-layouts.json` remains a compatibility/migration reference. Floodgate now also stores its latest dam and flood geometry under the unified document. Preserve the shared CTF and spawn regressions whenever editing either source.
+
+## Emberhold vertical routes
+
+The four corner towers share a continuous wall walk over the gatehouses. Two routes reach the keep stairs and its rooftop firing positions. The west and east outer-bank stairs lead into passages below the bridges. A ruined chapel provides a third dungeon entrance from the courtyard. The tunnel floors sit above the lava surface.

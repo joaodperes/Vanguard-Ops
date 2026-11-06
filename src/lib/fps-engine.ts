@@ -8931,7 +8931,20 @@ export class FPSEngine {
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
     const r = PLAYER_RADIUS;
-    for (const cov of this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3)) {
+    const nearbyCover = this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3);
+    // Stop rising into the underside of a floor before resolving side contact.
+    if (next.y > this.pos.y) {
+      for (const cov of nearbyCover) {
+        if (cov.kind === "accent") continue;
+        const underside = cov.pos[1] - cov.size[1];
+        if (this.pos.y + PLAYER_HEIGHT > underside || next.y + PLAYER_HEIGHT <= underside) continue;
+        if (Math.abs(next.x - cov.pos[0]) >= cov.size[0] + r ||
+            Math.abs(next.z - cov.pos[2]) >= cov.size[2] + r) continue;
+        next.y = underside - PLAYER_HEIGHT - 0.001;
+        this.vel.y = 0;
+      }
+    }
+    for (const cov of nearbyCover) {
       const cx = cov.pos[0], cz = cov.pos[2];
       const hx = cov.size[0], hz = cov.size[2];
       const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
