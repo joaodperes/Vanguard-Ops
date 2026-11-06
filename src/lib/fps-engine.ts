@@ -178,6 +178,7 @@ export interface HudState {
   overheated?: boolean;
   boltCharges?: number;
   knifeRechargeMs?: number;
+  meleeKnifeCharges?: number;
   perkName?: string;
   scavengerFeedbackAt?: number;
   scavengerAmmoGained?: number;
@@ -9959,6 +9960,7 @@ export class FPSEngine {
       overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
       boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
       knifeRechargeMs: isThrowingKnife(this.weaponId)?throwingKnifeRemainingMs(this.throwingKnifeState,now,this.opts.mode==="gungame"):undefined,
+      meleeKnifeCharges: isThrowingKnife(this.meleeWeaponId)||isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:undefined,
       perkName: perkById(this.opts.loadout.perkId).name,
       scavengerFeedbackAt: this.scavengerFeedbackAt,
       scavengerAmmoGained: this.scavengerAmmoGained,
@@ -10246,6 +10248,12 @@ export class FPSEngine {
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
     for (const id of [...this.bulletSpitters.keys()]) this.removeBulletSpitter(id);
     for (const id of [...this.gravityWells.keys()]) this.removeGravityWell(id);
+    // Leaving during a throw must not retain its geometry/materials in WebGL.
+    for(const knife of this.thrownKnives){
+      this.scene.remove(knife.mesh);
+      knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+    }
+    this.thrownKnives=[];
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
