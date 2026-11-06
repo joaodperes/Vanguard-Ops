@@ -230,7 +230,7 @@
     "category": "assault",
     "unlockLevel": 34,
     "unlockCost": 2600,
-    "description": "Fast two-round bursts. Strong opening damage but demanding burst discipline.",
+    "description": "Fast two-round bursts. Rounds can pass through two aligned enemies with reduced damage; demanding burst discipline.",
     "stats": {
       "damage": 29,
       "fireRate": 11,
@@ -244,6 +244,7 @@
       "adsTime": 0.24,
       "moveSpeed": 0.94,
       "auto": false,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
       "headshotMult": 1.45,
       "falloffEndMultiplier": 1.55,
       "minDamageMultiplier": 0.3
@@ -487,7 +488,7 @@
     "category": "lmg",
     "unlockLevel": 24,
     "unlockCost": 800,
-    "description": "Heavy machine gun. 75-round belt, suppressive monster.",
+    "description": "75-round machine gun. Sustained suppressive fire, with limited penetration through aligned enemies.",
     "stats": {
       "damage": 30,
       "fireRate": 10,
@@ -500,6 +501,7 @@
       "adsTime": 0.4,
       "moveSpeed": 0.75,
       "auto": true,
+      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.25 },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.28
@@ -898,7 +900,6 @@
       "adsTime": 0.32,
       "moveSpeed": 0.85,
       "auto": false,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.3 },
       "headshotMult": 1.6,
       "falloffEndMultiplier": 1.55,
       "minDamageMultiplier": 0.3
@@ -1064,7 +1065,6 @@
       "adsTime": 0.5,
       "moveSpeed": 0.68,
       "auto": true,
-      "bodyPenetration": { "maxTargets": 2, "damageRetention": 0.25 },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
       "minDamageMultiplier": 0.28
