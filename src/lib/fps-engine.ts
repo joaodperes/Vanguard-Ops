@@ -40,6 +40,7 @@ import { quickSwapTarget } from "./quick-swap";
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
+import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
@@ -176,6 +177,7 @@ export interface HudState {
   heat?: number;
   overheated?: boolean;
   boltCharges?: number;
+  knifeRechargeMs?: number;
   perkName?: string;
   scavengerFeedbackAt?: number;
   scavengerAmmoGained?: number;
@@ -672,6 +674,8 @@ export class FPSEngine {
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
   private meleeAmmoInMag = 1;
+  private throwingKnifeState: ThrowingKnifeCharges = fullThrowingKnives();
+  private lastThrowingKnifeAt = -10000;
   // Bulwark's built-in P-9 has its own magazine, even when holstered.
   private wonderAmmoInMag = 12;
   private riotShieldHp=RIOT_SHIELD_HP;
@@ -836,6 +840,7 @@ export class FPSEngine {
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
+  private thrownKnives: { mesh: THREE.Group; start: THREE.Vector3; dir: THREE.Vector3; distance: number; born: number; travelMs: number; rotation: THREE.Quaternion }[] = [];
   // Rocket projectiles (visual only — damage is hitscan). Each entry tracks the
   // mesh, its start position, end position (impact point), birth time, and travel
   // duration. The projectile animates from start to end over `travelMs`, then
@@ -1707,7 +1712,7 @@ export class FPSEngine {
     this.meleeEff=computeEffectiveStats(weaponById(this.meleeWeaponId),
       {sight:null,barrel:null,grip:null,magazine:null});
     this.meleeSight=sightDefForType(this.meleeEff.sightType);
-    this.meleeAmmoInMag=this.meleeEff.magSize;
+    this.meleeAmmoInMag=isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     if(this.currentSlot==="melee"){
       this.weaponId=this.meleeWeaponId;
       this.eff=this.meleeEff;
@@ -1842,10 +1847,6 @@ export class FPSEngine {
     const victim=this.combatants.get(target.id);
     if(!victim||!victim.alive)return;
     victim.health-=profile.damage;
-    if(weaponId==="baton"&&victim.ai&&victim.ai.reloadingUntil>performance.now()){
-      victim.ai.reloadingUntil=performance.now()+1100;
-      victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,victim.ai.reloadingUntil);
-    }
     if(victim.health>0)return;
     const recent=this.offlineAssistDamage.get(victim.id);
     if(attacker.team===this.opts.team&&victim.team!==this.opts.team&&
@@ -4032,7 +4033,8 @@ export class FPSEngine {
     }
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.throwingKnifeState=fullThrowingKnives();
+    this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
     this.ammoInMag = this.primaryAmmoInMag;
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
@@ -4139,6 +4141,10 @@ export class FPSEngine {
     }
     const now = performance.now();
     const shieldBash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
+    if(isThrowingKnife(this.meleeWeaponId)&&!shieldBash){
+      this.throwThrowingKnife(weaponById(this.meleeWeaponId),now,true);
+      return;
+    }
     const melee=shieldBash?riotBashProfile():quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
     if (now - this.quickMeleeLastAt < melee.cooldownMs ||
         (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
@@ -4565,7 +4571,7 @@ export class FPSEngine {
       this.weaponId = this.meleeWeaponId;
       this.eff = this.meleeEff;
       this.sightDef = this.meleeSight;
-      this.ammoInMag = this.meleeAmmoInMag;
+      this.ammoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeAmmoInMag;
     } else {
       this.weaponId=this.wonderWeaponId;
       this.eff=this.wonderEff;
@@ -4598,7 +4604,7 @@ export class FPSEngine {
   private saveAmmoToSlot(slot: WeaponSlot) {
     if (slot === "primary") this.primaryAmmoInMag = this.ammoInMag;
     else if (slot === "secondary") this.secondaryAmmoInMag = this.ammoInMag;
-    else if (slot === "melee") this.meleeAmmoInMag = this.ammoInMag;
+    else if (slot === "melee") this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.ammoInMag;
     else if (slot === "wonder" && this.wonderWeaponId === RIOT_SHIELD_ID)
       this.wonderAmmoInMag = this.ammoInMag;
   }
@@ -6058,6 +6064,11 @@ export class FPSEngine {
       case "roomList":
         // The engine doesn't act on room lists (the Play lobby screen does).
         break;
+      case "knifeAmmo":
+        this.throwingKnifeState={charges:msg.charges,nextAt:msg.rechargeMs>0?performance.now()+msg.rechargeMs:0};
+        this.meleeAmmoInMag=msg.charges;
+        if(isThrowingKnife(this.weaponId))this.ammoInMag=msg.charges;
+        break;
       case "gungameProgress":
         // Server advanced a player's Gun Game tier. If it's the local player,
         // sync our own weaponId + effective stats so subsequent shots use the
@@ -6070,7 +6081,8 @@ export class FPSEngine {
           const w = weaponById(this.weaponId);
           this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
-          this.ammoInMag = this.eff.magSize;
+          if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+          this.ammoInMag=isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
           this.reloading = false;
           // ---- Play the weapon-swap animation + SFX ----
           // Each Gun Game tier-up is effectively a weapon swap (the player's
@@ -6871,8 +6883,12 @@ export class FPSEngine {
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
+    if(isThrowingKnife(w.id)){
+      this.throwThrowingKnife(w,now,false);
+      return;
+    }
     const isMelee = w.category === "melee";
-    // Melee weapons have no ammo — just a swing cooldown.
+    // Ordinary melee weapons have no ammo — just a swing cooldown.
     if (isMelee) {
       this.tryMeleeAttack(w, now);
       return;
@@ -7092,10 +7108,6 @@ export class FPSEngine {
       const victim=this.combatants.get(nearest.id);
       if(victim){
         this.applyDamageLocal(victim,this.eff.damage,false,w.id);
-        if(w.id==="baton"&&victim.ai&&victim.ai.reloadingUntil>now){
-          victim.ai.reloadingUntil=now+1100;
-          victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,now+1100);
-        }
         this.hitMarkerAt=now;
         this.sound.play("melee_hit",{volume:.7});
       }
@@ -7346,7 +7358,8 @@ export class FPSEngine {
     const w = weaponById(this.weaponId);
     this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
     this.sightDef = sightDefForType(this.eff.sightType);
-    this.ammoInMag = this.eff.magSize;
+    if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+    this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
     this.reloading = false;
     // ---- Play the weapon-swap animation + SFX on tier-up ----
     this.startWeaponSwapVisual();
