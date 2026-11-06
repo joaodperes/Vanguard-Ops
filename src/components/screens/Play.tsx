@@ -307,9 +307,9 @@ export function Play() {
           <TabsContent value="create" className="mt-5">
             {/* Equal-height match configuration panels on desktop; responsive stacking on mobile. */}
             <div className="space-y-5">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch lg:h-[380px]">
                 {/* Game mode */}
-                <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
+                <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
@@ -317,75 +317,75 @@ export function Play() {
                   </div>
                 </Section>
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf") && (
-                  <Section className="h-full" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
-                    <div className="space-y-3">
-                      <div>
+                  <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint="Set the score target and/or time limit (at least one required)">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                      <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Time Limit</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {[0, 180, 300, 360, 480, 600, 900].map((t) => (
                             <button key={t} onClick={() => setRoomConfig({ timeLimit: t, ...(roomConfig.mode === "ctf" && t === 0 && roomConfig.scoreLimit === 0 ? { scoreLimit: 3 } : {}) })}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {t === 0 ? "No limit" : `${t / 60}m`}
                             </button>
                           ))}
                         </div>
                       </div>
                       {roomConfig.mode === "ctf" && (
-                        <div>
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Dropped Flag Reset</Label>
                           <div className="flex flex-wrap gap-1.5">
                             {([{ms:0,label:"Instant"},{ms:10000,label:"10s"},{ms:30000,label:"30s"},{ms:60000,label:"1m"},{ms:120000,label:"2m"},{ms:-1,label:"No limit"}] as const).map(({ms,label}) => (
                               <button key={ms} type="button" onClick={() => setRoomConfig({ctfFlagResetMs:ms})}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.ctfFlagResetMs === ms ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.ctfFlagResetMs === ms ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                                 {label}
                               </button>
                             ))}
                           </div>
-                          <p className="text-white/35 text-xs mt-1">Only changes dropped-flag recovery; a match still requires a capture target or time limit.</p>
+                          <p className="text-white/35 text-[11px] leading-snug mt-2">Only changes dropped-flag recovery; a match still requires a capture target or time limit.</p>
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
-                        <div>
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
                           <div className="flex flex-wrap gap-1.5">
                             {[10000, 15000, 25000, 30000, 45000].map((ms) => (
                               <button key={ms} type="button" onClick={() => setRoomConfig({ tagLifetimeMs: ms })}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                                 {ms / 1000}s
                               </button>
                             ))}
                           </div>
-                          <p className="text-white/35 text-xs mt-1">Time before an unclaimed dogtag disappears.</p>
+                          <p className="text-white/35 text-[11px] leading-snug mt-2">Time before an unclaimed dogtag disappears.</p>
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
-                        <div>
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Denial Scoring</Label>
                           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Denial Scoring">
                             {([{ enabled: false, label: "Off" }, { enabled: true, label: "+1 Point" }] as const).map((option) => (
                               <button key={option.label} type="button" aria-pressed={roomConfig.denialScoreEnabled === option.enabled}
                                 onClick={() => setRoomConfig({ denialScoreEnabled: option.enabled })}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                                 {option.label}
                               </button>
                             ))}
                           </div>
-                          <p className="text-white/35 text-xs mt-1">Off: deny opponents a point. +1 Point: also score for your team when retrieving a teammate's tag.</p>
+                          <p className="text-white/35 text-[11px] leading-snug mt-2">Off: deny opponents a point. +1 Point: also score for your team when retrieving a teammate's tag.</p>
                         </div>
                       )}
                       {(roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) && (
-                        <div className="text-rose-400 text-xs font-semibold flex items-center gap-1.5">
+                        <div className="sm:col-span-2 text-rose-400 text-xs font-semibold flex items-center gap-1.5">
                           <AlertTriangle className="w-3 h-3" /> At least one limit must be set for the match to end.
                         </div>
                       )}
