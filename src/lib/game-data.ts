@@ -129,7 +129,10 @@ export function compatibleAttachments(weaponId: string, slot: AttachmentSlot): s
   if (!weaponAttachmentSlots(weapon).includes(slot)) return [];
   const allowed = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot] ??
     CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot] ?? [];
-  return allowed.filter(id => ATTACHMENTS.some(a => a.id === id && a.slot === slot));
+  return allowed.filter(id => ATTACHMENTS.some(a =>
+    a.id === id && a.slot === slot &&
+    (!a.exclusiveWeaponIds || a.exclusiveWeaponIds.includes(weaponId))
+  ));
 }
 
 // Helper: list the attachment slots a weapon supports. Defaults to all 4.
@@ -232,6 +235,8 @@ export interface AttachmentDef {
   recommendedFor?: WeaponCategory[];
   /** Only effective for shotguns; changes pellet count, spread and status effects. */
   shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
+  /** Optional ammo behavior; magazine-only and restricted through exclusiveWeaponIds. */
+  bodyPenetration?: { maxTargets: number; damageRetention: number; retentionBonus?: number };
   effects: {
     damage?: number;       // additive percent e.g. 10 => +10%
     recoil?: number;       // additive percent (negative reduces)
@@ -473,7 +478,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     const id = atts[slot];
     if (!id) continue;
     const def = attachmentById(id);
-    if (!def) continue;
+    if (!def || (def.exclusiveWeaponIds && !def.exclusiveWeaponIds.includes(weapon.id))) continue;
     for (const [k, v] of Object.entries(def.effects)) {
       acc[k] = (acc[k] ?? 0) + (v as number);
     }
@@ -482,6 +487,20 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   // Shell choice is a magazine attachment but alters projectile behavior. All
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
+  // Magazine ammo effects are opt-in and must be legal for this exact weapon.
+  const piercingAmmo = ammoAttachment?.bodyPenetration &&
+    compatibleAttachments(weapon.id, "magazine").includes(ammoAttachment.id)
+    ? ammoAttachment.bodyPenetration : undefined;
+  const bodyPenetration = !piercingAmmo ? base.bodyPenetration
+    : base.bodyPenetration
+      ? {
+          maxTargets: Math.min(3, Math.max(base.bodyPenetration.maxTargets, piercingAmmo.maxTargets)),
+          damageRetention: Math.min(0.85, Math.max(
+            base.bodyPenetration.damageRetention + (piercingAmmo.retentionBonus ?? 0),
+            piercingAmmo.damageRetention,
+          )),
+        }
+      : { maxTargets: piercingAmmo.maxTargets, damageRetention: piercingAmmo.damageRetention };
   const shell = weapon.category === "shotgun" ? ammoAttachment?.shotgunAmmo : undefined;
   const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
     shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
@@ -493,6 +512,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
   return {
     ...base,
+    bodyPenetration,
     shotgunAmmo: shell,
     auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
