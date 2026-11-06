@@ -55,7 +55,7 @@ import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, bot
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
 import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
-import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
+import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard } from "@/lib/bot-routing";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
@@ -4119,7 +4119,19 @@ export class FPSEngine {
 
   // One-button quick melee; never changes the equipped slot or reloads a weapon.
   private quickMelee() {
-    if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
+    if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0) return;
+    if (this.opts.mode === "gungame") {
+      // Gun Game forbids loadout quick-melee on firearm tiers, but F must still
+      // swing the ACTUAL equipped progression weapon on melee tiers. Route it
+      // through the normal melee shot path: same viewmodel animation, cooldown,
+      // reach, damage and server-authoritative kill/finishing-tier validation as
+      // left click. Do not create the unrelated loadout quick-melee prop.
+      const meleeId = gunGameMeleeShortcutWeapon(
+        this.gungameIndex, this.gungameWeapons, this.weaponId,
+      );
+      if (meleeId) this.fireOneShot(weaponById(meleeId));
+      return;
+    }
     const now = performance.now();
     const shieldBash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
     const melee=shieldBash?riotBashProfile():quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
