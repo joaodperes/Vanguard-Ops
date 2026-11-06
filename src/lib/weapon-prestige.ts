@@ -89,7 +89,7 @@ export function wonderUnlockChallenge(weaponId:string,prestiged:boolean,kills:nu
     completed:prestigeDone&&masteryDone,reward:"1 Wonder Weapon unlock",
     requirements:[
       {id:"prestige",title:"Complete Weapon Prestige",progress:Number(prestigeDone),goal:1,completed:prestigeDone},
-      {id:"mastery",title:"Reach Weapon Mastery rank 5/5",progress:eligible?rank:0,goal:5,completed:masteryDone},
+      {id:"mastery",title:"Reach Weapon Mastery rank 5",progress:eligible?rank:0,goal:5,completed:masteryDone},
     ],
   };
 }
