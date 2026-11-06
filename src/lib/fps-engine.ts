@@ -6718,6 +6718,18 @@ export class FPSEngine {
         model.position.z-=.4*Math.sin(Math.PI*bashProgress);
       // Camera forward is -Z; the same panel angle is required, not its mirror.
       model.rotation.set(0,panel.yawOffset,0);
+      // The Bulwark shield is a separate camera rig, not a vmPart. Animate it
+      // through the SAME cosmetic holster/draw timeline so it cannot remain
+      // floating in place while swapping to/from the shield + sidearm.
+      const swapAge = this.swapAnimAt ? performance.now() - this.swapAnimAt : Infinity;
+      if (swapAge >= 0 && swapAge < WEAPON_SWAP_VISUAL_MS) {
+        const pose = sampleWeaponSwapMotion(swapAge / WEAPON_SWAP_VISUAL_MS);
+        model.position.x += pose.x;
+        model.position.y += pose.y * 1.45; // tall shield must also clear the frame
+        model.position.z += pose.z;
+        model.rotation.x += pose.pitch * 0.5;
+        model.rotation.z += pose.roll;
+      }
     }
     for(const c of this.combatants.values()){
       if(!c.group||c.isSelf)continue;
