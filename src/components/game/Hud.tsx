@@ -545,6 +545,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>}
         {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
+        {hud.meleeWeaponId === "baton" && hud.weaponId !== "baton" && mode !== "gungame" && (
+          <div className="text-amber-300 text-[10px] mt-1">
+            F · THROWING KNIVES {hud.meleeKnifeCharges ?? 2}/2
+          </div>
+        )}
         {hud.weaponId === "baton" && (
           <div className="text-amber-200/80 text-[10px] mt-1">
             {mode==="gungame"
@@ -595,6 +600,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
+            {hud.meleeWeaponId==="baton" && hud.weaponId!=="baton" && mode!=="gungame" &&
+              <span className="text-amber-300 text-[9px]">F {hud.meleeKnifeCharges ?? 2}/2</span>}
             {hud.weaponId==="baton" && <span className="text-amber-300 text-[9px]">
               {mode==="gungame" ? `${Math.ceil((hud.knifeRechargeMs??0)/1000)}s recharge` : "per life"}
             </span>}
