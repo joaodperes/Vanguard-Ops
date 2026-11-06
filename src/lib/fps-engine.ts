@@ -366,6 +366,7 @@ interface BotAI {
   nextShotAt: number;
   nextDecisionAt: number;
   ammoInMag: number;
+  knifeNextAt?: number;
   reloadingUntil: number;
   strafeDir: number;
   moveSpeed: number;
@@ -7433,7 +7434,7 @@ export class FPSEngine {
     if (canCompleteGunGame(idx, this.gungameWeapons, c.weaponId)) return true;
     c.gungameIndex = Math.min(last, idx + 1);
     c.weaponId = this.gungameWeapons[c.gungameIndex];
-    if (c.ai) { c.ai.ammoInMag = weaponById(c.weaponId).stats.magSize; c.ai.reloadingUntil = 0; }
+    if (c.ai) { c.ai.ammoInMag = weaponById(c.weaponId).stats.magSize; c.ai.knifeNextAt = 0; c.ai.reloadingUntil = 0; }
     return false;
   }
 
@@ -9164,6 +9165,10 @@ export class FPSEngine {
       }
     }
     const w = weaponById(c.weaponId);
+    if(isThrowingKnife(w.id)){
+      const next=tickThrowingKnives({charges:ai.ammoInMag,nextAt:ai.knifeNextAt??0},now,this.opts.mode==="gungame");
+      ai.ammoInMag=next.charges;ai.knifeNextAt=next.nextAt;
+    }
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
@@ -9471,7 +9476,14 @@ export class FPSEngine {
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
         const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        if(w.category==="melee"){
+        if(isThrowingKnife(w.id)){
+          const spent=spendThrowingKnife({charges:ai.ammoInMag,nextAt:ai.knifeNextAt??0},now,this.opts.mode==="gungame");
+          if(spent){
+            ai.ammoInMag=spent.charges;ai.knifeNextAt=spent.nextAt;
+            this.spawnThrowingKnifeProjectile(origin,dir);
+            this.botFireRay(c,origin,dir,eff,w.stats.headshotMult);
+          }
+        }else if(w.category==="melee"){
           if(w.id===ORBITAL_REAPER_ID)this.offlineOrbitalBotSwing(c);
           else this.offlineBotMeleeSwing(c,w.id);
         }else{
@@ -9530,7 +9542,7 @@ export class FPSEngine {
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
       const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
         canStartWeaponReload(w.stats, ai.ammoInMag) && Math.random() < 0.02;
-      if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+      if (!isThrowingKnife(w.id) && !ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = w.stats.reloadStyle === "incremental"
           ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
               eff.reloadTime / Math.max(0.01, w.stats.reloadTime) * 1000)
