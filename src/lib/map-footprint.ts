@@ -92,7 +92,12 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+(c.kind==="platform"?0:.3));
   // Preserve all spawn choices. A cover island or its approach stairs must
   // not strand the surrounding playable district or spawn-kill a player.
-  const flankFeatures=plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));
+  // Emberhold is a fully authored multi-level castle: a dungeon spawn must
+  // never erase its enclosing walls or any stair that connects floors.
+  // Other legacy maps still use the optional flank-prop spawn filter.
+  const flankFeatures=base.id==="emberhold"
+    ? plan.features
+    : plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));
   const halfExtent=Math.max(...regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+3;
   // Older inner-circle spawn sets remain as fallbacks; larger districts receive
   // many additional spawns so players do not endlessly recycle the center.
