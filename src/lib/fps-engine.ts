@@ -52,7 +52,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
@@ -751,6 +751,9 @@ export class FPSEngine {
     baseScale: THREE.Vector3;
   }[] = [];
   private vmScale = 1.20;
+  // Visual model can lag the active gameplay weapon until the holster handoff.
+  private viewmodelWeaponId = "";
+  private swapViewmodelPending = false;
   // Camera-local rest grip: the same contact point and rigid weapon transform
   // used by every mesh in vmParts. Reused each frame without allocations.
   private fpSupportGrip = new THREE.Vector3();
@@ -940,8 +943,7 @@ export class FPSEngine {
   private secondarySight: SightDef;
   private meleeSight: SightDef;
   private wonderSight: SightDef;
-  // Swap animation: timestamp the player last swapped weapons. The viewmodel
-  // dips down + back up over ~250ms for a visible swap.
+  // Cosmetic swap timestamp; does not affect readiness, ammo, or network timing.
   private swapAnimAt = 0;
   // Last slot before switching (for quick-swap with Q)
   private lastSlot: WeaponSlot = "secondary"; // Q works on first press: primary -> secondary
@@ -2907,6 +2909,9 @@ export class FPSEngine {
   }
 
   private buildViewmodel() {
+    // Direct rebuilds supersede pending visual handoffs.
+    this.swapViewmodelPending = false;
+    this.viewmodelWeaponId = this.weaponId;
     if(this.riotShieldModel){this.disposeRiotModel(this.riotShieldModel);this.riotShieldModel=null;}
     if(this.weaponId===RIOT_SHIELD_ID){this.riotShieldModel=createRiotShieldModel(true);this.camera.add(this.riotShieldModel);}
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
@@ -3440,9 +3445,10 @@ export class FPSEngine {
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {
     const hand = this.fpActionHand, prop = this.fpActionProp;
     if (!hand || !prop) return;
-    const isShield = this.weaponId === RIOT_SHIELD_ID;
+    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
+    const isShield = visualWeaponId === RIOT_SHIELD_ID;
     const restMode = supportHandRestMode(
-      weaponById(this.weaponId).category, isShield, !!this.riotShieldModel?.visible,
+      weaponById(visualWeaponId).category, isShield, !!this.riotShieldModel?.visible,
     );
     let restRotation: THREE.Quaternion = this._vmTotalQuat;
     if (restMode === "shield" && this.riotShieldModel) {
@@ -3508,6 +3514,14 @@ export class FPSEngine {
   // On touch devices, the Fire/ADS buttons cluster in the bottom-right corner, so we
   // shift the hipfire viewmodel toward the bottom-centre/left to stay visible.
   private positionViewmodel() {
+    // Handoff at the midpoint, with the old weapon already out of view.
+    // Gameplay weaponId/stats/readiness were switched by the caller immediately.
+    if (this.swapViewmodelPending &&
+        performance.now() - this.swapAnimAt >= WEAPON_SWAP_VISUAL_MS * WEAPON_SWAP_HANDOFF) {
+      this.swapViewmodelPending = false;
+      this.buildViewmodel(); // positions the new model and returns here once
+      return;
+    }
     if (this.prestigeTexture) {
       const t = performance.now() * .001;
       this.prestigeTexture.offset.set(t * .045 % 1, t * .015 % 1);
@@ -3523,11 +3537,12 @@ export class FPSEngine {
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.
     // Magnified scopes use a HUD reticle; 1x sights remain part of the gun.
-    const wDef = weaponById(this.weaponId);
+    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
+    const wDef = weaponById(visualWeaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
-    const receiverHeight = WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18;
+    const receiverHeight = WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18;
     const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
     const adsTarget = isMagnifiedSight || isSniperScoped
       ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
@@ -3557,48 +3572,18 @@ export class FPSEngine {
       sprintPitch = -0.25;              // muzzle tips down (running stance)
       sprintRoll = sway * 0.10 * swayMultiplier(this.activePerkId);         // weapon cants with the sway
     }
-    // ---- Weapon-swap dip animation (Issue 3 + 4) ----
-    // A dramatic 450ms 3-phase animation that makes the weapon change obvious:
-    //   Phase 1 (0-160ms): weapon drops DOWN + pitches forward + cants right,
-    //                       sliding out of view (the "holster" motion).
-    //   Phase 2 (160-300ms): weapon is fully lowered (off-screen) — this is the
-    //                       "gap" where the old weapon is gone and the new one
-    //                       is being drawn. ADS is FORCED off during this window.
-    //   Phase 3 (300-450ms): weapon rises back UP into the ready position,
-    //                       pitching back to level (the "draw" motion).
-    // The dip is deep enough (-0.55) that the weapon goes fully below the
-    // camera's view, so the player sees the gun disappear and reappear — a
-    // clear visual cue that the weapon changed. The old 250ms / -0.25 dip was
-    // too subtle (the gun barely moved and the change was easy to miss).
-    let swapDipY = 0, swapPitch = 0, swapRoll = 0;
+    // ---- Holster outgoing weapon, then draw incoming (cosmetic 450ms) ----
+    let swapX = 0, swapY = 0, swapZ = 0, swapPitch = 0, swapRoll = 0;
     let swapActive = false;
     if (this.swapAnimAt) {
       const age = performance.now() - this.swapAnimAt;
-      const dur = 450;
-      if (age < dur) {
+      if (age < WEAPON_SWAP_VISUAL_MS) {
         swapActive = true;
-        const p = age / dur;
-        if (p < 0.35) {
-          // Phase 1: drop down + pitch forward (holster)
-          const t = p / 0.35;
-          swapDipY = -0.55 * t;
-          swapPitch = 0.8 * t;    // muzzle tips down
-          swapRoll = 0.35 * t;    // weapon cants right
-        } else if (p < 0.65) {
-          // Phase 2: fully lowered (off-screen) — hold at the bottom
-          swapDipY = -0.55;
-          swapPitch = 0.8;
-          swapRoll = 0.35;
-        } else {
-          // Phase 3: rise back up (draw) — ease out
-          const t = (p - 0.65) / 0.35;
-          const ease = 1 - Math.pow(1 - t, 3);  // ease-out cubic
-          swapDipY = -0.55 * (1 - ease);
-          swapPitch = 0.8 * (1 - ease);
-          swapRoll = 0.35 * (1 - ease);
-        }
+        const pose = sampleWeaponSwapMotion(age / WEAPON_SWAP_VISUAL_MS);
+        swapX = pose.x; swapY = pose.y; swapZ = pose.z;
+        swapPitch = pose.pitch; swapRoll = pose.roll;
       } else {
-        this.swapAnimAt = 0;  // animation complete
+        this.swapAnimAt = 0;
       }
     }
     // ---- Issue 4: ADS resets during weapon swap ----
@@ -3615,9 +3600,9 @@ export class FPSEngine {
     // Interpolate the camera-local offset. During a swap, use a faster lerp so
     // the weapon snaps down quickly (the dip should feel responsive, not floaty).
     const lerpRate = swapActive ? 0.4 : 0.25;
-    this.vmOffset.x += (target.x + sprintSwayX - this.vmOffset.x) * lerpRate;
-    this.vmOffset.y += ((target.y + bobY + sprintSwayY + swapDipY) - this.vmOffset.y) * lerpRate;
-    this.vmOffset.z += (target.z - this.vmOffset.z) * lerpRate;
+    this.vmOffset.x += (target.x + sprintSwayX + swapX - this.vmOffset.x) * lerpRate;
+    this.vmOffset.y += (target.y + bobY + sprintSwayY + swapY - this.vmOffset.y) * lerpRate;
+    this.vmOffset.z += (target.z + swapZ - this.vmOffset.z) * lerpRate;
 
     // ---- First-person reload and equipment poses (v6) ----
     let reloadDipY=0,reloadPitch=0,reloadRoll=0;
@@ -3669,7 +3654,7 @@ export class FPSEngine {
     // causing the handle to point up instead of the blade. A -π/2 (-90°)
     // pitch rotates the forward-pointing blade to point straight UP, with
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
-    const isMeleeWeapon = weaponById(this.weaponId).category === "melee";
+    const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
     const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch;
     const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll;
@@ -4472,6 +4457,12 @@ export class FPSEngine {
     });
   }
 
+  /** Cosmetic transition only. Ready/firing timers stay with the caller. */
+  private startWeaponSwapVisual(elapsedOffsetMs = 0) {
+    this.swapAnimAt = performance.now() - elapsedOffsetMs;
+    this.swapViewmodelPending = true;
+  }
+
   // ---- Weapon swap (primary / secondary / melee) ----
   // Switches the active weapon slot. Plays a swap SFX + dip animation, refreshes
   // eff/sightDef/ammo for the new slot, and notifies the server (online) so
@@ -4521,11 +4512,10 @@ export class FPSEngine {
         : this.wonderAmmoInMag;
     }
     this.reloading = false;
-    this.swapAnimAt = performance.now() - (this.activePerkId === "quickdraw" ? 155 : 0);
+    this.startWeaponSwapVisual(this.activePerkId === "quickdraw" ? 155 : 0);
     this.swapReadyAt = performance.now() + (this.activePerkId === "quickdraw" ? 110 : 290);
     this.sound.play("swap", { volume: 0.6 });
-    // Rebuild the viewmodel for the new weapon (different geometry/material).
-    this.buildViewmodel();
+    // The old mesh remains for the holster half; rebuild at the visual handoff.
     // Notify the server (online) so other players see the swap + the server
     // validates shots against the new weapon's stats.
     if (this.opts.online && this.socket?.connected) {
@@ -6020,9 +6010,9 @@ export class FPSEngine {
           // weapon is being drawn. We also rebuild the viewmodel so the new
           // weapon's distinct shape (sniper barrel, SMG compact body, etc.)
           // is rendered.
-          this.swapAnimAt = performance.now();
+          this.startWeaponSwapVisual();
           this.sound.play("swap", { volume: 0.5 });
-          this.buildViewmodel();
+          // The outgoing tier holsters before the new model is drawn.
         } else {
           const c = this.combatants.get(msg.playerId);
           if (c) {
@@ -7273,9 +7263,9 @@ export class FPSEngine {
     this.ammoInMag = this.eff.magSize;
     this.reloading = false;
     // ---- Play the weapon-swap animation + SFX on tier-up ----
-    this.swapAnimAt = performance.now();
+    this.startWeaponSwapVisual();
     this.sound.play("swap", { volume: 0.5 });
-    this.buildViewmodel();
+    // The outgoing tier holsters before the new model is drawn.
     return false;
   }
 
