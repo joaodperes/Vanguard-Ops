@@ -393,7 +393,7 @@ export function Play() {
                   </Section>
                 )}
                 {roomConfig.mode === "survival" && (
-                  <Section className="h-full" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                  <Section className="h-full lg:min-h-0 lg:overflow-y-auto" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
                     <div className="grid sm:grid-cols-2 gap-3">
                       {SURVIVAL_TIERS.map(tier=>{
                         const info=SURVIVAL_TIER_INFO[tier];
@@ -416,7 +416,7 @@ export function Play() {
                   </Section>
                 )}
                 {roomConfig.mode === "gungame" && (
-                  <div className="h-full rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
+                  <div className="h-full lg:min-h-0 lg:overflow-y-auto rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
                     <div>
                       <div className="text-white font-semibold text-sm mb-1">Gun Game weapon pool</div>
                       <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
