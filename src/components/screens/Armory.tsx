@@ -772,7 +772,7 @@ function WeaponCard(props: WeaponCardProps) {
   const supportedSlots = weaponAttachmentSlots(w);
   // Use the same calculations as the Challenges tab and Wonder unlock gate.
   // A permanent Prestige award must never disappear if challenges are revised.
-  const weaponProgress = props.progress[w.id] ?? { weaponId: w.id, kills: 0, headshots: 0 };
+  const weaponProgress: WeaponProgressMap[string] = props.progress[w.id] ?? { weaponId: w.id, kills: 0, headshots: 0 };
   const prestige = prestigeChallengeStatus(
     w.id, weaponProgress,
     new Set(props.skinsByWeapon[w.id] ?? []),
