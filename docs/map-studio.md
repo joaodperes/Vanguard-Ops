@@ -53,7 +53,7 @@ Network/persistence map IDs must **not** be renamed merely to match the player-f
 
 | Internal ID | Player-facing name | Contents and landmark | Map selector icon |
 | --- | --- | --- | --- |
-| `compound` | Verdant Ruins | Jungle temple and mossy stone ruins | Landmark |
+| `compound` | Verdant Ruins (VRN) | Jungle temple and mossy stone ruins | Landmark |
 | `skybridge` | Ridgefall | Enclosed steelworks, presses and gantries | Factory |
 | `bunker` | Blacksite | Underground vault and security rooms | Lock/keyhole |
 | `shipyard` | Breakwater | Harbor container yard and dock | Ship |

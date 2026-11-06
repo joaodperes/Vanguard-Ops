@@ -3,7 +3,7 @@
   "id": "compound",
   "blueprint": {
     "name": "Verdant Ruins",
-    "shortName": "IRD",
+    "shortName": "VRN",
     "description": "Sunlit jungle ruins: mossy stones, shaded courtyards, vegetation and several broken flank routes.",
     "pace": "balanced",
     "regions": [

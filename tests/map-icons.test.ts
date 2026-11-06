@@ -31,6 +31,8 @@ describe("map selection iconography", () => {
   test("Afterlight City variants are explicitly distinguished", () => {
     const day = MAP_DOCUMENTS.terminal.blueprint;
     const night = MAP_DOCUMENTS.arena_neon.blueprint;
+    expect(MAP_DOCUMENTS.compound.blueprint.name).toBe("Verdant Ruins");
+    expect(MAP_DOCUMENTS.compound.blueprint.shortName).toBe("VRN");
     expect(day.name).toBe("Afterlight City (Day)");
     expect(night.name).toBe("Afterlight City (Night)");
     expect(day.regions).toEqual(night.regions);
