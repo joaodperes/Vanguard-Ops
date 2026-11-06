@@ -22,9 +22,9 @@ All stats are percentages applied to base weapon values. Magazine counts round t
 
 **Shotguns:** Shell Carrier is a side-saddle holder for spare shells. It provides -16% reload time and -1% movement, *not* +25% tube capacity. It competes against Quickdraw (-22% reload but -15% capacity) and special shell types in the magazine/ammunition slot.
 
-**Launchers:** No generic extended magazines. Instead choose Rapid Loader (-22% reload, +12% ADS), Heavy Warheads (+8% damage, +18% reload, -5% movement), or Lightweight Rocket Payload (-15% damage, -12% reload, +5% movement). Single-shot launchers stay single-shot.
+**Launchers:** No generic extended magazines. Choose Rapid Loader (-22% reload, +12% ADS), Heavy Warheads (+8% damage, +18% reload, -5% movement), Lightweight Rocket Payload (-15% damage, -12% reload, +5% movement), or Long-Range Rockets (+15% range, -10% damage, +6% reload). Single-shot launchers stay single-shot.
 
-**Crossbow:** Heavy Arrows now yield +65% (not +190%) damage, with two recoverable bolts and slower rate. Piercing Bolt Head grants real body-to-body penetration (not wall penetration).
+**Crossbow:** Heavy Arrows now yield +65% (not +190%) damage, with two recoverable bolts and slower rate. Extended Mag is weapon-overridden into a two-bolt rack with slower reload and mobility cost. Piercing Bolt Head grants real body-to-body penetration (not wall penetration).
 
 ## Heat weapon framework
 `WeaponSpecial.kind === "heat"` selects the reusable heat barrel and heat-magazine choices, unless an exact-weapon compatibility override supplies its own list. Heat attachments are marked `heatOnly` and cannot be applied to other weapons, even via stale loadout data.
@@ -36,6 +36,7 @@ All stats are percentages applied to base weapon values. Magazine counts round t
 | Barrel | Thermal Heat Sink | +24% passive cooling; -3% movement, +8% ADS time |
 | Barrel | Focused Emitter | +8% range, -12% aimed dispersion; +20% heat per shot |
 | Barrel | Compact Emitter | +5% movement, -12% ADS time; -18% passive cooling |
+| Barrel | Insulated Conduit | -12% heat per shot; -8% range, +7% ADS time |
 | Magazine | High-Capacity Heat Reservoir | -22% heat per shot; -12% cooling, -2% move |
 | Magazine | Rapid Vent Module | -30% manual vent time; +10% heat per shot |
 | Magazine | Active Coolant Cell | +32% passive cooling; +8% heat per shot, -3% movement |

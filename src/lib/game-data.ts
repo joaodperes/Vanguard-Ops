@@ -130,7 +130,7 @@ export function compatibleAttachments(weaponId: string, slot: AttachmentSlot): s
   // Heat weapons share a reusable pool of cooling, venting and emitter hardware.
   // Explicit weapon overrides take precedence; conventional magazines never apply.
   const heatOptions: Partial<Record<AttachmentSlot, string[]>> = {
-    barrel: ["barrel_heat_sink", "barrel_heat_focus", "barrel_heat_compact"],
+    barrel: ["barrel_heat_sink", "barrel_heat_focus", "barrel_heat_compact", "barrel_heat_insulated"],
     magazine: ["mag_heat_reservoir", "mag_heat_quickvent", "mag_heat_coolant", "mag_heat_lightweight"],
   };
   const allowed = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot] ??
@@ -244,6 +244,8 @@ export interface AttachmentDef {
   heatOnly?: boolean;
   /** Overrides replace base effect percentages for the matching weapon class. */
   categoryEffects?: Partial<Record<WeaponCategory, Partial<AttachmentDef["effects"]>>>;
+  /** Exact-weapon overrides, useful when a single-chamber weapon needs one actual extra round. */
+  weaponEffects?: Record<string, Partial<AttachmentDef["effects"]>>;
   /** Shared heat-mechanic percentages, resolved on both client and server. */
   heatEffects?: Partial<Record<"heatPerShot" | "coolPerSecond" | "coolDelayMs" | "ventSeconds" | "overheatAt" | "resumeAt",number>>;
   effects: {
@@ -262,7 +264,7 @@ export interface AttachmentDef {
 export const ATTACHMENTS: AttachmentDef[] = attachmentsData as unknown as AttachmentDef[];
 
 export function attachmentEffectsForWeapon(att: AttachmentDef, weapon: WeaponDef): AttachmentDef["effects"] {
-  return { ...att.effects, ...(att.categoryEffects?.[weapon.category] ?? {}) };
+  return { ...att.effects, ...(att.categoryEffects?.[weapon.category] ?? {}), ...(att.weaponEffects?.[weapon.id] ?? {}) };
 }
 
 /** Heat upgrades are defined by mechanic rather than weapon ID, so subsequent

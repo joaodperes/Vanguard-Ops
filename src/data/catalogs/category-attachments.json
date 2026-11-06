@@ -235,7 +235,8 @@
     "magazine": [
       "mag_launcher_quickload",
       "mag_launcher_reinforced",
-      "mag_launcher_light_payload"
+      "mag_launcher_light_payload",
+      "mag_launcher_longreach"
     ]
   }
 }

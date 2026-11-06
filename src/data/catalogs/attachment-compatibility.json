@@ -35,7 +35,8 @@
     "barrel": [
       "barrel_heat_sink",
       "barrel_heat_focus",
-      "barrel_heat_compact"
+      "barrel_heat_compact",
+      "barrel_heat_insulated"
     ],
     "magazine": [
       "mag_heat_reservoir",

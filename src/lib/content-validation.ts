@@ -68,6 +68,11 @@ const weapon = z.object({
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),
 });
+const statEffect = z.object({
+  damage: num.optional(), recoil: num.optional(), spread: num.optional(),
+  adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
+  reloadTime: num.optional(), moveSpeed: num.optional(), range: num.optional(),
+});
 const attachment = z.object({
   id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
   unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
@@ -79,11 +84,14 @@ const attachment = z.object({
     damageRetention: unit.refine(v => v > 0, "Retention must be positive"),
     retentionBonus: unit.optional(),
   }).optional(),
-  effects: z.object({
-    damage: num.optional(), recoil: num.optional(), spread: num.optional(),
-    adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
-    reloadTime: num.optional(), moveSpeed: num.optional(), range: num.optional(),
-  }),
+  effects: statEffect,
+  heatOnly: z.boolean().optional(),
+  categoryEffects: z.record(z.string(),statEffect).optional(),
+  weaponEffects: z.record(z.string(),statEffect).optional(),
+  heatEffects: z.object({
+    heatPerShot: num.optional(), coolPerSecond: num.optional(), coolDelayMs: num.optional(),
+    ventSeconds: num.optional(), overheatAt: num.optional(), resumeAt: num.optional(),
+  }).optional(),
 });
 const skin = z.object({
   id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity: weaponSkinRarity,
@@ -238,19 +246,23 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
     if (item?.bodyPenetration) {
-      if (item.slot !== "magazine" || !item.exclusiveWeaponIds?.length)
-        issues.push("attachment " + item.id + ": penetration ammunition requires a magazine slot and explicit weapon whitelist");
+      const boltHead = item.slot === "barrel" && !!item.exclusiveWeaponIds?.length &&
+        item.exclusiveWeaponIds.every(weaponId =>
+          Array.isArray(w) && w.some(entry => entry?.id === weaponId && entry.special?.kind === "bolt"));
+      if ((item.slot !== "magazine" && !boltHead) || !item.exclusiveWeaponIds?.length)
+        issues.push("attachment " + item.id + ": penetrating projectiles require magazine ammunition or a bolt-weapon barrel and explicit weapon whitelist");
       for (const weaponId of item.exclusiveWeaponIds ?? []) {
         const supported = Array.isArray(w) ? w.find(entry => entry?.id === weaponId) : undefined;
         if (!supported) issues.push("attachment " + item.id + ": unknown eligible weapon " + weaponId);
         else if (supported.category === "melee" || supported.category === "shotgun" ||
-                 supported.category === "launcher" || supported.wonder || supported.explosive || supported.special)
+                 supported.category === "launcher" || supported.wonder || supported.explosive ||
+                 (supported.special && !(boltHead && supported.special.kind === "bolt")))
           issues.push("attachment " + item.id + ": unsupported projectile type for " + weaponId);
         else {
-          const choices = WEAPON_ATTACHMENT_COMPAT[weaponId]?.magazine ??
-            CATEGORY_ATTACHMENT_CHOICES[supported.category as keyof typeof CATEGORY_ATTACHMENT_CHOICES]?.magazine ?? [];
+          const choices = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[item.slot as "magazine"|"barrel"] ??
+            CATEGORY_ATTACHMENT_CHOICES[supported.category as keyof typeof CATEGORY_ATTACHMENT_CHOICES]?.[item.slot as "magazine"|"barrel"] ?? [];
           if (!choices.includes(item.id))
-            issues.push("attachment " + item.id + ": missing magazine compatibility for " + weaponId);
+            issues.push("attachment " + item.id + ": missing " + item.slot + " compatibility for " + weaponId);
         }
       }
     }

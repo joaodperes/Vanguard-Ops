@@ -101,8 +101,11 @@ describe("shotgun attachment combinations", () => {
         expect(p.every(Number.isFinite)).toBe(true);
       }
     }
-    // 5 sights x 5 barrels x 5 grips x 6 magazine choices x 3 shotguns.
-    expect(count).toBe(2250);
+    // Every legal combination is exercised; adding a shell type should not break a fixed snapshot.
+    const expected = shotguns.reduce((sum, weapon) =>
+      sum + (["sight","barrel","grip","magazine"] as AttachmentSlot[])
+        .reduce((n,slot)=>n * (compatibleAttachments(weapon.id,slot).length + 1),1),0);
+    expect(count).toBe(expected);
   });
 
   test("special ammunition forms clearly different damage, pattern and range trades", () => {

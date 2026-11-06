@@ -438,6 +438,13 @@
         "reloadTime": 12,
         "moveSpeed": -3
       }
+    },
+    "weaponEffects": {
+      "crossbow_reclaimer": {
+        "magSize": 100,
+        "reloadTime": 15,
+        "moveSpeed": -3
+      }
     }
   },
   {
@@ -1221,5 +1228,37 @@
     "weaponCategories": [
       "launcher"
     ]
+  },
+  {
+    "id": "barrel_heat_insulated",
+    "name": "Insulated Conduit",
+    "slot": "barrel",
+    "unlockLevel": 10,
+    "unlockCost": 350,
+    "description": "Insulation reduces heat generated per shot but restricts effective range and slows aiming.",
+    "heatOnly": true,
+    "effects": {
+      "range": -8,
+      "adsTime": 7
+    },
+    "heatEffects": {
+      "heatPerShot": -12
+    }
+  },
+  {
+    "id": "mag_launcher_longreach",
+    "name": "Long-Range Rockets",
+    "slot": "magazine",
+    "unlockLevel": 14,
+    "unlockCost": 450,
+    "description": "Long-burn rocket payload extends effective range at the cost of direct damage and slower reloads.",
+    "weaponCategories": [
+      "launcher"
+    ],
+    "effects": {
+      "range": 15,
+      "damage": -10,
+      "reloadTime": 6
+    }
   }
 ]

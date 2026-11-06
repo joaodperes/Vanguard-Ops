@@ -38,7 +38,8 @@ describe("Marksman DMR magazine balance", () => {
     const weapon = weaponById("rifle_dm");
     expect(weapon.stats.magSize).toBe(12);
     const extended = computeEffectiveStats(weapon, { sight: null, barrel: null, grip: null, magazine: "mag_extended" });
-    expect(extended.magSize).toBe(18);
+    expect(extended.magSize).toBe(15);
+    expect(extended.reloadTime).toBeGreaterThan(weapon.stats.reloadTime);
   });
 });
 

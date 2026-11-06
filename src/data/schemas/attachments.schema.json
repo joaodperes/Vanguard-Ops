@@ -192,6 +192,42 @@
           }
         },
         "additionalProperties": false
+      },
+      "weaponEffects": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "number"
+            },
+            "recoil": {
+              "type": "number"
+            },
+            "spread": {
+              "type": "number"
+            },
+            "adsSpread": {
+              "type": "number"
+            },
+            "adsTime": {
+              "type": "number"
+            },
+            "magSize": {
+              "type": "number"
+            },
+            "reloadTime": {
+              "type": "number"
+            },
+            "moveSpeed": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
       }
     },
     "additionalProperties": false
