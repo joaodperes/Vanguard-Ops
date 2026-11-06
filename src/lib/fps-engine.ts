@@ -7067,6 +7067,59 @@ export class FPSEngine {
     }
   }
 
+  /** Two finite steel knives shared by F and the melee slot. All damage
+   * happens on the short ray, never through walls or behind another target. */
+  private throwThrowingKnife(w:WeaponDef,now:number,quick:boolean){
+    const gap=1000/Math.max(.1,w.stats.fireRate);
+    if(now-this.lastThrowingKnifeAt<gap || now-this.lastShotAt<gap)return;
+    const spent=spendThrowingKnife(this.throwingKnifeState,now,this.opts.mode==="gungame");
+    if(!spent){this.sound.play("empty_click",{volume:.35});return;}
+    const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+    const dir=this.aimDir(0);
+    this.throwingKnifeState=spent;
+    this.meleeAmmoInMag=spent.charges;
+    if(isThrowingKnife(this.weaponId))this.ammoInMag=spent.charges;
+    this.lastThrowingKnifeAt=now;
+    if(quick){this.quickMeleeLastAt=now;this.quickMeleeFeedbackAt=now;this.meleeSwingAt=0;}
+    else this.meleeSwingAt=now;
+    this.lastShotAt=now;
+    this.meleeSwingDur=350;
+    this.selfSpawnProtectedUntil=0;
+    this.weaponAudio.play("melee",{weaponId:w.id,volume:.7});
+    this.spawnThrowingKnifeProjectile(origin,dir);
+    if(this.opts.online){
+      if(quick)this.socket?.emit("message",{t:"quickMelee"});
+      else this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
+      return;
+    }
+    let nearest:{victim:Combatant;t:number;head:boolean;shield:boolean}|null=null;
+    for(const c of this.combatants.values()){
+      if(!c.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===this.opts.team))continue;
+      const body=rayCombatantHit(origin,dir,c.pos);
+      const shield=rayRiotShield(origin,dir,c);
+      const shieldFirst=shield!==null&&shield>=0&&(!body||shield<body.t);
+      const t=shieldFirst?shield!:body?.t;
+      if(t===undefined||t<0||t>THROWING_KNIFE_RANGE||(nearest&&nearest.t<=t))continue;
+      nearest={victim:c,t,head:!shieldFirst&&!!body?.head,shield:shieldFirst};
+    }
+    const cover=closestCoverHit(this.map.cover,origin,dir,THROWING_KNIFE_RANGE,rayBox);
+    if(nearest&&(!cover||cover.distance>=nearest.t)){
+      if(nearest.victim.spawnProtectedUntil&&nearest.victim.spawnProtectedUntil>Date.now()){
+        this.hitMarkerAt=now;return;
+      }
+      if(nearest.shield){
+        const next=hitRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,
+          nearest.victim.riotShieldReadyAt??0,w.stats.damage,now);
+        nearest.victim.riotShieldHp=next.hp;nearest.victim.riotShieldReadyAt=next.readyAt;
+        this.sound.play("melee_hit",{volume:.4});return;
+      }
+      this.applyDamageLocal(nearest.victim,w.stats.damage*(nearest.head?w.stats.headshotMult:1),nearest.head,w.id);
+      this.hitMarkerAt=now;
+      if(nearest.head)this.headshotMarkerAt=now;
+      this.sound.play("melee_hit",{volume:.65});
+    }
+  }
+
   // ---- Melee attack ----
   // Melee weapons (knife, shiv, machete, hammer) don't fire a ray — they hit
   // everything in a short frontal arc within `eff.range` (2-3 units). The closest
@@ -7760,6 +7813,34 @@ export class FPSEngine {
       Math.cos(this.yaw) * cp + (Math.random() - 0.5) * spread,
     ];
     return this.normalize(dir);
+  }
+
+  /** Render an actual spinning steel blade on a short trajectory, not a tracer. */
+  private spawnThrowingKnifeProjectile(origin:Vec3,dir:Vec3){
+    const d=new THREE.Vector3(...dir).normalize(),start=new THREE.Vector3(...origin);
+    let distance=THROWING_KNIFE_RANGE;
+    for(const cov of this.map.cover){
+      const t=rayBox(origin,dir,cov.pos,cov.size);
+      if(t!==null&&t>=0&&t<distance)distance=t;
+    }
+    for(const c of this.combatants.values()){
+      if(!c.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===this.opts.team))continue;
+      const hit=rayCombatantHit(origin,dir,c.pos);
+      if(hit&&hit.t>=0&&hit.t<distance)distance=hit.t;
+    }
+    const group=new THREE.Group();
+    const steel=new THREE.MeshStandardMaterial({color:0xd6e2e8,metalness:.85,roughness:.27,side:THREE.DoubleSide});
+    const grip=new THREE.MeshStandardMaterial({color:0x222a30,metalness:.2,roughness:.72});
+    const blade=new THREE.Mesh(new THREE.ConeGeometry(.045,.29,4),steel);
+    blade.rotation.x=-Math.PI/2;blade.position.z=-.14;
+    const handle=new THREE.Mesh(new THREE.CylinderGeometry(.025,.024,.19,8),grip);
+    handle.rotation.x=Math.PI/2;handle.position.z=.12;
+    group.add(blade,handle);
+    const rotation=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1),d);
+    group.quaternion.copy(rotation);group.position.copy(start);
+    this.scene.add(group);
+    this.thrownKnives.push({mesh:group,start,dir:d,distance,born:performance.now(),
+      travelMs:Math.max(90,distance/THROWING_KNIFE_SPEED*1000),rotation});
   }
 
   private spawnTracer(origin: Vec3, dir: Vec3, skinId: string) {
