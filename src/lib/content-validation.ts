@@ -74,6 +74,11 @@ const attachment = z.object({
   weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
   sightType: z.string().optional(),
   shotgunAmmo: z.enum(["slug","pellets","dragons_breath","beanbag"]).optional(),
+  bodyPenetration: z.object({
+    maxTargets: pos.int().min(2).max(3),
+    damageRetention: unit.refine(v => v > 0, "Retention must be positive"),
+    retentionBonus: unit.optional(),
+  }).optional(),
   effects: z.object({
     damage: num.optional(), recoil: num.optional(), spread: num.optional(),
     adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
@@ -229,9 +234,27 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     if (item?.category !== "launcher" && item?.explosive)
       issues.push("weapon " + item.id + ": non-launcher cannot declare explosive radius");
   }
-  if (Array.isArray(a)) for (const item of a)
+  if (Array.isArray(a)) for (const item of a) {
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
+    if (item?.bodyPenetration) {
+      if (item.slot !== "magazine" || !item.exclusiveWeaponIds?.length)
+        issues.push("attachment " + item.id + ": penetration ammunition requires a magazine slot and explicit weapon whitelist");
+      for (const weaponId of item.exclusiveWeaponIds ?? []) {
+        const supported = Array.isArray(w) ? w.find(entry => entry?.id === weaponId) : undefined;
+        if (!supported) issues.push("attachment " + item.id + ": unknown eligible weapon " + weaponId);
+        else if (supported.category === "melee" || supported.category === "shotgun" ||
+                 supported.category === "launcher" || supported.wonder || supported.explosive || supported.special)
+          issues.push("attachment " + item.id + ": unsupported projectile type for " + weaponId);
+        else {
+          const choices = WEAPON_ATTACHMENT_COMPAT[weaponId]?.magazine ??
+            CATEGORY_ATTACHMENT_CHOICES[supported.category as keyof typeof CATEGORY_ATTACHMENT_CHOICES]?.magazine ?? [];
+          if (!choices.includes(item.id))
+            issues.push("attachment " + item.id + ": missing magazine compatibility for " + weaponId);
+        }
+      }
+    }
+  }
 
   // Every shipped biome has a separate JSON palette and prop library.
   // Validate those files as well as walkable geometry, not just map metadata.
