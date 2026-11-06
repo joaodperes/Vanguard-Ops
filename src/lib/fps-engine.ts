@@ -4562,7 +4562,7 @@ export class FPSEngine {
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
       assists:c.id===this.selfId?this.assists:0,
-      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
+      score:(c.score ?? c.kills)+(c.id===this.selfId && this.opts.mode!=="ctf" && this.opts.mode!=="killconfirmed"?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
@@ -7566,7 +7566,7 @@ export class FPSEngine {
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
       assists:c.id===this.selfId?this.assists:0,
-      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
+      score:(c.score ?? c.kills)+(c.id===this.selfId && this.opts.mode!=="ctf" && this.opts.mode!=="killconfirmed"?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     // Win detection: FFA and Gun Game are both free-for-all — the player wins
@@ -7981,6 +7981,23 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    // Cinematic finish: keep recently killed operatives visible but never
+    // simulate another combat tick or change match results after the verdict.
+    if (this.matchEnded) {
+      const now = performance.now();
+      this.updateCombatantMeshes(dt * MATCH_FINALE_PLAYBACK_RATE, now);
+      this.explosionEffects?.update(
+        this.finaleStartedAt + (now - this.finaleStartedAt) * MATCH_FINALE_PLAYBACK_RATE,
+        this.camera.position,
+      );
+      this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+      if (now - this.lastHudAt > 80) {
+        this.lastHudAt = now;
+        this.emitHud(now);
+      }
+      return;
+    }
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
@@ -8036,23 +8053,6 @@ export class FPSEngine {
           for (const c of this.combatants.values()) if (c.alive && this.opts.mode !== "survival") c.spawnProtectedUntil = Date.now() + 2500;
         }
         this.sound.play("match_start", { volume: 0.8 });
-      }
-      return;
-    }
-    // Cinematic finish: keep recently killed operatives visible but never
-    // simulate another combat tick or change match results after the verdict.
-    if (this.matchEnded) {
-      const now = performance.now();
-      this.updateCombatantMeshes(dt * MATCH_FINALE_PLAYBACK_RATE, now);
-      this.explosionEffects?.update(
-        this.finaleStartedAt + (now - this.finaleStartedAt) * MATCH_FINALE_PLAYBACK_RATE,
-        this.camera.position,
-      );
-      this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
-      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
-      if (now - this.lastHudAt > 80) {
-        this.lastHudAt = now;
-        this.emitHud(now);
       }
       return;
     }
