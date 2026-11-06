@@ -775,7 +775,16 @@ function WeaponCard(props: WeaponCardProps) {
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: rarityColor, opacity: 0.6 }} />
       <div className="mb-2 pr-20">
         <div className="text-white font-bold text-base">{w.name}</div>
-        <div className="text-white/40 text-xs uppercase tracking-wide">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</div>
+        <div className="text-white/40 text-xs uppercase tracking-wide flex items-center gap-1.5 min-w-0">
+          <span className="truncate">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</span>
+          {w.stats.bodyPenetration && (
+            <span className="inline-flex shrink-0 rounded border border-amber-400/25 bg-amber-500/5 px-1 py-px text-[9px] font-mono font-semibold text-amber-300/80 normal-case"
+              title={`Body penetration: up to ${w.stats.bodyPenetration.maxTargets} aligned targets, ${Math.round(w.stats.bodyPenetration.damageRetention * 100)}% damage retained after each hit. Solid cover and shields stop bullets.`}
+              aria-label={`Body penetration: ${w.stats.bodyPenetration.maxTargets} targets`}>
+              PEN×{w.stats.bodyPenetration.maxTargets}
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-white/50 text-xs mb-2 flex-1">{w.description}</p>
       {/* stat bars */}
@@ -794,13 +803,6 @@ function WeaponCard(props: WeaponCardProps) {
         <HandlingStat icon={<Crosshair className="w-3 h-3" />} label="HS×" value={`${w.stats.headshotMult}×`} />
         <HandlingStat icon={<Zap className="w-3 h-3" />} label="MOVE" value={`${Math.round(w.stats.moveSpeed * 100)}%`} />
       </div>
-      {w.stats.bodyPenetration && (
-        <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-200/85"
-          title="Bullets pass through aligned enemies, losing damage after each hit. Cover and riot shields stop them.">
-          <span className="font-bold tracking-wide">BODY PENETRATION</span>
-          <span className="ml-1.5 text-white/65">Up to {w.stats.bodyPenetration.maxTargets} targets · {Math.round(w.stats.bodyPenetration.damageRetention * 100)}% retained per hit</span>
-        </div>
-      )}
       {/* Both owned and locked cards reserve the same two action rows. Keeping
           the spacing on the container (rather than only on Equip) aligns Buy,
           Equip, and Customize across adjacent cards regardless of ownership. */}
