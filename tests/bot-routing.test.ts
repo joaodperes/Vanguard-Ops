@@ -103,6 +103,24 @@ describe("Emberhold Castle bot routes",()=>{
     });
   }
 
+  test("central keep AI can follow successive A* steps between courtyard and crypt",()=>{
+    const entrance=entrances.find(e=>e.id==="donjon-crypt-stair")!;
+    for(const [initial,goal] of [[entrance.upper,entrance.lower],[entrance.lower,entrance.upper]] as const){
+      let position:[number,number,number]=[...initial];
+      const close=()=>Math.hypot(position[0]-goal[0],position[2]-goal[2])<2.5&&Math.abs(position[1]-goal[1])<1;
+      for(let step=0;step<45&&!close();step++){
+        const navigation=botMapRouteGoal("emberhold",position,goal);
+        const next=botNextWaypoint(position,navigation,map.cover,map.size,3,map.environment,map.regions);
+        if(!next)throw Error("Castle A* missing route at "+JSON.stringify(position));
+        const height=botTraversableEdge(position,next[0],next[2],map.cover,map.environment);
+        if(height===null)throw Error("Castle A* selected blocked edge at "+JSON.stringify(position));
+        if(Math.hypot(position[0]-next[0],position[2]-next[2])<.1)throw Error("Castle A* stalled at "+JSON.stringify(position));
+        position=[next[0],height,next[2]];
+      }
+      expect(close(), "failed to reach castle level at "+JSON.stringify(position)).toBe(true);
+    }
+  },30000);
+
   test("cross-floor targets stage at a real stair and other maps stay unchanged",()=>{
     const from:[number,number,number]=[40,5,20],goal:[number,number,number]=[-24,.5,1];
     const staged=botMapRouteGoal("emberhold",from,goal);
