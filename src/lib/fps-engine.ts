@@ -7620,8 +7620,10 @@ export class FPSEngine {
   }
 
   private triggerMuzzleFlash() {
-    // A mechanical crossbow does not emit a firearm-style muzzle flash.
-    if (this.weaponId === "crossbow_reclaimer") return;
+    // The crossbow has no firearm flash. Bulwark's integrated P-9 also hides
+    // its first-person flash: the camera-space effect obscures the shield visor.
+    // The standalone P-9 keeps its normal flash and all shots still fire.
+    if (this.weaponId === "crossbow_reclaimer" || this.weaponId === RIOT_SHIELD_ID) return;
     const suppressed = this.getCurrentAttachments().barrel === "barrel_suppressor";
     (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = suppressed ? .14 : 1;
     this.muzzleFlash.scale.setScalar(suppressed ? .65 : 1 + Math.random() * .6);
