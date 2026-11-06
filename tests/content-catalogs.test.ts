@@ -28,9 +28,9 @@ describe("JSON catalog contract", () => {
     const broken = { ...WEAPONS[0], unlockLevel: MAX_PLAYER_LEVEL + 1 };
     expect(validateGameContent({ weapons: [broken, ...WEAPONS.slice(1)] }).some(e => e.includes("weapons [0.unlockLevel]"))).toBe(true);
   });
-  test("unchanged JSON catalogs retain player-facing stable identifiers", () => {
+  test("published JSON catalogs retain stable identifiers and expected content counts", () => {
     expect(WEAPONS.length).toBe(51);
-    expect(ATTACHMENTS.length).toBe(49);
+    expect(ATTACHMENTS.length).toBe(59);
     expect(WEAPON_SKINS.length).toBe(18);
     expect(PLAYER_SKINS.length).toBe(16);
     expect(WEAPON_CHALLENGES.length).toBe(189);
