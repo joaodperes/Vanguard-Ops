@@ -28,7 +28,12 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
   const displayed = preview ? computeEffectiveStats(weapon, preview) : current;
   const currentSight = sightDefForAttachments(equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
   const shownSight = sightDefForAttachments(preview ?? equipped ?? EMPTY_ATTACHMENTS, weapon.baseSightType);
-  const hasPreview = !!preview && (currentSight.type !== shownSight.type || STAT_DEFS.some(s => current[s.key] !== displayed[s.key]));
+  const hasPreview = !!preview && (
+    currentSight.type !== shownSight.type ||
+    STAT_DEFS.some(s => current[s.key] !== displayed[s.key]) ||
+    current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets ||
+    current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention
+  );
   const baseline = computeEffectiveStats(weapon, EMPTY_ATTACHMENTS);
   // Melee has no magazine, reload, recoil or aiming optics. Keep only relevant stats.
   const rows = weapon.category === "melee" ? STAT_DEFS.filter(s => ["damage", "fireRate", "range", "moveSpeed"].includes(s.key)) : STAT_DEFS;
@@ -42,6 +47,19 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
         <span className="text-white/55">Optic</span>
         <span className="text-white font-mono">{shownSight.name} · {shownSight.zoom}×</span>
       </div>}
+      {!compact && weapon.category !== "melee" && (current.bodyPenetration || displayed.bodyPenetration) && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[11px]">
+          <span className="text-white/55">Body penetration</span>
+          <span className="font-mono font-semibold text-amber-200 text-right">
+            {displayed.bodyPenetration
+              ? `${displayed.bodyPenetration.maxTargets} targets · ${Math.round(displayed.bodyPenetration.damageRetention * 100)}% retained`
+              : "None"}
+            {hasPreview && (current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention ||
+                current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets) &&
+              <span className="ml-1.5 text-amber-300/65">(changed)</span>}
+          </span>
+        </div>
+      )}
       <div className={compact ? "grid grid-cols-2 gap-x-4 gap-y-2" : "grid grid-cols-1 gap-y-2.5"}>
         {rows.map(s => {
           const val = displayed[s.key] as number;
