@@ -46,17 +46,21 @@
     "icon": "Tags",
     "defaultScoreLimit": 40,
     "scoreOptions": [
-      25,
+      0,
+      15,
+      30,
       40,
-      60,
-      75
+      50,
+      75,
+      100
     ],
     "defaultTimeLimit": 10,
     "timeOptions": [
+      0,
       5,
-      8,
       10,
-      15
+      15,
+      20
     ],
     "teamBased": true,
     "accentColor": "#22d3ee"
