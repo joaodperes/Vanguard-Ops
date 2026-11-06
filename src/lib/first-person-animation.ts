@@ -7,6 +7,16 @@ import { ROUND_INSERT_FRACTION } from "./incremental-reload";
 export type ReloadMotion = "magazine" | "shell" | "cylinder" | "side_bolt" | "bolt" | "vent";
 export type DeployMotion = "throw" | "place" | "aim";
 
+/** Cosmetic viewmodel swap only. Weapon readiness and Gun Game progression
+ * are controlled elsewhere and MUST NOT depend on this visual timeline. */
+export const WEAPON_SWAP_VISUAL_MS = 450;
+export const WEAPON_SWAP_HANDOFF = 0.5;
+export interface WeaponSwapPose {
+  x: number; y: number; z: number;
+  pitch: number; roll: number;
+  incoming: boolean;
+}
+
 export interface ActionPose {
   // Weapon offsets added on top of the usual hipfire/sprint/swap pose.
   dip: number;
@@ -68,6 +78,22 @@ const ease = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const mix = (a: [number, number, number], b: [number, number, number], t: number): [number, number, number] => [lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
 const empty: ActionPose = { dip:0, pitch:0,roll:0,hand:[-.10,-.12,-.12],prop:[-.10,-.20,-.12],handRoll:0,propVisible:false,hideFixedMagazine:false,released:false };
+/** The OLD weapon moves down/right into a holster, muzzle pointing DOWN.
+ * Only when it is fully below the camera do we reveal the NEW weapon, which
+ * is drawn up from below. This differs from reload's muzzle-up magazine pose.
+ * The model handoff is cosmetic: gameplay switches weapons immediately. */
+export function sampleWeaponSwapMotion(progress: number): WeaponSwapPose {
+  const p = clamp01(progress);
+  if (p < WEAPON_SWAP_HANDOFF) {
+    const t = ease(p / WEAPON_SWAP_HANDOFF);
+    return { x: .32 * t, y: -.80 * t, z: .19 * t,
+      pitch: -.58 * t, roll: -.30 * t, incoming: false };
+  }
+  const t = ease((p - WEAPON_SWAP_HANDOFF) / (1 - WEAPON_SWAP_HANDOFF));
+  return { x: .26 * (1 - t), y: -.80 * (1 - t), z: .17 * (1 - t),
+    pitch: -.42 * (1 - t), roll: .22 * (1 - t), incoming: true };
+}
+
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
   if (weaponId === "sniper_heavy") return "side_bolt";
