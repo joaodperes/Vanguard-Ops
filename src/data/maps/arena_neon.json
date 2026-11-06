@@ -2,8 +2,8 @@
   "version": 2,
   "id": "arena_neon",
   "blueprint": {
-    "name": "Afterlight City",
-    "shortName": "ALC",
+    "name": "Afterlight City (Night)",
+    "shortName": "NGT",
     "description": "Nighttime streets in a glowing grid of shops, accessible rooftops and a central garden bandstand.",
     "pace": "tactical",
     "regions": [

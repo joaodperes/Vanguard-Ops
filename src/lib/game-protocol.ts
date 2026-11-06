@@ -151,6 +151,10 @@ export function stairs(
 }
 
 // ---- Map definitions --------------------------------------------------------
+// The base templates below contain legacy geometry, not the canonical player-
+// facing identities. Map names, codes and descriptions are authored in
+// src/data/maps/*.json and read through MAP_BLUEPRINTS (including fallbacks).
+
 export interface MapTheme {
   floor: number;
   floorPattern: number;
@@ -1037,8 +1041,8 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
   whiteout_depot: {
-    id:"whiteout_depot",name:"Whiteout Depot",shortName:"WHD",
-    description:"A snowbound rail depot for up to 7v7 CTF.",
+    id:"whiteout_depot",name: MAP_BLUEPRINTS.maps.whiteout_depot.name,shortName: MAP_BLUEPRINTS.maps.whiteout_depot.shortName,
+    description: MAP_BLUEPRINTS.maps.whiteout_depot.description,
     // Physical objects and all spawns are authored only in the blueprint/theme.
     size:128,wallHeight:14,cover:TACTICAL_COVER.whiteout_depot,environment:ENVIRONMENTS.whiteout_depot,
     spawns:OUTER_SPAWNS.whiteout_depot,biome:"snow_rail",accentColor:"#64d8dc",
@@ -1048,8 +1052,8 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     lights:[],
   },
   floodgate: {
-    id:"floodgate",name:"Floodgate",shortName:"FLD",
-    description:"A stormbound hydroelectric complex built for 16v16 CTF.",
+    id:"floodgate",name: MAP_BLUEPRINTS.maps.floodgate.name,shortName: MAP_BLUEPRINTS.maps.floodgate.shortName,
+    description: MAP_BLUEPRINTS.maps.floodgate.description,
     // Physical objects and all 32 spawns are authored only in the blueprint/theme.
     size:176,wallHeight:14,cover:TACTICAL_COVER.floodgate,environment:ENVIRONMENTS.floodgate,
     spawns:OUTER_SPAWNS.floodgate,biome:"hydroelectric",accentColor:"#64d8dc",
@@ -1059,8 +1063,8 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     lights:[],
   },
   orbital_nexus: {
-    id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
-    description:"CTF aboard an orbital station above a violet gas giant.",
+    id:"orbital_nexus",name: MAP_BLUEPRINTS.maps.orbital_nexus.name,shortName: MAP_BLUEPRINTS.maps.orbital_nexus.shortName,
+    description: MAP_BLUEPRINTS.maps.orbital_nexus.description,
     size:100,wallHeight:32,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
     spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",
     theme:{floor:0x202a40,floorPattern:0x305578,wall:0x323d62,cover:0x64728f,
@@ -1097,9 +1101,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
-    name: "Compound",
-    shortName: "CMP",
-    description: "Symmetric arena with a central raised platform and four corner bunkers. Balanced for all ranges.",
+    name: MAP_BLUEPRINTS.maps.compound.name,
+    shortName: MAP_BLUEPRINTS.maps.compound.shortName,
+    description: MAP_BLUEPRINTS.maps.compound.description,
     size: 64,
     wallHeight: 10,
     cover: [...COMPOUND_COVER, ...TACTICAL_COVER.compound],
@@ -1125,9 +1129,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   skybridge: {
     id: "skybridge",
     environment: ENVIRONMENTS.skybridge,
-    name: "Skybridge",
-    shortName: "SKY",
-    description: "Vertical-focused map with crossing catwalks and corner sniper towers. Height is power.",
+    name: MAP_BLUEPRINTS.maps.skybridge.name,
+    shortName: MAP_BLUEPRINTS.maps.skybridge.shortName,
+    description: MAP_BLUEPRINTS.maps.skybridge.description,
     size: 64,
     wallHeight: 14,
     cover: [...SKYBRIDGE_COVER, ...TACTICAL_COVER.skybridge],
@@ -1153,9 +1157,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   bunker: {
     id: "bunker",
     environment: ENVIRONMENTS.bunker,
-    name: "Bunker",
-    shortName: "BNK",
-    description: "Tight enclosed CQC with a perimeter upper walkway. Close-quarters brutality.",
+    name: MAP_BLUEPRINTS.maps.bunker.name,
+    shortName: MAP_BLUEPRINTS.maps.bunker.shortName,
+    description: MAP_BLUEPRINTS.maps.bunker.description,
     size: 60,
     wallHeight: 9,
     cover: [...BUNKER_COVER, ...TACTICAL_COVER.bunker],
@@ -1181,9 +1185,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   shipyard: {
     id: "shipyard",
     environment: ENVIRONMENTS.shipyard,
-    name: "Shipyard",
-    shortName: "SHY",
-    description: "Tight industrial dockside — stacked containers, crane walkways, brutal close-quarters firefights.",
+    name: MAP_BLUEPRINTS.maps.shipyard.name,
+    shortName: MAP_BLUEPRINTS.maps.shipyard.shortName,
+    description: MAP_BLUEPRINTS.maps.shipyard.description,
     size: 62,
     wallHeight: 11,
     cover: [...SHIPYARD_COVER, ...TACTICAL_COVER.shipyard],
@@ -1203,9 +1207,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   terminal: {
     id: "terminal",
     environment: ENVIRONMENTS.terminal,
-    name: "Terminal",
-    shortName: "TRM",
-    description: "Modern airport concourse — polished floors, glass walls, second-level walkway. Classic mid-range engagements.",
+    name: MAP_BLUEPRINTS.maps.terminal.name,
+    shortName: MAP_BLUEPRINTS.maps.terminal.shortName,
+    description: MAP_BLUEPRINTS.maps.terminal.description,
     size: 64,
     wallHeight: 12,
     cover: [...TERMINAL_COVER, ...TACTICAL_COVER.terminal],
@@ -1225,9 +1229,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   arena_neon: {
     id: "arena_neon",
     environment: ENVIRONMENTS.arena_neon,
-    name: "Neon Plaza",
-    shortName: "NPN",
-    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=6. Vertical arcade-shooter heaven.",
+    name: MAP_BLUEPRINTS.maps.arena_neon.name,
+    shortName: MAP_BLUEPRINTS.maps.arena_neon.shortName,
+    description: MAP_BLUEPRINTS.maps.arena_neon.description,
     size: 64,
     wallHeight: 14,
     cover: [...ARENA_NEON_COVER, ...TACTICAL_COVER.arena_neon],
@@ -1257,7 +1261,8 @@ export const MAPS: Record<string, MapDef> = {
   shipyard: applyMapFootprint(BASE_MAPS.shipyard),
   terminal: applyMapFootprint({
     ...BASE_MAPS.arena_neon,
-    id:"terminal",theme:BASE_MAPS.terminal.theme,
+    id:"terminal",name:BASE_MAPS.terminal.name,shortName:BASE_MAPS.terminal.shortName,
+    description:BASE_MAPS.terminal.description,theme:BASE_MAPS.terminal.theme,
     accentColor:BASE_MAPS.terminal.accentColor,
     lights:BASE_MAPS.terminal.lights,environment:[],
   }),

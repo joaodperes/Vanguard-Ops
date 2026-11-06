@@ -42,9 +42,29 @@ Current recipes use procedural game primitives. They do not import arbitrary mod
 
 Each of the nine registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers bunker, shipyard, compound, terminal, skybridge, arena_neon, orbital_nexus, floodgate and whiteout_depot. Previous split JSON files remain migration snapshots. Underlying engine geometry templates and executable objective mechanics still contain TypeScript behavior; objective placement and supported modes are data-backed (see below).
 
-Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night retain distinct playable regions and spawns; shared geometry/props synchronize when edited. Their exports include visible shared props instead of depending on another editor draft.
+Migration preserves current dev geometry, spawns and themes, including Orbital Nexus. Native map playtests use their native base environment even when old fallback template IDs differ. Afterlight day/night currently share the same authored regions, initial spawn pools and city layout; their visual themes differ. Their exports include visible shared props instead of depending on another editor draft.
 
 Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 maps, v2 backups, v1 blueprint JSON and old split bundles. Undo and JSON roundtrips preserve links and assemblies. Export map writes one file for review/rebuild; Backup all saves the editor library. New map IDs still need static registration and room/protocol review before publishing.
+
+
+## Canonical map identities (legacy IDs)
+
+Network/persistence map IDs must **not** be renamed merely to match the player-facing location. Older maps were repurposed while retaining their IDs. The canonical display name, short name and description live in each unified map document's `blueprint`. The in-game map picker reads the compiled map's `name`, not its internal ID; its icon comes from `src/components/screens/map-icons.ts`.
+
+| Internal ID | Player-facing name | Contents and landmark | Map selector icon |
+| --- | --- | --- | --- |
+| `compound` | Verdant Ruins | Jungle temple and mossy stone ruins | Landmark |
+| `skybridge` | Ridgefall | Enclosed steelworks, presses and gantries | Factory |
+| `bunker` | Blacksite | Underground vault and security rooms | Lock/keyhole |
+| `shipyard` | Breakwater | Harbor container yard and dock | Ship |
+| `terminal` | Afterlight City (Day) | Urban blocks and central park in daylight | Buildings |
+| `arena_neon` | Afterlight City (Night) | Same neighborhood after dark | Moon and star |
+| `forest_warfare` | Forest Warfare | Forest with climbable trees (legacy TypeScript map) | Trees |
+| `orbital_nexus` | Orbital Nexus | Orbital station, reactor deck and vaults | Orbit |
+| `floodgate` | Floodgate | Hydroelectric plant with spillway | Waves |
+| `whiteout_depot` | Whiteout Depot | Snowbound railway depot | Snowflake |
+
+The older `BASE_MAPS` geometry templates in `src/lib/game-protocol.ts` reuse these blueprint labels rather than declaring misleading separate names. New maps must be registered in `src/lib/map-documents.ts` and assigned a distinct icon. If a new player-facing map name is needed, change the blueprint metadata, **not** the stable ID.
 
 ## Validation and promotion
 

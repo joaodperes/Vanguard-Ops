@@ -43,7 +43,7 @@ When finished, report branch, commit SHA, changed catalog paths, test results, a
 - Shotgun profiles must affect both offline and authoritative server simulation.
 - Assist contributors are decided by server damage events, not player-selected IDs.
 - No melee headshot mastery milestones; keep stable challenge IDs.
-- Afterlight day/night share city building generation but have different playable footprints. Match visible geometry to collision.
+- Afterlight day/night currently share authored regions and initial spawn pools, as well as city building generation. Preserve their distinct lighting while matching visible geometry to collision.
 - Do not copy LibreQuake binary assets without checking licenses and credits; current textures are procedurally authored.
 
 ## Art and texture direction
