@@ -53,7 +53,7 @@ import { botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, supportElbowPosition, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
 import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
@@ -6731,16 +6731,18 @@ export class FPSEngine {
         model.position.z-=.4*Math.sin(Math.PI*bashProgress);
       // Camera forward is -Z; the same panel angle is required, not its mirror.
       model.rotation.set(0,panel.yawOffset,0);
-      // The Bulwark shield is a separate camera rig, not a vmPart. Animate it
-      // through the SAME cosmetic holster/draw timeline so it cannot remain
-      // floating in place while swapping to/from the shield + sidearm.
+      // The Bulwark shield uses a separate left-shoulder draw, while its
+      // sidearm follows the normal holster/draw timeline. Keep the new shield
+      // off-screen at viewmodel handoff and sweep it into the guard pose instead
+      // of making a full-size shield abruptly appear in front of the camera.
       const swapAge = this.swapAnimAt ? performance.now() - this.swapAnimAt : Infinity;
       if (swapAge >= 0 && swapAge < WEAPON_SWAP_VISUAL_MS) {
-        const pose = sampleWeaponSwapMotion(swapAge / WEAPON_SWAP_VISUAL_MS);
+        const pose = sampleRiotShieldSwapMotion(swapAge / WEAPON_SWAP_VISUAL_MS);
         model.position.x += pose.x;
-        model.position.y += pose.y * 1.45; // tall shield must also clear the frame
+        model.position.y += pose.y;
         model.position.z += pose.z;
-        model.rotation.x += pose.pitch * 0.5;
+        model.rotation.x += pose.pitch;
+        model.rotation.y += pose.yaw;
         model.rotation.z += pose.roll;
       }
     }
