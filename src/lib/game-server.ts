@@ -1792,7 +1792,11 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   else if (room.mode === "survival") winnerTeam =
     room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
   else winnerTeam = standings[0] ? standings[0].team : null;
-  io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam } as S2C);
+  // Decisive scores can end the server's 20Hz tick before its next snapshot.
+  // Deliver one final authoritative state, then the verdict in socket order.
+  io.to(room.id).emit("message", snapshot(room));
+  io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam,
+    teamScores: { ...room.teamScores } } as S2C);
   // cleanup room after a delay
   setTimeout(() => {
     for (const t of room.respawnTimers.values()) clearTimeout(t as unknown as ReturnType<typeof setTimeout>);

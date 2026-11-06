@@ -48,13 +48,11 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [touchStarted, setTouchStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
-  const [matchOutro, setMatchOutro] = useState<MatchEndResult | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
   const menuOpenRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
   const pointerLockMenuStateRef = useRef(initialPointerLockMenuState);
-  const outroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
@@ -97,12 +95,8 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         if (firingRange) return; // No match-complete API / credits / progression for trials.
         if (endedRef.current) return;
         endedRef.current = true;
-        if (mode === "gungame") {
-          // Leave the arena visible for a brief match-complete sequence instead
-          // of immediately tearing down the canvas for the results screen.
-          setMatchOutro(r);
-          outroTimer.current = setTimeout(() => onMatchEnd(r), 2500);
-        } else onMatchEnd(r);
+        // All game modes share the engine's single cinematic finish timer.
+        onMatchEnd(r);
       },
       onRoomError: (message) => {
         // Server rejected the create/join (wrong password, full room, etc.).
@@ -146,7 +140,6 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     return () => {
       disposed = true;
       clearInterval(socketPoll);
-      if (outroTimer.current) clearTimeout(outroTimer.current);
       engine.dispose();
       engineRef.current = null;
     };
@@ -167,7 +160,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const lobbyActive = !!lobby?.active;
 
   const openMenu = () => {
-    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready) return;
     // The pointer-lock release caused by opening this menu is intentional.
     // Its async event must not be allowed to reopen the menu after a quick Escape.
     pointerLockMenuStateRef.current = ignorePointerLockRelease(pointerLockMenuStateRef.current);
@@ -222,7 +215,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   };
 
   useEffect(() => {
-    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.code !== "Escape" || event.repeat) return;
       event.preventDefault();
@@ -246,7 +239,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       window.removeEventListener("keydown", onEscape, true);
       document.removeEventListener("pointerlockchange", onLockChange);
     };
-  }, [ready, lobbyActive, matchOutro, firingRange, tutorial]);
+  }, [ready, lobbyActive, hud?.matchEnding, firingRange, tutorial]);
 
   // Centralized exit handler: if the user leaves mid-match (not from the lobby),
   // capture the live match stats and forward them via onExitWithStats so the
@@ -297,9 +290,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       )}
       {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && !menuOpen && <TouchControls engine={engineInstance} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && !hud?.matchEnding && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
-      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && (
+      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !hud?.matchEnding && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
@@ -335,16 +328,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           socketConnected={socketConnected}
         />
       )}
-      {menuOpen && !lobbyActive && !matchOutro && (
+      {menuOpen && !lobbyActive && !hud?.matchEnding && (
         <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
           onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} online={online} mode={mode} />
-      )}
-      {matchOutro && (
-        <div className="absolute inset-0 z-[70] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto">
-          <div className="text-4xl font-black tracking-widest text-amber-300">{matchOutro.won ? "VICTORY" : "MATCH COMPLETE"}</div>
-          <p className="mt-3 text-white/80 uppercase tracking-widest">Gun Game · {matchOutro.kills} kills</p>
-          <p className="mt-4 text-sm text-white/50 animate-pulse">Finalizing results…</p>
-        </div>
       )}
       {/* Failsafe exit button while lobby overlay is somehow missing but the
           engine is still in lobby (e.g. before the first lobbySnapshot arrives). */}

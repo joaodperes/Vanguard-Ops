@@ -1,4 +1,5 @@
 import {addOperativeSkinDetails} from "./operative-appearance";
+import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
 import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss} from "./bot-appearances";
@@ -862,6 +863,9 @@ export class FPSEngine {
   private elapsedSeconds = 0;
   private matchEnded = false;
   private matchFinishingLabel: string | null = null;
+  private finaleStartedAt = 0;
+  private finaleDeathAges = new Map<string, number>();
+  private finaleTimer: ReturnType<typeof setTimeout> | null = null;
   private quickMeleeLastAt = -10000;
   private quickMeleeFeedbackAt = 0;
   private quickMeleeModel: THREE.Group | null = null;
@@ -1759,6 +1763,7 @@ export class FPSEngine {
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     attacker.kills++;
     this.recordOrbitalKill(victim.pos,attacker.pos);
     this.releaseOrbitalBotWeapon(victim);
@@ -1843,6 +1848,7 @@ export class FPSEngine {
       recent&&recent.damage>=15&&performance.now()-recent.at<=10000)this.assists++;
     this.offlineAssistDamage.delete(victim.id);
     victim.alive=false;victim.deaths+=1;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     if(attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
     this.releaseOrbitalBotWeapon(victim);
     if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
@@ -5578,6 +5584,10 @@ export class FPSEngine {
           // another player — bots in online mode also use this path).
           const victim = this.combatants.get(msg.victimId);
           if (victim) {
+            // A winning hit may stop the server tick before its next snapshot.
+            victim.alive = false;
+            victim.health = 0;
+            victim.deaths = msg.victimId === this.selfId ? this.deaths : victim.deaths + 1;
             victim.deathAnimAt = performance.now();
             victim.deathAnimDur = 800 + Math.random() * 250;
           }
@@ -5846,7 +5856,7 @@ export class FPSEngine {
         }
         break;
       case "matchEnd":
-        this.finalizeMatch(msg.standings, msg.winnerTeam);
+        this.finalizeMatch(msg.standings, msg.winnerTeam, msg.teamScores);
         break;
       case "chat":
         break;
@@ -7513,18 +7523,35 @@ export class FPSEngine {
     }
   }
 
-  // Keep the arena onscreen briefly after the decisive kill, even in FFA.
+  // The score is final; continue rendering the decisive action without
+  // processing movement, shots, bot AI, pickups or any new scoring.
+  private beginMatchFinale(): void {
+    this.matchEnded = true;
+    this.finaleStartedAt = performance.now();
+    this.finaleDeathAges.clear();
+    for (const combatant of this.combatants.values()) {
+      if (combatant.alive || !combatant.deathAnimAt || !combatant.deathAnimDur) continue;
+      const age = this.finaleStartedAt - combatant.deathAnimAt;
+      if (age >= 0 && age <= MATCH_FINALE_RECENT_DEATH_MS)
+        this.finaleDeathAges.set(combatant.id, age);
+    }
+    this.mouseDown = false;
+    this.touchFiring = false;
+    this.burstShotsLeft = 0;
+  }
+
   private deliverMatchEnd(result: MatchEndResult) {
     this.matchFinishingLabel = result.won ? "VICTORY" : "MATCH COMPLETE";
-    this.emitHud(performance.now());
-    setTimeout(() => {
+    this.emitHud(performance.now()); // Final standings are available before the results screen.
+    this.finaleTimer = setTimeout(() => {
+      this.finaleTimer = null;
       if (!this.disposed) this.opts.onMatchEnd(result);
-    }, 2500);
+    }, MATCH_FINALE_DURATION_MS);
   }
 
   private finalizeMatchLocal() {
     if (this.matchEnded) return;
-    this.matchEnded = true;
+    this.beginMatchFinale();
     const isSurvival = this.opts.mode === "survival";
     const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
@@ -7569,9 +7596,26 @@ export class FPSEngine {
     });
   }
 
-  private finalizeMatch(standings: any, winnerTeam: string | null) {
+  private finalizeMatch(standings: any, winnerTeam: string | null, teamScores?: { red: number; blue: number }) {
     if (this.matchEnded) return;
-    this.matchEnded = true;
+    // A score-limit matchEnd may arrive without another periodic snapshot.
+    // Apply the server's definitive scores and each player's final K/D first.
+    const rows = Array.isArray(standings) ? standings : [];
+    this.teamScores = finalTeamScores(rows, teamScores);
+    for (const row of rows) {
+      const combatant = this.combatants.get(row.id);
+      if (combatant) {
+        combatant.kills = row.kills;
+        combatant.deaths = row.deaths;
+        combatant.score = row.score;
+      }
+      if (row.id === this.selfId) {
+        this.kills = row.kills;
+        this.deaths = row.deaths;
+        if (this.opts.mode === "ctf") this.ctfCaptures = row.score;
+      }
+    }
+    this.beginMatchFinale();
     // Dedupe standings by id — a mis-seeded bot or online snapshot can include
     // the local player twice, which makes them appear in both 1st and 2nd place.
     const seen = new Set<string>();
@@ -7992,6 +8036,23 @@ export class FPSEngine {
           for (const c of this.combatants.values()) if (c.alive && this.opts.mode !== "survival") c.spawnProtectedUntil = Date.now() + 2500;
         }
         this.sound.play("match_start", { volume: 0.8 });
+      }
+      return;
+    }
+    // Cinematic finish: keep recently killed operatives visible but never
+    // simulate another combat tick or change match results after the verdict.
+    if (this.matchEnded) {
+      const now = performance.now();
+      this.updateCombatantMeshes(dt * MATCH_FINALE_PLAYBACK_RATE, now);
+      this.explosionEffects?.update(
+        this.finaleStartedAt + (now - this.finaleStartedAt) * MATCH_FINALE_PLAYBACK_RATE,
+        this.camera.position,
+      );
+      this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+      if (now - this.lastHudAt > 80) {
+        this.lastHudAt = now;
+        this.emitHud(now);
       }
       return;
     }
@@ -8538,8 +8599,10 @@ export class FPSEngine {
       c.group.rotation.y = c.yaw;
       // ---- Death animation: fall forward over ~900ms before hiding ----
       if (!c.alive && c.deathAnimAt && c.deathAnimDur) {
-        const age = now - c.deathAnimAt;
-        const p = Math.min(1, age / c.deathAnimDur);
+        const ageAtFinale = this.finaleDeathAges.get(c.id);
+        const p = this.matchEnded && ageAtFinale !== undefined
+          ? finaleDeathProgress(ageAtFinale, c.deathAnimDur, now - this.finaleStartedAt)
+          : Math.min(1, (now - c.deathAnimAt) / c.deathAnimDur);
         if (p >= 1) {
           c.group.visible = false;
           if (c.nameSprite) c.nameSprite.visible = false;
@@ -9578,6 +9641,7 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
+          nearest.victim.deathAnimAt = performance.now(); nearest.victim.deathAnimDur = 900;
           if(this.opts.mode==="ffa"||this.opts.mode==="gungame"||attacker.team!==nearest.victim.team)
             this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
           this.releaseOrbitalBotWeapon(nearest.victim);
@@ -9955,6 +10019,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    if (this.finaleTimer) { clearTimeout(this.finaleTimer); this.finaleTimer = null; }
     for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;

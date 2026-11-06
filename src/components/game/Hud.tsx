@@ -419,12 +419,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
       </div>
-      {hud.matchEnding && <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30">
-        <div className="text-center bg-black/70 border border-amber-400/40 rounded-xl px-10 py-7 shadow-xl">
-          <div className="text-3xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
-          <div className="text-white/60 text-xs mt-2 tracking-widest uppercase">Match complete · final scores loading</div>
+      {/* A discreet finish banner keeps the winning death fall and TAB scoreboard visible. */}
+      {hud.matchEnding && <div className="absolute bottom-[17%] left-1/2 -translate-x-1/2 z-40 pointer-events-none text-center">
+        <div className="bg-black/65 border border-amber-400/40 rounded-xl px-6 py-3 shadow-xl backdrop-blur-sm">
+          <div className="text-2xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
+          <div className="text-amber-100/70 text-[10px] mt-1 tracking-widest uppercase">Slow-motion finish · Hold TAB for final scores</div>
         </div>
-      </div>}
+      </div>
       {hud.quickMeleeAt && now - hud.quickMeleeAt < 350 && <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
         <svg width="170" height="170" viewBox="0 0 170 170" style={{opacity:Math.max(0,1-(now-hud.quickMeleeAt)/350)}}>
           <path d="M140 34 Q105 105 28 137" fill="none" stroke="#f4e0c2" strokeWidth="8" strokeLinecap="round"/>
