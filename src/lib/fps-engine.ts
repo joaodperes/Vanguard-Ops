@@ -45,7 +45,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
-import { selectMaterialPenetrationHits } from "./cover-penetration";
+import { selectMaterialPenetrationHits, traceCoverPenetration } from "./cover-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
@@ -5995,7 +5995,8 @@ export class FPSEngine {
           } else if (msg.weaponId==="wonder_hellfire") {
             this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
-            this.spawnTracer(msg.origin, msg.dir, msg.skinId);
+            const shotStats=weaponById(msg.weaponId).stats;
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,shotStats.coverPenetration??0,shotStats.range);
           }
           // Trigger recoil animation on the firing combatant
           const shooter = this.combatants.get(msg.attackerId);
@@ -7159,7 +7160,7 @@ export class FPSEngine {
       }
     } else if (this.opts.online) {
       this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId(), aiming: this.aiming });
-      this.spawnTracer(origin, dir, this.getCurrentSkinId());
+      this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
     } else {
       for (let i = 0; i < pellets; i++) {
         const pdir = multiPelletShotgun
@@ -7173,7 +7174,7 @@ export class FPSEngine {
           const id = `local_bolt_${++this.localBoltSequence}`;
           this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
         }
-      } else this.spawnTracer(origin, dir, this.getCurrentSkinId());
+      } else this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
     }
   }
 
@@ -7972,13 +7973,12 @@ export class FPSEngine {
       travelMs:Math.max(90,distance/THROWING_KNIFE_SPEED*1000),rotation});
   }
 
-  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string) {
+  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range) {
     const skin = weaponSkinById(skinId);
-    let maxT = this.eff.range;
-    for (const cov of this.map.cover) {
-      const t = rayBox(origin, dir, cov.pos, cov.size);
-      if (t !== null && t < maxT) maxT = t;
-    }
+    // Visual path must match the damage ray: punching through thin cover cannot
+    // draw a tracer that stops at the entry face. Structural cover still stops it.
+    const maxT = Math.min(range,
+      traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower).blockedAt);
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
@@ -9622,7 +9622,7 @@ export class FPSEngine {
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
         }
-        if(w.category!=="melee")this.spawnTracer(origin, dir, c.weaponSkinId);
+        if(w.category!=="melee")this.spawnTracer(origin,dir,c.weaponSkinId,eff.coverPenetration??0,eff.range);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         if(w.category!=="melee")ai.ammoInMag--;
