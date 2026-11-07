@@ -164,9 +164,13 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     !lobbyActive && !menuOpen && !hud?.matchEnding;
   upgradePendingRef.current=upgradePending;
   useEffect(()=>{
-    if(!upgradePending)return;
-    pointerLockMenuStateRef.current=ignorePointerLockRelease(pointerLockMenuStateRef.current);
-    engineRef.current?.setInputSuspended(true);
+    if(upgradePending){
+      pointerLockMenuStateRef.current=ignorePointerLockRelease(pointerLockMenuStateRef.current);
+      engineRef.current?.setInputSuspended(true);
+    }else if(!menuOpenRef.current){
+      // Also release input when a choice was auto-awarded at wave start.
+      engineRef.current?.setInputSuspended(false);
+    }
   },[upgradePending]);
   const takeSurvivalUpgrade=(id:SurvivalUpgradeId)=>{
     engineRef.current?.chooseSurvivalUpgrade(id);
