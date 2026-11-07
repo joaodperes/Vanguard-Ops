@@ -22,10 +22,14 @@ export interface CoverCrossing {
   entry: number;
   exit: number;
   material: BallisticMaterial;
+  /** Stable authored feature ID for damage and network replication. */
+  coverId?: string;
   damageRetention: number;
 }
 export interface CoverPenetrationTrace {
   blockedAt: number;
+  /** Object hit at blockedAt, including a thin panel the shot cannot pierce. */
+  blockedBox?: CoverBox;
   crossings: CoverCrossing[];
 }
 
@@ -63,10 +67,10 @@ export function traceCoverPenetration(
     const depth=hit.exit-entry;
     if(hit.entry < -EPS || !settings || crossings.length>=MAX_PENETRATED_SURFACES ||
        hit.exit>maxDistance+EPS || power+EPS<depth*settings.resistance)
-      return {blockedAt:entry,crossings};
+      return {blockedAt:entry,blockedBox:hit.box,crossings};
     const cost=depth*settings.resistance;
     power-=cost;
-    crossings.push({entry,exit:hit.exit,material,
+    crossings.push({entry,exit:hit.exit,material,coverId:hit.box.ballisticId,
       damageRetention:settings.retention*Math.max(0.55,1-0.08*cost)});
   }
   return {blockedAt:Infinity,crossings};
