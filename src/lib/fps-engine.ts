@@ -6041,7 +6041,7 @@ export class FPSEngine {
             this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
             const shotStats=weaponById(msg.weaponId).stats;
-            this.spawnTracer(msg.origin,msg.dir,msg.skinId,shotStats.coverPenetration??0,shotStats.range);
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,msg.coverPower??shotStats.coverPenetration??0,shotStats.range,msg.traceStop);
           }
           // Trigger recoil animation on the firing combatant
           const shooter = this.combatants.get(msg.attackerId);
@@ -8146,12 +8146,12 @@ export class FPSEngine {
     if(destroyed)this.hideBrokenBallisticCover(impact.coverId);
   }
 
-  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range) {
+  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range, serverStop?:number) {
     const skin = weaponSkinById(skinId);
     // Visual path must match the damage ray: punching through thin cover cannot
     // draw a tracer that stops at the entry face. Structural cover still stops it.
-    const maxT = Math.min(range,
-      traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower).blockedAt);
+    const maxT = Math.max(0,Math.min(range,serverStop!==undefined&&Number.isFinite(serverStop)
+      ?serverStop:traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower).blockedAt));
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
