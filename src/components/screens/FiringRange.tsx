@@ -13,6 +13,7 @@ import {
   weaponById, weaponAttachmentSlots, compatibleAttachments, type AttachmentSlot,
 } from "@/lib/game-data";
 import { PERKS, perkSelection, perkById } from "@/lib/perks";
+import { EQUIPMENT } from "@/lib/equipment";
 import {
   emptyRangeAttachments, normalizeRangeLoadout, rangePrimaryWeapons,
   rangeMeleeWeapons, rangeSecondaryWeapons, rangeWeaponSlot, selectRangeWeapon, groupedRangeWeapons,
@@ -33,6 +34,7 @@ function initialTrial(profile: PlayerProfileView, requestedId: string | null): L
     weaponId: saved.weapon.id,
     secondaryWeaponId: saved.secondary.id,
     meleeWeaponId: saved.melee.id,
+    equipmentId: saved.equipmentId,
     perkId: perkSelection(profile.level),
     weaponSkinId: "default",
     secondaryWeaponSkinId: "default",
@@ -120,6 +122,7 @@ function RangeSession({ profile, requestedId, onExit }: {
       weaponId: preset.primaryWeapon,
       secondaryWeaponId: preset.secondaryWeapon,
       meleeWeaponId: preset.meleeWeapon,
+      equipmentId: preset.equipmentId,
       weaponSkinId: "default",
       secondaryWeaponSkinId: "default",
       meleeWeaponSkinId: "default",
@@ -243,6 +246,14 @@ function RangeSession({ profile, requestedId, onExit }: {
                   {weaponAttachmentSlots(weapon).length === 0 && <p className="text-xs text-white/40">No compatible attachments.</p>}
                 </div>;
               })}
+            </div>
+            <div className="mb-4">
+              <label className={labelClass} htmlFor="trial-tactical">Tactical (G / touch)</label>
+              <select id="trial-tactical" className={selectClass} value={draft.equipmentId ?? "frag"}
+                onChange={e => setDraft(prev => normalizeRangeLoadout({ ...prev, equipmentId: e.target.value as typeof prev.equipmentId }))}>
+                {EQUIPMENT.map(item => <option key={item.id} value={item.id}>{item.name} · {item.charges} charges · LVL {item.unlockLevel} in matches</option>)}
+              </select>
+              <p className="mt-1.5 text-[11px] text-white/45">All tactics available for free trials. Apply &amp; Restart Test restores full charges; trials never change your real loadout.</p>
             </div>
             <div className="mb-5">
               <label className={labelClass} htmlFor="trial-perk">Passive perk</label>

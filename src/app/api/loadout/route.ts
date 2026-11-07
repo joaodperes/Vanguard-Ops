@@ -2,7 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
-import { EQUIPMENT } from "@/lib/equipment";
+import { EQUIPMENT, equipmentUnlocked } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
@@ -121,6 +121,8 @@ export async function POST(req: NextRequest) {
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
   if (equipmentId !== undefined && !EQUIPMENT.some(item => item.id === equipmentId))
     return NextResponse.json({ error: "Unknown tactical equipment" }, { status: 400 });
+  if (equipmentId !== undefined && !equipmentUnlocked(equipmentId, levelForXp(player.xp)))
+    return NextResponse.json({ error: "Tactical equipment requires level " + EQUIPMENT.find(e => e.id === equipmentId)!.unlockLevel }, { status: 403 });
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.

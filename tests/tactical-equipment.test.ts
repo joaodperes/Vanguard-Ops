@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { equipmentById, EQUIPMENT } from "../src/lib/equipment";
+import { equipmentById, equipmentAvailable, equipmentUnlocked, EQUIPMENT } from "../src/lib/equipment";
 import { tacticalGrenadePath, TACTICAL_GRENADE_FUSE_MS } from "../src/lib/tactical-grenades";
 import { projectilePositionAt } from "../src/lib/bouncing-projectile";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
@@ -12,16 +12,33 @@ describe("tactical equipment loadout",()=>{
   expect(new Set(EQUIPMENT.map(e=>e.id)).size).toBe(EQUIPMENT.length);
   expect(EQUIPMENT.every(e=>e.charges>0&&e.cooldownMs>0)).toBe(true);
   expect(equipmentById("untrusted").id).toBe("frag");
+  expect(EQUIPMENT.map(e => e.unlockLevel)).toEqual([1,5,20,10,15,25]);
  });
  test("online match rejects an untrusted tactical item",()=>{
   const request={weaponId:"rifle_ar",secondaryWeaponId:"pistol_side",meleeWeaponId:"knife_tactical",
     equipmentId:"taser",weaponSkinId:"default",playerSkinId:"default",
     attachments:{sight:null,barrel:null,grip:null,magazine:null}} as LoadoutWire;
-  const player={xp:0,weaponUnlocks:[],wonderUnlocks:[],loadout:{
+  const player={xp:100000000000,weaponUnlocks:[],wonderUnlocks:[],loadout:{
     secondaryWeapon:"pistol_side",primaryReticle:"classic",secondaryReticle:"classic",
     primaryCharm:"none",secondaryCharm:"none",wonderWeaponId:"",equipmentId:"flashbang"}};
   expect(resolveMatchLoadout(player,request).equipmentId).toBe("flashbang");
   expect(resolveMatchLoadout({...player,loadout:{...player.loadout,equipmentId:"invalid"}},request).equipmentId).toBe("frag");
+ });
+ test("tactical progression has no credit cost, rejects invalid or early choices",()=>{
+  for (const item of EQUIPMENT) {
+    expect(equipmentUnlocked(item.id, item.unlockLevel)).toBe(true);
+    expect(equipmentUnlocked(item.id, item.unlockLevel-1)).toBe(item.id==="frag" && item.unlockLevel-1>=1);
+    expect(equipmentAvailable(item.id,item.unlockLevel-1)).toBe("frag");
+  }
+  expect(equipmentUnlocked("bogus",999)).toBe(false);
+  expect(equipmentAvailable("bogus",999)).toBe("frag");
+ });
+ test("match downgrades a previously saved level-locked selection",()=>{
+   const request={weaponId:"rifle_ar",weaponSkinId:"default",playerSkinId:"default",
+     attachments:{sight:null,barrel:null,grip:null,magazine:null}} as LoadoutWire;
+   const player={xp:0,weaponUnlocks:[],loadout:{secondaryWeapon:"pistol_side",primaryReticle:"classic",
+     secondaryReticle:"classic",primaryCharm:"none",secondaryCharm:"none",wonderWeaponId:"",equipmentId:"poison_dart"}};
+   expect(resolveMatchLoadout(player,request).equipmentId).toBe("frag");
  });
  test("named presets preserve equipment, old presets default to frag",()=>{
   const active={primaryWeapon:"rifle_ar",secondaryWeapon:"pistol_side",meleeWeapon:"knife_tactical",equipmentId:"mine",

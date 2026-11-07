@@ -34,7 +34,8 @@ import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorU
 import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
-import { equipmentById } from "@/lib/equipment";
+import { equipmentById, type EquipmentId } from "@/lib/equipment";
+import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
@@ -949,7 +950,9 @@ export class FPSEngine {
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
   private equipmentStunUntil = 0;
-  private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group }[] = [];
+  private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
+  private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number }>();
+  private botTacticalStunUntil = new Map<string,number>();
   private remoteEquipmentMines = new Map<string, THREE.Group>();
   private primaryWeaponId: string;
   private secondaryWeaponId: string;
@@ -4306,7 +4309,8 @@ export class FPSEngine {
     }
     const path=this.equipmentTrajectory(id);
     if(def.type==="mine"){
-      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact)});
+      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
+        ownerId:this.selfId,ownerTeam:this.opts.team as string});
       return;
     }
     this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
@@ -4579,16 +4583,29 @@ export class FPSEngine {
     if (this.opts.online || !this.offlineMines.length || this.matchEnded) return;
     this.offlineMines = this.offlineMines.filter(m => {
       if (now > m.expiresAt) { this.removeMineMarker(m.mesh); return false; }
-      const enemy = [...this.combatants.values()].find(c => c.alive && (this.opts.mode === "ffa" || c.team !== this.opts.team) &&
-        !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()) &&
-        Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]) < 2.4);
-      if (!enemy) return true;
+      const rivals=[...this.combatants.values()].filter(c=>c.alive && c.id!==m.ownerId &&
+        (this.opts.mode==="ffa"||c.team!==m.ownerTeam) &&
+        !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
+      const playerIsRival=this.alive && m.ownerId!==this.selfId &&
+        (this.opts.mode==="ffa" || this.opts.team!==m.ownerTeam) &&
+        this.selfSpawnProtectedUntil<=Date.now();
+      const trigger=rivals.some(c=>Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2])<2.4) ||
+        (playerIsRival && Math.hypot(this.pos.x-m.pos[0],this.pos.z-m.pos[2])<2.4);
+      if(!trigger)return true;
       this.removeMineMarker(m.mesh);
       this.spawnEquipmentVisual(m.pos,0xf59e0b);
-      for (const c of this.combatants.values()) {
-        if (!c.alive || this.opts.mode !== "ffa" && c.team === this.opts.team) continue;
-        const d = Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]);
-        if (d <= 3.3) this.applyDamageLocal(c,Math.max(15,100*(1-d/3.3)),false,"equipment_mine");
+      const owner=this.combatants.get(m.ownerId);
+      for(const c of rivals){
+        const dist=Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]);
+        if(dist>3.3 || !this.hasLineOfSight([m.pos[0],m.pos[1]+.2,m.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
+        const dmg=Math.max(15,100*(1-dist/3.3));
+        if(owner)this.damageFromOfflineBotTactical(owner,c,dmg,"mine");
+        else this.applyDamageLocal(c,dmg,false,"equipment_mine");
+      }
+      if(playerIsRival){
+        const dist=Math.hypot(this.pos.x-m.pos[0],this.pos.z-m.pos[2]);
+        if(dist<=3.3&&this.hasLineOfSight([m.pos[0],m.pos[1]+.2,m.pos[2]],[this.pos.x,this.pos.y+1,this.pos.z]))
+          this.takeDamage(Math.max(15,100*(1-dist/3.3)),owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
       }
       return false;
     });
@@ -7659,7 +7676,11 @@ export class FPSEngine {
         : this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
-      if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;}
+      if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;
+        const state=this.botTacticalState.get(c.id);
+        if(state){state.charges=equipmentById(state.id).charges;state.nextAt=performance.now()+3500+Math.random()*2500;}
+        this.botTacticalStunUntil.delete(c.id);
+      }
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
       c.spawnProtectedUntil = this.opts.firingRange ? 0 : Date.now() + 2500;
@@ -9266,6 +9287,7 @@ export class FPSEngine {
   // Bots use the same ground-height logic as the player so they can climb
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
+    if((this.botTacticalStunUntil.get(c.id)??0)>now)return;
     const ai = c.ai!;
     this.hearBotNoise(c,now);
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
@@ -9446,6 +9468,7 @@ export class FPSEngine {
       ? candidate : null;
     if(tgt)ai.lastSighting=botRememberSighting(tgt.id,tgt.pos,now);
     else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
+    if(tgt && !boss && this.opts.mode!=="gungame")this.tryOfflineBotTacticalUse(c,tgt,now);
     // Bots receive each shell only after its insert time. They can return fire
     // after the first completed shell if threatened.
     if (w.stats.reloadStyle === "incremental" &&
@@ -9850,6 +9873,141 @@ export class FPSEngine {
     }
     ai.lastPosX = c.pos[0];
     ai.lastPosZ = c.pos[2];
+  }
+
+  /** Offline tactical AI uses the same selection, cadence and physical throw
+   * planner as the authoritative server. Match progression never credits the
+   * local player for another bot's equipment damage.
+   */
+  private tryOfflineBotTacticalUse(bot:Combatant,target:Combatant,now:number):void {
+    const ai=bot.ai;
+    if(!ai||!bot.alive)return;
+    let state=this.botTacticalState.get(bot.id);
+    if(!state){
+      const id=botTacticalForArchetype(ai.archetype,Math.floor(Math.random()*2));
+      state={id,charges:equipmentById(id).charges,nextAt:now+3500+Math.random()*3000};
+      this.botTacticalState.set(bot.id,state);
+    }
+    if(now<state.nextAt)return;
+    const def=equipmentById(state.id);
+    const distance=Math.hypot(target.pos[0]-bot.pos[0],target.pos[2]-bot.pos[2]);
+    const nearTarget=[...this.combatants.values()].some(c=>c.alive&&c.id!==bot.id&&
+      this.opts.mode!=="ffa"&&c.team===bot.team&&
+      Math.hypot(c.pos[0]-target.pos[0],c.pos[2]-target.pos[2])<def.radius+1)||
+      (this.alive&&this.opts.mode!=="ffa"&&bot.team===this.opts.team&&
+       Math.hypot(this.pos.x-target.pos[0],this.pos.z-target.pos[2])<def.radius+1);
+    const allowed=botTacticalCanUse({equipmentId:state.id,distance,visible:true,
+      targetProtected:target.id===this.selfId?this.selfSpawnProtectedUntil>Date.now():
+        (target.spawnProtectedUntil??0)>Date.now(),
+      friendlyAtImpact:(state.id==="frag"||state.id==="flashbang")&&nearTarget,
+      charges:state.charges,now,readyAt:state.nextAt,targetAgeMs:now-ai.acquiredTargetAt,
+      guarding:!!ai.ctfGuarding,lowHealth:bot.health<=45});
+    state.nextAt=now+650;
+    if(!allowed)return;
+    const plan=planBotTacticalThrow(bot.pos,target.pos,state.id,this.map.cover,this.map.id);
+    if(!plan)return;
+    const unsafe=(state.id==="frag"||state.id==="flashbang")&&
+      ([...this.combatants.values()].some(c=>c.alive&&c.id!==bot.id&&this.opts.mode!=="ffa"&&
+        c.team===bot.team&&Math.hypot(c.pos[0]-plan.path.impact[0],c.pos[2]-plan.path.impact[2])<def.radius+1)||
+        (this.alive&&this.opts.mode!=="ffa"&&bot.team===this.opts.team&&
+         Math.hypot(this.pos.x-plan.path.impact[0],this.pos.z-plan.path.impact[2])<def.radius+1));
+    if(unsafe)return;
+    state.charges--;
+    state.nextAt=now+7300+Math.random()*3200;
+    ai.nextShotAt=Math.max(ai.nextShotAt,now+560);
+    bot.spawnProtectedUntil=0;
+    bot.yaw=plan.yaw;bot.pitch=plan.pitch;
+    const path=plan.path,id=state.id;
+    if(id==="mine"){
+      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
+        ownerId:bot.id,ownerTeam:bot.team});
+      return;
+    }
+    this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
+      if(this.disposed||this.matchEnded)return;
+      const impact=path.impact;
+      const targets=[...this.combatants.values()].filter(c=>c.alive&&c.id!==bot.id&&
+        (this.opts.mode==="ffa"||c.team!==bot.team)&&
+        !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
+      if(this.alive&&bot.team!==this.opts.team||this.alive&&this.opts.mode==="ffa"){
+        targets.push({id:this.selfId,name:this.opts.playerName,team:this.opts.team as string,
+          isBot:false,isSelf:true,pos:[this.pos.x,this.pos.y,this.pos.z],yaw:this.yaw,pitch:this.pitch,
+          health:this.health,alive:this.alive,weaponId:this.weaponId,weaponSkinId:"default",
+          playerSkinId:"default",kills:this.kills,deaths:this.deaths,score:this.kills});
+      }
+      if(def.type==="knife"||def.type==="poison"||def.type==="taser"){
+        let nearest:{c:Combatant;t:number}|null=null;
+        for(const c of targets){
+          const center:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
+          for(let i=1;i<path.points.length;i++){
+            const a=path.points[i-1],b=path.points[i],v:Vec3=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+            const d2=v[0]*v[0]+v[1]*v[1]+v[2]*v[2]||1;
+            const t=Math.max(0,Math.min(1,((center[0]-a[0])*v[0]+(center[1]-a[1])*v[1]+(center[2]-a[2])*v[2])/d2));
+            const miss=Math.hypot(center[0]-a[0]-v[0]*t,center[1]-a[1]-v[1]*t,center[2]-a[2]-v[2]*t);
+            if(miss<.78&&(!nearest||i+t<nearest.t))nearest={c,t:i+t};
+          }
+        }
+        if(nearest){
+          this.damageFromOfflineBotTactical(bot,nearest.c,def.damage,id);
+          if(def.type==="taser"){
+            if(nearest.c.id===this.selfId)this.equipmentStunUntil=performance.now()+1700;
+            else this.botTacticalStunUntil.set(nearest.c.id,performance.now()+1700);
+          }
+          if(def.type==="poison"&&nearest.c.alive){
+            const victimId=nearest.c.id,deathCount=this.deaths;
+            for(let i=1;i<=9;i++)setTimeout(()=>{
+              if(this.disposed||this.matchEnded)return;
+              if(victimId===this.selfId){
+                if(this.alive&&this.deaths===deathCount)this.takeDamage(2,bot.name,bot.team,false,"equipment_poison_dart",bot.pos);
+              }else{
+                const victim=this.combatants.get(victimId);
+                if(victim?.alive)this.damageFromOfflineBotTactical(bot,victim,2,"poison_dart");
+              }
+            },i*500);
+          }
+        }
+      }else{
+        for(const c of targets){
+          const d=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
+          if(d>def.radius||!this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
+          if(def.type==="blast")this.damageFromOfflineBotTactical(bot,c,Math.max(12,def.damage*(1-d/def.radius)),id);
+          else if(def.type==="flash"){
+            const until=performance.now()+Math.round(1100+1800*(1-d/def.radius));
+            if(c.id===this.selfId){this.equipmentFlashUntil=until;this.equipmentStunUntil=until;}
+            else this.botTacticalStunUntil.set(c.id,until);
+          }
+        }
+        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact));
+        else this.spawnEquipmentVisual(impact,0xffffff);
+      }
+    },path.timesMs);
+  }
+
+  private damageFromOfflineBotTactical(attacker:Combatant,victim:Combatant,damage:number,id:EquipmentId):void {
+    if(!victim.alive||victim.id===attacker.id)return;
+    if(victim.id===this.selfId){
+      this.takeDamage(damage,attacker.name,attacker.team,false,"equipment_"+id,attacker.pos);
+      return;
+    }
+    if((victim.spawnProtectedUntil??0)>Date.now())return;
+    victim.health-=damage;
+    if(victim.health>0)return;
+    victim.alive=false;victim.deaths++;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
+    this.offlineAssistDamage.delete(victim.id);
+    if(this.opts.mode==="ffa"||attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
+    this.releaseOrbitalBotWeapon(victim);
+    if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
+    attacker.kills++;
+    if(this.opts.mode!=="killconfirmed"&&this.opts.mode!=="ctf")attacker.score=attacker.kills;
+    if(this.opts.mode==="tdm")this.teamScores[attacker.team as "red"|"blue"]++;
+    if(this.opts.mode==="killconfirmed")this.dropLocalKillConfirmedTag(victim.id,victim.team,victim.pos);
+    const entry:KillFeedEntry={killer:attacker.name,victim:victim.name,weapon:"equipment_"+id,
+      headshot:false,killerTeam:attacker.team,victimTeam:victim.team};
+    this.killFeed.unshift(entry);if(this.killFeed.length>6)this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    this.scheduleRespawn(victim);
+    this.checkWin();
   }
 
   private nearestEnemy(c: Combatant): Combatant | null {

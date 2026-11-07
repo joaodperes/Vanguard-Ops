@@ -22,3 +22,28 @@ Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck`
 and `bun run build`. Manually playtest desktop and touch controls, wall/floor
 bounces, self-flash, mine triggers, room charge sync, refill after death,
 and preset/queued loadout application.
+
+ 
+## Progression and free trials
+Tactical gear is unlocked automatically at account levels: Frag (1), Flashbang (5),
+Proximity Mine (10), Throwing Knives (15), Taser (20), Poison Dart (25).
+There is no credit purchase. The Armory disables locked options, the loadout
+API rejects locked submissions, and match joins validate against the player's
+actual XP. Legacy selections above the player's level safely equip Frag.
+Saved presets retain tactical choices.
+
+Firing Range is a private, free practice space with every tactical available
+even when not yet unlocked. Trial Loadout starts with the active or named
+preset's gear; Apply & Restart Test replenishes its stock. Trial choices do not
+alter the account.
+
+## Tactical bots
+Archetype pools: rushers Flashbang/Knives, riflemen Frag/Taser, marksmen
+Poison Dart/Knives, support Mine/Frag. Normal modes and Survival bots use
+limited per-life charges, cooldowns, cover-aware trajectory planning,
+non-protected line-of-sight targets and friendly blast safeguards. Proximity
+mines are deliberately reserved for defensive situations. Gun Game bots do
+not receive a tactical slot; Survival bosses retain their unique boss ability.
+Online battles resolve damage, stun and explosions on the match server.
+Offline matches simulate the same throw selection, including correctly owned
+mines and bot-attributed kills.

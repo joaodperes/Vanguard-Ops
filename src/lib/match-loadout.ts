@@ -1,7 +1,7 @@
 import { levelForXp } from "./progression";
 import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
 import { WEAPONS, isPrimaryWeaponCategory, activeMeleeWeaponId } from "./game-data";
-import { equipmentById } from "./equipment";
+import { equipmentAvailable } from "./equipment";
 import type { LoadoutWire } from "./game-protocol";
 
 /** Shared authoritative entitlement check, independent of cached Player.level. */
@@ -35,5 +35,5 @@ export function resolveMatchLoadout(player: {
     player.wonderUnlocks?.some(x=>x.weaponId===candidate.id) &&
     candidate.id===player.loadout?.wonderWeaponId ? candidate.id : undefined;
   return { ...requested, weaponId, perkId, wonderWeaponId, secondaryWeaponId, meleeWeaponId, meleeWeaponSkinId,
-    equipmentId: equipmentById(player.loadout?.equipmentId).id, primaryReticleId:player.loadout?.primaryReticle??"classic", secondaryReticleId:player.loadout?.secondaryReticle??"classic", primaryCharmId:player.loadout?.primaryCharm??"none", secondaryCharmId:player.loadout?.secondaryCharm??"none", meleeCharmId:"none" };
+    equipmentId: equipmentAvailable(player.loadout?.equipmentId, level), primaryReticleId:player.loadout?.primaryReticle??"classic", secondaryReticleId:player.loadout?.secondaryReticle??"classic", primaryCharmId:player.loadout?.primaryCharm??"none", secondaryCharmId:player.loadout?.secondaryCharm??"none", meleeCharmId:"none" };
 }

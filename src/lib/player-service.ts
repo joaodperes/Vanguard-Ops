@@ -480,6 +480,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     secondaryWeapon: secondaryId,
     meleeWeapon: meleeId,
     equipmentId: p.loadout?.equipmentId ?? "frag",
+    level,
     weaponSkin: p.loadout?.weaponSkin ?? "default",
     secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
     meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",

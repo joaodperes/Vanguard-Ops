@@ -2,6 +2,7 @@
 import { WEAPONS, compatibleAttachments, isPrimaryWeaponCategory, type AttachmentSlot, type WeaponDef, type WeaponSlot } from "./game-data";
 import type { LoadoutWire } from "./game-protocol";
 import { perkById } from "./perks";
+import { equipmentById } from "./equipment";
 
 type AttachmentMap = LoadoutWire["attachments"];
 const ATTACHMENT_SLOTS: AttachmentSlot[] = ["sight", "barrel", "grip", "magazine"];
@@ -55,6 +56,7 @@ export function normalizeRangeLoadout(input: LoadoutWire): LoadoutWire {
     weaponId: primary,
     secondaryWeaponId: secondary,
     meleeWeaponId: melee,
+    equipmentId: equipmentById(input.equipmentId).id,
     weaponSkinId: "default",
     secondaryWeaponSkinId: "default",
     meleeWeaponSkinId: "default",

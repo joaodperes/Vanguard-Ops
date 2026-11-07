@@ -1,4 +1,4 @@
-import { equipmentById } from "./equipment";
+import { equipmentAvailable, equipmentById } from "./equipment";
 // ============================================================================
 // VANGUARD OPS — Static game data catalog
 // Shared between API routes, the game server, and the client UI.
@@ -435,6 +435,8 @@ export function resolveLoadout(input: {
   secondaryWeapon?: string;
   meleeWeapon?: string;
   equipmentId?: string;
+  /** Account level for live loadout entitlement validation. Omit for previews. */
+  level?: number;
   weaponSkin: string;
   // Per-weapon skins for the secondary + melee slots.
   secondaryWeaponSkin?: string;
@@ -482,7 +484,7 @@ export function resolveLoadout(input: {
   return {
     perkId: perkById(input.perkId).id,
     wonderWeaponId: input.wonderWeaponId ?? "",
-    equipmentId: equipmentById(input.equipmentId).id,
+    equipmentId: input.level === undefined ? equipmentById(input.equipmentId).id : equipmentAvailable(input.equipmentId, input.level),
     weapon,
     secondary,
     melee: weaponById(meleeId),

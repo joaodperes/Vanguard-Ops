@@ -65,6 +65,11 @@ describe("Armory firing range loadout restrictions", () => {
     expect(legacy.playerSkinId).toBe("default");
   });
 
+  test("range keeps any valid tactical choice independent of match unlocks", () => {
+    expect(normalizeRangeLoadout({...sample,equipmentId:"poison_dart"}).equipmentId).toBe("poison_dart");
+    expect(normalizeRangeLoadout({...sample,equipmentId:"mine"}).equipmentId).toBe("mine");
+    expect(normalizeRangeLoadout({...sample,equipmentId:"invalid" as any}).equipmentId).toBe("frag");
+  });
   test("allows a distinct secondary primary only with Well Prepared", () => {
     const extraPrimary = WEAPONS.find(w => isPrimaryWeaponCategory(w.category) && w.id !== sample.weaponId && !w.wonder)!;
     expect(rangeSecondaryWeapons("battle_hardened", sample.weaponId).some(w => w.id === extraPrimary.id)).toBe(false);

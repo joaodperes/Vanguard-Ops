@@ -24,6 +24,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
+import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
@@ -245,6 +246,7 @@ interface Room {
   burning: Map<string, number>; // transient flame-hit visual only; no fire DoT
   equipmentCharges: Map<string, number>;
   equipmentLastAt: Map<string, number>;
+  equipmentBotNextAt: Map<string, number>;
   equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
   equipmentStun: Map<string, number>;
   quickMeleeAt: Map<string, number>;
@@ -351,6 +353,7 @@ function botLoadout(archetype?: BotArchetype, variant=0): LoadoutWire {
   const wid = archetype ? botArchetypeWeapon(archetype,variant) : pool[Math.floor(Math.random() * pool.length)].id;
   return {
     weaponId: wid,
+    equipmentId: botTacticalForArchetype(archetype ?? "rifleman", variant),
     weaponSkinId: "default",
     playerSkinId: botOperativeSkinId(Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length)),
     attachments: { sight: null, barrel: null, grip: null, magazine: null },
@@ -392,6 +395,7 @@ function spawnBots(room: Room) {
     };
     room.bots.set(id, bot);
     room.loadouts.set(id, loadout);
+    room.equipmentBotNextAt.set(id,Date.now()+3500+Math.random()*3000);
     if (room.mode === "gungame") room.gungameProgress.set(id, 0);
   }
 }
@@ -467,7 +471,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -539,6 +543,8 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
     if (b.team === team) {
       room.bots.delete(bid);
       room.loadouts.delete(bid);
+      room.equipmentBotNextAt.delete(bid);
+      room.equipmentCharges.delete(bid);
       room.scores.delete(bid);
       return true;
     }
@@ -634,7 +640,7 @@ function createLobbyRoom(
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -1017,7 +1023,7 @@ function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Ve
  * damage, victim list or equipment ID. */
 function serverUseEquipment(room: Room, playerId: string): number | null {
   if (room.state !== "playing" || room.ended || room.preMatchCountdown > 0 || room.mode === "gungame") return null;
-  const player=room.players.get(playerId);
+  const player=room.players.get(playerId) ?? room.bots.get(playerId);
   if (!player?.alive || room.downed.has(playerId) || (room.equipmentStun.get(playerId) ?? 0)>Date.now()) return null;
   const def=equipmentById(room.loadouts.get(playerId)?.equipmentId);
   const left=room.equipmentCharges.get(playerId) ?? def.charges;
@@ -1455,7 +1461,7 @@ function tickSpecialEffects(room: Room, now: number) {
       io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
       continue;
     }
-    const owner = room.players.get(mine.ownerId);
+    const owner = room.players.get(mine.ownerId) ?? room.bots.get(mine.ownerId);
     if (!owner) {
       room.equipmentMines.delete(id);
       io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
@@ -1776,7 +1782,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     }
     // Fresh life: no target memory may survive the bot's death.
     const revivedBot=room.bots.get(p.id);
-    if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.lastAlert=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;}
+    if(revivedBot){revivedBot.ai.lastSighting=null;revivedBot.ai.lastAlert=null;revivedBot.ai.investigationLookAt=null;revivedBot.ai.targetId=null;room.equipmentBotNextAt.set(p.id,Date.now()+3000+Math.random()*2000);}
     room.orbitalHolders.delete(p.id);
     const reserve = equipmentById(room.loadouts.get(p.id)?.equipmentId).charges;
     room.equipmentCharges.set(p.id,reserve);
@@ -1959,7 +1965,9 @@ function startSurvivalWave(room: Room) {
     const boss = mutators.boss && n === count-1;
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
     if (boss) loadout.weaponId = "lmg_hv";
-    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0,botArchetypeForCategory(weaponById(loadout.weaponId).category));
+    const tacticalRole=botArchetypeForCategory(weaponById(loadout.weaponId).category);
+    loadout.equipmentId=botTacticalForArchetype(tacticalRole,n);
+    const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0,tacticalRole);
     ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
     ai.skill = Math.min(0.98,ai.skill + mutators.skillBoost);
     if (mutators.skillBoost > 0) ai.difficulty = "veteran";
@@ -1977,6 +1985,7 @@ function startSurvivalWave(room: Room) {
     };
     room.bots.set(id, bot);
     room.loadouts.set(id, loadout);
+    room.equipmentBotNextAt.set(id,Date.now()+4000+Math.random()*2500);
   }
 }
 
@@ -2485,6 +2494,38 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ? candidate : null;
   if(target)ai.lastSighting=botRememberSighting(target.id,target.pos,now);
   else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
+  // Tactical use follows actual target acquisition and ballistics; normal gun
+  // aim and movement remain in the existing AI pipeline below.
+  if(target && !ai.boss && room.mode!=="gungame" &&
+      now >= (room.equipmentBotNextAt.get(bot.id)??Infinity)){
+    const def=equipmentById(bot.loadout.equipmentId);
+    const dist=Math.hypot(target.pos[0]-bot.pos[0],target.pos[2]-bot.pos[2]);
+    const friendlyNearTarget=allCombatants(room).some(p=>p.alive && p.id!==bot.id &&
+      room.mode!=="ffa" && p.team===bot.team &&
+      Math.hypot(p.pos[0]-target.pos[0],p.pos[2]-target.pos[2])<def.radius+1);
+    const friendlyDanger=(def.id==="frag"||def.id==="flashbang")&&friendlyNearTarget;
+    const allowed=botTacticalCanUse({equipmentId:def.id,distance:dist,visible:true,
+      targetProtected:(target.spawnProtectedUntil??0)>now,friendlyAtImpact:friendlyDanger,
+      charges:room.equipmentCharges.get(bot.id)??def.charges,now,
+      readyAt:room.equipmentBotNextAt.get(bot.id)??now+1,
+      targetAgeMs:now-ai.acquiredTargetAt,guarding:!!ai.ctfGuarding,
+      lowHealth:bot.health<=45});
+    room.equipmentBotNextAt.set(bot.id,now+650);
+    if(allowed){
+      const plan=planBotTacticalThrow(bot.pos,target.pos,def.id,room.map.cover,room.map.id);
+      const allyAtLanding=plan && room.mode!=="ffa" && (def.id==="frag"||def.id==="flashbang") &&
+        allCombatants(room).some(p=>p.alive && p.id!==bot.id && p.team===bot.team &&
+          Math.hypot(p.pos[0]-plan.path.impact[0],p.pos[2]-plan.path.impact[2])<def.radius+1);
+      if(plan&&!allyAtLanding){
+        bot.yaw=plan.yaw;bot.pitch=plan.pitch;
+        if(serverUseEquipment(room,bot.id)!==null){
+          room.equipmentBotNextAt.set(bot.id,now+7300+Math.random()*3200);
+          ai.nextShotAt=Math.max(ai.nextShotAt,now+560);
+          bot.spawnProtectedUntil=0;
+        }
+      }
+    }
+  }
   // Shell-fed shotguns and bolt-action rifles refill one round at a time.
   if (weapon.stats.reloadStyle === "incremental" &&
       ai.reloadingUntil > 0 && now >= ai.reloadingUntil && ai.ammoInMag < eff.magSize) {

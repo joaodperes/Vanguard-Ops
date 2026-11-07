@@ -3,15 +3,23 @@
  * Stock refills on respawn, not on weapon swaps.
  */
 export const EQUIPMENT = [
-  { id: "frag", name: "Frag Grenade", type: "blast", charges: 2, cooldownMs: 900, radius: 6, damage: 115, description: "Area explosion with damage falloff and cover protection." },
-  { id: "flashbang", name: "Flashbang", type: "flash", charges: 2, cooldownMs: 1000, radius: 7, damage: 0, description: "Disorients enemies in the blast area for two seconds." },
-  { id: "taser", name: "Taser", type: "taser", charges: 2, cooldownMs: 1300, radius: 17, damage: 24, description: "Short-range electric hit with a brief stun." },
-  { id: "mine", name: "Proximity Mine", type: "mine", charges: 2, cooldownMs: 1000, radius: 3.3, damage: 100, description: "Deploys a mine; triggers when an enemy approaches." },
-  { id: "knives", name: "Throwing Knives", type: "knife", charges: 3, cooldownMs: 430, radius: 28, damage: 95, description: "Fast aimed projectile; very lethal but demands precision." },
-  { id: "poison_dart", name: "Poison Dart", type: "poison", charges: 3, cooldownMs: 620, radius: 24, damage: 18, description: "Aimed dart that inflicts additional poison damage over time." },
+  { id: "frag", unlockLevel: 1, name: "Frag Grenade", type: "blast", charges: 2, cooldownMs: 900, radius: 6, damage: 115, description: "Area explosion with damage falloff and cover protection." },
+  { id: "flashbang", unlockLevel: 5, name: "Flashbang", type: "flash", charges: 2, cooldownMs: 1000, radius: 7, damage: 0, description: "Disorients enemies in the blast area for two seconds." },
+  { id: "taser", unlockLevel: 20, name: "Taser", type: "taser", charges: 2, cooldownMs: 1300, radius: 17, damage: 24, description: "Short-range electric hit with a brief stun." },
+  { id: "mine", unlockLevel: 10, name: "Proximity Mine", type: "mine", charges: 2, cooldownMs: 1000, radius: 3.3, damage: 100, description: "Deploys a mine; triggers when an enemy approaches." },
+  { id: "knives", unlockLevel: 15, name: "Throwing Knives", type: "knife", charges: 3, cooldownMs: 430, radius: 28, damage: 95, description: "Fast aimed projectile; very lethal but demands precision." },
+  { id: "poison_dart", unlockLevel: 25, name: "Poison Dart", type: "poison", charges: 3, cooldownMs: 620, radius: 24, damage: 18, description: "Aimed dart that inflicts additional poison damage over time." },
 ] as const;
 export type EquipmentId = (typeof EQUIPMENT)[number]["id"];
 export type EquipmentDef = (typeof EQUIPMENT)[number];
+/** Tactical gear is level-earned; no credit purchase or per-item inventory needed. */
+export function equipmentUnlocked(id: string | null | undefined, level: number): boolean {
+  const item = EQUIPMENT.find(e => e.id === id);
+  return !!item && level >= item.unlockLevel;
+}
+export function equipmentAvailable(id: string | null | undefined, level: number): EquipmentId {
+  return equipmentUnlocked(id, level) ? id as EquipmentId : DEFAULT_EQUIPMENT;
+}
 export const EQUIPMENT_STORAGE_KEY = "vanguard_equipment";
 export const DEFAULT_EQUIPMENT: EquipmentId = "frag";
 export function equipmentById(id: string | null | undefined): EquipmentDef {

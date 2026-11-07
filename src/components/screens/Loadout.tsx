@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
-import { EQUIPMENT, DEFAULT_EQUIPMENT, type EquipmentId } from "@/lib/equipment";
+import { EQUIPMENT, DEFAULT_EQUIPMENT, equipmentUnlocked, type EquipmentId } from "@/lib/equipment";
 import { weaponAvailability } from "@/lib/weapon-availability";
 import { weaponCategoryLabel } from "@/lib/display-labels";
 import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
@@ -180,6 +180,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
       toast.error("Unlock and select a Wonder Weapon first"); return;
     }
     if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
+    if (!equipmentUnlocked(equipmentId, level)) { toast.error("Tactical equipment is locked"); return; }
     setSaving(true);
     const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
     const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
@@ -310,12 +311,15 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
             </button>
           </div>
           {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-            {EQUIPMENT.map(item => <button key={item.id} type="button"
-              onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
-              className={`w-full px-3 py-2.5 text-left text-xs hover:bg-white/5 flex flex-col gap-1 ${equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80"}`}>
-              <span className="font-semibold flex justify-between gap-2">{item.name}<span className="text-cyan-300/70">{item.charges} / life</span></span>
-              <span className="text-white/40 leading-snug">{item.description}</span>
-            </button>)}
+            {EQUIPMENT.map(item => {
+              const unlocked = equipmentUnlocked(item.id, level);
+              return <button key={item.id} type="button" disabled={!unlocked}
+                onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
+                className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
+                <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
+                <span className="text-white/40 leading-snug">{item.description}</span>
+              </button>;
+            })}
           </div>}
         </div>
         <div className="relative" data-slot-dropdown>
