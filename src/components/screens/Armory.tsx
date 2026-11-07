@@ -855,7 +855,7 @@ function WeaponCard(props: WeaponCardProps) {
             <span className="inline-flex shrink-0 rounded border border-cyan-400/25 bg-cyan-500/5 px-1 py-px text-[9px] font-mono font-semibold text-cyan-300/80 normal-case"
               title={`Cover penetration power ${w.stats.coverPenetration}: can pierce sufficiently thin wood, metal, glass and light cover, with reduced damage. Concrete and reinforced surfaces always stop bullets.`}
               aria-label={`Cover penetration power ${w.stats.coverPenetration}`}>
-              COV {w.stats.coverPenetration.toFixed(1)}
+              COV {w.stats.coverPenetration?.toFixed(1)}
             </span>
           )}
         </div>
