@@ -220,6 +220,11 @@
           },
           "reloadOnlyWhenEmpty": {
             "type": "boolean"
+          },
+          "coverPenetration": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 6
           }
         },
         "additionalProperties": false
