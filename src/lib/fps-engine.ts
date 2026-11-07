@@ -77,6 +77,7 @@ import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
+import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, SURVIVAL_UPGRADE_PREP_SEC, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
@@ -291,6 +292,8 @@ export interface HudState {
   // survival mode info (undefined for FFA/TDM)
   survivalWave?: number;
   survivalTier?: SurvivalTier;
+  survivalUpgradeOffer?: SurvivalUpgradeOffer;
+  survivalUpgradeRanks?: SurvivalUpgradeRanks;
   survivalModifierNames?: string[];
   survivalBossWave?: boolean;
   survivalEnemiesLeft?: number;
@@ -1021,6 +1024,11 @@ export class FPSEngine {
   // survival mode (offline)
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
+  private survivalUpgradeRanks:SurvivalUpgradeRanks={};
+  private survivalUpgradeOffer:SurvivalUpgradeOffer|undefined;
+  private survivalRerolls=1;
+  private survivalLastKillAt=-Infinity;
+  private survivalLastHeadshotKillAt=-Infinity;
   private survivalBossTimers = new Map<string,{phase:number;nextPhaseAt:number;nextSkillAt:number}>();
   private getSurvivalClearedWaves() { return survivalWavesCleared(this.survivalWave,this.survivalWaveActive); }
   private survivalEnemiesLeft = 0;
@@ -4073,6 +4081,28 @@ export class FPSEngine {
     this.createQuickMeleeModel();
   }
 
+  /** The server validates online choices; offline uses the same catalog. */
+  chooseSurvivalUpgrade(upgradeId:SurvivalUpgradeId) {
+    if(this.opts.mode!=="survival"||!this.survivalUpgradeOffer?.choices.includes(upgradeId))return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"chooseSurvivalUpgrade",upgradeId});
+    }else{
+      this.survivalUpgradeRanks=chooseSurvivalUpgrade(this.survivalUpgradeRanks,upgradeId);
+    }
+    this.survivalUpgradeOffer=undefined;
+  }
+  rerollSurvivalUpgrade() {
+    const offer=this.survivalUpgradeOffer;
+    if(this.opts.mode!=="survival"||!offer||offer.rerollsRemaining<=0)return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"rerollSurvivalUpgrade"});
+    }else{
+      this.survivalRerolls--;
+      this.survivalUpgradeOffer={...offer,
+        choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,offer.choices),
+        rerollsRemaining:this.survivalRerolls};
+    }
+  }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   setInputSuspended(suspended: boolean) {
     this.inputSuspended = suspended;
@@ -4880,12 +4910,22 @@ export class FPSEngine {
     this.survivalMaxReinforcements = 0;
     this.survivalReinforcements = 0;
     this.survivalWave = 0;
+    this.survivalUpgradeRanks={};
+    this.survivalUpgradeOffer=undefined;
+    this.survivalRerolls=1;
+    this.survivalLastKillAt=-Infinity;
+    this.survivalLastHeadshotKillAt=-Infinity;
     this.survivalPrepLeft = 5;       // short initial prep before wave 1
     this.survivalWaveActive = false;
     this.timeLeft = 99999;           // survival has no time limit
   }
 
   private startSurvivalWave() {
+    if(this.survivalUpgradeOffer){
+      this.survivalUpgradeRanks=chooseSurvivalUpgrade(this.survivalUpgradeRanks,this.survivalUpgradeOffer.choices[0]);
+      this.survivalUpgradeOffer=undefined;
+    }
+    this.health=Math.min(MAX_HEALTH,this.health+survivalWaveHealing(this.survivalUpgradeRanks));
     // Clear obsolete phase timers from bosses in earlier waves.
     this.survivalBossTimers.clear();
     this.survivalWave += 1;
@@ -4957,7 +4997,13 @@ export class FPSEngine {
           this.finalizeMatchLocal();
           return;
         }
-        this.survivalPrepLeft = SURVIVAL_PREP_SEC;
+        if(survivalWaveMutators(this.survivalTier,this.survivalWave).boss)this.survivalRerolls++;
+        if(survivalUpgradeDue(this.survivalWave)){
+          this.survivalPrepLeft=SURVIVAL_UPGRADE_PREP_SEC;
+          this.survivalUpgradeOffer={wave:this.survivalWave,
+            choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks),
+            rerollsRemaining:this.survivalRerolls};
+        }else this.survivalPrepLeft=SURVIVAL_PREP_SEC;
       }
     }
   }
@@ -5645,6 +5691,15 @@ export class FPSEngine {
           if (msg.attackerId === this.selfId) {
             this.kills += 1;
             if (msg.headshot) this.headshots += 1;
+            if(this.opts.mode==="survival"){
+              const reward=survivalKillReward(this.survivalUpgradeRanks,!!msg.headshot);
+              if(weaponById(this.weaponId).category!=="melee"){
+                this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reward.ammo);
+                this.saveAmmoToSlot(this.currentSlot);
+              }
+              this.survivalLastKillAt=performance.now();
+              if(msg.headshot)this.survivalLastHeadshotKillAt=this.survivalLastKillAt;
+            }
             // Attribute the kill to the weapon the SERVER says was used
             // (msg.weaponId). In online Gun Game, the server advances our tier
             // via the separate "gungameProgress" S2C — using `this.weaponId`
@@ -5782,6 +5837,19 @@ export class FPSEngine {
       }
       case "turretRemoved":
         this.removeBulletSpitter(msg.id);
+        break;
+      case "survivalUpgradeOffer":
+        if(this.opts.mode==="survival"){
+          this.survivalUpgradeOffer=msg.offer;
+          this.survivalUpgradeRanks=msg.ranks;
+          this.survivalRerolls=msg.offer.rerollsRemaining;
+        }
+        break;
+      case "survivalUpgradeChosen":
+        if(this.opts.mode==="survival"){
+          this.survivalUpgradeRanks=msg.ranks;
+          this.survivalUpgradeOffer=undefined;
+        }
         break;
       case "survivalDowned":
         if (msg.playerId === this.selfId) {
@@ -7372,6 +7440,16 @@ export class FPSEngine {
       victim.ai.lastAlert=botRememberHit(this.selfId,[this.pos.x,this.pos.y,this.pos.z],performance.now());
       victim.ai.nextDecisionAt=0;
     }
+    if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online){
+      damage*=survivalOutgoingMultiplier(this.survivalUpgradeRanks,{
+        headshot:head,
+        distance:Math.hypot(this.pos.x-victim.pos[0],this.pos.z-victim.pos[2]),
+        boss:!!victim.bossMaxHealth,aiming:this.aiming,
+        healthFraction:this.health/MAX_HEALTH,
+        sinceKillMs:performance.now()-this.survivalLastKillAt,
+        sinceHeadshotKillMs:performance.now()-this.survivalLastHeadshotKillAt,
+      });
+    }
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       this.offlineAssistDamage.delete(victim.id);
@@ -7384,6 +7462,16 @@ export class FPSEngine {
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
+      if(this.opts.mode==="survival"){
+        const reward=survivalKillReward(this.survivalUpgradeRanks,head);
+        this.health=Math.min(MAX_HEALTH,this.health+reward.health);
+        if(weaponById(this.weaponId).category!=="melee"){
+          this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reward.ammo);
+          this.saveAmmoToSlot(this.currentSlot);
+        }
+        this.survivalLastKillAt=performance.now();
+        if(head)this.survivalLastHeadshotKillAt=this.survivalLastKillAt;
+      }
       // Offline: only a Scavenger player's kills create private ammo packs.
       if (shouldCreateScavengerDrop(this.selfId, victim.id, this.activePerkId)) {
         this.spawnScavengerPickup(`offline_ammo_${victim.id}_${Date.now()}`,
@@ -8159,7 +8247,8 @@ export class FPSEngine {
       duration = special.quickReloadSeconds;
     }
     this.reloadStartedAt = performance.now();
-    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId);
+    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
+      (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
     this.sound.play("reload", { volume: 0.55 });
     this.socket?.emit("message", { t: "reload" });
@@ -8348,8 +8437,9 @@ export class FPSEngine {
     // "one bad engagement = dead" feel and lets players reset between fights.
     if (!this.opts.online && this.alive && this.health < MAX_HEALTH && !this.matchEnded) {
       const since = performance.now() - this.lastDamageAt;
-      if (since > regenDelayMs(this.activePerkId)) {
-        this.health = Math.min(MAX_HEALTH, this.health + FPSEngine.REGEN_RATE * dt);
+      const ranks=this.opts.mode==="survival"?this.survivalUpgradeRanks:{};
+      if (since > regenDelayMs(this.activePerkId)*survivalRegenDelayMultiplier(ranks)) {
+        this.health = Math.min(MAX_HEALTH, this.health + FPSEngine.REGEN_RATE * dt *survivalRegenRateMultiplier(ranks));
       }
     }
     // A fatal hit interrupts any uncommitted deploy without consuming charges.
@@ -9025,6 +9115,7 @@ export class FPSEngine {
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
     if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
@@ -9924,6 +10015,12 @@ export class FPSEngine {
     weaponId="rifle_ar",attackerPos?:Vec3,
   ) {
     if (!this.alive || (weaponId !== LAVA_DEATH_SOURCE && this.selfSpawnProtectedUntil > Date.now())) return;
+    if(!this.opts.online&&this.opts.mode==="survival"&&weaponId!==LAVA_DEATH_SOURCE)
+      dmg*=survivalIncomingMultiplier(this.survivalUpgradeRanks,{
+        healthFraction:this.health/MAX_HEALTH,
+        explosive:!!weaponById(weaponId).explosive,
+        sprinting:this.sprinting,
+      });
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
@@ -10155,6 +10252,8 @@ export class FPSEngine {
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
+        survivalUpgradeOffer:this.survivalUpgradeOffer,
+        survivalUpgradeRanks:this.survivalUpgradeRanks,
         survivalModifierNames: survivalWaveMutators(this.survivalTier,this.survivalWave).names,
         survivalBossWave: survivalWaveMutators(this.survivalTier,this.survivalWave).boss,
         survivalEnemiesLeft: this.survivalEnemiesLeft,
