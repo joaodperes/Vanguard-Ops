@@ -59,6 +59,7 @@ import { isFlagDefenseKill } from "./match-bonus-tracking";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
+import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, SURVIVAL_UPGRADE_PREP_SEC, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
@@ -187,6 +188,11 @@ interface Room {
   reinforcements: number;
   reinforcementsMax: number;
   downed: Set<string>;
+  survivalRanks: Map<string, SurvivalUpgradeRanks>;
+  survivalOffers: Map<string, SurvivalUpgradeOffer>;
+  survivalRerolls: Map<string, number>;
+  survivalLastKillAt: Map<string, number>;
+  survivalLastHeadshotKillAt: Map<string, number>;
   // ---- Room lobby metadata ----
   name: string;            // display name
   hostName: string;        // host's player name
@@ -449,6 +455,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: "Quick Match", hostName: "Server", hostSocketId: "",
     teamSize, fillWithBots: true, password: null, capacity,
     botDifficulty: "normal",
@@ -611,6 +618,7 @@ function createLobbyRoom(
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: cfg.roomName?.trim() || `${name}'s Room`,
     hostName: name, hostSocketId: socketId,
     teamSize, fillWithBots: cfg.fillWithBots, password: cfg.password || null,
@@ -682,6 +690,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
   room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
+  room.survivalRanks.clear();room.survivalOffers.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
   room.turrets.clear();
   room.gravityWells.clear();
@@ -1508,6 +1517,24 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (fellInLava) dmg = victim.health;
   else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
+  if(room.mode==="survival"&&!fellInLava){
+    if(attacker&&!attacker.isBot&&victim.isBot){
+      const now=Date.now();
+      dmg*=survivalOutgoingMultiplier(room.survivalRanks.get(attackerId)??{}, {
+        headshot:head,distance:Math.hypot(attacker.pos[0]-victim.pos[0],attacker.pos[2]-victim.pos[2]),
+        boss:!!room.bots.get(victim.id)?.ai.boss,aiming:room.adsStartedAt.has(attackerId),
+        healthFraction:attacker.health/MAX_HEALTH,
+        sinceKillMs:now-(room.survivalLastKillAt.get(attackerId)??-Infinity),
+        sinceHeadshotKillMs:now-(room.survivalLastHeadshotKillAt.get(attackerId)??-Infinity),
+      });
+    } else if(attacker?.isBot&&!victim.isBot){
+      dmg*=survivalIncomingMultiplier(room.survivalRanks.get(victim.id)??{}, {
+        healthFraction:victim.health/MAX_HEALTH,
+        explosive:!!weaponById(weaponId).explosive,
+        sprinting:room.sprintState.get(victim.id)??false,
+      });
+    }
+  }
   room.lastDamagedAt.set(victim.id, Date.now());
   const hitSource=room.players.get(attackerId)??room.bots.get(attackerId);
   const hurtBot=room.bots.get(victim.id);
@@ -1609,6 +1636,13 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       io.to(attacker.id).emit("message", { t: "scavengerDrop", id, pos, expiresAt } as S2C);
     }
     if (attacker) {
+      if(room.mode==="survival"&&!attacker.isBot&&victim.isBot){
+        const now=Date.now();
+        const reward=survivalKillReward(room.survivalRanks.get(attackerId)??{},head);
+        attacker.health=Math.min(MAX_HEALTH,attacker.health+reward.health);
+        room.survivalLastKillAt.set(attackerId,now);
+        if(head)room.survivalLastHeadshotKillAt.set(attackerId,now);
+      }
       attacker.kills += 1;
       // Kill Confirmed awards score only when the dropped tag is collected.
       if (room.mode !== "killconfirmed" && room.mode !== "ctf") room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
@@ -1860,10 +1894,45 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   }, 15000);
 }
 
+// ---- Run-only Survival upgrades. Offers are private and server-authoritative.
+// Each player has their own build; neither upgrade picks nor ranks are capped.
+function sendSurvivalOffer(room:Room, playerId:string) {
+  const offer=room.survivalOffers.get(playerId);
+  if(!offer)return;
+  io.to(playerId).emit("message",{t:"survivalUpgradeOffer",offer,
+    ranks:{...(room.survivalRanks.get(playerId)??{})}} as S2C);
+}
+function awardSurvivalUpgrade(room:Room,playerId:string,id:SurvivalUpgradeId) {
+  const offer=room.survivalOffers.get(playerId);
+  if(!offer||!offer.choices.includes(id))return false;
+  const ranks=chooseSurvivalUpgrade(room.survivalRanks.get(playerId)??{},id);
+  room.survivalRanks.set(playerId,ranks);
+  room.survivalOffers.delete(playerId);
+  io.to(playerId).emit("message",{t:"survivalUpgradeChosen",upgradeId:id,ranks} as S2C);
+  return true;
+}
+function offerSurvivalUpgrades(room:Room) {
+  for(const player of room.players.values()) {
+    const ranks=room.survivalRanks.get(player.id)??{};
+    room.survivalRanks.set(player.id,ranks);
+    const offer:SurvivalUpgradeOffer={wave:room.wave,
+      choices:generateSurvivalUpgradeChoices(ranks),
+      rerollsRemaining:room.survivalRerolls.get(player.id)??1};
+    room.survivalOffers.set(player.id,offer);
+    sendSurvivalOffer(room,player.id);
+  }
+}
 // ---- Survival wave spawning ----
 // Survival mode tier fully determines bot aim and wave modifiers.
 
 function startSurvivalWave(room: Room) {
+  // If a player was AFK during the break, award one of their offered picks.
+  for(const [playerId,offer] of room.survivalOffers)
+    awardSurvivalUpgrade(room,playerId,offer.choices[0]);
+  for(const player of room.players.values()) {
+    if(player.alive&&!room.downed.has(player.id))player.health=Math.min(MAX_HEALTH,
+      player.health+survivalWaveHealing(room.survivalRanks.get(player.id)??{}));
+  }
   room.wave += 1;
   room.waveActive = true;
   // cleanup any leftover dead bots from the previous wave
@@ -2085,8 +2154,9 @@ function tickRoom(room: Room) {
       tickThrowingKnifeRecovery(room,gameNow);
       // Server-authoritative regen; never heal during an active damage window.
       for (const c of allCombatants(room)) {
-        if (c.alive && !room.downed.has(c.id) && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId))
-          c.health = Math.min(MAX_HEALTH, c.health + 26 / 20);
+        const ranks=room.mode==="survival"?room.survivalRanks.get(c.id)??{}:{};
+        if (c.alive && !room.downed.has(c.id) && c.health < MAX_HEALTH && gameNow - (room.lastDamagedAt.get(c.id) ?? 0) > regenDelayMs(room.loadouts.get(c.id)?.perkId)*survivalRegenDelayMultiplier(ranks))
+          c.health = Math.min(MAX_HEALTH, c.health + 26 / 20*survivalRegenRateMultiplier(ranks));
       }
     }
   }
@@ -2120,8 +2190,13 @@ function tickRoom(room: Room) {
             endMatch(room);
             return;
           }
-          room.prepLeft = SURVIVAL_PREP_SEC;
+          room.prepLeft = survivalUpgradeDue(room.wave) ? SURVIVAL_UPGRADE_PREP_SEC : SURVIVAL_PREP_SEC;
           recoverSurvivalPlayers(room);
+          if(survivalUpgradeDue(room.wave)) {
+            if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
+              for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
+            offerSurvivalUpgrades(room);
+          }
         }
       }
     }
@@ -3560,6 +3635,26 @@ async function handle(socket: any, msg: C2S) {
       broadcastRadarPing(room, p, attsForShot?.barrel === "barrel_suppressor");
       break;
     }
+    case "chooseSurvivalUpgrade": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      if(room?.mode!=="survival"||room.state!=="playing"||room.ended||room.waveActive||room.prepLeft<=0)return;
+      if(!room.players.has(socket.id))return;
+      awardSurvivalUpgrade(room,socket.id,msg.upgradeId);
+      break;
+    }
+    case "rerollSurvivalUpgrade": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      if(room?.mode!=="survival"||room.state!=="playing"||room.ended||room.waveActive||room.prepLeft<=0)return;
+      const offer=room.survivalOffers.get(socket.id);
+      if(!offer||offer.rerollsRemaining<=0)return;
+      const ranks=room.survivalRanks.get(socket.id)??{};
+      const choices=generateSurvivalUpgradeChoices(ranks,Math.random,offer.choices);
+      const remaining=offer.rerollsRemaining-1;
+      room.survivalRerolls.set(socket.id,remaining);
+      room.survivalOffers.set(socket.id,{...offer,choices,rerollsRemaining:remaining});
+      sendSurvivalOffer(room,socket.id);
+      break;
+    }
     case "reload": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
@@ -3586,7 +3681,8 @@ async function handle(socket: any, msg: C2S) {
       }
       const reloadAtts = loadout?.secondaryWeaponId === player.weaponId ? loadout.secondaryAttachments : loadout?.attachments;
       const reloadStats = computeEffectiveStats(weaponById(player.weaponId),reloadAtts ?? {sight:null,barrel:null,grip:null,magazine:null});
-      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadStats.reloadTime*1000));
+      const reloadMul=room.mode==="survival" ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)):1;
+      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadStats.reloadTime*1000*reloadMul));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
       break;
     }
