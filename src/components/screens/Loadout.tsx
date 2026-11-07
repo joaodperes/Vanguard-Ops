@@ -111,10 +111,10 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
     if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && PRIMARY_CATEGORIES.includes(w.category));
-    if (slot === "secondary") return WEAPONS.filter((w) =>
+    if (slot === "secondary") return WEAPONS.filter((w) => !w.disabled && (
       ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
-        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
-    return WEAPONS.filter((w) => w.category === "melee");
+        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary)));
+    return WEAPONS.filter((w) => !w.disabled && w.category === "melee");
   };
 
   // Unlock in the swap menu, then select the weapon in the draft loadout.
