@@ -33,6 +33,7 @@ import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowin
 import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
 import { selectMaterialPenetrationHits } from "./cover-penetration";
+import { damageBallisticCoverOnShot } from "./material-cover-damage";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
@@ -224,6 +225,9 @@ interface Room {
   environmentTime: number;             // seconds since the fight became active
   floodgateBreachAt: number|null;      // authoritative environment clock at dam failure
   environmentWalls: Map<string, number>;
+  /** Per-room cover state; never mutate shared compiled map geometry. */
+  materialCoverHp: Map<string, number>;
+  materialCoverDestroyed: Set<string>;
   environmentCooldown: Map<string, number>;
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
@@ -470,6 +474,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentTime: 0,
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
+    materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
     specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
@@ -639,6 +644,7 @@ function createLobbyRoom(
     environmentTime: 0,
     floodgateBreachAt:null,
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
+    materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
     specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
@@ -808,6 +814,8 @@ function snapshot(room: Room): S2C {
     environmentTime: room.environmentTime,
     floodgateBreachAt:room.floodgateBreachAt,
     environmentWalls: Object.fromEntries(room.environmentWalls),
+    materialCoverHp: Object.fromEntries(room.materialCoverHp),
+    materialCoverDestroyed: [...room.materialCoverDestroyed],
     ...(room.map.id==="floodgate"?{floodgateRulesVersion:5}:{}),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
@@ -925,6 +933,18 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   if (!nearest) return null;
   if (losBlocked(room, origin, dir, nearest.t)) return null;
   return nearest;
+}
+
+/** Damage and broadcast cover impacts after target selection for the current pellet.
+ * The fatal pellet still sees the pre-break collision, while the NEXT pellet/shot
+ * sees the newly opened passage. Never use client-reported cover damage. */
+function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
+  bodyHits: readonly {t:number}[]): void {
+  const stopAt = bodyHits.length && !eff.bodyPenetration ? bodyHits[0].t : Infinity;
+  for (const impact of damageBallisticCoverOnShot(room.map,room.materialCoverHp,room.materialCoverDestroyed,
+    origin,dir,maxWeaponHitRange(eff.range,eff),eff.coverPenetration ?? 0,eff.damage,stopAt)) {
+    io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
+  }
 }
 
 /** Conventional hitscan rounds can cross explicitly tagged thin cover.
@@ -2685,7 +2705,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         const pdir = botShotgun
           ? shotgunPelletDirection(dir, eff, !!ai.aiming)
           : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
-        for (const hit of firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff)) {
+        const rayHits = firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff);
+        hitMaterialCover(room,origin,pdir,eff,rayHits);
+        for (const hit of rayHits) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
           const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff) * hit.damageScale;
           applyDamage(room, bot.id, hit.victim, dmg, hit.head, bot.weaponId,hit.shield);
@@ -3645,6 +3667,7 @@ async function handle(socket: any, msg: C2S) {
           // allowing it to continue through the wall in the same pellet.
           const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
           const hits = firePenetratingRay(room, socket.id, msg.origin, dir, eff.range, eff);
+          hitMaterialCover(room,msg.origin,dir,eff,hits);
           if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
               hits.length === 0) {
             damageEnvironmentWall(room, coverHit.box.environmentId, eff.damage);
