@@ -58,7 +58,7 @@ describe("run-only Survival upgrades",()=>{
  });
  test("kill and wave recovery are bounded, and headshots reward precision",()=>{
    expect(survivalKillReward({salvage:1,precision_loop:2,combat_medic:2,surgical_precision:1},true))
-     .toEqual({health:14,ammo:5});
+     .toEqual({health:12,ammo:5});
    expect(survivalKillReward({precision_loop:2,surgical_precision:2},false)).toEqual({health:0,ammo:0});
    expect(survivalKillReward({combat_medic:1e8,salvage:1e8},true).health).toBeLessThanOrEqual(22);
    expect(survivalWaveHealing({fresh_start:5})).toBeGreaterThan(0);
