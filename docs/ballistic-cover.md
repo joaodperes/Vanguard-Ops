@@ -41,8 +41,39 @@ Current resistance / damage retention coefficients (before thickness penalty):
 
 The body-penetration `maxTargets` and `damageRetention` settings remain independent. Even with a strong round, Bulwark shields and spawn-protected bodies stop subsequent body hits. No new target acquisition or automatic through-wall bot tracking is introduced: the ray must actually intersect a target, and the usual AI visibility rules remain.
 
+## Visible impacts and selective destruction
+
+Conventional shots on tagged cover generate material-specific effects, including
+non-penetrating shots. Glass displays persistent spider-web cracking and ultimately
+shatters into light fragments. Thin wood sheds splinters, and light cover sheds
+dust/debris; both can be destroyed by sustained gunfire. Sheet metal shows
+permanent bullet marks and short spark bursts but **cannot be destroyed**.
+Concrete, reinforced, untagged geometry, and dedicated destructible environment
+barriers retain their existing collision/damage behavior.
+
+Damage uses the weapon's effective bullet damage, **including magazine modifiers**.
+The glass threshold is 45 integrity with 1.7x damage, thin wood 115 with 1x,
+and light cover 140 with 0.85x. These are cover-damage coefficients, independent
+of bullet penetration energy: a pistol may eventually break glass despite being
+unable to shoot through it. Sheet metal has no integrity value and never vanishes.
+
+When a panel breaks, its authored cover collider is removed from the current
+match's map. It ceases to block movement, conventional shots, bot line of sight,
+and physics-based navigation. The projectile that depleted the last integrity
+point still strikes the pre-destruction collision; only subsequent shots can
+pass through the gap. Existing concrete and reinforced geometry is never deleted.
+Both server and offline clients modify only their **per-match map copies**.
+
+Online damage and destruction are server-authoritative. The server broadcasts
+`materialCoverImpact` with world-space contact, material, integrity and
+destruction; periodic snapshots include `materialCoverHp` and
+`materialCoverDestroyed` so a late joiner or missed effect packet does not
+restore broken cover. Local offline play and offline bots call the same rules.
+Impacts use capped decals (up to six per panel) and short-lived particles
+(maximum 96) rather than expensive area-explosion effects.
+
 ## Validation / regression
 
-Run `bun test tests/material-cover-penetration.test.ts tests/body-penetration.test.ts`; for full cross-system checks run `bun run content:validate`, `bun run typecheck`, `bun run test:smoke` and `bun run build`.
+Run `bun test tests/material-cover-penetration.test.ts tests/material-cover-destruction.test.ts tests/body-penetration.test.ts`; for full cross-system checks run `bun run content:validate`, `bun run typecheck`, `bun run test:smoke` and `bun run build`.
 
 The new regression suite covers materials, multiple layers, grazing angle, budget and damage reduction, solid obstacles, shields/spawn immunity, magazine behavior and propagation of tags into published maps. Check the [dev workflow](../.github/workflows/dev-validation.yml) before promoting changes to main.
