@@ -8,7 +8,7 @@ import type { CoverBox, MapDef, MaterialCoverImpact, Vec3 } from "./game-protoco
 import { traceCoverPenetration, type BallisticMaterial } from "./cover-penetration";
 
 const BREAKABLE: Partial<Record<BallisticMaterial, { hp: number; damage: number }>> = {
-  glass: { hp: 45, damage: 1.7 },
+  glass: { hp: 75, damage: 1.3 },
   thin_wood: { hp: 115, damage: 1 },
   light_cover: { hp: 140, damage: .85 },
 };
