@@ -52,7 +52,7 @@ Concrete, reinforced, untagged geometry, and dedicated destructible environment
 barriers retain their existing collision/damage behavior.
 
 Damage uses the weapon's effective bullet damage, **including magazine modifiers**.
-The glass threshold is 45 integrity with 1.7x damage, thin wood 115 with 1x,
+The glass threshold is 75 integrity with 1.3x damage, thin wood 115 with 1x,
 and light cover 140 with 0.85x. These are cover-damage coefficients, independent
 of bullet penetration energy: a pistol may eventually break glass despite being
 unable to shoot through it. Sheet metal has no integrity value and never vanishes.
