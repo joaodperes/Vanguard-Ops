@@ -116,6 +116,8 @@ export interface CoverBox {
   pos: Vec3;     // center
   size: Vec3;    // half-extents
   kind?: "solid" | "cover" | "accent" | "platform" | "stair";
+  /** Author-assigned ballistic material; missing = fully protective. */
+  material?: import("./cover-penetration").BallisticMaterial;
   environmentId?: string; // dynamically updated solid; not part of the static map geometry
 }
 
