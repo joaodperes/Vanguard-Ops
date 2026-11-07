@@ -30,7 +30,8 @@ import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
-import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
+import { type BodyRayContact } from "./body-penetration";
+import { selectMaterialPenetrationHits } from "./cover-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
@@ -911,17 +912,16 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   return nearest;
 }
 
-/** Conventional bullets can pass through aligned bodies, but not map cover,
- * Bulwark shields or protected spawns. Special weapons use their own rules. */
+/** Conventional hitscan rounds can cross explicitly tagged thin cover.
+ * Structural cover, Bulwark shields and protected spawns still absorb shots. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
   range: number, eff: WeaponStats): { victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[] {
-  if (!eff.bodyPenetration) {
+  if (!eff.bodyPenetration && !(eff.coverPenetration ?? 0)) {
     const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
     return first ? [{ ...first, damageScale: 1 }] : [];
   }
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const maxDistance = maxWeaponHitRange(range, eff);
-  const coverDistance = closestCoverHit(room.map.cover, origin, dir, maxDistance, rayBox)?.distance ?? Infinity;
   const contacts: BodyRayContact<PlayerNet>[] = [];
   for (const target of allCombatants(room)) {
     if (!target.alive || target.id === attackerId) continue;
@@ -936,7 +936,8 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
       shield: shieldFirst,
       protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
   }
-  return selectBodyPenetrationHits(contacts, maxDistance, coverDistance, eff.bodyPenetration)
+  return selectMaterialPenetrationHits(contacts,room.map.cover,origin,dir,maxDistance,
+      eff.bodyPenetration,eff.coverPenetration)
     .map(({ target, t, head, shield, damageScale }) => ({ victim: target, t, head, shield, damageScale }));
 }
 
