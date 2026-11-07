@@ -3,6 +3,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
 import MapStudio3D,{type StudioSelection,type StudioMode,type StudioTransform} from "./MapStudio3D";
 import {MAP_DOCUMENTS,validateMapDocument,type MapDocument} from "@/lib/map-documents";
+import {BALLISTIC_MATERIALS} from "@/lib/cover-penetration";
 import {importMapDocuments,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
 import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
   featureFootprint,reconcileFeatureAttachments,resolveStairAttachments,attachStairsToPlatform,MAP_HAZARD_TYPES,
@@ -980,6 +981,10 @@ export default function MapEditorClient(){
           {feature&&<>
             <TextInput label="Label" value={feature.label??""} save={n=>editSelected("label",n)}/>
             <Picker label="Kind" value={feature.kind} options={["cover","accent","platform","stairs"]} save={n=>editSelected("kind",n)}/>
+            {feature.kind==="cover"&&<>
+              <Picker label="Ballistic material" value={feature.material??"concrete"} options={[...BALLISTIC_MATERIALS]} save={n=>editSelected("material",n)}/>
+              <p className="text-xs text-zinc-400">Wood, sheet metal, glass and light cover can be pierced by heavy rounds. Concrete and reinforced surfaces stop all conventional bullets. Thickness and shot angle matter.</p>
+            </>}
             {feature.kind==="stairs"&&<>
               {feature.attachment?<>
                 <p className="rounded bg-emerald-950/50 p-2 text-xs text-emerald-200">Landing attached. Editing the platform preserves this connection; moving this stair alone detaches it.</p>
