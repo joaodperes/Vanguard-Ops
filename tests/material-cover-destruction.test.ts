@@ -16,7 +16,7 @@ const state=()=>({hp:new Map<string,number>(),dead:new Set<string>()});
 describe("per-match destructible ballistic cover",()=>{
   test("glass cracks, breaks, and opens the bullet AND movement collider on the next shot",()=>{
     const map=arena(panel("pane","glass")),s=state();
-    const first=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,0,16);
+    const first=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,0,40);
     expect(first).toHaveLength(1);
     expect(first[0].material).toBe("glass");
     expect(first[0].destroyed).toBe(false);
@@ -24,7 +24,7 @@ describe("per-match destructible ballistic cover",()=>{
     const shotHitsBeforeBreak=selectMaterialPenetrationHits([{target:"enemy",t:8,head:false}],map.cover,o,d,20);
     expect(shotHitsBeforeBreak).toEqual([]);
     const breakingShotHits=selectMaterialPenetrationHits([{target:"enemy",t:8,head:false}],map.cover,o,d,20);
-    const finish=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,0,16);
+    const finish=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,0,40);
     expect(finish[0].destroyed).toBe(true);
     expect(s.dead.has("pane")).toBe(true);
     expect(map.cover.some(c=>c.ballisticId==="pane")).toBe(false);
