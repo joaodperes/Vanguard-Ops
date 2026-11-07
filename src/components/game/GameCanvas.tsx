@@ -4,6 +4,7 @@ import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "
 import type { LoadoutWire, GameMode, MapId, MapDef, BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
+import { SURVIVAL_UPGRADES, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import type { PracticeSample } from "@/lib/tutorial";
 import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
@@ -51,6 +52,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
   const menuOpenRef = useRef(false);
+  const upgradePendingRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
   const pointerLockMenuStateRef = useRef(initialPointerLockMenuState);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
@@ -157,10 +159,23 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   }, []);
 
   const showStartOverlay = ready && isTouch && !touchStarted;
+  const upgradePending=mode==="survival" && !!hud?.survivalUpgradeOffer &&
+    !lobbyActive && !menuOpen && !hud?.matchEnding;
+  upgradePendingRef.current=upgradePending;
+  useEffect(()=>{
+    if(!upgradePending)return;
+    pointerLockMenuStateRef.current=ignorePointerLockRelease(pointerLockMenuStateRef.current);
+    engineRef.current?.setInputSuspended(true);
+  },[upgradePending]);
+  const takeSurvivalUpgrade=(id:SurvivalUpgradeId)=>{
+    engineRef.current?.chooseSurvivalUpgrade(id);
+    engineRef.current?.setInputSuspended(false);
+    engineRef.current?.resumePointerLock();
+  };
   const lobbyActive = !!lobby?.active;
 
   const openMenu = () => {
-    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready) return;
+    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready || upgradePendingRef.current) return;
     // The pointer-lock release caused by opening this menu is intentional.
     // Its async event must not be allowed to reopen the menu after a quick Escape.
     pointerLockMenuStateRef.current = ignorePointerLockRelease(pointerLockMenuStateRef.current);
@@ -219,6 +234,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.code !== "Escape" || event.repeat) return;
+      if (upgradePendingRef.current) { event.preventDefault(); return; }
       event.preventDefault();
       event.stopImmediatePropagation();
       const action = escapeMenuAction(menuOpenRef.current, menuPageRef.current);
@@ -232,7 +248,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       // of pointer lock still opens the menu. Ignore stale/intentional unlocks.
       const transition = pointerLockMenuTransition(pointerLockMenuStateRef.current, locked, menuOpenRef.current);
       pointerLockMenuStateRef.current = transition.state;
-      if (transition.openMenu) openMenu();
+      if (transition.openMenu && !upgradePendingRef.current) openMenu();
     };
     window.addEventListener("keydown", onEscape, true);
     document.addEventListener("pointerlockchange", onLockChange);
@@ -291,9 +307,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       )}
       {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && !menuOpen && !hud?.matchEnding && <TouchControls engine={engineInstance} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !hud?.matchEnding && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
-      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !hud?.matchEnding && (
+      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !upgradePending && !hud?.matchEnding && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
@@ -304,7 +320,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         </div>
       )}
       {/* Mobile "tap to play" — hidden while lobby overlay is up */}
-      {showStartOverlay && !lobbyActive && !menuOpen && (
+      {showStartOverlay && !lobbyActive && !menuOpen && !upgradePending && (
         <button
           className="absolute inset-0 flex items-center justify-center z-50 bg-black/60"
           onClick={() => setTouchStarted(true)}
@@ -316,6 +332,46 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
             <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
+      )}
+      {upgradePending && hud?.survivalUpgradeOffer && (
+        <div className="absolute inset-0 z-[65] flex items-center justify-center overflow-y-auto bg-black/75 px-4 py-6 backdrop-blur-md">
+          <section role="dialog" aria-modal="true" aria-label="Survival upgrade selection"
+            className="pointer-events-auto w-full max-w-4xl rounded-2xl border border-amber-400/30 bg-zinc-950/95 p-5 shadow-2xl sm:p-8">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="mb-1 text-xs font-bold uppercase tracking-[.3em] text-amber-400">Survival · Wave {hud.survivalUpgradeOffer.wave} cleared</div>
+                <h2 className="text-2xl font-bold text-white sm:text-3xl">Choose your upgrade</h2>
+                <p className="mt-2 text-sm text-zinc-400">One pick per operative. Upgrades last for this run, and ranks never stop increasing.</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+                Next wave in <strong className="text-amber-300">{hud.survivalPrepLeft??0}s</strong>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {hud.survivalUpgradeOffer.choices.map(id=>{
+                const upgrade=SURVIVAL_UPGRADES.find(u=>u.id===id)!;
+                const rank=(hud.survivalUpgradeRanks?.[id]??0)+1;
+                return (
+                  <button key={id} type="button" onClick={()=>takeSurvivalUpgrade(id)}
+                    className="group flex min-h-48 flex-col rounded-xl border border-white/15 bg-zinc-900/90 p-5 text-left transition-all hover:border-amber-400 hover:bg-amber-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">
+                    <span className="text-xs font-bold uppercase tracking-widest text-amber-400/80">{upgrade.rarity} · {upgrade.category}</span>
+                    <span className="mt-4 text-xl font-bold text-white group-hover:text-amber-200">{upgrade.name}</span>
+                    <span className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">{upgrade.description}</span>
+                    <span className="mt-4 text-xs font-semibold text-amber-300">Select rank {rank}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex items-center justify-between gap-3 text-sm text-zinc-400">
+              <span>Unchosen offers automatically take the first option when the wave starts.</span>
+              <button type="button" disabled={hud.survivalUpgradeOffer.rerollsRemaining<=0}
+                onClick={()=>engineRef.current?.rerollSurvivalUpgrade()}
+                className="shrink-0 rounded-lg border border-white/20 px-4 py-2 font-semibold text-white transition-colors hover:border-amber-400 disabled:cursor-not-allowed disabled:opacity-40">
+                Reroll ({hud.survivalUpgradeOffer.rerollsRemaining})
+              </button>
+            </div>
+          </section>
+        </div>
       )}
       {/* Room lobby overlay (pre-match). Shown when the engine reports the room
           is in the "lobby" state. The host sees a "Start Match" button; everyone
