@@ -132,7 +132,7 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
   const h=Math.max(0.3,feature.h),baseY=feature.y??0;
-  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind,...(feature.kind==="cover"?{material:feature.material}:{})};
+  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind,...(feature.kind==="cover"?{material:feature.material,ballisticId:feature.material?feature.id:undefined}:{})};
   if(feature.kind==="stairs")return stairFeatureBoxes(feature);
   if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
