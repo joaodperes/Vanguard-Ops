@@ -11,6 +11,7 @@ import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
+  activeMeleeWeaponId,
   isPrimaryWeaponCategory,
   weaponById,
   weaponAttachmentSlots,
@@ -77,7 +78,9 @@ export async function POST(req: NextRequest) {
     const owner = await getOrCreatePlayer(ownerKey);
     const preset = parseSavedLoadouts(owner.loadout?.savedLoadouts).find(p => p.id === rawBody.presetId);
     if (!preset) return NextResponse.json({ error: "Saved loadout not found" }, { status: 404 });
-    body = { ...preset, playerKey: rawBody.playerKey };
+    // Presets remain usable if their archived melee choice is now disabled.
+    // Keep the saved snapshot unchanged for possible future reactivation.
+    body = { ...preset, meleeWeapon: activeMeleeWeaponId(preset.meleeWeapon), playerKey: rawBody.playerKey };
   }
   const {
     playerKey: bodyKey,
@@ -196,6 +199,7 @@ export async function POST(req: NextRequest) {
   if (meleeWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === meleeWeapon);
     if (!w) return NextResponse.json({ error: "unknown meleeWeapon" }, { status: 400 });
+    if (w.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (w.category !== "melee") {
       return NextResponse.json({ error: "meleeWeapon must be a melee weapon" }, { status: 400 });
     }
