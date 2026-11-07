@@ -32,7 +32,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
-import { selectMaterialPenetrationHits } from "./cover-penetration";
+import { selectMaterialPenetrationHits, traceCoverPenetration } from "./cover-penetration";
 import { damageBallisticCoverOnShot } from "./material-cover-damage";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
@@ -2694,6 +2694,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const dir = dirFromYawPitch(aimYaw, aimPitch);
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
+      // Remember the cover visible to this shot, before its pellets can break it.
+      const shotCoverStop=traceCoverPenetration(room.map.cover,origin,dir,
+        maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0).blockedAt;
       let didHit = false;
       if(isThrowingKnife(weapon.id)){
         didHit=throwKnifeFrom(room,bot,origin,dir,now);
@@ -2718,7 +2721,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       // Reaper has its own purple pulse FX. It must not generate a gunshot
       // tracer or gunfire audio on other clients.
       if(weapon.category!=="melee"){
-        io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor" } as S2C);
+        io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
         broadcastRadarPing(room, bot, room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor");
         publishBotNoise(room,{sourceId:bot.id,pos:bot.pos,at:now,kind:"gunshot",
           suppressed:room.mode!=="gungame"&&bot.loadout.attachments.barrel==="barrel_suppressor"});
@@ -3452,6 +3455,10 @@ async function handle(socket: any, msg: C2S) {
         shotDir=normalize([msg.dir[0]+(Math.random()-.5)*scatter,
           msg.dir[1]+(Math.random()-.5)*scatter,msg.dir[2]+(Math.random()-.5)*scatter]);
       }
+      // Preserve the struck cover for remote tracers even if it breaks before
+      // shotFx is broadcast; attached ammo may also alter cover penetration.
+      const shotCoverStop=traceCoverPenetration(room.map.cover,msg.origin,shotDir,
+        maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0).blockedAt;
       if(weapon.category==="melee"){
         applyMeleeStrike(room,p,weapon.id,now);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,
@@ -3695,7 +3702,7 @@ async function handle(socket: any, msg: C2S) {
         room.droppedBolts.set(id, { id, ownerId: socket.id, pos, expiresAt });
         io.to(room.id).emit("message", { t: "boltDrop", id, ownerId: socket.id, pos, expiresAt } as S2C);
       }
-      io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: shotDir, weaponId: msg.weaponId, attackerId: socket.id, skinId: room.mode === "gungame" ? "default" : msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor" } as S2C);
+      io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: shotDir, weaponId: msg.weaponId, attackerId: socket.id, skinId: room.mode === "gungame" ? "default" : msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
       broadcastRadarPing(room, p, attsForShot?.barrel === "barrel_suppressor");
       break;
     }
