@@ -14,6 +14,7 @@ import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import {validateObjectives} from "./map-objectives";
 import {mapTexture} from "./map-textures";
+import {BALLISTIC_MATERIALS} from "./cover-penetration";
 
 export interface MapDocument {
   version: 2;
@@ -55,6 +56,9 @@ export function validateMapDocument(value: unknown): string[] {
     if(Array.isArray(plan.features))for(const f of plan.features)
       if(!f||typeof f.id!=="string"||!["cover","platform","stairs","accent"].includes(f.kind)||
         ![f.x,f.z,f.y??0,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)issues.push("Invalid feature geometry");
+    if(Array.isArray(plan.features))for(const f of plan.features)
+      if(f?.material!==undefined && (f.kind!=="cover" || !BALLISTIC_MATERIALS.includes(f.material as typeof BALLISTIC_MATERIALS[number])))
+        issues.push("Invalid ballistic material on feature "+(f?.id??"?"));
   }
   const theme = doc.theme;
   if (!theme || typeof theme !== "object") issues.push("Missing theme");
