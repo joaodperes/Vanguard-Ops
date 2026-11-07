@@ -62,8 +62,8 @@ describe("per-match destructible ballistic cover",()=>{
 
   test("crossed surfaces receive hits, but no impacts travel beyond a blocking wall",()=>{
     const map=arena(panel("glass","glass",3),panel("wood","thin_wood",6),panel("rear","glass",9)),s=state();
-    const hits=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,1,10);
-    expect(hits.map(i=>i.coverId)).toEqual(["glass","wood"]); // energy is spent at wood
+    const hits=damageBallisticCoverOnShot(map,s.hp,s.dead,o,d,20,.3,10);
+    expect(hits.map(i=>i.coverId)).toEqual(["glass","wood"]); // wood absorbs the remaining energy
     expect(s.hp.has("rear")).toBe(false);
     const onlyFront=damageBallisticCoverOnShot(arena(panel("first","glass",4)),new Map(),new Set(),o,d,20,3,10,2);
     expect(onlyFront).toHaveLength(0); // bullet absorbed by a body before the pane
