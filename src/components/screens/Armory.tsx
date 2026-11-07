@@ -510,7 +510,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="primary"
               label="Primary"
-              weapons={WEAPONS.filter((w) => !w.wonder && PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.disabled && !w.wonder && PRIMARY_CATEGORIES.includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
@@ -529,7 +529,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="secondary"
               label="Secondary"
-              weapons={WEAPONS.filter((w) => !w.wonder && ["pistol", "pdw", "launcher"].includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.disabled && !w.wonder && ["pistol", "pdw", "launcher"].includes(w.category)).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
@@ -547,7 +547,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="melee"
               label="Melee"
-              weapons={WEAPONS.filter((w) => w.category === "melee").sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter((w) => !w.disabled && w.category === "melee").sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}
