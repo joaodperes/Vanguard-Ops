@@ -1,6 +1,6 @@
 import { levelForXp } from "./progression";
 import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
-import { WEAPONS, isPrimaryWeaponCategory } from "./game-data";
+import { WEAPONS, isPrimaryWeaponCategory, activeMeleeWeaponId } from "./game-data";
 import { equipmentById } from "./equipment";
 import type { LoadoutWire } from "./game-protocol";
 
@@ -28,10 +28,12 @@ export function resolveMatchLoadout(player: {
   }
   const selectedPrimary=WEAPONS.find(x=>x.id===requested.weaponId);
   const weaponId=!selectedPrimary || selectedPrimary.disabled || !!selectedPrimary.wonder ? "rifle_ar" : requested.weaponId;
+  const meleeWeaponId = activeMeleeWeaponId(requested.meleeWeaponId);
+  const meleeWeaponSkinId = meleeWeaponId !== (requested.meleeWeaponId ?? "knife_tactical") ? "default" : requested.meleeWeaponSkinId;
   const candidate=WEAPONS.find(x=>x.id===requested.wonderWeaponId);
   const wonderWeaponId=perkId==="wonder_weapon" && candidate?.wonder && !candidate.disabled &&
     player.wonderUnlocks?.some(x=>x.weaponId===candidate.id) &&
     candidate.id===player.loadout?.wonderWeaponId ? candidate.id : undefined;
-  return { ...requested, weaponId, perkId, wonderWeaponId, secondaryWeaponId,
+  return { ...requested, weaponId, perkId, wonderWeaponId, secondaryWeaponId, meleeWeaponId, meleeWeaponSkinId,
     equipmentId: equipmentById(player.loadout?.equipmentId).id, primaryReticleId:player.loadout?.primaryReticle??"classic", secondaryReticleId:player.loadout?.secondaryReticle??"classic", primaryCharmId:player.loadout?.primaryCharm??"none", secondaryCharmId:player.loadout?.secondaryCharm??"none", meleeCharmId:"none" };
 }
