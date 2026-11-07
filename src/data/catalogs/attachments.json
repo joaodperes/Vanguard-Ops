@@ -680,7 +680,7 @@
     "slot": "magazine",
     "unlockLevel": 24,
     "unlockCost": 520,
-    "description": "Specialized high-penetration ammunition. Reaches a second aligned target (35% retained damage), or improves existing penetration by 15 percentage points. -4% bullet damage, -20% capacity, +12% recoil.",
+    "description": "Specialized ammunition that pierces a second aligned body (35% retained damage) or boosts existing body penetration by 15 percentage points. Also improves penetration of thin wood, sheet metal, glass and light cover. -4% bullet damage, -20% capacity, +12% recoil.",
     "weaponCategories": [
       "assault",
       "dmr",
