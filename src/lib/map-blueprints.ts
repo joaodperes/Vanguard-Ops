@@ -11,6 +11,8 @@ export interface MapRegion { x: number; z: number; w: number; d: number; shape?:
 export interface MapFeature extends MapRegion {
   id: string; h: number; /** Bottom elevation in world units (default ground y=0). */ y?: number;
   kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
+  /** Explicit ballistic material for a cover feature; never inferred from visuals. */
+  material?: import("./cover-penetration").BallisticMaterial;
   axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
   /** Saved quarter-turn orientation for Map Studio (collision extents remain axis-aligned). */
   turns?: 0 | 1 | 2 | 3;
@@ -129,7 +131,7 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
   const h=Math.max(0.3,feature.h),baseY=feature.y??0;
-  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind};
+  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind,...(feature.kind==="cover"?{material:feature.material}:{})};
   if(feature.kind==="stairs")return stairFeatureBoxes(feature);
   if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
