@@ -71,8 +71,10 @@ export interface WeaponStats {
   pellets?: number;      // for shotguns
   burst?: number;        // shots per burst (e.g. 3 = 3-round burst). Default 1 (no burst).
   headshotMult: number;  // headshot damage multiplier
-  /** Optional body-to-body hitscan penetration (not walls / shields). */
+  /** Optional body-to-body hitscan penetration; shields and immunity still stop shots. */
   bodyPenetration?: { maxTargets: number; damageRetention: number };
+  /** Energy budget for crossing explicitly tagged thin cover. */
+  coverPenetration?: number;
 }
 
 export interface WeaponDef {
@@ -541,6 +543,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
           )),
         }
       : { maxTargets: piercingAmmo.maxTargets, damageRetention: piercingAmmo.damageRetention };
+  // Penetrator Rounds add a small amount of cover energy without buffing raw TTK.
+  const coverPenetration = Math.min(6,(base.coverPenetration ?? 0) + (piercingAmmo ? .6 : 0));
   const shell = weapon.category === "shotgun" && ammoAttachment &&
     compatibleAttachments(weapon.id,"magazine").includes(ammoAttachment.id) ? ammoAttachment.shotgunAmmo : undefined;
   const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
@@ -554,6 +558,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   return {
     ...base,
     bodyPenetration,
+    coverPenetration: coverPenetration > 0 ? coverPenetration : undefined,
     shotgunAmmo: shell,
     auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" &&
       compatibleAttachments(weapon.id,"magazine").includes("mag_bolt_quiver") ? true : base.auto,
