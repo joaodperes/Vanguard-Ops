@@ -34,7 +34,9 @@ import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorU
 import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
-import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
+import { equipmentById } from "@/lib/equipment";
+import { tacticalGrenadePath } from "@/lib/tactical-grenades";
+import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
 import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
@@ -3958,6 +3960,10 @@ export class FPSEngine {
       }
       this.keys[e.code] = true;
       if (e.code === "KeyR") this.startReload();
+      if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
+        e.preventDefault();
+        this.useEquipment();
+      }
       if (e.code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode)) {
         e.preventDefault();
         this.unlockAudio();
@@ -4041,6 +4047,8 @@ export class FPSEngine {
     this.ammoInMag = this.primaryAmmoInMag;
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
     this.reloading = false; this.equipmentAction = null;
+    this.equipmentCharges = equipmentById(next.equipmentId).charges;
+    this.equipmentLastAt = -10000;
     this.buildViewmodel();
     if (this.quickMeleeModel) {
       this.camera.remove(this.quickMeleeModel);
@@ -4117,6 +4125,7 @@ export class FPSEngine {
   setTouchSprint(b: boolean) { this.touchSprint = b; }
   touchReload() { this.startReload(); }
   touchQuickMelee() { this.unlockAudio(); this.quickMelee(); }
+  touchUseEquipment() { this.useEquipment(); }
   setTouchEquipmentAim(held: boolean) {
     if (this.touchEquipmentAiming && !held) this.useEquipment();
     this.touchEquipmentAiming=held;
@@ -4200,8 +4209,21 @@ export class FPSEngine {
   // only sends an intent. The server validates the player's selection, charges,
   // cooldown, victim teams and spawn protection before applying damage.
   private useEquipment(): void {
-    // Equipment actions were retired in v9; keep the input hook a no-op
-    // without unreachable legacy statements in the compiled bundle.
+    const now = performance.now();
+    if (this.disposed || this.inputSuspended || !this.alive || this.survivalDowned ||
+        this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 ||
+        this.opts.mode === "gungame" || this.equipmentAction ||
+        this.reloading || this.equipmentStunUntil > now ||
+        (!this.pointerLocked && !this.touchMode) || this.equipmentCharges <= 0 ||
+        (this.opts.online && !this.socket?.connected)) return;
+    const def = equipmentById(this.opts.loadout.equipmentId);
+    if (now - this.equipmentLastAt < def.cooldownMs) return;
+    const kind = equipmentMotionFor(def.id);
+    this.unlockAudio();
+    this.manualAiming = false;
+    this.aiming = false;
+    this.equipmentAction = { id: def.id, startedAt: now, kind,
+      duration: deployDurationMs(kind), committed: false };
   }
 
   private updateEquipmentAction(now: number) {
@@ -4218,11 +4240,13 @@ export class FPSEngine {
     if (now >= action.startedAt + action.duration) this.equipmentAction=null;
   }
 
-  private equipmentTrajectory(id: string): ThrowPath {
+  private equipmentTrajectory(id: string): TimedProjectilePath {
     const cp=Math.cos(this.pitch);
     const dir: Vec3=[Math.sin(this.yaw)*cp,Math.sin(this.pitch),Math.cos(this.yaw)*cp];
     const origin: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT*.86,this.pos.z];
-    return calculateThrowPath(origin,dir,id as "frag"|"flashbang"|"knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
+    if (id === "frag" || id === "flashbang")
+      return tacticalGrenadePath(origin,dir,this.map.cover,this.map.id);
+    return calculateThrowPath(origin,dir,id as "knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
       closestCoverHit(this.map.cover,at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
   }
 
@@ -4289,7 +4313,7 @@ export class FPSEngine {
         if (def.type === "blast") this.spawnExplosion(new THREE.Vector3(...impact));
         else if (def.type === "flash") this.spawnEquipmentVisual(impact, 0xffffff);
       }
-    });
+    },path.timesMs);
   }
 
   /** Bullet Spitter is a placed machine, not a projectile. Uses world-space
@@ -4449,7 +4473,7 @@ export class FPSEngine {
   }
 
   /** Render the *actual* flight path with distinct equipment silhouettes. */
-  private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void): void {
+  private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void, timesMs?: number[]): void {
     if(points.length<2){onImpact?.();return;}
     const root=new THREE.Group();
     const dark=new THREE.MeshStandardMaterial({color:0x303945,metalness:.55,roughness:.4});
@@ -4475,9 +4499,10 @@ export class FPSEngine {
     const tick=()=>{
       if(this.disposed){this.scene.remove(root);return;}
       const t=Math.min(1,(performance.now()-born)/Math.max(1,durationMs));
-      const idx=t*(points.length-1),i=Math.min(points.length-2,Math.floor(idx)),f=idx-i;
-      const a=points[i],b=points[i+1];
-      root.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);
+      const position = projectilePositionAt(
+        { points, impact: points[points.length-1], flightMs: durationMs, timesMs },
+        t * durationMs);
+      root.position.set(position[0],position[1],position[2]);
       root.rotation.z=t*8;
       if(t<1)requestAnimationFrame(tick);
       else {
@@ -5821,7 +5846,7 @@ export class FPSEngine {
             if (msg.equipmentId === "frag") this.spawnExplosion(new THREE.Vector3(...msg.position));
             else if (msg.equipmentId === "flashbang") this.spawnEquipmentVisual(msg.position,0xffffff);
             else this.spawnEquipmentVisual(msg.position,0xffb448, false);
-          });
+          },msg.pathTimesMs);
         }
         break;
       }
@@ -9971,6 +9996,7 @@ export class FPSEngine {
             Math.hypot(this.pos.x - p.pos[0], this.pos.z - p.pos[2]) <= 45).length : 0,
       matchEnding: this.matchFinishingLabel ?? undefined,
       quickMeleeAt: this.quickMeleeFeedbackAt,
+      equipmentName: this.opts.mode === "gungame" ? undefined : equipmentById(this.opts.loadout.equipmentId).name,
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
       reloading: this.reloading,

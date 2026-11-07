@@ -23,7 +23,9 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // alive as long as the dev server (the sandbox reaps detached processes).
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
-import { equipmentById } from "./equipment"; // retained only for legacy internal types
+import { equipmentById } from "./equipment";
+import { tacticalGrenadePath } from "./tactical-grenades";
+import type { TimedProjectilePath } from "./bouncing-projectile";
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
@@ -1016,10 +1018,12 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   const cp=Math.cos(player.pitch);
   const dir: Vec3=[Math.sin(player.yaw)*cp,Math.sin(player.pitch),Math.cos(player.yaw)*cp];
   const from: Vec3=[player.pos[0],player.pos[1]+EYE_HEIGHT*.86,player.pos[2]];
-  const path=calculateThrowPath(from,dir,def.id, (at,vector,distance)=> {
-    const collision=closestCoverHit(room.map.cover,at,vector,distance,rayBox);
-    return collision?.distance ?? null;
-  },player.pos[1]+.12);
+  const path: TimedProjectilePath=def.id==="frag" || def.id==="flashbang"
+    ? tacticalGrenadePath(from,dir,room.map.cover,room.map.id)
+    : calculateThrowPath(from,dir,def.id, (at,vector,distance)=> {
+      const collision=closestCoverHit(room.map.cover,at,vector,distance,rayBox);
+      return collision?.distance ?? null;
+    },player.pos[1]+.12);
   const impact=path.impact;
   if(def.type==="mine") {
     const mineId=genId("mine");
@@ -1028,8 +1032,12 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   } else {
     // Clients reconstruct the full throw from sampled positions. This first
     // event is visual only; impact damage is applied after the flight time.
-    const sampled=path.points.filter((_,i)=>i%3===0 || i===path.points.length-1);
-    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:impact,ownerId:playerId,path:sampled,flightMs:path.flightMs} as S2C);
+    // Flight timestamps are necessary to render wall/floor ricochets correctly.
+    const indices=path.points.map((_,i)=>i).filter(i=>i%3===0||i===path.points.length-1||
+      path.timesMs?.some((time,j)=>j===i&&path.bounces?.some(b=>Math.abs(b.timeMs-time)<.001)));
+    const sampled=indices.map(i=>path.points[i]);
+    const pathTimesMs=path.timesMs && indices.map(i=>path.timesMs![i]);
+    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:impact,ownerId:playerId,path:sampled,pathTimesMs,flightMs:path.flightMs} as S2C);
     setTimeout(()=>{
       if(room.ended || room.state!=="playing")return;
       if(def.type==="knife" || def.type==="poison" || def.type==="taser") {
@@ -3095,6 +3103,16 @@ async function handle(socket: any, msg: C2S) {
       room.scavengerDrops.delete(msg.id);
       io.to(drop.ownerId).emit("message", { t: "scavengerRemove", id: msg.id } as S2C);
       io.to(socket.id).emit("message", { t: "scavengerCollected", id: msg.id } as S2C);
+      break;
+    }
+    case "useEquipment": {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room || !room.players.has(socket.id)) return;
+      const left = serverUseEquipment(room, socket.id);
+      // A rejected intent also corrects the client's predicted ammo count.
+      const remaining = left ?? (room.equipmentCharges.get(socket.id) ??
+        equipmentById(room.loadouts.get(socket.id)?.equipmentId).charges);
+      socket.emit("message", { t: "equipmentState", remaining } as S2C);
       break;
     }
     case "quickMelee": {

@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect } from "react";
 import type { FPSEngine } from "@/lib/fps-engine";
 import { shouldTouchAutoSprint } from "@/lib/movement-rules";
-import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife } from "lucide-react";
+import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife, Bomb } from "lucide-react";
 
 interface Props {
   engine: FPSEngine | null;
@@ -192,8 +192,11 @@ export function TouchControls({ engine }: Props) {
           Reload is a small button to the LEFT of Fire so it's reachable with
           the same thumb without overlapping the look-drag area. */}
       <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none" }}>
-        {/* Reload and quick melee share one thumb column to avoid overflowing smaller phones. */}
-        <div className="flex flex-col gap-3 items-center mb-1">
+        {/* Tactical, quick melee and reload share a thumb column. */}
+        <div className="flex flex-col gap-2 items-center mb-1">
+          <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
+            onDown={() => engine?.touchUseEquipment()}
+            color="border-cyan-500/50 bg-cyan-600/20 text-cyan-200" />
           <ActionBtn label="Melee" icon={<PocketKnife className="w-5 h-5" />}
             onDown={() => engine?.touchQuickMelee()}
             color="border-amber-500/60 bg-amber-600/25 text-amber-100" />

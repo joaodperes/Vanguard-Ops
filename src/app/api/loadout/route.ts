@@ -2,6 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { EQUIPMENT } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
     perkId,
     wonderWeaponId: requestedWonderWeaponId,
     meleeWeapon,
+    equipmentId,
     weaponSkin,
     secondaryWeaponSkin,
     meleeWeaponSkin,
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     perkId?: string;
     wonderWeaponId?: string;
     meleeWeapon?: string;
+    equipmentId?: string;
     weaponSkin?: string;
     secondaryWeaponSkin?: string;
     meleeWeaponSkin?: string;
@@ -113,6 +116,8 @@ export async function POST(req: NextRequest) {
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
+  if (equipmentId !== undefined && !EQUIPMENT.some(item => item.id === equipmentId))
+    return NextResponse.json({ error: "Unknown tactical equipment" }, { status: 400 });
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
@@ -313,6 +318,7 @@ export async function POST(req: NextRequest) {
       primaryWeapon: primaryWeapon ?? "rifle_ar",
       secondaryWeapon: secondaryWeapon ?? "pistol_side",
       meleeWeapon: meleeWeapon ?? "knife_tactical",
+      equipmentId: equipmentId ?? "frag",
       perkId: selectedPerk.id,
       wonderWeaponId,
       weaponSkin: sanitizedWeaponSkin ?? "default",
@@ -338,6 +344,7 @@ export async function POST(req: NextRequest) {
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
+      ...(equipmentId !== undefined ? { equipmentId } : {}),
       perkId: selectedPerk.id,
       wonderWeaponId,
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),

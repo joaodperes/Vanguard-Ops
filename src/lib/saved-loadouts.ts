@@ -1,3 +1,5 @@
+import { equipmentById } from "./equipment";
+
 /** Serialized, named copies of fully equipped player loadouts.
  * The active equipment still lives in Loadout; these are independent snapshots.
  */
@@ -12,6 +14,7 @@ export interface SavedLoadout {
   primaryWeapon: string;
   secondaryWeapon: string;
   meleeWeapon: string;
+  equipmentId: import("./equipment").EquipmentId;
   weaponSkin: string;
   secondaryWeaponSkin: string;
   meleeWeaponSkin: string;
@@ -38,6 +41,7 @@ export function parseSavedLoadouts(raw: string | null | undefined): SavedLoadout
         typeof item.primaryWeapon === "string" && typeof item.secondaryWeapon === "string" &&
         typeof item.meleeWeapon === "string";
     }).filter(p => !p.primaryWeapon.startsWith('wonder_')).map(p => ({ ...p,
+      equipmentId: equipmentById(p.equipmentId).id,
       primaryReticle: typeof p.primaryReticle === "string" ? p.primaryReticle : "classic",
       secondaryReticle: typeof p.secondaryReticle === "string" ? p.secondaryReticle : "classic",
       primaryCharm: typeof p.primaryCharm === "string" ? p.primaryCharm : "none",
@@ -57,6 +61,7 @@ function safeAttachments(raw: string): Record<string, string | null> {
 /** Copy the active, server-validated Loadout row (not arbitrary client-provided weapons). */
 export function captureSavedLoadout(active: {
   primaryWeapon: string; secondaryWeapon: string; meleeWeapon: string;
+  equipmentId?: string;
   wonderWeaponId?: string;
   weaponSkin: string; secondaryWeaponSkin: string; meleeWeaponSkin: string;
   playerSkin: string; attachments: string; secondaryAttachments: string; meleeAttachments: string;
@@ -64,6 +69,7 @@ export function captureSavedLoadout(active: {
 }, id: string, name: string, perkId: string): SavedLoadout {
   return {
     id, name, perkId, wonderWeaponId: active.wonderWeaponId ?? '', primaryWeapon: active.primaryWeapon,
+    equipmentId: equipmentById(active.equipmentId).id,
     secondaryWeapon: active.secondaryWeapon, meleeWeapon: active.meleeWeapon,
     weaponSkin: active.weaponSkin, secondaryWeaponSkin: active.secondaryWeaponSkin,
     meleeWeaponSkin: active.meleeWeaponSkin, playerSkin: active.playerSkin,

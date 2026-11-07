@@ -1,6 +1,6 @@
-/** Fourth (consumable) loadout slot. Selection is device-local until a
- * permanent server-side loadout equipment field is wired into /api/loadout.
- * Server always selects the known definition from the authenticated room loadout.
+/** Persistent tactical consumable slot. The authoritative selection lives in
+ * the player's Loadout row; clients send only use intent to the match server.
+ * Stock refills on respawn, not on weapon swaps.
  */
 export const EQUIPMENT = [
   { id: "frag", name: "Frag Grenade", type: "blast", charges: 2, cooldownMs: 900, radius: 6, damage: 115, description: "Area explosion with damage falloff and cover protection." },

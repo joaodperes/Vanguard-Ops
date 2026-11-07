@@ -1335,7 +1335,7 @@ export interface LoadoutWire {
   perkId?: import("./perks").PerkId;
   /** Owned Wonder available only when the Wonder Weapon perk is equipped. */
   wonderWeaponId?: string;
-  /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
+  /** Persisted tactical selection; validated against the player's saved loadout. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
   // Secondary (sidearm, or an additional primary with Well Prepared) and melee ids — used by the engine to support
@@ -1406,7 +1406,7 @@ export type C2S =
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
-  | { t: "useEquipment" } // deprecated; server ignores this packet
+  | { t: "useEquipment" } // intent only; server validates the item, aim and stock
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
@@ -1478,7 +1478,7 @@ export type S2C =
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
-  | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; flightMs?: number }
+  | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
   | { t: "equipmentStatus"; effect: "flash" | "stun"; durationMs: number }
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }

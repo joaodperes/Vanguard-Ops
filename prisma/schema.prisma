@@ -152,6 +152,8 @@ model Loadout {
   primaryWeapon   String   @default("rifle_ar")
   secondaryWeapon String   @default("pistol_side")
   meleeWeapon     String   @default("knife_tactical")
+  /// Persistent consumable slot: frag/flash/taser/mine/knives/poison dart.
+  equipmentId     String   @default("frag")
   /// Account-persistent active passive perk, separate from named preset snapshots.
   perkId          String   @default("battle_hardened")
   wonderWeaponId  String   @default("")

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
+import { EQUIPMENT, DEFAULT_EQUIPMENT, type EquipmentId } from "@/lib/equipment";
 import { weaponAvailability } from "@/lib/weapon-availability";
 import { weaponCategoryLabel } from "@/lib/display-labels";
 import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
@@ -53,14 +54,16 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
   const [primary, setPrimary] = useState(current?.weapon.id ?? "rifle_ar");
   const [secondary, setSecondary] = useState(current?.secondary.id ?? "pistol_side");
   const [melee, setMelee] = useState(current?.melee.id ?? "knife_tactical");
+  const [equipmentId, setEquipmentId] = useState<EquipmentId>(current?.equipmentId ?? DEFAULT_EQUIPMENT);
   // Which slot's dropdown is currently open. Only one can be open at a time.
-  const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
+  const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | "equipment" | null>(null);
   const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
   const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
   const [wonderWeaponId, setWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
   const [savedWonderWeaponId, setSavedWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
   useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
+  useEffect(() => { setEquipmentId(current?.equipmentId ?? DEFAULT_EQUIPMENT); }, [current?.equipmentId]);
   useEffect(() => { setWonderWeaponId(current?.wonderWeaponId ?? ""); setSavedWonderWeaponId(current?.wonderWeaponId ?? ""); }, [current?.wonderWeaponId]);
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
@@ -97,7 +100,8 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
   const dirtyForPreset = !!current && (
     primary !== current.weapon.id || secondary !== current.secondary.id ||
-    melee !== current.melee.id || perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
+    melee !== current.melee.id || equipmentId !== current.equipmentId ||
+    perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
   useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
 
@@ -167,6 +171,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
     primary !== current.weapon.id ||
     secondary !== current.secondary.id ||
     melee !== current.melee.id ||
+    equipmentId !== current.equipmentId ||
     perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
 
@@ -189,6 +194,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           perkId,
           wonderWeaponId,
           meleeWeapon: melee,
+          equipmentId,
         }),
       });
       if (res.ok) {
@@ -215,7 +221,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <Crosshair className="w-4 h-4 text-amber-400" />
           <h2 className="text-white font-bold tracking-wider uppercase text-sm">Current Loadout</h2>
           <span className="text-white/40 text-xs hidden sm:inline">
-            Pick your Primary, Secondary, and Melee weapons. Customize attachments &amp; skins per weapon below.
+            Choose Primary, Secondary, Melee, Tactical and Perk. Tactical stock refills on respawn.
           </span>
         </div>
         <Button
@@ -227,7 +233,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <Check className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Confirming…" : "Confirm Loadout"}
         </Button>
       </div>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
         <SlotCard
           slot="primary"
           label="Primary"
@@ -282,6 +288,36 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
           canCustomize={melee === current.melee.id}
         />
+        <div className="relative" data-slot-dropdown>
+          <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-4 h-4 text-cyan-400" />
+              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
+              <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
+            </div>
+            <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 bg-gradient-to-br from-cyan-950/50 to-black flex items-center justify-center`}>
+              <Package className="w-8 h-8 text-cyan-300/70" />
+              <span className="absolute left-2 top-1.5 text-[10px] uppercase text-white/40">Consumable</span>
+            </div>
+            <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
+            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
+              {EQUIPMENT.find(e => e.id === equipmentId)?.description}
+            </div>
+            <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
+              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+              <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
+              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+            {EQUIPMENT.map(item => <button key={item.id} type="button"
+              onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
+              className={`w-full px-3 py-2.5 text-left text-xs hover:bg-white/5 flex flex-col gap-1 ${equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80"}`}>
+              <span className="font-semibold flex justify-between gap-2">{item.name}<span className="text-cyan-300/70">{item.charges} / life</span></span>
+              <span className="text-white/40 leading-snug">{item.description}</span>
+            </button>)}
+          </div>}
+        </div>
         <div className="relative" data-slot-dropdown>
           <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
             <div className="flex items-center gap-2 mb-2">

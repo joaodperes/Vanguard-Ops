@@ -163,6 +163,7 @@ export default function Page() {
         secondaryWeaponId: profile.loadout.perkId === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
           ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
+        equipmentId: profile.loadout.equipmentId,
         weaponSkinId: profile.loadout.weaponSkin.id,
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
         meleeWeaponSkinId: profile.loadout.meleeWeaponSkin?.id ?? "default",

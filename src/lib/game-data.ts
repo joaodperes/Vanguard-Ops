@@ -1,3 +1,4 @@
+import { equipmentById } from "./equipment";
 // ============================================================================
 // VANGUARD OPS — Static game data catalog
 // Shared between API routes, the game server, and the client UI.
@@ -398,6 +399,7 @@ export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === 
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];
 
 export interface ResolvedLoadout {
+  equipmentId: import("./equipment").EquipmentId;
   perkId: PerkId;
   wonderWeaponId: string;
   weapon: WeaponDef;
@@ -425,6 +427,7 @@ export function resolveLoadout(input: {
   primaryWeapon: string;
   secondaryWeapon?: string;
   meleeWeapon?: string;
+  equipmentId?: string;
   weaponSkin: string;
   // Per-weapon skins for the secondary + melee slots.
   secondaryWeaponSkin?: string;
@@ -470,6 +473,7 @@ export function resolveLoadout(input: {
   return {
     perkId: perkById(input.perkId).id,
     wonderWeaponId: input.wonderWeaponId ?? "",
+    equipmentId: equipmentById(input.equipmentId).id,
     weapon,
     secondary,
     melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
