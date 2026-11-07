@@ -103,6 +103,11 @@ export interface WeaponDef {
 }
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+
+/** Disabled/invalid melee choices safely fall back without deleting their catalog entries. */
+export function activeMeleeWeaponId(id: string | null | undefined): string {
+  return WEAPONS.find(w => w.id === id && w.category === "melee" && !w.disabled)?.id ?? "knife_tactical";
+}
 /** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
 export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
 
@@ -463,6 +468,8 @@ export function resolveLoadout(input: {
   const weapon = requestedPrimary.disabled || requestedPrimary.wonder ? weaponById("rifle_ar") : requestedPrimary;
   const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
   const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
+  const meleeId = activeMeleeWeaponId(input.meleeWeapon);
+  const replacedMelee = meleeId !== (input.meleeWeapon ?? "knife_tactical");
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {
@@ -471,14 +478,14 @@ export function resolveLoadout(input: {
   };
   const skinId = requestedPrimary.disabled || requestedPrimary.wonder ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
-  const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
+  const meleeSkin = replacedMelee ? weaponSkinById("default") : validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
     perkId: perkById(input.perkId).id,
     wonderWeaponId: input.wonderWeaponId ?? "",
     equipmentId: equipmentById(input.equipmentId).id,
     weapon,
     secondary,
-    melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
+    melee: weaponById(meleeId),
     weaponSkin: skinId,
     secondaryWeaponSkin: secondarySkin,
     meleeWeaponSkin: meleeSkin,
@@ -487,7 +494,7 @@ export function resolveLoadout(input: {
     primaryCharm: input.primaryCharm ?? "none", secondaryCharm: input.secondaryCharm ?? "none",
     attachments: requestedPrimary.disabled ? parseAtts(undefined) : parseAtts(input.attachments),
     secondaryAttachments: requestedSecondary.disabled ? parseAtts(undefined) : parseAtts(input.secondaryAttachments),
-    meleeAttachments: parseAtts(input.meleeAttachments),
+    meleeAttachments: replacedMelee ? parseAtts(undefined) : parseAtts(input.meleeAttachments),
   };
 }
 
