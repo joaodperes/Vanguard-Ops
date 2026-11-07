@@ -6,6 +6,7 @@
 import {validateObjectives,type ObjectiveMap} from "./map-objectives";
 import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, Vec3 } from "./game-protocol";
+import {BALLISTIC_MATERIALS} from "./cover-penetration";
 
 export interface MapRegion { x: number; z: number; w: number; d: number; shape?: "rect" | "circle" | "triangle" }
 export interface MapFeature extends MapRegion {
@@ -261,6 +262,8 @@ export function validateBlueprint(b: MapBlueprint): string[] {
     if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h,f.y??0].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
       issues.push(`Feature ${f.id||i} has invalid geometry`);
     if(!insideRegions(f.x,f.z,b.regions??[])) issues.push(`Feature ${f.id||i} is outside walkable space`);
+    if(f.material!==undefined && (f.kind!=="cover" || !BALLISTIC_MATERIALS.includes(f.material)))
+      issues.push(`Feature ${f.id||i} invalid ballistic material`);
     if(f.assemblyId!==undefined&&(typeof f.assemblyId!=="string"||!f.assemblyId||f.assemblyId.length>160))issues.push(`Feature ${f.id} invalid assembly`);
     if(f.attachment){
       const a=f.attachment,p=(b.features??[]).find(p=>p.id===a.platformId&&p.kind==="platform");
