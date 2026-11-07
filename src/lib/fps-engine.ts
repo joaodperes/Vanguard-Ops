@@ -10253,8 +10253,9 @@ export class FPSEngine {
     const maxDistance = maxWeaponHitRange(eff.range, eff);
     const hits = selectMaterialPenetrationHits(contacts,this.map.cover,origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
-    this.damageLocalBallisticCover(origin,dir,maxDistance,eff.coverPenetration??0,eff.damage,
-      hits.length&&!eff.bodyPenetration?hits[0].t:Infinity);
+    if(!isThrowingKnife(attacker.weaponId))
+      this.damageLocalBallisticCover(origin,dir,maxDistance,eff.coverPenetration??0,eff.damage,
+        hits.length&&!eff.bodyPenetration?hits[0].t:Infinity);
     for (const hit of hits) {
       const nearest = { victim: hit.target, t: hit.t, head: hit.head, shield: hit.shield };
       if (hit.protected) break;
