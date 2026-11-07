@@ -1,8 +1,8 @@
 /**
- * Shared hitscan body-penetration policy for the offline engine and online server.
- * Only player bodies may be penetrated: map cover and riot shields always stop a shot.
- * A protected (spawn-immune) body also absorbs the ray to prevent shooting through
- * spawn protection. All candidates are for one actual ray, not a target-radius check.
+ * Shared hitscan BODY-penetration policy for the offline engine and online server.
+ * Cover is resolved independently by cover-penetration.ts before this routine runs.
+ * Riot shields and spawn-protected players terminate body chaining; one actual
+ * ray (not a target-radius test) must intersect each eligible combatant.
  */
 export interface BodyPenetration {
   /** Total bodies a single bullet can hit, including the first. */
