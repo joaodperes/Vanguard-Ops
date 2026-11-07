@@ -2192,11 +2192,11 @@ function tickRoom(room: Room) {
           }
           room.prepLeft = survivalUpgradeDue(room.wave) ? SURVIVAL_UPGRADE_PREP_SEC : SURVIVAL_PREP_SEC;
           recoverSurvivalPlayers(room);
-          if(survivalUpgradeDue(room.wave)) {
-            if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
-              for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
-            offerSurvivalUpgrades(room);
-          }
+          // Boss waves are 10/20/...; upgrade picks are 4/9/14/...
+          // Award rerolls at boss clear, not only when a pick is available.
+          if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
+            for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
+          if(survivalUpgradeDue(room.wave))offerSurvivalUpgrades(room);
         }
       }
     }
