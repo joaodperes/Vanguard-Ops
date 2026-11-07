@@ -376,6 +376,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
             {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
             {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
+            {Object.values(hud.survivalUpgradeRanks??{}).some(n=>(n??0)>0) && (
+              <span className="text-cyan-300" title={Object.entries(hud.survivalUpgradeRanks??{})
+                .filter(([,rank])=>(rank??0)>0)
+                .map(([id,rank])=>id.replaceAll("_"," ")+" ×"+rank).join(" · ")}>
+                {" · "+Object.values(hud.survivalUpgradeRanks??{}).reduce((a,b)=>a+(b??0),0)+" upgrades"}
+              </span>
+            )}
           </div>
         )}
       </div>
