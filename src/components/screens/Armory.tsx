@@ -846,9 +846,16 @@ function WeaponCard(props: WeaponCardProps) {
           <span className="truncate">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</span>
           {w.stats.bodyPenetration && (
             <span className="inline-flex shrink-0 rounded border border-amber-400/25 bg-amber-500/5 px-1 py-px text-[9px] font-mono font-semibold text-amber-300/80 normal-case"
-              title={`Body penetration: up to ${w.stats.bodyPenetration.maxTargets} aligned targets, ${Math.round(w.stats.bodyPenetration.damageRetention * 100)}% damage retained after each hit. Solid cover and shields stop bullets.`}
+              title={`Body penetration: up to ${w.stats.bodyPenetration.maxTargets} aligned targets, ${Math.round(w.stats.bodyPenetration.damageRetention * 100)}% damage retained after each hit. Structural cover, reinforced walls and shields stop bullets. Some thin cover can be pierced separately.`}
               aria-label={`Body penetration: ${w.stats.bodyPenetration.maxTargets} targets`}>
               PEN×{w.stats.bodyPenetration.maxTargets}
+            </span>
+          )}
+          {(w.stats.coverPenetration??0)>0&&(
+            <span className="inline-flex shrink-0 rounded border border-cyan-400/25 bg-cyan-500/5 px-1 py-px text-[9px] font-mono font-semibold text-cyan-300/80 normal-case"
+              title={`Cover penetration power ${w.stats.coverPenetration}: can pierce sufficiently thin wood, metal, glass and light cover, with reduced damage. Concrete and reinforced surfaces always stop bullets.`}
+              aria-label={`Cover penetration power ${w.stats.coverPenetration}`}>
+              COV {w.stats.coverPenetration.toFixed(1)}
             </span>
           )}
         </div>
@@ -1028,6 +1035,11 @@ function CustomizeModal(props: CustomizeModalProps) {
             <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
             <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
           </div>
+          {(currentEffectiveStats.coverPenetration??0)>0&&(
+            <p className="mt-1 text-xs text-cyan-300/80" title="Penetration consumes energy based on material and thickness; exit shots lose damage.">
+              Thin-cover penetration power: <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong> · max 2 light surfaces · concrete and reinforced walls block shots
+            </p>
+          )}
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => { setTab(v); setPreviewAttachment(null); }} className="flex flex-col flex-1 min-h-0">
