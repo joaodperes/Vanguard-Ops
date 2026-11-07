@@ -250,7 +250,8 @@
       },
       "headshotMult": 1.45,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.3
     }
   },
   {
@@ -275,7 +276,8 @@
       "auto": false,
       "headshotMult": 1.5,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.3
     }
   },
   {
@@ -299,7 +301,8 @@
       "auto": false,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.8
     }
   },
   {
@@ -309,7 +312,9 @@
     "unlockLevel": 16,
     "unlockCost": 900,
     "description": "Two silent, lethal throwing knives with 8m reach. Replenish only on death; in Gun Game, recover one every five seconds.",
-    "special": { "kind": "throwing_knife" },
+    "special": {
+      "kind": "throwing_knife"
+    },
     "stats": {
       "damage": 105,
       "fireRate": 1.5,
@@ -453,7 +458,8 @@
       "auto": false,
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 2
     }
   },
   {
@@ -481,7 +487,8 @@
       },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6
+      "minDamageMultiplier": 0.6,
+      "coverPenetration": 2.8
     },
     "attachments": [
       "sight",
@@ -516,7 +523,8 @@
       },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 2
     }
   },
   {
@@ -649,7 +657,8 @@
       "auto": false,
       "headshotMult": 1.7,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.6
     }
   },
   {
@@ -864,7 +873,8 @@
       },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6
+      "minDamageMultiplier": 0.6,
+      "coverPenetration": 2.6
     },
     "attachments": [
       "sight",
@@ -920,7 +930,8 @@
       "auto": false,
       "headshotMult": 1.6,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.7
     }
   },
   {
@@ -1006,7 +1017,8 @@
       },
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 2.6
     }
   },
   {
@@ -1030,7 +1042,8 @@
       "auto": true,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 1.6
     }
   },
   {
@@ -1060,7 +1073,8 @@
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
       "reloadStyle": "incremental",
-      "reloadPerRound": 1.55
+      "reloadPerRound": 1.55,
+      "coverPenetration": 4
     },
     "attachments": [
       "sight",
@@ -1091,7 +1105,8 @@
       "auto": true,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 2.8
     }
   },
   {
