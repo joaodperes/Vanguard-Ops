@@ -62,12 +62,17 @@ export function damageBallisticCoverOnShot(
 ): MaterialCoverImpact[] {
   if (!(bulletDamage > 0) || !Number.isFinite(bulletDamage)) return [];
   const trace = traceCoverPenetration(map.cover, origin, direction, range, penetrationPower);
-  const struck: { id: string; material: BallisticMaterial; at: number }[] = [];
-  for (const crossed of trace.crossings)
-    if (crossed.coverId) struck.push({ id: crossed.coverId, material: crossed.material, at: crossed.entry });
-  if (trace.blockedBox?.ballisticId && trace.blockedAt < range)
+  const struck: { id: string; material: BallisticMaterial; at: number; retained: number }[] = [];
+  let retained=1;
+  for (const crossed of trace.crossings){
+    if (crossed.coverId) struck.push({id:crossed.coverId,material:crossed.material,
+      at:crossed.entry,retained});
+    retained*=crossed.damageRetention;
+  }
+  if (trace.blockedBox?.ballisticId && trace.blockedBox.kind==="cover" &&
+      !trace.blockedBox.environmentId && trace.blockedAt < range)
     struck.push({ id: trace.blockedBox.ballisticId,
-      material: trace.blockedBox.material ?? "concrete", at: trace.blockedAt });
+      material: trace.blockedBox.material ?? "concrete", at: trace.blockedAt,retained });
   const result: MaterialCoverImpact[] = [];
   const processed = new Set<string>();
   for (const hit of struck) {
@@ -76,7 +81,7 @@ export function damageBallisticCoverOnShot(
     if (hit.material !== "sheet_metal" && !BREAKABLE[hit.material]) continue;
     const rule = BREAKABLE[hit.material];
     const remaining = rule
-      ? Math.max(0, (hp.get(hit.id) ?? rule.hp) - bulletDamage * rule.damage)
+      ? Math.max(0, (hp.get(hit.id) ?? rule.hp) - bulletDamage * rule.damage * hit.retained)
       : null;
     const impact: MaterialCoverImpact = {
       coverId: hit.id, material: hit.material,
