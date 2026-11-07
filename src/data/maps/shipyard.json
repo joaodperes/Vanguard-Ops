@@ -47,7 +47,8 @@
         "d": 5,
         "h": 1.4,
         "kind": "cover",
-        "label": "Market stalls"
+        "label": "Market stalls",
+        "material": "thin_wood"
       },
       {
         "id": "drydock-crates",
@@ -57,7 +58,8 @@
         "d": 6,
         "h": 1.8,
         "kind": "cover",
-        "label": "Dry dock crates"
+        "label": "Dry dock crates",
+        "material": "light_cover"
       },
       {
         "id": "southern-containers",
