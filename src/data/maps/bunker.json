@@ -55,7 +55,8 @@
         "d": 3,
         "h": 1.2,
         "kind": "cover",
-        "label": "Security console"
+        "label": "Security console",
+        "material": "light_cover"
       },
       {
         "id": "maintenance-bench",
@@ -65,7 +66,8 @@
         "d": 2.6,
         "h": 1.15,
         "kind": "cover",
-        "label": "Maintenance bench"
+        "label": "Maintenance bench",
+        "material": "thin_wood"
       }
     ],
     "spawns": {
