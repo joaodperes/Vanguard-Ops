@@ -7208,6 +7208,9 @@ export class FPSEngine {
       this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId(), aiming: this.aiming });
       this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
     } else {
+      // Capture the tracer against PRE-destruction geometry; the finishing
+      // shot is still blocked by the panel it breaks.
+      if(special?.kind!=="bolt")this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
       for (let i = 0; i < pellets; i++) {
         const pdir = multiPelletShotgun
           ? shotgunPelletDirection(dir, this.eff, this.aiming)
@@ -7220,7 +7223,7 @@ export class FPSEngine {
           const id = `local_bolt_${++this.localBoltSequence}`;
           this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
         }
-      } else this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
+      }
     }
   }
 
@@ -7408,6 +7411,10 @@ export class FPSEngine {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
+    // Ordinary calibers still crack, splinter or mark the first tagged panel,
+    // even when they have no penetration budget at all.
+    this.damageLocalBallisticCover(origin,dir,maxWeaponHitRange(this.eff.range,this.eff),0,this.eff.damage,
+      nearest&&nearest.t<blockedT?nearest.t:Infinity);
     if (nearest && nearest.t < blockedT) {
       // Round 20h: Check bot spawn protection — skip damage if protected.
       if (nearest.c.spawnProtectedUntil && nearest.c.spawnProtectedUntil > Date.now()) {
@@ -8083,10 +8090,10 @@ export class FPSEngine {
     const isWood=impact.material==="thin_wood";
     if(!destroyed){
       const group=new THREE.Group();
-      const radius=isGlass?.095:.065;
+      const radius=isGlass ? 0.095 : 0.065;
       const spot=new THREE.Mesh(new THREE.CircleGeometry(radius,10),
         new THREE.MeshBasicMaterial({color:isGlass?0xdef9fc:isMetal?0x242e34:isWood?0x443022:0x4e4639,
-          transparent:true,opacity:isGlass?.62:.78,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));
+          transparent:true,opacity:isGlass ? .62 : .78,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));
       group.add(spot);
       if(isGlass){
         // Spider-web fractures remain visible until the pane shatters.
@@ -8122,7 +8129,7 @@ export class FPSEngine {
     const color=isGlass?0xb6f1f7:isMetal?0xffc472:isWood?0xad8654:0xb5aa86;
     for(let i=0;i<count;i++){
       if(this.ballisticParticles.length>=96)break;
-      const size=isGlass?.05:isMetal?.025:.07;
+      const size=isGlass ? .05 : isMetal ? .025 : .07;
       const particle=new THREE.Mesh(new THREE.BoxGeometry(size,size*(1+(i%3)),size*.35),
         new THREE.MeshBasicMaterial({color,transparent:true,opacity:1,depthWrite:false}));
       particle.position.copy(p).addScaledVector(normal,.04);
@@ -8757,6 +8764,19 @@ export class FPSEngine {
       const age = now - t.born;
       if (age > t.life) { this.scene.remove(t.line); (t.line.geometry as THREE.BufferGeometry).dispose(); (t.line.material as THREE.Material).dispose(); return false; }
       (t.line.material as THREE.LineBasicMaterial).opacity = 0.45 * (1 - age / t.life);
+      return true;
+    });
+
+    this.ballisticParticles=this.ballisticParticles.filter(p=>{
+      const age=now-p.born;
+      if(age>=p.life){
+        this.scene.remove(p.mesh);p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      const seconds=Math.min(.05,dt);
+      p.mesh.position.addScaledVector(p.velocity,seconds);
+      p.velocity.y-=9.8*seconds;
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity=1-age/p.life;
       return true;
     });
 
