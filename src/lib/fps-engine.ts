@@ -8025,6 +8025,120 @@ export class FPSEngine {
       travelMs:Math.max(90,distance/THROWING_KNIFE_SPEED*1000),rotation});
   }
 
+
+  /** Preserve immutable source boxes so a shattered panel can still yield shards. */
+  private trackBallisticCover(){
+    this.ballisticOriginals.clear();
+    this.ballisticMeshes.clear();
+    this.ballisticDecals.clear();
+    this.ballisticHp.clear();
+    this.ballisticDestroyed.clear();
+    for(const box of authoredBallisticCover(this.map.cover))
+      this.ballisticOriginals.set(box.ballisticId!,box);
+    this.staticCoverIndex=null;
+  }
+
+  private hideBrokenBallisticCover(id:string){
+    const mesh=this.ballisticMeshes.get(id);
+    if(mesh)mesh.visible=false;
+    for(const decal of this.ballisticDecals.get(id)??[]){
+      this.scene.remove(decal);
+      decal.traverse(object=>{
+        if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){
+          object.geometry.dispose();
+          const mats=Array.isArray(object.material)?object.material:[object.material];
+          mats.forEach(m=>m.dispose());
+        }
+      });
+    }
+    this.ballisticDecals.delete(id);
+    // Mutating cover invalidates the optional city broadphase immediately.
+    this.staticCoverIndex=null;
+  }
+
+  private damageLocalBallisticCover(origin:Vec3,dir:Vec3,range:number,power:number,damage:number,stopAt=Infinity){
+    if(this.opts.online)return; // only the server may destroy cover in a network match
+    const events=damageBallisticCoverOnShot(this.map,this.ballisticHp,this.ballisticDestroyed,
+      origin,dir,range,power,damage,stopAt);
+    for(const impact of events)this.displayBallisticImpact(impact);
+  }
+
+  /** Small, capped decals and short-lived fragments; never emit heavy explosions
+   * per pellet (a shotgun must not flood the renderer with draw calls). */
+  private displayBallisticImpact(impact:MaterialCoverImpact){
+    const box=this.ballisticOriginals.get(impact.coverId);
+    if(!box)return;
+    const p=new THREE.Vector3(...impact.point);
+    const normal=new THREE.Vector3(0,0,0);
+    let axis=0,closest=Infinity;
+    for(let i=0;i<3;i++){
+      const dist=Math.abs(Math.abs(impact.point[i]-box.pos[i])-box.size[i]);
+      if(dist<closest){closest=dist;axis=i;}
+    }
+    const value=impact.point[axis]-box.pos[axis];
+    normal.setComponent(axis,value<0?-1:1);
+    const destroyed=impact.destroyed;
+    const isGlass=impact.material==="glass";
+    const isMetal=impact.material==="sheet_metal";
+    const isWood=impact.material==="thin_wood";
+    if(!destroyed){
+      const group=new THREE.Group();
+      const radius=isGlass?.095:.065;
+      const spot=new THREE.Mesh(new THREE.CircleGeometry(radius,10),
+        new THREE.MeshBasicMaterial({color:isGlass?0xdef9fc:isMetal?0x242e34:isWood?0x443022:0x4e4639,
+          transparent:true,opacity:isGlass?.62:.78,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));
+      group.add(spot);
+      if(isGlass){
+        // Spider-web fractures remain visible until the pane shatters.
+        const lines:THREE.Vector3[]=[];
+        for(let j=0;j<7;j++){
+          const a=j*Math.PI*2/7,extent=.28+(j%3)*.11;
+          const bend=.06*(j%2?1:-1);
+          lines.push(new THREE.Vector3(0,0,.003),new THREE.Vector3(Math.cos(a)*extent*.54,Math.sin(a)*extent*.54,.003));
+          lines.push(new THREE.Vector3(Math.cos(a)*extent*.54,Math.sin(a)*extent*.54,.003),
+            new THREE.Vector3(Math.cos(a+bend)*extent,Math.sin(a+bend)*extent,.003));
+        }
+        group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),
+          new THREE.LineBasicMaterial({color:0xd4f5fa,transparent:true,opacity:.75,depthWrite:false})));
+      }
+      group.position.copy(p).addScaledVector(normal,.025);
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);
+      this.scene.add(group);
+      const items=this.ballisticDecals.get(impact.coverId)??[];
+      items.push(group);
+      // Keep at most six marked impacts on one panel and bound total decals.
+      while(items.length>6){
+        const old=items.shift()!;
+        this.scene.remove(old);
+        old.traverse(object=>{
+          if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){
+            object.geometry.dispose();(object.material as THREE.Material).dispose();
+          }
+        });
+      }
+      this.ballisticDecals.set(impact.coverId,items);
+    }
+    const count=destroyed?(isGlass?16:11):(isMetal?4:isGlass?3:5);
+    const color=isGlass?0xb6f1f7:isMetal?0xffc472:isWood?0xad8654:0xb5aa86;
+    for(let i=0;i<count;i++){
+      if(this.ballisticParticles.length>=96)break;
+      const size=isGlass?.05:isMetal?.025:.07;
+      const particle=new THREE.Mesh(new THREE.BoxGeometry(size,size*(1+(i%3)),size*.35),
+        new THREE.MeshBasicMaterial({color,transparent:true,opacity:1,depthWrite:false}));
+      particle.position.copy(p).addScaledVector(normal,.04);
+      particle.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+      this.scene.add(particle);
+      this.ballisticParticles.push({
+        mesh:particle,born:performance.now(),life:destroyed?800:330,
+        velocity:new THREE.Vector3(normal.x*(2+Math.random()*3)+(Math.random()-.5)*3,
+          (Math.random()-.2)*(destroyed?4:2),
+          normal.z*(2+Math.random()*3)+(Math.random()-.5)*3),
+      });
+    }
+    applyConfirmedCoverImpact(this.map,this.ballisticHp,this.ballisticDestroyed,impact);
+    if(destroyed)this.hideBrokenBallisticCover(impact.coverId);
+  }
+
   private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range) {
     const skin = weaponSkinById(skinId);
     // Visual path must match the damage ray: punching through thin cover cannot
