@@ -10728,6 +10728,12 @@ export class FPSEngine {
       knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
     }
     this.thrownKnives=[];
+    for(const item of this.ballisticParticles){
+      this.scene.remove(item.mesh);item.mesh.geometry.dispose();(item.mesh.material as THREE.Material).dispose();
+    }
+    this.ballisticParticles=[];
+    for(const id of [...this.ballisticDecals.keys()])this.hideBrokenBallisticCover(id);
+    this.ballisticMeshes.clear();this.ballisticOriginals.clear();
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
