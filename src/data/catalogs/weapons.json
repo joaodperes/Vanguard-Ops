@@ -307,6 +307,7 @@
   },
   {
     "id": "baton",
+    "disabled": true,
     "name": "Throwing Knives",
     "category": "melee",
     "unlockLevel": 16,
@@ -335,6 +336,7 @@
   },
   {
     "id": "axe",
+    "disabled": true,
     "name": "Breacher Axe",
     "category": "melee",
     "unlockLevel": 33,
@@ -686,6 +688,7 @@
   },
   {
     "id": "shiv",
+    "disabled": true,
     "name": "Shiv",
     "category": "melee",
     "unlockLevel": 2,
