@@ -47,7 +47,7 @@ import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrow
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { selectMaterialPenetrationHits, traceCoverPenetration } from "./cover-penetration";
-import { authoredBallisticCover, applyConfirmedCoverImpact, damageBallisticCoverOnShot, reconcileBallisticCover } from "./material-cover-damage";
+import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, reconcileBallisticCover } from "./material-cover-damage";
 import type { MaterialCoverImpact } from "./game-protocol";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
@@ -5603,6 +5603,16 @@ export class FPSEngine {
           const broken=reconcileBallisticCover(this.map,this.ballisticHp,this.ballisticDestroyed,
             msg.materialCoverDestroyed,msg.materialCoverHp??{});
           for(const id of broken)this.hideBrokenBallisticCover(id);
+          // Late joiners see a scar on already-damaged panels even if they
+          // missed the original transient hit packets.
+          for(const [id,hp] of Object.entries(msg.materialCoverHp??{})){
+            const box=this.ballisticOriginals.get(id);
+            const maximum=coverMaxIntegrity(box?.material);
+            if(!box||maximum===null||hp>=maximum||hp<=0||
+               this.ballisticDestroyed.has(id)||(this.ballisticDecals.get(id)?.length??0)>0)continue;
+            const at:Vec3=[box.pos[0],box.pos[1],box.pos[2]-box.size[2]];
+            this.displayBallisticImpact({coverId:id,material:box.material!,point:at,hp,destroyed:false});
+          }
         }
         this.teamScores = msg.teamScores;
         this.trackScoreDeficit();
