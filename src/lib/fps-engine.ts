@@ -4582,7 +4582,9 @@ export class FPSEngine {
   private tickOfflineMines(now: number): void {
     if (this.opts.online || !this.offlineMines.length || this.matchEnded) return;
     this.offlineMines = this.offlineMines.filter(m => {
-      if (now > m.expiresAt) { this.removeMineMarker(m.mesh); return false; }
+      if (now > m.expiresAt || (m.ownerId!==this.selfId && !this.combatants.has(m.ownerId))) {
+        this.removeMineMarker(m.mesh); return false;
+      }
       const rivals=[...this.combatants.values()].filter(c=>c.alive && c.id!==m.ownerId &&
         (this.opts.mode==="ffa"||c.team!==m.ownerTeam) &&
         !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
@@ -9954,14 +9956,15 @@ export class FPSEngine {
             else this.botTacticalStunUntil.set(nearest.c.id,performance.now()+1700);
           }
           if(def.type==="poison"&&nearest.c.alive){
-            const victimId=nearest.c.id,deathCount=this.deaths;
+            const victimId=nearest.c.id,deathCount=this.deaths,victimDeaths=nearest.c.deaths;
             for(let i=1;i<=9;i++)setTimeout(()=>{
               if(this.disposed||this.matchEnded)return;
               if(victimId===this.selfId){
                 if(this.alive&&this.deaths===deathCount)this.takeDamage(2,bot.name,bot.team,false,"equipment_poison_dart",bot.pos);
               }else{
                 const victim=this.combatants.get(victimId);
-                if(victim?.alive)this.damageFromOfflineBotTactical(bot,victim,2,"poison_dart");
+                if(victim?.alive && victim.deaths===victimDeaths)
+                  this.damageFromOfflineBotTactical(bot,victim,2,"poison_dart");
               }
             },i*500);
           }

@@ -24,6 +24,7 @@ describe("bot tactical equipment",()=>{
   const a=planBotTacticalThrow([0,0,0],[0,0,20],"frag",[],"compound");
   expect(a).not.toBeNull();
   expect(a!.path.flightMs).toBe(1700);
+  expect(a!.path.impact[1]).toBeLessThan(4);
   expect(Math.hypot(a!.path.impact[0],a!.path.impact[2]-20)).toBeLessThan(4.4);
   expect(planBotTacticalThrow([0,0,0],[0,0,2],"frag",[],"compound")).toBeNull();
  });

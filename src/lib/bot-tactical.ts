@@ -69,7 +69,10 @@ export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover
       ? tacticalGrenadePath(origin,dir,cover,mapId)
       : calculateThrowPath(origin,dir,id,(at,v,d)=>closestCoverHit(cover,at,v,d,rayBox)?.distance??null,owner[1]+.12);
     const impact=path.impact;
-    const score = grenade ? Math.hypot(target[0]-impact[0],target[2]-impact[2]) :
+    // A grenade exploding high above a target must not be scored as a perfect
+    // throw merely because its horizontal projection matches the target.
+    const score = grenade ? Math.hypot(target[0]-impact[0],target[2]-impact[2],
+      Math.max(0,impact[1]-target[1]-1.2)) :
       id==="mine" ? Math.hypot(impact[0]-owner[0],impact[2]-owner[2]) :
       segmentDistanceToPoint(path.points,eye);
     if(score<bestError){best={yaw,pitch,path};bestError=score;}
