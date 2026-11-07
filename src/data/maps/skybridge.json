@@ -382,7 +382,8 @@
         "h": 1.4,
         "y": 5.2,
         "kind": "cover",
-        "label": "Upper gantry safety rail"
+        "label": "Upper gantry safety rail",
+        "material": "sheet_metal"
       },
       {
         "id": "gantry-south-railing",
@@ -393,7 +394,8 @@
         "h": 1.4,
         "y": 5.2,
         "kind": "cover",
-        "label": "Upper gantry guard"
+        "label": "Upper gantry guard",
+        "material": "sheet_metal"
       },
       {
         "id": "gantry-south-railing-r",
@@ -404,7 +406,8 @@
         "h": 1.4,
         "y": 5.2,
         "kind": "cover",
-        "label": "Upper gantry guard"
+        "label": "Upper gantry guard",
+        "material": "sheet_metal"
       },
       {
         "id": "west-deck-barrier",
@@ -415,7 +418,8 @@
         "h": 1.3,
         "y": 5.2,
         "kind": "cover",
-        "label": "West upper-level safety fence"
+        "label": "West upper-level safety fence",
+        "material": "sheet_metal"
       },
       {
         "id": "east-deck-barrier",
@@ -426,7 +430,8 @@
         "h": 1.3,
         "y": 5.2,
         "kind": "cover",
-        "label": "East upper-level safety fence"
+        "label": "East upper-level safety fence",
+        "material": "sheet_metal"
       },
       {
         "id": "steel-crate-1",
