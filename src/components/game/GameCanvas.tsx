@@ -159,6 +159,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   }, []);
 
   const showStartOverlay = ready && isTouch && !touchStarted;
+  const lobbyActive = !!lobby?.active;
   const upgradePending=mode==="survival" && !!hud?.survivalUpgradeOffer &&
     !lobbyActive && !menuOpen && !hud?.matchEnding;
   upgradePendingRef.current=upgradePending;
@@ -172,8 +173,6 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     engineRef.current?.setInputSuspended(false);
     engineRef.current?.resumePointerLock();
   };
-  const lobbyActive = !!lobby?.active;
-
   const openMenu = () => {
     if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready || upgradePendingRef.current) return;
     // The pointer-lock release caused by opening this menu is intentional.
