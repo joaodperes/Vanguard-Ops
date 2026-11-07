@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
   if (kind === "weapon") {
     const def = WEAPONS.find((w) => w.id === itemId);
     if (!def || def.wonder) return NextResponse.json({ error: "item not found" }, { status: 404 });
+    if (def.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
     if (level < def.unlockLevel) return NextResponse.json({ error: `Requires level ${def.unlockLevel}` }, { status: 403 });
     if (player.credits < def.unlockCost) return NextResponse.json({ error: `Not enough credits (need ${def.unlockCost})` }, { status: 403 });
     const owned = effectiveUnlocks(level, {
