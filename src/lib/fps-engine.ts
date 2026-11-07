@@ -45,6 +45,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
+import { selectMaterialPenetrationHits } from "./cover-penetration";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
@@ -1428,6 +1429,13 @@ export class FPSEngine {
 
     // cover / platforms / stairs
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
+    // Render explicit ballistic cover differently, without changing its collider geometry.
+    const ballisticMats:Record<string,THREE.MeshStandardMaterial>={
+      thin_wood:new THREE.MeshStandardMaterial({color:0x997351,roughness:.94}),
+      sheet_metal:new THREE.MeshStandardMaterial({color:0x879ba8,metalness:.65,roughness:.48}),
+      glass:new THREE.MeshStandardMaterial({color:0x6bb5c3,transparent:true,opacity:.72,metalness:.15,roughness:.2,depthWrite:false}),
+      light_cover:new THREE.MeshStandardMaterial({color:0xa0906a,roughness:.85}),
+    };
     // The city once submitted one Mesh + draw call for EVERY wall section,
     // furniture AABB and step, and then rendered them a second time for
     // shadows. Instance equal-material solids; physics still reads every
@@ -1439,12 +1447,14 @@ export class FPSEngine {
       const hiddenCityBoxes = hiddenCityColliderKeys(this.map.props ?? []);
       const materials:Record<string,THREE.Material>={
         accent:accentMat,solid:wallMat,stair:stairMat,platform:platformMat,cover:coverMat,
+        ...Object.fromEntries(Object.entries(ballisticMats).map(([name,mat])=>["ballistic:"+name,mat])),
       };
       const buckets=new Map<string,typeof this.map.cover>();
       for(const c of this.map.cover){
         if(c.environmentId || hiddenCityBoxes.has(cityCoverKey(c)))continue;
         const kind=c.kind??"cover";
-        const key=kind in materials?kind:"cover";
+        const key=kind==="cover"&&c.material&&ballisticMats[c.material]
+          ?"ballistic:"+c.material:kind in materials?kind:"cover";
         const list=buckets.get(key)??[];
         list.push(c);buckets.set(key,list);
       }
@@ -1469,7 +1479,8 @@ export class FPSEngine {
       if (c.environmentId) continue;
       const kind = c.kind ?? "cover";
       if (this.map.id === "forest_warfare" && kind !== "stair") continue;
-      const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
+      const mat = kind==="cover"&&c.material&&ballisticMats[c.material] ? ballisticMats[c.material]
+        : kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
       if(kind !== "accent"){
         const slot=kind==="solid"?"wall":kind==="stair"?"stair":kind==="platform"?"platform":"cover";
@@ -7208,9 +7219,8 @@ export class FPSEngine {
   }
 
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
-    // Heavy-caliber hitscan uses the same ordered ray contacts as the server.
-    // The range supports multiple aligned mannequins, never wall penetration.
-    if (this.eff.bodyPenetration && !isMelee) {
+    // Offline hitscan shares the server's body + explicitly tagged cover trace.
+    if ((this.eff.bodyPenetration || this.eff.coverPenetration) && !isMelee) {
       const maxDistance = maxWeaponHitRange(this.eff.range, this.eff);
       const contacts: BodyRayContact<Combatant>[] = [];
       for (const c of this.combatants.values()) {
@@ -7229,8 +7239,8 @@ export class FPSEngine {
         this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
         return null;
       }
-      const hits = selectBodyPenetrationHits(contacts, maxDistance, cover?.distance ?? Infinity,
-        this.eff.bodyPenetration);
+      const hits = selectMaterialPenetrationHits(contacts,this.map.cover,origin,dir,maxDistance,
+        this.eff.bodyPenetration,this.eff.coverPenetration);
       let firstVictim: Combatant | null = null;
       for (const hit of hits) {
         const victim = hit.target;
@@ -9816,8 +9826,8 @@ export class FPSEngine {
           ? this.selfSpawnProtectedUntil > Date.now() : (e.spawnProtectedUntil ?? 0) > Date.now() });
     }
     const maxDistance = maxWeaponHitRange(eff.range, eff);
-    const coverDistance = closestCoverHit(this.map.cover, origin, dir, maxDistance, rayBox)?.distance ?? Infinity;
-    const hits = selectBodyPenetrationHits(contacts, maxDistance, coverDistance, eff.bodyPenetration);
+    const hits = selectMaterialPenetrationHits(contacts,this.map.cover,origin,dir,maxDistance,
+      eff.bodyPenetration,eff.coverPenetration);
     for (const hit of hits) {
       const nearest = { victim: hit.target, t: hit.t, head: hit.head, shield: hit.shield };
       if (hit.protected) break;
