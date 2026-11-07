@@ -47,6 +47,8 @@ import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrow
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { selectMaterialPenetrationHits, traceCoverPenetration } from "./cover-penetration";
+import { authoredBallisticCover, applyConfirmedCoverImpact, damageBallisticCoverOnShot, reconcileBallisticCover } from "./material-cover-damage";
+import type { MaterialCoverImpact } from "./game-protocol";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
@@ -849,6 +851,12 @@ export class FPSEngine {
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
+  private ballisticOriginals = new Map<string,CoverBox>();
+  private ballisticMeshes = new Map<string,THREE.Object3D>();
+  private ballisticDecals = new Map<string,THREE.Object3D[]>();
+  private ballisticHp = new Map<string,number>();
+  private ballisticDestroyed = new Set<string>();
+  private ballisticParticles: {mesh:THREE.Mesh; velocity:THREE.Vector3; born:number; life:number}[] = [];
   private thrownKnives: { mesh: THREE.Group; start: THREE.Vector3; dir: THREE.Vector3; distance: number; born: number; travelMs: number; rotation: THREE.Quaternion }[] = [];
   // Rocket projectiles (visual only — damage is hitscan). Each entry tracks the
   // mesh, its start position, end position (impact point), birth time, and travel
@@ -1135,6 +1143,7 @@ export class FPSEngine {
     this.container = container;
     this.opts = opts;
     this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId,opts.mode));
+    this.trackBallisticCover();
     this.ctfFlags = createCtfFlags(this.map);
     this.ctfBases = {red:ctfBase("red",this.map),blue:ctfBase("blue",this.map)};
     for (const o of this.map.environment ?? []) {
@@ -1463,6 +1472,12 @@ export class FPSEngine {
       const buckets=new Map<string,typeof this.map.cover>();
       for(const c of this.map.cover){
         if(c.environmentId || hiddenCityBoxes.has(cityCoverKey(c)))continue;
+        if(c.ballisticId && c.material && ballisticMats[c.material]){
+          const m=new THREE.Mesh(new THREE.BoxGeometry(c.size[0]*2,c.size[1]*2,c.size[2]*2),ballisticMats[c.material]);
+          m.position.set(...c.pos);m.receiveShadow=true;this.scene.add(m);
+          this.ballisticMeshes.set(c.ballisticId,m);
+          continue;
+        }
         const kind=c.kind??"cover";
         const key=kind==="cover"&&c.material&&ballisticMats[c.material]
           ?"ballistic:"+c.material:kind in materials?kind:"cover";
@@ -1501,6 +1516,7 @@ export class FPSEngine {
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
       this.scene.add(m);
+      if(c.ballisticId)this.ballisticMeshes.set(c.ballisticId,m);
       if (kind === "platform" && c.size[1] >= 1.5) {
         const stripeGeo = new THREE.BoxGeometry(c.size[0] * 2 + 0.05, 0.08, c.size[2] * 2 + 0.05);
         const stripe = new THREE.Mesh(stripeGeo, accentMat);
@@ -5466,6 +5482,7 @@ export class FPSEngine {
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
           this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
+          this.trackBallisticCover();
           // Rebuild arena visuals for the new map. We can't easily rebuild mid-scene
           // without removing old meshes; in practice the server uses the same map as
           // the client requested (findOpenRoom matches by mode only — fix that later).
@@ -5581,6 +5598,12 @@ export class FPSEngine {
         }
         if(this.opts.online&&this.map.id==="floodgate")
           this.floodgateServerRulesVersion=msg.floodgateRulesVersion;
+        // Snapshots repair missed impact events and initialize late joiners.
+        if(msg.materialCoverDestroyed){
+          const broken=reconcileBallisticCover(this.map,this.ballisticHp,this.ballisticDestroyed,
+            msg.materialCoverDestroyed,msg.materialCoverHp??{});
+          for(const id of broken)this.hideBrokenBallisticCover(id);
+        }
         this.teamScores = msg.teamScores;
         this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
@@ -5986,6 +6009,9 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) this.selfSpawnProtectedUntil = 0;
         break;
       }
+      case "materialCoverImpact":
+        this.displayBallisticImpact(msg.impact);
+        break;
       case "shotFx":
         if (msg.attackerId !== this.selfId) {
           // Every shotFx originates from a server-accepted shot. Use it as a
@@ -6068,6 +6094,7 @@ export class FPSEngine {
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
           this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
+          this.trackBallisticCover();
         }
         for (const p of msg.players) this.ensureCombatant(p);
         // Never retain the initial FFA preview position in team modes.
@@ -7329,6 +7356,8 @@ export class FPSEngine {
       }
       const hits = selectMaterialPenetrationHits(contacts,this.map.cover,origin,dir,maxDistance,
         this.eff.bodyPenetration,this.eff.coverPenetration);
+      this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
+        hits.length && !this.eff.bodyPenetration?hits[0].t:Infinity);
       let firstVictim: Combatant | null = null;
       for (const hit of hits) {
         const victim = hit.target;
@@ -10080,6 +10109,8 @@ export class FPSEngine {
     const maxDistance = maxWeaponHitRange(eff.range, eff);
     const hits = selectMaterialPenetrationHits(contacts,this.map.cover,origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
+    this.damageLocalBallisticCover(origin,dir,maxDistance,eff.coverPenetration??0,eff.damage,
+      hits.length&&!eff.bodyPenetration?hits[0].t:Infinity);
     for (const hit of hits) {
       const nearest = { victim: hit.target, t: hit.t, head: hit.head, shield: hit.shield };
       if (hit.protected) break;
