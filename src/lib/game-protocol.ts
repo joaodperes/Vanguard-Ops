@@ -7,6 +7,7 @@ import {supportsMapMode,type ObjectiveMap} from "./map-objectives";
 import type { ClusterVolley } from "./cluster-grenades";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
+import type { SurvivalUpgradeId, SurvivalUpgradeOffer, SurvivalUpgradeRanks } from "./survival-upgrades";
 import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
@@ -1409,6 +1410,8 @@ export type C2S =
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
   | { t: "useEquipment" } // intent only; server validates the item, aim and stock
+  | { t: "chooseSurvivalUpgrade"; upgradeId: SurvivalUpgradeId }
+  | { t: "rerollSurvivalUpgrade" }
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
@@ -1475,6 +1478,8 @@ export type S2C =
   | { t: "turretRemoved"; id: string }
   | { t: "survivalDowned"; playerId: string; weaponId: string }
   | { t: "survivalRecovered"; playerId: string; pos: Vec3; health: number }
+  | { t: "survivalUpgradeOffer"; offer: SurvivalUpgradeOffer; ranks: SurvivalUpgradeRanks }
+  | { t: "survivalUpgradeChosen"; upgradeId: SurvivalUpgradeId; ranks: SurvivalUpgradeRanks }
   | { t: "deathBomb"; id: string; ownerId: string; pos: Vec3; explodesAt: number }
   | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
