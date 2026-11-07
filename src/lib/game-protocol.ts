@@ -119,6 +119,8 @@ export interface CoverBox {
   kind?: "solid" | "cover" | "accent" | "platform" | "stair";
   /** Author-assigned ballistic material; missing = fully protective. */
   material?: import("./cover-penetration").BallisticMaterial;
+  /** Stable Map Studio feature ID used by cover hit/damage replication. */
+  ballisticId?: string;
   environmentId?: string; // dynamically updated solid; not part of the static map geometry
 }
 
@@ -1468,7 +1470,17 @@ export interface LobbyPlayer {
   id: string; name: string; team: string; isBot: boolean; isHost: boolean;
 }
 
+export interface MaterialCoverImpact {
+  coverId: string;
+  material: import("./cover-penetration").BallisticMaterial;
+  point: Vec3;
+  /** Remaining integrity on breakable materials; null on permanent sheet metal. */
+  hp: number | null;
+  destroyed: boolean;
+}
+
 export type S2C =
+  | { t: "materialCoverImpact"; impact: MaterialCoverImpact }
   | { t: "clusterVolley"; volley: ClusterVolley; serverNow: number }
   | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
   | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
@@ -1490,7 +1502,7 @@ export type S2C =
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
   | { t: "shieldBashPush"; victimId: string; pos: Vec3 }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
