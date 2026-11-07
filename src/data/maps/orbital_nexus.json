@@ -92,7 +92,8 @@
         "z": -13,
         "w": 2,
         "d": 8,
-        "h": 2.5
+        "h": 2.5,
+        "material": "glass"
       },
       {
         "id": "red-baffle-s",
@@ -101,7 +102,8 @@
         "z": 13,
         "w": 2,
         "d": 8,
-        "h": 2.5
+        "h": 2.5,
+        "material": "glass"
       },
       {
         "id": "red-vent-n",
@@ -173,7 +175,8 @@
         "z": -13,
         "w": 2,
         "d": 8,
-        "h": 2.5
+        "h": 2.5,
+        "material": "glass"
       },
       {
         "id": "blue-baffle-s",
@@ -182,7 +185,8 @@
         "z": 13,
         "w": 2,
         "d": 8,
-        "h": 2.5
+        "h": 2.5,
+        "material": "glass"
       },
       {
         "id": "blue-vent-n",
@@ -218,7 +222,8 @@
         "z": -19,
         "w": 9,
         "d": 1.4,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "reactor-barricade-s",
@@ -227,7 +232,8 @@
         "z": 19,
         "w": 9,
         "d": 1.4,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "nexus-cover-expansion-1",
