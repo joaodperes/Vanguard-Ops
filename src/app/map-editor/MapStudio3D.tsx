@@ -438,9 +438,11 @@ export default function MapStudio3D({mapId,map,theme,selected,mode,moveAxis,snap
       const f=resolvedFeatures[i],fp=featureFootprint(f);
       add({type:"feature",index:i},fp,g=>{
         for(const b of featureBoxes(f)){
+          const ballisticTint:Record<string,string>={thin_wood:"#997351",sheet_metal:"#879ba8",glass:"#6bb5c3",light_cover:"#a0906a"};
           createBox(g,b.pos[0]-fp.x,b.pos[1]-(f.y??0),b.pos[2]-fp.z,
             b.size[0]*2,b.size[1]*2,b.size[2]*2,b.kind==="stair"?palette.stair:
-              f.kind==="platform"?palette.platform:palette.cover,.86);
+              f.kind==="platform"?palette.platform:(f.material&&ballisticTint[f.material])||palette.cover,
+            f.material==="glass"?.58:.86);
         }
       },f.turns);
     }
