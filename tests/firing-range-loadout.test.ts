@@ -34,7 +34,7 @@ describe("Armory firing range loadout restrictions", () => {
 
   test("Firing Range selectors preview secondary and melee weapons in the correct slot", () => {
     const sidearm = WEAPONS.find(w => w.category === "pistol" && w.id !== "pistol_side" && !w.wonder);
-    const knife = WEAPONS.find(w => w.category === "melee" && w.id !== "knife_tactical" && !w.wonder);
+    const knife = WEAPONS.find(w => w.category === "melee" && w.id !== "knife_tactical" && !w.wonder && !w.disabled);
     expect(sidearm).toBeDefined();
     expect(knife).toBeDefined();
     const previewSidearm = selectRangeWeapon(sample, sidearm!.id);
@@ -74,7 +74,7 @@ describe("Armory firing range loadout restrictions", () => {
     const prepared = normalizeRangeLoadout({ ...sample, perkId: "well_prepared", secondaryWeaponId: extraPrimary.id });
     expect(prepared.secondaryWeaponId).toBe(extraPrimary.id);
     expect(normalizeRangeLoadout({ ...prepared, perkId: "steady" }).secondaryWeaponId).toBe("pistol_side");
-    expect(rangeMeleeWeapons.every(w => w.category === "melee")).toBe(true);
+    expect(rangeMeleeWeapons.every(w => w.category === "melee" && !w.disabled)).toBe(true);
   });
 
   test("starting a new weapon trial clears its old incompatible attachments", () => {
