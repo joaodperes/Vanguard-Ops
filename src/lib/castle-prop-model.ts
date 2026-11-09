@@ -34,6 +34,16 @@ export function buildCastleScenery(g:THREE.Group,p:CastleProp):void {
     }
     cube(g,oak,0,h+1.35,0,.25,.22,d+.80);
     const door=Math.min(3.6,w*.39);
+    // Closed timber shutters on the front wall: believable windows, but no
+    // misleading shoot-through opening in the server-authoritative masonry.
+    for(const s of [-1,1]){
+      const wx=s*w*.34,wy=h*.59,zw=d/2+.50;
+      const shutterW=Math.min(1.45,w*.15);
+      cube(g,darkWood,wx,wy,zw,shutterW,h*.22,.13);
+      for(const u of [-1,0,1])cube(g,oak,wx+u*shutterW*.27,wy,zw+.09,.11,h*.20,.08);
+      for(const yy of [-h*.08,h*.08])
+        cube(g,iron,wx,wy+yy,zw+.14,shutterW*.82,.07,.035);
+    }
     for(const s of [-1,1])cube(g,beam,s*(door/2+.2),1.35,d/2+.43,.22,2.6,.22);
     cube(g,oak,0,2.79,d/2+.44,door+.45,.18,.25);
     if(use==="smithy"||use==="kitchens"){

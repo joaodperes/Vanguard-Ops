@@ -80,6 +80,14 @@ function visibleFixture(g:THREE.Object3D,f:CastleFixture):void {
       box(g,iron,w*.29,1.04,-d*.08,.13,.24,.15);
       break;
     }
+    case "trough":{
+      // Stable manger, with a visible recessed bed of fodder and timber rim.
+      box(g,darkWood,0,h*.45,0,w*.93,h*.83,d*.90);
+      box(g,straw,0,h*.84,0,w*.72,.09,d*.68);
+      for(const x of [-w*.4,w*.4])
+        box(g,iron,x,h*.47,d*.45,.10,h*.75,.07);
+      break;
+    }
     case "quench":case "water_tub":case "basin":{
       box(g,darkWood,0,h*.32,0,w*.90,h*.62,d*.90);
       box(g,pewter,0,h*.65,0,w*.91,.10,d*.91);
@@ -160,6 +168,10 @@ function visibleFixture(g:THREE.Object3D,f:CastleFixture):void {
       }
       break;
     }
+    case "bench":{
+      bench(g,w,d,h);
+      break;
+    }
     case "chest":{
       box(g,darkWood,0,h*.36,0,w,h*.68,d);
       box(g,wood,0,h*.77,0,w*.97,.16,d*.98);
@@ -231,6 +243,12 @@ function roomIdentity(g:THREE.Group,p:CastleProp):void {
   const hanging=new THREE.Mesh(new THREE.IcosahedronGeometry(.14,0),
     new THREE.MeshBasicMaterial({color:0xffbb67}));
   hanging.position.set(0,h-.50,-d*.04);g.add(hanging);
+  // Emissive ornaments alone don't illuminate sheltered rooms. A small,
+  // shadowless lantern keeps beds, tools and alcoves visible under the roof.
+  const lantern=new THREE.PointLight(use==="infirmary"?0xffe0b4:0xffac64,
+    use==="smithy"||use==="kitchens"?1.15:.78,Math.max(9,d*1.10),2);
+  lantern.position.set(0,h-.62,-d*.04);
+  g.add(lantern);
   // No signboards or building names; architecture identifies the building.
 }
 export function buildCastleInterior(g:THREE.Group,p:CastleProp):void{
