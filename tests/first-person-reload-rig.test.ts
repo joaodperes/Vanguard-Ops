@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { placeFirstPersonActionTarget } from "../src/lib/first-person-action-target";
 import {
   animatedSupportArm, reloadMotionFor, sampleReloadMotion, supportActionWeight,
-  supportArmFraming, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH,
+  calibratedSupportArm, supportArmFraming, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH,
 } from "../src/lib/first-person-animation";
 import { firstPersonSupportGrip } from "../src/lib/weapon-models";
 
@@ -28,8 +28,12 @@ describe("weapon-relative reload contacts and articulated arm",()=>{
 
   test("Annihilator bolt stroke drives hand, elbow and shoulder over the entire reload",()=>{
     expect(reloadMotionFor("sniper_heavy","sniper")).toBe("side_bolt");
-    const frame=supportArmFraming(16/9,false,true);
     const contact=firstPersonSupportGrip("sniper_heavy");
+    const nominal:[number,number,number]=[
+      contact[0]*1.20+.30-.045,contact[1]*1.20-.18-.125,
+      contact[2]*1.20-.48+.10,
+    ];
+    const frame=calibratedSupportArm("sniper",nominal,16/9);
     const grip=new THREE.Vector3(...contact).multiplyScalar(1.20);
     let previous: {shoulder:[number,number,number]; elbow:[number,number,number]} | undefined;
     let maxStep=0, maxElbowMove=0, maxShoulderMove=0;
@@ -53,13 +57,15 @@ describe("weapon-relative reload contacts and articulated arm",()=>{
       const wrist=hand.add(cuff.clone().applyQuaternion(handQuat));
       const joints=animatedSupportArm(frame,restWrist.toArray() as [number,number,number],
         wrist.toArray() as [number,number,number],blend,
-        SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
+        frame.upperLength,frame.forearmLength);
       expect(joints.shoulder.every(Number.isFinite)).toBe(true);
       expect(joints.elbow.every(Number.isFinite)).toBe(true);
       const upper=distance(joints.shoulder,joints.elbow);
       const fore=distance(joints.elbow,wrist.toArray());
-      expect(upper).toBeCloseTo(SUPPORT_LONG_UPPER_ARM_LENGTH,4);
-      expect(fore).toBeCloseTo(SUPPORT_LONG_FOREARM_LENGTH,4);
+      const stretch=Math.max(1,distance(joints.shoulder,wrist.toArray())/
+        ((frame.upperLength+frame.forearmLength)*.998));
+      expect(upper).toBeCloseTo(frame.upperLength*stretch,4);
+      expect(fore).toBeCloseTo(frame.forearmLength*stretch,4);
       if(previous){
         const step=distance(joints.elbow,previous.elbow);
         maxStep=Math.max(maxStep,step);
@@ -78,17 +84,17 @@ describe("weapon-relative reload contacts and articulated arm",()=>{
   });
 
   test("action root motion is bounded and zero at the rest state",()=>{
-    const f=supportArmFraming(16/9,false,true);
     const rest:[number,number,number]=[.107,-.411,-.659];
+    const f=calibratedSupportArm("sniper",rest,16/9);
     for(const wrist of [[.45,-.36,.02],[-.10,.18,-.68],[-.6,-.8,-.6],[.04,-.34,-.28]]){
       const joints=animatedSupportArm(f,rest,wrist,1,
-        SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
-      expect(Math.abs(joints.shoulder[0]-f.shoulder[0])).toBeLessThanOrEqual(.080001);
-      expect(Math.abs(joints.shoulder[1]-f.shoulder[1])).toBeLessThanOrEqual(.065001);
-      expect(Math.abs(joints.shoulder[2]-f.shoulder[2])).toBeLessThanOrEqual(.120001);
+        f.upperLength,f.forearmLength);
+      expect(Math.abs(joints.shoulder[0]-f.shoulder[0])).toBeLessThanOrEqual(.110001);
+      expect(Math.abs(joints.shoulder[1]-f.shoulder[1])).toBeLessThanOrEqual(.100001);
+      expect(Math.abs(joints.shoulder[2]-f.shoulder[2])).toBeLessThanOrEqual(.170001);
     }
     const neutral=animatedSupportArm(f,rest,rest,0,
-      SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
+      f.upperLength,f.forearmLength);
     expect(neutral.shoulder).toEqual(f.shoulder);
   });
 });

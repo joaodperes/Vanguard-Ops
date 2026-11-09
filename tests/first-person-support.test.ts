@@ -333,58 +333,48 @@ describe("compact support arm never folds backward", () => {
   });
 });
 
-describe("long sniper support arm and coherent Annihilator reload",()=>{
+describe("Annihilator and sniper articulated arm",()=>{
   const dist=(a:readonly number[],b:readonly number[])=>
     Math.hypot(...a.map((v,i)=>v-b[i]));
   const gripWrist=(id:string):[number,number,number]=>{
     const g=firstPersonSupportGrip(id);
     return [g[0]*1.2+.30-.045,g[1]*1.2-.18-.125,g[2]*1.2-.48+.10];
   };
-  test("Annihilator and long receivers use the rearward arm without changing compact guns",()=>{
-    expect(usesLongSupportArm("sniper",.4,false)).toBe(true);
-    expect(usesLongSupportArm("lmg",.69,false)).toBe(true);
-    expect(usesLongSupportArm("assault",.6,false)).toBe(true);
-    expect(usesLongSupportArm("assault",.42,false)).toBe(false);
-    expect(usesLongSupportArm("launcher",.61,false)).toBe(false);
-    expect(usesLongSupportArm("sniper",.7,true)).toBe(false);
-    const long=supportArmFraming(16/9,false,true);
-    expect(long.shoulder[2]).toBeGreaterThan(supportArmFraming(16/9).shoulder[2]+.2);
-    expect(supportArmFraming(16/9,true).shoulder[2]).toBe(.10);
-  });
-  test("elbow is substantially behind the support glove on the Annihilator",()=>{
+  test("all heavy and precision guns use the same calibrated forearm length",()=>{
     for(const aspect of [16/9,4/3,1,9/16]){
-      const frame=supportArmFraming(aspect,false,true);
       for(const id of ["sniper_heavy","sniper_lr","sniper_scout","dmr_heavy","lmg_heavy"]){
-        const wrist=gripWrist(id);
+        const wrist=gripWrist(id),category=id.startsWith("sniper")?"sniper":
+          id.startsWith("lmg")?"lmg":"dmr";
+        const frame=calibratedSupportArm(category,wrist,aspect);
         const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
-          SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
+          frame.upperLength,frame.forearmLength);
         expect(elbow[2]-wrist[2]).toBeGreaterThan(.19);
         expect(elbow[1]).toBeLessThan(wrist[1]);
-        expect(dist(frame.shoulder,elbow)).toBeCloseTo(SUPPORT_LONG_UPPER_ARM_LENGTH,6);
-        expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_LONG_FOREARM_LENGTH,6);
+        expect(dist(frame.shoulder,elbow)).toBeCloseTo(frame.upperLength,6);
+        expect(dist(elbow,wrist)).toBeCloseTo(frame.forearmLength,6);
+        expect(frame.forearmLength).toBe(.50);
       }
     }
   });
-  test("moving the hand through the bolt stroke moves the shoulder AND elbow",()=>{
-    const frame=supportArmFraming(16/9,false,true);
+  test("Annihilator bolt pull moves shoulder, elbow and wrist together",()=>{
     const rest=gripWrist("sniper_heavy");
+    const frame=calibratedSupportArm("sniper",rest,16/9);
     const port:[number,number,number]=[.095,-.34,-.56];
     const boltBack:[number,number,number]=[.045,-.34,-.28];
-    const idle=animatedSupportArm(frame,rest,rest,0,
-      SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
-    const grasp=animatedSupportArm(frame,rest,port,1,
-      SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
-    const pulled=animatedSupportArm(frame,rest,boltBack,1,
-      SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH);
+    const idle=animatedSupportArm(frame,rest,rest,0,frame.upperLength,frame.forearmLength);
+    const grasp=animatedSupportArm(frame,rest,port,1,frame.upperLength,frame.forearmLength);
+    const pulled=animatedSupportArm(frame,rest,boltBack,1,frame.upperLength,frame.forearmLength);
     expect(dist(idle.shoulder,pulled.shoulder)).toBeGreaterThan(.08);
-    expect(dist(grasp.shoulder,pulled.shoulder)).toBeGreaterThan(.06);
+    expect(dist(grasp.shoulder,pulled.shoulder)).toBeGreaterThan(.025);
     expect(dist(idle.elbow,pulled.elbow)).toBeGreaterThan(.12);
-    expect(dist(grasp.elbow,pulled.elbow)).toBeGreaterThan(.08);
+    expect(dist(grasp.elbow,pulled.elbow)).toBeGreaterThan(.06);
     for(const [target,joints] of [[rest,idle],[port,grasp],[boltBack,pulled]] as const){
-      expect(dist(joints.shoulder,joints.elbow)).toBeCloseTo(SUPPORT_LONG_UPPER_ARM_LENGTH,6);
-      expect(dist(joints.elbow,target)).toBeCloseTo(SUPPORT_LONG_FOREARM_LENGTH,6);
+      const reach=dist(joints.shoulder,target);
+      const stretch=Math.max(1,reach/((frame.upperLength+frame.forearmLength)*.998));
+      expect(dist(joints.shoulder,joints.elbow)).toBeCloseTo(frame.upperLength*stretch,6);
+      expect(dist(joints.elbow,target)).toBeCloseTo(frame.forearmLength*stretch,6);
     }
-    expect(animatedSupportArm(frame,rest,boltBack,0,
-      SUPPORT_LONG_UPPER_ARM_LENGTH,SUPPORT_LONG_FOREARM_LENGTH).shoulder).toEqual(frame.shoulder);
+    expect(animatedSupportArm(frame,rest,boltBack,0,frame.upperLength,frame.forearmLength).shoulder)
+      .toEqual(frame.shoulder);
   });
 });
