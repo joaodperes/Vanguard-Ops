@@ -1410,7 +1410,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
   const pos: Vec3 = [candidate[0],
     botGroundHeight(room.map.cover, candidate[0], candidate[2], candidate[1]),
     candidate[2]];
-  const expiresAt = now + TURRET_LIFETIME_MS;
+  const expiresAt = now + TURRET_LIFETIME_MS*wonderModuleEffects("wonder_turret",room.loadouts.get(ownerId)?.wonderModuleId).durationMul;
   room.turrets.set(id, {
     ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
     expiresAt, nextShotAt: now + 300, hp: TURRET_HP,
@@ -1442,12 +1442,13 @@ function tickBulletSpitters(room: Room, now: number) {
       Math.hypot(a.pos[0]-turret.pos[0],a.pos[2]-turret.pos[2]) -
       Math.hypot(b.pos[0]-turret.pos[0],b.pos[2]-turret.pos[2]))[0];
     if (!target) continue;
-    turret.nextShotAt = now + TURRET_INTERVAL_MS;
+    const module=wonderModuleEffects("wonder_turret",room.loadouts.get(turret.ownerId)?.wonderModuleId);
+    turret.nextShotAt = now + TURRET_INTERVAL_MS/(module.damageMul>1?1.33:module.damageMul<1?.75:1);
     io.to(room.id).emit("message", { t: "turretFired", id,
       target: [target.pos[0],target.pos[1]+PLAYER_HEIGHT/2,target.pos[2]] } as S2C);
     const turretOrigin:Vec3=[turret.pos[0],turret.pos[1]+TURRET_MUZZLE_HEIGHT,turret.pos[2]];
     const turretDir=normalize([target.pos[0]-turretOrigin[0],target.pos[1]+PLAYER_HEIGHT/2-turretOrigin[1],target.pos[2]-turretOrigin[2]]);
-    applyDamage(room, turret.ownerId, target, TURRET_DAMAGE, false, "wonder_turret",rayRiotShield(turretOrigin,turretDir,target)!==null);
+    applyDamage(room, turret.ownerId, target, TURRET_DAMAGE*wonderModuleEffects("wonder_turret",room.loadouts.get(turret.ownerId)?.wonderModuleId).damageMul, false, "wonder_turret",rayRiotShield(turretOrigin,turretDir,target)!==null);
     if (room.ended) return;
   }
 }
@@ -2890,6 +2891,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           }
         }
         if(!isCryo)blastMaterialCover(room,end,range*.6,eff.damage,weapon.id);
+        else blastMaterialCover(room,end,2.2,eff.damage*.9,weapon.id);
         break;
       }
       if(weapon.wonder?.kind==="ricochet"){
@@ -2930,7 +2932,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||c.team!==p.team)&&
             Math.hypot(c.pos[0]-msg.origin[0],c.pos[2]-msg.origin[2])<=eff.range&&
             hasLineOfSight(room,msg.origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]))
-          .slice(0,SMART_MAX_TAGS);
+          .slice(0,module.targets||SMART_MAX_TAGS);
         if(victims.length){
           for(const victim of victims){
             io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,
@@ -2953,7 +2955,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         for(const victim of allCombatants(room)){
           if(victim.id===p.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
           const target:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
-          if(inFlameCone(msg.origin,dir,target,eff.range)&&hasLineOfSight(room,msg.origin,target))
+          if(inFlameCone(msg.origin,dir,target,eff.range)&&
+              wonderConeHit(msg.origin,dir,target,eff.range,Math.cos((module.radiusMul>1?1.25:.7)))&&hasLineOfSight(room,msg.origin,target))
             applyDamage(room,p.id,victim,eff.damage,false,weapon.id);
         }
         // Flames remain airborne: no persistent ground fire or floor damage.
@@ -3044,7 +3047,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           // Resolve travel from the actual floor-safe point, not the unbounded ray distance.
           const id = genId("gravity");
           const activatesAt = now + gravityTravelMs(Math.hypot(impact[0] - msg.origin[0], impact[1] - msg.origin[1], impact[2] - msg.origin[2]));
-          const radius = weapon.wonder.radius;
+          const radius = weapon.wonder.radius*module.radiusMul;
           const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS;
           room.gravityWells.set(id, {
             ownerId: p.id, ownerTeam: p.team, weaponId: weapon.id, pos: impact,
@@ -3055,8 +3058,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             pos: impact, radius, activatesAt, expiresAt, serverNow:now,
           } as S2C);
         } else {
-        destroyTurretsNear(room, impact, projectileSplashRadius(weapon));
-        const splashRadius = projectileSplashRadius(weapon);
+        destroyTurretsNear(room, impact, projectileSplashRadius(weapon)*module.radiusMul);
+        const splashRadius = projectileSplashRadius(weapon)*module.radiusMul;
         // CRITICAL FIX: splash damage is computed against the rocket's FULL
         // TRAJECTORY LINE SEGMENT (origin → impact), NOT just the impact point.
         // A near-miss (rocket flies past an enemy and hits a far wall) still
