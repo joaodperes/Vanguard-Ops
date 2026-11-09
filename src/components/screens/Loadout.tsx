@@ -430,7 +430,6 @@ interface SlotCardProps {
 }
 
 function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSlot, onPurchaseRequest, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
-  const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
   const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
   return (
@@ -442,15 +441,6 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSl
           <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">
             {ownedCount} owned
           </Badge>
-        </div>
-        {/* weapon preview strip */}
-        <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center`}
-          style={{ background: `linear-gradient(135deg, ${skinColor}, #0a0a0a)` }}>
-          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weaponCategoryLabel(weapon.category)}</div>
-          <div className="w-24 h-2 rounded-sm" style={{ background: skinColor }} />
-          <div className="absolute bottom-1.5 left-2 text-[10px] text-white/60 font-mono">
-            DMG {weapon.stats.damage} · RoF {weapon.stats.fireRate}
-          </div>
         </div>
         <div className="flex items-center justify-between mb-1">
           <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
