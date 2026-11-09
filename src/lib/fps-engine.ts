@@ -303,6 +303,13 @@ export interface HudState {
   wonderSlotCooldownMs?: number;
   wonderShieldHp?: number;
   wonderShieldRechargeMs?: number;
+  mechArmor?:number;
+  mechMinigunAmmo?:number;
+  mechSecondaryAmmo?:number;
+  mechSecondaryName?:string;
+  mechEnterAvailable?:boolean;
+  railChargePercent?:number;
+  chronoRecallMs?:number;
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
   riotShieldRechargeMs?: number;
@@ -8596,6 +8603,7 @@ export class FPSEngine {
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
+      if(sourceWeaponId===this.wonderWeaponId && this.wonderKillEffectId)this.showWonderBurst(victim.pos,this.wonderKillEffectId);
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
       victim.deaths += 1;
@@ -11327,7 +11335,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier * ((this.botCryoSlowUntil.get(c.id)??0)>performance.now()?CRYO_SLOW_FACTOR:1);
         const mvx = fx * moveSpeed * cornerSpeed;
         const mvz = fz * moveSpeed * cornerSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -11776,6 +11784,9 @@ export class FPSEngine {
     dmg=survivalNonLethalTaserDamage(dmg,this.health,this.opts.mode,
       this.opts.mode==="survival"&&attackerTeam==="red",weaponId);
     if(this.mechActive&&!this.opts.online&&weaponId!==LAVA_DEATH_SOURCE){
+      const front=attackerPos&&Math.atan2(attackerPos[0]-this.pos.x,attackerPos[2]-this.pos.z);
+      const frontal=front!==undefined&&Math.cos(front-this.yaw)>0;
+      if(this.mechActive.moduleId==="guardian_protocol"&&frontal)dmg*=.64;
       this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
       this.damageFlashAt=performance.now();
       if(this.mechActive.armor<=0){this.removeMechDrop(this.mechActive.id);this.mechActive=null;}
@@ -11860,7 +11871,18 @@ export class FPSEngine {
       scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
+    const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
+      !(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))&&
+      [...this.mechDrops.values()].some(d=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
+        Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2);
     this.opts.onHud({
+      mechArmor:this.mechActive?.armor,
+      mechMinigunAmmo:this.mechActive?.minigunAmmo,
+      mechSecondaryAmmo:this.mechActive?.secondaryAmmo,
+      mechSecondaryName:this.mechActive?(mechTuning(this.mechActive.moduleId).secondary==="swarm"?"Swarm-3":"Shotgun"):undefined,
+      mechEnterAvailable,
+      railChargePercent:this.weaponId==="wonder_phasebreaker"&&this.railChargeAt?Math.max(0,Math.min(100,Math.round((now-this.railChargeAt)/650*100))):undefined,
+      chronoRecallMs:this.chronoAnchor?Math.max(0,this.chronoAnchor.expiresAt-Date.now()):undefined,
       health: Math.max(0, Math.round(this.health)),
       maxHealth: MAX_HEALTH,
       ammo: this.ammoInMag,
