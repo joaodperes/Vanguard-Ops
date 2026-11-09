@@ -167,21 +167,23 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           opacity:Math.max(0,1-shieldAge/320),
         }} />
       )}
-      {/* Flashbang: whiteout and audio reduction only. No control stun. */}
+      {/* Flashbang: blurry, desaturated afterimage instead of painful full-screen white. */}
       {hud.alive && (hud.flashRemainingMs??0)>0 && (
         <>
           <div className="absolute inset-0" style={{
-            backgroundColor:"white",
-            opacity:Math.min(.94,Math.max(0,(hud.flashRemainingMs??0)/2300)),
+            background:"radial-gradient(ellipse at 50% 44%, rgba(192,195,186,.66) 0%, rgba(119,126,127,.74) 61%, rgba(15,21,27,.86) 100%)",
+            backdropFilter:`blur(${Math.min(12,(hud.flashRemainingMs??0)/280*1.5)}px) saturate(0.12) contrast(0.72)`,
+            WebkitBackdropFilter:`blur(${Math.min(12,(hud.flashRemainingMs??0)/280*1.5)}px) saturate(0.12) contrast(0.72)`,
+            opacity:Math.min(.92,Math.max(0,(hud.flashRemainingMs??0)/1800)),
           }} />
-          <div className="absolute left-1/2 top-[21%] -translate-x-1/2 flex items-center gap-2 rounded border border-white/70 bg-black/70 px-4 py-2 font-black tracking-[0.22em] text-white text-sm">
+          <div className="absolute left-1/2 top-[21%] -translate-x-1/2 flex items-center gap-2 rounded border border-white/35 bg-black/75 px-4 py-2 font-black tracking-[0.22em] text-white text-sm">
             <AlertTriangle className="w-4 h-4" />
             FLASHED · {Math.ceil((hud.flashRemainingMs??0)/1000)}S
           </div>
         </>
       )}
-      {/* Taser disables only ADS. Keep the distinctive electric feedback while
-          movement, sprinting, reloads and hip-fire remain fully available. */}
+      {/* Tasers jam ADS and add sway, small involuntary steps and hipfire
+          inaccuracy without preventing movement, reloads or firing. */}
       {hud.alive && (hud.taserRemainingMs??0)>0 && (
         <>
           <div className="absolute inset-0 animate-pulse" style={{
@@ -190,7 +192,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <div className="absolute left-1/2 top-[26%] -translate-x-1/2 flex items-center gap-2 rounded border border-cyan-300/70 bg-black/75 px-4 py-2 font-black tracking-[0.16em] text-cyan-200 text-sm"
                style={{textShadow:"0 0 12px rgba(40,210,255,.5)"}}>
             <Zap className="w-4 h-4 animate-pulse" />
-            TASERED · ADS JAMMED · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
+            TASERED · AIM UNSTABLE · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
           </div>
         </>
       )}
