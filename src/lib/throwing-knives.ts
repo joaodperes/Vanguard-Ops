@@ -1,8 +1,8 @@
 /** Charge-limited silent knives. The persistent `baton` ID protects existing
  * unlocks, loadouts, skins, achievements and weapon mastery records. */
 export const THROWING_KNIVES_ID = "baton";
-export const THROWING_KNIFE_RANGE = 8;
-export const THROWING_KNIFE_MAX_CHARGES = 2;
+export const THROWING_KNIFE_RANGE = 5.5;
+export const THROWING_KNIFE_MAX_CHARGES = 1;
 export const THROWING_KNIFE_GUNGAME_RECHARGE_MS = 5000;
 export const THROWING_KNIFE_SPEED = 30;
 export const isThrowingKnife = (id:string):boolean => id===THROWING_KNIVES_ID;
