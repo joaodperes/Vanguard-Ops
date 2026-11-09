@@ -192,7 +192,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <div className="absolute left-1/2 top-[26%] -translate-x-1/2 flex items-center gap-2 rounded border border-cyan-300/70 bg-black/75 px-4 py-2 font-black tracking-[0.16em] text-cyan-200 text-sm"
                style={{textShadow:"0 0 12px rgba(40,210,255,.5)"}}>
             <Zap className="w-4 h-4 animate-pulse" />
-            TASERED · AIM UNSTABLE · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
+            TASERED · ADS JAMMED / AIM UNSTABLE · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
           </div>
         </>
       )}
