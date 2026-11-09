@@ -64,6 +64,10 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // The settings load effect runs first, but this effect's React closure can
+    // still hold DEFAULTS from the render before localStorage was hydrated.
+    // Capture the current store snapshot when creating the WebGL camera.
+    const initialSettings = useSettings.getState().settings;
     let disposed = false;
     let engine: FPSEngine;
     try {
@@ -72,15 +76,15 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
       gungameMultiplier: roomConnect?.config?.gungameMultiplier,
-      sensitivity: settings.sensitivity,
-      fov: settings.fov,
-      autoAdsOnFire: settings.autoAdsOnFire,
-      invertY: settings.invertY,
+      sensitivity: initialSettings.sensitivity,
+      fov: initialSettings.fov,
+      autoAdsOnFire: initialSettings.autoAdsOnFire,
+      invertY: initialSettings.invertY,
       botDifficulty,
       survivalTier,
-      masterVolume: settings.masterVolume,
-      footstepVolume: settings.footstepVolume,
-      fxVolume: settings.fxVolume,
+      masterVolume: initialSettings.masterVolume,
+      footstepVolume: initialSettings.footstepVolume,
+      fxVolume: initialSettings.fxVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
       roomConnect: roomConnect ?? undefined,
