@@ -27,7 +27,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
-import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, flashFacingExposure, taserMovementJitter, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -1211,9 +1211,15 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
           if(def.type==="blast")applyDamage(room,playerId,victim,fragDamage(dst),false,`equipment_${def.id}`);
           if(def.type==="flash"){
             const duration=flashDurationMs(dst);
-            room.equipmentFlashUntil.set(victim.id,Math.max(room.equipmentFlashUntil.get(victim.id)??0,Date.now()+duration));
-            io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"flash",victimId:victim.id,durationMs:duration} as S2C);
-            if(!victim.isBot)io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"flash",durationMs:duration} as S2C);
+            const visualMs=Math.round(duration*flashFacingExposure(
+              [victim.pos[0],victim.pos[1]+1,victim.pos[2]],victim.yaw,impact));
+            if(visualMs>0){
+              room.equipmentFlashUntil.set(victim.id,Math.max(room.equipmentFlashUntil.get(victim.id)??0,Date.now()+visualMs));
+              io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"flash",victimId:victim.id,durationMs:visualMs} as S2C);
+            }
+            // Hearing is omnidirectional when LOS permits; eyesight is not.
+            if(!victim.isBot)io.to(victim.id).emit("message",
+              {t:"equipmentStatus",effect:"flash",durationMs:duration,visualDurationMs:visualMs} as S2C);
           }
         }
         if(def.type==="blast")blastMaterialCover(room,impact,def.radius,def.damage,def.id);
@@ -2818,6 +2824,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       }
     }
     // Final iterative push-out (handles residual overlap from edge cases).
+    if(isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now)){
+      const twitch=taserMovementJitter(now);
+      bot.pos=[bot.pos[0]+twitch.x*0.06,bot.pos[1],bot.pos[2]+twitch.z*0.06];
+    }
     bot.pos = collideBots(room, bot.pos, bot.pos[1]);
     // Task 16-a: soft bot-vs-bot (and bot-vs-player) separation. Push the bot
     // away from any other combatant that's too close on XZ. Runs AFTER the
@@ -2841,7 +2851,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const missThisShot = Math.random() < missChance;
     const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
-    const mechanicalSpread=botShotSpread(eff,!!ai.aiming);
+    const botTaserSpread=isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now)?
+      TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
+    const mechanicalSpread=botShotSpread(eff,!!ai.aiming)*botTaserSpread;
     const botShotgun = weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1;
     const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
@@ -2864,7 +2876,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         didHit=true;
       }else for (let i = 0; i < pellets; i++) {
         const pdir = botShotgun
-          ? shotgunPelletDirection(dir, eff, !!ai.aiming)
+          ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming)
           : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
         const resolved=firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff);
         const rayHits=resolved.hits;
@@ -3617,6 +3629,7 @@ async function handle(socket: any, msg: C2S) {
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
       let shotDir:Vec3=msg.dir;
+      const tasered=isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(socket.id)??0,now);
       if(eff.auto && !(weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1) && !weapon.wonder){
         const previous=room.autoBloom.get(socket.id);
         const bloom=automaticBloom(previous?.weaponId===weapon.id?previous.value:0,
@@ -3625,6 +3638,12 @@ async function handle(socket: any, msg: C2S) {
         const scatter=autoSpreadRadians(eff.spread,bloom);
         shotDir=normalize([msg.dir[0]+(Math.random()-.5)*scatter,
           msg.dir[1]+(Math.random()-.5)*scatter,msg.dir[2]+(Math.random()-.5)*scatter]);
+      }
+      // The server enforces accuracy loss even if a client skips its own taser jitter.
+      if(tasered&&weapon.category!=="melee"){
+        const extra=Math.max(0.012,eff.spread*(TASER_HIPFIRE_SPREAD_MULTIPLIER-1));
+        shotDir=normalize([shotDir[0]+(Math.random()-.5)*extra,
+          shotDir[1]+(Math.random()-.5)*extra,shotDir[2]+(Math.random()-.5)*extra]);
       }
       // Preserve the struck cover for remote tracers even if it breaks before
       // shotFx is broadcast; attached ammo may also alter cover penetration.
@@ -3846,7 +3865,8 @@ async function handle(socket: any, msg: C2S) {
           (msg.aiming ?? room.adsStartedAt.has(socket.id));
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
-            ? shotgunPelletDirection(shotDir, eff, shotgunAds)
+            ? shotgunPelletDirection(shotDir, {...eff,spread:eff.spread*
+                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)}, shotgunAds)
             : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
