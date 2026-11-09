@@ -4,7 +4,9 @@ import { careerRequirement, careerXpAfterMatch, restoreCareer } from "../src/lib
 import { calculateMatchRewards, DIFFICULTY_REWARDS } from "../src/lib/match-rewards";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { PERKS } from "../src/lib/perks";
-import { WEAPONS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, promoteChallengeToElite } from "../src/lib/game-data";
+import { autoUnlockedItems } from "../src/lib/player-service";
+import { ownsOperativeSkin } from "../src/lib/collection-ownership";
+import { WEAPONS, PLAYER_SKINS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, promoteChallengeToElite } from "../src/lib/game-data";
 import { achievementTitle, titledDisplayName } from "../src/lib/achievement-titles";
 import type { LoadoutWire } from "../src/lib/game-protocol";
 import type { MatchResultInput } from "../src/lib/player-service";
@@ -104,5 +106,32 @@ describe("repeatable Career progression", () => {
   test("earned Career titles resolve on existing match nameplates", () => {
     expect(achievementTitle("career_veteran")).toBe("Veteran Operative");
     expect(titledDisplayName("Recruit", "career_legend")).toBe("Recruit · Vanguard Legend");
+  });
+});
+
+describe("rebalanced level rewards", () => {
+  test("disabled melee is not announced and empty levels have a reward", () => {
+    const active = WEAPONS.filter(w => !w.wonder && !w.disabled);
+    const at = (name: string) => active.find(w => w.name === name)?.unlockLevel;
+    expect(at("Breacher")).toBe(2);
+    expect(at("Sentinel-45")).toBe(33);
+    expect(at("Hydra Twin")).toBe(37);
+    expect(at("Machine Pistol")).toBe(38);
+    for (const name of ["Shiv", "Throwing Knives", "Breacher Axe"]) {
+      const w = WEAPONS.find(w => w.name === name);
+      expect(w?.disabled).toBe(true);
+      expect(active.some(item => item.id === w?.id)).toBe(false);
+    }
+  });
+  test("level 40 Ascendant Vanguard is earned at cap without purchase", () => {
+    const skin = PLAYER_SKINS.find(s => s.id === "ascendant_vanguard");
+    expect(skin).toBeDefined();
+    expect(skin?.unlockLevel).toBe(MAX_PLAYER_LEVEL);
+    expect(skin?.unlockCost).toBe(0);
+    expect(skin?.levelReward).toBe(true);
+    expect(autoUnlockedItems(39).playerSkins).not.toContain(skin!.id);
+    expect(autoUnlockedItems(40).playerSkins).toContain(skin!.id);
+    expect(ownsOperativeSkin(skin!, 39, ["default"])).toBe(false);
+    expect(ownsOperativeSkin(skin!, 40, ["default"])).toBe(true);
   });
 });
