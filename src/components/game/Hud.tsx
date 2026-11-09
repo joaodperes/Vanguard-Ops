@@ -595,19 +595,19 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
         {hud.equipmentName && mode !== "gungame" && (
           <div className={`text-[10px] mt-1 font-semibold ${hud.equipmentCharges ? "text-cyan-300" : "text-white/35"}`}>
-            G · {hud.equipmentName.toUpperCase()} {hud.equipmentCharges ?? 0} LEFT
+            G · {hud.equipmentName.toUpperCase()} {hud.equipmentCharges ?? 0} LEFT{(hud.equipmentRechargeMs??0)>0 ? ` · +1 IN ${((hud.equipmentRechargeMs??0)/1000).toFixed(1)}s` : ""}
           </div>
         )}
         {hud.meleeWeaponId === "baton" && hud.weaponId !== "baton" && mode !== "gungame" && (
           <div className="text-amber-300 text-[10px] mt-1">
-            F · THROWING KNIVES {hud.meleeKnifeCharges ?? 2}/2
+            F · THROWING KNIFE {hud.meleeKnifeCharges ?? 1}/1
           </div>
         )}
         {hud.weaponId === "baton" && (
           <div className="text-amber-200/80 text-[10px] mt-1">
             {mode==="gungame"
-              ? hud.ammo>=2?"TWO KNIVES READY":`+1 KNIFE IN ${((hud.knifeRechargeMs??0)/1000).toFixed(1)}s`
-              : "TWO PER LIFE · REFILL ON DEATH"}
+              ? hud.ammo>=1?"KNIFE READY":`+1 KNIFE IN ${((hud.knifeRechargeMs??0)/1000).toFixed(1)}s`
+              : "ONE PER LIFE · REFILL ON DEATH"}
           </div>
         )}
         {hud.wonderRechargeMs === undefined && hud.heat === undefined && hud.weaponId!=="baton" && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
@@ -653,9 +653,9 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
-            {hud.equipmentName && mode !== "gungame" && <span className="text-cyan-300 text-[9px]">T {hud.equipmentCharges ?? 0}</span>}
+            {hud.equipmentName && mode !== "gungame" && <span className="text-cyan-300 text-[9px]">T {hud.equipmentCharges ?? 0}{(hud.equipmentRechargeMs??0)>0 ? ` +${Math.ceil((hud.equipmentRechargeMs??0)/1000)}s` : ""}</span>}
             {hud.meleeWeaponId==="baton" && hud.weaponId!=="baton" && mode!=="gungame" &&
-              <span className="text-amber-300 text-[9px]">F {hud.meleeKnifeCharges ?? 2}/2</span>}
+              <span className="text-amber-300 text-[9px]">F {hud.meleeKnifeCharges ?? 1}/1</span>}
             {hud.weaponId==="baton" && <span className="text-amber-300 text-[9px]">
               {mode==="gungame" ? `${Math.ceil((hud.knifeRechargeMs??0)/1000)}s recharge` : "per life"}
             </span>}
