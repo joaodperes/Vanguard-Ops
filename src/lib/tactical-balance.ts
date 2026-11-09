@@ -5,6 +5,33 @@ import { equipmentById } from "./equipment";
 
 /** Taser jams precision aiming, without immobilizing or disarming the target. */
 export const TASER_ADS_BLOCK_MS = 2400;
+/** Tasers jam ADS and make hipfire notably less precise without disabling fire. */
+export const TASER_HIPFIRE_SPREAD_MULTIPLIER = 1.7;
+
+/** The player faces +Z at yaw 0. Blindness is entirely frontal; even a
+ * close flash behind the viewer can only affect hearing. Peripheral flashes
+ * taper smoothly and reaches full strength within about 45 degrees.
+ */
+export function flashFacingExposure(
+  viewer: readonly [number,number,number],
+  yaw: number,
+  explosion: readonly [number,number,number],
+): number {
+  const dx=explosion[0]-viewer[0], dz=explosion[2]-viewer[2];
+  const distance=Math.hypot(dx,dz);
+  if(distance<0.001)return 1;
+  const alignment=(Math.sin(yaw)*dx+Math.cos(yaw)*dz)/distance;
+  return Math.max(0,Math.min(1,(alignment-0.05)/0.65));
+}
+
+/** Bounded pseudo-random twitch that changes every 220ms. Combined with
+ * player input, never replaces or blocks movement commands. */
+export function taserMovementJitter(nowMs:number):{x:number;z:number} {
+  const beat=Math.floor(nowMs/220);
+  const noise=(n:number)=>{const v=Math.sin(n)*43758.5453123;return v-Math.floor(v);};
+  return {x:(noise(beat*12.9898+7.13)-0.5)*0.16,
+          z:(noise(beat*78.233+49.61)-0.5)*0.16};
+}
 
 /** A Survival bot's taser can disrupt aiming but never deliver a killing
  * blow. Apply this clamp after all damage multipliers so glass-cannon or other
