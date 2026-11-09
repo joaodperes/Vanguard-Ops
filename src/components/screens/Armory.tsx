@@ -846,13 +846,6 @@ function WeaponCard(props: WeaponCardProps) {
         </div>
         <div className="text-white/40 text-xs uppercase tracking-wide flex items-center gap-1.5 min-w-0">
           <span className="truncate">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</span>
-          {(w.stats.coverPenetration??0)>0&&(
-            <span className="inline-flex shrink-0 rounded border border-cyan-400/25 bg-cyan-500/5 px-1 py-px text-[9px] font-mono font-semibold text-cyan-300/80 normal-case"
-              title="Ammunition penetration rating · detailed rules are in Tutorial → Penetration"
-              aria-label={`Penetration rating ${w.stats.coverPenetration}`}>
-              PEN {w.stats.coverPenetration?.toFixed(1)}
-            </span>
-          )}
         </div>
       </div>
       <p className="text-white/50 text-xs mb-2 flex-1">{w.description}</p>
@@ -862,6 +855,7 @@ function WeaponCard(props: WeaponCardProps) {
         <StatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
         <StatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
         <StatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
+        {w.category !== "melee" && <StatBar label="PEN" value={w.stats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
       </div>
       {/* handling stats */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
@@ -1024,20 +1018,18 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
           </div>
           {/* Stat bars */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
             <ModalStatBar label="DMG" value={currentEffectiveStats.damage} max={120} color="bg-rose-500" />
             <ModalStatBar label="RoF" value={currentEffectiveStats.fireRate} max={16} color="bg-amber-500" />
             <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
             <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
+            {w.category !== "melee" && <ModalStatBar label="PEN" value={currentEffectiveStats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
           </div>
-          {(currentEffectiveStats.coverPenetration??0)>0&&(
-            <p className="mt-1 text-xs text-cyan-300/80">
-              Penetration <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong>
-              <button type="button" onClick={()=>{requestTutorialChapter("ballistics");onOpenChange(false);setScreen("tutorial");}}
-                className="ml-3 text-white/55 underline underline-offset-2 hover:text-white">
-                Tutorial: Penetration guide
-              </button>
-            </p>
+          {w.category !== "melee" && (
+            <button type="button" onClick={()=>{requestTutorialChapter("ballistics");onOpenChange(false);setScreen("tutorial");}}
+              className="mt-1 self-start text-xs text-cyan-300/80 underline underline-offset-2 hover:text-cyan-200">
+              How PEN works · Penetration guide
+            </button>
           )}
         </DialogHeader>
 
