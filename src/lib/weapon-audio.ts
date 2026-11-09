@@ -3,8 +3,8 @@ import { WEAPON_OUTPUT_SCALE, createOutputPeakGuard } from "./audio-mix";
 /**
  * VANGUARD OPS – recorded CC0 firearm reports plus procedural layers.
  * Two near-field gunshot takes per conventional pistol, SMG/PDW and shotgun
- * family are bundled locally. Ambient tail, mechanism and bass remain synthetic;
- * all other categories and unavailable assets retain procedural fallback.
+ * family, plus two rifle recordings, are bundled locally. Ambient tail,
+ * mechanism and bass remain synthetic. Any unavailable assets fall back.
  * Call `unlock()` on a browser gesture: the first shot works immediately and
  * authentic reports begin after background decode completes.
  */
@@ -21,11 +21,13 @@ export function weaponAcousticSpace(mapId: string): WeaponAcousticSpace {
 export type WeaponSoundCategory =
   | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "melee" | "launcher";
 
-type RecordedShotFamily = "p226" | "mp5" | "sg";
+type RecordedShotFamily = "p226" | "mp5" | "sg" | "rifle556" | "rifle762";
 const RECORDED_REPORTS: Record<RecordedShotFamily, readonly string[]> = {
   p226: ["/audio/weapons/p226-report-0.wav.b64", "/audio/weapons/p226-report-1.wav.b64"],
   mp5: ["/audio/weapons/mp5-report-0.wav.b64", "/audio/weapons/mp5-report-1.wav.b64"],
   sg: ["/audio/weapons/sg-report-0.wav.b64", "/audio/weapons/sg-report-1.wav.b64"],
+  rifle556: ["/audio/weapons/rifle_556.mp3.b64"],
+  rifle762: ["/audio/weapons/rifle_762.mp3.b64"],
 };
 
 /** Model names are archetype labels, never claims that a given game gun is the recorded firearm. */
@@ -35,6 +37,8 @@ export function recordedFamilyFor(category: WeaponSoundCategory, weaponId?: stri
   if (category === "pistol") return "p226";
   if (category === "smg" || category === "pdw") return "mp5";
   if (category === "shotgun") return "sg";
+  if (category === "assault") return weaponId === "rifle_falcon" ? "rifle762" : "rifle556";
+  if (category === "dmr" || category === "sniper" || category === "lmg") return "rifle762";
   return null;
 }
 
