@@ -32,10 +32,11 @@ tactical item, rank or operator skin). In particular:
 - **Level 2:** Breacher shotgun becomes purchasable (500 CR), giving a close-range
   alternative to the starting VK-12. Level 4 still grants Field Loader.
 - **Level 25:** Executioner DMR, Explonando and Poison Dart remain; Sentinel-45
-  moves to **level 33** to fill the disabled Breacher Axe's old slot.
-- **Level 37:** Hydra Twin (formerly level 34); **level 38:** Machine Pistol
-  (formerly level 30). Their former levels retain other weapon choices.
-- **Level 39:** Vanguard Legend rank; **level 40:** Ascendant Vanguard, a unique
+  moves to **level 33** (priced at 2300 CR in the epic tier) to fill the disabled Breacher Axe's old slot.
+- **Level 36:** Vanguard Legend rank; **level 37:** Hydra Twin (formerly level 34);
+  **level 38:** Machine Pistol (formerly level 30). Their former levels retain other choices.
+- **Level 39:** RL-7 Rocket Launcher, moved from level 36 so the legendary tier
+  opens after epic weapons; **level 40:** Ascendant Vanguard, a unique
   legendary operator skin automatically awarded at the XP cap, with no contract
   or credit requirement. Existing level-40 profiles qualify immediately.
 - **Level-up results:** disabled weapons are never advertised as newly
