@@ -4,7 +4,7 @@ import { careerRequirement, careerXpAfterMatch, restoreCareer } from "../src/lib
 import { calculateMatchRewards, DIFFICULTY_REWARDS } from "../src/lib/match-rewards";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { PERKS } from "../src/lib/perks";
-import { autoUnlockedItems } from "../src/lib/player-service";
+import { autoUnlockedItems, newlyAvailableWeaponsAtLevel } from "../src/lib/player-service";
 import { ownsOperativeSkin } from "../src/lib/collection-ownership";
 import { WEAPONS, PLAYER_SKINS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, promoteChallengeToElite } from "../src/lib/game-data";
 import { achievementTitle, titledDisplayName } from "../src/lib/achievement-titles";
@@ -117,10 +117,12 @@ describe("rebalanced level rewards", () => {
     expect(at("Sentinel-45")).toBe(33);
     expect(at("Hydra Twin")).toBe(37);
     expect(at("Machine Pistol")).toBe(38);
+    expect(newlyAvailableWeaponsAtLevel(33).map(w => w.name)).toContain("Sentinel-45");
     for (const name of ["Shiv", "Throwing Knives", "Breacher Axe"]) {
       const w = WEAPONS.find(w => w.name === name);
       expect(w?.disabled).toBe(true);
       expect(active.some(item => item.id === w?.id)).toBe(false);
+      expect(newlyAvailableWeaponsAtLevel(w!.unlockLevel).map(item => item.id)).not.toContain(w!.id);
     }
   });
   test("level 40 Ascendant Vanguard is earned at cap without purchase", () => {
