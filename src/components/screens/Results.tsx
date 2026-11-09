@@ -4,7 +4,7 @@ import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
-import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS } from "@/lib/game-data";
+import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
@@ -13,6 +13,7 @@ function unlockedGearLabel(id: string): string {
   return WEAPONS.find(w => w.id === id)?.name
     ?? WEAPON_SKINS.find(s => s.id === id)?.name
     ?? ATTACHMENTS.find(a => a.id === id)?.name
+    ?? PLAYER_SKINS.find(s => s.id === id)?.name
     ?? displayLabel(id);
 }
 
@@ -246,11 +247,11 @@ export function Results() {
                   </div>
                 </div>
               )}
-              {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length) > 0 && (
+              {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length || rewards.newUnlocks.playerSkins.length) > 0 && (
                 <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments].map((id: string) => (
+                    {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments, ...rewards.newUnlocks.playerSkins].map((id: string) => (
                       <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{unlockedGearLabel(id)}</span>
                     ))}
                   </div>
