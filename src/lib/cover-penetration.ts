@@ -4,7 +4,7 @@
  * Untagged geometry, concrete, reinforced walls and destructible barriers stop rounds.
  */
 import type { CoverBox, Vec3 } from "./game-protocol";
-import { selectBodyPenetrationHits, type BodyPenetration, type BodyRayContact, type PenetratingBodyHit } from "./body-penetration";
+import { type BodyPenetration, type BodyRayContact, type PenetratingBodyHit } from "./body-penetration";
 
 export const BALLISTIC_MATERIALS = ["concrete", "reinforced", "thin_wood", "sheet_metal", "glass", "light_cover"] as const;
 export type BallisticMaterial = typeof BALLISTIC_MATERIALS[number];
@@ -86,16 +86,86 @@ export function coverDamageScaleAt(trace:CoverPenetrationTrace,distance:number):
   return multiplier;
 }
 
-/** Maintain current body-penetration target limits and shield/spawn immunity. */
+/**
+ * A conventional round has ONE initial penetration-energy budget. Traversing a
+ * thin panel or passing through a body spends that same budget, in ray order.
+ * The resulting damage multiplier independently falls for each material/body.
+ * This gives ordinary weapons some material penetration while leaving hard
+ * structure, shields and protected players fully protective.
+ */
+export const BODY_PENETRATION_ENERGY_COST = 1.15;
+export const MAX_PENETRATED_BODIES = 3;
+
+export interface UnifiedPenetrationResult<T> {
+  hits: PenetratingBodyHit<T>[];
+  /** First absorbing surface/body, used to prevent impacts beyond that point. */
+  stoppedAt: number;
+}
+
+export function resolveMaterialPenetrationShot<T>(
+  contacts:readonly BodyRayContact<T>[],boxes:readonly CoverBox[],
+  origin:Vec3,direction:Vec3,maxDistance:number,
+  bodyProfile?:BodyPenetration,penetrationPower=0,
+): UnifiedPenetrationResult<T> {
+  const energyStart=Number.isFinite(penetrationPower)?Math.max(0,penetrationPower):0;
+  let energy=energyStart;
+  const bodyLimit=Math.max(1,Math.min(MAX_PENETRATED_BODIES,
+    bodyProfile?.maxTargets??(energyStart>=3.4?3:energyStart>=BODY_PENETRATION_ENERGY_COST?2:1)));
+  const bodyRetention=bodyProfile
+    ? Math.max(0,Math.min(1,bodyProfile.damageRetention))
+    : Math.min(.65,Math.max(.3,.29+energyStart*.09));
+  type CoverEvent={type:"cover";entry:number;exit:number;box:CoverBox};
+  type BodyEvent={type:"body";entry:number;contact:BodyRayContact<T>};
+  const covers:CoverEvent[]=boxes.flatMap(box=>{
+    const interval=boxInterval(origin,direction,box);
+    return interval&&interval.entry<maxDistance&&interval.exit>0
+      ?[{type:"cover" as const,entry:interval.entry,exit:interval.exit,box}]:[];
+  });
+  const bodies:BodyEvent[]=contacts.filter(c=>Number.isFinite(c.t)&&c.t>=0&&c.t<=maxDistance)
+    .map(contact=>({type:"body" as const,entry:contact.t,contact}));
+  const events:(CoverEvent|BodyEvent)[]=[...covers,...bodies];
+  events.sort((a,b)=>a.entry-b.entry || (a.type==="cover"?-1:1));
+  const hits:PenetratingBodyHit<T>[]=[];
+  let coverCount=0,damageScale=1,stoppedAt=Infinity;
+  for(const event of events){
+    const at=Math.max(0,event.entry);
+    if(at>maxDistance)break;
+    if(event.type==="cover"){
+      const material=event.box.material??"concrete";
+      const properties=event.box.kind==="cover"&&!event.box.environmentId?SOFT[material]:undefined;
+      const depth=event.exit-at;
+      const cost=properties?depth*properties.resistance:Infinity;
+      if(event.entry < -EPS||!properties||
+          coverCount>=MAX_PENETRATED_SURFACES||event.exit>maxDistance+EPS||energy+EPS<cost){
+        stoppedAt=at;
+        break;
+      }
+      energy-=cost;
+      damageScale*=properties.retention*Math.max(.55,1-.08*cost);
+      coverCount++;
+      continue;
+    }
+    // A contact embedded inside solid cover is not a valid body hit.
+    if(covers.some(c=>c.entry+EPS<event.entry && c.exit>event.entry+EPS))continue;
+    const body=event.contact;
+    hits.push({...body,damageScale});
+    if(body.shield||body.protected||hits.length>=bodyLimit||
+       energy+EPS<BODY_PENETRATION_ENERGY_COST){
+      stoppedAt=at;
+      break;
+    }
+    energy-=BODY_PENETRATION_ENERGY_COST;
+    damageScale*=bodyRetention;
+  }
+  return {hits,stoppedAt};
+}
+
+/** Return only the body contacts; all callers share one energy calculation. */
 export function selectMaterialPenetrationHits<T>(
   contacts:readonly BodyRayContact<T>[],boxes:readonly CoverBox[],
   origin:Vec3,direction:Vec3,maxDistance:number,
   bodyProfile?:BodyPenetration,coverPower=0,
 ):PenetratingBodyHit<T>[] {
-  const trace=traceCoverPenetration(boxes,origin,direction,maxDistance,coverPower);
-  return selectBodyPenetrationHits(contacts,maxDistance,trace.blockedAt,bodyProfile)
-    .flatMap(hit=>{
-      const coverScale=coverDamageScaleAt(trace,hit.t);
-      return coverScale>0?[{...hit,damageScale:hit.damageScale*coverScale}]:[];
-    });
+  return resolveMaterialPenetrationShot(contacts,boxes,origin,direction,maxDistance,
+    bodyProfile,coverPower).hits;
 }
