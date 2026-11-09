@@ -53,7 +53,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("each nonstandard operator appearance has a separate contract", () => {
-    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency);
+    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency && !s.levelReward);
     expect(OPERATOR_CONTRACTS).toHaveLength(skins.length);
     expect(new Set(OPERATOR_CONTRACTS.map(ch => ch.rewardId)).size).toBe(skins.length);
     for (const skin of skins) {
@@ -64,6 +64,7 @@ describe("permanent challenge-based Armory eligibility", () => {
       expect(skin.unlockCost).toBeGreaterThan(0);
     }
     expect(operatorContract("default")).toBeNull();
+    expect(operatorContract("ascendant_vanguard")).toBeNull(); // Level-cap reward needs no contract.
   });
 
   test("every paid weapon skin has a weapon-specific challenge", () => {
