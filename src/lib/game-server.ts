@@ -3696,6 +3696,23 @@ async function handle(socket: any, msg: C2S) {
         if (Math.abs(Math.hypot(...msg.dir) - 1) > 0.2) return;
       }
       if (shieldBlocksFire(p.weaponId,!!p.riotShieldRaised,p.riotShieldHp??RIOT_SHIELD_HP)) return;
+      // A deployed Chrono Anchor is recalled without spending a second charge.
+      if(weapon.wonder?.kind==="chrono"){
+        const anchor=room.chronoAnchors.get(socket.id);
+        if(anchor&&anchor.expiresAt>now){
+          p.pos=clampToArena(room,anchor.pos);
+          room.chronoAnchors.delete(socket.id);
+          io.to(room.id).emit("message",{t:"chronoRecall",playerId:socket.id,pos:p.pos} as S2C);
+          break;
+        }
+      }
+      if(weapon.wonder?.kind==="mech"){
+        const location=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
+        if(!location||room.playerMechs.has(socket.id)||[...room.mechDrops.values()].some(d=>d.ownerId===socket.id&&d.expiresAt>now)){
+          io.to(socket.id).emit("message",{t:"turretRejected",reason:"Juggernaut requires a clear outdoor drop area and no active suit"} as S2C);
+          break;
+        }
+      }
       if (usesWonderCharges(weapon) && weapon.wonder) {
         const key = socket.id + ":" + weapon.id;
         const state = room.wonderCharges.get(key) ?? drainedWonderCharges(weapon.wonder,now);
@@ -3755,7 +3772,9 @@ async function handle(socket: any, msg: C2S) {
         }
       }
       if (room.mode === "gungame") attsForShot = { sight: null, barrel: null, grip: null, magazine: null };
-      const eff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
+      const baseEff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
+      const module=weapon.wonder?wonderModuleEffects(weapon.id,loadout?.wonderModuleId):wonderModuleEffects("","");
+      const eff={...baseEff,damage:baseEff.damage*module.damageMul,range:baseEff.range*module.rangeMul};
       if(weapon.category!=="melee" && weapon.wonder?.kind!=="flame" && weapon.wonder?.kind!=="turret")
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
@@ -3794,6 +3813,78 @@ async function handle(socket: any, msg: C2S) {
         break;
       }
 
+      if(weapon.wonder?.kind==="chrono"){
+        const anchor={pos:[...p.pos] as Vec3,expiresAt:now+CHRONO_ANCHOR_MS*module.durationMul};
+        room.chronoAnchors.set(socket.id,anchor);
+        io.to(room.id).emit("message",{t:"chronoAnchor",playerId:socket.id,pos:anchor.pos,expiresAt:anchor.expiresAt} as S2C);
+        break;
+      }
+      if(weapon.wonder?.kind==="decoy"){
+        const count=module.targets===2?2:1;
+        for(let n=0;n<count;n++){
+          const id=genId("phantom");
+          const pos:Vec3=[p.pos[0]+(n===1?1.5:0),p.pos[1],p.pos[2]];
+          const decoy={id,ownerId:socket.id,pos,yaw:p.yaw,createdAt:now,expiresAt:now+PHANTOM_DURATION_MS*module.durationMul,count};
+          room.phantomDecoys.set(id,decoy);
+          io.to(room.id).emit("message",{t:"phantomDecoy",...decoy} as S2C);
+        }
+        break;
+      }
+      if(weapon.wonder?.kind==="mech"){
+        const pos=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
+        if(!pos)break; // Already checked before taking the charge.
+        const id=genId("mech"),landAt=now+JUGGERNAUT_DROP_MS,expiresAt=now+JUGGERNAUT_DROP_MS+25000;
+        const drop={id,ownerId:socket.id,pos,landAt,expiresAt,moduleId:loadout?.wonderModuleId??"",landed:false};
+        room.mechDrops.set(id,drop);
+        io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
+        break;
+      }
+      if(weapon.wonder?.kind==="seismic"||weapon.wonder?.kind==="cryo"){
+        const isCryo=weapon.wonder.kind==="cryo";
+        const range=eff.range,radiusMul=module.radiusMul;
+        const cosine=isCryo?Math.cos(.45*radiusMul):Math.cos(.65*radiusMul);
+        const end:Vec3=[msg.origin[0]+shotDir[0]*range,msg.origin[1]+shotDir[1]*range,msg.origin[2]+shotDir[2]*range];
+        io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:end,kind:isCryo?"cryo":"seismic"} as S2C);
+        for(const target of allCombatants(room)){
+          if(target.id===socket.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
+          const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+          if(!wonderConeHit(msg.origin,shotDir,point,range,cosine)||!hasLineOfSight(room,msg.origin,point))continue;
+          applyDamage(room,socket.id,target,eff.damage,false,weapon.id);
+          if(!target.alive)continue;
+          if(isCryo){
+            room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS);
+            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"cryo",durationMs:CRYO_SLOW_MS} as S2C);
+          }else{
+            const push=3.3;
+            const candidate:Vec3=[target.pos[0]+shotDir[0]*push,target.pos[1],target.pos[2]+shotDir[2]*push];
+            if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
+              target.pos=clampToArena(room,candidate);
+              io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
+            }
+          }
+        }
+        if(!isCryo)blastMaterialCover(room,end,range*.6,eff.damage,weapon.id);
+        break;
+      }
+      if(weapon.wonder?.kind==="ricochet"){
+        const bounces=module.targets||3;
+        const segments=ripperSegments(msg.origin,shotDir,room.map.cover,eff.range,bounces);
+        const hitIds=new Set<string>();
+        for(const segment of segments){
+          const toVec:Vec3=[segment.to[0]-segment.from[0],segment.to[1]-segment.from[1],segment.to[2]-segment.from[2]];
+          const distance=Math.hypot(...toVec);
+          if(distance<.05)continue;
+          const d:Vec3=[toVec[0]/distance,toVec[1]/distance,toVec[2]/distance];
+          io.to(room.id).emit("message",{t:"wonderBeam",from:segment.from,to:segment.to,kind:"ripper"} as S2C);
+          for(const target of allCombatants(room)){
+            if(!target.alive||target.id===socket.id||hitIds.has(target.id)||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
+            const hit=rayCapsule(segment.from,d,[target.pos[0],target.pos[1]+1,target.pos[2]],PLAYER_RADIUS,PLAYER_HEIGHT);
+            if(hit&&hit.t<=distance){hitIds.add(target.id);
+              applyDamage(room,socket.id,target,eff.damage*segment.damageScale,false,weapon.id);}
+          }
+        }
+        break;
+      }
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
           shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map)};
@@ -3892,7 +3983,7 @@ async function handle(socket: any, msg: C2S) {
       // and apply area-of-effect damage to all enemies within the splash radius.
       // Damage uses a quadratic falloff (full at center, ~10% at edge) + a direct-hit
       // bonus (within 1.5 units = full damage + 20% bonus).
-      if (weapon.explosive || usesWonderCharges(weapon)) {
+      if (weapon.explosive || (usesWonderCharges(weapon) && weapon.wonder?.kind!=="rail")) {
         // Normalize the direction vector so the raycast math is stable.
         const dlen = Math.hypot(shotDir[0], shotDir[1], shotDir[2]) || 1;
         const dir: Vec3 = [shotDir[0] / dlen, shotDir[1] / dlen, shotDir[2] / dlen];
