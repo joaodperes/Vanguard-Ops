@@ -12,6 +12,8 @@ import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, RIOT_SHIELD_RECHARGE_MS, rayRiotShield,
 import { usesWonderCharges } from "./game-data";
 import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
+import { parseWeaponSetups } from "./weapon-setups";
+import { wonderModuleEffects, validWonderModule, wonderFinishById, wonderKillEffectById } from "./wonder-expansion";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
@@ -3315,8 +3317,16 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
   const resolved = resolveMatchLoadout({...player,wonderUnlocks}, requested);
   const purchases = await db.careerShopPurchase.findMany({where:{playerId:player.id},select:{itemKey:true}});
   const owned = cosmeticShopOwnership(purchases.map(p=>p.itemKey));
+  // Match sockets cannot spoof paid Wonder modules, finish or elimination effects.
+  const wonderId=resolved.wonderWeaponId??"";
+  const setup=parseWeaponSetups(player.loadout?.weaponSetups)[wonderId];
+  const keys=new Set(purchases.map(p=>p.itemKey));
+  const wonderModuleId=setup?.moduleId&&validWonderModule(wonderId,setup.moduleId)&&keys.has("module_"+setup.moduleId)?setup.moduleId:"";
+  const wonderSkinId=setup?.skin&&wonderFinishById(setup.skin)&&keys.has(setup.skin+"_"+wonderId)?setup.skin:"";
+  const wonderKillEffectId=setup?.killEffectId&&wonderKillEffectById(setup.killEffectId)&&keys.has(setup.killEffectId+"_"+wonderId)?setup.killEffectId:"";
   // Match sockets cannot supply cosmetic IDs they did not purchase.
   return {
+    wonderModuleId,wonderSkinId,wonderKillEffectId,
     ...resolved,
     primaryReticleId:owned.includes(resolved.primaryReticleId??"classic")?resolved.primaryReticleId:"classic",
     secondaryReticleId:owned.includes(resolved.secondaryReticleId??"classic")?resolved.secondaryReticleId:"classic",
