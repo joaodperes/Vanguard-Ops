@@ -1,10 +1,41 @@
 import {describe,expect,test} from "bun:test";
-import {MAP_LIST} from "../src/lib/game-protocol";
+import {MAP_LIST,rayBox} from "../src/lib/game-protocol";
+import {propColliders} from "../src/lib/map-visuals";
 import {makeEnvironmentMap} from "../src/lib/dynamic-environment";
 import {botPositionEmbedded} from "../src/lib/bot-physics";
 import {insideRegions} from "../src/lib/map-blueprints";
 
 describe("map scale and route accessibility",()=>{
+  test("terminal consoles have the same collision envelope as their rendered mesh",()=>{
+    // The 3D terminal body is 2 x 2.2 x 1.3, with a front-facing screen at
+    // Z +0.7. The authoritative collider must include both, even at an
+    // elevated prop Y. This is not optional decoration: it blocks bullets.
+    const [panel]=propColliders([{kind:"terminal",x:5,z:-7,y:3}],[]);
+    expect(panel).toEqual({kind:"cover",pos:[5,4.1,-7],size:[1,1.1,.75]});
+    expect(rayBox([5,4.1,-11],[0,0,1],panel.pos,panel.size)).toBeCloseTo(3.25);
+    expect(rayBox([7,4.1,-11],[0,0,1],panel.pos,panel.size)).toBeNull();
+    // A terminal's physical geometry cannot be removed merely because a
+    // proposed spawn is too close. That would leave a walk-through object.
+    expect(propColliders([{kind:"terminal",x:5,z:-7}],[[5,0,-7]])).toHaveLength(1);
+  });
+  test("every published terminal in Orbital Nexus, Blacksite and other maps blocks movement and shots",()=>{
+    let total=0;
+    for(const map of MAP_LIST){
+      for(const prop of map.props??[]){
+        if(prop.kind!=="terminal")continue;
+        total++;
+        const c=map.cover.find(box=>box.kind==="cover"&&
+          Math.abs(box.pos[0]-prop.x)<.001&&Math.abs(box.pos[2]-prop.z)<.001&&
+          Math.abs(box.pos[1]-(prop.y??0)-1.1)<.001&&
+          Math.abs(box.size[0]-1)<.001&&Math.abs(box.size[1]-1.1)<.001&&
+          Math.abs(box.size[2]-.75)<.001);
+        expect(c).toBeDefined();
+        expect(rayBox([prop.x,(prop.y??0)+1.1,prop.z-3],[0,0,1],c!.pos,c!.size)).not.toBeNull();
+      }
+    }
+    expect(total).toBeGreaterThan(4);
+  });
+
   test("compact, medium and enormous layouts coexist",()=>{
     const byId=Object.fromEntries(MAP_LIST.map(m=>[m.id,m]));
     expect(byId.bunker.size*2).toBeLessThan(140);
