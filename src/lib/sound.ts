@@ -147,10 +147,10 @@ const SHOT_PROFILES: Record<WeaponShotCategory, ShotProfile> = {
 };
 
 /** Expected loudness of a remote footstep at world-space distance. */
-export function footstepVolumeAtDistance(distance: number, sprinting = false): number {
+export function footstepVolumeAtDistance(distance: number, sprinting = false, inWater = false): number {
   if (!Number.isFinite(distance) || distance >= 38) return 0;
   const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
-  return (sprinting ? 0.72 : 0.5) * attenuation;
+  return (sprinting ? 0.72 : 0.5) * attenuation * (inWater ? 0.8 : 1);
 }
 
 export class SoundManager {
@@ -326,7 +326,7 @@ export class SoundManager {
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
   playFootstepAtDistance(distance: number, sprinting = false, inWater = false): void {
-    const volume = footstepVolumeAtDistance(distance, sprinting)*(inWater?1.65:1);
+    const volume = footstepVolumeAtDistance(distance, sprinting, inWater);
     if (volume < 0.004) return;
     const now=this.ctx?.currentTime??0;
     // Ambient bot traffic should not allocate dozens of overlapping noise
@@ -834,9 +834,10 @@ export class SoundManager {
     const splash=ctx.createBufferSource();
     splash.buffer=this.noiseBuffer;
     const band=ctx.createBiquadFilter();
-    band.type="bandpass";band.frequency.value=1550;band.Q.value=.65;
+    // Lower the piercing splash pitch while keeping it recognizably wet.
+    band.type="bandpass";band.frequency.value=950;band.Q.value=.7;
     const gain=ctx.createGain();
-    gain.gain.setValueAtTime(Math.max(.0001,vol*.65),t);
+    gain.gain.setValueAtTime(Math.max(.0001,vol*.40),t);
     gain.gain.exponentialRampToValueAtTime(.0001,t+.19);
     splash.connect(band).connect(gain).connect(this.footstepGain!);
     splash.start(t);splash.stop(t+.20);
@@ -845,7 +846,7 @@ export class SoundManager {
     thump.type="sine";
     thump.frequency.setValueAtTime(95,t);
     thump.frequency.exponentialRampToValueAtTime(48,t+.13);
-    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.22),t);
+    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.15),t);
     thumpGain.gain.exponentialRampToValueAtTime(.0001,t+.14);
     thump.connect(thumpGain).connect(this.footstepGain!);
     thump.start(t);thump.stop(t+.15);
