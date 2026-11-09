@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
+import { requestTutorialChapter } from "@/lib/tutorial";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { formatWeaponNumber, formatSpreadMrad } from "@/lib/weapon-numbers";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
@@ -1032,7 +1033,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {(currentEffectiveStats.coverPenetration??0)>0&&(
             <p className="mt-1 text-xs text-cyan-300/80">
               Penetration <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong>
-              <button type="button" onClick={()=>{setCustomizing(null);setScreen("tutorial");}}
+              <button type="button" onClick={()=>{requestTutorialChapter("ballistics");setCustomizing(null);setScreen("tutorial");}}
                 className="ml-3 text-white/55 underline underline-offset-2 hover:text-white">
                 Tutorial: Penetration guide
               </button>
