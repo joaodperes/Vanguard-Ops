@@ -473,7 +473,6 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {hud.matchEnding && <div className="absolute bottom-[17%] left-1/2 -translate-x-1/2 z-40 pointer-events-none text-center">
         <div className="bg-black/65 border border-amber-400/40 rounded-xl px-6 py-3 shadow-xl backdrop-blur-sm">
           <div className="text-2xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
-          <div className="text-amber-100/70 text-[10px] mt-1 tracking-widest uppercase">Slow-motion finish · Hold TAB for final scores</div>
         </div>
       </div>}
       {hud.quickMeleeAt && now - hud.quickMeleeAt < 350 && <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
