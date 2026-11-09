@@ -7607,6 +7607,158 @@ export class FPSEngine {
     }
   }
 
+  /** One model per drop, reused across snapshots and room broadcasts. */
+  private addMechDrop(id:string,ownerId:string,pos:Vec3,landAt:number,expiresAt:number,moduleId:string,landed:boolean,enteredBy?:string){
+    const previous=this.mechDrops.get(id);
+    if(previous){previous.landed=landed;previous.expiresAt=expiresAt;previous.enteredBy=enteredBy;return;}
+    const mech=wonderMechModel(),aircraft=wonderAircraftModel();
+    mech.group.position.set(...pos);aircraft.group.position.set(pos[0]-28,pos[1]+31,pos[2]+15);
+    this.scene.add(mech.group);this.scene.add(aircraft.group);
+    this.mechDrops.set(id,{ownerId,pos,landAt,expiresAt,moduleId,landed,enteredBy,mech,aircraft});
+  }
+  private removeMechDrop(id:string){
+    const d=this.mechDrops.get(id);if(!d)return;
+    d.mech.dispose();d.aircraft.dispose();this.mechDrops.delete(id);
+  }
+  private addPhantom(id:string,ownerId:string,pos:Vec3,yaw:number,createdAt:number,expiresAt:number,count:number){
+    const existing=this.phantomDecoys.get(id);
+    if(existing){existing.pos=pos;existing.expiresAt=expiresAt;return;}
+    const visual=wonderHologramModel();
+    visual.group.position.set(...pos);visual.group.rotation.y=yaw;
+    this.scene.add(visual.group);
+    this.phantomDecoys.set(id,{pos,yaw,createdAt,expiresAt,count,visual});
+  }
+  private clearPhantom(id:string){const p=this.phantomDecoys.get(id);if(!p)return;p.visual.dispose();this.phantomDecoys.delete(id);}
+  private showWonderBurst(pos:Vec3,id:string){
+    const effect=wonderKillEffectById(id),finish=wonderFinishById(id);
+    const color=parseInt((effect?.color??finish?.color??"#ad84ff").slice(1),16);
+    const group=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.83,depthWrite:false});
+    const geo=new THREE.OctahedronGeometry(.075);
+    const n=id==="wonder_kill_disintegrate"?32:20;
+    for(let i=0;i<n;i++){
+      const particle=new THREE.Mesh(geo,mat);
+      const angle=i*2.4,height=Math.sin(i*7.93);
+      particle.position.set(Math.sin(angle)*(.25+i*.025),.7+height*.6,Math.cos(angle)*(.25+i*.025));
+      group.add(particle);
+    }
+    group.position.set(...pos);this.scene.add(group);
+    this.wonderVisualFx.push({group,born:performance.now(),duration:650});
+  }
+  private placeChronoMarker(pos:Vec3){
+    if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();}
+    this.chronoMarker=new THREE.Mesh(new THREE.TorusGeometry(.58,.075,8,32),
+      new THREE.MeshBasicMaterial({color:0x8fc5ff,transparent:true,opacity:.7}));
+    this.chronoMarker.rotation.x=-Math.PI/2;
+    this.chronoMarker.position.set(pos[0],pos[1]+.1,pos[2]);
+    this.scene.add(this.chronoMarker);
+  }
+  private enterNearbyMech(){
+    if(!this.alive||this.mechActive||this.opts.mode==="gungame")return;
+    const nearby=[...this.mechDrops.entries()].find(([,d])=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
+      Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2&&Math.abs(this.pos.y-d.pos[1])<2);
+    if(!nearby)return;
+    const [id,d]=nearby;
+    if(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))return;
+    if(this.opts.online)this.socket?.emit("message",{t:"enterMech",dropId:id} as C2S);
+    else{
+      const t=mechTuning(d.moduleId);
+      d.enteredBy=this.selfId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS;
+      this.mechActive={id,moduleId:d.moduleId,armor:t.armor,minigunAmmo:t.minigunAmmo,
+        secondaryAmmo:t.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS};
+      this.pos.set(...d.pos);this.aiming=false;this.manualAiming=false;this.sprinting=false;
+      this.sound.play("swap",{volume:.7});
+    }
+  }
+  private updateWonderWorld(now:number){
+    const time=Date.now();
+    for(const [id,drop] of this.mechDrops){
+      if(time>=drop.expiresAt){this.removeMechDrop(id);continue;}
+      if(!drop.landed&&time>=drop.landAt){
+        drop.landed=true;
+        if(!this.opts.online){
+          this.spawnExplosion(new THREE.Vector3(...drop.pos),undefined,3);
+          for(const target of this.combatants.values()){
+            if(!target.alive||!crushesAtLanding(target.pos,drop.pos))continue;
+            target.spawnProtectedUntil=0;this.applyDamageLocal(target,target.health+500,false,"wonder_juggernaut");
+          }
+          if(this.alive&&crushesAtLanding([this.pos.x,this.pos.y,this.pos.z],drop.pos)){
+            this.selfSpawnProtectedUntil=0;this.takeDamage(this.health+500,"Drop pod",this.opts.team,false,"wonder_juggernaut");
+          }
+        }
+      }
+      const progress=Math.max(0,Math.min(1,1-(drop.landAt-time)/JUGGERNAUT_DROP_MS));
+      drop.mech.group.visible=!drop.enteredBy;
+      drop.mech.group.position.set(drop.pos[0],drop.pos[1]+(!drop.landed?20*(1-progress):0),drop.pos[2]);
+      drop.aircraft.group.visible=!drop.landed&&progress<.88;
+      drop.aircraft.group.position.set(drop.pos[0]-30+progress*62,drop.pos[1]+28,drop.pos[2]+15);
+      drop.aircraft.group.rotation.y=-.18;
+    }
+    for(const [id,decoy] of this.phantomDecoys){
+      if(time>=decoy.expiresAt){this.clearPhantom(id);continue;}
+      decoy.visual.group.position.set(...decoy.pos);
+      decoy.visual.group.scale.setScalar(1+.028*Math.sin(now*.006+id.length));
+      if(!this.opts.online&&this.combatants.size&&Math.floor(time/850)!==Math.floor((time-50)/850)){
+        this.publishBotNoise({sourceId:this.selfId,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
+      }
+    }
+    if(this.chronoAnchor&&time>=this.chronoAnchor.expiresAt){this.chronoAnchor=null;}
+    if(!this.chronoAnchor&&this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
+    if(this.chronoMarker){this.chronoMarker.rotation.z=now*.001;this.chronoMarker.scale.setScalar(1+Math.sin(now*.006)*.08);}
+    for(let i=this.wonderVisualFx.length-1;i>=0;i--){
+      const v=this.wonderVisualFx[i],fraction=(now-v.born)/v.duration;
+      if(fraction>=1){v.group.removeFromParent();v.group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+        const first=v.group.children[0] as THREE.Mesh|undefined;
+        if(first)(first.material as THREE.Material).dispose();
+        this.wonderVisualFx.splice(i,1);continue;}
+      v.group.scale.setScalar(.65+fraction*1.65);
+      v.group.rotation.y=now*.0018;
+      const first=v.group.children[0] as THREE.Mesh|undefined;
+      if(first)(first.material as THREE.MeshBasicMaterial).opacity=.85*(1-fraction);
+    }
+    if(this.mechActive&&time>=this.mechActive.expiresAt)this.mechActive=null;
+  }
+  private fireMech(mode:"minigun"|"secondary",now:number){
+    const mech=this.mechActive;if(!mech||!this.alive||this.matchEnded||this.survivalDowned)return;
+    const tune=mechTuning(mech.moduleId),isSwarm=tune.secondary==="swarm";
+    if(mode==="minigun"){
+      if(mech.minigunAmmo<=0)return;
+      if(now-this.lastMechPrimaryAt<1000/JUGGERNAUT_MINIGUN_RATE*.9)return;
+      if(now-this.lastMechPrimaryAt>450)this.mechSpinAt=now;
+      this.lastMechPrimaryAt=now;
+      if(now-this.mechSpinAt<tune.minigunSpinupMs)return;
+      mech.minigunAmmo--;
+    }else{
+      const interval=1000/(isSwarm?JUGGERNAUT_SWARM_RATE:JUGGERNAUT_SHOTGUN_RATE);
+      if(mech.secondaryAmmo<=0||now-this.lastMechSecondaryAt<interval*.9)return;
+      this.lastMechSecondaryAt=now;mech.secondaryAmmo--;
+    }
+    const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+    const dir=this.aimDir(0);
+    if(this.opts.online)this.socket?.emit("message",{t:"mechShot",mode,origin,dir} as C2S);
+    else if(mode==="secondary"&&isSwarm){
+      this.spawnRocketProjectile(origin,dir,"default",82,true,"launcher_swarm");
+    }else{
+      const pellets=mode==="minigun"?1:tune.shotgunPellets;
+      for(let i=0;i<pellets;i++){
+        const d=this.normalize(this.add(dir,this.randSpread(mode==="minigun"?.024:.14)));
+        const cover=closestCoverHit(this.map.cover,origin,d,mode==="minigun"?70:17,rayBox);
+        const target=[...this.combatants.values()].filter(c=>c.alive&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team))
+          .map(c=>({c,hit:rayCombatantHit(origin,d,c.pos)}))
+          .filter((v):v is {c:Combatant;hit:{t:number;head:boolean}}=>v.hit!==null)
+          .filter(v=>v.hit.t<=(mode==="minigun"?70:17)&&(!cover||v.hit.t<cover.distance))
+          .sort((a,b)=>a.hit.t-b.hit.t)[0];
+        if(target)this.applyDamageLocal(target.c,mode==="minigun"?tune.minigunDamage:tune.shotgunDamage,target.hit.head,"wonder_juggernaut");
+      }
+    }
+    this.selfSpawnProtectedUntil=0;
+    this.triggerMuzzleFlash();
+    this.weaponAudio.play(mode==="secondary"?(isSwarm?"launcher":"shotgun"):"lmg",{
+      weaponId:mode==="minigun"?"lmg_hv":isSwarm?"launcher_swarm":"shotgun_combat",
+      volume:mode==="minigun"?.46:.75});
+    if(mode!=="secondary"||!isSwarm)this.spawnTracer(origin,dir,"default",0,mode==="minigun"?70:17);
+  }
+
   private shieldRaised():boolean{
     return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting &&
       this.riotShieldHp>0 && (!this.quickMeleeFeedbackAt || performance.now()-this.quickMeleeFeedbackAt>=riotBashProfile().swingMs);
