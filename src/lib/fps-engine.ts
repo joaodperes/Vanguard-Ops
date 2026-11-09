@@ -4207,8 +4207,10 @@ export class FPSEngine {
   }
 
   private updateFlashAudio(now: number) {
-    const factor=flashAudioGain(Math.max(0,this.equipmentFlashUntil-now));
-    if(Math.abs(factor-this.flashAudioFactor)<0.005)return;
+    // Constructor-free engine stubs and early boot have no audio buses yet.
+    if(!this.audioMix || !this.sound || !this.weaponAudio)return;
+    const factor=flashAudioGain(Math.max(0,(this.equipmentFlashUntil??0)-now));
+    if(Math.abs(factor-(this.flashAudioFactor??1))<0.005)return;
     this.flashAudioFactor=factor;
     this.applyAudioLevels();
   }
