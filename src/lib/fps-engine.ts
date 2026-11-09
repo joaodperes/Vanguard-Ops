@@ -6183,6 +6183,16 @@ export class FPSEngine {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
         // Hydrate live turrets for late-joining clients; synchronize removals.
+        if(msg.mechDrops){
+          const current=new Set(msg.mechDrops.map(d=>d.id));
+          for(const d of msg.mechDrops)this.addMechDrop(d.id,d.ownerId,d.pos,d.landAt,d.expiresAt,d.moduleId,d.landed,d.enteredBy);
+          for(const [id] of this.mechDrops)if(!current.has(id))this.removeMechDrop(id);
+        }
+        if(msg.phantomDecoys){
+          const current=new Set(msg.phantomDecoys.map(d=>d.id));
+          for(const d of msg.phantomDecoys)this.addPhantom(d.id,d.ownerId,d.pos,d.yaw,d.createdAt,d.expiresAt,d.count);
+          for(const [id] of this.phantomDecoys)if(!current.has(id))this.clearPhantom(id);
+        }
         if (msg.gravityWells) {
           const activeIds = new Set(msg.gravityWells.map(w => w.id));
           for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false, msg.serverNow);
@@ -6452,6 +6462,7 @@ export class FPSEngine {
           this.equipQueuedLoadout();
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
+          this.mechActive=null;this.mechRightDown=false;
           this.lastPlayerRespawnAt = performance.now();
           // Wonder charges persist without a refill. New queued kits start empty.
           this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
@@ -6471,6 +6482,48 @@ export class FPSEngine {
         this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity", radius);
         break;
       }
+      case "chronoAnchor":
+        if(msg.playerId===this.selfId){this.chronoAnchor={pos:msg.pos,expiresAt:msg.expiresAt};this.placeChronoMarker(msg.pos);}
+        break;
+      case "chronoRecall":
+        if(msg.playerId===this.selfId){this.pos.set(...msg.pos);this.chronoAnchor=null;this.vel.set(0,0,0);this.sound.play("swap",{volume:.5});}
+        break;
+      case "phantomDecoy":
+        this.addPhantom(msg.id,msg.ownerId,msg.pos,msg.yaw,msg.createdAt,msg.expiresAt,msg.count);
+        break;
+      case "mechDrop":
+        this.addMechDrop(msg.id,msg.ownerId,msg.pos,msg.landAt,msg.expiresAt,msg.moduleId,false);
+        break;
+      case "mechLanded":{
+        const d=this.mechDrops.get(msg.id);if(d)d.landed=true;
+        this.spawnExplosion(new THREE.Vector3(...msg.pos),undefined,3);
+        break;
+      }
+      case "mechEntered":{
+        const d=this.mechDrops.get(msg.id);if(d){d.enteredBy=msg.playerId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS;}
+        if(msg.playerId===this.selfId){
+          this.mechActive={id:msg.id,moduleId:msg.moduleId,armor:msg.armor,minigunAmmo:msg.minigunAmmo,
+            secondaryAmmo:msg.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS};
+          if(d)this.pos.set(...d.pos);
+          this.aiming=false;this.manualAiming=false;this.sprinting=false;
+          this.sound.play("swap",{volume:.7});
+        }
+        break;
+      }
+      case "mechDestroyed":
+        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.sound.play("melee_hit",{volume:.75});}
+        this.removeMechDrop(msg.id);
+        break;
+      case "mechAmmo":
+        if(this.mechActive){this.mechActive.armor=msg.armor;this.mechActive.minigunAmmo=msg.minigunAmmo;this.mechActive.secondaryAmmo=msg.secondaryAmmo;}
+        break;
+      case "mechShotFx":
+        if(msg.attackerId!==this.selfId){
+          if(msg.mode==="swarm")this.spawnRocketProjectile(msg.origin,msg.dir,"default",0,false,"launcher_swarm");
+          else this.spawnTracer(msg.origin,msg.dir,"default",0,msg.mode==="minigun"?70:17);
+          this.playEnemyFireSound(msg.origin,msg.mode==="swarm"?"launcher_swarm":msg.mode==="minigun"?"lmg_hv":"shotgun_combat",false);
+        }
+        break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
         if (msg.ownerId === this.selfId && this.turretDeployPending) {
@@ -6607,6 +6660,7 @@ export class FPSEngine {
         this.removeDeployCover(msg.id);
         break;
       case "equipmentStatus":
+        if(msg.effect==="cryo")this.localCryoSlowUntil=Math.max(this.localCryoSlowUntil,performance.now()+msg.durationMs);
         if(msg.effect==="flash"){
           const now=performance.now();
           this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+msg.durationMs);
