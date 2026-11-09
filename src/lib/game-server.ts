@@ -2566,7 +2566,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const orbitalObjective=orbitalBotShouldContest(room.map,room.orbitalCharge,
       roster.find(c=>c.id===bot.id)!,roster,threatDistance)
       ?orbitalBotDeckGoal(bot.pos,bot.team,room.map):null;
-    const ctfIntent = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId)
+    const ctfIntent = !orbitalObjective && room.mode === "ctf" && (bot.team === "red" || bot.team === "blue") && !ctfEngageThreat(threatDistance, bot.weaponId, room.overtime)
       ? ctfBotIntent(room.flags,bot.team,bot.id,bot.pos,bot.weaponId,
           [...room.bots.values()].filter(b=>b.team===bot.team).map(b=>b.id),
           Object.fromEntries(allCombatants(room).filter(p=>p.alive).map(p=>[p.id,p.pos])),room.map,now,room.overtime)
@@ -2898,7 +2898,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const floorMismatch=Math.abs(navPoint[1]-bot.pos[1])>1.15;
     ai.aiming = ai.archetype === "marksman" && d <= 2.5 &&
       !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
-    ai.sprinting=botPatrolSprint(d,ai.difficulty,ai.archetype);
+    // In sudden death, break passive overwatch and sprint between objectives.
+    ai.sprinting=(room.mode==="ctf" && room.overtime && d>6) ||
+      botPatrolSprint(d,ai.difficulty,ai.archetype);
     if(d<=1.5&&!floorMismatch){
       if(ai.investigationLookAt){
         const last=ai.investigationLookAt;
