@@ -10383,8 +10383,10 @@ export class FPSEngine {
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     if (c.ai?.envJumpVelocityY !== undefined) {
       const vy = c.ai.envJumpVelocityY;
-      const airborne=botAirStep(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos,
-        (c.ai.envLaunchX ?? 0)*dt,vy*dt,(c.ai.envLaunchZ ?? 0)*dt);
+      const launchDx=(c.ai.envLaunchX ?? 0)*dt,launchDz=(c.ai.envLaunchZ ?? 0)*dt;
+      const airCover=this.coverAlong(c.pos,
+        [c.pos[0]+launchDx,c.pos[1],c.pos[2]+launchDz],2.5);
+      const airborne=botAirStep(airCover,c.pos,launchDx,vy*dt,launchDz);
       c.pos=airborne.pos;
       c.ai.envJumpVelocityY=airborne.hitCeiling?0:vy-22*orbitalGravity(this.map,c.weaponId)*dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
