@@ -8,7 +8,10 @@ import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
 import { collectorProgress, collectorSkinEntitlements } from "./collector";
 import { cosmeticShopOwnership, parseEquippedCharms, cosmeticById } from "./cosmetics";
-import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { prestigeEligible, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { calculateWonderWallet } from "./wonder-economy";
+import { parseWeaponSetups } from "./weapon-setups";
+import { wonderFinishById, wonderKillEffectById, validWonderModule } from "./wonder-expansion";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
@@ -379,7 +382,8 @@ export interface PlayerProfileView {
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
   career: Awaited<ReturnType<typeof careerContractsView>>;
-  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[]; legacyCredits: number };
+  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[]; legacyCredits: number;
+    wonderPurchases:string[]; wonderSetups:Record<string,{moduleId:string;skinId:string;killEffectId:string}> };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
@@ -518,8 +522,25 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Retired intermediate-tier titles must not remain on nameplates or leave
   // the selector pointing at an option that no longer exists. Awards stay intact.
   const selectedTitle = unlockedTitles.some(t => t.id === p.selectedTitle) ? p.selectedTitle : "";
-  const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true}});
-  const ownedCosmetics=cosmeticShopOwnership(purchases.map(x=>x.itemKey));
+  const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true,currency:true,cost:true}});
+  const purchaseKeys=purchases.map(x=>x.itemKey);
+  const wonderPurchases=purchases.filter(x=>x.currency==="wonder").map(x=>x.itemKey);
+  const ownedCosmetics=cosmeticShopOwnership(purchaseKeys);
+  const wonderSetups:Record<string,{moduleId:string;skinId:string;killEffectId:string}>={};
+  for(const [wonderId,setup] of Object.entries(parseWeaponSetups(p.loadout?.weaponSetups))){
+    if(!wonderWeapons.includes(wonderId))continue;
+    wonderSetups[wonderId]={
+      moduleId:validWonderModule(wonderId,setup.moduleId??"")&&
+        wonderPurchases.includes("module_"+setup.moduleId)?setup.moduleId??"":"",
+      skinId:wonderFinishById(setup.skin)?wonderPurchases.includes(setup.skin+"_"+wonderId)?setup.skin:"":"",
+      killEffectId:wonderKillEffectById(setup.killEffectId??"")&&
+        wonderPurchases.includes(setup.killEffectId+"_"+wonderId)?setup.killEffectId??"":"",
+    };
+  }
+  const activeWonder=loadout.wonderWeaponId;
+  loadout.wonderModuleId=wonderSetups[activeWonder]?.moduleId??"";
+  loadout.wonderSkinId=wonderSetups[activeWonder]?.skinId??"";
+  loadout.wonderKillEffectId=wonderSetups[activeWonder]?.killEffectId??"";
   const selectedNameplate=ownedCosmetics.includes(p.selectedNameplate)?p.selectedNameplate:"standard";
   // Account ownership gates persisted cosmetic choices even for old backup data.
   loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
@@ -559,7 +580,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     weaponProgress,
     operatorContracts,
     career: await careerContractsView(p),
-    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length + wonderLedger.legacyCredits, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons, legacyCredits: wonderLedger.legacyCredits },
+    prestige: { tokens: calculateWonderWallet(tokenReadyWeapons.length,wonderLedger.legacyCredits,wonderWeapons.length,purchases).available,
+      masteredWeapons, tokenReadyWeapons, wonderWeapons, legacyCredits: wonderLedger.legacyCredits,wonderPurchases,wonderSetups },
   };
 }
 
