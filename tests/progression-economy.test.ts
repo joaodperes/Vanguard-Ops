@@ -137,6 +137,7 @@ describe("rebalanced level rewards", () => {
     expect(at("Sentinel-45")).toBe(33);
     expect(at("Hydra Twin")).toBe(37);
     expect(at("Machine Pistol")).toBe(38);
+    expect(at("RL-7 Rocket Launcher")).toBe(39);
     expect(newlyAvailableWeaponsAtLevel(33).map(w => w.name)).toContain("Sentinel-45");
     for (const name of ["Shiv", "Throwing Knives", "Breacher Axe"]) {
       const w = WEAPONS.find(w => w.name === name);
