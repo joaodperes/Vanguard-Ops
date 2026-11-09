@@ -5548,6 +5548,13 @@ export class FPSEngine {
 
   private updateSurvival(dt: number) {
     if (this.matchEnded) return;
+    if(this.survivalDowned && this.survivalDownedUntil>0 &&
+       performance.now()>=this.survivalDownedUntil){
+      this.survivalDowned=false;this.survivalDownedUntil=0;
+      this.alive=false;this.health=0;
+      this.finalizeMatchLocal();
+      return;
+    }
     if (this.survivalPrepLeft > 0) {
       this.survivalPrepLeft -= dt;
       if (this.survivalPrepLeft <= 0) {
@@ -8133,8 +8140,17 @@ export class FPSEngine {
       this.kills += 1;
       this.headshots += head ? 1 : 0;
       if(this.opts.mode==="survival"){
+        const selfRevived=this.survivalDowned;
+        if(selfRevived){
+          this.survivalDowned=false;
+          this.survivalDownedUntil=0;
+          this.health=SURVIVAL_SELF_REVIVE_HP;
+          this.currentSlot="primary";this.weaponId=this.primaryWeaponId;
+          this.eff=this.primaryEff;this.sightDef=this.primarySight;
+          this.refillAmmoOnRespawn();this.buildViewmodel();
+        }
         const reward=survivalKillReward(this.survivalUpgradeRanks,head);
-        this.health=Math.min(MAX_HEALTH,this.health+reward.health);
+        if(!selfRevived)this.health=Math.min(MAX_HEALTH,this.health+reward.health);
         if(weaponById(this.weaponId).category!=="melee"){
           this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reward.ammo);
           this.saveAmmoToSlot(this.currentSlot);
@@ -9565,7 +9581,7 @@ export class FPSEngine {
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    this.camera.position.set(this.pos.x,this.cameraFeetY+EYE_HEIGHT,this.pos.z);
+    this.camera.position.set(this.pos.x,this.cameraFeetY+(this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
     // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
     // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
     // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
@@ -11025,7 +11041,7 @@ export class FPSEngine {
     dmg:number,attackerName:string,attackerTeam:string,head:boolean,
     weaponId="rifle_ar",attackerPos?:Vec3,
   ) {
-    if (!this.alive || (weaponId !== LAVA_DEATH_SOURCE && this.selfSpawnProtectedUntil > Date.now())) return;
+    if (!this.alive || this.survivalDowned || (weaponId !== LAVA_DEATH_SOURCE && this.selfSpawnProtectedUntil > Date.now())) return;
     if(!this.opts.online&&this.opts.mode==="survival"&&weaponId!==LAVA_DEATH_SOURCE)
       dmg*=survivalIncomingMultiplier(this.survivalUpgradeRanks,{
         healthFraction:this.health/MAX_HEALTH,
@@ -11038,6 +11054,21 @@ export class FPSEngine {
     // Hit-taken SFX (sharp low thud). Throttled so a burst doesn't spam.
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
+      if(this.opts.mode==="survival" && weaponId!==LAVA_DEATH_SOURCE &&
+         canUseSelfRevive(this.survivalUpgradeRanks,this.survivalSelfReviveUsedWave,this.survivalWave)){
+        this.survivalSelfReviveUsedWave=this.survivalWave;
+        this.survivalDowned=true;
+        this.survivalDownedUntil=performance.now()+SURVIVAL_SELF_REVIVE_MS;
+        this.health=1;this.alive=true;this.deaths++;
+        this.currentNoDeathStreak=0;
+        this.saveAmmoToSlot(this.currentSlot);
+        this.sprinting=false;this.reloading=false;
+        this.currentSlot="secondary";this.weaponId=this.secondaryWeaponId;
+        this.eff=this.secondaryEff;this.sightDef=this.secondarySight;
+        this.ammoInMag=this.secondaryAmmoInMag;this.buildViewmodel();
+        this.sound.play("death",{volume:.7});
+        return;
+      }
       this.health = 0; this.alive = false; this.deaths += 1;
       this.currentNoDeathStreak = 0;
       // Falling, environmental hazards and friendly damage must not charge
@@ -11267,6 +11298,13 @@ export class FPSEngine {
         survivalTier: this.survivalTier,
         survivalUpgradeOffer:this.survivalUpgradeOffer,
         survivalUpgradeRanks:this.survivalUpgradeRanks,
+        survivalPlayerRanks:this.opts.online
+          ?this.survivalPlayerRanks
+          :{[this.selfId]:this.survivalUpgradeRanks},
+        survivalDownedLeft:this.survivalDownedUntil>0
+          ?Math.ceil(Math.max(0,(this.survivalDownedUntil-
+            (this.opts.online?Date.now():performance.now()))/1000))
+          :undefined,
         survivalModifierNames: survivalWaveMutators(this.survivalTier,this.survivalWave).names,
         survivalBossWave: survivalWaveMutators(this.survivalTier,this.survivalWave).boss,
         survivalEnemiesLeft: this.survivalEnemiesLeft,
