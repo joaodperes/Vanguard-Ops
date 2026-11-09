@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  DEFAULT_SURVIVAL_GOAL, normalizeSurvivalTier, survivalWavesCleared,
+  DEFAULT_SURVIVAL_GOAL, normalizeSurvivalTier, survivalWavesCleared, survivalPrepSeconds,
   survivalIsBossWave, survivalWaveMutators, survivalBotDifficulty, survivalUnlocked,
   survivalRecordMode, ZERO_SURVIVAL_PROGRESS,
 } from "../src/lib/survival";
@@ -24,6 +24,13 @@ describe("survival difficulty progression", () => {
     expect(survivalWavesCleared(30,true)).toBe(29);
     expect(survivalWavesCleared(30,false)).toBe(30);
     expect(survivalWavesCleared(0,false)).toBe(0);
+  });
+  test("preparation starts at two seconds and caps at five by wave ten",()=>{
+    expect(survivalPrepSeconds(1)).toBe(2);
+    expect(survivalPrepSeconds(4)).toBe(3);
+    expect(survivalPrepSeconds(7)).toBe(4);
+    expect(survivalPrepSeconds(10)).toBe(5);
+    expect(survivalPrepSeconds(100)).toBe(5);
   });
   test("unlock chain requires each preceding milestone", () => {
     expect(survivalUnlocked("default",ZERO_SURVIVAL_PROGRESS)).toBe(true);
