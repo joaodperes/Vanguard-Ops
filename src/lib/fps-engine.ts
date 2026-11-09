@@ -7540,8 +7540,18 @@ export class FPSEngine {
           if(v.offline&&!this.matchEnded){
             const point=s.path.impact;
             for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
+            this.damageDeployCoverBlast(point,s.radius,s.damage);
+            if(v.ownerId===this.selfId && this.alive){
+              const center:Vec3=[this.pos.x,this.pos.y+.85,this.pos.z];
+              const d=clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s);
+              const dmg=Math.max(0,Math.min(d,CLUSTER_MAX_DAMAGE-(v.dealt.get(this.selfId)??0)));
+              if(dmg>0 && this.hasLineOfSight(point,center)){
+                v.dealt.set(this.selfId,(v.dealt.get(this.selfId)??0)+dmg);
+                this.takeDamage(dmg,this.opts.playerName,this.opts.team,false,CLUSTER_ID);
+              }
+            }
             for(const target of this.combatants.values()){
-              if(!target.alive||target.id===v.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              if(!target.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
               const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
               const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
               if(dmg<=0||!this.hasLineOfSight(point,center))continue;
