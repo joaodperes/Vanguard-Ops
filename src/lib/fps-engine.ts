@@ -63,7 +63,7 @@ import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
@@ -107,7 +107,7 @@ import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
@@ -785,6 +785,7 @@ export class FPSEngine {
   // used by every mesh in vmParts. Reused each frame without allocations.
   private fpSupportGrip = new THREE.Vector3();
   private fpRestHand = new THREE.Vector3();
+  private fpShellContacts:ReturnType<typeof firstPersonShellContacts>|null=null;
   private fpActionHand: THREE.Group | null = null;
   private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; shoulder: THREE.Mesh } | null = null;
   // The shoulder stays under the viewmodel, independent of the gun.
@@ -3374,6 +3375,7 @@ export class FPSEngine {
     // destroyed, the offhand resumes a conventional two-handed pistol grip.
     const contactId = this.weaponId === RIOT_SHIELD_ID ? "pistol_side" : this.weaponId;
     this.fpSupportGrip.set(...firstPersonSupportGrip(contactId));
+    this.fpShellContacts=firstPersonShellContacts(contactId,this.vmScale);
 
     const hand = new THREE.Group();
     // The glove follows the weapon contact. The arm segments live in a
@@ -3436,6 +3438,7 @@ export class FPSEngine {
     }
     this.fpActionHand = null;
     this.fpSupportArm = null;
+    this.fpShellContacts=null;
     this.fpActionProp = null;
     this.fpActionPropId = "";
   }
@@ -3530,17 +3533,23 @@ export class FPSEngine {
     arm.root.visible = hand.visible;
     if (!hand.visible) return;
 
-    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
-    const shieldEquipped = visualWeaponId === RIOT_SHIELD_ID;
-    const category = weaponById(visualWeaponId).category;
-    const isCompact = usesCompactSupportArm(category,shieldEquipped,!!this.riotShieldModel?.visible);
-    const isLong = !isCompact && usesLongSupportArm(
-      category,WEAPON_VISUALS[visualWeaponId]?.receiver?.[2] ?? 0,shieldEquipped);
-    const frame = supportArmFraming(this.camera.aspect,isCompact,isLong);
-    const upperLength = isCompact ? SUPPORT_SIDEARM_UPPER_LENGTH
-      : isLong ? SUPPORT_LONG_UPPER_ARM_LENGTH : SUPPORT_UPPER_ARM_LENGTH;
-    const forearmLength = isCompact ? SUPPORT_SIDEARM_FOREARM_LENGTH
-      : isLong ? SUPPORT_LONG_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH;
+    const visualWeaponId=this.viewmodelWeaponId||this.weaponId;
+    const shieldEquipped=visualWeaponId===RIOT_SHIELD_ID;
+    const category=weaponById(visualWeaponId).category;
+    // Use the actual model grip at nominal hipfire to calibrate the entire
+    // arsenal. Camera-local shoulder stays stable while ADS/recoil/reload
+    // moves the gun; no arbitrary rifle/DMR/LMG receiver cutoff.
+    const touch=this.touchMode;
+    const nominalWrist:[number,number,number]=[
+      this.fpSupportGrip.x*this.vmScale+(touch?.22:.30)-.045,
+      this.fpSupportGrip.y*this.vmScale+(touch?-.20:-.18)-.125,
+      this.fpSupportGrip.z*this.vmScale+(touch?-.50:-.48)+.10,
+    ];
+    const frame=calibratedSupportArm(
+      category,nominalWrist,this.camera.aspect,
+      shieldEquipped&&!!this.riotShieldModel?.visible,
+    );
+    const {upperLength,forearmLength}=frame;
 
     // Both targets are the exact cuff offset on the animated/rest hand.
     this.fpWrist.set(-.045,-.125,.10).applyQuaternion(hand.quaternion).add(hand.position);
@@ -3599,7 +3608,7 @@ export class FPSEngine {
       const def = weaponById(this.weaponId);
       const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
       progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
-      pose = sampleReloadMotion(progress, style);
+      pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined);
       propId = style;
     }
 
