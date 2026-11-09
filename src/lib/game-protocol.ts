@@ -1519,7 +1519,7 @@ export type S2C =
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
   | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
-  | { t: "equipmentStatus"; effect: "flash" | "taser"; durationMs: number }
+  | { t: "equipmentStatus"; effect: "flash" | "taser"; durationMs: number; visualDurationMs?: number }
   | { t: "equipmentStatusFx"; effect: "flash" | "taser"; victimId: string; durationMs: number }
   | { t: "equipmentState"; remaining: number; nextRechargeMs?: number }
   | { t: "equipmentRejected"; reason: string }
