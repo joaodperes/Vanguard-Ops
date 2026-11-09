@@ -267,24 +267,78 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       goal = difficulty >= 2 ? 8 + difficulty * 5 : 24 + difficulty * 12;
       break;
   }
-  // Every attachment in a slot gets a distinct requirement, not one generic
-  // magazine/sight/grip challenge repeated for the entire weapon. Keep the
-  // criteria achievable without first owning the attachment being unlocked.
+
+  // Rotate within curated CATEGORY + SLOT objectives instead of a generic
+  // positional list. No attachment requires itself to be equipped first.
   const attachmentIndex = compatibleAttachments(weaponId, attachment.slot).indexOf(attachmentId);
+  const styles: Record<string, Record<AttachmentSlot, WeaponChallengeMetric[]>> = {
+    assault: {
+      sight: ["hipfire_kills", "ads_kills", "bare_kills", "long_range_kills"],
+      barrel: ["bare_kills", "ads_kills", "hipfire_kills", "multikill_kills"],
+      grip: ["hipfire_kills", "ads_kills", "airborne_kills", "bare_kills"],
+      magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "long_range_kills"],
+    },
+    smg: {
+      sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
+      barrel: ["bare_kills", "ads_kills", "hipfire_kills", "comeback_kills"],
+      grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills"],
+      magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills"],
+    },
+    shotgun: {
+      sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
+      barrel: ["bare_kills", "close_range_kills", "hipfire_kills", "ads_kills"],
+      grip: ["hipfire_kills", "close_range_kills", "ads_kills", "bare_kills"],
+      magazine: ["kills", "ads_kills", "close_range_kills", "hipfire_kills", "comeback_kills", "bare_kills"],
+    },
+    dmr: {
+      sight: ["long_range_kills", "ads_kills", "bare_kills", "comeback_kills"],
+      barrel: ["bare_kills", "ads_kills", "long_range_kills", "comeback_kills"],
+      grip: ["ads_kills", "long_range_kills", "bare_kills", "comeback_kills"],
+      magazine: ["kills", "ads_kills", "long_range_kills", "bare_kills", "comeback_kills"],
+    },
+    sniper: {
+      sight: ["long_range_kills", "ads_kills", "bare_kills", "comeback_kills"],
+      barrel: ["bare_kills", "ads_kills", "long_range_kills", "comeback_kills"],
+      grip: ["ads_kills", "long_range_kills", "bare_kills", "comeback_kills"],
+      magazine: ["kills", "ads_kills", "long_range_kills", "bare_kills", "comeback_kills"],
+    },
+    lmg: {
+      sight: ["ads_kills", "bare_kills", "long_range_kills", "hipfire_kills"],
+      barrel: ["bare_kills", "ads_kills", "long_range_kills", "multikill_kills"],
+      grip: ["ads_kills", "multikill_kills", "long_range_kills", "bare_kills"],
+      magazine: ["kills", "multikill_kills", "ads_kills", "long_range_kills", "hipfire_kills"],
+    },
+    pistol: {
+      sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
+      barrel: ["bare_kills", "ads_kills", "hipfire_kills", "comeback_kills"],
+      grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills"],
+      magazine: ["kills", "ads_kills", "hipfire_kills", "close_range_kills"],
+    },
+    pdw: {
+      sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
+      barrel: ["bare_kills", "ads_kills", "hipfire_kills", "comeback_kills"],
+      grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills"],
+      magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills"],
+    },
+    launcher: {
+      sight: ["ads_kills", "bare_kills", "comeback_kills", "kills"],
+      barrel: ["bare_kills", "ads_kills", "multikill_kills", "comeback_kills"],
+      grip: ["ads_kills", "bare_kills", "comeback_kills", "kills"],
+      magazine: ["kills", "ads_kills", "bare_kills", "comeback_kills"],
+    },
+    melee: { sight: [], barrel: [], grip: [], magazine: [] },
+  };
+  const slotStyles = (styles[weapon.category] ?? styles.assault)[attachment.slot];
   const objectives: Record<string, WeaponChallengeMetric> = {
     mag_extended: "kills", mag_quickdraw: "ads_kills",
     mag_drum: "multikill_kills", mag_balanced: "hipfire_kills",
     mag_shell_carrier: "close_range_kills",
   };
-  const styles: Record<string, WeaponChallengeMetric[]> = {
-    sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills", "airborne_kills"],
-    barrel: ["bare_kills", "ads_kills", "hipfire_kills", "multikill_kills", "comeback_kills"],
-    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills", "bare_kills"],
-    magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "close_range_kills"],
-  };
-  metric = objectives[attachmentId] ??
-    (weapon.category === "sniper" && attachment.slot === "sight" ? "long_range_kills"
-      : styles[attachment.slot][attachmentIndex % styles[attachment.slot].length]);
+  const named = objectives[attachmentId];
+  const precision = weapon.category === "sniper" || weapon.category === "dmr";
+  const unsuitedForPrecision = ["hipfire_kills", "close_range_kills", "airborne_kills", "multikill_kills"];
+  metric = named && !(precision && unsuitedForPrecision.includes(named))
+    ? named : slotStyles[attachmentIndex % slotStyles.length];
   goal += Math.max(0, attachmentIndex) * 6;
   if (attachmentId === "barrel_poison") { metric = "bare_kills"; goal = 45; }
   const circumstances: Partial<Record<WeaponChallengeMetric, string>> = {
@@ -324,6 +378,7 @@ export function operatorContract(skinId: string): ArmoryChallengeDef | null {
 }
 
 export interface WeaponMasteryTier { rank: number; title: string; kills: number; headshots: number }
+// Reference precision-rifle targets; other classes have tailored headshot gates.
 export const WEAPON_MASTERY_TIERS: WeaponMasteryTier[] = [
   { rank: 1, title: "Recruit", kills: 20, headshots: 0 },
   { rank: 2, title: "Skilled", kills: 60, headshots: 25 },
@@ -331,13 +386,34 @@ export const WEAPON_MASTERY_TIERS: WeaponMasteryTier[] = [
   { rank: 4, title: "Veteran", kills: 300, headshots: 150 },
   { rank: 5, title: "Elite", kills: 600, headshots: 330 },
 ];
+const MASTERY_HEADSHOTS: Record<string, readonly number[]> = {
+  assault: [0, 12, 35, 80, 170],
+  smg: [0, 8, 24, 50, 110],
+  shotgun: [0, 0, 0, 0, 0],
+  dmr: [0, 25, 70, 150, 330],
+  sniper: [0, 25, 70, 150, 330],
+  lmg: [0, 8, 26, 55, 120],
+  pistol: [0, 14, 40, 80, 175],
+  pdw: [0, 8, 24, 50, 100],
+  launcher: [0, 0, 0, 0, 0],
+  melee: [0, 0, 0, 0, 0],
+};
+/** Kill milestones stay constant, but classes without consistent headshot
+ * mechanics (shotguns, launchers, melee) no longer have impossible mastery.
+ */
+export function weaponMasteryTiers(weaponId?: string): WeaponMasteryTier[] {
+  const category = WEAPONS.find(w => w.id === weaponId)?.category;
+  const thresholds = category ? MASTERY_HEADSHOTS[category] : undefined;
+  return WEAPON_MASTERY_TIERS.map((tier, i) => ({
+    ...tier, headshots: thresholds?.[i] ?? tier.headshots,
+  }));
+}
 export function weaponMasteryProgress(kills: number, headshots: number, weaponId?: string) {
-  // Melee strikes cannot headshot, so they earn the same rank from kills alone.
-  const isMelee = !!weaponId && WEAPONS.some(w => w.id === weaponId && w.category === "melee");
-  const rank = WEAPON_MASTERY_TIERS.filter(t => kills >= t.kills && (isMelee || headshots >= t.headshots)).length;
+  const tiers = weaponMasteryTiers(weaponId);
+  const rank = tiers.filter(t => kills >= t.kills && headshots >= t.headshots).length;
   return {
-    rank, title: rank ? WEAPON_MASTERY_TIERS[rank - 1].title : "Unranked",
-    next: WEAPON_MASTERY_TIERS[rank] ?? null,
+    rank, title: rank ? tiers[rank - 1].title : "Unranked",
+    next: tiers[rank] ?? null,
     kills, headshots,
   };
 }
