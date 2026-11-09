@@ -306,6 +306,7 @@ export function buildFirstPersonWeapon(
   const geo = new THREE.ExtrudeGeometry(shape,{depth:w, bevelEnabled:true, bevelThickness:.006, bevelSize:.006, bevelSegments:1,steps:1});
   geo.rotateY(Math.PI/2); // polygon's local x becomes -Z; extrusion depth becomes +X
   const receiver = new THREE.Mesh(geo,bodyMat);
+  receiver.name = "weapon_receiver";
   // A conventional pistol's extruded receiver fills the cylinder aperture
   // and hides the rounded chamber profile. Bastion instead uses an OPEN,
   // curved frame with topstrap, breech, trigger guard and rounded butt.
@@ -396,7 +397,19 @@ export function buildFirstPersonWeapon(
     const pistol = id.startsWith("pistol_") || id === "launcher_rocket";
     const gripZ = pistol ? c+.08 : c + .20;
     const grip = box(0,-.105,gripZ,.068,.16,.095,darkMat);
+    grip.name = "weapon_grip";
     grip.rotation.x = -.27;
+    // Compact receivers end ahead of the standard trigger/grip anchor.
+    // Add a solid lower-frame tang so the grip never appears to float behind
+    // SMGs, PDWs and compact experimental weapons. Keep hold/hand coordinates.
+    const receiverRear = c + l / 2;
+    const gripFront = gripZ - .095 / 2;
+    if (gripFront > receiverRear - .02) {
+      const start = receiverRear - .035;
+      const end = gripFront + .045;
+      const tang = box(0,-.085,(start + end) / 2,.065,.095,end-start,darkMat);
+      tang.name = "weapon_grip_tang";
+    }
     box(w/2+.009,.012,c,.018,h*.60,l*.55,darkMat); // left/right receiver plate
     box(-w/2-.009,.012,c,.018,h*.60,l*.55,darkMat);
     box(w/2+.020,.025,c-.025,.008,.025,l*.25,sig);
@@ -411,7 +424,8 @@ export function buildFirstPersonWeapon(
       // rectangular pistol-style handguards would conceal the chamber rim.
       tube(0,-.004,guardZ,.048,p.guardLength+.035,bodyMat,18);
     }else{
-      box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,bodyMat);
+      const handguard = box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,bodyMat);
+      handguard.name = "weapon_handguard";
       const vents = id.includes("heavy") || p.features.includes("vent") ? 5 : 3;
       for(let i=0;i<vents;i++) {
         const vz=guardZ-p.guardLength*.37+(i/(vents-1))*p.guardLength*.74;
@@ -421,12 +435,19 @@ export function buildFirstPersonWeapon(
     }
   }
   const muzzle = c-l/2-p.guardLength-p.barrelLength+.04;
-  const barrelCenter=(guardFront+muzzle)/2;
-  const barrelLength=Math.max(.08,guardFront-muzzle);
+  // Seat the barrel 2 cm inside its handguard. Previously the barrel and
+  // handguard only met at a coplanar face, which could expose a hairline seam.
+  const barrelCenter=(guardFront+muzzle)/2+.01;
+  const barrelLength=Math.max(.08,guardFront-muzzle)+.02;
   if (p.magazine==="rocket") {
-    tube(0,.0,c-.29,p.bore,.95,bodyMat,18);
+    // One continuous launch tube must run THROUGH both muzzle collars.
+    // The old .95-length core stopped 7.5 mm short of the first collar,
+    // with another 4 cm gap before the outer ring.
+    const core=tube(0,.0,c-.37,p.bore,1.11,bodyMat,18);
+    core.name = "weapon_launcher_tube";
     tube(0,.0,c+.14,.134,.11,darkMat,18); // rear exhaust
-    tube(0,.0,c-.80,.128,.055,sig,18);      // forward muzzle ring
+    const collar=tube(0,.0,c-.80,.128,.055,sig,18);
+    collar.name = "weapon_launcher_front_ring";
     box(0,.16,c-.22,.11,.03,.38,darkMat);
     box(0,-.20,c+.09,.09,.17,.12,darkMat);
     // Oversized fluted launch tube, shoulder cheek rest and side safety housing.
@@ -434,10 +455,12 @@ export function buildFirstPersonWeapon(
     box(-.135,.03,c-.26,.045,.14,.28,sig);
     box(.135,-.075,c-.08,.052,.125,.23,darkMat);
     tube(0,.0,c-.66,.125,.05,edge,18);
-    tube(0,.0,c-.89,.115,.045,metal,18);
+    const muzzleCollar=tube(0,.0,c-.89,.115,.045,metal,18);
+    muzzleCollar.name = "weapon_launcher_muzzle_ring";
     return c-.91;
   }
-  tube(0,.0,barrelCenter,p.bore,barrelLength,metal,14);
+  const mainBarrel=tube(0,.0,barrelCenter,p.bore,barrelLength,metal,14);
+  mainBarrel.name = "weapon_barrel";
   tube(0,.0,muzzle+.02,p.bore*1.22,.06,edge,14);
   if(id==="pistol_bastion"){
     // Thick, circular heavy-revolver barrel shroud (not a square slide).
@@ -498,8 +521,13 @@ export function buildFirstPersonWeapon(
   } else if (id === "pistol_arc") {
     const violet = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
     // Concentric emitter coils around an unmistakably wide front capacitor.
+    // A continuous emitter shroud ties the three visible coils to the
+    // barrel: they are mechanical rings, not free-floating energy effects.
+    const coilSleeve=tube(0,.017,muzzle+.08,.056,.21,darkMat,16);
+    coilSleeve.name = "weapon_arc_coil_sleeve";
     for (const z of [muzzle+.015, muzzle+.080, muzzle+.145]) {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(.063,.012,7,20), violet);
+      ring.name = "weapon_arc_coil";
       add(ring, 0, .017, z);
     }
     box(-w*.62,.010,c,.025,.050,.145,violet);
@@ -582,27 +610,52 @@ export function buildFirstPersonWeapon(
   if (p.features.includes("muzzle")) tube(0,0,muzzle+.015,p.bore*1.45,.075,sig,14);
   if (p.features.includes("shield")) box(0,.075,guardZ,.19,.085,p.guardLength*.72,bodyMat);
   if (p.features.includes("rail") || p.features.includes("scope")) {
-    box(0,h*.64,c-.12,.045,.025,Math.min(.48,l+.12),darkMat);
-    for (let i=0;i<5;i++) box(0,h*.78,c-.31+i*.07,.065,.014,.026,edge);
+    // The previous h*.64 rail sat ABOVE short/slim receivers with no mount.
+    // Seat it against the actual roof of this weapon's polygonal receiver.
+    const roofY = -.013 + Math.max(...silhouette.map(([,y]) => y)) * h;
+    const railY = roofY + .007;
+    const rail = box(0,railY,c-.12,.045,.025,Math.min(.48,l+.12),darkMat);
+    rail.name = "weapon_top_rail";
+    for (let i=0;i<5;i++) box(0,railY+.016,c-.31+i*.07,.065,.014,.026,edge);
   }
   if (p.features.includes("carry")) {
-    // Big raised carry arch: horizontal bridge with two support posts.
-    box(-w*.39,h*.77,c+.04,.027,.12,.045,darkMat);
-    box(w*.39,h*.77,c+.04,.027,.12,.045,darkMat);
-    box(0,h*1.16,c+.04,w*.9,.03,.16,darkMat);
+    // Taller posts overlap both the receiver roof and the crossbar, including
+    // on heavy LMGs where the old posts stopped short of the bridge.
+    for (const side of [-1,1]) {
+      const post=box(side*w*.39,h*.77,c+.04,.027,.16,.045,darkMat);
+      post.name="weapon_carry_post";
+    }
+    const bridge=box(0,h*1.16,c+.04,w*.9,.03,.16,darkMat);
+    bridge.name="weapon_carry_bridge";
   }
-  if (p.features.includes("guard")) box(0,-.15,guardZ+.07,.075,.12,.055,darkMat);
+  if (p.features.includes("guard")) {
+    // This lower guard used to stop below the handguard (and behind it on
+    // short PDWs). Move it into the handguard volume to make a solid mount.
+    const lowerGuard=box(0,-.115,guardZ+Math.min(.07,p.guardLength*.20),.075,.19,.055,darkMat);
+    lowerGuard.name="weapon_under_guard";
+  }
   if (p.features.includes("pump")) {
     box(0,-.069,guardZ,.13,.085,.24,sig);  // moving pump grip
     tube(0,-.062,guardZ,.026,p.guardLength*.90,metal);
   }
   if (p.features.includes("shells")) {
-    for(let i=0;i<5;i++) tube(w*.72,-.05,c-.16+i*.06,.016,.07,sig,9);
+    // Side-saddle bracket reaches the receiver AND every spare shell.
+    // Without the bracket the shotgun's shell row floated off its flank.
+    const saddle=box(w*.59,-.05,c-.04,.055,.095,.34,darkMat);
+    saddle.name="weapon_shell_holder";
+    for(let i=0;i<5;i++){
+      const shell=tube(w*.72,-.05,c-.16+i*.06,.016,.07,sig,9);
+      shell.name="weapon_shell";
+    }
   }
   if (p.features.includes("bipod")) {
     const legZ=guardFront+.07;
+    // A cross-mount joins the legs to narrow DMR/sniper/LMG handguards.
+    const mount=box(0,-.04,legZ,.21,.095,.045,darkMat);
+    mount.name="weapon_bipod_mount";
     for (const sign of [-1,1]) {
       const leg=box(sign*.075,-.14,legZ,.027,.28,.026,metal);
+      leg.name="weapon_bipod_leg";
       leg.rotation.z=sign*.25;
     }
   }
@@ -624,7 +677,7 @@ export function buildFirstPersonWeapon(
       magBox(0,-.29,magZ-.065,.091,.02,.13,sig);
       break;
     }
-    case "straight": magBox(0,-.17,magZ,.069,.22,.085,darkMat); magBox(0,-.28,magZ,.080,.02,.091,sig);break;
+    case "straight": magBox(0,-.15,magZ,.069,.22,.085,darkMat); magBox(0,-.25,magZ,.080,.02,.091,sig);break;
     case "drum": {
       const drum=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.10,18),darkMat);
       drum.rotation.z=Math.PI/2;drum.userData.fpMagazine = true; add(drum,0,-.16,magZ);
@@ -710,17 +763,43 @@ export function buildFirstPersonWeapon(
   // Rear furniture — unmistakable skeletons, heavy stocks, bullpup cheek pads, etc.
   const rearZ=c+l/2+.05;
   switch (p.stock) {
-    case "fixed":box(0,-.025,rearZ+.07,.115,.135,.20,darkMat);box(0,.05,rearZ+.07,.085,.02,.17,sig);break;
-    case "heavy":box(0,-.035,rearZ+.055,w*.96,.18,.23,darkMat);box(0,-.07,rearZ+.16,w*1.05,.20,.037,sig);break;
+    case "fixed":{
+      // Preserve the butt position while extending the stock into the receiver.
+      const stem=box(0,-.025,rearZ+.05,.115,.135,.24,darkMat);
+      stem.name="weapon_stock_stem";
+      box(0,.05,rearZ+.07,.085,.02,.17,sig);
+      break;
+    }
+    case "heavy":{
+      const stem=box(0,-.035,rearZ+.055,w*.96,.18,.23,darkMat);
+      stem.name="weapon_stock_stem";
+      box(0,-.07,rearZ+.16,w*1.05,.20,.037,sig);
+      break;
+    }
     case "wire":
     case "folding": {
-      for(const sign of [-1,1]) box(sign*.054,-.035,rearZ+.065,.025,.027,.22,metal);
+      for(const sign of [-1,1]) {
+        // Lengthen forward without moving the butt, closing the old 5 mm gap.
+        const stem=box(sign*.054,-.035,rearZ+.04,.025,.027,.27,metal);
+        stem.name="weapon_stock_stem";
+      }
       box(0,-.065,rearZ+.17,.13,.11,.035,sig);
       break;
     }
-    case "bullpup":box(0,.052,rearZ-.035,w*1.05,.12,.19,bodyMat);box(0,-.065,rearZ+.075,w*1.08,.08,.12,darkMat);break;
+    case "bullpup":{
+      const stem=box(0,.052,rearZ-.035,w*1.05,.12,.19,bodyMat);
+      stem.name="weapon_stock_stem";
+      const lower=box(0,-.065,rearZ+.075,w*1.08,.08,.12,darkMat);
+      lower.name="weapon_stock_lower";
+      const bridge=box(0,-.015,rearZ+.075,w*.75,.07,.055,bodyMat);
+      bridge.name="weapon_stock_bridge";
+      break;
+    }
     case "precision": {
-      for(const sign of [-1,1]) box(sign*.048,-.013,rearZ+.075,.022,.036,.23,metal);
+      for(const sign of [-1,1]){
+        const stem=box(sign*.048,-.013,rearZ+.045,.022,.036,.29,metal);
+        stem.name="weapon_stock_stem";
+      }
       box(0,.005,rearZ+.075,.12,.025,.19,sig);
       box(0,-.13,rearZ+.18,.10,.21,.038,darkMat);
       break;
