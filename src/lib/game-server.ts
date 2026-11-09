@@ -34,7 +34,7 @@ import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowin
 import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
-import { damageBallisticCoverOnShot } from "./material-cover-damage";
+import { damageBallisticCoverOnShot, damageBallisticCoverFromExplosion } from "./material-cover-damage";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
@@ -45,7 +45,7 @@ import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from
 import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
-import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
+import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload, isFanHammer } from "./weapon-mechanics";
@@ -950,6 +950,13 @@ function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
   }
 }
 
+/** Online detonations damage map cover only on the authoritative server. */
+function blastMaterialCover(room:Room,pos:Vec3,radius:number,damage:number):void{
+  for(const impact of damageBallisticCoverFromExplosion(room.map,room.materialCoverHp,
+    room.materialCoverDestroyed,pos,radius,damage))
+    io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
+}
+
 /** Conventional hitscan rounds can cross explicitly tagged thin cover.
  * Structural cover, Bulwark shields and protected spawns still absorb shots. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
@@ -1129,6 +1136,7 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
             if(!victim.isBot)io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"flash",durationMs:duration} as S2C);
           }
         }
+        if(def.type==="blast")blastMaterialCover(room,impact,def.radius,def.damage);
       }
     },path.flightMs);
   }
@@ -1477,6 +1485,7 @@ function tickSpecialEffects(room: Room, now: number) {
     room.deathBombs.delete(id); // disarm first: no repeat detonations
     io.to(room.id).emit("message", { t: "deathBombExplode", id, pos: bomb.pos } as S2C);
     destroyTurretsNear(room, bomb.pos, 5);
+    blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE);
     for (const target of allCombatants(room)) {
       if (!target.alive || !explonandoCanHit(room.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
       const distance = Math.hypot(target.pos[0]-bomb.pos[0], target.pos[2]-bomb.pos[2]);
@@ -1521,6 +1530,7 @@ function tickSpecialEffects(room: Room, now: number) {
       const dmg=direct?equipmentById("mine").damage:mineSplashDamage(dist);
       if(dmg>0)applyDamage(room,mine.ownerId,c,dmg,false,"equipment_mine",false,direct);
     }
+    blastMaterialCover(room,mine.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage);
     if (room.ended) return;
   }
   for (const [id, drop] of room.droppedBolts) {
@@ -3693,6 +3703,7 @@ async function handle(socket: any, msg: C2S) {
             }
           }
         }
+        blastMaterialCover(room,impact,splashRadius,eff.damage);
         } // Other explosives retain their immediate splash behavior.
       } else {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
