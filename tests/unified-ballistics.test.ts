@@ -89,6 +89,20 @@ describe("unified ammunition penetration",()=>{
     expect(damageBallisticCoverOnShot(map,new Map(),new Set(),origin,dir,30,
       gun.stats.coverPenetration!,gun.stats.damage,stop)).toEqual([]);
   });
+  test("special piercing crossbow bolts retain two-body behavior without piercing walls",()=>{
+    const bolt=computeEffectiveStats(weaponById("crossbow_reclaimer"),{
+      ...empty,barrel:"barrel_bolt_piercing",
+    });
+    expect(bolt.coverPenetration).toBeUndefined();
+    expect(bolt.bodyPenetration?.maxTargets).toBe(2);
+    const bodies=[dummy(3,"first"),dummy(7,"second"),dummy(11,"third")];
+    const open=resolveMaterialPenetrationShot(bodies,[],origin,dir,25,
+      bolt.bodyPenetration,bolt.coverPenetration);
+    expect(open.hits.map(h=>h.target)).toEqual(["first","second"]);
+    const behindWall=resolveMaterialPenetrationShot(bodies,[cover(5,"glass",.3)],
+      origin,dir,25,bolt.bodyPenetration,bolt.coverPenetration);
+    expect(behindWall.hits.map(h=>h.target)).toEqual(["first"]);
+  });
   test("slug ammo is a single better-penetrating projectile than eight ordinary pellets",()=>{
     const gun=weaponById("shotgun_br");
     const regular=computeEffectiveStats(gun,empty);
