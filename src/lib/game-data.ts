@@ -255,6 +255,9 @@ export interface ResolvedLoadout {
   equipmentId: import("./equipment").EquipmentId;
   perkId: PerkId;
   wonderWeaponId: string;
+  wonderModuleId?: string;
+  wonderSkinId?: string;
+  wonderKillEffectId?: string;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
