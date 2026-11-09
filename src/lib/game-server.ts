@@ -3709,7 +3709,7 @@ async function handle(socket: any, msg: C2S) {
         if (coverImpact) impactT = coverImpact.distance;
         for (const e of allCombatants(room)) {
           if (e.id === socket.id || !e.alive) continue;
-          if (room.config.friendlyFire === false && e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
+          if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
           const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
           const hit = rayCapsule(msg.origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
           if (hit && hit.t >= 0 && hit.t < impactT) impactT = hit.t;
