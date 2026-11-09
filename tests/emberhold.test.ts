@@ -44,6 +44,46 @@ describe("Emberhold Castle", () => {
     expect(map.environment?.filter(o => o.type === "lava")).toHaveLength(4);
   });
 
+  test("outer stair walls have collision-open loopholes and larger landing windows", () => {
+    // Probe the actual compiled map: a cosmetic texture cutout would fail.
+    const openings: {point: Vec3; sill: number; lintel: number}[] = [
+      {point: [-11.5, 8.3, -7.5], sill: 7.0, lintel: 9.65},
+      {point: [-11.5, 14.0, 0.4], sill: 12.8, lintel: 15.4},
+      {point: [-11.5, 22.0, 7.4], sill: 20.9, lintel: 23.2},
+      {point: [11.5, 13.0, -7.4], sill: 11.95, lintel: 14.25},
+      {point: [11.5, 16.0, 0.3], sill: 14.9, lintel: 17.3},
+      {point: [11.5, 18.2, 7.3], sill: 17.2, lintel: 19.5},
+      {point: [-7.5, 9.1, -11.5], sill: 8.0, lintel: 10.3},
+      {point: [0.4, 13.0, -11.5], sill: 11.7, lintel: 14.3},
+      {point: [-1.7, 22.0, 11.5], sill: 21.0, lintel: 23.4},
+      {point: [7, 18.1, 11.5], sill: 17.0, lintel: 19.4},
+    ];
+    const stoneAt = ([x, y, z]: Vec3) => map.cover.some(box =>
+      box.kind === "cover" &&
+      Math.abs(x - box.pos[0]) < box.size[0] - 0.001 &&
+      Math.abs(y - box.pos[1]) < box.size[1] - 0.001 &&
+      Math.abs(z - box.pos[2]) < box.size[2] - 0.001
+    );
+    for (const {point, sill, lintel} of openings) {
+      expect(stoneAt(point)).toBe(false);
+      expect(stoneAt([point[0], sill, point[2]])).toBe(true);
+      expect(stoneAt([point[0], lintel, point[2]])).toBe(true);
+    }
+  });
+
+  test("stair parapet merlons run along all four outer keep walls", () => {
+    const merlons = MAP_DOCUMENTS.emberhold.blueprint.features.filter(f =>
+      f.id.startsWith("donjon-outer-merlon-"));
+    expect(merlons).toHaveLength(24);
+    expect(merlons.every(f => f.kind === "cover" && f.y === 25 && f.h >= 1.4)).toBe(true);
+    for (const face of ["west", "east", "north", "south"]) {
+      expect(merlons.some(f => f.id.startsWith(`donjon-outer-merlon-${face}-`))).toBe(true);
+    }
+    // Existing keep ascent is still navigable from both directions.
+    expect(botTraversableEdge([-8, 10, -8], 8, -8, map.cover, map.environment)).toBe(15);
+    expect(botTraversableEdge([8, 20, 8], -8, 8, map.cover, map.environment)).toBe(25);
+  });
+
   test("a full 32-player lobby has distinct spawns on safe, supported ground", () => {
     for (const point of map.spawns.ffa) {
       expect(spawnClear(map, point)).toBe(true);
