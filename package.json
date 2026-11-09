@@ -21,7 +21,9 @@
     "db:setup": "prisma generate && prisma db push",
     "content:validate": "bun scripts/validate-content.ts",
     "schema:map-theme": "bun scripts/sync-map-theme-schema.ts",
-    "schema:map-theme:check": "bun scripts/sync-map-theme-schema.ts --check"
+    "schema:map-theme:check": "bun scripts/sync-map-theme-schema.ts --check",
+    "schema:catalogs": "bun scripts/sync-catalog-schemas.ts",
+    "schema:catalogs:check": "bun scripts/sync-catalog-schemas.ts --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

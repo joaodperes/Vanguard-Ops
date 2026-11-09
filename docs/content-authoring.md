@@ -22,6 +22,26 @@ Static data used by both the browser and multiplayer server is now read through 
 
 **Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Built-in template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
+## Canonical catalog validation and generated JSON Schemas
+
+All shipped `src/data/catalogs/*.json` files have structural Zod contracts in
+`src/lib/catalog-contract.ts`. `src/lib/content-validation.ts` consumes these
+schemas and performs the additional **semantic** checks (unique IDs, valid
+references, attachments, unlock limits and gameplay-specific eligibility).
+Do not create a second whitelist or manually edit an external catalog schema.
+For weapons, attachments, skins and weapon challenges, regenerate published
+JSON Schemas with `bun run schema:catalogs`; `bun run content:validate`
+rejects drift. Fields like combat metrics are enumerated from this contract
+and reused by gameplay TypeScript types. Review new effect mechanics in both
+the server and offline engine; a valid JSON document alone cannot implement
+gameplay.
+
+Passive perks and tactical equipment are still TypeScript-authored because
+their behavior is implemented in shared code. Their metadata shape is checked
+in `src/lib/loadout-contract.ts` without pretending it is a JSON content catalog.
+Do not add a new tactical type or perk effect without implementing behavior and
+covering it with regression tests.
+
 ## Shared theme/prop validation
 
 The canonical map theme and prop contract is `src/lib/map-theme-contract.ts`.

@@ -28,7 +28,8 @@ import killstreakCalloutsData from "../data/catalogs/killstreak-callouts.json";
 
 import {ORBITAL_REAPER,ORBITAL_REAPER_ID} from "./orbital-reactor";
 
-export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "launcher" | "melee";
+// Category values belong to the shared content contract.
+export type WeaponCategory = import("./catalog-contract").CatalogWeaponCategory;;
 
 // Weapon slots are the three loadout positions a player can equip.
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
@@ -117,7 +118,7 @@ export function projectileSplashRadius(weapon: WeaponDef): number {
   return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
 }
 
-export type AttachmentSlot = "sight" | "barrel" | "grip" | "magazine";
+export type AttachmentSlot = import("./catalog-contract").CatalogAttachmentSlot;;
 
 // All 4 attachment slots, in canonical display order.
 export const ALL_ATTACHMENT_SLOTS: AttachmentSlot[] = ["sight", "barrel", "grip", "magazine"];
@@ -161,16 +162,7 @@ export function weaponAttachmentSlots(weapon: WeaponDef): AttachmentSlot[] {
 // Sight attachments reference a SightType, which carries the optic's zoom level,
 // reticle style, and any ADS visual overlay (thermal/NVG tint, laser beam, etc.).
 // "iron" is the default sight used when no sight attachment is equipped.
-export type SightType =
-  | "iron"
-  | "red_dot"
-  | "holo"
-  | "acog"
-  | "hunter"
-  | "thermal"
-  | "nvg"
-  | "laser"
-  | "sniper_scope";
+export type SightType = import("./catalog-contract").CatalogSightType;
 
 export interface SightDef {
   type: SightType;
@@ -364,12 +356,8 @@ export const PLAYER_SKINS: PlayerSkinDef[] = operatorSkinsData as unknown as Pla
 // match-completion flow auto-grants the skin when a challenge is cleared.
 // ============================================================================
 // Persistent per-elimination conditions shared by gameplay and progression.
-export type WeaponConditionMetric =
-  | "bare_kills" | "fully_equipped_kills" | "ads_kills"
-  | "hipfire_kills" | "airborne_kills" | "close_range_kills"
-  | "long_range_kills" | "multikill_kills"
-  | "suppressed_kills" | "critical_health_kills" | "comeback_kills";
-export type WeaponChallengeMetric = "kills" | "headshots" | WeaponConditionMetric;
+export type WeaponConditionMetric = import("./catalog-contract").CatalogWeaponConditionMetric;
+export type WeaponChallengeMetric = import("./catalog-contract").CatalogWeaponChallengeMetric;
 
 export interface WeaponChallengeDef {
   id: string;
@@ -633,28 +621,7 @@ export function nextRank(level: number): RankDef | null {
 // DAILY CHALLENGES — 3 rotating objectives. The current set is determined by
 // the day-of-year so all players share the same set on a given day.
 // ============================================================================
-export type ChallengeMetric =
-  | "kills"
-  | "headshots"
-  | "wins"
-  | "matches"
-  | "tdm_kills"
-  | "ffa_kills"
-  | "kills_with_shotgun"
-  | "kills_with_sniper"
-  // Task 18-c+d: secondary (sidearm) + melee kill metrics for the new
-  // Sidearm Slinger / Blade Master daily challenges and Pistolero / Edgewalker
-  // weekly challenges. metricDelta in player-service.ts is updated separately
-  // by the main agent to handle these.
-  | "kills_with_secondary"
-  | "kills_with_melee"
-  | "multikills" // double-kill or better
-  | "survival_kills"
-  | "survival_waves"
-  | "gungame_kills"
-  | "kill_confirmations"
-  | "kill_denials"
-  | "level";   // elite quests: lifetime player level
+export type ChallengeMetric = import("./catalog-contract").CatalogChallengeMetric;
 
 export interface ChallengeDef {
   id: string;
@@ -800,35 +767,7 @@ export interface AchievementDef {
   description: string;
   icon: string;
   // The metric checked against player lifetime stats
-  metric:
-    | "kills"
-    | "headshots"
-    | "wins"
-    | "matches"
-    | "level"
-    | "credits_earned_total"
-    | "survival_waves"
-    | "survival_default_wins"
-    | "survival_hard_waves"
-    | "survival_elite_waves"
-    | "survival_nightmare_waves"
-    // 17-C: quest-completion lifetime counters (Player model columns)
-    | "daily_challenges_completed"
-    | "weekly_challenges_completed"
-    | "elite_challenges_completed"
-    | "total_challenges_completed"
-    // 19a+19b: Lifetime best kill streak (Player.bestKillstreak). Distinct
-    // from the "multikills" ChallengeMetric which counts the NUMBER of
-    // double-kill-or-better streaks; this tracks the highest streak length
-    // achieved across all matches. Drives the Triple Threat / Killstreak King /
-    // Untouchable Force tiered achievements.
-    | "best_killstreak"
-    | "ctf_captures"
-    | "ctf_wins"
-    | "mastery_recruits"
-    | "mastery_specialists"
-    | "mastery_elites"
-    | "collection_percent";
+  metric: import("./catalog-contract").CatalogAchievementMetric;
   goal: number;
   tier: "bronze" | "silver" | "gold" | "platinum";
   rewardXp: number;

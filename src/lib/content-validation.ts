@@ -1,4 +1,10 @@
 import { CTF_LAYOUTS } from "./ctf-layouts";
+import {EQUIPMENT} from "./equipment";
+import {PERKS} from "./perks";
+import {PERKS_SCHEMA,EQUIPMENT_SCHEMA} from "./loadout-contract";
+import {
+  CATALOG_SCHEMAS,category,slot,id,label,num,pos,cssColor,
+} from "./catalog-contract";
 /**
  * Build-time content validation. Safe to import from Bun tests or scripts;
  * game startup deliberately does not run schemas on every frame.
@@ -7,7 +13,6 @@ import { CTF_LAYOUTS } from "./ctf-layouts";
  * docs/content-authoring.md and with the public types in game-data.ts.
  */
 import { z } from "zod";
-import { MAX_PLAYER_LEVEL } from "./progression";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, WEAPON_CHALLENGES,
   WEAPON_ATTACHMENT_COMPAT, CATEGORY_ATTACHMENT_CHOICES, SIGHT_DEFS,
@@ -19,115 +24,6 @@ import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
 import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
 import {MAPS} from "./game-protocol";
 import {validateObjectives} from "./map-objectives";
-
-const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
-const label = z.string().min(1);
-const num = z.number().finite();
-const count = num.int().nonnegative();
-const pos = num.positive();
-const unit = num.min(0).max(1);
-const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw", "launcher", "melee"]);
-const slot = z.enum(["sight", "barrel", "grip", "magazine"]);
-const rarity = z.enum(["common", "rare", "epic", "legendary"]);
-const weaponSkinRarity = z.enum(["common", "rare", "epic", "legendary", "prestige"]);
-const cssColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-
-const stats = z.object({
-  damage: num.nonnegative(), fireRate: pos, magSize: pos, reloadTime: num.nonnegative(),
-  spread: num.nonnegative(), adsSpread: num.nonnegative(), recoil: num.nonnegative(),
-  range: pos, adsTime: num.nonnegative(), moveSpeed: pos, auto: z.boolean(),
-  headshotMult: pos, falloffEndMultiplier: pos.optional(),
-  minDamageMultiplier: unit.optional(), burst: pos.int().optional(),
-  pellets: pos.int().optional(), reloadStyle: z.literal("incremental").optional(),
-  reloadPerRound: pos.optional(),
-  // Opt-in human-body hitscan only (cover/shields remain impenetrable).
-  bodyPenetration: z.object({
-    maxTargets: pos.int().min(2).max(3),
-    damageRetention: unit.refine(v => v > 0, "Retention must be positive"),
-  }).optional(),
-});
-const heat = z.object({
-  kind: z.literal("heat"), heatPerShot: pos, coolPerSecond: pos, coolDelayMs: count,
-  overheatAt: pos, resumeAt: num.nonnegative(), ventSeconds: pos,
-});
-const arc = z.object({ kind: z.literal("arc"), jumps: pos.int(), radius: pos, decay: unit });
-const bolt = z.object({
-  kind: z.literal("bolt"), pickupRadius: pos, lifetimeMs: pos, quickReloadSeconds: pos,
-});
-const throwingKnife = z.object({kind:z.literal("throwing_knife")});
-const weapon = z.object({
-  id, name: label, description: label, category,
-  unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
-  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
-  explosive: z.object({ radius: pos }).optional(),
-  special: z.discriminatedUnion("kind", [heat, arc, bolt, throwingKnife]).optional(),
-  wonder: z.object({
-    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
-    maxCharges: z.number().int().min(1).max(8),
-    rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
-  }).optional(),
-});
-const statEffect = z.object({
-  damage: num.optional(), recoil: num.optional(), spread: num.optional(),
-  adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
-  reloadTime: num.optional(), moveSpeed: num.optional(), range: num.optional(),
-});
-const attachment = z.object({
-  id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
-  unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
-  weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
-  sightType: z.string().optional(),
-  shotgunAmmo: z.enum(["slug","pellets","dragons_breath","beanbag"]).optional(),
-  bodyPenetration: z.object({
-    maxTargets: pos.int().min(2).max(3),
-    damageRetention: unit.refine(v => v > 0, "Retention must be positive"),
-    retentionBonus: unit.optional(),
-  }).optional(),
-  effects: statEffect,
-  heatOnly: z.boolean().optional(),
-  categoryEffects: z.record(z.string(),statEffect).optional(),
-  weaponEffects: z.record(z.string(),statEffect).optional(),
-  heatEffects: z.object({
-    heatPerShot: num.optional(), coolPerSecond: num.optional(), coolDelayMs: num.optional(),
-    ventSeconds: num.optional(), overheatAt: num.optional(), resumeAt: num.optional(),
-  }).optional(),
-});
-const skin = z.object({
-  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity: weaponSkinRarity,
-  tier: z.enum(["standard", "rare", "legendary"]), artBrief: label, color: cssColor,
-  metalness: unit, roughness: unit, emissive: cssColor.optional(),
-  emissiveIntensity: num.nonnegative().optional(),
-  prestige: z.enum(["cosmic", "toxic"]).optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
-});
-const operator = z.object({
-  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
-  color: cssColor, accent: cssColor, emissive: cssColor.optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
-  levelReward: z.boolean().optional(),
-});
-const challenge = z.object({
-  id, weaponId: id, skinId: id, goal: pos,
-  metric: z.string().min(1), title: label, description: label,
-  requirements: z.array(z.object({ metric: label, goal: pos })).optional(),
-});
-const rotatingChallenge = z.object({
-  id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
-  title: label, description: label, icon: label,
-  category: z.enum(["daily", "weekly", "elite"]).optional(),
-});
-const achievement = z.object({
-  id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
-  title: label, description: label, icon: label,
-  tier: z.enum(["bronze", "silver", "gold", "platinum"]),
-  category: z.enum(["pvp", "pve", "career", "mastery"]),
-  series: id,
-  seriesTier: pos.int(),
-  rewardTitle: label.optional(),
-});
-const sight = z.object({
-  type: label, name: label, zoom: pos, reticle: label,
-  adsFovReduction: num, adsSensMul: pos, description: label,
-  overlay: z.string().optional(),
-});
 
 export interface ContentValidationInput {
   weapons?: unknown;
@@ -162,24 +58,26 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       found.add(entry.id);
     }
   }
+  check("perks", PERKS, PERKS_SCHEMA);
+  check("equipment", EQUIPMENT, EQUIPMENT_SCHEMA);
   const arrays: [string, unknown, z.ZodTypeAny][] = [
-    ["weapons", w, z.array(weapon)],
-    ["attachments", a, z.array(attachment)],
-    ["weapon skins", sk, z.array(skin)],
-    ["operator skins", op, z.array(operator)],
-    ["weapon challenges", ch, z.array(challenge)],
-    ["daily challenges", DAILY_CHALLENGE_POOL, z.array(rotatingChallenge)],
-    ["weekly challenges", WEEKLY_CHALLENGE_POOL, z.array(rotatingChallenge)],
-    ["elite quests (legacy)", ELITE_QUESTS, z.array(rotatingChallenge)],
-    ["achievements", achievements, z.array(achievement)],
-    ["ranks", RANKS, z.array(z.object({level:pos.int(),name:label,shortName:label,color:cssColor,insignia:label}))],
-    ["killstreak callouts", KILLSTREAK_CALLOUTS, z.array(z.object({threshold:pos.int(),label,icon:label,color:cssColor}))],
+    ["weapons", w, CATALOG_SCHEMAS["weapons"]],
+    ["attachments", a, CATALOG_SCHEMAS["attachments"]],
+    ["weapon skins", sk, CATALOG_SCHEMAS["weapon-skins"]],
+    ["operator skins", op, CATALOG_SCHEMAS["operator-skins"]],
+    ["weapon challenges", ch, CATALOG_SCHEMAS["weapon-challenges"]],
+    ["daily challenges", DAILY_CHALLENGE_POOL, CATALOG_SCHEMAS["daily-challenges"]],
+    ["weekly challenges", WEEKLY_CHALLENGE_POOL, CATALOG_SCHEMAS["weekly-challenges"]],
+    ["elite quests (legacy)", ELITE_QUESTS, CATALOG_SCHEMAS["elite-quests"]],
+    ["achievements", achievements, CATALOG_SCHEMAS["achievements"]],
+    ["ranks", RANKS, CATALOG_SCHEMAS.ranks],
+    ["killstreak callouts", KILLSTREAK_CALLOUTS, CATALOG_SCHEMAS["killstreak-callouts"]],
   ];
   for (const [name, value, schema] of arrays) {
     check(name, value, schema);
     unique(name, value);
   }
-  const parsedAchievements = z.array(achievement).safeParse(achievements);
+  const parsedAchievements = CATALOG_SCHEMAS.achievements.safeParse(achievements);
   if (parsedAchievements.success) {
     const tiers = new Set<string>();
     for (const entry of parsedAchievements.data) {
@@ -190,16 +88,12 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
         issues.push(`achievements: ${entry.id} grants a title before the final series tier`);
     }
   }
-  check("sight definitions", SIGHT_DEFS, z.record(z.string(), sight));
-  check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, z.record(z.string(), z.record(z.string(), z.array(id))));
-  check("category attachment choices", CATEGORY_ATTACHMENT_CHOICES, z.record(z.string(), z.record(z.string(), z.array(id))));
-  check("reward constants", REWARDS, z.record(z.string(), num));
-  check("achievement tier colors", ACHIEVEMENT_TIER_COLORS, z.record(z.string(), cssColor));
-  check("match modes", MATCH_MODES, z.record(z.string(), z.object({
-    id:label,label,description:label,icon:label,defaultScoreLimit:count,
-    scoreOptions:z.array(count),defaultTimeLimit:count,timeOptions:z.array(count),
-    teamBased:z.boolean(),accentColor:cssColor,
-  })));
+  check("sight definitions", SIGHT_DEFS, CATALOG_SCHEMAS["sight-definitions"]);
+  check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, CATALOG_SCHEMAS["attachment-compatibility"]);
+  check("category attachment choices", CATEGORY_ATTACHMENT_CHOICES, CATALOG_SCHEMAS["category-attachments"]);
+  check("reward constants", REWARDS, CATALOG_SCHEMAS.rewards);
+  check("achievement tier colors", ACHIEVEMENT_TIER_COLORS, CATALOG_SCHEMAS["achievement-colors"]);
+  check("match modes", MATCH_MODES, CATALOG_SCHEMAS["match-modes"]);
 
   if (Array.isArray(w) && Array.isArray(a) && Array.isArray(sk) && Array.isArray(ch)) {
     const weaponIds = new Set(w.map(v => v?.id));
