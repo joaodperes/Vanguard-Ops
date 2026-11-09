@@ -343,6 +343,7 @@ export const WEAPON_SKINS: WeaponSkinDef[] = weaponSkinsData as unknown as Weapo
 export interface PlayerSkinDef {
   id: string;
   shopCurrency?: "credits" | "career";
+  levelReward?: boolean; // Free permanent milestone, automatically owned at unlockLevel.
   name: string;
   unlockLevel: number;
   unlockCost: number;
