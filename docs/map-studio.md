@@ -38,6 +38,19 @@ Search Construction, Buildings, Props and My assets. Edit an object or geometry 
 
 Current recipes use procedural game primitives. They do not import arbitrary model files, scripts or URLs. See `docs/asset-library-and-imports.md` for external art reuse.
 
+## Shared map-theme validation
+
+`src/lib/map-theme-contract.ts` owns the map-theme rules, including prop kinds,
+building metadata, surfaces and texture-ID allowlists. Both Map Studio imports
+(`validateMapDocument`) and published content validation use that same Zod
+contract; do **not** add prop kinds in a second handwritten validator.
+
+The distributable `src/data/schemas/map-theme.schema.json` is generated from
+the contract with `bun run schema:map-theme`, and checked by
+`bun run content:validate` and automated tests. A new prop kind still needs
+a real renderer, a matching authoritative collider where applicable, and map
+spawn/navigation regressions. Schema acceptance alone never creates gameplay.
+
 ## Canonical map files and migration
 
 Each of the ten registered authored maps is a version-2 `src/data/maps/<mapId>.json` containing id, blueprint and theme. `src/lib/map-documents.ts` registers those documents. Previous split JSON files remain migration snapshots. TypeScript implements engine geometry templates and objective behavior. Map documents define objective placements and supported modes.

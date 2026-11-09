@@ -13,7 +13,7 @@ import emberhold from "../data/maps/emberhold.json";
 import type { MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import {validateObjectives} from "./map-objectives";
-import {mapTexture} from "./map-textures";
+import {validateMapTheme} from "./map-theme-contract";
 import {BALLISTIC_MATERIALS} from "./cover-penetration";
 
 export interface MapDocument {
@@ -60,20 +60,7 @@ export function validateMapDocument(value: unknown): string[] {
       if(f?.material!==undefined && (f.kind!=="cover" || !BALLISTIC_MATERIALS.includes(f.material as typeof BALLISTIC_MATERIALS[number])))
         issues.push("Invalid ballistic material on feature "+(f?.id??"?"));
   }
-  const theme = doc.theme;
-  if (!theme || typeof theme !== "object") issues.push("Missing theme");
-  else {
-    for (const color of ["floor","wall","cover","accent","platform","stair","sky","fog","grid"] as const)
-      if (!/^#[0-9a-f]{6}$/i.test(theme.palette?.[color] ?? "")) issues.push("Invalid palette color "+color);
-    if (!Number.isFinite(theme.ambient) || theme.ambient < 0) issues.push("Invalid ambient intensity");
-    if (!Number.isFinite(theme.vegetation) || theme.vegetation < 0 || theme.vegetation > 1)
-      issues.push("Vegetation must be within 0–1");
-    if (!Array.isArray(theme.props)) issues.push("Missing props array");
-    else for(const p of theme.props){
-      if(!p||typeof p.kind!=="string"||![p.x,p.z,p.y??0,p.w??5,p.h??5,p.d??5].every(Number.isFinite)||
-        (p.w??5)<=0||(p.h??5)<=0||(p.d??5)<=0||p.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(p.color))issues.push("Invalid prop geometry or color");
-    }
-    for(const recipe of Object.values(theme.surfaces??{}))if(recipe?.textureId!==undefined&&!mapTexture(recipe.textureId))issues.push("Unknown bundled texture ID");
-  }
+  if(!doc.theme || typeof doc.theme!=="object") issues.push("Missing theme");
+  else issues.push(...validateMapTheme(doc.theme));
   return issues;
 }

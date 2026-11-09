@@ -19,8 +19,6 @@ import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
 import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
 import {MAPS} from "./game-protocol";
 import {validateObjectives} from "./map-objectives";
-import {mapTexture} from "./map-textures";
-import { MAP_VISUAL_THEMES } from "./map-visuals";
 
 const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
 const label = z.string().min(1);
@@ -270,32 +268,8 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     }
   }
 
-  // Every shipped biome has a separate JSON palette and prop library.
-  // Validate those files as well as walkable geometry, not just map metadata.
-  const themeSchema=z.object({
-    biome:label,label,ambient:pos,vegetation:unit,
-    surfaces:z.record(
-      z.enum(["floor","wall","cover","stair","platform"]),
-      z.object({
-        pattern:z.enum(["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]),tileSize:pos.max(100),roughness:unit,
-        textureId:z.string().refine(id=>!!mapTexture(id),"Unknown bundled texture").optional(),
-      }).strict(),
-    ).refine(s=>["floor","wall","cover","stair","platform"].every(k=>k in s),
-      "Every map requires floor/wall/cover/stair/platform surface recipes").optional(),
-    palette:z.object({
-      floor:cssColor,wall:cssColor,cover:cssColor,accent:cssColor,
-      platform:cssColor,stair:cssColor,sky:cssColor,fog:cssColor,grid:cssColor,
-    }),
-    props:z.array(z.object({
-      kind:z.enum(["tree","bush","rock","ruin","temple","shop","lamp","container",
-        "crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand","sarcophagus",
-        "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack",
-        "industrial_pipe","steel_coil","cargo_pallet"]),
-      x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),
-    })),
-  });
-  for(const [mapId,theme] of Object.entries(MAP_VISUAL_THEMES))
-    check("visual theme "+mapId,theme,themeSchema);
+  // validateMapDocument() checks each published theme with the SAME contract
+  // that Map Studio imports use. Do not define a second prop/type whitelist here.
     if (MAP_BLUEPRINTS.version !== 1) issues.push("map blueprints: unsupported version");
   if (!Object.keys(MAP_BLUEPRINTS.maps).length) issues.push("map blueprints: no maps");
   for (const [mapId, bp] of Object.entries(MAP_BLUEPRINTS.maps)) {

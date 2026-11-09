@@ -22,6 +22,16 @@ Static data used by both the browser and multiplayer server is now read through 
 
 **Current map limitation:** authored connected walkable regions, features and spawns are JSON-backed. Built-in template environments (lighting, some buildings/hazards) remain in `src/lib/game-protocol.ts`, `src/lib/map-tactics.ts` and related TS helpers. Creating an entirely new theme or unique interactive map hazard may still need engine code. Map Studio (`/map-editor`) authors blueprint JSON, not arbitrary TypeScript templates. See `docs/map-studio.md`.
 
+## Shared theme/prop validation
+
+The canonical map theme and prop contract is `src/lib/map-theme-contract.ts`.
+Its Zod schema is used by the map importer and published-map validation, and
+`src/data/schemas/map-theme.schema.json` is a **generated** compatibility
+artifact (`bun run schema:map-theme`). `bun run content:validate` fails if the
+generated schema drifts from the contract. Add new prop kinds and fields once
+in the contract, implement their rendering and collision behaviour, and add
+spawn and navigation tests. Do not duplicate whitelists in validators.
+
 ## Choose the correct edit shape
 
 Not every JSON catalog is an array of objects. Check the existing top-level shape before editing; **a one-object draft is not a replacement for the entire file**.

@@ -19,7 +19,9 @@
     "test:smoke": "bun test tests",
     "typecheck": "tsc --noEmit",
     "db:setup": "prisma generate && prisma db push",
-    "content:validate": "bun scripts/validate-content.ts"
+    "content:validate": "bun scripts/validate-content.ts",
+    "schema:map-theme": "bun scripts/sync-map-theme-schema.ts",
+    "schema:map-theme:check": "bun scripts/sync-map-theme-schema.ts --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

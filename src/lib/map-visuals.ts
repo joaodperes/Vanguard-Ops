@@ -8,26 +8,10 @@ import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
 import { insideRegions, featureBoxes } from "./map-blueprints";
 
-export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "lamp" |
-  "container" | "crane" | "terminal" | "sign" | "antenna" |
-  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand" | "sarcophagus" |
-  "furnace" | "conveyor" | "hydraulic_press" | "generator" | "storage_rack" |
-  "vent_stack" | "industrial_pipe" | "steel_coil" | "cargo_pallet";
-export interface MapProp {
-  kind: PropKind; x: number; z: number; y?: number;
-  /** Stable identifier for a generated lot; survives moving a promoted building. */
-  lotId?: string;
-  w?: number; d?: number; h?: number; text?: string; color?: string;
-  /** Saved editor orientation; extent dimensions already reflect the rotation. */
-  turns?: 0 | 1 | 2 | 3;
-  /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
-  use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner" | "clinic" | "workshop" | "gallery" | "florist" | "gym";
-  shape?: "rect" | "narrow" | "round";
-  stairSide?: "east" | "west";
-  /** Buildings with no roof route have neither inner nor external stairs. */
-  roofAccess?: boolean;
-  facade?: "brick" | "stucco" | "concrete" | "glass" | "timber" | "industrial";
-}
+import type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
+export {MAP_SURFACE_PATTERNS as SURFACE_PATTERNS} from "./map-theme-contract";
+export type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
+export type MapSurfaceRecipes = Record<SurfaceSlot,SurfaceRecipe>;
 /** Shared runtime/editor façade recipes, blended by the renderer in linear color space. */
 export const CITY_USE_FACADE_COLORS:Record<string,number>={
   house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
@@ -40,23 +24,6 @@ export const CITY_FACADE_TINTS:Record<string,number>={
   brick:0xa45b48,stucco:0xd1bba0,concrete:0x92949b,
   glass:0x638aa2,timber:0x947556,industrial:0x777e86,
 };
-export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
-export type SurfacePattern = typeof SURFACE_PATTERNS[number];
-export type SurfaceSlot = "floor" | "wall" | "cover" | "stair" | "platform";
-/** Physical texture scale is in WORLD units, not arbitrary geometry UV units. */
-export interface SurfaceRecipe { pattern: SurfacePattern; tileSize: number; roughness: number; textureId?:string }
-export type MapSurfaceRecipes = Record<SurfaceSlot, SurfaceRecipe>;
-export interface MapVisualTheme {
-  biome: string; label: string; inheritPropsFrom?: string;
-  surfaces?: MapSurfaceRecipes;
-  palette: {
-    floor:string; wall:string; cover:string; accent:string;
-    platform:string; stair:string; sky:string; fog:string; grid:string;
-  };
-  ambient:number;
-  vegetation:number;
-  props:MapProp[];
-}
 export const MAP_VISUAL_THEMES:Record<string,MapVisualTheme>=Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,d])=>[id,d.theme]));
 
 export function visualThemeForMap(id:string,templateMapId?:string):MapVisualTheme {
