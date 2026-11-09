@@ -4513,6 +4513,8 @@ export class FPSEngine {
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
+      // Placed Wonder Weapon fires independently of the player's equipped gun.
+      this.playEnemyFireSound(src, "wonder_turret", false);
       if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null){
         const next=hitRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,
           target.riotShieldReadyAt??0,TURRET_DAMAGE,performance.now());
@@ -6159,6 +6161,8 @@ export class FPSEngine {
           turret.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - turret.yaw), Math.cos(targetYaw - turret.yaw));
           turret.barrelPivot.rotation.x = -Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
           this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default");
+          // Network turrets emit turretFired rather than ordinary shotFx.
+          this.playEnemyFireSound(origin, "wonder_turret", false);
         }
         break;
       }
