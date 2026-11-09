@@ -2,6 +2,7 @@
  * Each segment is checked against world cover, so previews and server landings
  * match. Origin and launch direction are trusted only when built by the server.
  */
+export const TACTICAL_KNIFE_RANGE = 16; // maximum flight distance from the thrower
 export type ThrowVec3 = [number, number, number];
 export type ThrowKind = "frag" | "flashbang" | "knives" | "poison_dart" | "taser" | "mine";
 export interface ThrowPath { points: ThrowVec3[]; impact: ThrowVec3; flightMs: number }
@@ -35,9 +36,20 @@ export function calculateThrowPath(origin: ThrowVec3, direction: ThrowVec3, kind
   const maxTime = isGrenade ? 3.2 : 1.5;
   for (let t = step; t <= maxTime + step / 2; t += step) {
     const prev = points[points.length - 1];
-    const next: ThrowVec3 = [originHand[0] + vx * t,
+    let next: ThrowVec3 = [originHand[0] + vx * t,
       originHand[1] + vy * t - 0.5 * gravity * t * t,
       originHand[2] + vz * t];
+    let fractionOfStep = 1;
+    if (kind === "knives") {
+      const fromDist = Math.hypot(prev[0]-origin[0],prev[1]-origin[1],prev[2]-origin[2]);
+      const toDist = Math.hypot(next[0]-origin[0],next[1]-origin[1],next[2]-origin[2]);
+      if (toDist >= TACTICAL_KNIFE_RANGE) {
+        fractionOfStep = Math.max(0,Math.min(1,(TACTICAL_KNIFE_RANGE-fromDist)/(toDist-fromDist||1)));
+        next = [prev[0]+(next[0]-prev[0])*fractionOfStep,
+          prev[1]+(next[1]-prev[1])*fractionOfStep,
+          prev[2]+(next[2]-prev[2])*fractionOfStep];
+      }
+    }
     const seg: ThrowVec3 = [next[0]-prev[0],next[1]-prev[1],next[2]-prev[2]];
     const d = Math.hypot(...seg);
     if (d > .00001) {
@@ -58,6 +70,8 @@ export function calculateThrowPath(origin: ThrowVec3, direction: ThrowVec3, kind
       return {points,impact,flightMs:Math.max(35,Math.round((t-step+fraction*step)*1000))};
     }
     points.push(next);
+    if (fractionOfStep < 1) return {points,impact:next,
+      flightMs:Math.max(35,Math.round((t-step+step*fractionOfStep)*1000))};
   }
   return {points,impact:points[points.length-1],flightMs:Math.round(maxTime*1000)};
 }
