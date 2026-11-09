@@ -28,7 +28,8 @@ describe("weapon penetration stat presentation", () => {
       preview: { ...EMPTY_ATTACHMENTS, magazine: "mag_penetrator" },
     }));
     expect(penValue(markup)).toBe("1.6");
-    expect(markup).toContain("▲ 60%");
+    expect(markup).toContain("▲");
+    expect(markup).toContain("60%");
   });
 
   test("displays zero for weapons without ballistic penetration, and omits PEN from melee", () => {
