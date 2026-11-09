@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {EQUIPMENT} from "../src/lib/equipment";
-import {botTacticalForArchetype,botTacticalCanUse,planBotTacticalThrow} from "../src/lib/bot-tactical";
+import {botTacticalForArchetype,survivalBotTactical,botTacticalCanUse,planBotTacticalThrow} from "../src/lib/bot-tactical";
 import type {BotArchetype} from "../src/lib/bot-archetypes";
 describe("bot tactical equipment",()=>{
  test("bot equipment is valid and excludes player-only deployable cover",()=>{
@@ -17,6 +17,11 @@ describe("bot tactical equipment",()=>{
     friendlyAtImpact:false,charges:1,now:10000,readyAt:0,targetAgeMs:1500,
   })).toBe(false);
   expect(planBotTacticalThrow([0,0,0],[0,0,8],"cover",[],"compound")).toBeNull();
+ });
+ test("Survival bots only roll nonlethal tasers or flashbangs",()=>{
+  for(let n=0;n<60;n++)expect(["flashbang","taser"]).toContain(survivalBotTactical(n));
+  expect(survivalBotTactical(0)).toBe("flashbang");
+  expect(survivalBotTactical(1)).toBe("taser");
  });
  test("no spamming, spawn ambushes, friendly grenades or magic through cover",()=>{
   const baseline={equipmentId:"frag" as const,distance:16,visible:true,targetProtected:false,
