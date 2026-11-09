@@ -177,16 +177,14 @@ describe("reload contacts stay on resized weapon geometry",()=>{
         const wrist=hand.clone().add(cuff.clone().applyQuaternion(rotation));
         const restWrist=restHand.add(cuff.clone().applyQuaternion(rotation));
         const joint=calibratedSupportArm(category,wristFor(id,category),16/9);
-        const solve=(awaitNever:unknown)=>awaitNever;
-        // Check the actual rest pose and moving target are both finite.
+        // Check that the rest pose and moving target are both finite.
         const elbow=supportElbowPosition(joint.shoulder,wrist,joint.pole,
           joint.upperLength,joint.forearmLength);
         expect(elbow.every(Number.isFinite)).toBe(true);
         if(last)maxStep=Math.max(maxStep,distance(last,elbow));
         last=elbow;
-        expect(restWrist.every(Number.isFinite)).toBe(true);
+        expect(restWrist.toArray().every(Number.isFinite)).toBe(true);
         expect(frame.forearmLength).toBeGreaterThan(.3);
-        void solve;
       }
       expect(maxStep).toBeLessThan(.10);
     };
