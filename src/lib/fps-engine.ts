@@ -7889,8 +7889,10 @@ export class FPSEngine {
         }
       }
       const progress=Math.max(0,Math.min(1,1-(drop.landAt-time)/JUGGERNAUT_DROP_MS));
-      drop.mech.group.visible=!drop.enteredBy;
-      drop.mech.group.position.set(drop.pos[0],drop.pos[1]+(!drop.landed?20*(1-progress):0),drop.pos[2]);
+      const remotePilot=drop.enteredBy&&drop.enteredBy!==this.selfId?this.combatants.get(drop.enteredBy):undefined;
+      drop.mech.group.visible=!drop.enteredBy||!!remotePilot?.alive;
+      drop.mech.group.position.set(remotePilot?.pos[0]??drop.pos[0],remotePilot?.pos[1]??(drop.pos[1]+(!drop.landed?20*(1-progress):0)),remotePilot?.pos[2]??drop.pos[2]);
+      if(remotePilot)drop.mech.group.rotation.y=remotePilot.yaw;
       drop.aircraft.group.visible=!drop.landed&&progress<.88;
       drop.aircraft.group.position.set(drop.pos[0]-30+progress*62,drop.pos[1]+28,drop.pos[2]+15);
       drop.aircraft.group.rotation.y=-.18;
@@ -7908,9 +7910,10 @@ export class FPSEngine {
     if(this.chronoMarker){this.chronoMarker.rotation.z=now*.001;this.chronoMarker.scale.setScalar(1+Math.sin(now*.006)*.08);}
     for(let i=this.wonderVisualFx.length-1;i>=0;i--){
       const v=this.wonderVisualFx[i],fraction=(now-v.born)/v.duration;
-      if(fraction>=1){v.group.removeFromParent();v.group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
-        const first=v.group.children[0] as THREE.Mesh|undefined;
-        if(first)(first.material as THREE.Material).dispose();
+      if(fraction>=1){const first=v.group.children[0] as THREE.Mesh|undefined;
+        const material=first?.material as THREE.Material|undefined;
+        v.group.removeFromParent();v.group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+        material?.dispose();
         this.wonderVisualFx.splice(i,1);continue;}
       v.group.scale.setScalar(.65+fraction*1.65);
       v.group.rotation.y=now*.0018;
@@ -10257,6 +10260,9 @@ export class FPSEngine {
         || (this.localBurning.get(c.id) ?? 0) > now);
       this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
+      // The Juggernaut's oversized mech replaces its pilot silhouette.
+      const inMech=[...this.mechDrops.values()].some(d=>d.enteredBy===c.id&&d.expiresAt>Date.now());
+      if(inMech){c.group.visible=false;continue;}
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
@@ -12188,6 +12194,11 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
+    for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
+    if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
+    for(const fx of this.wonderVisualFx){fx.group.removeFromParent();const meshes=fx.group.children.filter((o):o is THREE.Mesh=>o instanceof THREE.Mesh);for(const m of meshes)m.geometry.dispose();if(meshes[0])(meshes[0].material as THREE.Material).dispose();}
+    this.wonderVisualFx=[];
     if (this.finaleTimer) { clearTimeout(this.finaleTimer); this.finaleTimer = null; }
     for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
     for(const id of [...this.tacticalStatusVisuals.keys()])this.removeTacticalStatusVisual(id);
