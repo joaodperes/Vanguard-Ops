@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "@/lib/fps-engine";
-import type { LoadoutWire, GameMode, MapId, MapDef, BotDifficulty } from "@/lib/game-protocol";
+import { teamSizeAllowed, type LoadoutWire, type GameMode, type MapId, type MapDef, type BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
 import { SURVIVAL_UPGRADES, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
@@ -102,8 +102,15 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         onMatchEnd(r);
       },
       onRoomError: (message) => {
-        // Server rejected the create/join (wrong password, full room, etc.).
-        import("sonner").then(({ toast }) => toast.error(`Could not join room: ${message}`));
+        // A rejection for an otherwise valid room-size indicates that socket.io
+        // may still be running an older set of map limits than the refreshed UI.
+        const config = roomConnect?.kind === "create" ? roomConnect.config : undefined;
+        const outdatedServer = message === "Choose a player count supported by this map and mode."
+          && !!config && teamSizeAllowed(config.mapId, config.teamSize, config.mode);
+        const reason = outdatedServer
+          ? "The multiplayer server is using outdated room-size rules. Restart or redeploy the game server and retry."
+          : message;
+        import("sonner").then(({ toast }) => toast.error(`Could not join room: ${reason}`));
         onExit();
       },
       onSocketError: () => {
