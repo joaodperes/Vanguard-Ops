@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from "@/lib/game-protocol";
-import { teamSizeAllowed, teamSizesForMap, recommendedTeamSize } from "@/lib/game-protocol";
+import { recommendedTeamSize, resolveRoomSelection } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
@@ -138,14 +138,15 @@ export const useGame = create<GameStore>((set, get) => ({
   setScreen: (s) => set({ screen: s }),
   setPlayConfig: (c) => set({ playConfig: { ...get().playConfig, ...c } }),
   setRoomConfig: (c) => set(() => {
-    const next = { ...get().roomConfig, ...c };
-    // A saved 16-player team option must not leak into another map when
-    // switching maps or modes. Keep all menu actions consistent.
-    if (c.mapId && c.mapId !== get().roomConfig.mapId && c.teamSize === undefined)
-      next.teamSize = recommendedTeamSize(next.mapId,next.mode);
-    if (!teamSizeAllowed(next.mapId, next.teamSize,next.mode))
-      next.teamSize = teamSizesForMap(next.mapId,next.mode).at(-1)!;
-    return { roomConfig: next };
+    const previous = get().roomConfig;
+    const next = { ...previous, ...c };
+    // Preserve map-specific recommended sizes when picking a new map.
+    if (c.mapId && c.mapId !== previous.mapId && c.teamSize === undefined)
+      next.teamSize = recommendedTeamSize(next.mapId, next.mode);
+    // A mode change may invalidate the map (e.g. Castle -> CTF), and a
+    // map change may invalidate the count. Normalize BOTH atomically.
+    const selection = resolveRoomSelection(next.mode, next.mapId, next.teamSize);
+    return { roomConfig: { ...next, ...selection } };
   }),
   setRoomConnect: (r) => set({ roomConnect: r }),
   setMatchResult: (r) => set({ matchResult: r }),
