@@ -81,8 +81,9 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
                 <span className="tabular-nums text-amber-300 font-semibold">{settings.fov}°</span>
               </div>
               <Slider value={[settings.fov]} min={70} max={110} step={1} onValueChange={(v) => update({ fov: v[0] })} />
-              <div className="flex justify-between text-[10px] text-white/30 mt-1">
+              <div className="flex justify-between items-center text-[10px] text-white/30 mt-1">
                 <span>Narrow (zoom)</span>
+                <span className="text-white/50">90° (default)</span>
                 <span>Wide (peripheral)</span>
               </div>
             </div>
