@@ -856,6 +856,8 @@ export class FPSEngine {
   private lastMechPrimaryAt=0;
   private lastMechSecondaryAt=0;
   private mechSpinAt=0;
+  private railChargeAt=0;
+  private railShotLocked=false;
   private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
   private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
   private phantomDecoys=new Map<string,{pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
@@ -4317,7 +4319,7 @@ export class FPSEngine {
     this.wonderModuleId=next.wonderModuleId??"";
     this.wonderSkinId=next.wonderSkinId??"";
     this.wonderKillEffectId=next.wonderKillEffectId??"";
-    this.mechActive=null;this.chronoAnchor=null;
+    this.mechActive=null;this.chronoAnchor=null;this.railChargeAt=0;this.railShotLocked=false;
     const empty = { sight: null, barrel: null, grip: null, magazine: null };
     this.primaryEff = computeEffectiveStats(weaponById(this.primaryWeaponId), next.attachments);
     this.secondaryEff = computeEffectiveStats(weaponById(this.secondaryWeaponId), next.secondaryAttachments ?? empty);
@@ -9896,10 +9898,17 @@ export class FPSEngine {
             this.burstEndsAt = Infinity;  // locked until burst completes
           }
         } else if (isSemi) {
-          // Semi-auto (P-9, sniper, DMR, launcher): fires ONCE per trigger pull.
-          if ((this.mousePressedThisFrame || this.touchPressedThisFrame) && this.ammoInMag > 0
-              && now - this.lastShotAt > 1000 / Math.max(1, this.eff.fireRate) * 0.9) {
-            this.fireOneShot(w);
+          const ready=now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9;
+          if(w.wonder?.kind==="rail"){
+            // Railgun must be deliberately charged by holding fire. No accidental instant shot.
+            if(!this.railChargeAt)this.railChargeAt=now;
+            if(!this.railShotLocked&&now-this.railChargeAt>=650&&this.ammoInMag>0&&ready){
+              this.fireOneShot(w);this.railShotLocked=true;
+            }
+          }else{
+            const chronoRecall=w.wonder?.kind==="chrono"&&!!this.chronoAnchor&&this.chronoAnchor.expiresAt>Date.now();
+            if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&
+                (this.ammoInMag>0||chronoRecall)&&ready)this.fireOneShot(w);
           }
         }
       }
@@ -9910,6 +9919,7 @@ export class FPSEngine {
       // Trigger released — clear press-edge flags too so they don't queue a shot on next press.
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
+      this.railChargeAt=0;this.railShotLocked=false;
     }
     if (this.alive && inputActive && !this.survivalDowned) this.updateMovement(dt);
     this.interactEnvironment();
