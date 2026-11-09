@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
-import { requestTutorialChapter } from "@/lib/tutorial";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { formatWeaponNumber, formatSpreadMrad } from "@/lib/weapon-numbers";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
@@ -1025,12 +1024,6 @@ function CustomizeModal(props: CustomizeModalProps) {
             <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
             {w.category !== "melee" && <ModalStatBar label="Bullet Penetration" value={currentEffectiveStats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
           </div>
-          {w.category !== "melee" && (
-            <button type="button" onClick={()=>{requestTutorialChapter("ballistics");onOpenChange(false);setScreen("tutorial");}}
-              className="mt-1 self-start text-xs text-cyan-300/80 underline underline-offset-2 hover:text-cyan-200">
-              How PEN works · Penetration guide
-            </button>
-          )}
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => { setTab(v); setPreviewAttachment(null); }} className="flex flex-col flex-1 min-h-0">
