@@ -24,6 +24,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
+import { TASER_STUN_MS, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -1094,11 +1095,12 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
           }
         }
         if(closest){const target:PlayerNet=closest.victim;
-          applyDamage(room,playerId,target,def.damage,false,`equipment_${def.id}`);
+          applyDamage(room,playerId,target,def.damage,false,`equipment_${def.id}`,false,def.type==="knife");
           if(target.alive && def.type==="poison")room.poison.set(target.id,{attackerId:playerId,weaponId:`equipment_${def.id}`,expiresAt:Date.now()+4500,tickAt:Date.now()+500});
           if(target.alive && def.type==="taser"){
-            room.equipmentStun.set(target.id,Date.now()+1700);
-            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:1700} as S2C);
+            room.equipmentStun.set(target.id,Math.max(room.equipmentStun.get(target.id)??0,Date.now()+TASER_STUN_MS));
+            io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"stun",victimId:target.id,durationMs:TASER_STUN_MS} as S2C);
+            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:TASER_STUN_MS} as S2C);
           }
         }
       } else {
@@ -1110,10 +1112,11 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
           if(victim.spawnProtectedUntil && victim.spawnProtectedUntil>Date.now())continue;
           const dst=Math.hypot(victim.pos[0]-impact[0],victim.pos[2]-impact[2]);
           if(dst>def.radius || !hasLineOfSight(room,[impact[0],impact[1]+.3,impact[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))continue;
-          if(def.type==="blast")applyDamage(room,playerId,victim,Math.max(12,def.damage*(1-dst/def.radius)),false,`equipment_${def.id}`);
+          if(def.type==="blast")applyDamage(room,playerId,victim,fragDamage(dst),false,`equipment_${def.id}`);
           if(def.type==="flash"){
-            const duration=Math.round(1100+1800*(1-dst/def.radius));
-            room.equipmentStun.set(victim.id,Date.now()+duration);
+            const duration=flashDurationMs(dst);
+            room.equipmentStun.set(victim.id,Math.max(room.equipmentStun.get(victim.id)??0,Date.now()+duration));
+            io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"flash",victimId:victim.id,durationMs:duration} as S2C);
             if(!victim.isBot)io.to(victim.id).emit("message",{t:"equipmentStatus",effect:"flash",durationMs:duration} as S2C);
           }
         }
@@ -1490,15 +1493,24 @@ function tickSpecialEffects(room: Room, now: number) {
     const enemies = allCombatants(room).filter(c => c.alive && c.id !== mine.ownerId &&
       (room.mode === "ffa" || c.team !== owner.team) &&
       !(c.spawnProtectedUntil && c.spawnProtectedUntil > now));
-    if (!enemies.some(c => Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]) < 2.5)) continue;
+    const visible=(c:PlayerNet)=>hasLineOfSight(room,
+      [mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]);
+    // Exactly one intruder is the trigger victim; other enemies may only take
+    // the small 2.4-unit splash. Cover and spawn protection apply to both.
+    const trigger=enemies.filter(c=>
+      Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2])<=MINE_TRIGGER_RADIUS && visible(c))
+      .sort((a,b)=>Math.hypot(a.pos[0]-mine.pos[0],a.pos[2]-mine.pos[2])-
+        Math.hypot(b.pos[0]-mine.pos[0],b.pos[2]-mine.pos[2]))[0];
+    if(!trigger)continue;
     room.equipmentMines.delete(id); // exactly one activation
     io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:"mine",position:mine.pos,ownerId:mine.ownerId,mineId:id,mineState:"triggered"} as S2C);
-    destroyTurretsNear(room, mine.pos, 3.3);
-    for (const c of enemies) {
-      const dist = Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]);
-      if (dist > 3.3) continue;
-      if (!hasLineOfSight(room,[mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]])) continue;
-      applyDamage(room,mine.ownerId,c,Math.max(12,100*(1-dist/3.3)),false,"equipment_mine");
+    destroyTurretsNear(room,mine.pos,MINE_SPLASH_RADIUS);
+    for(const c of enemies){
+      const dist=Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]);
+      if(dist>MINE_SPLASH_RADIUS||!visible(c))continue;
+      const direct=c.id===trigger.id;
+      const dmg=direct?equipmentById("mine").damage:mineSplashDamage(dist);
+      if(dmg>0)applyDamage(room,mine.ownerId,c,dmg,false,"equipment_mine",false,direct);
     }
     if (room.ended) return;
   }
@@ -1519,7 +1531,7 @@ function tickSpecialEffects(room: Room, now: number) {
   }
 }
 
-function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string, shieldHit=false) {
+function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string, shieldHit=false, directLethal=false) {
   if (!victim.alive) return;
   const fellInLava = attackerId === "world" && weaponId === LAVA_DEATH_SOURCE;
   // Spawn protection: skip damage entirely if the victim is within their grace period.
@@ -1561,6 +1573,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       });
     }
   }
+  if(directLethal)dmg=tacticalDirectDamage(dmg,victim.health,!!room.bots.get(victim.id)?.ai.boss);
   room.lastDamagedAt.set(victim.id, Date.now());
   const hitSource=room.players.get(attackerId)??room.bots.get(attackerId);
   const hurtBot=room.bots.get(victim.id);

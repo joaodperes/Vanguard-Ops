@@ -234,7 +234,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <Check className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Confirming…" : "Confirm Loadout"}
         </Button>
       </div>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <SlotCard
           slot="primary"
           label="Primary"
@@ -289,49 +289,15 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
           canCustomize={melee === current.melee.id}
         />
+        {/* Utility equipment lives together in the right rail rather than
+            consuming two full weapon-width columns. */}
+        <div className="flex min-w-0 flex-col gap-3 sm:col-span-2 xl:col-span-1">
         <div className="relative" data-slot-dropdown>
-          <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="w-4 h-4 text-cyan-400" />
-              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
-              <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
-            </div>
-            <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 bg-gradient-to-br from-cyan-950/50 to-black flex items-center justify-center`}>
-              <Package className="w-8 h-8 text-cyan-300/70" />
-              <span className="absolute left-2 top-1.5 text-[10px] uppercase text-white/40">Consumable</span>
-            </div>
-            <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
-            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
-              {EQUIPMENT.find(e => e.id === equipmentId)?.description}
-            </div>
-            <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
-              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
-              <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
-              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
-            </button>
-          </div>
-          {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-            {EQUIPMENT.map(item => {
-              const unlocked = equipmentUnlocked(item.id, level);
-              return <button key={item.id} type="button" disabled={!unlocked}
-                onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
-                className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
-                <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
-                <span className="text-white/40 leading-snug">{item.description}</span>
-              </button>;
-            })}
-          </div>}
-        </div>
-        <div className="relative" data-slot-dropdown>
-          <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+          <div className={`rounded-xl border border-amber-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
             <div className="flex items-center gap-2 mb-2">
               <Package className="w-4 h-4 text-amber-400" />
               <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
               <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
-            </div>
-            <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black`}>
-              <Zap className="w-7 h-7 text-amber-400/70" />
-              <span className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">Specialization</span>
             </div>
             <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
             {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
@@ -365,6 +331,36 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
               </button>)}
             </div>
           )}
+        </div>
+        <div className="relative" data-slot-dropdown>
+          <div className={`rounded-xl border border-cyan-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-4 h-4 text-cyan-400" />
+              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
+              <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
+            </div>
+            <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
+            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
+              {EQUIPMENT.find(e => e.id === equipmentId)?.description}
+            </div>
+            <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
+              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+              <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
+              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+            {EQUIPMENT.map(item => {
+              const unlocked = equipmentUnlocked(item.id, level);
+              return <button key={item.id} type="button" disabled={!unlocked}
+                onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
+                className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
+                <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
+                <span className="text-white/40 leading-snug">{item.description}</span>
+              </button>;
+            })}
+          </div>}
+        </div>
         </div>
       </div>
       {children}

@@ -4584,6 +4584,84 @@ export class FPSEngine {
     setTimeout(() => { this.scene.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); }, burst ? 500 : 1300);
   }
 
+
+  /** Short-lived electrical arcs or white disorientation sparks wrapped around
+   * the affected operator, visible to the shooter and everyone else in range.
+   * The local victim also receives a high-contrast HUD effect.
+   */
+  private spawnTacticalStatusVisual(victimId:string,effect:"stun"|"flash",durationMs:number):void {
+    if(victimId===this.selfId||!this.combatants.has(victimId))return;
+    const old=this.tacticalStatusVisuals.get(victimId);
+    if(old?.effect===effect){
+      old.expiresAt=Math.max(old.expiresAt,performance.now()+durationMs);
+      return;
+    }
+    if(old)this.removeTacticalStatusVisual(victimId);
+    const group=new THREE.Group(),color=effect==="stun"?0x42e8ff:0xfff5b0;
+    const halo=new THREE.Mesh(new THREE.TorusGeometry(.55,.04,7,24),
+      new THREE.MeshBasicMaterial({color,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
+    halo.position.y=.22;halo.rotation.x=Math.PI/2;group.add(halo);
+    for(let k=0;k<5;k++){
+      const points:THREE.Vector3[]=[];
+      for(let i=0;i<7;i++){
+        const angle=k*Math.PI*2/5+Math.sin(i*3+k)*.18;
+        const radius=.4+(i%2)*.17;
+        points.push(new THREE.Vector3(Math.cos(angle)*radius,-.62+i*.22,Math.sin(angle)*radius));
+      }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({color,transparent:true,opacity:.9,depthWrite:false})));
+    }
+    this.scene.add(group);
+    this.tacticalStatusVisuals.set(victimId,{group,expiresAt:performance.now()+durationMs,effect});
+  }
+  private removeTacticalStatusVisual(victimId:string):void {
+    const fx=this.tacticalStatusVisuals.get(victimId);
+    if(!fx)return;
+    this.scene.remove(fx.group);
+    fx.group.traverse(obj=>{
+      if(obj instanceof THREE.Mesh||obj instanceof THREE.Line){
+        obj.geometry.dispose();
+        for(const mat of Array.isArray(obj.material)?obj.material:[obj.material])mat.dispose();
+      }
+    });
+    this.tacticalStatusVisuals.delete(victimId);
+  }
+  private spawnTacticalBlastRing(position:Vec3,radius:number,flash:boolean):void {
+    const mesh=new THREE.Mesh(new THREE.RingGeometry(.85,1,40),
+      new THREE.MeshBasicMaterial({color:flash?0xffffff:0xffa63a,
+        transparent:true,opacity:flash?.8:.64,depthWrite:false,side:THREE.DoubleSide}));
+    mesh.rotation.x=-Math.PI/2;
+    mesh.position.set(position[0],Math.max(.06,position[1]+.03),position[2]);
+    this.scene.add(mesh);
+    this.tacticalBlastRings.push({mesh,born:performance.now(),duration:flash?480:560,radius});
+  }
+  private updateTacticalVisuals(now:number):void {
+    for(const [id,fx] of this.tacticalStatusVisuals){
+      const target=this.combatants.get(id);
+      if(!target?.alive||now>=fx.expiresAt){this.removeTacticalStatusVisual(id);continue;}
+      fx.group.position.set(target.pos[0],target.pos[1]+1,target.pos[2]);
+      fx.group.rotation.y=now*.003;
+      const pulse=.55+.4*Math.abs(Math.sin(now*.033));
+      for(const child of fx.group.children){
+        if(child instanceof THREE.Mesh || child instanceof THREE.Line){
+          const mat=child.material;
+          if(!Array.isArray(mat) && (mat instanceof THREE.LineBasicMaterial || mat instanceof THREE.MeshBasicMaterial))
+            mat.opacity=pulse;
+        }
+      }
+    }
+    this.tacticalBlastRings=this.tacticalBlastRings.filter(fx=>{
+      const t=(now-fx.born)/fx.duration;
+      if(t>=1||this.disposed){
+        this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();(fx.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      fx.mesh.scale.setScalar(Math.max(.1,fx.radius*(.12+.88*t)));
+      (fx.mesh.material as THREE.MeshBasicMaterial).opacity=(1-t)*.72;
+      return true;
+    });
+  }
+
   private pulseMineBeacons(now: number): void {
     const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now * 0.011));
     for (const marker of [...this.offlineMines.map(m => m.mesh), ...this.remoteEquipmentMines.values()]) {
@@ -4596,34 +4674,46 @@ export class FPSEngine {
   }
 
   private tickOfflineMines(now: number): void {
-    if (this.opts.online || !this.offlineMines.length || this.matchEnded) return;
-    this.offlineMines = this.offlineMines.filter(m => {
-      if (now > m.expiresAt || (m.ownerId!==this.selfId && !this.combatants.has(m.ownerId))) {
-        this.removeMineMarker(m.mesh); return false;
+    if(this.opts.online||!this.offlineMines.length||this.matchEnded)return;
+    this.offlineMines=this.offlineMines.filter(m=>{
+      const owner=this.combatants.get(m.ownerId);
+      if(now>m.expiresAt || (m.ownerId!==this.selfId&&!owner)){
+        this.removeMineMarker(m.mesh);return false;
       }
-      const rivals=[...this.combatants.values()].filter(c=>c.alive && c.id!==m.ownerId &&
-        (this.opts.mode==="ffa"||c.team!==m.ownerTeam) &&
-        !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
-      const playerIsRival=this.alive && m.ownerId!==this.selfId &&
-        (this.opts.mode==="ffa" || this.opts.team!==m.ownerTeam) &&
+      const rivals=[...this.combatants.values()].filter(c=>c.alive&&c.id!==m.ownerId&&
+        (this.opts.mode==="ffa"||c.team!==m.ownerTeam)&&
+        !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
+      const playerRival=this.alive&&m.ownerId!==this.selfId&&
+        (this.opts.mode==="ffa"||this.opts.team!==m.ownerTeam)&&
         this.selfSpawnProtectedUntil<=Date.now();
-      const trigger=rivals.some(c=>Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2])<2.4) ||
-        (playerIsRival && Math.hypot(this.pos.x-m.pos[0],this.pos.z-m.pos[2])<2.4);
+      const ground:Vec3=[m.pos[0],m.pos[1]+.2,m.pos[2]];
+      const distance=(p:Vec3)=>Math.hypot(p[0]-m.pos[0],p[2]-m.pos[2]);
+      const canHit=(p:Vec3)=>this.hasLineOfSight(ground,[p[0],p[1]+1,p[2]]);
+      const playerPos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+      const trigger=[...rivals.map(c=>({id:c.id,pos:c.pos})),
+        ...(playerRival?[{id:this.selfId,pos:playerPos}]:[])]
+        .filter(p=>distance(p.pos)<=MINE_TRIGGER_RADIUS&&canHit(p.pos))
+        .sort((a,b)=>distance(a.pos)-distance(b.pos))[0];
       if(!trigger)return true;
       this.removeMineMarker(m.mesh);
-      this.spawnEquipmentVisual(m.pos,0xf59e0b);
-      const owner=this.combatants.get(m.ownerId);
+      this.spawnEquipmentVisual(m.pos,0xffb448);
+      this.spawnTacticalBlastRing(m.pos,MINE_SPLASH_RADIUS,false);
       for(const c of rivals){
-        const dist=Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]);
-        if(dist>3.3 || !this.hasLineOfSight([m.pos[0],m.pos[1]+.2,m.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
-        const dmg=Math.max(15,100*(1-dist/3.3));
-        if(owner)this.damageFromOfflineBotTactical(owner,c,dmg,"mine");
-        else this.applyDamageLocal(c,dmg,false,"equipment_mine");
+        const d=distance(c.pos);
+        if(d>MINE_SPLASH_RADIUS||!canHit(c.pos))continue;
+        const direct=c.id===trigger.id;
+        const damage=direct?equipmentById("mine").damage:mineSplashDamage(d);
+        if(!damage)continue;
+        if(owner)this.damageFromOfflineBotTactical(owner,c,damage,"mine",direct);
+        else this.applyDamageLocal(c,damage,false,"equipment_mine",direct);
       }
-      if(playerIsRival){
-        const dist=Math.hypot(this.pos.x-m.pos[0],this.pos.z-m.pos[2]);
-        if(dist<=3.3&&this.hasLineOfSight([m.pos[0],m.pos[1]+.2,m.pos[2]],[this.pos.x,this.pos.y+1,this.pos.z]))
-          this.takeDamage(Math.max(15,100*(1-dist/3.3)),owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
+      if(playerRival){
+        const d=distance(playerPos);
+        if(d<=MINE_SPLASH_RADIUS&&canHit(playerPos)){
+          const direct=trigger.id===this.selfId;
+          const damage=direct?Math.max(this.health*8,equipmentById("mine").damage):mineSplashDamage(d);
+          if(damage>0)this.takeDamage(damage,owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
+        }
       }
       return false;
     });
@@ -7490,7 +7580,7 @@ export class FPSEngine {
     });
   }
 
-  private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId) {
+  private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId, directLethal=false) {
     if (!victim.alive || (victim.spawnProtectedUntil ?? 0) > Date.now()) return;
     // Remember the player's meaningful non-lethal contributions so a
     // friendly offline bot finishing the same enemy can award an assist.
@@ -7516,6 +7606,7 @@ export class FPSEngine {
         sinceHeadshotKillMs:performance.now()-this.survivalLastHeadshotKillAt,
       });
     }
+    if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       this.offlineAssistDamage.delete(victim.id);
@@ -10123,10 +10214,15 @@ export class FPSEngine {
           }
         }
         if(nearest){
-          this.damageFromOfflineBotTactical(bot,nearest.c,def.damage,id);
-          if(def.type==="taser"){
-            if(nearest.c.id===this.selfId)this.equipmentStunUntil=performance.now()+1700;
-            else this.botTacticalStunUntil.set(nearest.c.id,performance.now()+1700);
+          this.damageFromOfflineBotTactical(bot,nearest.c,def.damage,id,def.type==="knife");
+          if(def.type==="taser" && (nearest.c.id===this.selfId?this.alive:nearest.c.alive)){
+            const until=performance.now()+TASER_STUN_MS;
+            if(nearest.c.id===this.selfId)this.equipmentStunUntil=Math.max(this.equipmentStunUntil,until);
+            else {
+              this.botTacticalStunUntil.set(nearest.c.id,Math.max(this.botTacticalStunUntil.get(nearest.c.id)??0,until));
+              if(nearest.c.ai){nearest.c.ai.targetId=null;nearest.c.ai.nextShotAt=until;}
+            }
+            this.spawnTacticalStatusVisual(nearest.c.id,"stun",TASER_STUN_MS);
           }
           if(def.type==="poison"&&nearest.c.alive){
             const victimId=nearest.c.id,deathCount=this.deaths,victimDeaths=nearest.c.deaths;
@@ -10146,26 +10242,37 @@ export class FPSEngine {
         for(const c of targets){
           const d=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
           if(d>def.radius||!this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
-          if(def.type==="blast")this.damageFromOfflineBotTactical(bot,c,Math.max(12,def.damage*(1-d/def.radius)),id);
+          if(def.type==="blast")this.damageFromOfflineBotTactical(bot,c,fragDamage(d),id);
           else if(def.type==="flash"){
-            const until=performance.now()+Math.round(1100+1800*(1-d/def.radius));
-            if(c.id===this.selfId){this.equipmentFlashUntil=until;this.equipmentStunUntil=until;}
-            else this.botTacticalStunUntil.set(c.id,until);
+            const duration=flashDurationMs(d),until=performance.now()+duration;
+            if(c.id===this.selfId){
+              this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,until);
+              this.equipmentStunUntil=Math.max(this.equipmentStunUntil,until);
+            }else{
+              this.botTacticalStunUntil.set(c.id,Math.max(this.botTacticalStunUntil.get(c.id)??0,until));
+              if(c.ai){c.ai.targetId=null;c.ai.nextShotAt=until;}
+              this.spawnTacticalStatusVisual(c.id,"flash",duration);
+            }
           }
         }
-        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact));
+        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
         else this.spawnEquipmentVisual(impact,0xffffff);
+        this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
       }
     },path.timesMs);
   }
 
-  private damageFromOfflineBotTactical(attacker:Combatant,victim:Combatant,damage:number,id:EquipmentId):void {
+  private damageFromOfflineBotTactical(attacker:Combatant,victim:Combatant,damage:number,id:EquipmentId,directLethal=false):void {
     if(!victim.alive||victim.id===attacker.id)return;
     if(victim.id===this.selfId){
+      // Survival defensive upgrades may reduce incoming damage, so a direct
+      // knife or mine hit must stay lethal after that reduction.
+      if(directLethal)damage=Math.max(damage,this.health*8);
       this.takeDamage(damage,attacker.name,attacker.team,false,"equipment_"+id,attacker.pos);
       return;
     }
     if((victim.spawnProtectedUntil??0)>Date.now())return;
+    if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;

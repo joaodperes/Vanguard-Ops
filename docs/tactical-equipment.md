@@ -47,3 +47,16 @@ not receive a tactical slot; Survival bosses retain their unique boss ability.
 Online battles resolve damage, stun and explosions on the match server.
 Offline matches simulate the same throw selection, including correctly owned
 mines and bot-attributed kills.
+
+## Combat tuning (November 2026)
+Frag has a 12-unit damaging blast (140 maximum, diminishing with distance),
+Flashbang covers 14 units and disorients/stuns for 1.4–3.6 seconds depending
+on distance. The HUD now renders the actual flash and control-impairment
+effects. Throwing Knives are direct-hit lethal against ordinary operators,
+including normal Survival enemies; Survival bosses resist instant takedowns.
+Proximity Mines activate only when an opponent enters 1.55 units in line of
+sight: exactly that triggering opponent receives a lethal direct hit, while
+anyone else can take at most 38 splash damage within 2.4 units.
+Tasers deal 25 HP damage, interrupt all movement/firing for 2.4 seconds,
+and display electrical arcs and a status indicator. Third-person status cues
+are synchronized to every client, and effects are visible in offline practice.

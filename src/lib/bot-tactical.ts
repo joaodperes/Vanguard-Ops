@@ -82,7 +82,7 @@ export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover
     // Both friend and foe can see the blast, and bots must avoid self-flashing.
     const r=def.radius;
     const distanceFromBot=Math.hypot(best.path.impact[0]-owner[0],best.path.impact[2]-owner[2]);
-    if(bestError>r*.72 || distanceFromBot<r+1) return null;
+    if(bestError>(id==="frag"?5.5:7.5) || distanceFromBot<r+1) return null;
   }else if(id==="mine"){
     if(bestError>2.5)return null;
   }else if(bestError>.78)return null;

@@ -1499,6 +1499,7 @@ export type S2C =
   | { t: "scavengerCollected"; id: string }
   | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
   | { t: "equipmentStatus"; effect: "flash" | "stun"; durationMs: number }
+  | { t: "equipmentStatusFx"; effect: "flash" | "stun"; victimId: string; durationMs: number }
   | { t: "equipmentState"; remaining: number }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }

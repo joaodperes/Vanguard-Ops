@@ -165,6 +165,33 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           opacity:Math.max(0,1-shieldAge/320),
         }} />
       )}
+      {/* Tactical effects: until now Flashbang only set a timer in the engine
+          and offered no visible blindness. The whiteout fades with remaining
+          exposure; stun has a separate cyan electrical overlay. */}
+      {hud.alive && (hud.flashRemainingMs??0)>0 && (
+        <>
+          <div className="absolute inset-0" style={{
+            backgroundColor:"white",
+            opacity:Math.min(.94,Math.max(0,(hud.flashRemainingMs??0)/2300)),
+          }} />
+          <div className="absolute left-1/2 top-[21%] -translate-x-1/2 flex items-center gap-2 rounded border border-white/70 bg-black/70 px-4 py-2 font-black tracking-[0.22em] text-white text-sm">
+            <AlertTriangle className="w-4 h-4" />
+            FLASHED · {Math.ceil((hud.flashRemainingMs??0)/1000)}S
+          </div>
+        </>
+      )}
+      {hud.alive && (hud.stunRemainingMs??0)>0 && (hud.flashRemainingMs??0)<=0 && (
+        <>
+          <div className="absolute inset-0 animate-pulse" style={{
+            boxShadow:"inset 0 0 115px 22px rgba(40,210,255,0.4)",
+          }} />
+          <div className="absolute left-1/2 top-[21%] -translate-x-1/2 flex items-center gap-2 rounded border border-cyan-300/70 bg-black/75 px-4 py-2 font-black tracking-[0.17em] text-cyan-200 text-sm"
+               style={{textShadow:"0 0 12px rgba(40,210,255,.6)"}}>
+            <Zap className="w-4 h-4 animate-pulse" />
+            STUNNED · {Math.ceil((hud.stunRemainingMs??0)/1000)}S
+          </div>
+        </>
+      )}
       {/* Round 20h: Spawn protection overlay — cyan vignette + "PROTECTED" label */}
       {hud.alive && hud.selfSpawnProtected && (
         <>
