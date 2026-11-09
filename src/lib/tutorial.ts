@@ -35,8 +35,24 @@ export const COMPETITIVE_MODE_GUIDES = {
 
 
 export const TUTORIAL_VERSION = 1;
-export const TUTORIAL_PHASES = ["welcome", "practice", "loadout", "modes", "ready"] as const;
+export const TUTORIAL_PHASES = ["welcome", "practice", "loadout", "ballistics", "modes", "progression", "ready"] as const;
 export type TutorialPhase = typeof TUTORIAL_PHASES[number];
+
+/** Shared chapter catalog drives both the full guide and live-practice picker.
+ * New players can follow the sequence; returning players can skip to any topic.
+ */
+export const TUTORIAL_CHAPTERS: readonly {
+  id: TutorialPhase; label: string; description: string;
+}[] = [
+  {id:"welcome",label:"Overview",description:"Where to begin"},
+  {id:"practice",label:"Controls",description:"Live firing drills"},
+  {id:"loadout",label:"Equipment",description:"Weapons and loadouts"},
+  {id:"ballistics",label:"Penetration",description:"Bullets and materials"},
+  {id:"modes",label:"Game modes",description:"Rules and objectives"},
+  {id:"progression",label:"Progression",description:"Ranks, mastery and rewards"},
+  {id:"ready",label:"Quick start",description:"Where to play next"},
+];
+
 export interface TutorialProgress {
   version: typeof TUTORIAL_VERSION;
   status: "in_progress" | "completed" | "skipped";
