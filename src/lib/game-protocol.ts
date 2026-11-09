@@ -1429,6 +1429,8 @@ export type C2S =
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean }   // server-side raycast; shotgun ADS is sampled at fire-time
   | { t: "reload" }
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
+  | { t: "enterMech"; dropId: string }
+  | { t: "mechShot"; mode: "minigun" | "secondary"; origin: Vec3; dir: Vec3 }
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
@@ -1509,6 +1511,15 @@ export type S2C =
   | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
   | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
   | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
+  | { t: "chronoAnchor"; playerId:string; pos:Vec3; expiresAt:number }
+  | { t: "chronoRecall"; playerId:string; pos:Vec3 }
+  | { t: "phantomDecoy"; id:string; ownerId:string; pos:Vec3; yaw:number; createdAt:number; expiresAt:number; count:number }
+  | { t: "mechDrop"; id:string; ownerId:string; pos:Vec3; landAt:number; expiresAt:number; moduleId:string }
+  | { t: "mechLanded"; id:string; pos:Vec3 }
+  | { t: "mechEntered"; id:string; playerId:string; armor:number; minigunAmmo:number; secondaryAmmo:number; moduleId:string }
+  | { t: "mechDestroyed"; id:string; playerId:string }
+  | { t: "mechAmmo"; armor:number; minigunAmmo:number; secondaryAmmo:number }
+  | { t: "mechShotFx"; attackerId:string; mode:"minigun"|"shotgun"|"swarm"; origin:Vec3; dir:Vec3 }
   | { t: "turretRejected"; reason: string }
   | { t: "turretFired"; id: string; target: Vec3 }
   | { t: "turretRemoved"; id: string }
@@ -1523,8 +1534,8 @@ export type S2C =
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
   | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
-  | { t: "equipmentStatus"; effect: "flash" | "taser"; durationMs: number; visualDurationMs?: number }
-  | { t: "equipmentStatusFx"; effect: "flash" | "taser"; victimId: string; durationMs: number }
+  | { t: "equipmentStatus"; effect: "flash" | "taser" | "cryo"; durationMs: number; visualDurationMs?: number }
+  | { t: "equipmentStatusFx"; effect: "flash" | "taser" | "cryo"; victimId: string; durationMs: number }
   | { t: "equipmentState"; remaining: number; nextRechargeMs?: number }
   | { t: "equipmentRejected"; reason: string }
   | { t: "deployedCoverPlaced"; cover: import("./deployable-cover").DeployedCover }
@@ -1532,7 +1543,7 @@ export type S2C =
   | { t: "deployedCoverRemoved"; id: string }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; survivalPaused?: boolean; survivalUpgradePendingCount?: number; survivalUpgradeSecondsLeft?: number; deployedCovers?: import("./deployable-cover").DeployedCover[]; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; survivalPlayerRanks?: Record<string, SurvivalUpgradeRanks>; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "snapshot"; mechDrops?: {id:string;ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string}[]; phantomDecoys?: {id:string;ownerId:string;pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}[]; survivalPaused?: boolean; survivalUpgradePendingCount?: number; survivalUpgradeSecondsLeft?: number; deployedCovers?: import("./deployable-cover").DeployedCover[]; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; survivalPlayerRanks?: Record<string, SurvivalUpgradeRanks>; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
   | { t: "shieldBashPush"; victimId: string; pos: Vec3 }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
@@ -1556,7 +1567,7 @@ export type S2C =
   | { t: "boltRemoved"; id: string }
   | { t: "boltRecovered"; id: string; ownerId: string }
   | { t: "arcFx"; from: Vec3; to: Vec3 }
-  | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" }
+  | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" | "ripper" | "seismic" | "cryo" }
   | { t: "stormMinePlaced"; id: string; pos: Vec3; expiresAt: number }
   | { t: "stormMineRemoved"; id: string; pos: Vec3; triggered: boolean }
   | { t: "wonderField"; id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }
