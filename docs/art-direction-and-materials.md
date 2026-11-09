@@ -29,7 +29,7 @@ Each map owns its five surface recipes in `src/data/map-themes/<id>.json`:
 }
 ```
 
-Available original procedural patterns: `concrete`, `metal`, `grate`, `planks`, `rust`, `moss`, `brick`, `stone`, `pavers`, `snow`, `asphalt`, `grass`. The `tileSize` parameter is **world metres per 128px tile**, not the physical size of a cover mesh. `roughness` is 0–1. Material creation is browser-only in `src/lib/map-materials.ts`; shared JSON recipes are verified by `src/lib/content-validation.ts`. Default materials are provided for future map templates without a surface entry.
+Available original procedural patterns: `concrete`, `metal`, `grate`, `planks`, `rust`, `moss`, `brick`, `stone`, `pavers`, `snow`, `asphalt`, `grass`. The `tileSize` parameter is **world metres per 128px tile**, not the physical size of a cover mesh. `roughness` is 0–1. Material creation is browser-only in `src/lib/map-materials.ts`; shared JSON recipes are verified through the canonical `src/lib/map-theme-contract.ts` by `src/lib/content-validation.ts`. Default materials are provided for future map templates without a surface entry.
 
 `src/lib/fps-engine.ts` allocates just one set of five shared CanvasTexture materials per match and applies world-space UVs to floor tiles, walls, stairs, cover and platforms. All other physics/hitboxes are unaffected. Materials, including the city park's separate grass texture, are disposed at game teardown. The map architecture, walkable bounds, theme props and authoritative geometry are unchanged.
 
@@ -64,7 +64,7 @@ These are **candidates**, not assets currently checked into Vanguard Ops. Do not
 1. Choose one biome and one surface family (e.g. 128/256px mossy stone or painted industrial metal) before downloading large packs.
 2. Verify **license at the exact source item and download date**; keep URL, author, license and original terms in `docs/asset-provenance.md` if importing anything.
 3. Bundle compressed, power-of-two, seamless textures in the game; downsample consciously to 128–512 px to preserve the pixel/retro direction. Bake useful normal and roughness detail only when it remains readable.
-4. Expand the JSON recipe with an optional local asset path, and update schema/validator and rendering logic in one change. Restrict paths to local, allowlisted build assets; never fetch arbitrary URLs from client-side map JSON.
+4. Expand the JSON recipe with an optional local asset path, and update the canonical map-theme contract, regenerate its JSON Schema and review rendering logic in one change. Restrict paths to local, allowlisted build assets; never fetch arbitrary URLs from client-side map JSON.
 5. Keep floor UV scale consistent per metre; use packed atlases/shared materials and avoid multiplying one mesh/draw call per tiny decoration.
 6. Profile large Ridgefall and Afterlight City on low-end GPUs, check artifacts around repeated region seams, accessibility, visibility, player contrast, and map memory before merging.
 

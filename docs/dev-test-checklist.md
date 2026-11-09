@@ -22,6 +22,8 @@ git pull --ff-only origin dev
 bun install --frozen-lockfile
 bun run db:generate
 bun run content:validate
+bun run schema:catalogs:check
+bun run schema:map-theme:check
 bun run test:smoke
 bun run typecheck
 bun run build

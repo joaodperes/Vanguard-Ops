@@ -19,7 +19,9 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - No live server endpoint should accept untrusted JSON catalogs as shared game content.
 
 ## Mandatory checks
-- Run `bun run content:validate` for any catalog/map edit.
+- Run `bun run content:validate` for any catalog/map edit; it checks semantic links and drift between generated schemas and canonical contracts.
+- For authored catalog field/type changes, edit `src/lib/catalog-contract.ts` and regenerate the published JSON schemas with `bun run schema:catalogs`. For map-theme fields, edit `src/lib/map-theme-contract.ts` and run `bun run schema:map-theme`. Never hand-edit generated schemas.
+- Perks and tactical gear remain code-authored: `src/lib/loadout-contract.ts` validates their metadata while shared gameplay code implements their behavior.
 - Run `bun run test:smoke`, `bun run typecheck` and `bun run build` before calling a change ready.
 - Inspect exact catalog-size assertions in `tests/content-catalogs.test.ts` after adding entries; compare against real JSON counts before editing tests.
 - Validate server/client parity for new mechanics and run gameplay tests for new map layout, weapon tuning, rendering or bot navigation. A green CI build does not prove a map feels balanced.
@@ -48,4 +50,7 @@ When finished, report branch, commit SHA, changed catalog paths, test results, a
 
 ## Art and texture direction
 
-Map theme JSON `surfaces` now owns floor/wall/cover/stair/platform pattern, tileSize and roughness. The material vocabulary and source/license research are in `docs/art-direction-and-materials.md`. When changing material kinds, update its docs, `src/lib/map-visuals.ts`, `src/lib/map-materials.ts`, `src/lib/content-validation.ts`, `src/data/schemas/map-theme.schema.json` and tests. Do not hotlink texture assets, use third-party game screenshots as textures or accidentally import differently licensed source packs. Keep collision independent of graphics.
+Map theme JSON `surfaces` now owns floor/wall/cover/stair/platform pattern, tileSize and roughness. The material vocabulary and source/license research are in `docs/art-direction-and-materials.md`. When changing material kinds, update the canonical `src/lib/map-theme-contract.ts`,
+regenerate `map-theme.schema.json`, and update `src/lib/map-visuals.ts`,
+`src/lib/map-materials.ts`, documentation and tests. Do not duplicate the
+validation allowlist inside `content-validation.ts`. Do not hotlink texture assets, use third-party game screenshots as textures or accidentally import differently licensed source packs. Keep collision independent of graphics.
