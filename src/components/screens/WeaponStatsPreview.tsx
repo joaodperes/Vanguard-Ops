@@ -33,6 +33,7 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
   const hasPreview = !!preview && (
     currentSight.type !== shownSight.type ||
     STAT_DEFS.some(s => current[s.key] !== displayed[s.key]) ||
+    current.coverPenetration !== displayed.coverPenetration ||
     current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets ||
     current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention ||
     currentHeat?.heatPerShot !== shownHeat?.heatPerShot ||
@@ -59,16 +60,14 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
         <div className="text-white/70">Cooling delay: {(shownHeat.coolDelayMs/1000).toFixed(2)}s · Manual vent: {shownHeat.ventSeconds.toFixed(2)}s</div>
         {hasPreview && currentHeat && <div className="text-white/45">Current: {currentHeat.heatPerShot.toFixed(1)} heat/pulse, {currentHeat.coolPerSecond.toFixed(1)} cooling/s, {currentHeat.ventSeconds.toFixed(2)}s vent</div>}
       </div>}
-      {!compact && weapon.category !== "melee" && (current.bodyPenetration || displayed.bodyPenetration) && (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[11px]">
-          <span className="text-white/55">Body penetration</span>
-          <span className="font-mono font-semibold text-amber-200 text-right">
-            {displayed.bodyPenetration
-              ? `${displayed.bodyPenetration.maxTargets} targets · ${Math.round(displayed.bodyPenetration.damageRetention * 100)}% retained`
-              : "None"}
-            {hasPreview && (current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention ||
-                current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets) &&
-              <span className="ml-1.5 text-amber-300/65">(changed)</span>}
+      {!compact && weapon.category !== "melee" &&
+        ((current.coverPenetration??0)>0 || (displayed.coverPenetration??0)>0) && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5 text-[11px]">
+          <span className="text-white/55">Penetration</span>
+          <span className="font-mono font-semibold text-cyan-200 text-right">
+            {(displayed.coverPenetration??0).toFixed(1)}
+            {hasPreview && current.coverPenetration !== displayed.coverPenetration &&
+              <span className="ml-1.5 text-emerald-300/75">(↑)</span>}
           </span>
         </div>
       )}
