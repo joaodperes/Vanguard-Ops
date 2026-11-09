@@ -71,14 +71,36 @@ describe("tactical grenade physics and input",()=>{
   expect(projectilePositionAt(orbital,300)[1]).toBeGreaterThan(projectilePositionAt(regular,300)[1]);
   expect(regular.flightMs).toBe(orbital.flightMs);
  });
+ test("flash ducks both audio systems and restores selected volumes",()=>{
+  const e:any=Object.create(FPSEngine.prototype);
+  const volumes:number[]=[];
+  const weapons:number[]=[];
+  Object.assign(e,{
+    sound:{setMasterVolume:(v:number)=>volumes.push(v),setFootstepVolume:()=>{},setFxVolume:()=>{}},
+    weaponAudio:{setVolume:(v:number)=>weapons.push(v)},
+    equipmentFlashUntil:0,flashAudioFactor:1,
+  });
+  e.setAudioMix({masterVolume:80,footstepVolume:60,fxVolume:50});
+  expect(volumes.at(-1)).toBeCloseTo(0.8);
+  expect(weapons.at(-1)).toBeCloseTo(40);
+  const now=performance.now();
+  e.equipmentFlashUntil=now+2000;
+  e.updateFlashAudio(now);
+  expect(volumes.at(-1)).toBeCloseTo(0.12);
+  expect(weapons.at(-1)).toBeCloseTo(6);
+  e.updateFlashAudio(now+2000);
+  expect(volumes.at(-1)).toBeCloseTo(0.8);
+  expect(weapons.at(-1)).toBeCloseTo(40);
+ });
  test("animation commits exactly once after release",()=>{
   const e:any=Object.create(FPSEngine.prototype);
   Object.assign(e,{opts:{mode:"ffa",online:false,loadout:{equipmentId:"frag"}},
     inputSuspended:false,disposed:false,alive:true,survivalDowned:false,matchEnded:false,
     lobbyActive:false,preMatchCountdown:0,equipmentAction:null,reloading:false,
-    equipmentStunUntil:0,pointerLocked:true,touchMode:false,equipmentCharges:2,equipmentLastAt:-10000,
+    equipmentFlashUntil:performance.now()+2500,pointerLocked:true,touchMode:false,equipmentCharges:2,equipmentLastAt:-10000,
     manualAiming:true,aiming:true,unlockAudio(){},commitEquipmentUse(id:string){this.calls.push(id);},calls:[]});
   e.useEquipment();
+  // Can throw while still flashed.
   expect(e.equipmentAction?.id).toBe("frag");
   expect(e.aiming).toBe(false);
   const start=e.equipmentAction.startedAt,duration=e.equipmentAction.duration;
