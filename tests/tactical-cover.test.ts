@@ -1,10 +1,43 @@
 import { describe, expect, test } from "bun:test";
 import { blastCanDamage } from "../src/lib/explosion-damage-rules";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "../src/lib/launcher-effects";
+import { rayBox, type CoverBox, type Vec3 } from "../src/lib/game-protocol";
 import { fullThrowingKnives, spendThrowingKnife, tickThrowingKnives, THROWING_KNIFE_MAX_CHARGES, THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
 import { coverPanels, coverPlacement, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP } from "../src/lib/deployable-cover";
 import { rechargeTactical, spendTactical, TACTICIAN_RECHARGE_MS } from "../src/lib/perks";
 import { calculateThrowPath, TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
 describe("tactical balance",()=>{
+ test("RL-7 wall-impact splash can hit its owner without passing through the wall",()=>{
+  // Wall's front face is z=1, exactly where the rocket explodes.
+  const wall:CoverBox={pos:[0,1.2,1.2],size:[2,1.2,.2],kind:"solid"};
+  const impact:Vec3=[0,1.6,1];
+  const muzzle:Vec3=[0,1.6,0];
+  const owner:Vec3=[0,.9,0];
+  const enemyBehindWall:Vec3=[0,.9,1.6];
+  const unobstructed=(from:Vec3,to:Vec3,boxes:CoverBox[])=>{
+    const diff:Vec3=[to[0]-from[0],to[1]-from[1],to[2]-from[2]];
+    const len=Math.hypot(...diff),dir:Vec3=[diff[0]/len,diff[1]/len,diff[2]/len];
+    return boxes.every(b=>{
+      const t=rayBox(from,dir,b.pos,b.size);
+      return t===null || t>=len;
+    });
+  };
+  // Regression: the old unshifted origin was erroneously treated as blocked at t=0.
+  expect(unobstructed(impact,owner,[wall])).toBe(false);
+  const losOrigin=launcherBlastVisibilityOrigin(impact,muzzle);
+  expect(losOrigin[2]).toBeLessThan(impact[2]);
+  expect(unobstructed(losOrigin,owner,[wall])).toBe(true);
+  // The same collider must still protect a target on the far side.
+  expect(unobstructed(losOrigin,enemyBehindWall,[wall])).toBe(false);
+  // Other cover between the blast and shooter remains protective.
+  const middleWall:CoverBox={pos:[0,1,.45],size:[2,1,.08],kind:"solid"};
+  expect(unobstructed(losOrigin,owner,[wall,middleWall])).toBe(false);
+  // One metre from the wall is within the RL-7's deliberately tight 1.9m blast.
+  const d=Math.hypot(owner[0]-impact[0],owner[1]-impact[1],owner[2]-impact[2]);
+  expect(d).toBeLessThan(1.9);
+  expect(176*launcherSplashFactor("launcher_rocket",d,1.9)).toBeGreaterThan(0);
+  expect(launcherSplashFactor("launcher_rocket",2,1.9)).toBe(0);
+ });
  test("throwing melee knife: 1 per life, shorter range, timed Gun Game refill",()=>{
   expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
   expect(THROWING_KNIFE_RANGE).toBe(5.5);
