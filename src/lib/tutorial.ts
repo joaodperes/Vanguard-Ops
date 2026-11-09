@@ -53,6 +53,19 @@ export const TUTORIAL_CHAPTERS: readonly {
   {id:"ready",label:"Quick start",description:"Where to play next"},
 ];
 
+/** Optional one-shot deep link from the Armory to a specific guide chapter. */
+const TUTORIAL_REQUEST_KEY="vanguard_tutorial_chapter";
+export function requestTutorialChapter(phase:TutorialPhase):void {
+  try { sessionStorage.setItem(TUTORIAL_REQUEST_KEY,phase); } catch {}
+}
+export function consumeTutorialChapter():TutorialPhase|null {
+  try {
+    const value=sessionStorage.getItem(TUTORIAL_REQUEST_KEY);
+    sessionStorage.removeItem(TUTORIAL_REQUEST_KEY);
+    return TUTORIAL_PHASES.includes(value as TutorialPhase)?value as TutorialPhase:null;
+  }catch { return null; }
+}
+
 export interface TutorialProgress {
   version: typeof TUTORIAL_VERSION;
   status: "in_progress" | "completed" | "skipped";
