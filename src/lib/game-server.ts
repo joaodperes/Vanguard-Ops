@@ -33,7 +33,7 @@ import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
-import { selectMaterialPenetrationHits, traceCoverPenetration } from "./cover-penetration";
+import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { damageBallisticCoverOnShot } from "./material-cover-damage";
 import { launcherSplashFactor } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
@@ -943,8 +943,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
  * The fatal pellet still sees the pre-break collision, while the NEXT pellet/shot
  * sees the newly opened passage. Never use client-reported cover damage. */
 function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
-  bodyHits: readonly {t:number}[]): void {
-  const stopAt = bodyHits.length && !eff.bodyPenetration ? bodyHits[0].t : Infinity;
+  stopAt: number): void {
   for (const impact of damageBallisticCoverOnShot(room.map,room.materialCoverHp,room.materialCoverDestroyed,
     origin,dir,maxWeaponHitRange(eff.range,eff),eff.coverPenetration ?? 0,eff.damage,stopAt)) {
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
@@ -954,10 +953,10 @@ function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
 /** Conventional hitscan rounds can cross explicitly tagged thin cover.
  * Structural cover, Bulwark shields and protected spawns still absorb shots. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
-  range: number, eff: WeaponStats): { victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[] {
+  range: number, eff: WeaponStats): { hits:{ victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[]; stoppedAt:number } {
   if (!eff.bodyPenetration && !(eff.coverPenetration ?? 0)) {
     const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
-    return first ? [{ ...first, damageScale: 1 }] : [];
+    return {hits:first ? [{ ...first, damageScale: 1 }] : [],stoppedAt:first?.t??Infinity};
   }
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const maxDistance = maxWeaponHitRange(range, eff);
@@ -975,9 +974,10 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
       shield: shieldFirst,
       protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
   }
-  return selectMaterialPenetrationHits(contacts,room.map.cover,origin,dir,maxDistance,
-      eff.bodyPenetration,eff.coverPenetration)
-    .map(({ target, t, head, shield, damageScale }) => ({ victim: target, t, head, shield, damageScale }));
+  const resolved=resolveMaterialPenetrationShot(contacts,room.map.cover,origin,dir,maxDistance,
+      eff.bodyPenetration,eff.coverPenetration);
+  return {hits:resolved.hits.map(({ target, t, head, shield, damageScale }) => (
+    { victim: target, t, head, shield, damageScale })),stoppedAt:resolved.stoppedAt};
 }
 
 // Determine the victim's "kill difficulty" for rewards scaling. Bot victims
@@ -1180,7 +1180,7 @@ function throwKnifeFrom(room:Room,p:PlayerNet,origin:Vec3,dir:Vec3,now:number,sk
   syncThrowingKnifeAmmo(room,p,now);
   const weapon=weaponById(THROWING_KNIVES_ID);
   const hit=firePenetratingRay(room,p.id,origin,dir,THROWING_KNIFE_RANGE,weapon.stats)
-    .find(h=>h.t<=THROWING_KNIFE_RANGE);
+    .hits.find(h=>h.t<=THROWING_KNIFE_RANGE);
   if(hit)applyDamage(room,p.id,hit.victim,weapon.stats.damage*
     (hit.head?weapon.stats.headshotMult:1),hit.head,THROWING_KNIVES_ID,hit.shield);
   io.to(room.id).emit("message",{t:"shotFx",origin,dir,weaponId:THROWING_KNIVES_ID,
@@ -2732,8 +2732,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         const pdir = botShotgun
           ? shotgunPelletDirection(dir, eff, !!ai.aiming)
           : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
-        const rayHits = firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff);
-        hitMaterialCover(room,origin,pdir,eff,rayHits);
+        const resolved=firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff);
+        const rayHits=resolved.hits;
+        hitMaterialCover(room,origin,pdir,eff,resolved.stoppedAt);
         for (const hit of rayHits) {
           const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
           const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff) * hit.damageScale;
@@ -3701,8 +3702,9 @@ async function handle(socket: any, msg: C2S) {
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
           const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
-          const hits = firePenetratingRay(room, socket.id, msg.origin, dir, eff.range, eff);
-          hitMaterialCover(room,msg.origin,dir,eff,hits);
+          const resolved=firePenetratingRay(room, socket.id, msg.origin, dir, eff.range, eff);
+          const hits=resolved.hits;
+          hitMaterialCover(room,msg.origin,dir,eff,resolved.stoppedAt);
           if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
               hits.length === 0) {
             damageEnvironmentWall(room, coverHit.box.environmentId, eff.damage);
