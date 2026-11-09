@@ -7,7 +7,7 @@ import { WeaponStatsPreview, EMPTY_ATTACHMENTS } from "../src/components/screens
 import { weaponById } from "../src/lib/game-data";
 
 const readSource = (file: string) => readFileSync(join(import.meta.dir, "../src/components/screens", file), "utf8");
-const oneStatPerRow = "grid-cols-[minmax(0,1.25fr)_minmax(24px,1fr)_auto]";
+const oneStatPerRow = "grid-cols-[112px_minmax(24px,1fr)_86px]";
 
 describe("Current Loadout card layout", () => {
   test("primary weapons show a full-width row for every stat, without a heading", () => {
@@ -17,6 +17,21 @@ describe("Current Loadout card layout", () => {
     expect(markup.split(oneStatPerRow).length - 1).toBe(11);
     expect(markup).not.toContain(">Stats</span>");
     expect(markup).toContain("Bullet Penetration");
+  });
+
+  test("each weapon stat has an identical fixed-width label and value track, keeping bars aligned", () => {
+    const layouts = ["rifle_ar", "pistol_side", "knife_tactical"].map(id =>
+      renderToStaticMarkup(createElement(WeaponStatsPreview, { weapon: weaponById(id), compact: true }))
+    );
+    for (const markup of layouts) {
+      expect(markup).toContain(oneStatPerRow);
+      expect(markup).not.toContain("grid-cols-[minmax(0,1.25fr)_minmax(24px,1fr)_auto]");
+    }
+    const stats = readSource("WeaponStatsPreview.tsx");
+    expect(stats).toContain("grid grid-cols-[112px_minmax(24px,1fr)_86px]");
+    expect(stats).toContain('{label}');
+    expect(stats).toContain('{bar}');
+    expect(stats).toContain('{value}');
   });
 
   test("melee shows its four applicable stats using the same one-row layout", () => {
@@ -36,6 +51,17 @@ describe("Current Loadout card layout", () => {
     expect(card).toContain("{weaponCategoryLabel(weapon.category)}</span>");
     expect(card).not.toContain("h-[227px]");
     expect(card).not.toContain('overflow-y-auto">\n          <WeaponStatsPreview');
+  });
+
+  test("perk and tactical descriptions appear inline beside their names, not on separate lines", () => {
+    const source = readSource("Loadout.tsx");
+    const perkRow = source.match(/<div className="flex min-w-0 items-baseline gap-2 mb-2">[\\s\\S]*?<\\/div>/g);
+    expect(perkRow).toHaveLength(2);
+    expect(perkRow![0]).toContain("perkById(perkId).name");
+    expect(perkRow![0]).toContain("perkById(perkId).description");
+    expect(perkRow![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.name");
+    expect(perkRow![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.description");
+    expect(source).not.toContain("min-h-7 leading-snug line-clamp-2");
   });
 
   test("wide layout uses three columns and places Melee above Perk and Tactical", () => {
