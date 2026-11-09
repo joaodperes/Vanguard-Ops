@@ -19,7 +19,7 @@ const emptyAttachments = { sight: null, barrel: null, grip: null, magazine: null
 const trainingLoadout: LoadoutWire = {
   weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", meleeWeaponId: "knife_tactical",
   perkId: "battle_hardened", weaponSkinId: "default", secondaryWeaponSkinId: "default",
-  meleeWeaponSkinId: "default", playerSkinId: "default", attachments: emptyAttachments,
+  meleeWeaponSkinId: "default", playerSkinId: "default", equipmentId: "frag", attachments: emptyAttachments,
   secondaryAttachments: emptyAttachments, meleeAttachments: emptyAttachments,
 };
 
@@ -31,7 +31,7 @@ export function Tutorial() {
   });
   const [touch] = useState(() => typeof window !== "undefined" &&
     (navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches));
-  const [equipment, setEquipment] = useState<"primary" | "secondary" | "melee" | "perk">("primary");
+  const [equipment, setEquipment] = useState<"primary" | "secondary" | "melee" | "tactical" | "perk">("primary");
   const [mode, setMode] = useState<"pvp" | "survival">("pvp");
   const practice = useRef<PracticeState>({ step: progress.practiceStep, distance: 0 });
 
@@ -71,8 +71,8 @@ export function Tutorial() {
         mapId="compound" onMatchEnd={() => {}} onExit={() => leave("in_progress")}
         onPracticeSample={observePractice} />
       <aside className="fixed top-16 left-3 z-[72] w-[min(19rem,calc(100vw-1.5rem))] rounded-xl border border-amber-500/40 bg-black/85 p-3 sm:p-4 text-white shadow-xl pointer-events-none">
-        <p className="text-[10px] uppercase tracking-widest text-amber-300">Tutorial · Private practice · {Math.min(progress.practiceStep + 1, 5)} / 5</p>
-        <div className="mt-2 flex gap-1" aria-label={`${progress.practiceStep} of 5 drills complete`}>
+        <p className="text-[10px] uppercase tracking-widest text-amber-300">Tutorial · Private practice · {Math.min(progress.practiceStep + 1, PRACTICE_TASKS.length)} / {PRACTICE_TASKS.length}</p>
+        <div className="mt-2 flex gap-1" aria-label={`${progress.practiceStep} of ${PRACTICE_TASKS.length} drills complete`}>
           {PRACTICE_TASKS.map((t, i) => <span key={t.title} className={`h-1 flex-1 rounded ${i < progress.practiceStep ? "bg-emerald-400" : "bg-white/20"}`} />)}
         </div>
         <div role="status" aria-live="polite" aria-atomic="true">
@@ -95,6 +95,7 @@ export function Tutorial() {
     secondary: { title: profile.loadout.secondary.name, text: "Swap to your sidearm when your primary runs dry. Q quick-swaps between your last two weapons." },
     melee: { title: profile.loadout.melee.name, text: "Use slot 3 for melee or F for a quick strike. Melee weapons help you move faster and excel up close." },
     perk: { title: perkById(profile.loadout.perkId).name, text: "Perks unlock as you level. Equip one in Armory to suit your playstyle, then save a named loadout to switch builds later." },
+    tactical: { title: "Frag Grenade", text: "Unlocked at Level 1. Press G to throw a grenade on desktop or tap Tactical on touch controls. You have two charges per life; they refill on respawn. Choose other tactical equipment from Armory as you level up. Gun Game disables tactical gear." },
   };
   const detail = equipmentDetails[equipment];
 
@@ -120,7 +121,7 @@ export function Tutorial() {
             <h1 className="text-3xl font-black sm:text-4xl">Your first mission starts here.</h1>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/65">Learn the controls in a private firing range, explore your loadout, and choose your first game mode. Take it at your own pace — about 3 minutes.</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {[{ icon: Crosshair, title: "Learn by playing", text: "Five short drills with live feedback." }, { icon: Backpack, title: "Build your kit", text: "Weapons, attachments and one perk." }, { icon: Shield, title: "Find your fight", text: "Competitive modes or Survival." }].map(({ icon: Icon, title, text }) => <div key={title} className="rounded-xl border border-white/10 bg-black/30 p-4"><Icon className="mb-2 h-5 w-5 text-amber-300" /><h2 className="text-sm font-bold">{title}</h2><p className="mt-1 text-xs leading-relaxed text-white/50">{text}</p></div>)}
+              {[{ icon: Crosshair, title: "Learn by playing", text: "Six short drills with live feedback." }, { icon: Backpack, title: "Build your kit", text: "Weapons, tactical gear, attachments and one perk." }, { icon: Shield, title: "Find your fight", text: "Competitive modes or Survival." }].map(({ icon: Icon, title, text }) => <div key={title} className="rounded-xl border border-white/10 bg-black/30 p-4"><Icon className="mb-2 h-5 w-5 text-amber-300" /><h2 className="text-sm font-bold">{title}</h2><p className="mt-1 text-xs leading-relaxed text-white/50">{text}</p></div>)}
             </div>
             <p className="mt-5 text-xs text-white/45">Practice is free and does not affect your stats. Your progress is saved on this device; resume from Profile at any time.</p>
           </>}
@@ -128,8 +129,8 @@ export function Tutorial() {
             <Backpack className="mb-4 h-9 w-9 text-amber-400" />
             <h1 className="text-2xl font-black">Get to know your loadout.</h1>
             <p className="mt-3 text-sm text-white/60">Choose a slot below to inspect your current kit. Armory is where you change and save it.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Equipment slots">
-              {(["primary", "secondary", "melee", "perk"] as const).map(slot => <button key={slot} aria-pressed={equipment === slot} onClick={() => setEquipment(slot)} className={`rounded-lg border p-3 text-sm capitalize transition-colors ${equipment === slot ? "border-amber-400/70 bg-amber-500/15 text-amber-200" : "border-white/10 bg-black/30 text-white/60 hover:border-white/30"}`}>{slot}</button>)}
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5" role="group" aria-label="Equipment slots">
+              {(["primary", "secondary", "melee", "tactical", "perk"] as const).map(slot => <button key={slot} aria-pressed={equipment === slot} onClick={() => setEquipment(slot)} className={`rounded-lg border p-3 text-sm capitalize transition-colors ${equipment === slot ? "border-amber-400/70 bg-amber-500/15 text-amber-200" : "border-white/10 bg-black/30 text-white/60 hover:border-white/30"}`}>{slot}</button>)}
             </div>
             <div className="mt-4 min-h-32 rounded-xl border border-white/10 bg-black/30 p-5" aria-live="polite"><h2 className="font-bold text-amber-200">{detail.title}</h2><p className="mt-2 text-sm leading-relaxed text-white/60">{detail.text}</p></div>
             <p className="mt-5 text-xs leading-relaxed text-white/50">XP opens level gates. Weapon challenges make attachments and camos eligible; credits buy them. Try equipment at the Firing Range before buying.</p>
