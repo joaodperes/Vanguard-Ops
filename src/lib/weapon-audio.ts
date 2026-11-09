@@ -225,7 +225,8 @@ export class WeaponAudio {
   private activeVoices = 0;
   private readonly maxVoices = 32;
   private lastFlameHissAt = -Infinity; // prevent Web Audio overload during bot-heavy firefights
-  private lastTailAt = -Infinity; // sparse reflections prevent automatic-fire wash
+  private lastLocalTailAt = -Infinity; // first-person reflections outrank remote volleys
+  private lastRemoteTailAt = -Infinity;
   private disposed = false;
 
   constructor(masterVolume = 70) {
@@ -488,8 +489,12 @@ export class WeaponAudio {
     // filtered reflection (not another dry shot) makes exteriors feel open and
     // an enclosed bunker punch back quickly. Cap tails under automatic fire
     // and on dense multiplayer servers; never let reflections mask footsteps.
-    if (acoustics.tailLevel > .01 && now - this.lastTailAt > (options.distance === undefined ? .14 : .23)) {
-      this.lastTailAt = now;
+    const localShot = options.distance === undefined;
+    const lastTail = localShot ? this.lastLocalTailAt : this.lastRemoteTailAt;
+    if (acoustics.tailLevel > .01 && (localShot || (options.distance! < 50 && this.activeVoices < 24))
+        && now - lastTail > (localShot ? .14 : .23)) {
+      if (localShot) this.lastLocalTailAt = now;
+      else this.lastRemoteTailAt = now;
       const tail = ctx.createBufferSource();
       tail.buffer = this.noiseBuffer;
       const tailFilter = ctx.createBiquadFilter();
