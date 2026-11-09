@@ -110,6 +110,15 @@ describe("Floodgate hydraulic progression",()=>{
       expect(botPositionEmbedded(roof,[pillar.x,0,z])).toBe(false);
       expect(botGroundHeight(roof,pillar.x,z,0)).toBe(0);
       expect(roof.some(c=>rayBox([pillar.x-5,1.6,z],[1,0,0],c.pos,c.size)!==null)).toBe(false);
+      // Repeat with the FULL map: a clear isolated tread is not enough if
+      // static concrete, railings or neighboring cover still seal the space.
+      expect(botPositionEmbedded(map.cover,[pillar.x,0,z])).toBe(false);
+      expect(botMoveBlocked(map.cover,from,to,0)).toBe(false);
+      expect(map.cover.some(c=>{
+        if(c.kind==="accent")return false;
+        const hit=rayBox([pillar.x-5,1.6,z],[1,0,0],c.pos,c.size);
+        return hit!==null&&hit>=0&&hit<10;
+      })).toBe(false);
       // The upper treads still collide with shots fired at deck height.
       const middle=roof[Math.floor(roof.length/2)];
       const top=middle.pos[1]+middle.size[1];
