@@ -845,18 +845,11 @@ function WeaponCard(props: WeaponCardProps) {
         </div>
         <div className="text-white/40 text-xs uppercase tracking-wide flex items-center gap-1.5 min-w-0">
           <span className="truncate">{weaponCategoryLabel(w.category)} · LVL {w.unlockLevel}</span>
-          {w.stats.bodyPenetration && (
-            <span className="inline-flex shrink-0 rounded border border-amber-400/25 bg-amber-500/5 px-1 py-px text-[9px] font-mono font-semibold text-amber-300/80 normal-case"
-              title={`Body penetration: up to ${w.stats.bodyPenetration.maxTargets} aligned targets, ${Math.round(w.stats.bodyPenetration.damageRetention * 100)}% damage retained after each hit. Structural cover, reinforced walls and shields stop bullets. Some thin cover can be pierced separately.`}
-              aria-label={`Body penetration: ${w.stats.bodyPenetration.maxTargets} targets`}>
-              PEN×{w.stats.bodyPenetration.maxTargets}
-            </span>
-          )}
           {(w.stats.coverPenetration??0)>0&&(
             <span className="inline-flex shrink-0 rounded border border-cyan-400/25 bg-cyan-500/5 px-1 py-px text-[9px] font-mono font-semibold text-cyan-300/80 normal-case"
-              title={`Cover penetration power ${w.stats.coverPenetration}: can pierce sufficiently thin wood, metal, glass and light cover, with reduced damage. Concrete and reinforced surfaces always stop bullets.`}
-              aria-label={`Cover penetration power ${w.stats.coverPenetration}`}>
-              COV {w.stats.coverPenetration?.toFixed(1)}
+              title="Ammunition penetration rating · detailed rules are in Tutorial → Penetration"
+              aria-label={`Penetration rating ${w.stats.coverPenetration}`}>
+              PEN {w.stats.coverPenetration?.toFixed(1)}
             </span>
           )}
         </div>
@@ -1037,8 +1030,12 @@ function CustomizeModal(props: CustomizeModalProps) {
             <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
           </div>
           {(currentEffectiveStats.coverPenetration??0)>0&&(
-            <p className="mt-1 text-xs text-cyan-300/80" title="Penetration consumes energy based on material and thickness; exit shots lose damage.">
-              Thin-cover penetration power: <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong> · max 2 light surfaces · concrete and reinforced walls block shots
+            <p className="mt-1 text-xs text-cyan-300/80">
+              Penetration <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong>
+              <button type="button" onClick={()=>{setCustomizing(null);setScreen("tutorial");}}
+                className="ml-3 text-white/55 underline underline-offset-2 hover:text-white">
+                Tutorial: Penetration guide
+              </button>
             </p>
           )}
         </DialogHeader>
@@ -1536,7 +1533,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                     </span>
                   ))}
                   {a.shotgunAmmo && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Shell type: {a.name}</span>}
-                  {a.bodyPenetration && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Penetrates {a.bodyPenetration.maxTargets} bodies</span>}
+                  {a.bodyPenetration && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Penetrator ammo</span>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
