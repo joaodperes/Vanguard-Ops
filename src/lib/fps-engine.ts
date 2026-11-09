@@ -3133,6 +3133,7 @@ export class FPSEngine {
     // camera's local coordinate system and lifetime with the weapon model.
     this.clearFirstPersonRig();
 
+    const selectedWonderFinish=this.currentSlot==="wonder"?wonderFinishById(this.wonderSkinId):undefined;
     const skin = weaponSkinById(this.weaponId==="wonder_turret"?"default":this.getCurrentSkinId());
     // Viewmodel uses MeshBasicMaterial (unlit, always full-bright) so the weapon is
     // guaranteed visible against any background — MeshStandardMaterial rendered too
@@ -3193,7 +3194,8 @@ export class FPSEngine {
         lightCol = new THREE.Color(tint).lerp(new THREE.Color(0xaab4c0), 0.35);
       }
     }
-    const darkCol = skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
+    if(selectedWonderFinish)lightCol=new THREE.Color(selectedWonderFinish.color).lerp(new THREE.Color(0xffffff),.16);
+    const darkCol = selectedWonderFinish?new THREE.Color(selectedWonderFinish.color).multiplyScalar(.35):skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
     const emissiveCol = skin.emissive ? new THREE.Color(skin.emissive) : null;
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
@@ -3205,7 +3207,7 @@ export class FPSEngine {
       material.color.set(0xffffff);
       material.needsUpdate = true;
     }
-    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
+    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin&&!selectedWonderFinish)) {
       // Only explicitly selected Prestige skins override an existing cosmetic.
       // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
       // take precedence. Hellfire stays red/orange instead of toxic green.
@@ -3798,6 +3800,13 @@ export class FPSEngine {
       this.swapViewmodelPending = false;
       this.buildViewmodel(); // positions the new model and returns here once
       return;
+    }
+    if(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId)&&this.weaponMat){
+      const t=performance.now()*.001,finish=wonderFinishById(this.wonderSkinId)!;
+      const color=new THREE.Color(finish.color);
+      if(finish.id==="wonder_prismatic")color.setHSL((t*.13)%1,.76,.59);
+      const pulse=.68+Math.sin(t*3.2)*.17+Math.sin(t*.9)*.1;
+      (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.copy(color.multiplyScalar(pulse));
     }
     if (this.prestigeTexture) {
       const t = performance.now() * .001;
@@ -6411,6 +6420,10 @@ export class FPSEngine {
         }
         break;
       case "hit": {
+        if(msg.killed&&msg.wonderKillEffectId){
+          const victim=this.combatants.get(msg.victimId);
+          if(victim)this.showWonderBurst(victim.pos,msg.wonderKillEffectId);
+        }
         if (msg.victimId === this.selfId) {
           this.damageFlashAt = performance.now();
           // Only update the regen-cooldown timestamp when real damage is dealt.
