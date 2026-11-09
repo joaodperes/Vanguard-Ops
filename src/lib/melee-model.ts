@@ -69,15 +69,34 @@ export function buildMeleeWeaponParts(
     // Two compact knives with narrow blades and tapered points, not a baton.
     for(const x of [-.055,.055]){
       box(.035,.03,.18,grip,x,-.05,.07);
-      box(.045,.018,.05,metal,x,-.05,-.044);
+      // The bolster must overlap BOTH the grip and the cone, not merely
+      // meet at two almost-coplanar end faces (which leaves a visible seam).
+      box(.045,.018,.085,metal,x,-.05,-.044);
       const blade=new THREE.Mesh(new THREE.ConeGeometry(.04,.3,4),metal);
       blade.rotation.x=-Math.PI/2;place(blade,x,-.05,-.22);
     }
     return -.37;
   }
   const isShiv=id==="shiv",isMachete=id==="machete";
-  box(isShiv?.035:.04,isShiv?.035:.04,isShiv?.08:.10,grip,0,-.05,.08);
+  const handleWidth=isShiv?.035:.04;
+  const handleHeight=isShiv?.035:.04;
+  const handleDepth=isShiv?.08:.10;
+  box(handleWidth,handleHeight,handleDepth,grip,0,-.05,.08);
+
+  // Previously the blade ended BEFORE the grip began: a 6 cm gap on the shiv,
+  // 5 cm on the tactical knife, and 2.5 cm on the machete. In the upright
+  // first-person pose those gaps are magnified by perspective and make the
+  // blade appear to float above the hilt. Keep the same tip/reach, but extend
+  // each blade's tang INTO its handle instead of placing disconnected boxes.
+  const tipZ=isShiv?-.24:isMachete?-.445:-.34;
+  const tangZ=isShiv?.065:.06;
+  const bladeDepth=tangZ-tipZ;
   box(isShiv?.02:isMachete?.03:.025,isShiv?.035:isMachete?.06:.05,
-    isShiv?.22:isMachete?.45:.32,metal,0,-.05,isShiv?-.13:isMachete?-.22:-.18);
+    bladeDepth,metal,0,-.05,(tipZ+tangZ)/2);
+  if(!isShiv){
+    // A dark bolster masks the overlapping tang at the hilt, while itself
+    // intersecting both blade and handle. The improvised shiv has no guard.
+    box(isMachete?.075:.072,isMachete?.075:.066,.055,grip,0,-.05,.035);
+  }
   return isShiv?-.25:isMachete?-.45:-.35;
 }
