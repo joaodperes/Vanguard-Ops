@@ -5,6 +5,17 @@ import { equipmentById } from "./equipment";
 
 /** Taser jams precision aiming, without immobilizing or disarming the target. */
 export const TASER_ADS_BLOCK_MS = 2400;
+
+/** A Survival bot's taser can disrupt aiming but never deliver a killing
+ * blow. Apply this clamp after all damage multipliers so glass-cannon or other
+ * vulnerabilities cannot turn the stun into a lethal hit. Other modes and
+ * human-owned tasers keep their usual damage. */
+export function survivalNonLethalTaserDamage(
+  damage:number,remainingHp:number,mode:string,attackerIsBot:boolean,weaponId:string,
+):number {
+  if(mode!=="survival"||!attackerIsBot||weaponId!=="equipment_taser")return damage;
+  return Math.max(0,Math.min(damage,Math.max(0,remainingHp-1)));
+}
 export function isTaserAdsBlocked(adsBlockedUntil:number,now:number):boolean {
   return adsBlockedUntil>now;
 }
