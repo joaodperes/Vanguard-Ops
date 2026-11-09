@@ -3631,6 +3631,72 @@ async function handle(socket: any, msg: C2S) {
       placePlayerTurret(room, player, socket.id, now);
       break;
     }
+    case "enterMech": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      const p=room?.players.get(socket.id);
+      if(!room||room.state!=="playing"||room.ended||!p?.alive||room.playerMechs.has(socket.id)||room.downed.has(socket.id))break;
+      const drop=room.mechDrops.get(msg.dropId);
+      if(!drop||!drop.landed||drop.enteredBy||drop.expiresAt<=Date.now()||
+          Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>3.2||
+          Math.abs(p.pos[1]-drop.pos[1])>2)break;
+      if(room.mode==="ctf"&&(room.flags.red.carrierId===p.id||room.flags.blue.carrierId===p.id))break;
+      const tuning=mechTuning(drop.moduleId),now=Date.now();
+      drop.enteredBy=p.id;
+      drop.expiresAt=now+JUGGERNAUT_ACTIVE_MS;
+      const mech={dropId:drop.id,moduleId:drop.moduleId,armor:tuning.armor,minigunAmmo:tuning.minigunAmmo,
+        secondaryAmmo:tuning.secondaryAmmo,enteredAt:now,lastPrimaryAt:0,lastSecondaryAt:0,
+        spinAt:now,expiresAt:drop.expiresAt};
+      room.playerMechs.set(p.id,mech);
+      p.pos=[...drop.pos];
+      io.to(room.id).emit("message",{t:"mechEntered",id:drop.id,playerId:p.id,armor:mech.armor,
+        minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo,moduleId:drop.moduleId} as S2C);
+      break;
+    }
+    case "mechShot": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      const p=room?.players.get(socket.id),mech=room?.playerMechs.get(socket.id);
+      if(!room||room.state!=="playing"||room.ended||room.preMatchCountdown>0||!p?.alive||!mech)break;
+      const now=Date.now(),tuning=mechTuning(mech.moduleId);
+      if(now>=mech.expiresAt||![...msg.origin,...msg.dir].every(Number.isFinite)||
+         Math.hypot(msg.origin[0]-p.pos[0],msg.origin[1]-p.pos[1],msg.origin[2]-p.pos[2])>3||
+         Math.abs(Math.hypot(...msg.dir)-1)>.2)break;
+      const dir=normalize(msg.dir);
+      if(msg.mode==="minigun"){
+        if(mech.minigunAmmo<=0||now-mech.lastPrimaryAt<1000/JUGGERNAUT_MINIGUN_RATE*.9)break;
+        if(now-mech.lastPrimaryAt>450){mech.spinAt=now;mech.lastPrimaryAt=now;break;}
+        if(now-mech.spinAt<tuning.minigunSpinupMs)break;
+        mech.lastPrimaryAt=now;mech.minigunAmmo--;
+        const d=normalize(add(dir,randSpread(.028)));
+        const hit=fireRay(room,socket.id,msg.origin,d,"wonder_juggernaut",70);
+        if(hit)applyDamage(room,socket.id,hit.victim,tuning.minigunDamage,hit.head,"wonder_juggernaut",hit.shield);
+      }else{
+        const isSwarm=tuning.secondary==="swarm";
+        const rate=isSwarm?JUGGERNAUT_SWARM_RATE:JUGGERNAUT_SHOTGUN_RATE;
+        if(mech.secondaryAmmo<=0||now-mech.lastSecondaryAt<1000/rate*.9)break;
+        mech.lastSecondaryAt=now;mech.secondaryAmmo--;
+        if(isSwarm){
+          const point=serverBoltLanding(room,socket.id,msg.origin,dir,40);
+          for(const target of allCombatants(room)){
+            if(!target.alive||(!blastCanDamage(socket.id,p.team,target.id,target.team,room.mode)))continue;
+            const dist=Math.hypot(target.pos[0]-point[0],target.pos[1]+1-point[1],target.pos[2]-point[2]);
+            if(dist>6||!hasLineOfSight(room,point,[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
+            applyDamage(room,socket.id,target,82*Math.max(.15,1-dist/6),false,"wonder_juggernaut");
+          }
+          blastMaterialCover(room,point,6,82,"launcher_swarm");
+        }else for(let k=0;k<tuning.shotgunPellets;k++){
+          const d=normalize(add(dir,randSpread(.135)));
+          const hit=fireRay(room,socket.id,msg.origin,d,"wonder_juggernaut",17);
+          if(hit)applyDamage(room,socket.id,hit.victim,tuning.shotgunDamage,hit.head,"wonder_juggernaut",hit.shield);
+          if(room.ended)break;
+        }
+      }
+      clearSpawnProtection(room,p);
+      publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",suppressed:false});
+      io.to(room.id).emit("message",{t:"mechShotFx",attackerId:p.id,
+        mode:msg.mode==="minigun"?"minigun":tuning.secondary,origin:msg.origin,dir} as S2C);
+      io.to(p.id).emit("message",{t:"mechAmmo",armor:mech.armor,minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo} as S2C);
+      break;
+    }
     case "shot": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
@@ -3640,7 +3706,7 @@ async function handle(socket: any, msg: C2S) {
       // humans shouldn't be able to shoot either — prevents pre-countdown kills).
       if (room.preMatchCountdown > 0) return;
       const p = room.players.get(socket.id);
-      if (!p || !p.alive) return;
+      if (!p || !p.alive||room.playerMechs.has(socket.id)) return;
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(socket.id)) return;
       const weapon = weaponById(msg.weaponId);
