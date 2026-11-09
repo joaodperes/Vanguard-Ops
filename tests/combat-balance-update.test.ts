@@ -12,13 +12,21 @@ describe("secondary balance and projectile identity",()=>{
   test("Sentinel rewards precision more than Machine Pistol",()=>{
     expect(weaponById("pdw_sentinel").stats.headshotMult).toBeGreaterThan(weaponById("pistol_machine").stats.headshotMult);
   });
-  test("Magnum and Bastion no longer one-shot full-health opponents",()=>{
-    for(const id of ["pistol_magnum","pistol_bastion"]){
-      const s=weaponById(id).stats;
-      expect(s.damage).toBeLessThan(60);
+  test("Magnum and Bastion stay two-hit revolvers without base one-shot headshots",()=>{
+    const magnum=weaponById("pistol_magnum").stats;
+    const bastion=weaponById("pistol_bastion").stats;
+    for(const s of [magnum,bastion]){
+      expect(s.damage).toBeGreaterThanOrEqual(50);
+      expect(s.damage).toBeLessThan(100);
       expect(s.damage*s.headshotMult).toBeLessThan(100);
-      expect(s.range).toBeLessThan(weaponById("pistol_ghost").stats.range);
     }
+    // Bastion's slower, higher-energy .45 rounds now hit harder than Magnum,
+    // rather than being artificially capped below 60 like the old pistol.
+    expect(bastion.damage).toBeGreaterThan(magnum.damage);
+    expect(bastion.fireRate).toBeLessThan(magnum.fireRate);
+    expect(bastion.recoil).toBeGreaterThan(magnum.recoil);
+    expect(magnum.range).toBeLessThan(weaponById("pistol_ghost").stats.range);
+    expect(bastion.range).toBeLessThanOrEqual(weaponById("pistol_ghost").stats.range);
     expect(weaponById("pistol_ghost").stats.reloadTime).toBeLessThan(1.2);
   });
   test("Swarm has larger group-control footprint and weaker focused impact than RL-7",()=>{
