@@ -855,7 +855,7 @@ function WeaponCard(props: WeaponCardProps) {
         <StatBar label="RoF" value={w.stats.fireRate} max={16} color="bg-amber-500" />
         <StatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={w.stats.magSize} max={100} color="bg-emerald-500" />
         <StatBar label="RNG" value={w.stats.range} max={200} color="bg-emerald-500" />
-        {w.category !== "melee" && <StatBar label="PEN" value={w.stats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
+        {w.category !== "melee" && <StatBar label="Bullet Penetration" value={w.stats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
       </div>
       {/* handling stats */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
@@ -1023,7 +1023,7 @@ function CustomizeModal(props: CustomizeModalProps) {
             <ModalStatBar label="RoF" value={currentEffectiveStats.fireRate} max={16} color="bg-amber-500" />
             <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
             <ModalStatBar label="RNG" value={currentEffectiveStats.range} max={200} color="bg-emerald-500" />
-            {w.category !== "melee" && <ModalStatBar label="PEN" value={currentEffectiveStats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
+            {w.category !== "melee" && <ModalStatBar label="Bullet Penetration" value={currentEffectiveStats.coverPenetration ?? 0} max={6} color="bg-cyan-500" />}
           </div>
           {w.category !== "melee" && (
             <button type="button" onClick={()=>{requestTutorialChapter("ballistics");onOpenChange(false);setScreen("tutorial");}}
@@ -1565,7 +1565,7 @@ function StatBar({ label, value, max, color }: { label: string; value: number; m
   const pct = Math.min(100, (value / max) * 100);
   return (
     <div className="flex items-center gap-2">
-      <span className="text-white/40 text-[10px] font-mono w-8 uppercase">{label}</span>
+      <span className="text-white/40 text-[10px] font-mono w-28 shrink-0 uppercase leading-tight">{label}</span>
       <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
