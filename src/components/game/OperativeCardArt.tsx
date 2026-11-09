@@ -110,6 +110,13 @@ export function OperativeCardArt({skin}: {skin: PlayerSkinDef}) {
       <circle cx="150" cy="24" r="5" fill={glow}/>
       <path d="M92 104 L100 113 L107 99 L115 115 L128 104" fill="none" stroke={glow} strokeWidth="3"/>
     </>}
+    {signature === "ascendant" && <>
+      <path d="M73 82 L58 49 L70 34 L87 83 M147 82 L162 49 L150 34 L133 83" fill={skin.color} stroke={accent} strokeWidth="3"/>
+      <path d="M92 29 L98 12 L110 21 L122 12 L128 29 Z" fill={accent} stroke={glow} strokeWidth="2"/>
+      <rect x="94" y="53" width="32" height="5" rx="2" fill={glow}/>
+      <path d="M110 94 L123 106 L110 123 L97 106 Z" fill={glow} stroke={accent} strokeWidth="2"/>
+      <text x="110" y="111" fontSize="11" fill="#14213a" fontWeight="900" textAnchor="middle">40</text>
+    </>}
     {signature === "verdant" && <>
       <path d="M90 29 L77 7 L95 18 L101 5 L105 27 M130 29 L143 7 L125 18 L119 5 L115 27" fill={accent}/>
       <path d="M70 83 L48 73 L61 97 L81 103 M150 83 L172 73 L159 97 L139 103" fill={skin.color} stroke={accent} strokeWidth="2"/>
