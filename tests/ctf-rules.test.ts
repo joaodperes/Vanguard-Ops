@@ -198,6 +198,11 @@ describe("Capture the Flag objective rules", () => {
     expect(ctfEngageThreat(54,"sniper_lr")).toBe(true);
     expect(ctfEngageThreat(28,"shotgun_auto")).toBe(false);
     expect(ctfEngageThreat(Infinity,"rifle_ar")).toBe(false);
+    // Overtime only interrupts a capture run for immediate combat.
+    expect(ctfEngageThreat(16,"rifle_ar",true)).toBe(true);
+    expect(ctfEngageThreat(30,"rifle_ar",true)).toBe(false);
+    expect(ctfEngageThreat(50,"sniper_lr",true)).toBe(false);
+    expect(ctfEngageThreat(50,"sniper_lr")).toBe(true);
   });
 
   test("both teams capture at the new visible circle, never at the obsolete zone", () => {
