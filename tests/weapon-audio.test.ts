@@ -151,7 +151,11 @@ describe("Weapon audio — gunshot dynamics", () => {
     expect(recordedFamilyFor("pdw", "pdw_raptor")).toBe("mp5");
     expect(recordedFamilyFor("shotgun", "shotgun_br")).toBe("sg");
     expect(recordedFamilyFor("shotgun", "shotgun_combat")).toBe("sg");
-    expect(recordedFamilyFor("assault", "rifle_ar")).toBeNull();
+    expect(recordedFamilyFor("assault", "rifle_ar")).toBe("rifle556");
+    expect(recordedFamilyFor("assault", "rifle_falcon")).toBe("rifle762");
+    expect(recordedFamilyFor("dmr", "rifle_dm")).toBe("rifle762");
+    expect(recordedFamilyFor("sniper", "sniper_lr")).toBe("rifle762");
+    expect(recordedFamilyFor("lmg", "lmg_hv")).toBe("rifle762");
     expect(recordedFamilyFor("pistol", "pistol_arc")).toBeNull();
     expect(recordedFamilyFor("dmr", "crossbow_reclaimer")).toBeNull();
     expect(recordedFamilyFor("lmg", "wonder_hellfire")).toBeNull();
