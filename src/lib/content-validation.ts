@@ -104,6 +104,7 @@ const skin = z.object({
 const operator = z.object({
   id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
   color: cssColor, accent: cssColor, emissive: cssColor.optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
+  levelReward: z.boolean().optional(),
 });
 const challenge = z.object({
   id, weaponId: id, skinId: id, goal: pos,
