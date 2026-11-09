@@ -12,8 +12,8 @@ export const PERKS = [
   { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Fully reloads the magazine of your currently held conventional firearm.", icon: "package", unlockLevel: 22 },
   { id: "explonando", name: "Explonando", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
-  { id: "tactician", name: "Tactician", description: "Regenerate one used tactical equipment charge every 18 seconds, up to its normal capacity.", icon: "timer-reset", unlockLevel: 34 },
   { id: "silent_steps", name: "Silent Steps", description: "Move without making footstep sounds. Gunfire and other actions remain audible.", icon: "volume-x", unlockLevel: 31 },
+  { id: "tactician", name: "Tactician", description: "Regenerate one used tactical equipment charge every 18 seconds, up to its normal capacity.", icon: "timer-reset", unlockLevel: 34 },
 ] as const;
 export type PerkId = (typeof PERKS)[number]["id"];
 export const PERK_STORAGE_KEY = "vanguard_perk";
