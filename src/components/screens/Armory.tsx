@@ -931,7 +931,7 @@ interface CustomizeModalProps {
 function CustomizeModal(props: CustomizeModalProps) {
   const { weapon: w, slot, open, onOpenChange, profile, weaponOwned, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
   const [tab, setTab] = useState<string>("attachments");
-  const {profile: account,playerKey,refreshProfile} = useGame();
+  const {profile: account,playerKey,refreshProfile,setScreen} = useGame();
   const [cosmeticBusy,setCosmeticBusy]=useState(false);
   async function equipCosmetic(kind:"reticle"|"charm",cosmeticId:string){
     if(!w||!slot||slot==="melee"||cosmeticBusy)return;
@@ -1033,7 +1033,7 @@ function CustomizeModal(props: CustomizeModalProps) {
           {(currentEffectiveStats.coverPenetration??0)>0&&(
             <p className="mt-1 text-xs text-cyan-300/80">
               Penetration <strong className="font-mono">{currentEffectiveStats.coverPenetration?.toFixed(1)}</strong>
-              <button type="button" onClick={()=>{requestTutorialChapter("ballistics");setCustomizing(null);setScreen("tutorial");}}
+              <button type="button" onClick={()=>{requestTutorialChapter("ballistics");onOpenChange(false);setScreen("tutorial");}}
                 className="ml-3 text-white/55 underline underline-offset-2 hover:text-white">
                 Tutorial: Penetration guide
               </button>
