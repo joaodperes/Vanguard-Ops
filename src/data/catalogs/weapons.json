@@ -228,7 +228,7 @@
     "id": "rifle_hydra",
     "name": "Hydra Twin",
     "category": "assault",
-    "unlockLevel": 34,
+    "unlockLevel": 37,
     "unlockCost": 2600,
     "description": "Fast two-round bursts. Rounds can pass through two aligned enemies with reduced damage; demanding burst discipline.",
     "stats": {
@@ -410,7 +410,7 @@
     "id": "shotgun_br",
     "name": "Breacher",
     "category": "shotgun",
-    "unlockLevel": 4,
+    "unlockLevel": 2,
     "unlockCost": 500,
     "description": "Pump shotgun. Devastating up close, 8 pellets per shell.",
     "stats": {
@@ -791,7 +791,7 @@
     "id": "pistol_machine",
     "name": "Machine Pistol",
     "category": "pdw",
-    "unlockLevel": 30,
+    "unlockLevel": 38,
     "unlockCost": 2000,
     "description": "Full-auto machine pistol. Mag-dump to win at point-blank.",
     "stats": {
@@ -1328,7 +1328,7 @@
     "id": "pdw_sentinel",
     "name": "Sentinel-45",
     "category": "pdw",
-    "unlockLevel": 25,
+    "unlockLevel": 33,
     "unlockCost": 1400,
     "description": "Compact automatic with a small magazine but high headshot reward for controlled accurate fire.",
     "stats": {
