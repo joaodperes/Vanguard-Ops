@@ -41,7 +41,9 @@ Passive perks and tactical equipment are still TypeScript-authored because
 their behavior is implemented in shared code. Their metadata shape is checked
 in `src/lib/loadout-contract.ts` without pretending it is a JSON content catalog.
 Do not add a new tactical type or perk effect without implementing behavior and
-covering it with regression tests.
+covering it with regression tests. Perk ordering and unique IDs are validated
+centrally, and mechanics-only special-weapon types are inferred from the
+authoritative weapon catalog schema.
 
 ## Shared theme/prop validation
 

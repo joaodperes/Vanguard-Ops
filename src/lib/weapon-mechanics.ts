@@ -9,19 +9,14 @@ export function isFanHammer(weaponId: string, grip: string | null | undefined): 
 export function canStartWeaponReload(stats: { reloadOnlyWhenEmpty?: boolean }, ammoInMag: number): boolean {
   return !stats.reloadOnlyWhenEmpty || ammoInMag <= 0;
 }
-export interface HeatConfig {
-  kind: "heat";
-  heatPerShot: number;
-  coolPerSecond: number;
-  coolDelayMs: number;
-  overheatAt: number;
-  resumeAt: number;
-  ventSeconds: number;
-}
-export interface ArcConfig { kind: "arc"; jumps: number; radius: number; decay: number; }
-export interface BoltConfig { kind: "bolt"; pickupRadius: number; lifetimeMs: number; quickReloadSeconds: number; }
-export interface ThrowingKnifeConfig {kind:"throwing_knife"}
-export type WeaponSpecial = HeatConfig | ArcConfig | BoltConfig | ThrowingKnifeConfig;
+/** Special-weapon shape comes from the same contract as the authored weapon JSON.
+ * Keep actual mechanics here; don't duplicate schema field declarations.
+ */
+export type WeaponSpecial = NonNullable<import("./catalog-contract").WeaponCatalogDef["special"]>;
+export type HeatConfig = Extract<WeaponSpecial,{kind:"heat"}>;
+export type ArcConfig = Extract<WeaponSpecial,{kind:"arc"}>;
+export type BoltConfig = Extract<WeaponSpecial,{kind:"bolt"}>;
+export type ThrowingKnifeConfig = Extract<WeaponSpecial,{kind:"throwing_knife"}>;
 export interface HeatState { heat: number; lastShotAt: number; locked: boolean; }
 export const freshHeat = (): HeatState => ({ heat: 0, lastShotAt: -Infinity, locked: false });
 export function coolHeat(state: HeatState, config: HeatConfig, elapsedSeconds: number, nowMs: number): HeatState {

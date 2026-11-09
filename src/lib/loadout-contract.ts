@@ -8,7 +8,15 @@ const level=z.number().int().min(1).max(MAX_PLAYER_LEVEL);
 export const PERKS_SCHEMA=z.array(z.strictObject({
   id:z.string().regex(/^[a-z][a-z0-9_:-]*$/),
   name,description:name,icon:name,unlockLevel:level,
-})).min(1);
+})).min(1).superRefine((items,ctx)=>{
+  const seen=new Set<string>();
+  items.forEach((item,i)=>{
+    if(seen.has(item.id))ctx.addIssue({code:"custom",path:[i,"id"],message:"Duplicate perk ID"});
+    seen.add(item.id);
+    if(i>0&&item.unlockLevel<items[i-1].unlockLevel)
+      ctx.addIssue({code:"custom",path:[i,"unlockLevel"],message:"Perks must be ordered by unlock level"});
+  });
+});
 export const EQUIPMENT_SCHEMA=z.array(z.strictObject({
   id:z.string().regex(/^[a-z][a-z0-9_:-]*$/),
   unlockLevel:level,name,
@@ -18,4 +26,10 @@ export const EQUIPMENT_SCHEMA=z.array(z.strictObject({
   radius:z.number().finite().nonnegative(),
   damage:z.number().finite().nonnegative(),
   description:name,
-})).min(1);
+})).min(1).superRefine((items,ctx)=>{
+  const seen=new Set<string>();
+  items.forEach((item,i)=>{
+    if(seen.has(item.id))ctx.addIssue({code:"custom",path:[i,"id"],message:"Duplicate equipment ID"});
+    seen.add(item.id);
+  });
+});
