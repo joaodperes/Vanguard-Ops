@@ -1,5 +1,7 @@
 import { describe,expect,test } from "bun:test";
 import { weaponById } from "../src/lib/game-data";
+import { equipmentById } from "../src/lib/equipment";
+import { TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
 import {
   THROWING_KNIVES_ID, THROWING_KNIFE_RANGE, THROWING_KNIFE_MAX_CHARGES,
   THROWING_KNIFE_GUNGAME_RECHARGE_MS, fullThrowingKnives,
@@ -7,6 +9,21 @@ import {
 } from "../src/lib/throwing-knives";
 
 describe("Throwing Knives replacement",()=>{
+  test("melee-slot and tactical knives keep distinct range, reserve and mechanics",()=>{
+    const melee=weaponById(THROWING_KNIVES_ID),tactical=equipmentById("knives");
+    expect(melee.id).not.toBe(tactical.id);
+    expect(melee.stats.range).toBe(THROWING_KNIFE_RANGE);
+    expect(melee.stats.magSize).toBe(THROWING_KNIFE_MAX_CHARGES);
+    expect(THROWING_KNIFE_MAX_CHARGES).toBe(2);
+    expect(tactical.type).toBe("knife");
+    expect(tactical.charges).toBe(1);
+    expect(tactical.radius).toBe(TACTICAL_KNIFE_RANGE);
+    expect(TACTICAL_KNIFE_RANGE).toBeGreaterThan(THROWING_KNIFE_RANGE);
+    const meleeSpent=spendThrowingKnife(fullThrowingKnives(),1000,false)!;
+    expect(meleeSpent.charges).toBe(THROWING_KNIFE_MAX_CHARGES-1);
+    expect(equipmentById("knives").charges).toBe(1);
+  });
+
   test("preserves the baton ID and existing unlock progression",()=>{
     const knife=weaponById(THROWING_KNIVES_ID);
     expect(knife.name).toBe("Throwing Knives");

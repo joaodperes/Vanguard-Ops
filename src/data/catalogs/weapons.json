@@ -313,7 +313,7 @@
     "category": "melee",
     "unlockLevel": 16,
     "unlockCost": 900,
-    "description": "Two silent, lethal throwing knives with 8m reach. Replenish only on death; in Gun Game, recover one every five seconds.",
+    "description": "Two silent, lethal throwing knives with 5.5m reach. Replenish only on death; in Gun Game, recover one every five seconds.",
     "special": {
       "kind": "throwing_knife"
     },
@@ -325,7 +325,7 @@
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 8,
+      "range": 5.5,
       "falloffEndMultiplier": 1,
       "minDamageMultiplier": 1,
       "adsTime": 0,

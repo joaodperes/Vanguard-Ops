@@ -37,6 +37,26 @@ GitHub Actions:
 - Inspect the status and logs of runs for the **candidate commit**, including failures and skipped jobs. Workflow availability on `main` begins once the workflow edits have been merged there.
 - GitHub-hosted runs consume Actions allowance; check repository/org billing settings if required.
 
+## 2a. Regression-test maintenance strategy
+
+- Run **focused unit tests** while iterating (for example,
+  `bun test tests/throwing-knives.test.ts tests/bot-tactical.test.ts`).
+  Run the full suite and build as integration gates; CI still runs them on
+  `dev`/`main`, so this does not weaken release safety.
+- Assert **player-observable behavior, security and gameplay contracts**,
+  not exact catalog counts or internal implementation state. Explicit
+  quantities are appropriate only when they are protected game design rules.
+- Avoid shadow configuration: derive dependent range, charge and allowed-value
+  constants from their canonical catalog or shared contract.
+- Prefer pure logic and real public APIs; for the few prototype-created
+  FPSEngine test doubles, use `tests/helpers/engine-stub.ts` so new default
+  engine collections don't require updates to every test.
+- Classify failures as **actual regression**, **deliberate behavior change**,
+  **outdated test fixture**, or **unrelated failure** before editing tests.
+  Implement the behavior and corresponding test together.
+- Don't delete regression coverage, skip tests or silently weaken meaningful
+  checks to make CI green. Automated tests don't replace live map/bot review.
+
 ## 3. Manual controls and combat
 
 Test desktop keyboard/mouse **and** touch/mobile:

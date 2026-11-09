@@ -3,12 +3,20 @@ import {EQUIPMENT} from "../src/lib/equipment";
 import {botTacticalForArchetype,botTacticalCanUse,planBotTacticalThrow} from "../src/lib/bot-tactical";
 import type {BotArchetype} from "../src/lib/bot-archetypes";
 describe("bot tactical equipment",()=>{
- test("roles cover every tactical without Gun Game-specific selection",()=>{
-  const seen=new Set<string>();
+ test("bot equipment is valid and excludes player-only deployable cover",()=>{
+  const known=new Set(EQUIPMENT.map(e=>e.id));
   for(const role of ["rusher","rifleman","marksman","support"] as BotArchetype[]){
-   for(let n=0;n<2;n++)seen.add(botTacticalForArchetype(role,n));
+    for(let n=0;n<8;n++){
+      const selected=botTacticalForArchetype(role,n);
+      expect(known.has(selected)).toBe(true);
+      expect(selected).not.toBe("cover");
+    }
   }
-  expect([...seen].sort()).toEqual(EQUIPMENT.map(e=>e.id).sort());
+  expect(botTacticalCanUse({
+    equipmentId:"cover",distance:8,visible:true,targetProtected:false,
+    friendlyAtImpact:false,charges:1,now:10000,readyAt:0,targetAgeMs:1500,
+  })).toBe(false);
+  expect(planBotTacticalThrow([0,0,0],[0,0,8],"cover",[],"compound")).toBeNull();
  });
  test("no spamming, spawn ambushes, friendly grenades or magic through cover",()=>{
   const baseline={equipmentId:"frag" as const,distance:16,visible:true,targetProtected:false,

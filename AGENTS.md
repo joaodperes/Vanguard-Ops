@@ -23,7 +23,10 @@ This file is for autonomous coding agents and developers using AI assistants. Tr
 - For authored catalog field/type changes, edit `src/lib/catalog-contract.ts` and regenerate the published JSON schemas with `bun run schema:catalogs`. For map-theme fields, edit `src/lib/map-theme-contract.ts` and run `bun run schema:map-theme`. Never hand-edit generated schemas.
 - Perks and tactical gear remain code-authored: `src/lib/loadout-contract.ts` validates their metadata while shared gameplay code implements their behavior.
 - Run `bun run test:smoke`, `bun run typecheck` and `bun run build` before calling a change ready.
-- Inspect exact catalog-size assertions in `tests/content-catalogs.test.ts` after adding entries; compare against real JSON counts before editing tests.
+- Prefer behavior and explicitly protected product invariants to total item counts, list order or implementation details. Fixed values belong only where gameplay deliberately promises them (e.g. charges or stable persisted IDs).
+- If new content is intentionally unavailable to bots/other subsystems, assert that eligibility policy, not full catalog coverage.
+- For tests that bypass FPSEngine's browser constructor, use `tests/helpers/engine-stub.ts` for default state instead of duplicating mock fields. Prefer pure combat functions where possible.
+- Update nearby behavioral tests together with feature changes. Diagnose the intended contract before modifying assertions; never change expectations just to force a green run.
 - Validate server/client parity for new mechanics and run gameplay tests for new map layout, weapon tuning, rendering or bot navigation. A green CI build does not prove a map feels balanced.
 - Update documentation whenever a new object kind, allowed enum value, required field, runtime behavior or authoring workflow changes.
 - If any check has not actually run, state that clearly instead of claiming it passed.

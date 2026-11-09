@@ -2,6 +2,7 @@ import {resolveMatchLoadout} from "../src/lib/match-loadout";
 import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
 import {FPSEngine} from "../src/lib/fps-engine";
+import {makeEngineStub} from "./helpers/engine-stub";
 import {weaponById,usesWonderCharges} from "../src/lib/game-data";
 import {resolveLoadout} from "../src/lib/game-data";
 import {rayRiotShield,damageRiotShield,shieldBlocksFire,RIOT_SHIELD_ID,RIOT_SHIELD_HP} from "../src/lib/riot-shield";
@@ -42,7 +43,7 @@ describe("physical 250 HP riot panel",()=>{
   expect(shieldBlocksFire(RIOT_SHIELD_ID,true,0)).toBe(false);
  });
  test("actual offline bot shots drain the panel, then hit health after it breaks",()=>{
-  const e:any=Object.create(FPSEngine.prototype);
+  const e:any=makeEngineStub();
   Object.assign(e,{opts:{mode:"ffa",team:"ffa",playerName:"test"},selfId:"self",pos:new THREE.Vector3(),yaw:0,
    health:100,alive:true,weaponId:RIOT_SHIELD_ID,aiming:true,reloading:false,sprinting:false,riotShieldHp:250,
    combatants:new Map(),map:{cover:[]},selfSpawnProtectedUntil:0,sound:{play(){}},takeDamage(dmg:number){this.health-=dmg;}});
@@ -85,7 +86,7 @@ describe("cluster shell and delayed area damage",()=>{
  });
  test("actual offline volley caps stacked blasts and respects cover",()=>{
   const run=(clear:boolean)=>{
-   const e:any=Object.create(FPSEngine.prototype),damage:number[]=[];
+   const e:any=makeEngineStub(),damage:number[]=[];
    const target={id:"enemy",pos:[0,0,0],alive:true,team:"blue"};
    Object.assign(e,{opts:{mode:"tdm"},bulletSpitters:new Map(),clusterVolleys:new Map(),matchEnded:false,combatants:new Map([[target.id,target]]),
     spawnExplosion(){},hasLineOfSight(){return clear;},applyDamageLocal(_t:any,d:number){damage.push(d);}});
@@ -154,7 +155,7 @@ test("authoritative loadout only allows owned and persisted slot-four Wonders",(
 });
 
 test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
- const e:any=Object.create(FPSEngine.prototype);
+ const e:any=makeEngineStub();
  const victim:any={...carrier,id:"target",pos:[0,0,8],yaw:Math.PI,alive:true,team:"blue",health:100};
  Object.assign(e,{opts:{mode:"tdm",team:"red"},selfId:"self",combatants:new Map([[victim.id,victim]]),
   smartTags:new Map([[victim.id,performance.now()+4500]]),eff:{damage:25,range:30},localBurning:new Map(),
@@ -166,7 +167,7 @@ test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
 });
 
 test("death does not freeze cluster timers or leave a shield on the death camera",()=>{
- const e:any=Object.create(FPSEngine.prototype);let ticks=0;
+ const e:any=makeEngineStub();let ticks=0;
  Object.assign(e,{opts:{mode:"ffa",online:false},pos:new THREE.Vector3(),camera:new THREE.PerspectiveCamera(),yaw:0,pitch:0,
   alive:false,matchEnded:false,lobbyActive:false,preMatchCountdown:0,elapsedSeconds:0,timeLeft:0,
   riotShieldModel:new THREE.Group(),riotShieldHp:250,weaponId:RIOT_SHIELD_ID,aiming:false,combatants:new Map(),

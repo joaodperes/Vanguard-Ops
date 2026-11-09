@@ -1,8 +1,14 @@
-/** Charge-limited silent knives. The persistent `baton` ID protects existing
- * unlocks, loadouts, skins, achievements and weapon mastery records. */
+/** Melee-slot throwing knives (the persistent legacy ID is `baton`).
+ * They are distinct from the tactical `knives` consumable. Only the melee
+ * catalog controls this weapon's magazine and range. Don't merge inventories.
+ */
+import weaponsData from "../data/catalogs/weapons.json";
 export const THROWING_KNIVES_ID = "baton";
-export const THROWING_KNIFE_RANGE = 5.5;
-export const THROWING_KNIFE_MAX_CHARGES = 1;
+const meleeKnife = weaponsData.find(w=>w.id===THROWING_KNIVES_ID);
+if(!meleeKnife || meleeKnife.special?.kind!=="throwing_knife")
+  throw new Error("Missing melee-slot throwing knife weapon definition");
+export const THROWING_KNIFE_RANGE: number = meleeKnife.stats.range;
+export const THROWING_KNIFE_MAX_CHARGES: number = meleeKnife.stats.magSize;
 export const THROWING_KNIFE_GUNGAME_RECHARGE_MS = 5000;
 export const THROWING_KNIFE_SPEED = 30;
 export const isThrowingKnife = (id:string):boolean => id===THROWING_KNIVES_ID;

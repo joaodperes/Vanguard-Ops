@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type {CastleProp} from "./castle-scenery";
 import {buildCastleInterior} from "./castle-interiors";
 const m=(n:number,metalness=0)=>new THREE.MeshStandardMaterial({color:n,roughness:.88,metalness});
-const oak=m(0x987147),beam=m(0x63472f),stone=m(0x827466),iron=m(0x454545,.55),
+const oak=m(0x987147),beam=m(0x63472f),darkWood=m(0x3f2e20),stone=m(0x827466),iron=m(0x454545,.55),
   slate=m(0x4b4141),thatch=m(0x927a4b),cloth=m(0x9b5340),linen=m(0xbbad91),
   hay=m(0xb5a060),char=m(0x272522),fire=new THREE.MeshBasicMaterial({color:0xf18b3c});
 const cube=(g:THREE.Group,mat:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{

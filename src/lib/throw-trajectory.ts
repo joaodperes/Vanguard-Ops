@@ -2,7 +2,10 @@
  * Each segment is checked against world cover, so previews and server landings
  * match. Origin and launch direction are trusted only when built by the server.
  */
-export const TACTICAL_KNIFE_RANGE = 16; // maximum flight distance from the thrower
+import {equipmentById} from "./equipment";
+// Tactical throwing knives have their own stock and max flight distance,
+// independent of the legacy melee-slot knife weapon.
+export const TACTICAL_KNIFE_RANGE: number = equipmentById("knives").radius;
 export type ThrowVec3 = [number, number, number];
 export type ThrowKind = "frag" | "flashbang" | "knives" | "poison_dart" | "taser" | "mine";
 export interface ThrowPath { points: ThrowVec3[]; impact: ThrowVec3; flightMs: number }
