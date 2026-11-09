@@ -38,7 +38,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { damageBallisticCoverOnShot, damageBallisticCoverFromExplosion } from "./material-cover-damage";
-import { launcherSplashFactor } from "./launcher-effects";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
 import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { shotgunPelletDirection } from "./shotgun-pattern";
@@ -3759,6 +3759,10 @@ async function handle(socket: any, msg: C2S) {
         const segDy = impact[1] - msg.origin[1];
         const segDz = impact[2] - msg.origin[2];
         const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
+        // Ray-box LOS would see t=0 against the surface this rocket just hit.
+        // Move the LOS origin slightly back along the incoming trajectory,
+        // keeping the impacted wall protective for anyone on its far side.
+        const blastLosOrigin=launcherBlastVisibilityOrigin(impact,msg.origin);
         for (const e of allCombatants(room)) {
           if (!e.alive) continue;
           if (!blastCanDamage(socket.id,p.team,e.id,e.team,room.mode)) continue;
@@ -3777,7 +3781,7 @@ async function handle(socket: any, msg: C2S) {
             ? Math.hypot(cx-impact[0],cy-impact[1],cz-impact[2])
             : corrosion?corrosionImpactDistance(impact,[cx,cy,cz])
               : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
-          if (d<=splashRadius && (e.id!==socket.id || hasLineOfSight(room,impact,[cx,cy,cz]))) {
+          if (d<=splashRadius && (e.id!==socket.id || hasLineOfSight(room,blastLosOrigin,[cx,cy,cz]))) {
             const falloff = launcherSplashFactor(weapon.id,d,splashRadius);
             const splashDmg = corrosion ? corrosionImpactDamage(eff.damage, falloff) : eff.damage * falloff;
             applyDamage(room, socket.id, e, splashDmg, false, msg.weaponId);
