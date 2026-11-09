@@ -9523,7 +9523,7 @@ export class FPSEngine {
       if (performance.now() - this.lastFootstepAt > stepInterval) {
         this.lastFootstepAt = performance.now();
         if (this.activePerkId !== "silent_steps") {
-          this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.98:.84):(this.sprinting?.43:.3) });
+          this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.48:.34):(this.sprinting?.43:.3) });
           if(!this.opts.online&&!this.opts.firingRange)
             this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
               at:performance.now(),kind:"footstep",sprinting:this.sprinting});
@@ -9561,7 +9561,7 @@ export class FPSEngine {
         this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
         reaperMovement?ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER:1,
       );
-      if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?.9:.4 });
+      if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?.34:.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
     this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map,
