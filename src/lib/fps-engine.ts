@@ -35,6 +35,7 @@ import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type 
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
+import { TASER_STUN_MS, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -195,6 +196,7 @@ export interface HudState {
   equipmentName?: string;
   equipmentCharges?: number;
   flashRemainingMs?: number;
+  stunRemainingMs?: number;
   weaponName: string;
   weaponId: string;
   alive: boolean;
@@ -961,6 +963,9 @@ export class FPSEngine {
   private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
   private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number }>();
   private botTacticalStunUntil = new Map<string,number>();
+  /** Arc/flash status visuals on affected opponents, disposed on expiry. */
+  private tacticalStatusVisuals = new Map<string,{group:THREE.Group;expiresAt:number;effect:"stun"|"flash"}>();
+  private tacticalBlastRings: {mesh:THREE.Mesh;born:number;duration:number;radius:number}[] = [];
   private remoteEquipmentMines = new Map<string, THREE.Group>();
   private primaryWeaponId: string;
   private secondaryWeaponId: string;
@@ -4348,9 +4353,13 @@ export class FPSEngine {
           }
         }
         if(first){const hit:Combatant=first.c;
-          this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`);
+          this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`,def.type==="knife");
           if(def.type==="poison" && hit.alive)this.poisonByVictim.set(hit.id,{expiresAt:performance.now()+4500,tickAt:performance.now()+500,weaponId:`equipment_${id}`});
-          if(def.type==="taser" && hit.ai){hit.ai.nextDecisionAt=performance.now()+1700;hit.ai.targetId=null;}
+          if(def.type==="taser" && hit.alive){
+            this.botTacticalStunUntil.set(hit.id,Math.max(this.botTacticalStunUntil.get(hit.id)??0,performance.now()+TASER_STUN_MS));
+            if(hit.ai){hit.ai.targetId=null;hit.ai.nextShotAt=performance.now()+TASER_STUN_MS;}
+            this.spawnTacticalStatusVisual(hit.id,"stun",TASER_STUN_MS);
+          }
         }
       } else {
         if(def.type==="flash"){
@@ -4359,7 +4368,9 @@ export class FPSEngine {
             const delta: Vec3=[eye[0]-impact[0],eye[1]-impact[1],eye[2]-impact[2]];
             const len=Math.hypot(...delta)||1;
             if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))
-              this.equipmentFlashUntil=performance.now()+Math.round(1100+1800*(1-selfDist/def.radius));
+              {const duration=flashDurationMs(selfDist);
+                this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+duration);
+                this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+duration);}
           }
         }
         for(const c of targets){
@@ -4368,11 +4379,17 @@ export class FPSEngine {
           const delta:Vec3=[c.pos[0]-impact[0],c.pos[1]+1-impact[1],c.pos[2]-impact[2]];
           const len=Math.hypot(...delta)||1;
           if(closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))continue;
-          if(def.type==="blast")this.applyDamageLocal(c,Math.max(12,def.damage*(1-dist/def.radius)),false,`equipment_${id}`);
-          else if(def.type==="flash" && c.ai){c.ai.nextDecisionAt=performance.now()+2500;c.ai.targetId=null;}
+          if(def.type==="blast")this.applyDamageLocal(c,fragDamage(dist),false,`equipment_${id}`);
+          else if(def.type==="flash" && c.alive){
+            const duration=flashDurationMs(dist);
+            this.botTacticalStunUntil.set(c.id,Math.max(this.botTacticalStunUntil.get(c.id)??0,performance.now()+duration));
+            if(c.ai){c.ai.targetId=null;c.ai.nextShotAt=performance.now()+duration;}
+            this.spawnTacticalStatusVisual(c.id,"flash",duration);
+          }
         }
-        if (def.type === "blast") this.spawnExplosion(new THREE.Vector3(...impact));
-        else if (def.type === "flash") this.spawnEquipmentVisual(impact, 0xffffff);
+        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
+        else if(def.type==="flash")this.spawnEquipmentVisual(impact,0xffffff);
+        if(def.type==="blast"||def.type==="flash")this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
       }
     },path.timesMs);
   }
@@ -6050,8 +6067,11 @@ export class FPSEngine {
         this.equipmentCharges = msg.remaining;
         break;
       case "equipmentStatus":
-        if (msg.effect === "flash") this.equipmentFlashUntil = performance.now() + msg.durationMs;
-        else this.equipmentStunUntil = performance.now() + msg.durationMs;
+        this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+msg.durationMs);
+        if(msg.effect==="flash")this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+msg.durationMs);
+        break;
+      case "equipmentStatusFx":
+        this.spawnTacticalStatusVisual(msg.victimId,msg.effect,msg.durationMs);
         break;
       case "equipmentFx": {
         if(msg.mineState==="placed" && msg.mineId){
@@ -6062,11 +6082,16 @@ export class FPSEngine {
           if(msg.mineId){const old=this.remoteEquipmentMines.get(msg.mineId);
             if(old)this.removeMineMarker(old);this.remoteEquipmentMines.delete(msg.mineId);}
           this.spawnEquipmentVisual(msg.position,0xffb448);
+          this.spawnTacticalBlastRing(msg.position,MINE_SPLASH_RADIUS,false);
         } else if(msg.path?.length){
           this.animateEquipmentPath(msg.path,msg.equipmentId,msg.flightMs??500,()=>{
-            if (msg.equipmentId === "frag") this.spawnExplosion(new THREE.Vector3(...msg.position));
-            else if (msg.equipmentId === "flashbang") this.spawnEquipmentVisual(msg.position,0xffffff);
-            else this.spawnEquipmentVisual(msg.position,0xffb448, false);
+            if(msg.equipmentId==="frag"){
+              this.spawnExplosion(new THREE.Vector3(...msg.position),undefined,equipmentById("frag").radius);
+              this.spawnTacticalBlastRing(msg.position,equipmentById("frag").radius,false);
+            }else if(msg.equipmentId==="flashbang"){
+              this.spawnEquipmentVisual(msg.position,0xffffff);
+              this.spawnTacticalBlastRing(msg.position,equipmentById("flashbang").radius,true);
+            }else this.spawnEquipmentVisual(msg.position,0xffb448,false);
           },msg.pathTimesMs);
         }
         break;
@@ -6494,6 +6519,7 @@ export class FPSEngine {
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
+    this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
@@ -8980,6 +9006,7 @@ export class FPSEngine {
 
     // combatants mesh sync + humanoid animation
     this.updateCombatantMeshes(dt, now);
+    this.updateTacticalVisuals(now);
 
     if (!this.opts.online && !this.matchEnded) {
       for (const c of this.combatants.values()) {
@@ -10550,6 +10577,7 @@ export class FPSEngine {
       equipmentName: this.opts.mode === "gungame" ? undefined : equipmentById(this.opts.loadout.equipmentId).name,
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
+      stunRemainingMs: Math.max(0,this.equipmentStunUntil-now),
       reloading: this.reloading,
       weaponName: weaponById(this.weaponId).name,
       weaponId: this.weaponId,
@@ -10824,6 +10852,11 @@ export class FPSEngine {
   dispose() {
     if (this.finaleTimer) { clearTimeout(this.finaleTimer); this.finaleTimer = null; }
     for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
+    for(const id of [...this.tacticalStatusVisuals.keys()])this.removeTacticalStatusVisual(id);
+    for(const fx of this.tacticalBlastRings){
+      this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();(fx.mesh.material as THREE.Material).dispose();
+    }
+    this.tacticalBlastRings=[];
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
