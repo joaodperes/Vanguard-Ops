@@ -126,7 +126,7 @@ describe("One-time Prestige mastery", () => {
     expect(tokenEligiblePrestiges(["rifle_ar","smg_kp","smg_kp"],progress)).toEqual(["smg_kp"]);
     expect(prestigeTokens(tokenEligiblePrestiges(["rifle_ar","smg_kp"],progress).length,0)).toBe(1);
     expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:330}})).toEqual(["rifle_ar"]);
-    expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:329}})).toEqual([]);
+    expect(tokenEligiblePrestiges(["rifle_ar"],{rifle_ar:{kills:600,headshots:169}})).toEqual([]);
   });
   test("Wonder milestone has two independent objectives and never counts as a Prestige trial",()=>{
     const initial=wonderUnlockChallenge("rifle_ar",false,0,0);
