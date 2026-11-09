@@ -1759,6 +1759,11 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Armor takes damage before the operator does. Destroying a suit ejects its pilot.
   const mech=room.playerMechs.get(victim.id);
   if(mech&&!fellInLava){
+    const attackerPos=attacker?.pos;
+    if(mech.moduleId==="guardian_protocol"&&attackerPos){
+      const angle=Math.atan2(attackerPos[0]-victim.pos[0],attackerPos[2]-victim.pos[2]);
+      if(Math.cos(angle-victim.yaw)>0)dmg*=.64; // frontal armor, rear remains vulnerable
+    }
     mech.armor=Math.max(0,mech.armor-dmg);
     io.to(victim.id).emit("message",{t:"mechAmmo",armor:mech.armor,minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo} as S2C);
     if(mech.armor<=0){room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
@@ -2667,7 +2672,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // No shooting during the pre-match countdown (bots are frozen, but
       // humans shouldn't be able to shoot either — prevents pre-countdown kills).
       if (room.preMatchCountdown > 0) return;
-      if (!p || !p.alive) return;
+      if (!p || !p.alive || room.playerMechs.has(p.id)) return;
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(p.id)) return;
       const weapon = weaponById(msg.weaponId);
@@ -2725,19 +2730,19 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       if (shieldBlocksFire(p.weaponId,!!p.riotShieldRaised,p.riotShieldHp??RIOT_SHIELD_HP)) return;
       // A deployed Chrono Anchor is recalled without spending a second charge.
       if(weapon.wonder?.kind==="chrono"){
-        const anchor=room.chronoAnchors.get(socket.id);
+        const anchor=room.chronoAnchors.get(p.id);
         if(anchor&&anchor.expiresAt>now){
           p.pos=clampToArena(room,anchor.pos);
-          room.chronoAnchors.delete(socket.id);
-          io.to(room.id).emit("message",{t:"chronoRecall",playerId:socket.id,pos:p.pos} as S2C);
-          break;
+          room.chronoAnchors.delete(p.id);
+          io.to(room.id).emit("message",{t:"chronoRecall",playerId:p.id,pos:p.pos} as S2C);
+          return;
         }
       }
       if(weapon.wonder?.kind==="mech"){
         const location=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
-        if(!location||room.playerMechs.has(socket.id)||[...room.mechDrops.values()].some(d=>d.ownerId===socket.id&&d.expiresAt>now)){
-          io.to(socket.id).emit("message",{t:"turretRejected",reason:"Juggernaut requires a clear outdoor drop area and no active suit"} as S2C);
-          break;
+        if(!location||room.playerMechs.has(p.id)||[...room.mechDrops.values()].some(d=>d.ownerId===p.id&&d.expiresAt>now)){
+          io.to(p.id).emit("message",{t:"turretRejected",reason:"Juggernaut requires a clear outdoor drop area and no active suit"} as S2C);
+          return;
         }
       }
       if (usesWonderCharges(weapon) && weapon.wonder) {
@@ -2842,29 +2847,29 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
 
       if(weapon.wonder?.kind==="chrono"){
         const anchor={pos:[...p.pos] as Vec3,expiresAt:now+CHRONO_ANCHOR_MS*module.durationMul};
-        room.chronoAnchors.set(socket.id,anchor);
-        io.to(room.id).emit("message",{t:"chronoAnchor",playerId:socket.id,pos:anchor.pos,expiresAt:anchor.expiresAt} as S2C);
-        break;
+        room.chronoAnchors.set(p.id,anchor);
+        io.to(room.id).emit("message",{t:"chronoAnchor",playerId:p.id,pos:anchor.pos,expiresAt:anchor.expiresAt} as S2C);
+        return;
       }
       if(weapon.wonder?.kind==="decoy"){
         const count=module.targets===2?2:1;
         for(let n=0;n<count;n++){
           const id=genId("phantom");
           const pos:Vec3=[p.pos[0]+(n===1?1.5:0),p.pos[1],p.pos[2]];
-          const decoy={id,ownerId:socket.id,pos,yaw:p.yaw,createdAt:now,expiresAt:now+PHANTOM_DURATION_MS*module.durationMul,count};
+          const decoy={id,ownerId:p.id,pos,yaw:p.yaw,createdAt:now,expiresAt:now+PHANTOM_DURATION_MS*module.durationMul,count};
           room.phantomDecoys.set(id,decoy);
           io.to(room.id).emit("message",{t:"phantomDecoy",...decoy} as S2C);
         }
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="mech"){
         const pos=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
-        if(!pos)break; // Already checked before taking the charge.
+        if(!pos)return; // Already checked before taking the charge.
         const id=genId("mech"),landAt=now+JUGGERNAUT_DROP_MS,expiresAt=now+JUGGERNAUT_DROP_MS+25000;
-        const drop={id,ownerId:socket.id,pos,landAt,expiresAt,moduleId:loadout?.wonderModuleId??"",landed:false};
+        const drop={id,ownerId:p.id,pos,landAt,expiresAt,moduleId:loadout?.wonderModuleId??"",landed:false};
         room.mechDrops.set(id,drop);
         io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="seismic"||weapon.wonder?.kind==="cryo"){
         const isCryo=weapon.wonder.kind==="cryo";
@@ -2873,10 +2878,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const end:Vec3=[msg.origin[0]+shotDir[0]*range,msg.origin[1]+shotDir[1]*range,msg.origin[2]+shotDir[2]*range];
         io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:end,kind:isCryo?"cryo":"seismic"} as S2C);
         for(const target of allCombatants(room)){
-          if(target.id===socket.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
+          if(target.id===p.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
           const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
           if(!wonderConeHit(msg.origin,shotDir,point,range,cosine)||!hasLineOfSight(room,msg.origin,point))continue;
-          applyDamage(room,socket.id,target,eff.damage,false,weapon.id);
+          applyDamage(room,p.id,target,eff.damage,false,weapon.id);
           if(!target.alive)continue;
           if(isCryo){
             room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS);
@@ -2892,7 +2897,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         }
         if(!isCryo)blastMaterialCover(room,end,range*.6,eff.damage,weapon.id);
         else blastMaterialCover(room,end,2.2,eff.damage*.9,weapon.id);
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="ricochet"){
         const bounces=module.targets||3;
@@ -2905,13 +2910,13 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           const d:Vec3=[toVec[0]/distance,toVec[1]/distance,toVec[2]/distance];
           io.to(room.id).emit("message",{t:"wonderBeam",from:segment.from,to:segment.to,kind:"ripper"} as S2C);
           for(const target of allCombatants(room)){
-            if(!target.alive||target.id===socket.id||hitIds.has(target.id)||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
+            if(!target.alive||target.id===p.id||hitIds.has(target.id)||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
             const hit=rayCapsule(segment.from,d,[target.pos[0],target.pos[1]+1,target.pos[2]],PLAYER_RADIUS,PLAYER_HEIGHT);
             if(hit&&hit.t<=distance){hitIds.add(target.id);
-              applyDamage(room,socket.id,target,eff.damage*segment.damageScale,false,weapon.id);}
+              applyDamage(room,p.id,target,eff.damage*segment.damageScale,false,weapon.id);}
           }
         }
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
@@ -4079,7 +4084,7 @@ async function handle(socket: any, msg: C2S) {
       // Ignore movement updates while the room is in lobby state (no match running).
       if (room.state !== "playing") return;
       const p = room.players.get(socket.id);
-      if (!p || !p.alive||room.playerMechs.has(socket.id)) return;
+      if (!p || !p.alive) return;
       const moveNow=Date.now();
       if(!room.downed.has(socket.id)){
        let next=clampToArena(room,msg.pos);
