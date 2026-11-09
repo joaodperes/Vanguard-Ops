@@ -6,7 +6,8 @@ describe("audio mixer without music", () => {
     expect(EFFECTS_OUTPUT_BOOST).toBeGreaterThan(1);
     expect(EFFECTS_OUTPUT_BOOST).toBeLessThan(1.6);
     expect(WEAPON_OUTPUT_SCALE).toBeGreaterThan(0.32);
-    expect(WEAPON_OUTPUT_SCALE).toBeLessThan(0.55);
+    // Weapon output was deliberately raised to 0.58 for punchier gunfire.
+    expect(WEAPON_OUTPUT_SCALE).toBeLessThan(0.7);
     expect(audioGainLevels({ masterVolume: 100, footstepVolume: 100, fxVolume: 100 }))
       .toEqual({ master: 1, footsteps: 1, fx: 1, weaponOutputPercent: 100 });
   });
