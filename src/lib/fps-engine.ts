@@ -2558,6 +2558,16 @@ export class FPSEngine {
       }else if(p.kind==="terminal"){
         cube(group,masonry,0,1.1,0,2,2.2,1.3);
         cube(group,glass,0,1.48,.7,1.5,.75,.08);
+      }else if(p.kind==="sarcophagus"){
+        // Distinct low dungeon furnishings. The rectangular stone body is
+        // collision-matched by propColliders; raised lid stays within its volume.
+        cube(group,stone,0,h*.39,0,w,h*.78,d);
+        cube(group,trim,0,h*.83,0,w,h*.22,d);
+        cube(group,masonry,0,h*.95,0,w*.7,h*.08,d*.73);
+        for(const z of [-d*.31,d*.31]){
+          cube(group,trim,-w*.30,h*.91,z,w*.12,.035,d*.15);
+          cube(group,trim,w*.30,h*.91,z,w*.12,.035,d*.15);
+        }
       }else if(p.kind==="lamp" && biome==="volcanic_castle"){
         const height = p.h ?? 3;
         cube(group, masonry, 0, height * 0.38, 0, .23, height * .76, .23);
