@@ -42,7 +42,7 @@ import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
-import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -984,6 +984,7 @@ export class FPSEngine {
   private equipmentNextRechargeAt = 0;
   private deployedCovers = new Map<string,{cover:DeployedCover;mesh:THREE.Group}>();
   private equipmentFlashUntil = 0;
+  private equipmentFlashAudioUntil = 0;
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
   private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
@@ -3841,8 +3842,13 @@ export class FPSEngine {
     // Interpolate the camera-local offset. During a swap, use a faster lerp so
     // the weapon snaps down quickly (the dip should feel responsive, not floaty).
     const lerpRate = swapActive ? 0.4 : 0.25;
-    this.vmOffset.x += (target.x + sprintSwayX + swapX - this.vmOffset.x) * lerpRate;
-    this.vmOffset.y += (target.y + bobY + sprintSwayY + swapY - this.vmOffset.y) * lerpRate;
+    const tasered=this.alive && isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now());
+    const twitchTime=performance.now()*0.001;
+    // Subtle high-frequency hand tremor, separate from recoil or sprint motion.
+    const taserSwayX=tasered?0.028*Math.sin(twitchTime*21)+0.014*Math.sin(twitchTime*37):0;
+    const taserSwayY=tasered?0.018*Math.sin(twitchTime*29+1.4):0;
+    this.vmOffset.x += (target.x + sprintSwayX + swapX + taserSwayX - this.vmOffset.x) * lerpRate;
+    this.vmOffset.y += (target.y + bobY + sprintSwayY + swapY + taserSwayY - this.vmOffset.y) * lerpRate;
     this.vmOffset.z += (target.z + swapZ - this.vmOffset.z) * lerpRate;
 
     // ---- First-person reload and equipment poses (v6) ----
@@ -3898,8 +3904,10 @@ export class FPSEngine {
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
     const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
-    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch;
-    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll;
+    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch +
+      (tasered?0.035*Math.sin(twitchTime*24.5):0);
+    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll +
+      (tasered?0.045*Math.sin(twitchTime*18.2+0.7):0);
     // Compute ONE quaternion for the complete weapon. The same quaternion must
     // rotate both each part's centre (around the grip) AND its orientation.
     // Euler XYZ composes X*Z; the old hand-written coordinates composed Z*X,
@@ -4212,7 +4220,7 @@ export class FPSEngine {
     this.applyAudioLevels();
   }
 
-  /** Flashbang impairs hearing only, never movement or weapon controls.
+  /** Flashbang impairs hearing and visibility only, never movement or weapon controls.
    * Procedural sounds and weapon audio have separate outputs.
    */
   private applyAudioLevels() {
@@ -4226,7 +4234,7 @@ export class FPSEngine {
   private updateFlashAudio(now: number) {
     // Constructor-free engine stubs and early boot have no audio buses yet.
     if(!this.audioMix || !this.sound || !this.weaponAudio)return;
-    const factor=flashAudioGain(Math.max(0,(this.equipmentFlashUntil??0)-now));
+    const factor=flashAudioGain(Math.max(0,(this.equipmentFlashAudioUntil??0)-now));
     if(Math.abs(factor-(this.flashAudioFactor??1))<0.005)return;
     this.flashAudioFactor=factor;
     this.applyAudioLevels();
@@ -4672,10 +4680,12 @@ export class FPSEngine {
           if(selfDist<def.radius){const eye: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
             const delta: Vec3=[eye[0]-impact[0],eye[1]-impact[1],eye[2]-impact[2]];
             const len=Math.hypot(...delta)||1;
-            if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))
-              {const duration=flashDurationMs(selfDist);
-                this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+duration);
-                }
+            if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox)){
+              const duration=flashDurationMs(selfDist), now=performance.now();
+              this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
+              const visibleMs=Math.round(duration*flashFacingExposure(eye,this.yaw,impact));
+              if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
+            }
           }
         }
         for(const c of targets){
@@ -4686,10 +4696,13 @@ export class FPSEngine {
           if(closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))continue;
           if(def.type==="blast")this.applyDamageLocal(c,fragDamage(dist),false,`equipment_${id}`);
           else if(def.type==="flash" && c.alive){
-            const duration=flashDurationMs(dist);
-            this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,performance.now()+duration));
-            if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
-            this.spawnTacticalStatusVisual(c.id,"flash",duration);
+            const duration=Math.round(flashDurationMs(dist)*
+              flashFacingExposure([c.pos[0],c.pos[1]+1,c.pos[2]],c.yaw,impact));
+            if(duration>0){
+              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,performance.now()+duration));
+              if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
+              this.spawnTacticalStatusVisual(c.id,"flash",duration);
+            }
           }
         }
         if(def.type==="blast"){
@@ -6394,7 +6407,7 @@ export class FPSEngine {
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
-          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
@@ -6495,7 +6508,7 @@ export class FPSEngine {
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
           this.refillAmmoOnRespawn(); this.buildViewmodel();
-          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;
         }
         break;
       case "deathBomb":
@@ -6544,8 +6557,10 @@ export class FPSEngine {
         break;
       case "equipmentStatus":
         if(msg.effect==="flash"){
-          
-          this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+msg.durationMs);
+          const now=performance.now();
+          this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+msg.durationMs);
+          const visibleMs=msg.visualDurationMs??msg.durationMs;
+          if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
         }else{
           this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,performance.now()+msg.durationMs);
           this.aiming=false;
@@ -7003,7 +7018,7 @@ export class FPSEngine {
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
-    this.equipmentFlashUntil=0;this.equipmentAdsBlockedUntil=0;
+    this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;this.equipmentAdsBlockedUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
@@ -7770,7 +7785,9 @@ export class FPSEngine {
     // which recovers between engagements even for high rate-of-fire guns.
     const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
       && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
-    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds);
+    const taserSpread=isTaserAdsBlocked(this.equipmentAdsBlockedUntil,now)&&!this.aiming?
+      TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread;
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
     const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
@@ -7834,7 +7851,7 @@ export class FPSEngine {
       if(special?.kind!=="bolt")this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
       for (let i = 0; i < pellets; i++) {
         const pdir = multiPelletShotgun
-          ? shotgunPelletDirection(dir, this.eff, this.aiming)
+          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread}, this.aiming)
           : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
         const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
@@ -9998,7 +10015,12 @@ export class FPSEngine {
         }
       }
     }
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
+    if (move.lengthSq() > 0) move.normalize();
+    if (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) && this.alive) {
+      const twitch=taserMovementJitter(performance.now());
+      move.x+=twitch.x;move.z+=twitch.z;
+    }
+    move.multiplyScalar(baseSpeed);
     // Exponential response is stable across variable frame times. Separate
     // acceleration, braking, reversal, and aerial steering behavior.
     [this.vel.x, this.vel.z] = responsiveHorizontalVelocity(
@@ -10115,7 +10137,8 @@ export class FPSEngine {
     else if (this.vel.lengthSq() > 4) spread += 0.3;  // moving fast
     if (this.mouseDown || this.touchFiring) spread += 0.15;
     if (this.aiming) spread *= 0.3;  // ADS tightens everything
-    this.currentSpread = Math.min(1, spread + this.shotBloom * (this.aiming ? 0.22 : 0.45));
+    this.currentSpread = Math.min(1, spread + this.shotBloom * (this.aiming ? 0.22 : 0.45) +
+      (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now())?0.55:0));
     // Advance the sprint-sway phase so the viewmodel bobs left/right while sprinting.
     if (this.sprinting) {
       this.sprintPhase += dt * 11;
@@ -10458,7 +10481,9 @@ export class FPSEngine {
       const missChance = (1 - ai.skill) * 0.45 + 0.03;
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
-      const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
+      const botTaserSpread=isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now)?
+        TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
+      const mechanicalSpread = botShotSpread(eff, !!ai.aiming)*botTaserSpread;
       const botShotgun = w.category === "shotgun" && !w.wonder && (eff.pellets ?? 1) > 1;
       const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
@@ -10482,7 +10507,7 @@ export class FPSEngine {
           const pellets = eff.pellets ?? 1;
           for (let i = 0; i < pellets; i++) {
             const pdir = botShotgun
-              ? shotgunPelletDirection(dir, eff, !!ai.aiming)
+              ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming)
               : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
@@ -10829,14 +10854,16 @@ export class FPSEngine {
           if(d>def.radius||!this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
           if(def.type==="blast")this.damageFromOfflineBotTactical(bot,c,fragDamage(d),id);
           else if(def.type==="flash"){
-            const duration=flashDurationMs(d),until=performance.now()+duration;
+            const duration=flashDurationMs(d),now=performance.now();
+            const eye:[number,number,number]=[c.pos[0],c.pos[1]+1,c.pos[2]];
+            const visibleMs=Math.round(duration*flashFacingExposure(eye,c.id===this.selfId?this.yaw:c.yaw,impact));
             if(c.id===this.selfId){
-              this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,until);
-              
-            }else{
-              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,until));
+              this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
+              if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
+            }else if(visibleMs>0){
+              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,now+visibleMs));
               if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
-              this.spawnTacticalStatusVisual(c.id,"flash",duration);
+              this.spawnTacticalStatusVisual(c.id,"flash",visibleMs);
             }
           }
         }
@@ -11263,7 +11290,8 @@ export class FPSEngine {
       // pin-point reticle just because the player is standing still.
       spreadFactor: Math.min(2, this.currentSpread + Math.min(2,
         (weaponById(this.weaponId).category === "shotgun" && !weaponById(this.weaponId).wonder && (this.eff.pellets ?? 1) > 1
-          ? shotgunConeRadians(this.eff, this.aiming)
+          ? shotgunConeRadians({...this.eff,spread:this.eff.spread*
+              (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,now)?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)},this.aiming)
           : shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true)) / 0.12
       ) * (this.aiming ? 0.12 : 0.8)),
       // Sprinting flag (HUD shows sprint indicator + tighter weapon-sway logic).
