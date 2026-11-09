@@ -10263,6 +10263,7 @@ export class FPSEngine {
       // The Juggernaut's oversized mech replaces its pilot silhouette.
       const inMech=[...this.mechDrops.values()].some(d=>d.enteredBy===c.id&&d.expiresAt>Date.now());
       if(inMech){c.group.visible=false;continue;}
+      if(c.alive)c.group.visible=true;
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
