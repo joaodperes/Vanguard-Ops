@@ -1,9 +1,18 @@
-export type ShopCurrency = "credits" | "career";
-export type ShopKind = "weaponSkin" | "playerSkin" | "reticle" | "charm" | "nameplate";
+import { WONDER_MODULES, WONDER_FINISHES, WONDER_KILL_EFFECTS } from "./wonder-expansion";
+export type ShopCurrency = "credits" | "career" | "wonder";
+export type ShopKind = "weaponSkin" | "playerSkin" | "reticle" | "charm" | "nameplate" | "wonderModule" | "wonderSkin" | "wonderKillEffect";
 export interface ShopItem {
   id:string; name:string; description:string; currency:ShopCurrency;
-  cost:number; kind:ShopKind; skinId?:string; cosmeticId?:string;
+  cost:number; kind:ShopKind; skinId?:string; cosmeticId?:string; wonderWeaponId?:string; moduleId?:string;
 }
+
+const WONDER_SHOP_ITEMS:ShopItem[]=[
+ ...WONDER_MODULES.map(m=>({id:"module_"+m.id,name:m.name,description:m.description,currency:"wonder" as const,cost:m.cost,kind:"wonderModule" as const,wonderWeaponId:m.wonderWeaponId,moduleId:m.id})),
+ ...["wonder_singularity","wonder_corrosion","wonder_turret","wonder_deadlock","wonder_hellfire","wonder_stormweaver","wonder_cluster","wonder_riot_shield","wonder_phasebreaker","wonder_chrono","wonder_seismic","wonder_phantom","wonder_whiteout","wonder_ripper","wonder_juggernaut"].flatMap(wonderWeaponId=>[
+   ...WONDER_FINISHES.map(f=>({id:f.id+"_"+wonderWeaponId,name:f.name,description:f.description,currency:"wonder" as const,cost:f.cost,kind:"wonderSkin" as const,skinId:f.id,wonderWeaponId})),
+   ...WONDER_KILL_EFFECTS.map(e=>({id:e.id+"_"+wonderWeaponId,name:e.name,description:e.description,currency:"wonder" as const,cost:e.cost,kind:"wonderKillEffect" as const,cosmeticId:e.id,wonderWeaponId})),
+ ]),
+];
 /** Server-authoritative fixed pricing. Existing aim settings remain free. */
 export const SHOP_ITEMS: readonly ShopItem[] = [
   { id:"cobalt_alloy",name:"Cobalt Alloy",description:"Per-weapon deep-blue alloy finish.",currency:"credits",cost:3000,kind:"weaponSkin",skinId:"shop_copper" },
@@ -58,6 +67,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   {id:"deepwater_anchor",name:"Deepwater Anchor",description:"Deepwater Anchor cosmetic.",currency:"credits",cost:5400,kind:"charm",cosmeticId:"charm_anchor"},
   {id:"micro_rocket",name:"Micro Rocket",description:"Micro Rocket cosmetic.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_rocket"},
   {id:"lunar_crescent",name:"Lunar Crescent",description:"Lunar Crescent cosmetic.",currency:"career",cost:1,kind:"charm",cosmeticId:"charm_moon"},
+  ...WONDER_SHOP_ITEMS,
 ] as const;
 export function shopItemById(id:string):ShopItem|undefined { return SHOP_ITEMS.find(x=>x.id===id); }
 export function shopItemKey(item:ShopItem,weaponId?:string):string {
@@ -72,6 +82,9 @@ export const SHOP_CATEGORIES = [
   {id:"reticle",label:"Reticles"},
   {id:"charm",label:"Charms"},
   {id:"nameplate",label:"Nameplates"},
+  {id:"wonderModule",label:"Wonder modules"},
+  {id:"wonderSkin",label:"Wonder finishes"},
+  {id:"wonderKillEffect",label:"Wonder kill effects"},
 ] as const;
 export type ShopCategory = (typeof SHOP_CATEGORIES)[number]["id"];
 export function shopItemsForCategory(currency:ShopCurrency,category:ShopCategory):ShopItem[]{
@@ -82,12 +95,13 @@ export function shopItemsForCategory(currency:ShopCurrency,category:ShopCategory
 export type ShopPurchaseStatus = "owned" | "weapon-locked" | "career-locked" |
   "credits-short" | "tokens-short" | "available";
 export function shopPurchaseStatus(item:ShopItem,options:{
-  owned:boolean;weaponOwned:boolean;careerUnlocked:boolean;credits:number;careerTokens:number;
+  owned:boolean;weaponOwned:boolean;careerUnlocked:boolean;credits:number;careerTokens:number;wonderTokens?:number;
 }):ShopPurchaseStatus{
   if(options.owned)return "owned";
-  if(item.kind==="weaponSkin"&&!options.weaponOwned)return "weapon-locked";
+  if((item.kind==="weaponSkin"||item.kind==="wonderModule"||item.kind==="wonderSkin"||item.kind==="wonderKillEffect")&&!options.weaponOwned)return "weapon-locked";
   if(item.currency==="career"&&!options.careerUnlocked)return "career-locked";
   if(item.currency==="credits"&&options.credits<item.cost)return "credits-short";
   if(item.currency==="career"&&options.careerTokens<item.cost)return "tokens-short";
+  if(item.currency==="wonder"&&(options.wonderTokens??0)<item.cost)return "tokens-short";
   return "available";
 }
