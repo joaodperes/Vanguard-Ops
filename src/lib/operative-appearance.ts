@@ -13,7 +13,7 @@ import type { PlayerSkinDef } from "./game-data";
 export type OperativeSignature =
   | "standard" | "recon" | "sentinel" | "jungle" | "ember" | "spectre"
   | "phantom" | "crimson" | "urban" | "starlight" | "wraith"
-  | "sandstorm" | "tidebreaker" | "solar" | "ion" | "verdant";
+  | "sandstorm" | "tidebreaker" | "solar" | "ion" | "verdant" | "ascendant";
 
 export const OPERATIVE_SIGNATURES: Readonly<Record<string, OperativeSignature>> = {
   default: "standard",
@@ -32,6 +32,7 @@ export const OPERATIVE_SIGNATURES: Readonly<Record<string, OperativeSignature>> 
   shop_sentinel: "solar",
   shop_ion: "ion",
   shop_verdant: "verdant",
+  ascendant_vanguard: "ascendant",
 };
 
 export function operativeSignature(skin: Pick<PlayerSkinDef, "id">): OperativeSignature {
@@ -226,6 +227,17 @@ export function addOperativeSkinDetails(
       box("head", "light", 0, .045, .175, .24, .035, .025);
       box("torso", "light", -.20, 1.27, .265, .035, .27, .02);
       box("torso", "light", .20, 1.27, .265, .035, .27, .02);
+      break;
+    case "ascendant":
+      // Capstone armor: luminous shoulder standards, a radiant visor and a
+      // crowned rear power spine. Cosmetic only; ordinary hitboxes remain.
+      paired(["upperArmL","upperArmR"], "plate", .18, .11, -.07, .18, .31, .23, .30);
+      paired(["upperArmL","upperArmR"], "light", .17, .10, .11, .035, .24, .035, .28);
+      box("head", "trim", 0, .34, -.03, .36, .065, .27);
+      box("head", "light", 0, .085, .185, .27, .040, .035);
+      box("torso", "light", 0, 1.29, .345, .17, .16, .025);
+      box("torso", "trim", 0, 1.48, -.24, .31, .15, .13);
+      box("torso", "light", 0, 1.65, -.29, .06, .25, .045);
       break;
     case "verdant":
       // Bio-tech guardian: branching canopy helmet, layered leaf-like armor.
