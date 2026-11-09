@@ -11,6 +11,11 @@ export const FLOODGATE_TOPPLE_SECONDS=3.2;
 const TOPPLE_TIME_EPSILON=1e-9;
 export const FLOODGATE_ROOF_STEPS=18;
 export const FLOODGATE_ROOF_HEIGHT=11; // Existing turbine roof: y=10 base + 1-unit slab
+// Upper flight and bridge are open metal decking, not concrete-filled prisms.
+// Their physical underside must match the visible planks so infantry and shots
+// can pass beneath wherever existing buildings leave enough headroom.
+export const FLOODGATE_ROOF_TREAD_THICKNESS=.12;
+export const FLOODGATE_BRIDGE_THICKNESS=.19;
 export const FLOODGATE_FREIGHT=[
   {id:"west-inner",x:-21,z:-74,color:0xda8539},
   {id:"east-inner",x:21,z:-74,color:0x36a6b0},
@@ -41,15 +46,16 @@ export function freightCover(stage:Exclude<FreightStage,"falling">,only?:Freight
     if(stage==="upright"){
       boxes.push({pos:[c.x,11.5,c.z],size:[2.7,11.5,1.4],kind:"cover",environmentId:PREFIX+c.id+":upright"});
     }else{
-      // North-to-south staircase: eight 0.42-unit risers, with an upper
-      // landing that joins the northern lip of the existing overlook deck.
+      // North-to-south freight ramp: eight 0.42-unit risers. These lower
+      // risers remain solid: the fallen container body visibly fills the ramp.
       // One shared geometry recipe prevents visible and physical mismatch.
       for(let i=0;i<8;i++){
         const top=(i+1)*.42;
         boxes.push({pos:[c.x,top/2,-84+(i+.5)*2.65],size:[2.7,top/2,1.345],
           kind:"stair",environmentId:PREFIX+c.id+":step-"+i});
       }
-      boxes.push({pos:[c.x,1.68,-59.3],size:[4.15,1.68,4.1],
+      boxes.push({pos:[c.x,3.36-FLOODGATE_BRIDGE_THICKNESS/2,-59.3],
+        size:[4.15,FLOODGATE_BRIDGE_THICKNESS/2,4.1],
         kind:"platform",environmentId:PREFIX+c.id+":bridge"});
       // The freight first reaches the 3.4m spillway overlook. A second
       // narrow flight then connects that overlook to the real turbine roof
@@ -57,7 +63,8 @@ export function freightCover(stage:Exclude<FreightStage,"falling">,only?:Freight
       // These are genuine authored collision treads, not visual-only props.
       for(let i=0;i<FLOODGATE_ROOF_STEPS;i++){
         const top=3.4+(FLOODGATE_ROOF_HEIGHT-3.4)*(i+1)/FLOODGATE_ROOF_STEPS;
-        boxes.push({pos:[c.x,top/2,-46+(i+.5)],size:[2.7,top/2,.52],
+        boxes.push({pos:[c.x,top-FLOODGATE_ROOF_TREAD_THICKNESS/2,-46+(i+.5)],
+          size:[2.7,FLOODGATE_ROOF_TREAD_THICKNESS/2,.52],
           kind:"stair",environmentId:PREFIX+c.id+":roof-step-"+i});
       }
     }
@@ -112,11 +119,12 @@ export function buildFloodgateFreight(scene:THREE.Scene):THREE.Group{
     const steps=new THREE.Group();steps.name=PREFIX+c.id+":stairs";
     for(const box of freightCover("fallen",c).filter(b=>b.kind==="stair")){
       const plank=new THREE.Mesh(new THREE.BoxGeometry(box.size[0]*2,.12,box.size[2]*2),decking);
-      plank.position.set(box.pos[0],box.pos[1]+box.size[1]+.06,box.pos[2]);
+      // Align the rendered deck and the authoritative physical top surface.
+      plank.position.set(box.pos[0],box.pos[1]+box.size[1]-.06,box.pos[2]);
       plank.receiveShadow=true;steps.add(plank);
     }
     const bridge=new THREE.Mesh(new THREE.BoxGeometry(8.3,.19,8.2),decking);
-    bridge.position.set(c.x,3.43,-59.3);steps.add(bridge);
+    bridge.position.set(c.x,3.36-FLOODGATE_BRIDGE_THICKNESS/2,-59.3);steps.add(bridge);
     steps.visible=false;group.add(steps);
   }
   scene.add(group);
