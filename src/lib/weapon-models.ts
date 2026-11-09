@@ -139,6 +139,58 @@ export function firstPersonSupportGrip(id: string): [number, number, number] {
   ];
 }
 
+/** Gameplay-independent first-person weapon presentation.
+ *
+ * Bot weapons already use 0.72, but the old first-person viewmodel used
+ * 1.20 for EVERY weapon. That made even an ordinary carbine ~1.43 model
+ * units long and an anti-material rifle ~2.49 (before camera perspective).
+ * Preserve pistols/PDWs/SMGs, which are intentionally close-up and already
+ * proportionate, while matching full-sized rifles to their world models.
+ *
+ * The transition for unusually short futuristic weapons is continuous;
+ * there is no receiver-length threshold that suddenly changes the pose.
+ * Never apply this to bot geometry, collision, ballistic range or damage.
+ */
+export const FIRST_PERSON_COMPACT_SCALE = 1.20;
+export const WORLD_WEAPON_VISUAL_SCALE = .72;
+
+export function proceduralWeaponOverallLength(id: string): number {
+  const p = WEAPON_VISUALS[id];
+  if (!p) return 0;
+  const receiverLength = p.receiver[2];
+  const c = -.12;
+  // Mirrored from buildFirstPersonWeapon's receiver, handguard, stock and
+  // muzzle positions. This is a nominal longitudinal span, not a hitbox.
+  const muzzle = c - receiverLength/2 - p.guardLength - p.barrelLength + .04;
+  const rearZ = c + receiverLength/2 + .05;
+  let rear = c + receiverLength/2;
+  switch(p.stock) {
+    case "fixed": rear=rearZ+.07+.20/2; break;
+    case "heavy": rear=Math.max(rearZ+.055+.23/2,rearZ+.16+.037/2); break;
+    case "wire":
+    case "folding": rear=rearZ+.17+.035/2; break;
+    case "bullpup": rear=rearZ+.075+.12/2; break;
+    case "precision": rear=rearZ+.18+.038/2; break;
+    case "none": rear=Math.max(rear,c+.08+.083/2); break;
+  }
+  return rear-muzzle;
+}
+
+export function firstPersonPresentationScale(id: string, category: string): number {
+  if (!["assault","dmr","sniper","lmg","shotgun","launcher"].includes(category))
+    return FIRST_PERSON_COMPACT_SCALE;
+  const p=WEAPON_VISUALS[id];
+  if (!p || id==="wonder_turret") return FIRST_PERSON_COMPACT_SCALE;
+  if(p.magazine==="rocket"||category==="launcher")return WORLD_WEAPON_VISUAL_SCALE;
+  const length=proceduralWeaponOverallLength(id);
+  // The tiny experimental emitters in rifle/DMR/shotgun classes can be
+  // comparable to compact PDWs, so keep their existing size. Standard
+  // long guns converge on the 0.72 scale already used by other players.
+  const t=Math.max(0,Math.min(1,(length-.62)/.33));
+  return FIRST_PERSON_COMPACT_SCALE+
+    (WORLD_WEAPON_VISUAL_SCALE-FIRST_PERSON_COMPACT_SCALE)*t;
+}
+
 /** The Bastion uses a rear U-notch with an actual open centre and a narrow
  * front blade; no opaque plate covers the aim line. Geometry stays fixed to the
  * weapon; scope/reticle switching is still handled by the FPS engine. */

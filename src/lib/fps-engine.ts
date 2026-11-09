@@ -526,7 +526,7 @@ interface HumanoidParts {
 // the handgun grip and the rear handguards of even the longest weapons.
 const BOT_UPPER_ARM_LENGTH = 0.42;
 const BOT_FOREARM_LENGTH = 0.42;
-const BOT_WEAPON_VISUAL_SCALE = 0.72;
+const BOT_WEAPON_VISUAL_SCALE = WORLD_WEAPON_VISUAL_SCALE;
 
 /**
  * Solve a two-segment arm in character-local space. The shoulder pivot has
@@ -781,7 +781,7 @@ export class FPSEngine {
     baseQuat: THREE.Quaternion;
     baseScale: THREE.Vector3;
   }[] = [];
-  private vmScale = 1.20;
+  private vmScale = FIRST_PERSON_COMPACT_SCALE;
   // Visual model can lag the active gameplay weapon until the holster handoff.
   private viewmodelWeaponId = "";
   private swapViewmodelPending = false;
@@ -3011,6 +3011,13 @@ export class FPSEngine {
     // Direct rebuilds supersede pending visual handoffs.
     this.swapViewmodelPending = false;
     this.viewmodelWeaponId = this.weaponId;
+    // Physical presentation: full-size firearms use the same nominal model
+    // dimensions as the 1.8m third-person operatives, instead of rendering
+    // them 67% larger than their world-model counterparts. Compact weapons
+    // keep their familiar viewmodel proportions. No gameplay state changes.
+    this.vmScale = firstPersonPresentationScale(
+      this.weaponId, weaponById(this.weaponId).category,
+    );
     if(this.riotShieldModel){this.disposeRiotModel(this.riotShieldModel);this.riotShieldModel=null;}
     if(this.weaponId===RIOT_SHIELD_ID){this.riotShieldModel=createRiotShieldModel(true);this.camera.add(this.riotShieldModel);}
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
@@ -3649,14 +3656,21 @@ export class FPSEngine {
     }
     this.ensureFirstPersonProp(propId);
     if (this.equipmentAction) {
+      // Equipment is a separate object and must never inherit gun sizing.
+      prop.scale.setScalar(1);
       hand.position.set(...pose.hand);
       prop.position.set(...pose.prop);
     } else {
-      // Reload contacts belong to the *weapon*, not the camera. Apply the same
-      // pivot, gun pitch/roll and translation as every rigid weapon part.
-      // Coordinates are already authored in camera viewmodel units (no scale).
-      placeFirstPersonActionTarget(hand.position,pose.hand,this._vmTotalQuat,offsetX,offsetY,offsetZ);
-      placeFirstPersonActionTarget(prop.position,pose.prop,this._vmTotalQuat,offsetX,offsetY,offsetZ);
+      // Legacy magazine/bolt tracks were authored against a 1.20-scale gun.
+      // They must scale with the new gun body to stay on its action and mag
+      // well; receiver-local shotgun shell contacts are ALREADY scaled.
+      const contactScale=propId==="shell" ? 1
+        : this.vmScale/FIRST_PERSON_COMPACT_SCALE;
+      placeFirstPersonActionTarget(hand.position,pose.hand,this._vmTotalQuat,
+        offsetX,offsetY,offsetZ,contactScale);
+      placeFirstPersonActionTarget(prop.position,pose.prop,this._vmTotalQuat,
+        offsetX,offsetY,offsetZ,contactScale);
+      prop.scale.setScalar(this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     }
     hand.rotation.set(pose.handRoll * .25, 0, pose.handRoll);
     prop.rotation.set(0, 0, pose.handRoll * .6);
@@ -3706,7 +3720,8 @@ export class FPSEngine {
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
-    const receiverHeight = WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18;
+    const receiverHeight = (WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18)
+      * (this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
     const adsTarget = isMagnifiedSight || isSniperScoped
       ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
@@ -3971,10 +3986,10 @@ export class FPSEngine {
     // The visible reticle aims from the rendered (stair-smoothed) camera eye.
     const origin = this.camera.position.clone();
     this.camera.updateMatrixWorld();
-    const muzzle = new THREE.Vector3(
-      this.vmOffset.x+0.025, this.vmOffset.y-0.018,
-      this.vmOffset.z-0.48,
-    ).applyMatrix4(this.camera.matrixWorld);
+    // Beam must originate at the ACTUAL transformed barrel tip. The old
+    // hardcoded (-0.48) was wrong even before weapon size correction, and
+    // became visibly detached from resized long-gun muzzles.
+    const muzzle = this.muzzleFlash.getWorldPosition(new THREE.Vector3());
     // Aim direction: same as aimDir but with zero spread (laser shows where you'd actually hit)
     const cp = Math.cos(this.pitch);
     const dir: Vec3 = [Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch)];

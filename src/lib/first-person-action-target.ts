@@ -9,9 +9,11 @@ import * as THREE from "three";
 export function placeFirstPersonActionTarget(
   output: THREE.Vector3, contact: readonly [number,number,number],
   weaponRotation: THREE.Quaternion, offsetX:number, offsetY:number, offsetZ:number,
+  contactScale=1,
 ): THREE.Vector3 {
   const pivotX=0, pivotY=-.11, pivotZ=.12;
-  output.set(contact[0]-pivotX,contact[1]-pivotY,contact[2]-pivotZ);
+  output.set(contact[0]*contactScale-pivotX,
+    contact[1]*contactScale-pivotY,contact[2]*contactScale-pivotZ);
   output.applyQuaternion(weaponRotation);
   output.x += pivotX + offsetX;
   output.y += pivotY + offsetY;
