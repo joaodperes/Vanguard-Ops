@@ -75,7 +75,7 @@ import type {
 } from "./game-protocol";
 import {
   getMap, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS, DEFAULT_CONFIG,
-  SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
+  SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
   roomCapacity, mapAllowedForMode, teamSizeAllowed, teamSizesForMap, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
@@ -1788,6 +1788,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
           // One confirmed enemy kill restores the downed operative.
           room.survivalSelfReviveUntil.delete(attackerId);
           room.downed.delete(attackerId);
+          attacker.weaponId=room.loadouts.get(attackerId)?.weaponId??"rifle_ar";
           attacker.alive=true;
           attacker.health=SURVIVAL_SELF_REVIVE_HP;
           attacker.spawnProtectedUntil=Date.now()+1000;
@@ -2122,10 +2123,11 @@ function startSurvivalWave(room: Room) {
     const loadout = botLoadout();
     loadout.weaponId = pool[Math.floor(Math.random() * pool.length)];
     const boss = mutators.boss && n === count-1;
+    const elite = !boss && room.wave>=5 && room.wave%5===0 && n===count-(mutators.boss?2:1);
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
     if (boss) loadout.weaponId = "lmg_hv";
     const tacticalRole=botArchetypeForCategory(weaponById(loadout.weaponId).category);
-    loadout.equipmentId=botTacticalForArchetype(tacticalRole,n);
+    loadout.equipmentId=survivalBotTactical(n);
     const ai = makeBotAI(sp, loadout.weaponId, waveDiff, 0,tacticalRole);
     ai.moveSpeed *= mutators.speedMul * (boss ? 1.3 : 1);
     ai.skill = Math.min(0.98,ai.skill + mutators.skillBoost);
@@ -2133,8 +2135,8 @@ function startSurvivalWave(room: Room) {
     if (boss) ai.boss={phase:0,nextPhaseAt:Date.now()+5000,nextSkillAt:Date.now()+8500};
     ai.ammoInMag = weaponById(loadout.weaponId).stats.magSize;
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
-      id, name: boss ? `BOSS · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
-      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
+      id, name: boss ? `BOSS · W${room.wave}` : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
+      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
       bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
       weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: loadout.playerSkinId,
     charmId:room.mode==="gungame"?"none":loadout.primaryCharmId??"none",nameplateId:loadout.nameplateId??"standard",
@@ -2150,6 +2152,7 @@ function startSurvivalWave(room: Room) {
 
 function recoverSurvivalPlayers(room: Room) {
   for (const playerId of room.downed) {
+    room.survivalSelfReviveUntil.delete(playerId);
     const p = room.players.get(playerId);
     if (!p) continue;
     const pos = pickSpawn(p.team, room);
@@ -2334,7 +2337,17 @@ function tickRoom(room: Room) {
   // below the Survival early return, freezing its online HUD at 00:00.
   room.elapsedSeconds = advanceMatchElapsed(room.elapsedSeconds, 1 / 20, room.preMatchCountdown <= 0);
   if (room.mode === "survival") {
-    if (room.downed.size > 0 && ![...room.players.values()].some(p => p.alive && !room.downed.has(p.id))) {
+    // Expired self-revives become real knockouts. In co-op, a living teammate
+    // may still bring the player back when the next wave is cleared.
+    for(const [id,until] of room.survivalSelfReviveUntil){
+      if(Date.now()<until)continue;
+      room.survivalSelfReviveUntil.delete(id);
+      const player=room.players.get(id);
+      if(player)player.alive=false;
+      io.to(room.id).emit("message",{t:"survivalReviveExpired",playerId:id} as S2C);
+    }
+    if (room.downed.size > 0 && room.survivalSelfReviveUntil.size===0 &&
+        ![...room.players.values()].some(p => p.alive && !room.downed.has(p.id))) {
       endMatch(room);
       return;
     }
@@ -2358,13 +2371,15 @@ function tickRoom(room: Room) {
             endMatch(room);
             return;
           }
-          room.prepLeft = survivalUpgradeDue(room.wave) ? SURVIVAL_UPGRADE_PREP_SEC : SURVIVAL_PREP_SEC;
+          room.prepLeft = survivalPrepSeconds(room.wave);
           recoverSurvivalPlayers(room);
-          // Boss waves are 10/20/...; upgrade picks are 4/9/14/...
+          // Boss clears grant an additional upgrade choice; normal picks remain every five waves.
           // Award rerolls at boss clear, not only when a pick is available.
           if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
             for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
-          if(survivalUpgradeDue(room.wave))offerSurvivalUpgrades(room);
+          if(survivalUpgradeDue(room.wave)||
+             survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
+            offerSurvivalUpgrades(room);
         }
       }
     }
@@ -3196,6 +3211,8 @@ io.on("connection", (socket) => {
       room.players.delete(socket.id);
        room.orbitalHolders.delete(socket.id);
       room.downed.delete(socket.id);
+      room.survivalSelfReviveUntil.delete(socket.id);
+      room.survivalSelfReviveUsedWave.delete(socket.id);
       room.sockets.delete(socket.id);
       room.scores.delete(socket.id);
       room.loadouts.delete(socket.id);
@@ -3878,7 +3895,8 @@ async function handle(socket: any, msg: C2S) {
       const offer=room.survivalOffers.get(socket.id);
       if(!offer||offer.rerollsRemaining<=0)return;
       const ranks=room.survivalRanks.get(socket.id)??{};
-      const choices=generateSurvivalUpgradeChoices(ranks,Math.random,offer.choices);
+      const choices=generateSurvivalUpgradeChoices(ranks,Math.random,offer.choices,
+        survivalWaveMutators(room.config.survivalTier??"default",offer.wave).boss);
       const remaining=offer.rerollsRemaining-1;
       room.survivalRerolls.set(socket.id,remaining);
       room.survivalOffers.set(socket.id,{...offer,choices,rerollsRemaining:remaining});
