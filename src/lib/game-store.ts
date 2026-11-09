@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode, MapId, TeamSize, CreateRoomConfig, BotDifficulty } from "@/lib/game-protocol";
-import { recommendedTeamSize, resolveRoomSelection } from "@/lib/game-protocol";
+import { recommendedTeamSize, resolveRoomSelection, mapAllowedForMode, teamSizeAllowed, teamSizesForMap } from "@/lib/game-protocol";
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
@@ -143,6 +143,16 @@ export const useGame = create<GameStore>((set, get) => ({
     // Preserve map-specific recommended sizes when picking a new map.
     if (c.mapId && c.mapId !== previous.mapId && c.teamSize === undefined)
       next.teamSize = recommendedTeamSize(next.mapId, next.mode);
+    // Keep the closest supported capacity when ONLY switching mode on an
+    // already compatible map; e.g. Blacksite 5v5 -> 8-player FFA (size 4).
+    // Direct invalid room selection and map changes still use recommendations.
+    if (c.mode && c.mode !== previous.mode && !c.mapId && c.teamSize === undefined &&
+        mapAllowedForMode(next.mode, next.mapId) &&
+        !teamSizeAllowed(next.mapId, next.teamSize, next.mode)) {
+      const options = teamSizesForMap(next.mapId, next.mode);
+      next.teamSize = options.filter(size => size <= next.teamSize).at(-1)
+        ?? options[0] ?? recommendedTeamSize(next.mapId, next.mode);
+    }
     // A mode change may invalidate the map (e.g. Castle -> CTF), and a
     // map change may invalidate the count. Normalize BOTH atomically.
     const selection = resolveRoomSelection(next.mode, next.mapId, next.teamSize);

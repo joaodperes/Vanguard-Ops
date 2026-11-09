@@ -1315,12 +1315,10 @@ export function resolveRoomSelection(mode: GameMode, mapId: MapId, teamSize: Tea
     ? mapId : mode === "ctf" ? "forest_warfare" : "compound";
   return {
     mapId: effectiveMapId,
-    // Map changes reset to their recommendation in game-store. On mode changes,
-    // clamp an invalid size to the nearest supported value (Blacksite 5 -> 4).
+    // Direct/invalid room selections reset to the effective map recommendation.
+    // The menu separately preserves the nearest legal size on a mode-only switch.
     teamSize: teamSizeAllowed(effectiveMapId, teamSize, mode)
-      ? teamSize : (teamSizesForMap(effectiveMapId, mode).filter(size => size <= teamSize).at(-1)
-        ?? teamSizesForMap(effectiveMapId, mode)[0]
-        ?? recommendedTeamSize(effectiveMapId, mode)),
+      ? teamSize : recommendedTeamSize(effectiveMapId, mode),
   };
 }
 
