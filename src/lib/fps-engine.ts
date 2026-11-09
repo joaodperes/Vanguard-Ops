@@ -4234,6 +4234,7 @@ export class FPSEngine {
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
     this.reloading = false; this.equipmentAction = null;
     this.equipmentCharges = equipmentById(next.equipmentId).charges;
+    this.equipmentNextRechargeAt=0;
     this.equipmentLastAt = -10000;
     this.buildViewmodel();
     if (this.quickMeleeModel) {
@@ -4547,10 +4548,28 @@ export class FPSEngine {
 
   private commitEquipmentUse(id: string): void {
     const def=equipmentById(id), now=performance.now();
-    this.equipmentCharges=Math.max(0,this.equipmentCharges-1);
+    let place:ReturnType<typeof coverPlacement>=null;
+    if(def.type==="cover"&&!this.opts.online){
+      place=coverPlacement([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size,
+        [...this.combatants.values()].filter(c=>c.alive).map(c=>c.pos));
+      if(!place){void import("sonner").then(({toast})=>toast.error("No space to deploy cover"));return;}
+    }
+    const stock=spendTactical({charges:this.equipmentCharges,nextAt:this.equipmentNextRechargeAt},
+      now,this.activePerkId,def.charges);
+    this.equipmentCharges=stock.charges;
+    this.equipmentNextRechargeAt=stock.nextAt;
     this.equipmentLastAt=now;
     if(this.opts.online){
       this.socket?.emit("message",{t:"useEquipment"});
+      return;
+    }
+    if(def.type==="cover"&&place){
+      for(const item of [...this.deployedCovers.values()])
+        if(item.cover.ownerId===this.selfId)this.removeDeployCover(item.cover.id);
+      this.installDeployCover({id:"offline_cover_"+(++this.localWonderSequence),ownerId:this.selfId,
+        ownerTeam:this.opts.team,pos:place.pos,yaw:place.yaw,hp:DEPLOY_COVER_HP,
+        expiresAt:Date.now()+DEPLOY_COVER_LIFETIME_MS});
+      this.sound.play("melee_hit",{volume:.45});
       return;
     }
     const path=this.equipmentTrajectory(id);
@@ -4588,6 +4607,11 @@ export class FPSEngine {
           }
         }
       } else {
+        if(def.type==="blast"){
+          const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
+          if(selfDist<=def.radius&&this.hasLineOfSight(impact,[this.pos.x,this.pos.y+1,this.pos.z]))
+            this.takeDamage(fragDamage(selfDist),this.opts.playerName,this.opts.team,false,"equipment_frag");
+        }
         if(def.type==="flash"){
           const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
           if(selfDist<def.radius){const eye: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
@@ -5947,6 +5971,7 @@ export class FPSEngine {
         this.addClusterVolley({...msg.volley,launchedAt:gravityClientTime(msg.volley.launchedAt,msg.serverNow,Date.now())},false);
         break;
       case "snapshot":
+        if(msg.deployedCovers)this.reconcileDeployCovers(msg.deployedCovers);
         for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
         // Authoritative poison status is sent to everyone, not just the
         // attacker. Convert server timestamps so client clock skew is safe.
@@ -6284,6 +6309,7 @@ export class FPSEngine {
           this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
+    this.equipmentNextRechargeAt=0;
           this.equipmentAdsBlockedUntil=0;this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
           this.lastServerHealth = MAX_HEALTH;
         }
@@ -6406,7 +6432,22 @@ export class FPSEngine {
         if (msg.ownerId === this.selfId) this.recoverBolt();
         break;
       case "equipmentState":
-        this.equipmentCharges = msg.remaining;
+        this.equipmentCharges=msg.remaining;
+        this.equipmentNextRechargeAt=msg.nextRechargeMs?performance.now()+msg.nextRechargeMs:0;
+        break;
+      case "equipmentRejected":
+        void import("sonner").then(({toast})=>toast.error(msg.reason));
+        break;
+      case "deployedCoverPlaced":
+        this.installDeployCover(msg.cover);
+        break;
+      case "deployedCoverDamaged": {
+        const item=this.deployedCovers.get(msg.id);
+        if(item){item.cover.hp=msg.hp;this.paintDeployCover(item);}
+        break;
+      }
+      case "deployedCoverRemoved":
+        this.removeDeployCover(msg.id);
         break;
       case "equipmentStatus":
         if(msg.effect==="flash"){
@@ -6866,6 +6907,7 @@ export class FPSEngine {
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
+    this.equipmentNextRechargeAt=0;
     this.equipmentStunUntil=0;this.equipmentFlashUntil=0;this.equipmentAdsBlockedUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
@@ -8929,6 +8971,7 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    this.tickDeployCovers();
     // Cinematic finish: keep recently killed operatives visible but never
     // simulate another combat tick or change match results after the verdict.
     if (this.matchEnded) {
@@ -9106,6 +9149,12 @@ export class FPSEngine {
     }
     // A fatal hit interrupts any uncommitted deploy without consuming charges.
     if (!this.alive) this.equipmentAction = null;
+    if(!this.opts.online&&this.alive){
+      const def=equipmentById(this.opts.loadout.equipmentId);
+      const stock=rechargeTactical({charges:this.equipmentCharges,nextAt:this.equipmentNextRechargeAt},
+        performance.now(),this.activePerkId,def.charges);
+      this.equipmentCharges=stock.charges;this.equipmentNextRechargeAt=stock.nextAt;
+    }
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
@@ -10956,6 +11005,7 @@ export class FPSEngine {
       quickMeleeAt: this.quickMeleeFeedbackAt,
       equipmentName: this.opts.mode === "gungame" ? undefined : equipmentById(this.opts.loadout.equipmentId).name,
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
+      equipmentRechargeMs:Math.max(0,this.equipmentNextRechargeAt-now),
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
       stunRemainingMs: Math.max(0,this.equipmentStunUntil-now),
       taserRemainingMs: Math.max(0,this.equipmentAdsBlockedUntil-now),
