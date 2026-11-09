@@ -292,75 +292,75 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
             onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
             canCustomize={melee === current.melee.id}
           />
-        <div className="relative" data-slot-dropdown>
-          <div className={`rounded-xl border border-amber-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="w-4 h-4 text-amber-400" />
-              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
-              <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
+          <div className="relative" data-slot-dropdown>
+            <div className={`rounded-xl border border-amber-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="w-4 h-4 text-amber-400" />
+                <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
+                <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
+              </div>
+              <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
+              {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
+                <label htmlFor="loadout-wonder" className="text-violet-200 text-[10px]">Slot 4 · Owned Wonder Weapon</label>
+                <select id="loadout-wonder" value={wonderWeaponId} onChange={e=>setWonderWeaponId(e.target.value)}
+                  className="w-full bg-zinc-950 text-white text-xs rounded border border-violet-500/40 p-2">
+                  <option value="">Choose a Wonder Weapon</option>
+                  {WEAPONS.filter(w=>w.wonder && !w.disabled && profile.prestige.wonderWeapons.includes(w.id))
+                    .map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+                {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
+                  <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
+              </div>}
+              <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
+              <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
+                className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+                <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
+                <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "perk" ? "rotate-180" : ""}`} />
+              </button>
             </div>
-            <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
-            {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
-              <label htmlFor="loadout-wonder" className="text-violet-200 text-[10px]">Slot 4 · Owned Wonder Weapon</label>
-              <select id="loadout-wonder" value={wonderWeaponId} onChange={e=>setWonderWeaponId(e.target.value)}
-                className="w-full bg-zinc-950 text-white text-xs rounded border border-violet-500/40 p-2">
-                <option value="">Choose a Wonder Weapon</option>
-                {WEAPONS.filter(w=>w.wonder && !w.disabled && profile.prestige.wonderWeapons.includes(w.id))
-                  .map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-              {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
-                <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
+            {openSlot === "perk" && (
+              <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+                {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
+                    setPerkId(perk.id);
+                    if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
+                    setOpenSlot(null);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                  <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
+                  <span className="text-white/40 leading-relaxed">{perk.description}</span>
+                </button>)}
+              </div>
+            )}
+          </div>
+          <div className="relative" data-slot-dropdown>
+            <div className={`rounded-xl border border-cyan-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="w-4 h-4 text-cyan-400" />
+                <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
+                <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
+              </div>
+              <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
+              <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
+                {EQUIPMENT.find(e => e.id === equipmentId)?.description}
+              </div>
+              <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
+                className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+                <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
+                <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+            {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+              {EQUIPMENT.map(item => {
+                const unlocked = equipmentUnlocked(item.id, level);
+                return <button key={item.id} type="button" disabled={!unlocked}
+                  onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
+                  className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
+                  <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
+                  <span className="text-white/40 leading-snug">{item.description}</span>
+                </button>;
+              })}
             </div>}
-            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
-            <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
-              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
-              <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
-              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "perk" ? "rotate-180" : ""}`} />
-            </button>
           </div>
-          {openSlot === "perk" && (
-            <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
-                  setPerkId(perk.id);
-                  if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
-                  setOpenSlot(null);
-                }}
-                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
-                <span className="text-white/40 leading-relaxed">{perk.description}</span>
-              </button>)}
-            </div>
-          )}
-        </div>
-        <div className="relative" data-slot-dropdown>
-          <div className={`rounded-xl border border-cyan-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="w-4 h-4 text-cyan-400" />
-              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
-              <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
-            </div>
-            <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
-            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
-              {EQUIPMENT.find(e => e.id === equipmentId)?.description}
-            </div>
-            <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
-              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
-              <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
-              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
-            </button>
-          </div>
-          {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-            {EQUIPMENT.map(item => {
-              const unlocked = equipmentUnlocked(item.id, level);
-              return <button key={item.id} type="button" disabled={!unlocked}
-                onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
-                className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
-                <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
-                <span className="text-white/40 leading-snug">{item.description}</span>
-              </button>;
-            })}
-          </div>}
-        </div>
         </div>
       </div>
       {children}
