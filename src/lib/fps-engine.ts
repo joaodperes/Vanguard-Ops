@@ -42,14 +42,14 @@ import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
-import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
+import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE } from "./explonando";
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
 import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
-import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, reconcileBallisticCover } from "./material-cover-damage";
+import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
 import type { MaterialCoverImpact } from "./game-protocol";
 import { launcherSplashFactor } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
@@ -4523,8 +4523,10 @@ export class FPSEngine {
             this.spawnTacticalStatusVisual(c.id,"flash",duration);
           }
         }
-        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
-        else if(def.type==="flash")this.spawnEquipmentVisual(impact,0xffffff);
+        if(def.type==="blast"){
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage);
+          this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
+        } else if(def.type==="flash")this.spawnEquipmentVisual(impact,0xffffff);
         if(def.type==="blast"||def.type==="flash")this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
       }
     },path.timesMs);
@@ -4637,6 +4639,7 @@ export class FPSEngine {
       if (remaining) continue;
       this.removeDeathBomb(id);
       this.spawnExplosion(new THREE.Vector3(...bomb.pos));
+      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE);
       for (const target of this.combatants.values()) {
         if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, this.opts.team as string, target.id, this.selfId)) continue;
         const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
@@ -4925,6 +4928,7 @@ export class FPSEngine {
           if(damage>0)this.takeDamage(damage,owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
         }
       }
+      this.damageLocalBallisticCoverExplosion(m.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage);
       return false;
     });
   }
@@ -8454,6 +8458,13 @@ export class FPSEngine {
     for(const impact of events)this.displayBallisticImpact(impact);
   }
 
+  /** Offline explosions use the same soft-cover HP model as the game server. */
+  private damageLocalBallisticCoverExplosion(pos:Vec3,radius:number,damage:number){
+    if(this.opts.online)return;
+    for(const impact of damageBallisticCoverFromExplosion(this.map,this.ballisticHp,
+      this.ballisticDestroyed,pos,radius,damage))this.displayBallisticImpact(impact);
+  }
+
   /** Small, capped decals and short-lived fragments; never emit heavy explosions
    * per pellet (a shotgun must not flood the renderer with draw calls). */
   private displayBallisticImpact(impact:MaterialCoverImpact){
@@ -9254,6 +9265,7 @@ export class FPSEngine {
               }
             }
           }
+          this.damageLocalBallisticCoverExplosion([p.end.x,p.end.y,p.end.z],p.splashRadius,p.damage);
           this.hitMarkerAt = performance.now();
         }
         this.scene.remove(p.mesh);
@@ -10557,8 +10569,10 @@ export class FPSEngine {
             }
           }
         }
-        if(def.type==="blast")this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
-        else this.spawnEquipmentVisual(impact,0xffffff);
+        if(def.type==="blast"){
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage);
+          this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
+        } else this.spawnEquipmentVisual(impact,0xffffff);
         this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
       }
     },path.timesMs);
