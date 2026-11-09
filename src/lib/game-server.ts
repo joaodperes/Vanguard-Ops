@@ -1,3 +1,4 @@
+import { blastCanDamage } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical, type TacticalStock } from "./perks";
 import {reactorObjective,objectiveDistance} from "./map-objectives";
@@ -1199,8 +1200,7 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
         // Blast occurs at landing, not at release. Flash affects the thrower
         // too when caught in line of sight, with stronger exposure nearby.
         for(const victim of allCombatants(room)) {
-          if(!victim.alive || (def.type!=="flash" && victim.id!==playerId &&
-            room.mode!=="ffa" && room.mode!=="gungame" && victim.team===player.team))continue;
+          if(!victim.alive || (def.type!=="flash" && !blastCanDamage(playerId,player.team,victim.id,victim.team,room.mode)))continue;
           if(victim.spawnProtectedUntil && victim.spawnProtectedUntil>Date.now())continue;
           const dst=Math.hypot(victim.pos[0]-impact[0],victim.pos[2]-impact[2]);
           if(dst>def.radius || !hasLineOfSight(room,[impact[0],impact[1]+.3,impact[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))continue;
@@ -1539,7 +1539,7 @@ function tickClusters(room:Room,now:number){
    blastServerCover(room,point,shot.radius,shot.damage);
    for(const target of allCombatants(room)){
     if(room.ended||!target.alive)continue;
-    if(target.id!==volley.ownerId&&target.team===volley.ownerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
+    if(!blastCanDamage(volley.ownerId,volley.ownerTeam,target.id,target.team,room.mode))continue;
     const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
     const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),shot),CLUSTER_MAX_DAMAGE-(volley.dealt.get(target.id)??0));
     if(dmg<=0||!hasLineOfSight(room,point,center))continue;
@@ -3709,7 +3709,7 @@ async function handle(socket: any, msg: C2S) {
         if (coverImpact) impactT = coverImpact.distance;
         for (const e of allCombatants(room)) {
           if (e.id === socket.id || !e.alive) continue;
-          if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
+          if (!blastCanDamage(socket.id,p.team,e.id,e.team,room.mode)) continue;
           const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
           const hit = rayCapsule(msg.origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
           if (hit && hit.t >= 0 && hit.t < impactT) impactT = hit.t;
@@ -3761,7 +3761,7 @@ async function handle(socket: any, msg: C2S) {
         const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
         for (const e of allCombatants(room)) {
           if (!e.alive) continue;
-          if (e.id!==socket.id && e.team===p.team && room.mode!=="ffa" && room.mode!=="gungame") continue;
+          if (!blastCanDamage(socket.id,p.team,e.id,e.team,room.mode)) continue;
           const cx = e.pos[0], cy = e.pos[1] + PLAYER_HEIGHT / 2, cz = e.pos[2];
           // Project the combatant's center onto the trajectory segment.
           const apx = cx - msg.origin[0], apy = cy - msg.origin[1], apz = cz - msg.origin[2];
