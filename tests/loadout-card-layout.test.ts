@@ -55,12 +55,12 @@ describe("Current Loadout card layout", () => {
 
   test("perk and tactical descriptions appear inline beside their names, not on separate lines", () => {
     const source = readSource("Loadout.tsx");
-    const perkRow = source.match(/<div className="flex min-w-0 items-baseline gap-2 mb-2">[\\s\\S]*?<\\/div>/g);
-    expect(perkRow).toHaveLength(2);
-    expect(perkRow![0]).toContain("perkById(perkId).name");
-    expect(perkRow![0]).toContain("perkById(perkId).description");
-    expect(perkRow![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.name");
-    expect(perkRow![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.description");
+    const inlineRows = source.split('className="flex min-w-0 items-baseline gap-2 mb-2"').slice(1).map(part => part.split("</div>")[0]);
+    expect(inlineRows).toHaveLength(2);
+    expect(inlineRows![0]).toContain("perkById(perkId).name");
+    expect(inlineRows![0]).toContain("perkById(perkId).description");
+    expect(inlineRows![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.name");
+    expect(inlineRows![1]).toContain("EQUIPMENT.find(e => e.id === equipmentId)?.description");
     expect(source).not.toContain("min-h-7 leading-snug line-clamp-2");
   });
 
