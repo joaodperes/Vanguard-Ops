@@ -108,6 +108,61 @@ describe("Emberhold Castle", () => {
     expect(botTraversableEdge([8, 20, 8], -8, 8, map.cover, map.environment)).toBe(25);
   });
 
+  test("front and rear keep doorway lintels carry crenellated parapets", () => {
+    const merlons = MAP_DOCUMENTS.emberhold.blueprint.features.filter(f =>
+      f.id.startsWith("donjon-portal-merlon-"));
+    expect(merlons).toHaveLength(4);
+    for (const face of ["front", "rear"]) {
+      const battlements = merlons.filter(f => f.id.startsWith(`donjon-portal-merlon-${face}-`));
+      expect(battlements).toHaveLength(2);
+      expect(battlements.every(f => f.kind === "cover" && f.y === 25 && f.h === 1.45)).toBe(true);
+      const z = face === "front" ? 11.5 : -11.5;
+      for(const f of battlements) {
+        expect(f.z).toBe(z);
+        expect(map.cover.some(b => b.kind === "cover" &&
+          Math.abs(b.pos[0] - f.x) < 0.01 &&
+          Math.abs(b.pos[2] - f.z) < 0.01 &&
+          Math.abs(b.pos[1] - (f.y+f.h/2)) < 0.01)).toBe(true);
+      }
+    }
+    // Lintels and upper-doorway clearance are unchanged.
+    expect(botTraversableEdge([-8, 5, 14], -8, 8, map.cover, map.environment)).toBe(5);
+    expect(botTraversableEdge([8, 5, -32], 8, -8, map.cover, map.environment)).toBe(15);
+  });
+
+  test("chapel descent has open crenels and supported merlons instead of tall blind walls", () => {
+    const features = MAP_DOCUMENTS.emberhold.blueprint.features;
+    const parapets = features.filter(f => f.id === "chapel-wall-9" || f.id === "chapel-wall-2");
+    expect(parapets).toHaveLength(2);
+    expect(parapets.every(f => f.y === 5 && f.h === 1.05 && f.d === 12)).toBe(true);
+    const merlons = features.filter(f => f.id.startsWith("chapel-stair-merlon-"));
+    expect(merlons).toHaveLength(8);
+    for(const side of ["west", "east"]) {
+      const raised = merlons.filter(f => f.id.startsWith(`chapel-stair-merlon-${side}-`));
+      expect(raised).toHaveLength(4);
+      expect(raised.some(f => f.z > 34)).toBe(true); // Upper stairhead is crenellated, too.
+      for(const f of raised) {
+        const base = parapets.find(p => p.x === f.x);
+        expect(base).toBeDefined();
+        expect(f.y).toBeCloseTo((base?.y ?? 0) + (base?.h ?? 0));
+      }
+    }
+    const solidAt = ([x, y, z]: Vec3) => map.cover.some(b =>
+      b.kind === "cover" &&
+      Math.abs(x-b.pos[0]) < b.size[0]-.001 &&
+      Math.abs(y-b.pos[1]) < b.size[1]-.001 &&
+      Math.abs(z-b.pos[2]) < b.size[2]-.001);
+    // Solid knee-high parapet remains; between the raised merlons is an open crenel.
+    for (const x of [-9.6,-2.4]) {
+      expect(solidAt([x,5.5,29.95])).toBe(true);
+      expect(solidAt([x,6.7,29.95])).toBe(false);
+      expect(solidAt([x,6.7,31.4])).toBe(true);
+    }
+    // The descending stair remains a full-width, two-way gameplay route.
+    expect(botTraversableEdge([-6, 5, 39], -6, 24, map.cover, map.environment)).toBe(0.5);
+    expect(botTraversableEdge([-6, 0.5, 24], -6, 39, map.cover, map.environment)).toBe(5);
+  });
+
   test("a full 32-player lobby has distinct spawns on safe, supported ground", () => {
     for (const point of map.spawns.ffa) {
       expect(spawnClear(map, point)).toBe(true);
