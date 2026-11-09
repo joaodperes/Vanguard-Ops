@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveShotAcoustics } from "../src/lib/weapon-audio";
+import { resolveShotAcoustics, weaponAcousticSpace } from "../src/lib/weapon-audio";
 import weapons from "../src/data/catalogs/weapons.json";
 
 describe("Weapon audio — gunshot dynamics", () => {
@@ -106,4 +106,43 @@ describe("Weapon audio — gunshot dynamics", () => {
       .toBeLessThan(open.crackLevel * .5);
   });
 
+  test("conventional guns have independent midrange report and action layers", () => {
+    for (const cat of ["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw"] as const) {
+      const shot = resolveShotAcoustics(cat);
+      expect(shot.reportLevel).toBeGreaterThan(.4);
+      expect(shot.mechanicalLevel).toBeGreaterThan(.1);
+      expect(shot.reportSeconds).toBeGreaterThan(shot.crackSeconds);
+    }
+  });
+
+  test("real suppressors attenuate report and tail but retain audible action", () => {
+    const bare = resolveShotAcoustics("assault");
+    const quiet = resolveShotAcoustics("assault", { suppressed: true });
+    expect(quiet.reportLevel).toBeLessThan(bare.reportLevel * .03);
+    expect(quiet.tailLevel).toBeLessThan(bare.tailLevel * .10);
+    expect(quiet.mechanicalLevel / quiet.level).toBeGreaterThan(bare.mechanicalLevel / bare.level);
+  });
+
+  test("map environments select distinct delayed tails", () => {
+    expect(weaponAcousticSpace("bunker")).toBe("indoor");
+    expect(weaponAcousticSpace("floodgate")).toBe("urban");
+    expect(weaponAcousticSpace("forest_warfare")).toBe("outdoor");
+    const indoor = resolveShotAcoustics("sniper", { environment: "indoor" });
+    const urban = resolveShotAcoustics("sniper", { environment: "urban" });
+    const open = resolveShotAcoustics("sniper", { environment: "outdoor" });
+    expect(indoor.tailLevel).toBeGreaterThan(urban.tailLevel);
+    expect(urban.tailLevel).toBeGreaterThan(open.tailLevel);
+    expect(indoor.tailDelay).toBeLessThan(open.tailDelay);
+    expect(open.tailSeconds).toBeGreaterThan(indoor.tailSeconds);
+  });
+
+  test("experimental weapons retain special quiet and electronic identities", () => {
+    for (const [cat, id] of [["assault", "rifle_electron"], ["pistol", "pistol_arc"], ["lmg", "wonder_hellfire"]] as const) {
+      const shot = resolveShotAcoustics(cat, { weaponId: id });
+      expect(shot.reportLevel).toBe(0);
+      expect(shot.mechanicalLevel).toBe(0);
+      expect(shot.tailLevel).toBe(0);
+    }
+    expect(resolveShotAcoustics("dmr", { weaponId: "crossbow_reclaimer" }).mechanicalLevel).toBeGreaterThan(0);
+  });
 });
