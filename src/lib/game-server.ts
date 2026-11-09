@@ -3663,9 +3663,10 @@ async function handle(socket: any, msg: C2S) {
       const dir=normalize(msg.dir);
       if(msg.mode==="minigun"){
         if(mech.minigunAmmo<=0||now-mech.lastPrimaryAt<1000/JUGGERNAUT_MINIGUN_RATE*.9)break;
-        if(now-mech.lastPrimaryAt>450){mech.spinAt=now;mech.lastPrimaryAt=now;break;}
+        if(now-mech.lastPrimaryAt>450)mech.spinAt=now;
+        mech.lastPrimaryAt=now;
         if(now-mech.spinAt<tuning.minigunSpinupMs)break;
-        mech.lastPrimaryAt=now;mech.minigunAmmo--;
+        mech.minigunAmmo--;
         const d=normalize(add(dir,randSpread(.028)));
         const hit=fireRay(room,socket.id,msg.origin,d,"wonder_juggernaut",70);
         if(hit)applyDamage(room,socket.id,hit.victim,tuning.minigunDamage,hit.head,"wonder_juggernaut",hit.shield);
