@@ -1536,9 +1536,10 @@ function tickClusters(room:Room,now:number){
    volley.done.add(index);
    const point=shot.path.impact;
    destroyTurretsNear(room,point,shot.radius);
+   blastServerCover(room,point,shot.radius,shot.damage);
    for(const target of allCombatants(room)){
-    if(room.ended||!target.alive||target.id===volley.ownerId)continue;
-    if(room.config.friendlyFire===false&&target.team===volley.ownerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
+    if(room.ended||!target.alive)continue;
+    if(target.id!==volley.ownerId&&target.team===volley.ownerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
     const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
     const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),shot),CLUSTER_MAX_DAMAGE-(volley.dealt.get(target.id)??0));
     if(dmg<=0||!hasLineOfSight(room,point,center))continue;
