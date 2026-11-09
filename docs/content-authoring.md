@@ -31,8 +31,9 @@ references, attachments, unlock limits and gameplay-specific eligibility).
 Do not create a second whitelist or manually edit an external catalog schema.
 For weapons, attachments, skins and weapon challenges, regenerate published
 JSON Schemas with `bun run schema:catalogs`; `bun run content:validate`
-rejects drift. Fields like combat metrics are enumerated from this contract
-and reused by gameplay TypeScript types. Review new effect mechanics in both
+rejects drift. Fields like combat metrics and the published weapon, attachment, cosmetic,
+challenge and achievement definitions are derived from this contract in
+`game-data.ts` as TypeScript types; avoid duplicating their interfaces. Review new effect mechanics in both
 the server and offline engine; a valid JSON document alone cannot implement
 gameplay.
 

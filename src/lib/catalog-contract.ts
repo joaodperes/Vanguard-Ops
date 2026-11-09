@@ -80,12 +80,12 @@ export const throwingKnife = z.strictObject({kind:z.literal("throwing_knife")});
 export const weapon = z.strictObject({
   id, name: label, description: label, category,
   unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
-  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
+  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.enum(SIGHT_TYPES).optional(),
   explosive: z.strictObject({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt, throwingKnife]).optional(),
   wonder: z.strictObject({
     kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
-    maxCharges: z.number().int().min(1).max(8),
+    maxCharges: z.literal([1,2,3,4,5,6,7,8]),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),
 });
@@ -98,7 +98,7 @@ export const attachment = z.strictObject({
   id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
   unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
   weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
-  sightType: z.string().optional(),
+  sightType: z.enum(SIGHT_TYPES).optional(),
   shotgunAmmo: z.enum(["slug","pellets","dragons_breath","beanbag"]).optional(),
   bodyPenetration: z.object({
     maxTargets: pos.int().min(2).max(3),
@@ -188,6 +188,8 @@ export type PublishedCatalogSchemaName = typeof PUBLISHED_CATALOG_SCHEMA_NAMES[n
 
 /** Stable fields underpinning both JSON authoring and gameplay public types. */
 export type WeaponCatalogDef = z.infer<typeof weapon>;
+export type SightCatalogDef = z.infer<typeof sight>;
+export type RankCatalogDef = z.infer<typeof CATALOG_SCHEMAS.ranks>[number];
 export type AttachmentCatalogDef = z.infer<typeof attachment>;
 export type WeaponSkinCatalogDef = z.infer<typeof skin>;
 export type OperatorSkinCatalogDef = z.infer<typeof operator>;

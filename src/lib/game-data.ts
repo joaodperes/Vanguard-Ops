@@ -4,7 +4,7 @@ import { equipmentAvailable, equipmentById } from "./equipment";
 // Shared between API routes, the game server, and the client UI.
 // ============================================================================
 
-import type { WeaponSpecial, HeatConfig } from "./weapon-mechanics";
+import type { HeatConfig } from "./weapon-mechanics";
 import { isFanHammer, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
 import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
@@ -53,56 +53,9 @@ export function weaponSlot(category: WeaponCategory): WeaponSlot {
   }
 }
 
-export interface WeaponStats {
-  damage: number;        // per bullet
-  fireRate: number;      // rounds per second
-  magSize: number;
-  reloadTime: number;    // seconds
-  spread: number;        // base inaccuracy (radians) when hipfiring
-  adsSpread: number;     // inaccuracy when aiming
-  recoil: number;        // vertical kick magnitude
-  range: number;         // effective range (damage falloff beyond)
-  falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
-  minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
-  reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
-  reloadOnlyWhenEmpty?: boolean; // en-bloc magazine: partial reloads are disallowed
-  reloadPerRound?: number; // seconds per round before attachments/perks
-  adsTime: number;       // seconds to aim down sights
-  moveSpeed: number;     // movement multiplier
-  auto: boolean;         // automatic fire
-  pellets?: number;      // for shotguns
-  burst?: number;        // shots per burst (e.g. 3 = 3-round burst). Default 1 (no burst).
-  headshotMult: number;  // headshot damage multiplier
-  /** Optional retained damage / maximum-body tuning for a projectile. Both body and cover consume the same energy. */
-  bodyPenetration?: { maxTargets: number; damageRetention: number };
-  /** Single ammunition penetration-energy rating, shared by bodies and tagged thin cover. */
-  coverPenetration?: number;
-}
+export type WeaponStats = import("./catalog-contract").WeaponCatalogDef["stats"];
 
-export interface WeaponDef {
-  special?: WeaponSpecial;
-  /** Unguided impact rocket profile. Applies to all conventional launchers. */
-  explosive?: { radius: number };
-  /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
-  disabled?: boolean;
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge" | "cluster" | "shield"; maxCharges: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; rechargeMs: number; killBonusMs: number; radius: number };
-  id: string;
-  name: string;
-  category: WeaponCategory;
-  unlockLevel: number;
-  unlockCost: number;    // credits
-  stats: WeaponStats;
-  description: string;
-  // Optional list of attachment slots this weapon supports. If undefined, all 4
-  // slots (sight/barrel/grip/magazine) are available. Use [] for weapons that
-  // don't take attachments (e.g. the knife).
-  attachments?: AttachmentSlot[];
-  // The sight type used when NO sight attachment is equipped. Defaults to
-  // "iron". Snipers set this to "sniper_scope" so they have a proper 6x scope
-  // out of the box (the user can still override by equipping a different sight
-  // attachment, but the default is no longer iron sight).
-  baseSightType?: SightType;
-}
+export type WeaponDef = import("./catalog-contract").WeaponCatalogDef;
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
 
@@ -164,19 +117,7 @@ export function weaponAttachmentSlots(weapon: WeaponDef): AttachmentSlot[] {
 // "iron" is the default sight used when no sight attachment is equipped.
 export type SightType = import("./catalog-contract").CatalogSightType;
 
-export interface SightDef {
-  type: SightType;
-  name: string;
-  zoom: number;          // 1.0 = no magnification, 4.0 = 4x scope
-  reticle: "iron" | "dot" | "holo" | "chevron" | "mildot" | "thermal" | "nvg" | "laser";
-  // FOV reduction (degrees) when fully ADS — replaces the engine's old hardcoded 25°
-  adsFovReduction: number;
-  // Visual overlay rendered on the HUD when ADS with this sight
-  overlay?: "thermal" | "nvg" | "laser";
-  // Sensitivity multiplier applied while ADS (lower = steadier high-zoom scopes)
-  adsSensMul: number;
-  description: string;
-}
+export type SightDef = import("./catalog-contract").SightCatalogDef;
 
 export const SIGHT_DEFS: Record<SightType, SightDef> = sightDefinitionsData as unknown as Record<SightType, SightDef>;
 
@@ -221,47 +162,7 @@ export function hasMountedSight(weapon: WeaponDef, atts: Partial<Record<Attachme
   return mountedAttachment || factoryScope;
 }
 
-export interface AttachmentDef {
-  id: string;
-  name: string;
-  slot: AttachmentSlot;
-  unlockLevel: number;
-  unlockCost: number;
-  description: string;
-  // For sight attachments: which SightType this attachment installs. Non-sight
-  // attachments leave this undefined.
-  sightType?: SightType;
-  // Descriptive metadata; the curated per-weapon/category lists determine compatibility.
-  weaponCategories?: WeaponCategory[];
-  exclusiveWeaponIds?: string[];
-  // Legacy alias for `weaponCategories` (kept for backward-compat with any
-  // catalog entries that still use the old name). When both are set, they
-  // should be the same list — `weaponCategories` is canonical.
-  recommendedFor?: WeaponCategory[];
-  /** Only effective for shotguns; changes pellet count, spread and status effects. */
-  shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
-  /** Optional piercing projectile profile (body targets, never walls). */
-  bodyPenetration?: { maxTargets: number; damageRetention: number; retentionBonus?: number };
-  heatOnly?: boolean;
-  /** Overrides replace base effect percentages for the matching weapon class. */
-  categoryEffects?: Partial<Record<WeaponCategory, Partial<AttachmentDef["effects"]>>>;
-  /** Exact-weapon overrides, useful when a single-chamber weapon needs one actual extra round. */
-  weaponEffects?: Record<string, Partial<AttachmentDef["effects"]>>;
-  /** Shared heat-mechanic percentages, resolved on both client and server. */
-  heatEffects?: Partial<Record<"heatPerShot" | "coolPerSecond" | "coolDelayMs" | "ventSeconds" | "overheatAt" | "resumeAt",number>>;
-  effects: {
-    damage?: number;       // additive percent e.g. 10 => +10%
-    recoil?: number;       // additive percent (negative reduces)
-    spread?: number;       // additive percent — affects HIPFIRE spread
-    adsSpread?: number;    // additive percent — affects ADS spread (defaults to spread if unset)
-    adsTime?: number;      // additive percent
-    magSize?: number;      // additive rounds
-    fireRate?: number;     // additive firing-rate percentage
-    reloadTime?: number;   // additive percent
-    moveSpeed?: number;    // additive percent
-    range?: number;        // additive percent
-  };
-}
+export type AttachmentDef = import("./catalog-contract").AttachmentCatalogDef;
 
 export const ATTACHMENTS: AttachmentDef[] = attachmentsData as unknown as AttachmentDef[];
 
@@ -294,32 +195,7 @@ export function effectiveHeatConfig(weapon: WeaponDef, atts: Partial<Record<Atta
   };
 }
 
-export interface WeaponSkinDef {
-  id: string;
-  name: string;
-  unlockLevel: number;
-  unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary" | "prestige";
-  // Skin tier controls how the skin unlocks:
-  //  - "standard"  : basic color variants (default, arctic, desert, etc.) — available
-  //                  on ALL weapons. One unlock (SkinUnlock with weaponId="*") applies globally.
-  //  - "rare"      : per-weapon challenge-earned skin (future).
-  //  - "legendary" : per-weapon special-event skin (future).
-  // Currently every skin is "standard" — non-standard tiers will be added later.
-  tier: "standard" | "rare" | "legendary";
-  /** Player-facing visual art brief. */
-  artBrief: string;
-  // Visual properties for the engine
-  color: string;        // base hex
-  metalness: number;    // 0..1
-  roughness: number;    // 0..1
-  emissive?: string;    // glow color
-  emissiveIntensity?: number;
-  /** Awarded free to a weapon after completing every standard skin challenge. */
-  prestige?: "cosmic" | "toxic";
-  /** Cosmetics bought through the Shop, not earned from standard skin challenges. */
-  shopCurrency?: "credits" | "career";
-}
+export type WeaponSkinDef = import("./catalog-contract").WeaponSkinCatalogDef;
 
 // Wildcard weaponId used in SkinUnlock rows for standard-tier skins. A skin
 // unlocked with weaponId="*" is available on every weapon (one unlock grants
@@ -334,18 +210,7 @@ export function isStandardSkin(skin: WeaponSkinDef): boolean {
 
 export const WEAPON_SKINS: WeaponSkinDef[] = weaponSkinsData as unknown as WeaponSkinDef[];
 
-export interface PlayerSkinDef {
-  id: string;
-  shopCurrency?: "credits" | "career";
-  levelReward?: boolean; // Free permanent milestone, automatically owned at unlockLevel.
-  name: string;
-  unlockLevel: number;
-  unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary";
-  color: string;
-  accent: string;
-  emissive?: string;
-}
+export type PlayerSkinDef = import("./catalog-contract").OperatorSkinCatalogDef;
 
 export const PLAYER_SKINS: PlayerSkinDef[] = operatorSkinsData as unknown as PlayerSkinDef[];
 
@@ -360,17 +225,7 @@ export const PLAYER_SKINS: PlayerSkinDef[] = operatorSkinsData as unknown as Pla
 export type WeaponConditionMetric = import("./catalog-contract").CatalogWeaponConditionMetric;
 export type WeaponChallengeMetric = import("./catalog-contract").CatalogWeaponChallengeMetric;
 
-export interface WeaponChallengeDef {
-  id: string;
-  weaponId: string;
-  skinId: string;
-  goal: number;
-  metric: WeaponChallengeMetric;
-  // Optional AND-based mastery steps. All steps must be completed.
-  requirements?: { metric: WeaponChallengeMetric; goal: number }[];
-  title: string;
-  description: string;
-}
+export type WeaponChallengeDef = import("./catalog-contract").WeaponChallengeCatalogDef;
 
 export const WEAPON_CHALLENGES: WeaponChallengeDef[] = weaponChallengesData as unknown as WeaponChallengeDef[];
 
@@ -598,13 +453,7 @@ export const RARITY_COLORS: Record<string, string> = {
 // ============================================================================
 // RANKS — tier system based on level. Purely cosmetic title shown in UI.
 // ============================================================================
-export interface RankDef {
-  level: number;       // minimum level to achieve
-  name: string;        // display name
-  shortName: string;   // short code for badges
-  color: string;       // accent color
-  insignia: string;    // emoji-like glyph used in SVG-free badges
-}
+export type RankDef = import("./catalog-contract").RankCatalogDef;
 
 export const RANKS: RankDef[] = ranksData as unknown as RankDef[];
 
@@ -624,19 +473,7 @@ export function nextRank(level: number): RankDef | null {
 // ============================================================================
 export type ChallengeMetric = import("./catalog-contract").CatalogChallengeMetric;
 
-export interface ChallengeDef {
-  id: string;
-  metric: ChallengeMetric;
-  goal: number;
-  rewardXp: number;
-  rewardCredits: number;
-  title: string;
-  description: string;
-  icon: string; // lucide icon name (string -> client maps)
-  // Category distinguishes rotating daily/weekly challenges from lifetime
-  // "elite" quests. Defaults to "daily" for existing entries.
-  category?: "daily" | "weekly" | "elite";
-}
+export type ChallengeDef = import("./catalog-contract").RotatingChallengeCatalogDef;
 
 export const DAILY_CHALLENGE_POOL: ChallengeDef[] = dailyChallengesData as unknown as ChallengeDef[];
 
@@ -762,26 +599,7 @@ export const ELITE_QUESTS: ChallengeDef[] = eliteQuestsData as unknown as Challe
 // ============================================================================
 // ACHIEVEMENTS — one-time lifetime accomplishments.
 // ============================================================================
-export interface AchievementDef {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  // The metric checked against player lifetime stats
-  metric: import("./catalog-contract").CatalogAchievementMetric;
-  goal: number;
-  tier: "bronze" | "silver" | "gold" | "platinum";
-  rewardXp: number;
-  rewardCredits: number;
-  // PvP = non-Survival combat (all regular modes); PvE = Survival.
-  // Career and mastery can advance in any game mode.
-  category: "pvp" | "pve" | "career" | "mastery";
-  /** Stable achievement chain and its ordered tier, independent of display color. */
-  series: string;
-  seriesTier: number;
-  /** Nameplate reward for the final tier of this series only. */
-  rewardTitle?: string;
-}
+export type AchievementDef = import("./catalog-contract").AchievementCatalogDef;
 
 export const ACHIEVEMENTS: AchievementDef[] = achievementsData as unknown as AchievementDef[];
 
