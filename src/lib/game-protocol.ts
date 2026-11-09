@@ -1308,6 +1308,18 @@ export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
   !!MAPS[id] && supportsMapMode(MAPS[id],mode);
 
+/** Resolve the map and room-size together. Switching to a mode without support
+ * for the selected map must not send the old map's team size to the server. */
+export function resolveRoomSelection(mode: GameMode, mapId: MapId, teamSize: TeamSize): { mapId: MapId; teamSize: TeamSize } {
+  const effectiveMapId: MapId = mapAllowedForMode(mode, mapId)
+    ? mapId : mode === "ctf" ? "forest_warfare" : "compound";
+  return {
+    mapId: effectiveMapId,
+    teamSize: teamSizeAllowed(effectiveMapId, teamSize, mode)
+      ? teamSize : recommendedTeamSize(effectiveMapId, mode),
+  };
+}
+
 export function mapForMode(map:MapDef,mode?:GameMode):MapDef {
   const pools=mode?map.modeSpawns?.[mode]:undefined;
   return pools?{...map,spawns:{...map.spawns,red:pools.red,blue:pools.blue}}:map;
