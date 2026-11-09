@@ -155,6 +155,25 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none font-mono">
+      {hud.mechEnterAvailable&&<div className="absolute top-[28%] left-1/2 -translate-x-1/2 rounded-lg border border-sky-400/70 bg-slate-950/90 px-5 py-3 text-center shadow-lg shadow-sky-900/30">
+        <div className="text-sky-200 text-sm font-black tracking-widest">JUGGERNAUT READY</div>
+        <div className="text-white text-xs mt-1">PRESS E TO ENTER MECH</div>
+      </div>}
+      {hud.mechArmor!==undefined&&<div className="absolute top-14 left-1/2 -translate-x-1/2 rounded-lg border border-cyan-500/60 bg-slate-950/90 px-4 py-3 text-center min-w-64 shadow-md shadow-cyan-900/30">
+        <div className="text-cyan-200 text-sm tracking-[.15em] font-bold">JUGGERNAUT</div>
+        <div className="text-white font-black text-lg mt-1">ARMOR {Math.ceil(hud.mechArmor)}/ {hud.mechArmor>500?600:hud.mechArmor>450?500:450}</div>
+        <div className="mt-1 grid grid-cols-2 gap-4 text-[11px]">
+          <span className="text-emerald-200">LMB · Minigun <b>{hud.mechMinigunAmmo??0}</b></span>
+          <span className="text-amber-200">RMB · {hud.mechSecondaryName??"Shotgun"} <b>{hud.mechSecondaryAmmo??0}</b></span>
+        </div>
+        <div className="text-[10px] text-white/50 mt-1">No jumping, sprinting or ADS</div>
+      </div>}
+      {hud.railChargePercent!==undefined&&<div className="absolute left-1/2 -translate-x-1/2 top-[19%] rounded-md border border-sky-400/40 bg-black/70 px-4 py-2 text-xs text-sky-200">
+        PHASEBREAKER CHARGING · {hud.railChargePercent}%
+      </div>}
+      {hud.chronoRecallMs!==undefined&&hud.chronoRecallMs>0&&<div className="absolute top-[23%] left-1/2 -translate-x-1/2 rounded-md border border-violet-400/50 bg-black/70 px-4 py-2 text-xs text-violet-200">
+        CHRONO ANCHOR ACTIVE · FIRE TO RETURN · {(hud.chronoRecallMs/1000).toFixed(1)}s
+      </div>}
       {/* damage vignette */}
       {showDmg && (
         <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 200px 40px rgba(239,68,68,0.55)", opacity: 1 - dmgAge / 350 }} />
