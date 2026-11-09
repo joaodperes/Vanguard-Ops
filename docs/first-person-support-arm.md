@@ -149,3 +149,23 @@ all magazine/bolt/shell reloads and muzzle attachments. Compare the held
 gun against a third-person character and check hipfire, ADS, recoil,
 laser, reload, swap and touch orientation. Numerical CI does not replace
 actual on-screen visual inspection.
+
+## Continuous shotgun reload / complete death visibility (November 2026)
+
+Individual shell insertions are still credited at **70%** of each gameplay
+reload cycle. Previously every cycle used the standalone action envelope,
+so the support hand returned to its foregrip before the next shell began.
+The engine now tracks an incremental shell-cycle index. Only the initial
+shell moves the left hand off the weapon; intermediate rounds keep the hand
+at the shell pocket while the gun stays tilted; the final shell transitions
+the hand straight from the port back onto the weapon. The pose, elbow,
+hand-roll and weapon pitch/roll are continuous at every repeated-cycle
+boundary. Interrupting the reload still retains only committed rounds, and
+the final 70–100% cosmetic recovery still cannot prevent shooting.
+
+On local death the weapon, reload prop, glove **and separate articulated
+support-arm root** must all be hidden. The previous dead-player path omitted
+the latter, leaving a detached raised left arm after deaths (including lava
+and environmental hazards). The match-finale update uses the same visibility
+helper, and normal viewmodel posing restores the arm after respawn. Remote
+humanoid death animations continue using the existing falling-limb system.
