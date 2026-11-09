@@ -13,7 +13,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
-import { prestigeTokens } from "@/lib/weapon-prestige";
+import { lockedWonderWallet } from "@/lib/wonder-economy";
 import { attachmentChallenge, armoryChallengeProgress, operatorContract, skinChallengesForWeaponAndSkin, parseWeaponConditionStats, weaponChallengeProgress } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
@@ -54,17 +54,14 @@ export async function POST(req: NextRequest) {
     await reconcileWonderTokenAwards(player.id);
     try {
       await db.$transaction(async tx => {
-        const [awards, account, purchases, owned] = await Promise.all([
-          tx.wonderTokenAward.count({ where: { playerId: player.id } }),
-          tx.player.findUniqueOrThrow({ where: { id: player.id }, select: { wonderLegacyCredits: true } }),
-          tx.wonderUnlock.count({ where: { playerId: player.id } }),
-          tx.wonderUnlock.findUnique({ where: {
-            playerId_weaponId: { playerId: player.id, weaponId: def.id },
-          } }),
-        ]);
-        if (owned) throw new Error("ALREADY_OWNED");
-        if (prestigeTokens(awards + account.wonderLegacyCredits, purchases) <= 0)
-          throw new Error("NO_PRESTIGE_TOKENS");
+        // Acquire a write lock before reading the shared Wonder spend ledger.
+        await tx.player.update({where:{id:player.id},data:{updatedAt:new Date()}});
+        const owned=await tx.wonderUnlock.findUnique({where:{
+          playerId_weaponId:{playerId:player.id,weaponId:def.id},
+        }});
+        if(owned)throw new Error("ALREADY_OWNED");
+        const wallet=await lockedWonderWallet(tx,player.id);
+        if(wallet.available<1)throw new Error("NO_PRESTIGE_TOKENS");
         await tx.wonderUnlock.create({ data: { playerId: player.id, weaponId: def.id } });
       });
     } catch (e: any) {
