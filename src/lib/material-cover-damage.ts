@@ -98,6 +98,60 @@ export function damageBallisticCoverOnShot(
   return result;
 }
 
+
+/** Resolve a blast against the nearest face of each breakable panel.
+ * All contacts use pre-explosion geometry; structural objects and sheet metal
+ * block pressure, but thin destructible panels do not. Both client (offline)
+ * and server use this one HP model, including partial impacts.
+ */
+export function damageBallisticCoverFromExplosion(
+  map: MapDef, hp: Map<string,number>, destroyed: Set<string>,
+  origin: Vec3, radius: number, peakDamage: number,
+): MaterialCoverImpact[] {
+  if(!Number.isFinite(radius)||radius<=0||!Number.isFinite(peakDamage)||peakDamage<=0)return [];
+  const cover=[...map.cover];
+  const multipliers:Partial<Record<BallisticMaterial,number>>={
+    glass:1.6,thin_wood:1.15,light_cover:.9,
+  };
+  const blocked=(target:CoverBox,point:Vec3):boolean=>{
+    const delta:Vec3=[point[0]-origin[0],point[1]-origin[1],point[2]-origin[2]];
+    if(Math.hypot(...delta)<1e-6)return false;
+    return cover.some(box=>{
+      if(box===target||box.kind==="accent")return false;
+      // Fragile, breakable panels pass the shockwave; hard cover does not.
+      if(box.kind==="cover"&&!box.environmentId&&coverMaxIntegrity(box.material)!==null)return false;
+      let entry=0,exit=1;
+      for(let axis=0;axis<3;axis++){
+        const lo=box.pos[axis]-box.size[axis],hi=box.pos[axis]+box.size[axis];
+        if(Math.abs(delta[axis])<1e-8){
+          if(origin[axis]<lo||origin[axis]>hi)return false;
+          continue;
+        }
+        const a=(lo-origin[axis])/delta[axis],b=(hi-origin[axis])/delta[axis];
+        entry=Math.max(entry,Math.min(a,b));
+        exit=Math.min(exit,Math.max(a,b));
+        if(entry>exit)return false;
+      }
+      return exit>1e-4&&entry<1-1e-4;
+    });
+  };
+  const impacts:MaterialCoverImpact[]=[];
+  for(const box of cover){
+    const material=box.material,id=box.ballisticId;
+    if(box.kind!=="cover"||!id||box.environmentId||!material||
+       destroyed.has(id)||!BREAKABLE[material])continue;
+    const point=box.pos.map((v,i)=>Math.max(v-box.size[i],
+      Math.min(origin[i],v+box.size[i]))) as Vec3;
+    const distance=Math.hypot(point[0]-origin[0],point[1]-origin[1],point[2]-origin[2]);
+    if(distance>radius||blocked(box,point))continue;
+    const remaining=Math.max(0,(hp.get(id)??BREAKABLE[material].hp)-
+      peakDamage*(multipliers[material]??1)*(1-(distance/radius)**2));
+    impacts.push({coverId:id,material,point,hp:remaining,destroyed:remaining<=0});
+  }
+  for(const impact of impacts)applyConfirmedCoverImpact(map,hp,destroyed,impact);
+  return impacts;
+}
+
 /** Published and editor-authored material cover is always keyed by feature ID. */
 export function authoredBallisticCover(boxes: readonly CoverBox[]): CoverBox[] {
   return boxes.filter(b => b.kind === "cover" && !!b.ballisticId &&
