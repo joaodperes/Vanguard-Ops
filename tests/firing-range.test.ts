@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { createFiringRangeMap, RANGE_TARGETS, RANGE_SPAWN, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "../src/lib/firing-range";
-import { getMap, rayBox, PLAYER_HEIGHT } from "../src/lib/game-protocol";
+import { createFiringRangeMap, RANGE_TARGETS, RANGE_SPAWN, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_ENTRANCE_Z, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "../src/lib/firing-range";
+import { getMap, rayBox, PLAYER_HEIGHT, type Vec3 } from "../src/lib/game-protocol";
+import { traceCoverPenetration, selectMaterialPenetrationHits } from "../src/lib/cover-penetration";
+import { authoredBallisticCover, damageBallisticCoverOnShot } from "../src/lib/material-cover-damage";
 
 describe("Armory firing range", () => {
   test("is a separate, non-mutating practice map", () => {
@@ -80,6 +82,90 @@ describe("Armory firing range", () => {
         }
       }
     }
+  });
+
+  test("places every ballistic material in side corridors without changing the central range",()=>{
+    const map=createFiringRangeMap();
+    expect(RANGE_MATERIAL_STATIONS.map(s=>s.material))
+      .toEqual(["glass","thin_wood","light_cover","sheet_metal","concrete"]);
+    expect(authoredBallisticCover(map.cover)).toHaveLength(4);
+    const ids=authoredBallisticCover(map.cover).map(c=>c.ballisticId);
+    expect(new Set(ids).size).toBe(4);
+    expect(RANGE_MATERIAL_STATIONS.filter(s=>s.x<0)).toHaveLength(2);
+    expect(RANGE_MATERIAL_STATIONS.filter(s=>s.x>0)).toHaveLength(3);
+    for(const station of RANGE_MATERIAL_STATIONS){
+      expect(Math.abs(station.x)).toBeGreaterThan(14);
+      expect(Math.abs(station.x)+2.35).toBeLessThan(map.size);
+      const collider=map.cover.find(c=>c.material===station.material&&Math.abs(c.pos[0]-station.x)<.01);
+      expect(collider).toBeDefined();
+      expect(collider!.size[2]*2).toBeCloseTo(station.thickness);
+      expect(station.target[2]).toBeGreaterThan(collider!.pos[2]+collider!.size[2]);
+      expect(station.target[0]).toBe(station.x);
+    }
+  });
+
+  test("entrances are walkable from the original spawn and into both side lanes",()=>{
+    const map=createFiringRangeMap();
+    const entry:Vec3=[0,PLAYER_HEIGHT/2,RANGE_MATERIAL_ENTRANCE_Z];
+    for(const x of [-16,16]){
+      const target:Vec3=[x,PLAYER_HEIGHT/2,RANGE_MATERIAL_ENTRANCE_Z];
+      const dx=target[0]-entry[0],dist=Math.abs(dx);
+      const dir:Vec3=[Math.sign(dx),0,0];
+      for(const box of map.cover){
+        const t=rayBox(entry,dir,box.pos,box.size);
+        expect(t===null || t>dist).toBe(true);
+      }
+      const pathToStation=RANGE_MATERIAL_STATIONS.find(station=>Math.sign(station.x)===Math.sign(x))!;
+      expect(Math.abs(pathToStation.x)).toBeGreaterThan(16);
+      expect(RANGE_MATERIAL_SHOOT_Z).toBeGreaterThan(RANGE_MATERIAL_ENTRANCE_Z);
+    }
+  });
+
+  test("each corridor dummy lies behind its own sample; heavy rounds penetrate except concrete",()=>{
+    const map=createFiringRangeMap();
+    for(const station of RANGE_MATERIAL_STATIONS){
+      const origin:Vec3=[station.x,1.25,RANGE_MATERIAL_SHOOT_Z];
+      const direction:Vec3=[0,0,1];
+      const distance=station.target[2]-origin[2];
+      const contacts=[{target:station.id,t:distance,head:false}];
+      expect(traceCoverPenetration(map.cover,origin,direction,distance+1,0).blockedAt).toBeLessThan(distance);
+      expect(selectMaterialPenetrationHits(contacts,map.cover,origin,direction,distance+1)).toEqual([]);
+      const penetrated=selectMaterialPenetrationHits(contacts,map.cover,origin,direction,distance+1,undefined,6);
+      if(station.material==="concrete")expect(penetrated).toEqual([]);
+      else {
+        expect(penetrated.map(h=>h.target)).toEqual([station.id]);
+        expect(penetrated[0].damageScale).toBeLessThan(1);
+      }
+    }
+  });
+
+  test("Penetrator Rounds help on thin panels but not the sheet-metal or concrete controls",()=>{
+    const map=createFiringRangeMap();
+    for(const station of RANGE_MATERIAL_STATIONS){
+      const origin:Vec3=[station.x,1.25,RANGE_MATERIAL_SHOOT_Z];
+      const trace=traceCoverPenetration(map.cover,origin,[0,0,1],35,.6);
+      if(["glass","thin_wood","light_cover"].includes(station.material))
+        expect(trace.blockedAt).toBe(Infinity);
+      else expect(trace.blockedAt).toBeLessThan(35);
+    }
+  });
+
+  test("shattered range glass opens the dummy lane while the concrete control stays intact",()=>{
+    const map=createFiringRangeMap();
+    const station=RANGE_MATERIAL_STATIONS.find(s=>s.material==="glass")!;
+    const concrete=RANGE_MATERIAL_STATIONS.find(s=>s.material==="concrete")!;
+    const hp=new Map<string,number>(),destroyed=new Set<string>();
+    const origin:Vec3=[station.x,1.25,RANGE_MATERIAL_SHOOT_Z];
+    const target=[{target:"dummy",t:station.target[2]-origin[2],head:false}];
+    const first=damageBallisticCoverOnShot(map,hp,destroyed,origin,[0,0,1],40,0,35);
+    expect(first[0].destroyed).toBe(false);
+    expect(selectMaterialPenetrationHits(target,map.cover,origin,[0,0,1],40)).toEqual([]);
+    const second=damageBallisticCoverOnShot(map,hp,destroyed,origin,[0,0,1],40,0,35);
+    expect(second[0].destroyed).toBe(true);
+    expect(selectMaterialPenetrationHits(target,map.cover,origin,[0,0,1],40).map(h=>h.target)).toEqual(["dummy"]);
+    const hard:Vec3=[concrete.x,1.25,RANGE_MATERIAL_SHOOT_Z];
+    for(let i=0;i<10;i++)expect(damageBallisticCoverOnShot(map,hp,destroyed,hard,[0,0,1],40,100,200)).toEqual([]);
+    expect(traceCoverPenetration(map.cover,hard,[0,0,1],40,100).blockedAt).toBeLessThan(40);
   });
 
   test("keeps the normal spawn catalog isolated", () => {
