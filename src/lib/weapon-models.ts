@@ -465,18 +465,33 @@ export function buildFirstPersonWeapon(
       // across the weapon and made the swing-out animation look diagonal.
       const cylinder=new THREE.Group();
       cylinder.userData.fpRevolverCylinder=id==="pistol_bastion";
-      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,BASTION_CYLINDER_HALF_LENGTH*2,12),sig);
+      // Front web and axle hold six OPEN chamber sleeves together. A single
+      // capped solid drum hid cartridges while they were being inserted.
+      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.023,.023,BASTION_CYLINDER_HALF_LENGTH*2,12),sig);
       drum.name="revolver_cylinder_body";
       drum.rotation.x=Math.PI/2;
       cylinder.add(drum);
+      const frontWeb=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,.013,12),sig);
+      frontWeb.name="revolver_cylinder_front_web";
+      frontWeb.rotation.x=Math.PI/2;
+      frontWeb.position.z=-BASTION_CYLINDER_HALF_LENGTH+.009;
+      cylinder.add(frontWeb);
       const brass=new THREE.MeshBasicMaterial({color:0xcaa05a});
       const primer=new THREE.MeshBasicMaterial({color:0xecc98b});
       for(let i=0;i<6;i++){
         const angle=2*Math.PI*i/6;
         const x=BASTION_CHAMBER_RADIUS*Math.cos(angle);
         const y=BASTION_CHAMBER_RADIUS*Math.sin(angle);
-        // Black recessed chamber mouths remain readable with/without rounds.
-        const mouth=new THREE.Mesh(new THREE.RingGeometry(.010,.015,12),darkMat);
+        // Open-ended six tubes provide real empty chamber mouths. Bullets can
+        // visibly travel down their Z-aligned bores instead of disappearing
+        // behind an opaque capped cylinder surface.
+        const sleeve=new THREE.Mesh(
+          new THREE.CylinderGeometry(.020,.020,BASTION_CYLINDER_HALF_LENGTH*2,12,1,true),sig);
+        sleeve.name="revolver_chamber_sleeve_"+i;
+        sleeve.rotation.x=Math.PI/2;
+        sleeve.position.set(x,y,0);
+        cylinder.add(sleeve);
+        const mouth=new THREE.Mesh(new THREE.RingGeometry(.010,.018,12),darkMat);
         mouth.position.set(x,y,BASTION_CYLINDER_HALF_LENGTH+.001);
         cylinder.add(mouth);
         if(id==="pistol_bastion"){

@@ -25,6 +25,10 @@ describe("Bastion viewmodel: geometry and reload continuity",()=>{
     const {cylinder,material}=model();
     expect(cylinder).toBeDefined();
     expect(cylinder.position.toArray()).toEqual([...BASTION_CYLINDER_CENTER]);
+    const sleeves=cylinder.children.filter(x=>x.name.startsWith("revolver_chamber_sleeve_")) as THREE.Mesh[];
+    expect(sleeves).toHaveLength(6);
+    expect(sleeves.every(x=>x.geometry instanceof THREE.CylinderGeometry &&
+      (x.geometry as THREE.CylinderGeometry).parameters.openEnded===true)).toBe(true);
     const drum=cylinder.children.find(x=>x.name==="revolver_cylinder_body") as THREE.Mesh;
     expect(drum).toBeDefined();
     // CylinderGeometry is Y-axis by default. Its final axis must be Z.
