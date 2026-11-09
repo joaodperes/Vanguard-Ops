@@ -68,5 +68,12 @@
     "shortName": "VGE",
     "color": "#ef4444",
     "insignia": "✪"
+  },
+  {
+    "level": 39,
+    "name": "Vanguard Legend",
+    "shortName": "VGL",
+    "color": "#f7c76e",
+    "insignia": "✺"
   }
 ]
