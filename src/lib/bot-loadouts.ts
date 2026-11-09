@@ -28,7 +28,15 @@ const survivalWonderIds = [
 
 export const SURVIVAL_BOT_WONDERS = WEAPONS.filter(w =>
   !!w.wonder && !w.disabled && (survivalWonderIds as readonly string[]).includes(w.id));
-export const BOT_WONDERS = WEAPONS.filter(w => !!w.wonder && !w.disabled);
+// Only Wonder kinds already handled by the shared player shot/deployable pipeline.
+// Newer draft catalog entries (e.g. Chrono Anchor / Juggernaut) need their
+// dedicated action messages before an AI can equip them meaningfully.
+const BOT_SUPPORTED_WONDER_KINDS = new Set([
+  "singularity","corrosion","turret","smart","flame",
+  "storm","sludge","cluster","shield",
+]);
+export const BOT_WONDERS = WEAPONS.filter(w =>
+  !!w.wonder&&!w.disabled&&BOT_SUPPORTED_WONDER_KINDS.has(w.wonder.kind));
 
 export const SURVIVAL_BOT_PERKS: readonly PerkId[] = [
   "field_loader", "quickdraw", "lightweight", "steady",
