@@ -10,7 +10,7 @@ import {
   ATTACHMENTS, WEAPONS, PLAYER_SKINS, WEAPON_SKINS, WEAPON_CHALLENGES,
   type WeaponChallengeDef, type WeaponChallengeMetric, type WeaponConditionMetric,
   compatibleAttachments, weaponAttachmentSlots,
-  type AttachmentDef, type WeaponDef,
+  type AttachmentDef, type WeaponDef, type AttachmentSlot,
 } from "./game-data";
 
 /** Stable combat condition identifiers used in network payloads and saved profiles. */
