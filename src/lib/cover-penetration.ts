@@ -95,6 +95,8 @@ export function coverDamageScaleAt(trace:CoverPenetrationTrace,distance:number):
  * structure, shields and protected players fully protective.
  */
 export const BODY_PENETRATION_ENERGY_COST = 0.85;
+/** Below this caliber/energy, a round embeds in its first body even if some energy remains. */
+export const MIN_BODY_CHAIN_RATING = 1.15;
 export const MAX_PENETRATED_BODIES = 3;
 
 export interface UnifiedPenetrationResult<T> {
@@ -111,7 +113,7 @@ export function resolveMaterialPenetrationShot<T>(
   const energyStart=Number.isFinite(penetrationPower)?Math.max(0,penetrationPower):0;
   let energy=energyStart;
   const bodyLimit=Math.max(1,Math.min(MAX_PENETRATED_BODIES,
-    bodyProfile?.maxTargets??(energyStart>=3.4?3:energyStart>=BODY_PENETRATION_ENERGY_COST?2:1)));
+    bodyProfile?.maxTargets??(energyStart>=3.4?3:energyStart>=MIN_BODY_CHAIN_RATING?2:1)));
   const bodyRetention=bodyProfile
     ? Math.max(0,Math.min(1,bodyProfile.damageRetention))
     : Math.min(.65,Math.max(.3,.29+energyStart*.09));
