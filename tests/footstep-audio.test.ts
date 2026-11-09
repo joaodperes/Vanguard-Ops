@@ -20,6 +20,17 @@ describe("world-space footstep audio", () => {
       .toBeGreaterThan(footstepVolumeAtDistance(12));
   });
 
+  test("water steps are quieter than dry steps at the same distance", () => {
+    for (const sprinting of [false, true]) {
+      const dry=footstepVolumeAtDistance(10,sprinting);
+      const wet=footstepVolumeAtDistance(10,sprinting,true);
+      expect(wet).toBeGreaterThan(0);
+      expect(wet).toBeLessThan(dry);
+      expect(wet/dry).toBeCloseTo(.8);
+      expect(footstepVolumeAtDistance(38,sprinting,true)).toBe(0);
+    }
+  });
+
   test("Silent Steps is earned at level 31 and silences steps only", () => {
     expect(perkById("silent_steps").unlockLevel).toBe(31);
     expect(perkUnlocked("silent_steps", 30)).toBe(false);
