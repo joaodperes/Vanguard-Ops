@@ -100,3 +100,52 @@ ends immediately; a separate visual recovery state keeps weapon pitch,
 hand, elbow and shoulder synchronized until the offhand rejoins the grip.
 Fire, ADS, equipment use, weapon changes or death cancel this optional
 cosmetic recovery without delaying gameplay readiness or shell credits.
+
+## First-person scale correction (November 2026)
+
+**Root cause:** The same physical procedural rifle meshes were shown at
+`vmScale = 1.20` in first person, but `BOT_WEAPON_VISUAL_SCALE = 0.72`
+for 1.8m-tall soldiers. This exaggerated long weapons by **67%** relative
+to the existing world-model reference. Further shoulder/elbow tuning could
+not correct that visual mismatch.
+
+**Correction:** Long weapons use the world-model reference scale of 0.72.
+The transition is smooth for short experimental emitters in rifle/DMR/shotgun
+categories, while pistols, PDWs and SMGs keep 1.20 because their close-up
+presentation already feels right. The mesh generator, weapon catalog,
+world/bot models, damage, TTK and range are unchanged.
+
+Nominal longitudinal spans, including procedural stock/receiver/handguard/
+barrel furniture (visual model units, not collision metrics):
+
+| Weapon | Previous first-person | New first-person |
+| --- | ---: | ---: |
+| VK-12 Assault | 1.43 | 0.86 |
+| Behemoth AR | 1.77 | 1.06 |
+| Executioner DMR | 2.09 | 1.25 |
+| Leviathan LMG | 2.17 | 1.30 |
+| Annihilator | 2.49 | 1.50 |
+
+This is similar in magnitude to publicly documented overall dimensions of
+an M4 (84 cm), a FN Minimi Mk3 5.56 (93.9 cm), and a large anti-material
+sniper (longer than ordinary rifles). The game model units remain stylized;
+the comparisons establish *relative human-scale proportions* rather than
+claiming the fictional guns are real designs.
+
+References:
+- Colt M4 carbine: https://www.colt.com/wp-content/uploads/2023/02/m16a2carbinecommando9mmsmgm4carbine.pdf
+- FN Minimi Mk3: https://fnherstal.com/app/uploads/sites/2/technical-data-fn-minimi-556-mk3.pdf
+
+Viewmodel muzzle flashes, suppressors, charm and optic positions use the
+same new viewmodel scale; the laser beam now originates at the transformed
+muzzle rather than a hard-coded distance. The shared arm calibration uses
+the transformed weapon grip. The pre-existing generic reload tracks and
+loose props now shrink with each gun, while per-model shotgun shell ports
+are already authored at the correct scale and must not be scaled twice.
+
+Manual checks: VK-12/Behemoth AR; Executioner/Whisper DMR; Hailstorm and
+Leviathan LMG; Longshot and Annihilator; Breacher/Wraith Auto/Mauler CS;
+all magazine/bolt/shell reloads and muzzle attachments. Compare the held
+gun against a third-person character and check hipfire, ADS, recoil,
+laser, reload, swap and touch orientation. Numerical CI does not replace
+actual on-screen visual inspection.
