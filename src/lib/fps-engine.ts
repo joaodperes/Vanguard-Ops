@@ -42,7 +42,7 @@ import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
-import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -10857,6 +10857,7 @@ export class FPSEngine {
     }
     if((victim.spawnProtectedUntil??0)>Date.now())return;
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
+    damage=survivalNonLethalTaserDamage(damage,victim.health,this.opts.mode,attacker.isBot,"equipment_"+id);
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;
@@ -11050,6 +11051,8 @@ export class FPSEngine {
         explosive:!!weaponById(weaponId).explosive,
         sprinting:this.sprinting,
       });
+    dmg=survivalNonLethalTaserDamage(dmg,this.health,this.opts.mode,
+      this.opts.mode==="survival"&&attackerTeam==="red",weaponId);
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
