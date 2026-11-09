@@ -549,7 +549,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
       weaponSkins: flatSkins,
-      playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId)])),
+      playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId), ...autoUnlockedItems(level).playerSkins])),
       attachments: flatAttachments,
       attachmentsByWeapon,
       skinsByWeapon,
@@ -570,7 +570,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
 // in the return shape for backward-compat with consumers that read these fields.
 export function autoUnlockedItems(level: number) {
   return {
-    weapons: WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    weapons: WEAPONS.filter((w) => !w.wonder && !w.disabled && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     attachments: [] as string[],
     weaponSkins: [] as string[],
     playerSkins: PLAYER_SKINS.filter((s) => !s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
@@ -943,12 +943,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   if (leveledUp) {
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
       for (const w of WEAPONS) {
-        if (w.wonder || w.unlockLevel !== lvl) continue;
+        if (w.wonder || w.disabled || w.unlockLevel !== lvl) continue;
         if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
         else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
       }
       for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
-      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
+      for (const s of PLAYER_SKINS) if (s.levelReward && s.unlockLevel === lvl) newUnlocks.playerSkins.push(s.id);
     }
   }
 
