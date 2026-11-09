@@ -161,7 +161,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       </div>}
       {hud.mechArmor!==undefined&&<div className="absolute top-14 left-1/2 -translate-x-1/2 rounded-lg border border-cyan-500/60 bg-slate-950/90 px-4 py-3 text-center min-w-64 shadow-md shadow-cyan-900/30">
         <div className="text-cyan-200 text-sm tracking-[.15em] font-bold">JUGGERNAUT</div>
-        <div className="text-white font-black text-lg mt-1">ARMOR {Math.ceil(hud.mechArmor)}/ {hud.mechArmor>500?600:hud.mechArmor>450?500:450}</div>
+        <div className="text-white font-black text-lg mt-1">ARMOR {Math.ceil(hud.mechArmor)}/{hud.mechArmorMax??450}</div>
         <div className="mt-1 grid grid-cols-2 gap-4 text-[11px]">
           <span className="text-emerald-200">LMB · Minigun <b>{hud.mechMinigunAmmo??0}</b></span>
           <span className="text-amber-200">RMB · {hud.mechSecondaryName??"Shotgun"} <b>{hud.mechSecondaryAmmo??0}</b></span>
