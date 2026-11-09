@@ -12,7 +12,7 @@ export interface AudioMixSettings {
  */
 export const EFFECTS_OUTPUT_BOOST = 1.45;
 /** WeaponAudio previously stopped at 0.32 at full volume. */
-export const WEAPON_OUTPUT_SCALE = 0.48;
+export const WEAPON_OUTPUT_SCALE = 0.58;
 
 /** Catch overlapping peaks on each Web Audio context. This is a fast
  * dynamics compressor rather than a brick-wall limiter.
