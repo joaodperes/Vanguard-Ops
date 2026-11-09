@@ -1,9 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { blastCanDamage } from "../src/lib/explosion-damage-rules";
+import { fullThrowingKnives, spendThrowingKnife, tickThrowingKnives, THROWING_KNIFE_MAX_CHARGES, THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
 import { coverPanels, coverPlacement, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP } from "../src/lib/deployable-cover";
 import { rechargeTactical, spendTactical, TACTICIAN_RECHARGE_MS } from "../src/lib/perks";
 import { calculateThrowPath, TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
 describe("tactical balance",()=>{
+ test("throwing melee knife: 1 per life, shorter range, timed Gun Game refill",()=>{
+  expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
+  expect(THROWING_KNIFE_RANGE).toBe(5.5);
+  const life=spendThrowingKnife(fullThrowingKnives(),1000,false)!;
+  expect(life.charges).toBe(0);
+  expect(tickThrowingKnives(life,100_000,false).charges).toBe(0);
+  const gunGame=spendThrowingKnife(fullThrowingKnives(),1000,true)!;
+  expect(tickThrowingKnives(gunGame,gunGame.nextAt,true).charges).toBe(1);
+ });
  test("self-explosions damage their owner but never teammates",()=>{
   for(const mode of ["tdm","killconfirmed","ctf","survival"]){
    expect(blastCanDamage("owner","red","owner","red",mode)).toBe(true);
