@@ -2,6 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { ownsOperativeSkin } from "@/lib/collection-ownership";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
+import { validWonderModule, wonderFinishById, wonderKillEffectById } from "@/lib/wonder-expansion";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { EQUIPMENT, equipmentUnlocked } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
@@ -216,6 +217,34 @@ export async function POST(req: NextRequest) {
   // Snapshot previous selections before changing any slot. A weapon's saved
   // setup follows its weapon ID rather than the transient loadout slot.
   const setups=parseWeaponSetups(player.loadout?.weaponSetups);
+  // Wonder options are persisted in the existing per-weapon setup JSON. Neither
+  // a client-supplied module nor a finish is trusted without permanent ownership.
+  const wonderCustomizeWeaponId=typeof body.wonderCustomizeWeaponId==="string"?body.wonderCustomizeWeaponId:"";
+  const wonderFields=["wonderModuleId","wonderSkinId","wonderKillEffectId"] as const;
+  const changingWonder=wonderFields.some(field=>body[field]!==undefined);
+  if(changingWonder){
+    const selected=WEAPONS.find(w=>w.id===wonderCustomizeWeaponId&&w.wonder&&!w.disabled);
+    if(!selected)return NextResponse.json({error:"Choose an owned Wonder to customize"},{status:400});
+    const owned=await db.wonderUnlock.findUnique({where:{playerId_weaponId:{
+      playerId:player.id,weaponId:selected.id,
+    }}});
+    if(!owned)return NextResponse.json({error:"Wonder Weapon not unlocked"},{status:403});
+    const purchases=await db.careerShopPurchase.findMany({where:{playerId:player.id,currency:"wonder"},select:{itemKey:true}});
+    const keys=new Set(purchases.map(p=>p.itemKey));
+    const picked=(field:typeof wonderFields[number])=>body[field]===undefined?undefined:typeof body[field]==="string"?body[field]:null;
+    const moduleId=picked("wonderModuleId"),skinId=picked("wonderSkinId"),effectId=picked("wonderKillEffectId");
+    if(moduleId===null||skinId===null||effectId===null||
+      (moduleId!==undefined&&(!validWonderModule(selected.id,moduleId)||(moduleId!==""&&!keys.has("module_"+moduleId))))||
+      (skinId!==undefined&&skinId!==""&&(!wonderFinishById(skinId)||!keys.has(skinId+"_"+selected.id)))||
+      (effectId!==undefined&&effectId!==""&&(!wonderKillEffectById(effectId)||!keys.has(effectId+"_"+selected.id))))
+      return NextResponse.json({error:"Purchase this Wonder customization before equipping it"},{status:403});
+    const current=setups[selected.id]??{skin:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}};
+    setups[selected.id]={...current,
+      ...(moduleId!==undefined?{moduleId}:{ }),
+      ...(skinId!==undefined?{skin:skinId}:{ }),
+      ...(effectId!==undefined?{killEffectId:effectId}:{ }),
+    };
+  }
   if(player.loadout){
     rememberSetup(setups,player.loadout.primaryWeapon,player.loadout.weaponSkin,player.loadout.attachments);
     rememberSetup(setups,player.loadout.secondaryWeapon,player.loadout.secondaryWeaponSkin,player.loadout.secondaryAttachments);
