@@ -6218,6 +6218,7 @@ export class FPSEngine {
           this.survivalPrepLeft = (msg as any).prepLeft ?? this.survivalPrepLeft;
           this.survivalWaveActive = (msg as any).waveActive ?? (this.survivalEnemiesLeft>0);
           this.survivalTier=normalizeSurvivalTier((msg as any).survivalTier ?? this.survivalTier);
+          this.survivalPlayerRanks=msg.survivalPlayerRanks??this.survivalPlayerRanks;
         }
         // Sync the server-side pre-match countdown. When > 0, the client's
         // update loop freezes local gameplay (movement, firing) and renders
@@ -6456,6 +6457,7 @@ export class FPSEngine {
           // Save the outgoing primary's remaining ammo before locking swaps.
           this.saveAmmoToSlot(this.currentSlot);
           this.survivalDowned = true;
+          this.survivalDownedUntil=msg.selfReviveUntil??0;
           this.alive = true; this.health = 1; this.respawnAt = 0;
           this.sprinting = false; this.reloading = false;
           // Downed status disallows the normal swap action, so activate the
@@ -6465,10 +6467,18 @@ export class FPSEngine {
           this.ammoInMag = this.secondaryAmmoInMag; this.buildViewmodel();
         }
         break;
+      case "survivalReviveExpired":
+        if(msg.playerId===this.selfId){
+          this.survivalDowned=false;
+          this.survivalDownedUntil=0;
+          this.alive=false;this.health=0;this.respawnAt=0;
+        }
+        break;
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
           this.equipQueuedLoadout();
           this.survivalDowned = false;
+          this.survivalDownedUntil=0;
           this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
           this.alive = true; this.health = msg.health; this.respawnAt = 0; this.lastDeath = undefined;
@@ -6914,7 +6924,7 @@ export class FPSEngine {
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
-        bossMaxHealth:p.bossMaxHealth,bossCharge:p.bossCharge,
+        bossMaxHealth:p.bossMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
       this.combatants.set(p.id, c);
@@ -6934,6 +6944,7 @@ export class FPSEngine {
     }
     c.bossMaxHealth=p.bossMaxHealth;
     c.bossCharge=p.bossCharge;
+    c.downed=p.downed;
     c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;c.riotShieldReadyAt=p.riotShieldReadyAt;
     c.perkId = p.perkId;
     return c;
