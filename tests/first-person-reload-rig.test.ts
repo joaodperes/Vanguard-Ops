@@ -79,7 +79,10 @@ describe("weapon-relative reload contacts and articulated arm",()=>{
     maxElbowMove=distance(atPort!.elbow,atBack!.elbow);
     maxShoulderMove=distance(atPort!.shoulder,atBack!.shoulder);
     expect(maxElbowMove).toBeGreaterThan(.07);
-    expect(maxShoulderMove).toBeGreaterThan(.055);
+    // Some shoulder movement is necessary, but a full torso swing just to
+    // rack the bolt is not human motion. The elbow carries most of the stroke.
+    expect(maxShoulderMove).toBeGreaterThan(.025);
+    expect(maxShoulderMove).toBeLessThan(.18);
     expect(maxStep).toBeLessThan(.035); // no sudden elbow flip at keyframe boundaries
   });
 

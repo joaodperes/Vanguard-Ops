@@ -89,3 +89,14 @@ Regression checks now sample every modeled gun's rest geometry at desktop
 and touch viewports and representative entire reload cycles for every
 weapon category and reload style. This numerical verification does not
 replace in-game visual QA before promotion to main.
+
+
+### Last-shell visual recovery
+
+An incremental shotgun's final round becomes usable at
+`ROUND_INSERT_FRACTION = 0.70`, but the cosmetic shell-return animation
+now continues through the rest of that cycle. The gameplay reload flag
+ends immediately; a separate visual recovery state keeps weapon pitch,
+hand, elbow and shoulder synchronized until the offhand rejoins the grip.
+Fire, ADS, equipment use, weapon changes or death cancel this optional
+cosmetic recovery without delaying gameplay readiness or shell credits.
