@@ -304,6 +304,7 @@ export interface HudState {
   wonderShieldHp?: number;
   wonderShieldRechargeMs?: number;
   mechArmor?:number;
+  mechArmorMax?:number;
   mechMinigunAmmo?:number;
   mechSecondaryAmmo?:number;
   mechSecondaryName?:string;
@@ -11884,6 +11885,7 @@ export class FPSEngine {
         Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2);
     this.opts.onHud({
       mechArmor:this.mechActive?.armor,
+      mechArmorMax:this.mechActive?mechTuning(this.mechActive.moduleId).armor:undefined,
       mechMinigunAmmo:this.mechActive?.minigunAmmo,
       mechSecondaryAmmo:this.mechActive?.secondaryAmmo,
       mechSecondaryName:this.mechActive?(mechTuning(this.mechActive.moduleId).secondary==="swarm"?"Swarm-3":"Shotgun"):undefined,
