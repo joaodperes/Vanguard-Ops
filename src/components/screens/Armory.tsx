@@ -791,7 +791,7 @@ function WeaponCard(props: WeaponCardProps) {
     : prestige.eligible
       ? "All Prestige challenges completed · awaiting award"
       : `Prestige: ${prestige.completed}/${prestige.total} challenges completed`;
-  const masteryTitle = `Mastery: rank ${mastery.rank}/5 (${weaponProgress.kills} kills${w.category === "melee" ? "" : `, ${weaponProgress.headshots} headshots`})`;
+  const masteryTitle = `Mastery: rank ${mastery.rank}/5 (${weaponProgress.kills} kills${mastery.next?.headshots === 0 || ["melee", "launcher", "shotgun"].includes(w.category) ? "" : `, ${weaponProgress.headshots} headshots`})`;
 
   return (
     <div
@@ -1310,8 +1310,8 @@ function CustomizeModal(props: CustomizeModalProps) {
                 <span className="text-white/50">Rank {mastery.rank}/5 · Reward: Eventide</span>
               </div>
               <div className="mt-1 text-white/50">
-                {progress?.kills ?? 0} kills {w.category === "melee" ? "(melee mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
-                {mastery.next && ` · Next: ${mastery.next.kills} kills (${Math.max(0, mastery.next.kills - (progress?.kills ?? 0))} remaining)${w.category === "melee" ? "" : ` · ${mastery.next.headshots} headshots ${(progress?.headshots ?? 0) >= mastery.next.headshots ? "✓" : `(${mastery.next.headshots - (progress?.headshots ?? 0)} remaining)`}`}`}
+                {progress?.kills ?? 0} kills {["melee", "launcher", "shotgun"].includes(w.category) ? "(mastery requires kills only)" : `· ${progress?.headshots ?? 0} headshots`}
+                {mastery.next && ` · Next: ${mastery.next.kills} kills (${Math.max(0, mastery.next.kills - (progress?.kills ?? 0))} remaining)${mastery.next.headshots === 0 ? "" : ` · ${mastery.next.headshots} headshots ${(progress?.headshots ?? 0) >= mastery.next.headshots ? "✓" : `(${mastery.next.headshots - (progress?.headshots ?? 0)} remaining)`}`}`}
               </div>
               
             </div>
