@@ -1404,6 +1404,7 @@ export interface PlayerNet {
   charmId?: string;
   nameplateId?: string;
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1471,6 +1472,7 @@ export interface SnapshotPlayer {
   charmId?: string; nameplateId?: string;
   /** Optional Survival boss HUD/armor metadata sent by the server. */
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   bossCharge?: number;
   downed?: boolean;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
