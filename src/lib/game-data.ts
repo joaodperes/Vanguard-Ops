@@ -564,7 +564,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     compatibleAttachments(weapon.id,"magazine").includes(ammoAttachment.id) ? ammoAttachment.shotgunAmmo : undefined;
   // A slug is a single dense projectile, not a spray of low-energy pellets.
   const coverPenetration = Math.min(6,(base.coverPenetration ?? 0) +
-    (piercingAmmo ? .6 : 0) + (shell === "slug" ? .9 : 0));
+    (piercingAmmo && ammoAttachment?.id === "mag_penetrator" ? .6 : 0) + (shell === "slug" ? .9 : 0));
   const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
     shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
     shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .70, spreadMul: 1.8, rangeMul: .75, rateMul: 1 } :
