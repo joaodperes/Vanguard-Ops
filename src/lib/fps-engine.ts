@@ -10734,7 +10734,7 @@ export class FPSEngine {
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?(this.opts.online&&this.floodgateServerRulesVersion!==5
+        ?(this.opts.online&&this.floodgateServerRulesVersion!==6
           ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · redeploy to enable flood event",secondsLeft:0}
           :undefined)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
