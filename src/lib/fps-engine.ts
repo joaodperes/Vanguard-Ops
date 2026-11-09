@@ -9804,7 +9804,9 @@ export class FPSEngine {
           if (c.parts) resetThirdPersonDeathPose(c.parts);
           c.deathPoseStart = undefined;
         }
-        c.group.rotation.x = 0;
+        // Downed co-op operatives lie prone (visual-only; no collision change).
+        c.group.rotation.x = c.downed ? Math.PI/2 : 0;
+        c.group.position.y = c.pos[1] + (c.downed ? 0.22 : 0);
         c.group.rotation.z = 0;
         c.group.visible = true;
         if (c.nameSprite) c.nameSprite.visible = true;
