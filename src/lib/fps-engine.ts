@@ -10186,6 +10186,12 @@ export class FPSEngine {
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
+    // Taser also produces small, collision-safe involuntary footwork in offline bots.
+    if(isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now)){
+      const twitch=taserMovementJitter(now);
+      const offset:Vec3=[c.pos[0]+twitch.x*.06,c.pos[1],c.pos[2]+twitch.z*.06];
+      c.pos=this.clamp(this.collideBots(offset,c.pos[1]));
+    }
     const rival=flashBlinded?null:this.nearestEnemy(c);
     const hostiles=[...this.bulletSpitters.entries()].filter(([,t])=>t.offline &&
       t.ownerId!==c.id && turretCanAttack(this.opts.mode,c.team,this.opts.team as string,false) &&
