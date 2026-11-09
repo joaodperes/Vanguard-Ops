@@ -1775,6 +1775,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   io.to(room.id).emit("message", {
     t: "hit", attackerId, victimId: victim.id, damage: Math.round(dmg),
     headshot: head, killed, weaponId,
+    wonderKillEffectId:killed&&weaponId.startsWith("wonder_")&&room.loadouts.get(attackerId)?.wonderWeaponId===weaponId
+      ?room.loadouts.get(attackerId)?.wonderKillEffectId:undefined,
     ...(killDiff ? { botDifficulty: killDiff } : {}),
     ...(defendedFlag ? { defendedFlag: true } : {}),
   } as S2C);
