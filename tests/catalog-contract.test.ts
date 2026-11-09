@@ -1,4 +1,5 @@
 import {describe,expect,test} from "bun:test";
+import {readdirSync} from "node:fs";
 import {CATALOG_SCHEMAS,PUBLISHED_CATALOG_SCHEMA_NAMES} from "../src/lib/catalog-contract";
 import {catalogJsonSchema} from "../src/lib/catalog-json-schema";
 import {validateGameContent} from "../src/lib/content-validation";
@@ -40,6 +41,12 @@ describe("single-source content catalog contracts",()=>{
     for(const [name,schema] of Object.entries(CATALOG_SCHEMAS))
       expect(schema.safeParse(data[name as keyof typeof data]).success,name).toBe(true);
     expect(Object.keys(data).sort()).toEqual(Object.keys(CATALOG_SCHEMAS).sort());
+    // If a future JSON catalog is added without a contract, this fails rather
+    // than silently letting the new file bypass validation.
+    const diskCatalogs=readdirSync(new URL("../src/data/catalogs/",import.meta.url))
+      .filter(name=>name.endsWith(".json"))
+      .map(name=>name.slice(0,-5)).sort();
+    expect(diskCatalogs).toEqual(Object.keys(CATALOG_SCHEMAS).sort());
   });
   test("published external JSON Schemas derive from runtime content validators",()=>{
     const files={weapons:weaponsSchema,attachments:attachmentsSchema,
