@@ -7,17 +7,17 @@ import { WeaponStatsPreview, EMPTY_ATTACHMENTS } from "../src/components/screens
 import { weaponById } from "../src/lib/game-data";
 
 const penValue = (markup: string) => {
-  // Read the value immediately after the PEN label, not another weapon stat.
-  const row = markup.split(">PEN</span>")[1];
+  // Read the value immediately after the Bullet Penetration label, not another weapon stat.
+  const row = markup.split(">Bullet Penetration</span>")[1];
   return row?.match(/>(\d+\.\d)<\/span>/)?.[1];
 };
 
 describe("weapon penetration stat presentation", () => {
-  test("renders PEN alongside regular compact loadout stats", () => {
+  test("renders Bullet Penetration alongside regular compact loadout stats", () => {
     const markup = renderToStaticMarkup(createElement(WeaponStatsPreview, {
       weapon: weaponById("rifle_ar"), equipped: EMPTY_ATTACHMENTS, compact: true,
     }));
-    expect(markup).toContain(">PEN</span>");
+    expect(markup).toContain(">Bullet Penetration</span>");
     expect(penValue(markup)).toBe("1.0");
   });
 
@@ -32,7 +32,7 @@ describe("weapon penetration stat presentation", () => {
     expect(markup).toContain("60%");
   });
 
-  test("displays zero for weapons without ballistic penetration, and omits PEN from melee", () => {
+  test("displays zero for weapons without ballistic penetration, and omits Bullet Penetration from melee", () => {
     const wonder = renderToStaticMarkup(createElement(WeaponStatsPreview, {
       weapon: weaponById("wonder_singularity"), compact: true,
     }));
@@ -40,7 +40,7 @@ describe("weapon penetration stat presentation", () => {
       weapon: weaponById("knife_tactical"), compact: true,
     }));
     expect(penValue(wonder)).toBe("0.0");
-    expect(melee).not.toContain(">PEN</span>");
+    expect(melee).not.toContain(">Bullet Penetration</span>");
   });
 
   test("Armory weapon cards and customization modal use regular PEN stat bars", () => {
