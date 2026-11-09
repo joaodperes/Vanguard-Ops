@@ -1,3 +1,5 @@
+import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
+import { rechargeTactical, spendTactical } from "./perks";
 import {addOperativeSkinDetails} from "./operative-appearance";
 import { captureThirdPersonDeathPose, applyThirdPersonDeathPose, resetThirdPersonDeathPose, type ThirdPersonDeathPoseStart } from "./third-person-death-pose";
 import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
@@ -199,6 +201,7 @@ export interface HudState {
   quickMeleeAt?: number;
   equipmentName?: string;
   equipmentCharges?: number;
+  equipmentRechargeMs?: number;
   flashRemainingMs?: number;
   stunRemainingMs?: number;
   taserRemainingMs?: number;
@@ -971,6 +974,8 @@ export class FPSEngine {
   private currentSlot: WeaponSlot = "primary";
   private equipmentCharges = 0;
   private equipmentLastAt = -10000;
+  private equipmentNextRechargeAt = 0;
+  private deployedCovers = new Map<string,{cover:DeployedCover;mesh:THREE.Group}>();
   private equipmentFlashUntil = 0;
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
@@ -4405,6 +4410,88 @@ export class FPSEngine {
         this.hitMarkerAt=now;
         this.sound.play("melee_hit",{volume:.7});
       }
+    }
+  }
+
+
+  /** Physical four-panel barricade. The 1.34–1.72-high firing slit remains clear. */
+  private installDeployCover(cover:DeployedCover):void{
+    const existing=this.deployedCovers.get(cover.id);
+    if(existing){
+      existing.cover.hp=cover.hp;
+      this.paintDeployCover(existing);
+      return;
+    }
+    const group=new THREE.Group();
+    const metal=new THREE.MeshStandardMaterial({color:0x53636a,metalness:.65,roughness:.55});
+    const trim=new THREE.MeshStandardMaterial({color:0xaac5cd,metalness:.8,roughness:.38});
+    for(const [i,panel] of coverPanels(cover).entries()){
+      const block=new THREE.Mesh(new THREE.BoxGeometry(panel.size[0]*2,panel.size[1]*2,panel.size[2]*2),metal.clone());
+      block.position.set(...panel.pos);
+      block.castShadow=true;block.receiveShadow=true;
+      group.add(block);
+      if(i<=1){
+        const alongX=panel.size[0]>panel.size[2];
+        const rim=new THREE.Mesh(new THREE.BoxGeometry(alongX?panel.size[0]*2:.3,.035,alongX?.3:panel.size[2]*2),trim.clone());
+        rim.position.set(panel.pos[0],panel.pos[1]+panel.size[1],panel.pos[2]);
+        group.add(rim);
+      }
+    }
+    metal.dispose();trim.dispose();
+    this.scene.add(group);
+    this.deployedCovers.set(cover.id,{cover:{...cover},mesh:group});
+    this.map.cover=[...this.map.cover,...coverPanels(cover)];
+    this.staticCoverIndex=null;
+  }
+  private paintDeployCover(item:{cover:DeployedCover;mesh:THREE.Group}):void{
+    const frac=Math.max(0,item.cover.hp/DEPLOY_COVER_HP);
+    item.mesh.traverse(object=>{
+      if(object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial
+          && object.material.metalness<.8)
+        object.material.color.setHex(frac<.35?0x794b46:frac<.7?0x6a6860:0x53636a);
+    });
+  }
+  private removeDeployCover(id:string):void{
+    const item=this.deployedCovers.get(id);
+    if(!item)return;
+    this.deployedCovers.delete(id);
+    this.map.cover=this.map.cover.filter(box=>box.environmentId!==DEPLOY_COVER_PREFIX+id);
+    this.staticCoverIndex=null;
+    this.scene.remove(item.mesh);
+    item.mesh.traverse(object=>{
+      if(object instanceof THREE.Mesh){
+        object.geometry.dispose();
+        const mats=Array.isArray(object.material)?object.material:[object.material];
+        mats.forEach(mat=>mat.dispose());
+      }
+    });
+  }
+  private reconcileDeployCovers(covers:DeployedCover[]):void{
+    const ids=new Set(covers.map(c=>c.id));
+    for(const id of this.deployedCovers.keys())if(!ids.has(id))this.removeDeployCover(id);
+    for(const cover of covers)this.installDeployCover(cover);
+  }
+  private tickDeployCovers():void{
+    if(this.opts.online)return;
+    for(const item of [...this.deployedCovers.values()])
+      if(Date.now()>=item.cover.expiresAt)this.removeDeployCover(item.cover.id);
+  }
+  private damageDeployCoverRay(origin:Vec3,dir:Vec3,range:number,damage:number,stopAt:number):void{
+    if(this.opts.online)return;
+    const hit=closestCoverHit(this.map.cover,origin,dir,range,rayBox);
+    if(!hit || hit.distance>stopAt+.05)return;
+    const id=coverIdForBox(hit.box);
+    if(!id)return;
+    const item=this.deployedCovers.get(id);
+    if(!item)return;
+    item.cover.hp=coverNextHp(item.cover.hp,damage);
+    if(item.cover.hp<=0)this.removeDeployCover(id);else this.paintDeployCover(item);
+  }
+  private damageDeployCoverBlast(pos:Vec3,radius:number,damage:number):void{
+    if(this.opts.online)return;
+    for(const item of [...this.deployedCovers.values()]){
+      item.cover.hp=coverNextHp(item.cover.hp,coverExplosionDamage(item.cover,pos,radius,damage));
+      if(item.cover.hp<=0)this.removeDeployCover(item.cover.id);else this.paintDeployCover(item);
     }
   }
 
