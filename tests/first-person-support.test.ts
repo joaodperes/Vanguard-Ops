@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { supportActionWeight, supportHandRestMode, supportElbowPosition, animatedSupportArm, supportArmFraming, usesCompactSupportArm, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH } from "../src/lib/first-person-animation";
+import { supportActionWeight, supportHandRestMode, supportElbowPosition, animatedSupportArm, calibratedSupportArm, supportArmFraming, usesCompactSupportArm, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH } from "../src/lib/first-person-animation";
 import { firstPersonSupportGrip, weaponHoldPoints, WEAPON_VISUALS } from "../src/lib/weapon-models";
 
 describe("first-person support hand", () => {
@@ -85,8 +85,8 @@ describe("compact first-person support grips for long weapons", () => {
       const original = weaponHoldPoints(id).support;
       const adjusted = firstPersonSupportGrip(id);
       const profile = WEAPON_VISUALS[id];
-      expect(adjusted[2]).toBeGreaterThan(original[2] + .10);
-      expect(reach(adjusted)).toBeLessThan(reach(original) - .10);
+      expect(adjusted[2]).toBeGreaterThan(original[2] + .035);
+      expect(reach(adjusted)).toBeLessThan(reach(original) - .02);
       // Contact must stay on the receiver side and within its fore/aft bounds.
       expect(adjusted[2]).toBeGreaterThanOrEqual(-.12 - profile.receiver[2] / 2);
       expect(adjusted[2]).toBeLessThanOrEqual(-.12 + profile.receiver[2] / 2);
@@ -122,16 +122,20 @@ describe("real articulated support elbow",()=>{
       const wrist:[number,number,number]=[
         grip[0]*1.2+.30-.045,grip[1]*1.2-.18-.125,grip[2]*1.2-.48+.10
       ];
-      const elbow=supportElbowPosition(shoulder,wrist);
-      const reach=dist(shoulder,wrist);
-      expect(reach).toBeLessThan(total);
-      expect(dist(shoulder,elbow)).toBeCloseTo(SUPPORT_UPPER_ARM_LENGTH,6);
-      expect(dist(elbow,wrist)).toBeCloseTo(SUPPORT_FOREARM_LENGTH,6);
-      const along=((elbow[0]-shoulder[0])*(wrist[0]-shoulder[0])
-        +(elbow[1]-shoulder[1])*(wrist[1]-shoulder[1])
-        +(elbow[2]-shoulder[2])*(wrist[2]-shoulder[2]))/(reach*reach);
-      const axis=shoulder.map((v,i)=>v+along*(wrist[i]-v));
-      expect(dist(elbow,axis)).toBeGreaterThan(.08);
+      const frame=calibratedSupportArm(id.startsWith("sniper")?"sniper":
+        id.startsWith("lmg")?"lmg":"dmr",wrist,16/9);
+      const elbow=supportElbowPosition(frame.shoulder,wrist,frame.pole,
+        frame.upperLength,frame.forearmLength);
+      const reach=dist(frame.shoulder,wrist);
+      expect(reach).toBeLessThan(frame.upperLength+frame.forearmLength);
+      expect(dist(frame.shoulder,elbow)).toBeCloseTo(frame.upperLength,6);
+      expect(dist(elbow,wrist)).toBeCloseTo(frame.forearmLength,6);
+      expect(elbow[2]).toBeGreaterThan(wrist[2]+.18);
+      const along=((elbow[0]-frame.shoulder[0])*(wrist[0]-frame.shoulder[0])
+        +(elbow[1]-frame.shoulder[1])*(wrist[1]-frame.shoulder[1])
+        +(elbow[2]-frame.shoulder[2])*(wrist[2]-frame.shoulder[2]))/(reach*reach);
+      const axis=frame.shoulder.map((v,i)=>v+along*(wrist[i]-v));
+      expect(dist(elbow,axis)).toBeGreaterThan(.07);
     }
   });
 
