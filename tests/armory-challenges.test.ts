@@ -5,7 +5,7 @@ import {
 } from "../src/lib/game-data";
 import {
   attachmentChallenge, operatorContract, OPERATOR_CONTRACTS, skinChallengesForWeaponAndSkin,
-  armoryChallengeProgress, WEAPON_MASTERY_TIERS, weaponMasteryProgress,
+  armoryChallengeProgress, WEAPON_MASTERY_TIERS, weaponMasteryProgress, weaponMasteryTiers,
   WEAPON_CONDITION_METRICS, parseWeaponConditionStats, weaponChallengeProgress,
 } from "../src/lib/armory-challenges";
 
@@ -147,4 +147,81 @@ describe("permanent challenge-based Armory eligibility", () => {
     }
     expect(weaponMasteryProgress(5000, 1000).next).toBeNull();
   });
+
+  test("every precision rifle trial stays compatible with accurate long-range play", () => {
+    const unsuited = ["hipfire_kills", "close_range_kills", "airborne_kills", "multikill_kills"];
+    for (const weapon of WEAPONS.filter(w => w.category === "sniper" || w.category === "dmr")) {
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          expect(unsuited).not.toContain(attachmentChallenge(weapon.id, id)?.metric);
+        }
+      }
+      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)) {
+        for (const trial of skinChallengesForWeaponAndSkin(weapon.id, skin.id)) {
+          for (const metric of trial.requirements?.map(r => r.metric) ?? [trial.metric]) {
+            expect(unsuited).not.toContain(metric);
+          }
+        }
+      }
+    }
+  });
+
+  test("close-combat, launchers, and LMGs never require impossible precision or jump trials", () => {
+    for (const weapon of WEAPONS.filter(w => ["shotgun", "launcher", "melee", "lmg"].includes(w.category))) {
+      const skinMetrics = WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)
+        .flatMap(s => skinChallengesForWeaponAndSkin(weapon.id, s.id))
+        .flatMap(ch => ch.requirements?.map(r => r.metric) ?? [ch.metric]);
+      if (["melee", "shotgun", "launcher"].includes(weapon.category)) {
+        expect(skinMetrics).not.toContain("headshots");
+      }
+      if (weapon.category === "launcher") {
+        expect(skinMetrics).not.toContain("airborne_kills");
+        expect(skinMetrics).not.toContain("close_range_kills");
+      }
+      if (weapon.category === "lmg") expect(skinMetrics).not.toContain("airborne_kills");
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          const metric = attachmentChallenge(weapon.id, id)?.metric;
+          if (weapon.category === "launcher") expect(["headshots", "airborne_kills", "close_range_kills"]).not.toContain(metric);
+          if (weapon.category === "lmg") expect(metric).not.toBe("airborne_kills");
+        }
+      }
+    }
+  });
+
+  test("all Gold trials remain three-part and achievable without a forbidden mechanic", () => {
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const challenge = skinChallengesForWeaponAndSkin(weapon.id, "gold")[0];
+      expect(challenge.requirements?.length).toBe(3);
+      const metrics = challenge.requirements!.map(r => r.metric);
+      expect(new Set(metrics).size).toBe(3);
+      expect(challenge.requirements!.every(r => r.goal > 0)).toBe(true);
+      if (weapon.category === "melee") {
+        expect(metrics).toEqual(["close_range_kills", "comeback_kills", "multikill_kills"]);
+      }
+      if (weapon.category === "launcher") {
+        expect(metrics).toEqual(["multikill_kills", "bare_kills", "ads_kills"]);
+      }
+      const stats = parseWeaponConditionStats(Object.fromEntries(metrics.map(m => [m, 100000])));
+      expect(weaponChallengeProgress(challenge, { kills: 100000, headshots: 100000, conditionStats: stats }).completed).toBe(true);
+    }
+  });
+
+  test("class-specific mastery removes impossible headshot gates without diluting precision rifles", () => {
+    const expected: Record<string, number> = {
+      assault: 170, smg: 110, shotgun: 0, dmr: 330, sniper: 330,
+      lmg: 120, pistol: 175, pdw: 100, launcher: 0, melee: 0,
+    };
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const tiers = weaponMasteryTiers(weapon.id);
+      expect(tiers.map(t => t.kills)).toEqual([20, 60, 150, 300, 600]);
+      expect(tiers[4].headshots).toBe(expected[weapon.category]);
+      expect(tiers.every((tier, i) => i === 0 || tier.headshots >= tiers[i - 1].headshots)).toBe(true);
+      expect(weaponMasteryProgress(600, expected[weapon.category], weapon.id).rank).toBe(5);
+      if (["melee", "shotgun", "launcher"].includes(weapon.category)) {
+        expect(weaponMasteryProgress(600, 0, weapon.id).rank).toBe(5);
+      }
+    }
+  });
+
 });
