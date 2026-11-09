@@ -79,7 +79,10 @@ describe("Map Studio persistent orientation and axis locking",()=>{
     expect(properties.features.items.properties.turns.maximum).toBe(3);
     expect(properties.hazards.items.properties.turns.maximum).toBe(3);
     expect(properties.legacyCoverOverrides.patternProperties["^(0|[1-9][0-9]*)$"].properties.turns.maximum).toBe(3);
-    expect(themeSchema.properties.props.items.properties.turns.maximum).toBe(3);
+    // The public schema is generated from a Zod literal union (0 | 1 | 2 | 3),
+    // which is encoded as anyOf/const rather than an independent min/max range.
+    expect(themeSchema.properties.props.items.properties.turns.anyOf
+      .map(option=>option.const)).toEqual([0,1,2,3]);
   });
 });
 
