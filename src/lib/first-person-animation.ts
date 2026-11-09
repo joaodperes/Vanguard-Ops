@@ -30,6 +30,14 @@ export interface ActionPose {
   propVisible: boolean;
   hideFixedMagazine: boolean;
   released: boolean;
+  /** An incremental reload can keep the support arm at the loading port
+   * between rounds; only the first/last round transitions to the gun grip. */
+  armWeight?: number;
+}
+
+export interface ShellReloadSequence {
+  firstCycle: boolean;
+  finalCycle: boolean;
 }
 /** The offhand supports guns in normal play, but never a melee weapon.
  * When the Bulwark shield breaks, it returns to supporting the sidearm. */
@@ -302,6 +310,7 @@ export function deployDurationMs(kind: DeployMotion): number {
 }
 export function sampleReloadMotion(progress:number,kind:ReloadMotion,
   shellContacts?:{pocket:readonly [number,number,number];port:readonly [number,number,number]},
+  shellSequence?:ShellReloadSequence,
 ): ActionPose {
   const p = clamp01(progress);
   // 0-.18: lower weapon, .18-.40: extract, .40-.67: align fresh prop,
@@ -350,12 +359,29 @@ export function sampleReloadMotion(progress:number,kind:ReloadMotion,
     // pitch/roll/translation; fixed camera-space shell ports broke shotguns.
     const pocket:[number,number,number]=shellContacts?[...shellContacts.pocket]:[-.23,-.47,.18];
     const port:[number,number,number]=shellContacts?[...shellContacts.port]:[-.015,-.20,-.12];
+    // Loading multiple shells is ONE continuous sequence, not repeated
+    // reach → insert → return-to-foregrip animations. The next shell starts
+    // from the exact same pocket pose where the previous cycle ended.
+    // Only the first shell releases the support grip; only the final shell
+    // reacquires it. A single shell naturally does both.
+    const firstWeight = shellSequence?.firstCycle === false ? 1 : ease(p/.16);
+    const finalWeight = shellSequence?.finalCycle === false ? 1
+      : 1-ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION));
+    const armWeight = shellSequence ? firstWeight*finalWeight : supportActionWeight(p);
     const hand = p < .24 ? pocket
       : p < ROUND_INSERT_FRACTION ? mix(pocket,port,ease((p-.24)/(ROUND_INSERT_FRACTION-.24)))
-      : mix(port,pocket,ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION)));
+      : shellSequence?.finalCycle
+        ? port  // finish from the loading port toward the support grip
+        : mix(port,pocket,ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION)));
     const insert = ease((p-.24)/(ROUND_INSERT_FRACTION-.24));
-    return {...empty,dip:-.10*weight,pitch:.33*weight,roll:-.16*weight,hand,prop:hand,
-      handRoll:.24*(1-insert),propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
+    const returnToPocket = ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION));
+    const handRoll = shellSequence?.finalCycle === false
+      ? .24*(1-insert+returnToPocket) // matched roll at repeat boundary
+      : .24*(1-insert);
+    const gunWeight = shellSequence ? armWeight : weight;
+    return {...empty,dip:-.10*gunWeight,pitch:.33*gunWeight,roll:-.16*gunWeight,
+      hand,prop:hand,handRoll,armWeight:shellSequence?armWeight:undefined,
+      propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
   }
   if (kind === "cylinder_speedloader") {
     const frame=bastionReloadFrame(p);

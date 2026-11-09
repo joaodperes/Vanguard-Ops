@@ -63,7 +63,7 @@ import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, visualReloadRecoveryActive, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, visualReloadRecoveryActive, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose, type ShellReloadSequence } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
@@ -108,6 +108,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS, firstPersonPresentationScale, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE } from "@/lib/weapon-models";
+import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
@@ -720,6 +721,9 @@ export class FPSEngine {
   // One credit per insert animation. Retained rounds survive sprint, swap and
   // firing interruptions; cancelling mid-cycle cannot undo prior inserts.
   private reloadRoundInserted = false;
+  /** The reload timeline can repeat shells without returning the offhand to
+   * the gun after each individual insertion. Reset only for a new reload. */
+  private reloadShellCycleIndex = 0;
   // Equipment commits when the hand releases the device, not on key-down.
   // The server remains authoritative for damage, charges and cooldowns.
   private equipmentAction: { id: string; startedAt: number; kind: DeployMotion; duration: number; committed: boolean } | null = null;
@@ -3593,6 +3597,16 @@ export class FPSEngine {
     arm.elbow.position.copy(this.fpElbow);
   }
 
+  private shellSequenceFor(style:ReloadMotion):ShellReloadSequence|undefined {
+    if(style!=="shell"||weaponById(this.weaponId).stats.reloadStyle!=="incremental")return undefined;
+    return {
+      firstCycle:this.reloadShellCycleIndex===0,
+      // The final round counts for gameplay at 70%, but its cosmetic
+      // return-to-grip should finish even after reloading becomes false.
+      finalCycle:!this.reloading||this.ammoInMag>=this.eff.magSize-1,
+    };
+  }
+
   /** Gameplay reload and the optional post-insertion cosmetic return share
    * one timeline. New fire/ADS/equipment/swap inputs can cancel the latter. */
   private visualReloadActive(now:number):boolean {
@@ -3636,7 +3650,8 @@ export class FPSEngine {
       const def = weaponById(this.weaponId);
       const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
       progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
-      pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined);
+      pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined,
+        this.shellSequenceFor(style));
       propId = style;
     }
 
@@ -3678,7 +3693,7 @@ export class FPSEngine {
       hand.quaternion.premultiply(this._vmTotalQuat);
       prop.quaternion.premultiply(this._vmTotalQuat);
     }
-    const blend = supportActionWeight(progress);
+    const blend = pose.armWeight ?? supportActionWeight(progress);
     if (restMode !== "none") {
       hand.position.lerp(restPosition, 1 - blend);
       hand.quaternion.slerp(restRotation, 1 - blend);
@@ -3794,7 +3809,8 @@ export class FPSEngine {
     } else if (this.visualReloadActive(now)) {
       const def=weaponById(this.weaponId);
       const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
+      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),
+        style,this.fpShellContacts??undefined,this.shellSequenceFor(style));
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
       hideFixedMagazine=pose.hideFixedMagazine;
     }
@@ -3926,6 +3942,10 @@ export class FPSEngine {
     this.fpRestHand.y += pivotY + oy;
     this.fpRestHand.z += pivotZ + oz;
     this.renderFirstPersonAction(now, !hideEntireViewmodel && !quickMeleeActive, this.fpRestHand, ox, oy, oz);
+    // Match-finale rendering does not run the ordinary dead-player early
+    // return; never resurrect the weapon/left sleeve on a fatal final hit.
+    if(!this.alive) hideFirstPersonRigOnDeath(this.vmParts,this.fpActionHand,
+      this.fpActionProp,this.fpSupportArm?.root ?? null);
   }
 
   // ---- Laser indicator ----
@@ -8764,6 +8784,7 @@ export class FPSEngine {
     this.reloading = true;
     this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
+    this.reloadShellCycleIndex=0;
     const currentWeapon = weaponById(this.weaponId);
     // Shotguns and bolt-action rifles load one round at a time. Attachment
     // reload modifiers are applied to each shell/round, not the whole magazine.
@@ -8913,10 +8934,11 @@ export class FPSEngine {
       // Keep the camera at the death position (don't follow movement — there is none).
       this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
       this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
-      // Hide the viewmodel — dead players don't hold a gun up.
-      for (const p of this.vmParts) p.obj.visible = false;
-      if (this.fpActionHand) this.fpActionHand.visible = false;
-      if (this.fpActionProp) this.fpActionProp.visible = false;
+      // Hide the entire first-person rig. In particular the articulated
+      // support ARM is a separate camera child, not a vmPart: hiding only
+      // the glove left a detached raised forearm after combat/lava deaths.
+      hideFirstPersonRigOnDeath(this.vmParts,this.fpActionHand,
+        this.fpActionProp,this.fpSupportArm?.root ?? null);
       this.equipmentAction = null;
       // Clear all active tracers + rocket projectiles so the death screen isn't
       // cluttered with lingering bullet lines (which previously stayed visible
@@ -9007,6 +9029,7 @@ export class FPSEngine {
         this.reloadStartedAt = performance.now();
         this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
         this.reloadRoundInserted = false;
+        this.reloadShellCycleIndex++;
       }
     } else if (this.reloading && performance.now() >= this.reloadEndsAt) {
       this.reloading = false;
