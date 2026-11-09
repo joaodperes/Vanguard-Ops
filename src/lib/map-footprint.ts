@@ -137,9 +137,9 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
-    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32),
-    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16),
-    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16),
+    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32,props),
+    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16,props),
+    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16,props),
   } : initialSpawns;
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,

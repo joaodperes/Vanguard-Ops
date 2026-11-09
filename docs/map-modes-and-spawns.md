@@ -12,7 +12,7 @@ CTF supports Forest Warfare, Orbital Nexus, Floodgate, Whiteout Depot and two tr
 | Forest Warfare / Orbital Nexus / Whiteout Depot | 5v5 | 7v7 | Unavailable |
 | Afterlight City (Day) | 9v9 | 16v16 | Unavailable |
 | Afterlight City (Night) | 9v9 | 16v16 | 32 players |
-| Emberhold Castle | Unavailable | Unavailable | 32 players |
+| Emberhold Castle | 7v7 (14-player FFA/Gun Game recommendation) | 12v12 | 24 players |
 | Floodgate | 7v7 | 16v16 | Unavailable |
 
 Survival continues to allow one or two humans, independently of wave enemies. Selecting a different map starts at its recommended size; changing mode clamps an unsupported size to the nearest available maximum. The shared `teamSizesForMap(mapId, mode)` / `teamSizeAllowed(mapId, count, mode)` contract drives menu options and server validation. The value `4` in `TeamSize` represents the eight-player Blacksite FFA/Gun Game option; it does not introduce 4v4 team matches. Legacy quick-match rooms also obey map/mode caps and replace a bot when a human joins a full bot-filled room. Human replacements balance against other humans, so a sequence of late joins cannot overfill one team while the opposite side still contains bots. The replaced bot is removed before the joining human’s spawn is chosen, releasing its occupied position even on pools with exactly one point per player.
@@ -68,5 +68,5 @@ normal stair climbing remain mandatory, with no AI teleportation.
 The bot-routing regressions check safe spawns, patrol floor selection, target
 staging and ascending/descending collision on all four stair flights. Manual
 sign-off should include observing bots chase a human down and up each flight,
-visit all levels without getting stuck, and avoid the lava moat in 32-player
-Gun Game and Survival matches.
+visit all levels without getting stuck, and avoid the lava moat in 24-player
+Gun Game matches and co-op Survival.

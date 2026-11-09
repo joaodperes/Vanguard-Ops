@@ -46,6 +46,8 @@ Migration preserves current dev geometry, spawns and themes, including Orbital N
 
 Browser drafts autosave under vanguard-map-studio-v2. Import accepts single v2 maps, v2 backups, v1 blueprint JSON and old split bundles. Undo and JSON roundtrips preserve links and assemblies. Export map writes one file for review/rebuild; Backup all saves the editor library. New map IDs still need static registration and room/protocol review before publishing.
 
+Emberhold's `sarcophagus` prop is stone crypt furniture with a solid cover box. Register new prop kinds in both the shared JSON schema and content validator, and keep crypt furniture clear of underground corridors as well as spawn points.
+
 ## Lava surfaces
 
 Choose **Hazard** and then **lava** to place a rectangular liquid surface. Its rendered height is `y + h / 2`, where `y` is the centre and `h` is the full height. A combatant dies when their feet reach or pass that height within the rectangle. Bridges and ledges above it stay safe. Leave a clear drop to the liquid and a supported path for bots. Emberhold's four moat pieces share one height and meet at their edges.

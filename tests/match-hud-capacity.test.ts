@@ -48,7 +48,7 @@ describe("Afterlight City room capacity", () => {
     for (const map of MAP_LIST) {
       if (isAfterlightCityMap(map.id)||map.id==="floodgate"||map.id==="bunker") continue;
       expect(teamSizeAllowed(map.id, 16)).toBe(false);
-      expect(teamSizesForMap(map.id)).toEqual(["compound","skybridge"].includes(map.id)?[3,5,7,9]:[3,5,7]);
+      expect(teamSizesForMap(map.id)).toEqual(map.id==="emberhold"?[5,7,9,12]:["compound","skybridge"].includes(map.id)?[3,5,7,9]:[3,5,7]);
       expect(teamSizeAllowed(map.id, 7)).toBe(true);
     }
     expect(roomCapacity("survival", 16, 2)).toBe(2);
@@ -66,6 +66,12 @@ describe("Afterlight City room capacity", () => {
         expect(new Set(points.map(p => `${p[0].toFixed(2)}:${p[2].toFixed(2)}`)).size).toBe(points.length);
       }
     }
+  });
+  test("city spawn expansion avoids render-only streetlamps", () => {
+    const expanded = expandCitySpawnPositions([[0,0,0]], [{x:0,z:0,w:50,d:50}], [], 5,
+      [{kind:"lamp",x:10,z:0,y:0,h:6}]);
+    expect(expanded.length).toBe(5);
+    for (const pos of expanded.slice(1)) expect(Math.hypot(pos[0]-10,pos[2])).toBeGreaterThanOrEqual(1.7);
   });
   test("spawn expansion keeps authored spots and only adds walkable, collision-safe points", () => {
     const authored: [number,number,number][] = [[0,0,0]];

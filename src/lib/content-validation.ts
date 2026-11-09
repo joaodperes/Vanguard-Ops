@@ -288,7 +288,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
     }),
     props:z.array(z.object({
       kind:z.enum(["tree","bush","rock","ruin","temple","shop","lamp","container",
-        "crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
+        "crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand","sarcophagus",
         "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack",
         "industrial_pipe","steel_coil","cargo_pallet"]),
       x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),

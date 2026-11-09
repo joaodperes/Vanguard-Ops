@@ -33,8 +33,8 @@ describe("mode availability and spawn capacity",()=>{
    expect(mapAllowedForMode(mode,"arena_neon")).toBe(true);
   }
   expect(mapAllowedForMode("ctf","emberhold")).toBe(false);
-  expect(roomCapacity("ffa",teamSizesForMap("emberhold","ffa").at(-1)!)).toBe(32);
-  expect(roomCapacity("gungame",teamSizesForMap("emberhold","gungame").at(-1)!)).toBe(32);
+  expect(roomCapacity("ffa",teamSizesForMap("emberhold","ffa").at(-1)!)).toBe(24);
+  expect(roomCapacity("gungame",teamSizesForMap("emberhold","gungame").at(-1)!)).toBe(24);
  });
  test("Blacksite mode caps and UI transitions agree",()=>{
   expect(teamSizesForMap("bunker","tdm")).toEqual([3,5]);expect(teamSizesForMap("bunker","ffa")).toEqual([3,4]);
@@ -51,7 +51,7 @@ describe("mode availability and spawn capacity",()=>{
     expect(teamSizesForMap(id,"tdm")).toEqual([5,7,9,16]);
     expect(teamSizesForMap(id,"ffa")).toEqual([5,7,9,16]);
     expect(recommendedTeamSize(id,"tdm")).toBe(9);
-    expect(recommendedTeamSize(id,"ffa")).toBe(7);
+    expect(recommendedTeamSize(id,"ffa")).toBe(9);
   }
   expect(teamSizesForMap("floodgate","tdm")).toEqual([5,7,9,16]);
   expect(recommendedTeamSize("floodgate")).toBe(7);
@@ -66,7 +66,10 @@ describe("mode availability and spawn capacity",()=>{
    const map=makeEnvironmentMap(getMap(base.id,mode)),max=teamSizesForMap(map.id,mode).at(-1)!;
    for(const team of mode==="ffa"||mode==="gungame"?["ffa"] as const:["red","blue"] as const){
     const safe=map.spawns[team].filter(p=>spawnClear(map,p)),count=new Set(safe.map(p=>p.join(","))).size;
-    if(count<(team==="ffa"?max*2:max))throw Error(`${map.id}/${mode}/${team}: only ${count} safe spawns`);
+    if(count<(team==="ffa"?max*2:max)){
+     const unsafe=map.spawns[team].filter(p=>!spawnClear(map,p)).map(p=>p.join(",")).join("; ");
+     throw Error(`${map.id}/${mode}/${team}: only ${count} safe spawns; unsafe coordinates: ${unsafe || "none (duplicates)"}`);
+    }
    }
   }
  });
