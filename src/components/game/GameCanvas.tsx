@@ -90,6 +90,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         if (firingRange && h.radar) practiceObserver.current?.({
           x: h.radar.playerX, z: h.radar.playerZ, aiming: h.aiming,
           kills: h.kills, ammo: h.ammo, reloading: h.reloading, weaponId: h.weaponId,
+          equipmentCharges: h.equipmentCharges,
         });
       },
       onKillFeed: () => {},
