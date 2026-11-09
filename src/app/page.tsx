@@ -160,6 +160,9 @@ export default function Page() {
         weaponId: profile.loadout.weapon.id,
         perkId: profile.loadout.perkId,
         wonderWeaponId: profile.loadout.perkId === "wonder_weapon" ? profile.loadout.wonderWeaponId : undefined,
+        wonderModuleId: profile.loadout.wonderModuleId,
+        wonderSkinId: profile.loadout.wonderSkinId,
+        wonderKillEffectId: profile.loadout.wonderKillEffectId,
         secondaryWeaponId: profile.loadout.perkId === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
           ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
