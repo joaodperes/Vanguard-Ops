@@ -162,25 +162,49 @@ export function animatedSupportArm(
   forearmLength = SUPPORT_FOREARM_LENGTH,
 ): {shoulder: [number,number,number]; elbow: [number,number,number]} {
   const weight = Math.max(0,Math.min(1,actionWeight));
-  const dx = (wrist[0]-restWrist[0])*weight;
-  const dy = (wrist[1]-restWrist[1])*weight;
-  const dz = (wrist[2]-restWrist[2])*weight;
-  const clamp = (v:number,limit:number)=>Math.max(-limit,Math.min(limit,v));
-  const shoulder: [number,number,number] = [
-    frame.shoulder[0] + clamp(dx*.25,.08),
-    frame.shoulder[1] + clamp(dy*.28,.065),
-    frame.shoulder[2] + clamp(dz*.32,.12),
+  // The renderer has already blended the wrist to the rest grip. Applying
+  // actionWeight again froze most of the shoulder motion on shell reloads.
+  const follow=Math.min(1,weight*3);
+  const dx=(wrist[0]-restWrist[0])*follow;
+  const dy=(wrist[1]-restWrist[1])*follow;
+  const dz=(wrist[2]-restWrist[2])*follow;
+  const clamp=(v:number,limit:number)=>Math.max(-limit,Math.min(limit,v));
+  const shoulder:[number,number,number]=[
+    frame.shoulder[0]+clamp(dx*.42,.11),
+    frame.shoulder[1]+clamp(dy*.42,.10),
+    frame.shoulder[2]+clamp(dz*.48,.17),
   ];
-  // A stable elbow hint tracks the wrist's reload motion at lower weight.
-  // Using only the static camera-space pole produced an almost motionless
-  // elbow even while the hand swept the Annihilator bolt.
-  const neutral = supportElbowPosition(frame.shoulder,restWrist,frame.pole,upperLength,forearmLength);
-  const hint: [number,number,number] = [
-    neutral[0]+dx*.55-shoulder[0],
-    neutral[1]+dy*.55-shoulder[1],
-    neutral[2]+dz*.55-shoulder[2],
+  const neutral=supportElbowPosition(frame.shoulder,restWrist,frame.pole,upperLength,forearmLength);
+  const hint:[number,number,number]=[
+    neutral[0]+dx*.70-shoulder[0],
+    neutral[1]+dy*.70-shoulder[1],
+    neutral[2]+dz*.70-shoulder[2],
   ];
   return {shoulder, elbow:supportElbowPosition(shoulder,wrist,hint,upperLength,forearmLength)};
+}
+
+/** Unified first-person arm frame derived from the weapon's actual rest
+ * grip, not a discontinuous receiver-length threshold or the on-screen
+ * position of the elbow. Camera-local -Z points toward the muzzle. */
+export function calibratedSupportArm(
+  category:string, nominalWrist:readonly [number,number,number],
+  aspect:number, intactShield=false,
+): {shoulder:[number,number,number];pole:[number,number,number];upperLength:number;forearmLength:number} {
+  const compact=category==="pistol"||category==="pdw"||category==="smg";
+  const launcher=category==="launcher";
+  const narrow=Math.max(0,Math.min(1,(1.1-aspect)/(1.1-9/16)));
+  if(intactShield)return {
+    shoulder:[-.50+.035*narrow,-.50,-.08],
+    pole:[-.65,-.20,.25],upperLength:.44,forearmLength:.52,
+  };
+  const depth=compact?.60:launcher?.72:.70;
+  const shoulderZ=Math.max(-.24,Math.min(.11,nominalWrist[2]+depth));
+  return {
+    shoulder:[(compact?-.34:-.36)+.02*narrow,-.49,shoulderZ],
+    pole:[-.55+.03*narrow,-.20,.30],
+    upperLength:compact?.40:launcher?.45:.42,
+    forearmLength:compact?.43:launcher?.54:.50,
+  };
 }
 
 /** Blend the shared support hand smoothly out of the grip and back after an
@@ -267,7 +291,9 @@ export function deployReleaseFraction(kind: DeployMotion): number {
 export function deployDurationMs(kind: DeployMotion): number {
   return kind === "place" ? 850 : kind === "aim" ? 590 : 670;
 }
-export function sampleReloadMotion(progress: number, kind: ReloadMotion): ActionPose {
+export function sampleReloadMotion(progress:number,kind:ReloadMotion,
+  shellContacts?:{pocket:readonly [number,number,number];port:readonly [number,number,number]},
+): ActionPose {
   const p = clamp01(progress);
   // 0-.18: lower weapon, .18-.40: extract, .40-.67: align fresh prop,
   // .67-.88: insert or close, .88-1: return to ready.
@@ -311,8 +337,10 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
     // as if multiple shells had been inserted without adding ammunition.
     // The shell visibly seats at ROUND_INSERT_FRACTION, from the shared
     // gameplay timing rule, so cosmetic and ammo state cannot drift.
-    const pocket: [number,number,number] = [-.23,-.47,.18];
-    const port: [number,number,number] = [-.015,-.20,-.12];
+    // The hand targets the actual gun's loading area and follows its rigid
+    // pitch/roll/translation; fixed camera-space shell ports broke shotguns.
+    const pocket:[number,number,number]=shellContacts?[...shellContacts.pocket]:[-.23,-.47,.18];
+    const port:[number,number,number]=shellContacts?[...shellContacts.port]:[-.015,-.20,-.12];
     const hand = p < .24 ? pocket
       : p < ROUND_INSERT_FRACTION ? mix(pocket,port,ease((p-.24)/(ROUND_INSERT_FRACTION-.24)))
       : mix(port,pocket,ease((p-ROUND_INSERT_FRACTION)/(1-ROUND_INSERT_FRACTION)));

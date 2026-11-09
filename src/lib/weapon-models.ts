@@ -128,14 +128,14 @@ export function firstPersonSupportGrip(id: string): [number, number, number] {
   if (!profile || ( !id.startsWith("sniper_") && profile.receiver[2] < .55 )
       || profile.magazine === "rocket" || id.startsWith("pistol_")) return original;
 
-  const [width, height, length] = profile.receiver;
-  // Move rearward from the handguard onto the receiver, not onto the trigger
-  // hand or beyond the rear of the gun. The palm is pressed against its side
-  // (negative X), at a height just below the bore.
+  const [width,height,length]=profile.receiver;
+  // The 15%-receiver contact put hands much too close to the trigger and
+  // made the forearm appear missing on long DMRs, LMGs and snipers.
+  // Support the forward third of the receiver next to the handguard.
   return [
-    -Math.max(.105, width / 2 + .021),
-    -Math.max(.085, height * .42),
-    Math.max(original[2], -.12 - length * .15),
+    -Math.max(.105,width/2+.021),
+    -Math.max(.085,height*.42),
+    Math.max(original[2],-.12-length*.36),
   ];
 }
 
@@ -158,6 +158,24 @@ export function buildBastionIronSights(material: THREE.Material) {
   const front=new THREE.Mesh(new THREE.BoxGeometry(.009,.032,.012),material);
   front.name="bastion_front_blade";
   return {rear,front};
+}
+
+/** Per-model shotgun loading port and shell pocket, in viewmodel units.
+ * The same weapon pivot/rotation/translation is applied by the FPS renderer.
+ * Gameplay insertion time and incremental ammunition rules do not change. */
+export function firstPersonShellContacts(
+  id:string, scale=1.2,
+):{pocket:[number,number,number];port:[number,number,number]} {
+  const p=WEAPON_VISUALS[id]??WEAPON_VISUALS.shotgun_br;
+  const [w,h,l]=p.receiver;
+  const port:[number,number,number]=[
+    -Math.max(.105,w/2+.045)*scale,
+    -Math.max(.18,h*.78+.08)*scale,
+    (-.12+Math.min(.095,l*.18))*scale,
+  ];
+  return {port,pocket:[
+    port[0]-.18*scale,port[1]-.25*scale,port[2]+.27*scale,
+  ]};
 }
 
 export type WeaponPartAdder = (mesh: THREE.Object3D, x: number, y: number, z: number) => void;
