@@ -222,7 +222,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <Crosshair className="w-4 h-4 text-amber-400" />
           <h2 className="text-white font-bold tracking-wider uppercase text-sm">Current Loadout</h2>
           <span className="text-white/40 text-xs hidden sm:inline">
-            Choose Primary, Secondary, Melee, Tactical and Perk. Tactical stock refills on respawn.
+            Choose Primary, Secondary, Melee, Tactical and Perk. Tactical stock refills on respawn; Tactician also regenerates spent charges.
           </span>
         </div>
         <Button
