@@ -15,6 +15,7 @@ const SOFT: Partial<Record<BallisticMaterial, { resistance: number; retention: n
   light_cover: { resistance: 0.58, retention: 0.70 },
   sheet_metal: { resistance: 1.42, retention: 0.60 },
 };
+export { SOFT as MATERIAL_PENETRATION_RULES };
 export const MAX_PENETRATED_SURFACES = 2;
 const EPS = 1e-5;
 
