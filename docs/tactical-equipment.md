@@ -59,9 +59,11 @@ mines and bot-attributed kills.
 
 ## Combat tuning (November 2026)
 Frag has a 12-unit damaging blast (140 maximum, diminishing with distance),
-Flashbang covers 14 units and disorients/stuns for 1.4–3.6 seconds depending
-on distance. The HUD now renders the actual flash and control-impairment
-effects. Throwing Knives are direct-hit lethal against ordinary operators,
+Flashbang covers 14 units and causes a whiteout and reduced hearing for
+1.4–3.6 seconds depending on distance and line of sight. It never stuns: players
+retain movement, sprint, ADS, firing, reloading and tactical controls. Both
+audio engines are reduced and return to the chosen volume as the flash fades.
+Bots temporarily lose sight/hearing but continue navigating. Throwing Knives are direct-hit lethal against ordinary operators,
 including normal Survival enemies; Survival bosses resist instant takedowns.
 Proximity Mines activate only when an opponent enters 1.55 units in line of
 sight: exactly that triggering opponent receives a lethal direct hit, while
