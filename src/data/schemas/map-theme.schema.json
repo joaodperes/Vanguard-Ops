@@ -1,15 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Vanguard Ops biome theme",
   "type": "object",
-  "required": [
-    "biome",
-    "label",
-    "palette",
-    "ambient",
-    "vegetation",
-    "props"
-  ],
   "properties": {
     "biome": {
       "type": "string",
@@ -19,19 +10,12 @@
       "type": "string",
       "minLength": 1
     },
+    "inheritPropsFrom": {
+      "type": "string",
+      "minLength": 1
+    },
     "palette": {
       "type": "object",
-      "required": [
-        "floor",
-        "wall",
-        "cover",
-        "accent",
-        "platform",
-        "stair",
-        "sky",
-        "fog",
-        "grid"
-      ],
       "properties": {
         "floor": {
           "type": "string",
@@ -70,6 +54,17 @@
           "pattern": "^#[0-9a-fA-F]{6}$"
         }
       },
+      "required": [
+        "floor",
+        "wall",
+        "cover",
+        "accent",
+        "platform",
+        "stair",
+        "sky",
+        "fog",
+        "grid"
+      ],
       "additionalProperties": false
     },
     "ambient": {
@@ -85,13 +80,9 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "kind",
-          "x",
-          "z"
-        ],
         "properties": {
           "kind": {
+            "type": "string",
             "enum": [
               "tree",
               "bush",
@@ -153,6 +144,7 @@
             "pattern": "^#[0-9a-fA-F]{6}$"
           },
           "use": {
+            "type": "string",
             "enum": [
               "house",
               "cafe",
@@ -171,6 +163,7 @@
             ]
           },
           "shape": {
+            "type": "string",
             "enum": [
               "rect",
               "narrow",
@@ -178,6 +171,7 @@
             ]
           },
           "stairSide": {
+            "type": "string",
             "enum": [
               "east",
               "west"
@@ -187,6 +181,7 @@
             "type": "boolean"
           },
           "facade": {
+            "type": "string",
             "enum": [
               "brick",
               "stucco",
@@ -201,19 +196,283 @@
             "pattern": "^city:-?[0-9]+:-?[0-9]+$"
           },
           "turns": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 3
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              },
+              {
+                "type": "number",
+                "const": 3
+              }
+            ]
           }
         },
+        "required": [
+          "kind",
+          "x",
+          "z"
+        ],
         "additionalProperties": false
       }
     },
-    "inheritPropsFrom": {
-      "type": "string"
-    },
     "surfaces": {
       "type": "object",
+      "properties": {
+        "floor": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "textureId": {
+              "type": "string",
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
+            }
+          },
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "additionalProperties": false
+        },
+        "wall": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "textureId": {
+              "type": "string",
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
+            }
+          },
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "additionalProperties": false
+        },
+        "cover": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "textureId": {
+              "type": "string",
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
+            }
+          },
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "additionalProperties": false
+        },
+        "stair": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "textureId": {
+              "type": "string",
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
+            }
+          },
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "additionalProperties": false
+        },
+        "platform": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "metal",
+                "grate",
+                "planks",
+                "rust",
+                "moss",
+                "brick",
+                "stone",
+                "pavers",
+                "snow",
+                "asphalt",
+                "grass"
+              ]
+            },
+            "tileSize": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "textureId": {
+              "type": "string",
+              "enum": [
+                "kenney_01",
+                "kenney_04",
+                "kenney_06",
+                "kenney_08",
+                "kenney_10",
+                "kenney_13"
+              ]
+            }
+          },
+          "required": [
+            "pattern",
+            "tileSize",
+            "roughness"
+          ],
+          "additionalProperties": false
+        }
+      },
       "required": [
         "floor",
         "wall",
@@ -221,245 +480,17 @@
         "stair",
         "platform"
       ],
-      "properties": {
-        "floor": {
-          "type": "object",
-          "required": [
-            "pattern",
-            "tileSize",
-            "roughness"
-          ],
-          "properties": {
-            "pattern": {
-              "enum": [
-                "concrete",
-                "metal",
-                "grate",
-                "planks",
-                "rust",
-                "moss",
-                "brick",
-                "stone",
-                "pavers",
-                "snow",
-                "asphalt",
-                "grass"
-              ]
-            },
-            "tileSize": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 100
-            },
-            "roughness": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "textureId": {
-              "enum": [
-                "kenney_01",
-                "kenney_04",
-                "kenney_06",
-                "kenney_08",
-                "kenney_10",
-                "kenney_13"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "wall": {
-          "type": "object",
-          "required": [
-            "pattern",
-            "tileSize",
-            "roughness"
-          ],
-          "properties": {
-            "pattern": {
-              "enum": [
-                "concrete",
-                "metal",
-                "grate",
-                "planks",
-                "rust",
-                "moss",
-                "brick",
-                "stone",
-                "pavers",
-                "snow",
-                "asphalt",
-                "grass"
-              ]
-            },
-            "tileSize": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 100
-            },
-            "roughness": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "textureId": {
-              "enum": [
-                "kenney_01",
-                "kenney_04",
-                "kenney_06",
-                "kenney_08",
-                "kenney_10",
-                "kenney_13"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "cover": {
-          "type": "object",
-          "required": [
-            "pattern",
-            "tileSize",
-            "roughness"
-          ],
-          "properties": {
-            "pattern": {
-              "enum": [
-                "concrete",
-                "metal",
-                "grate",
-                "planks",
-                "rust",
-                "moss",
-                "brick",
-                "stone",
-                "pavers",
-                "snow",
-                "asphalt",
-                "grass"
-              ]
-            },
-            "tileSize": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 100
-            },
-            "roughness": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "textureId": {
-              "enum": [
-                "kenney_01",
-                "kenney_04",
-                "kenney_06",
-                "kenney_08",
-                "kenney_10",
-                "kenney_13"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "stair": {
-          "type": "object",
-          "required": [
-            "pattern",
-            "tileSize",
-            "roughness"
-          ],
-          "properties": {
-            "pattern": {
-              "enum": [
-                "concrete",
-                "metal",
-                "grate",
-                "planks",
-                "rust",
-                "moss",
-                "brick",
-                "stone",
-                "pavers",
-                "snow",
-                "asphalt",
-                "grass"
-              ]
-            },
-            "tileSize": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 100
-            },
-            "roughness": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "textureId": {
-              "enum": [
-                "kenney_01",
-                "kenney_04",
-                "kenney_06",
-                "kenney_08",
-                "kenney_10",
-                "kenney_13"
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "platform": {
-          "type": "object",
-          "required": [
-            "pattern",
-            "tileSize",
-            "roughness"
-          ],
-          "properties": {
-            "pattern": {
-              "enum": [
-                "concrete",
-                "metal",
-                "grate",
-                "planks",
-                "rust",
-                "moss",
-                "brick",
-                "stone",
-                "pavers",
-                "snow",
-                "asphalt",
-                "grass"
-              ]
-            },
-            "tileSize": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "maximum": 100
-            },
-            "roughness": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "textureId": {
-              "enum": [
-                "kenney_01",
-                "kenney_04",
-                "kenney_06",
-                "kenney_08",
-                "kenney_10",
-                "kenney_13"
-              ]
-            }
-          },
-          "additionalProperties": false
-        }
-      },
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "required": [
+    "biome",
+    "label",
+    "palette",
+    "ambient",
+    "vegetation",
+    "props"
+  ],
+  "additionalProperties": false,
+  "title": "Vanguard Ops biome theme"
 }
