@@ -35,7 +35,7 @@ import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type 
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
-import { TASER_STUN_MS, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -197,6 +197,7 @@ export interface HudState {
   equipmentCharges?: number;
   flashRemainingMs?: number;
   stunRemainingMs?: number;
+  taserRemainingMs?: number;
   weaponName: string;
   weaponId: string;
   alive: boolean;
@@ -959,10 +960,12 @@ export class FPSEngine {
   private equipmentFlashUntil = 0;
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
-  private equipmentStunUntil = 0;
+  private equipmentStunUntil = 0; // Full flash disruption only
+  private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
   private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
   private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number }>();
-  private botTacticalStunUntil = new Map<string,number>();
+  private botTacticalStunUntil = new Map<string,number>(); // Flash only
+  private botTacticalAdsBlockedUntil = new Map<string,number>(); // Taser only
   /** Arc/flash status visuals on affected opponents, disposed on expiry. */
   private tacticalStatusVisuals = new Map<string,{group:THREE.Group;expiresAt:number;effect:"stun"|"flash"}>();
   private tacticalBlastRings: {mesh:THREE.Mesh;born:number;duration:number;radius:number}[] = [];
@@ -4357,9 +4360,10 @@ export class FPSEngine {
           this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`,def.type==="knife");
           if(def.type==="poison" && hit.alive)this.poisonByVictim.set(hit.id,{expiresAt:performance.now()+4500,tickAt:performance.now()+500,weaponId:`equipment_${id}`});
           if(def.type==="taser" && hit.alive){
-            this.botTacticalStunUntil.set(hit.id,Math.max(this.botTacticalStunUntil.get(hit.id)??0,performance.now()+TASER_STUN_MS));
-            if(hit.ai){hit.ai.targetId=null;hit.ai.nextShotAt=performance.now()+TASER_STUN_MS;}
-            this.spawnTacticalStatusVisual(hit.id,"stun",TASER_STUN_MS);
+            const until=performance.now()+TASER_ADS_BLOCK_MS;
+            this.botTacticalAdsBlockedUntil.set(hit.id,Math.max(this.botTacticalAdsBlockedUntil.get(hit.id)??0,until));
+            if(hit.ai)hit.ai.aiming=false;
+            this.spawnTacticalStatusVisual(hit.id,"stun",TASER_ADS_BLOCK_MS);
           }
         }
       } else {
@@ -6002,6 +6006,7 @@ export class FPSEngine {
           this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
+          this.equipmentAdsBlockedUntil=0;this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
@@ -6091,6 +6096,7 @@ export class FPSEngine {
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
           this.refillAmmoOnRespawn(); this.buildViewmodel();
+          this.equipmentAdsBlockedUntil=0;this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
         }
         break;
       case "deathBomb":
@@ -6123,11 +6129,16 @@ export class FPSEngine {
         this.equipmentCharges = msg.remaining;
         break;
       case "equipmentStatus":
-        this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+msg.durationMs);
-        if(msg.effect==="flash")this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+msg.durationMs);
+        if(msg.effect==="flash"){
+          this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+msg.durationMs);
+          this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+msg.durationMs);
+        }else{
+          this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,performance.now()+msg.durationMs);
+          this.aiming=false;
+        }
         break;
       case "equipmentStatusFx":
-        this.spawnTacticalStatusVisual(msg.victimId,msg.effect,msg.durationMs);
+        this.spawnTacticalStatusVisual(msg.victimId,msg.effect==="taser"?"stun":"flash",msg.durationMs);
         break;
       case "equipmentFx": {
         if(msg.mineState==="placed" && msg.mineId){
@@ -6575,7 +6586,7 @@ export class FPSEngine {
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
-    this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
+    this.equipmentStunUntil=0;this.equipmentFlashUntil=0;this.equipmentAdsBlockedUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
@@ -7898,6 +7909,7 @@ export class FPSEngine {
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
       if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;
+        this.botTacticalAdsBlockedUntil.delete(c.id);
         const state=this.botTacticalState.get(c.id);
         if(state){state.charges=equipmentById(state.id).charges;state.nextAt=performance.now()+3500+Math.random()*2500;}
         this.botTacticalStunUntil.delete(c.id);
@@ -8855,7 +8867,9 @@ export class FPSEngine {
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
     const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
-    this.aiming = !this.equipmentAction && !this.reloading && wantsAds && (!this.sprinting || allowSprintAds);
+    this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
+      !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&
+      (!this.sprinting || allowSprintAds);
     if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
@@ -9864,7 +9878,7 @@ export class FPSEngine {
       const stance = botCombatDecision(w.category, dist, clearShot,
         reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty,ai.archetype);
       ai.sprinting = stance.sprinting;
-      ai.aiming = stance.aiming;
+      ai.aiming = stance.aiming && !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
       if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
         ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
         ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
@@ -10059,7 +10073,8 @@ export class FPSEngine {
       const dx=navPoint[0]-c.pos[0],dz=navPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
       const floorMismatch=Math.abs(navPoint[1]-c.pos[1])>1.15;
-      ai.aiming=ai.archetype==="marksman" && d<=2.5;
+      ai.aiming=ai.archetype==="marksman" && d<=2.5 &&
+        !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
       ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
       if(d<=1.5&&!floorMismatch){
         if(ai.investigationLookAt){
@@ -10299,13 +10314,15 @@ export class FPSEngine {
         if(nearest){
           this.damageFromOfflineBotTactical(bot,nearest.c,def.damage,id,def.type==="knife");
           if(def.type==="taser" && (nearest.c.id===this.selfId?this.alive:nearest.c.alive)){
-            const until=performance.now()+TASER_STUN_MS;
-            if(nearest.c.id===this.selfId)this.equipmentStunUntil=Math.max(this.equipmentStunUntil,until);
-            else {
-              this.botTacticalStunUntil.set(nearest.c.id,Math.max(this.botTacticalStunUntil.get(nearest.c.id)??0,until));
-              if(nearest.c.ai){nearest.c.ai.targetId=null;nearest.c.ai.nextShotAt=until;}
+            const until=performance.now()+TASER_ADS_BLOCK_MS;
+            if(nearest.c.id===this.selfId){
+              this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,until);
+              this.aiming=false;
+            }else{
+              this.botTacticalAdsBlockedUntil.set(nearest.c.id,Math.max(this.botTacticalAdsBlockedUntil.get(nearest.c.id)??0,until));
+              if(nearest.c.ai)nearest.c.ai.aiming=false;
             }
-            this.spawnTacticalStatusVisual(nearest.c.id,"stun",TASER_STUN_MS);
+            this.spawnTacticalStatusVisual(nearest.c.id,"stun",TASER_ADS_BLOCK_MS);
           }
           if(def.type==="poison"&&nearest.c.alive){
             const victimId=nearest.c.id,deathCount=this.deaths,victimDeaths=nearest.c.deaths;
@@ -10634,6 +10651,7 @@ export class FPSEngine {
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
       stunRemainingMs: Math.max(0,this.equipmentStunUntil-now),
+      taserRemainingMs: Math.max(0,this.equipmentAdsBlockedUntil-now),
       reloading: this.reloading,
       weaponName: weaponById(this.weaponId).name,
       weaponId: this.weaponId,

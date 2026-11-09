@@ -66,6 +66,9 @@ including normal Survival enemies; Survival bosses resist instant takedowns.
 Proximity Mines activate only when an opponent enters 1.55 units in line of
 sight: exactly that triggering opponent receives a lethal direct hit, while
 anyone else can take at most 38 splash damage within 2.4 units.
-Tasers deal 25 HP damage, interrupt all movement/firing for 2.4 seconds,
-and display electrical arcs and a status indicator. Third-person status cues
-are synchronized to every client, and effects are visible in offline practice.
+Tasers deal 25 HP damage and disable ADS for 2.4 seconds (movement, sprint,
+hip-fire, reload and other controls continue to function). The electric arcs
+stay visible on shocked opponents, while the victim sees a distinct ADS JAMMED
+status. Server checks ignore malicious ADS flags throughout the effect.
+Frag and other tactical kills retain the real thrower in kill feed and death
+screen, with correct tactical weapon names rather than environmental labels.

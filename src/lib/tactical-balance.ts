@@ -3,7 +3,11 @@
  */
 import { equipmentById } from "./equipment";
 
-export const TASER_STUN_MS = 2400;
+/** Taser jams precision aiming, without immobilizing or disarming the target. */
+export const TASER_ADS_BLOCK_MS = 2400;
+export function isTaserAdsBlocked(adsBlockedUntil:number,now:number):boolean {
+  return adsBlockedUntil>now;
+}
 export const MINE_TRIGGER_RADIUS = 1.55;
 export const MINE_SPLASH_RADIUS = 2.4;
 export const MINE_SPLASH_MAX_DAMAGE = 38;

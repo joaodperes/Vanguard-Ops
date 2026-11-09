@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {equipmentById} from "../src/lib/equipment";
-import {MINE_TRIGGER_RADIUS,MINE_SPLASH_RADIUS,TASER_STUN_MS,
+import {MINE_TRIGGER_RADIUS,MINE_SPLASH_RADIUS,TASER_ADS_BLOCK_MS,isTaserAdsBlocked,
   fragDamage,flashDurationMs,mineSplashDamage,tacticalDirectDamage} from "../src/lib/tactical-balance";
 describe("tactical rebalance",()=>{
  test("grenade and flash radii create impactful area control",()=>{
@@ -28,8 +28,12 @@ describe("tactical rebalance",()=>{
   expect(mineSplashDamage(2)).toBeLessThan(10);
   expect(mineSplashDamage(2.5)).toBe(0);
  });
- test("taser immobilizes and prevents firing long enough to be apparent",()=>{
-  expect(TASER_STUN_MS).toBe(2400);
+ test("taser only jams ADS for its active window; movement and hip-fire are not governed by it",()=>{
+  expect(TASER_ADS_BLOCK_MS).toBe(2400);
+  expect(isTaserAdsBlocked(2400,0)).toBe(true);
+  expect(isTaserAdsBlocked(2400,2399)).toBe(true);
+  expect(isTaserAdsBlocked(2400,2400)).toBe(false);
+  expect(isTaserAdsBlocked(0,2400)).toBe(false);
   expect(equipmentById("taser").damage).toBe(25);
  });
 });

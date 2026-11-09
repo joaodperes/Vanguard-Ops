@@ -7,6 +7,7 @@ import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
+import { deathCauseLabel } from "@/lib/death-cause";
 import { matchHudInfo } from "@/lib/match-hud";
 import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
@@ -189,6 +190,20 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                style={{textShadow:"0 0 12px rgba(40,210,255,.6)"}}>
             <Zap className="w-4 h-4 animate-pulse" />
             STUNNED · {Math.ceil((hud.stunRemainingMs??0)/1000)}S
+          </div>
+        </>
+      )}
+      {/* Taser disables only ADS. Keep the distinctive electric feedback while
+          movement, sprinting, reloads and hip-fire remain fully available. */}
+      {hud.alive && (hud.taserRemainingMs??0)>0 && (
+        <>
+          <div className="absolute inset-0 animate-pulse" style={{
+            boxShadow:"inset 0 0 95px 12px rgba(24,200,255,0.26)",
+          }} />
+          <div className="absolute left-1/2 top-[26%] -translate-x-1/2 flex items-center gap-2 rounded border border-cyan-300/70 bg-black/75 px-4 py-2 font-black tracking-[0.16em] text-cyan-200 text-sm"
+               style={{textShadow:"0 0 12px rgba(40,210,255,.5)"}}>
+            <Zap className="w-4 h-4 animate-pulse" />
+            TASERED · ADS JAMMED · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
           </div>
         </>
       )}
@@ -689,9 +704,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
               <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
               <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
-              <div className="text-amber-200 text-sm">{!WEAPONS.some(w=>w.id===hud.lastDeath!.weaponId)
-                ? "Environment: "+hud.lastDeath.weaponId.replace(/^(hazard_|env_)/,"").replaceAll("_"," ")
-                : weaponById(hud.lastDeath.weaponId).name}</div>
+              <div className="text-amber-200 text-sm">{deathCauseLabel(hud.lastDeath.weaponId)}</div>
               {hud.lastDeath.attachments.length>0 && <div className="text-white/60 text-xs mt-1">
                 {hud.lastDeath.attachments.map(id=>ATTACHMENTS.find(a=>a.id===id)?.name??id).join(" · ")}
               </div>}

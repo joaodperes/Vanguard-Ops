@@ -24,7 +24,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
-import { TASER_STUN_MS, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -253,7 +253,8 @@ interface Room {
   equipmentLastAt: Map<string, number>;
   equipmentBotNextAt: Map<string, number>;
   equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
-  equipmentStun: Map<string, number>;
+  equipmentStun: Map<string, number>; // Full flash disruption only
+  equipmentAdsBlockedUntil: Map<string,number>; // Taser: ADS-only restriction
   quickMeleeAt: Map<string, number>;
   throwingKnives: Map<string, ThrowingKnifeCharges>;
   /** Track accepted reload attempts for combat effects. */
@@ -477,7 +478,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -548,6 +549,8 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
   for (const [bid, b] of room.bots) {
     if (b.team === team) {
       room.bots.delete(bid);
+      room.equipmentStun.delete(bid);
+      room.equipmentAdsBlockedUntil.delete(bid);
       room.loadouts.delete(bid);
       room.equipmentBotNextAt.delete(bid);
       room.equipmentCharges.delete(bid);
@@ -647,7 +650,7 @@ function createLobbyRoom(
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentStun: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   rooms.set(id, room);
@@ -701,7 +704,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagDenials.clear();
   room.clusterVolleys.clear();
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
-  room.adsStartedAt.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
+  room.adsStartedAt.clear(); room.equipmentStun.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.survivalRanks.clear();room.survivalOffers.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
@@ -1098,9 +1101,15 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
           applyDamage(room,playerId,target,def.damage,false,`equipment_${def.id}`,false,def.type==="knife");
           if(target.alive && def.type==="poison")room.poison.set(target.id,{attackerId:playerId,weaponId:`equipment_${def.id}`,expiresAt:Date.now()+4500,tickAt:Date.now()+500});
           if(target.alive && def.type==="taser"){
-            room.equipmentStun.set(target.id,Math.max(room.equipmentStun.get(target.id)??0,Date.now()+TASER_STUN_MS));
-            io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"stun",victimId:target.id,durationMs:TASER_STUN_MS} as S2C);
-            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"stun",durationMs:TASER_STUN_MS} as S2C);
+            const blockedUntil=Date.now()+TASER_ADS_BLOCK_MS;
+            room.equipmentAdsBlockedUntil.set(target.id,Math.max(room.equipmentAdsBlockedUntil.get(target.id)??0,blockedUntil));
+            room.adsStartedAt.delete(target.id); // No stale ADS charge or Deadlock targeting
+            if(target.isBot){
+              const ai=room.bots.get(target.id)?.ai;
+              if(ai)ai.aiming=false;
+            }
+            io.to(room.id).emit("message",{t:"equipmentStatusFx",effect:"taser",victimId:target.id,durationMs:TASER_ADS_BLOCK_MS} as S2C);
+            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"taser",durationMs:TASER_ADS_BLOCK_MS} as S2C);
           }
         }
       } else {
@@ -1806,6 +1815,8 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     }
     room.lastDamagedAt.delete(p.id);
     p.alive = true;
+    room.equipmentStun.delete(p.id);
+    room.equipmentAdsBlockedUntil.delete(p.id);
     applyQueuedLoadout(room, p);
     refillPlayerWonderAmmo(room, p);
     // Death restores normal-mode knives, but never shortcuts Gun Game's recharge.
@@ -2600,7 +2611,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const stance=botCombatDecision(weapon.category,dist,clearShot,
       reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty,ai.archetype);
     ai.sprinting=stance.sprinting;
-    ai.aiming=stance.aiming;
+    ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
     if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
       ai.envJumpVelocityY===undefined&&botHasJumpClearance(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
@@ -2788,7 +2799,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const dx=navPoint[0]-bot.pos[0],dz=navPoint[2]-bot.pos[2];
     const d=Math.hypot(dx,dz);
     const floorMismatch=Math.abs(navPoint[1]-bot.pos[1])>1.15;
-    ai.aiming = ai.archetype === "marksman" && d <= 2.5;
+    ai.aiming = ai.archetype === "marksman" && d <= 2.5 &&
+      !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
     ai.sprinting=botPatrolSprint(d,ai.difficulty,ai.archetype);
     if(d<=1.5&&!floorMismatch){
       if(ai.investigationLookAt){
@@ -3214,16 +3226,18 @@ async function handle(socket: any, msg: C2S) {
        }
       }
       room.lastMotionAt.set(socket.id,moveNow);
-      if(msg.aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
+      const canAds=!isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(socket.id)??0,moveNow);
+      const aiming=canAds && !!msg.aiming;
+      if(aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
       room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
-      p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && !!msg.aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;
+      p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;
       // Server-owned Deadlock tags: ADS continuously acquires up to three
       // exposed opponents; markers survive releasing ADS for 4.5 seconds.
       if(p.weaponId==="wonder_deadlock"){
         const prev=(room.smartTags.get(socket.id)??[]).filter(t=>t.expiresAt>moveNow);
-        if(msg.aiming && moveNow-(room.adsStartedAt.get(socket.id)??moveNow)>=250){
+        if(aiming && moveNow-(room.adsStartedAt.get(socket.id)??moveNow)>=250){
           const cp=Math.cos(p.pitch);
           const dir:Vec3=[Math.sin(p.yaw)*cp,Math.sin(p.pitch),Math.cos(p.yaw)*cp];
           const origin:Vec3=[p.pos[0],p.pos[1]+EYE_HEIGHT,p.pos[2]];
@@ -3678,7 +3692,8 @@ async function handle(socket: any, msg: C2S) {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
         const multiPelletShotgun = weapon.category === "shotgun" && !weapon.wonder && pellets > 1;
-        const shotgunAds = msg.aiming ?? room.adsStartedAt.has(socket.id);
+        const shotgunAds = !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(socket.id)??0,now) &&
+          (msg.aiming ?? room.adsStartedAt.has(socket.id));
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
             ? shotgunPelletDirection(shotDir, eff, shotgunAds)
