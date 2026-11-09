@@ -46,3 +46,60 @@ Do not rip audio from commercial games, video captures or YouTube. Do not commit
 ## Suggested reference asset workflow
 
 For a further CC0 recorded pass, expand the real samples to ARs, DMRs, snipers and LMGs using 2–4 individual takes per family, remove dead air, clean peaks, and export trimmed mono/stereo Opus or Ogg assets rather than shipping multi-megabyte WAV archives. Normalize for the **mix**, not maximum loudness; align attacks to trigger timing, then blend under the existing procedural layers. Retain a `source-license.json` manifest with source URL, author, exact license and file hashes. Validate visual/audio sync in automatic fire, suppressors and networked shots before release.
+
+## November 9 follow-up: weapon identity regressions
+
+The initial eight CC0 field recordings were routed too broadly. Reusing the whole
+7.62 mm recording across DMR, sniper and LMG classes made those weapons sound
+like rifle bursts; putting the same 9 mm report on both P-9 and high-calibre
+handguns erased their distinctiveness. Automatic fire stacked too many long
+samples, and Bullet Spitter firing events had no audio call.
+
+Changes in `dev`:
+
+- **DMR / sniper / Annihilator:** cap the 7.62 mm recording to its first
+  ~90–105 ms and locate the first waveform transient (skipping encoder silence).
+  Synthetic pressure, bolt/action and room tails are designed per category;
+  Annihilator gets a particularly long, low-frequency pressure pulse.
+  Gunfire sample playback is independent of the game's rounds-per-second.
+- **Pistols:** P-9 retains a short 9 mm report; Bastion revolver has a lower,
+  slower and distinctly mechanical hammer/body treatment; Magnum .50 instead
+  uses an isolated larger-calibre rifle transient, low-passed and combined
+  with a heavier synthetic hand-cannon report. The Magnum's sample is an
+  acoustic stand-in, not a claimed .50-calibre recording.
+- **LMGs:** source a short 5.56 mm first impulse, held at original recording
+  speed; cap the recorded layer at 55 ms and shorten the procedural report
+  to avoid overlap at 8–11 RPS. Leviathan has its own mechanical/low-end
+  signature rather than sounding like a faster assault rifle.
+- **Shotguns:** increase open broadband report and pressure pulse while keeping
+  the recorded direct sound; Mauler remains shorter/harder than Breacher.
+- **Bullet Spitter:** both offline turret attacks and online `turretFired`
+  events now emit a spatial, motorised `wonder_turret` audio profile.
+  Deployment remains a separate swap/mechanical cue; turret rounds are
+  intentionally not normal recorded rifle samples.
+
+**Limitations to listen for:** The rifle/DMR/sniper/LMG recordings remain
+derived from two edited rifle sources and use different single-impulse
+envelopes and synthesized mechanisms. Handgun variants also reuse some source
+material. Dedicated, vetted recordings per weapon model would be a further
+quality upgrade. Spatial reverb is map-wide, not room/occlusion driven.
+
+### Mandatory manual recheck
+
+1. Fire P-9, Bastion revolver and Magnum .50 side-by-side in the firing range.
+   Each should have an immediately recognizable report. Test unsuppressed and
+   suppressed.
+2. Fire Longshot, Scout Sniper and Annihilator once each; **one click must
+   produce one discharge**, never an unintended double/triple shot.
+3. Compare Scout/Marksman/Executioner DMR against assault rifles, including
+   single fire and sustained shots. Differentiate the impulse and mechanical
+   aftermath, not just the pitch.
+4. Hold fire with Hailstorm, Vanguard LSW and Leviathan for a full magazine.
+   No burst-like sample looping, apparent speed-up or accumulating distortion.
+5. Compare Breacher, Mauler and Wraith Auto at matched volume; sharp attack
+   plus a solid low-frequency impulse is required without masking other cues.
+6. Deploy Bullet Spitter against bots offline, then try online; turret fire
+   must be audible at reasonable distance, spatialized, and distinguishable
+   from the player's equipped weapon.
+7. Verify Firing Range, ADS, distance attenuation, high-player-count bots
+   and 16v16 Floodgate. Watch CPU spikes and dropped local gunshot voices.
