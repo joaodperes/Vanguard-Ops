@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveShotAcoustics, weaponAcousticSpace } from "../src/lib/weapon-audio";
+import { resolveShotAcoustics, weaponAcousticSpace, recordedFamilyFor } from "../src/lib/weapon-audio";
 import weapons from "../src/data/catalogs/weapons.json";
 
 describe("Weapon audio — gunshot dynamics", () => {
@@ -144,5 +144,17 @@ describe("Weapon audio — gunshot dynamics", () => {
       expect(shot.tailLevel).toBe(0);
     }
     expect(resolveShotAcoustics("dmr", { weaponId: "crossbow_reclaimer" }).mechanicalLevel).toBeGreaterThan(0);
+  });
+  test("recorded CC0 takes cover three ballistic weapon families without replacing Wonder Weapons", () => {
+    expect(recordedFamilyFor("pistol", "pistol_side")).toBe("p226");
+    expect(recordedFamilyFor("smg", "smg_kp")).toBe("mp5");
+    expect(recordedFamilyFor("pdw", "pdw_raptor")).toBe("mp5");
+    expect(recordedFamilyFor("shotgun", "shotgun_br")).toBe("sg");
+    expect(recordedFamilyFor("shotgun", "shotgun_combat")).toBe("sg");
+    expect(recordedFamilyFor("assault", "rifle_ar")).toBeNull();
+    expect(recordedFamilyFor("pistol", "pistol_arc")).toBeNull();
+    expect(recordedFamilyFor("dmr", "crossbow_reclaimer")).toBeNull();
+    expect(recordedFamilyFor("lmg", "wonder_hellfire")).toBeNull();
+    expect(recordedFamilyFor("melee", "knife_tactical")).toBeNull();
   });
 });
