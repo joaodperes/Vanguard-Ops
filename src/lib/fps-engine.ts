@@ -1,3 +1,4 @@
+import { blastCanDamage } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
 import {addOperativeSkinDetails} from "./operative-appearance";
@@ -4586,7 +4587,7 @@ export class FPSEngine {
       if(this.disposed || this.matchEnded)return;
       const impact=path.impact;
       const targets=[...this.combatants.values()].filter(c=>c.alive && c.id!==this.selfId &&
-        (this.opts.mode==="ffa" || c.team!==this.opts.team) &&
+        blastCanDamage(this.selfId,this.opts.team,c.id,c.team,this.opts.mode) &&
         !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
       if(def.type==="knife" || def.type==="poison" || def.type==="taser"){
         let first:{c:Combatant;index:number}|null=null;
@@ -7551,7 +7552,7 @@ export class FPSEngine {
               }
             }
             for(const target of this.combatants.values()){
-              if(!target.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              if(!target.alive||!blastCanDamage(v.ownerId,v.ownerTeam,target.id,target.team,this.opts.mode))continue;
               const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
               const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
               if(dmg<=0||!this.hasLineOfSight(point,center))continue;
@@ -9396,7 +9397,7 @@ export class FPSEngine {
           const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
           for (const c of this.combatants.values()) {
             if (!c.alive) continue;
-            if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+            if (!blastCanDamage(this.selfId,this.opts.team,c.id,c.team,this.opts.mode)) continue;
             const cx = c.pos[0], cy = c.pos[1] + PLAYER_HEIGHT / 2, cz = c.pos[2];
             // Project the combatant's center onto the trajectory segment.
             // t = clamp(dot(AP, AB) / dot(AB, AB), 0, 1) gives the closest point.
