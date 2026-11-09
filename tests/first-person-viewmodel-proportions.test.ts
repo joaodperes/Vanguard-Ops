@@ -180,7 +180,8 @@ describe("reload contacts stay on resized weapon geometry",()=>{
         // Check that the rest pose and moving target are both finite.
         const elbow=supportElbowPosition(joint.shoulder,wrist,joint.pole,
           joint.upperLength,joint.forearmLength);
-        expect(elbow.every(Number.isFinite)).toBe(true);
+        if(!elbow.every(Number.isFinite)) throw new Error(
+          `Invalid elbow: ${id} ${category} ${kind} frame=${step} target=${JSON.stringify(wrist.toArray())} shoulder=${JSON.stringify(joint.shoulder)} pole=${JSON.stringify(joint.pole)} elbow=${JSON.stringify(elbow)}`);
         if(last)maxStep=Math.max(maxStep,distance(last,elbow));
         last=elbow;
         expect(restWrist.toArray().every(Number.isFinite)).toBe(true);
