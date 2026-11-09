@@ -1,14 +1,12 @@
 import { WEAPON_OUTPUT_SCALE, createOutputPeakGuard } from "./audio-mix";
 
 /**
- * VANGUARD OPS – layered weapon audio (procedural fallback, no runtime downloads).
- * Transient / report / low body / action / room tail are separate controllable
- * layers, following standard game-audio design. Real CC0 samples may be added
- * as dedicated bundled assets later without changing the shot-event interface.
- *
- * Call `unlock()` during a user gesture (pointer/touch/keyboard). Then call
- * `play(category, { weaponId, suppressed })` when a shot is actually fired.
- * All audio is synthesized in the browser with Web Audio; no network downloads.
+ * VANGUARD OPS – recorded CC0 firearm reports plus procedural layers.
+ * Two near-field gunshot takes per conventional pistol, SMG/PDW and shotgun
+ * family are bundled locally. Ambient tail, mechanism and bass remain synthetic;
+ * all other categories and unavailable assets retain procedural fallback.
+ * Call `unlock()` on a browser gesture: the first shot works immediately and
+ * authentic reports begin after background decode completes.
  */
 
 export type WeaponAcousticSpace = "outdoor" | "urban" | "indoor";
@@ -22,6 +20,23 @@ export function weaponAcousticSpace(mapId: string): WeaponAcousticSpace {
 
 export type WeaponSoundCategory =
   | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "melee" | "launcher";
+
+type RecordedShotFamily = "p226" | "mp5" | "sg";
+const RECORDED_REPORTS: Record<RecordedShotFamily, readonly string[]> = {
+  p226: ["/audio/weapons/p226-report-0.wav.b64", "/audio/weapons/p226-report-1.wav.b64"],
+  mp5: ["/audio/weapons/mp5-report-0.wav.b64", "/audio/weapons/mp5-report-1.wav.b64"],
+  sg: ["/audio/weapons/sg-report-0.wav.b64", "/audio/weapons/sg-report-1.wav.b64"],
+};
+
+/** Model names are archetype labels, never claims that a given game gun is the recorded firearm. */
+export function recordedFamilyFor(category: WeaponSoundCategory, weaponId?: string): RecordedShotFamily | null {
+  if (weaponId?.startsWith("wonder_") ||
+    ["rifle_electron", "pistol_arc", "crossbow_reclaimer"].includes(weaponId ?? "")) return null;
+  if (category === "pistol") return "p226";
+  if (category === "smg" || category === "pdw") return "mp5";
+  if (category === "shotgun") return "sg";
+  return null;
+}
 
 interface SoundProfile {
   bodyHz: number;
@@ -227,6 +242,8 @@ export class WeaponAudio {
   private lastFlameHissAt = -Infinity; // prevent Web Audio overload during bot-heavy firefights
   private lastLocalTailAt = -Infinity; // first-person reflections outrank remote volleys
   private lastRemoteTailAt = -Infinity;
+  private recordingLoadStarted = false;
+  private recordings: Partial<Record<RecordedShotFamily, AudioBuffer[]>> = {};
   private disposed = false;
 
   constructor(masterVolume = 70) {
@@ -238,6 +255,32 @@ export class WeaponAudio {
     if (this.ctx && this.output) {
       this.output.gain.setTargetAtTime((this.volume / 100) * WEAPON_OUTPUT_SCALE, this.ctx.currentTime, 0.012);
     }
+  }
+
+  /** Decode tiny, locally served CC0 reports exactly once per active sound context.
+   * No shot ever blocks on fetch/decode; failed files transparently use synthesis. */
+  private async loadRecordings(ctx: AudioContext): Promise<void> {
+    await Promise.all((Object.entries(RECORDED_REPORTS) as [RecordedShotFamily, readonly string[]][])
+      .map(async ([family, paths]) => {
+        const buffers = await Promise.all(paths.map(async (path): Promise<AudioBuffer | null> => {
+          try {
+            const response = await fetch(path, { cache: "force-cache" });
+            if (!response.ok) return null;
+            const encoded = (await response.text()).replace(/\s/g, "");
+            // The repository stores these as ASCII base64 WAVs, keeping the original
+            // CC0 samples lossless without relying on binary GitHub connector writes.
+            const raw = atob(encoded);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            return await ctx.decodeAudioData(bytes.buffer);
+          } catch {
+            return null;
+          }
+        }));
+        if (!this.disposed && this.ctx === ctx) {
+          this.recordings[family] = buffers.filter((buffer): buffer is AudioBuffer => buffer !== null);
+        }
+      }));
   }
 
   /** Invoke from a genuine browser user interaction to permit Web Audio output. */
@@ -267,6 +310,10 @@ export class WeaponAudio {
         this.noiseBuffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
         const samples = this.noiseBuffer.getChannelData(0);
         for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+        if (!this.recordingLoadStarted) {
+          this.recordingLoadStarted = true;
+          void this.loadRecordings(this.ctx);
+        }
       } catch {
         this.ctx = null; // Audio not supported or blocked; gameplay must continue.
         this.output = null;
@@ -356,13 +403,33 @@ export class WeaponAudio {
       gain.gain.exponentialRampToValueAtTime(.0001, start + length);
     };
 
+    // A sampled near-field report carries the complex real muzzle transient.
+    // Lower the old synthetic transient/report rather than piling two blasts
+    // together. Mechanism, weight, and spatial reflection remain distinct.
+    const family = recordedFamilyFor(category, options.weaponId);
+    const takes = family && !suppressed && (options.distance === undefined || options.distance < 45)
+      ? this.recordings[family] : undefined;
+    const recorded = takes?.length ? takes[Math.floor(Math.random() * takes.length)] : null;
+    const proceduralBlend = recorded ? .28 : 1;
+    if (recorded) {
+      const sample = ctx.createBufferSource();
+      sample.buffer = recorded;
+      sample.playbackRate.value = pitch * (.99 + Math.random() * .02);
+      const sampleGain = ctx.createGain();
+      sampleGain.gain.value = level * .78;
+      sample.connect(sampleGain).connect(destination);
+      track(sample, [sample, sampleGain]);
+      sample.start(now);
+      sample.stop(now + Math.min(.48, recorded.duration / sample.playbackRate.value));
+    }
+
     // Caliber body: audible mid/low sweep rather than just a sine-like bass tone.
     const body = ctx.createOscillator();
     const bodyGain = ctx.createGain();
     body.type = profile.bodyType;
     body.frequency.setValueAtTime(profile.bodyHz * pitch, now);
     body.frequency.exponentialRampToValueAtTime(Math.max(22, profile.bodyEndHz * pitch), now + bodyTime);
-    shape(bodyGain, profile.bodyLevel * level * .80, .0015, bodyTime);
+    shape(bodyGain, profile.bodyLevel * level * .80 * (recorded ? .62 : 1), .0015, bodyTime);
     body.connect(bodyGain).connect(destination);
     track(body, [body, bodyGain]);
     body.start(now);
@@ -378,7 +445,7 @@ export class WeaponAudio {
     if (category === "melee") filter.frequency.exponentialRampToValueAtTime(440 * pitch, now + noiseTime);
     else if (category === "sniper") filter.frequency.exponentialRampToValueAtTime(650 * pitch, now + noiseTime);
     const burstGain = ctx.createGain();
-    shape(burstGain, profile.noiseLevel * level * .75,
+    shape(burstGain, profile.noiseLevel * level * .75 * proceduralBlend,
       isFlame ? .09 : category === "melee" ? .037 : .0013, noiseTime);
     burst.connect(filter).connect(burstGain).connect(destination);
     track(burst, [burst, filter, burstGain]);
@@ -400,7 +467,7 @@ export class WeaponAudio {
       blastLow.frequency.value = Math.min(acoustics.blastLowpassHz, ctx.sampleRate * .43);
       blastLow.Q.value = .55;
       const blastGain = ctx.createGain();
-      shape(blastGain, acoustics.blastLevel * .72, .00035, acoustics.blastSeconds);
+      shape(blastGain, acoustics.blastLevel * .72 * proceduralBlend, .00035, acoustics.blastSeconds);
       blast.connect(blastHigh).connect(blastLow).connect(blastGain).connect(destination);
       track(blast, [blast, blastHigh, blastLow, blastGain]);
       blast.start(now, Math.random() * .11);
@@ -419,7 +486,7 @@ export class WeaponAudio {
       crackLow.type = "lowpass";
       crackLow.frequency.value = Math.min(12000, ctx.sampleRate * .43);
       const crackGain = ctx.createGain();
-      shape(crackGain, acoustics.crackLevel * .85, .0007, acoustics.crackSeconds);
+      shape(crackGain, acoustics.crackLevel * .85 * proceduralBlend, .0007, acoustics.crackSeconds);
       crack.connect(crackHigh).connect(crackLow).connect(crackGain).connect(destination);
       track(crack, [crack, crackHigh, crackLow, crackGain]);
       crack.start(now, Math.random() * .07);
@@ -434,13 +501,13 @@ export class WeaponAudio {
       const punchGain = ctx.createGain();
       punch.frequency.setValueAtTime(acoustics.punchHz * pitch * 1.30, now);
       punch.frequency.exponentialRampToValueAtTime(acoustics.punchHz * pitch * .72, now + acoustics.punchSeconds);
-      shape(punchGain, acoustics.punchLevel * .72, .002, acoustics.punchSeconds);
+      shape(punchGain, acoustics.punchLevel * .72 * (recorded ? .58 : 1), .002, acoustics.punchSeconds);
       punch.connect(punchGain).connect(destination);
       const bodyPunch=ctx.createOscillator(), bodyPunchGain=ctx.createGain();
       bodyPunch.type="triangle";
       bodyPunch.frequency.setValueAtTime(acoustics.punchHz*pitch*2.4,now);
       bodyPunch.frequency.exponentialRampToValueAtTime(acoustics.punchHz*pitch*1.4,now+acoustics.punchSeconds);
-      shape(bodyPunchGain,acoustics.punchLevel*.26,.001,acoustics.punchSeconds*.8);
+      shape(bodyPunchGain,acoustics.punchLevel*.26*(recorded ? .58 : 1),.001,acoustics.punchSeconds*.8);
       bodyPunch.connect(bodyPunchGain).connect(destination);
       track(bodyPunch,[bodyPunch,bodyPunchGain]);
       bodyPunch.start(now);bodyPunch.stop(now+acoustics.punchSeconds+.008);
@@ -460,7 +527,7 @@ export class WeaponAudio {
       reportHigh.type = "highpass";
       reportHigh.frequency.value = (category === "shotgun" || category === "sniper" ? 220 : 360) * pitch;
       const reportGain = ctx.createGain();
-      shape(reportGain, acoustics.reportLevel * .47, .0006, acoustics.reportSeconds);
+      shape(reportGain, acoustics.reportLevel * .47 * proceduralBlend, .0006, acoustics.reportSeconds);
       report.connect(reportHigh).connect(reportGain).connect(destination);
       track(report, [report, reportHigh, reportGain]);
       report.start(now, Math.random() * .14);
@@ -540,5 +607,6 @@ export class WeaponAudio {
     this.ctx = null;
     this.output = null;
     this.noiseBuffer = null;
+    this.recordings = {};
   }
 }
