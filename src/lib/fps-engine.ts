@@ -105,7 +105,7 @@ import {
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
-import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
+import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
@@ -7385,6 +7385,7 @@ export class FPSEngine {
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
       aiming:this.aiming,
+      environment: weaponAcousticSpace(this.map.id),
       suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
       volume: w.wonder?.kind==="flame" ? .47 : .9,
     });
@@ -7736,6 +7737,7 @@ export class FPSEngine {
       suppressed,
       distance,
       pan,
+      environment: weaponAcousticSpace(this.map.id),
       volume: 0.92,
     });
   }
