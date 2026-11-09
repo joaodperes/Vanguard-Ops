@@ -71,7 +71,7 @@ import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type Hig
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_ENTRANCE_Z, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "./firing-range";
+import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -4992,10 +4992,6 @@ export class FPSEngine {
       line.position.set(station.x,.058,RANGE_MATERIAL_SHOOT_Z);
       this.scene.add(line);
     }
-    this.addRangeStationSign("MATERIAL TESTS","GLASS / THIN WOOD",-12,3.05,RANGE_MATERIAL_ENTRANCE_Z,
-      "#76dbea",6.2);
-    this.addRangeStationSign("MATERIAL TESTS","LIGHT / METAL / CONCRETE",12,3.05,RANGE_MATERIAL_ENTRANCE_Z,
-      "#f0c18c",6.2);
     // Mark the firing line and fixed target distances without bullet-blocking cover.
     for (const z of [-28, -10, 1, 13, 25]) {
       const marker = new THREE.Mesh(new THREE.BoxGeometry(18, 0.025, 0.12),
