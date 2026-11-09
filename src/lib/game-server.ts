@@ -4051,27 +4051,53 @@ async function handle(socket: any, msg: C2S) {
   }
 }
 
-const globalAny = globalThis as unknown as { __vanguardGameServerStarted?: boolean };
+// The socket server survives Next.js dev hot updates. Keep a reference to the
+// actual listener so an updated module can replace the old protocol instead of
+// leaving a stale room-size validator running behind a refreshed UI.
+const globalAny = globalThis as unknown as {
+  __vanguardGameServerStarted?: boolean;
+  __vanguardGameServerInstance?: {
+    owner: typeof startGameServer;
+    shutdown: () => Promise<void>;
+  };
+  __vanguardGameServerErrorHooksInstalled?: boolean;
+  __vanguardGameServerSignalHooksInstalled?: boolean;
+};
 
-export function startGameServer(port = 3003) {
-  if (globalAny.__vanguardGameServerStarted) {
+export async function startGameServer(port = 3003) {
+  const previous = globalAny.__vanguardGameServerInstance;
+  if (previous) {
+    if (previous.owner === startGameServer || process.env.NODE_ENV !== "development") return;
+    console.info("[VANGUARD] Server module updated; replacing stale multiplayer listener.");
+    await previous.shutdown();
+  } else if (globalAny.__vanguardGameServerStarted) {
+    // A listener from a pre-hot-reload build cannot be shut down safely because
+    // it did not register a shutdown handle. A one-time process restart is needed.
+    console.warn("[VANGUARD] Multiplayer server was started by an older build. Restart the dev process to update room-size rules.");
     return;
   }
   globalAny.__vanguardGameServerStarted = true;
+  globalAny.__vanguardGameServerInstance = {
+    owner: startGameServer,
+    shutdown: () => new Promise<void>((resolve) => io.close(() => resolve())),
+  };
 
   // Install global safety nets so that NO single unexpected async error can
   // take down the whole Next.js process. These MUST be inside this function
   // (which is only called at runtime, not during build) so the Edge Runtime
   // static analyzer never sees `process.on` and flags the build.
-  try {
-    process.on("uncaughtException", (err) => {
-      console.error("[VANGUARD] Uncaught exception (suppressed to keep server alive):", err);
-    });
-    process.on("unhandledRejection", (reason) => {
-      console.error("[VANGUARD] Unhandled rejection (suppressed to keep server alive):", reason);
-    });
-  } catch {
-    // process.on may not be available in some environments — ignore.
+  if (!globalAny.__vanguardGameServerErrorHooksInstalled) {
+    try {
+      process.on("uncaughtException", (err) => {
+        console.error("[VANGUARD] Uncaught exception (suppressed to keep server alive):", err);
+      });
+      process.on("unhandledRejection", (reason) => {
+        console.error("[VANGUARD] Unhandled rejection (suppressed to keep server alive):", reason);
+      });
+      globalAny.__vanguardGameServerErrorHooksInstalled = true;
+    } catch {
+      // process.on may not be available in some environments — ignore.
+    }
   }
 
   // CRITICAL: Attach an error listener BEFORE calling listen().
@@ -4097,6 +4123,14 @@ export function startGameServer(port = 3003) {
   httpServer.listen(port, () => {
     console.info(`[VANGUARD] Game server listening on port ${port}`);
   });
-  process.on("SIGTERM", () => httpServer.close(() => process.exit(0)));
-  process.on("SIGINT", () => httpServer.close(() => process.exit(0)));
+  if (!globalAny.__vanguardGameServerSignalHooksInstalled) {
+    globalAny.__vanguardGameServerSignalHooksInstalled = true;
+    const stop = () => {
+      const active = globalAny.__vanguardGameServerInstance;
+      if (active) void active.shutdown().finally(() => process.exit(0));
+      else process.exit(0);
+    };
+    process.on("SIGTERM", stop);
+    process.on("SIGINT", stop);
+  }
 }
