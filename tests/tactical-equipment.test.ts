@@ -13,6 +13,10 @@ describe("tactical equipment loadout",()=>{
   expect(EQUIPMENT.every(e=>e.charges>0&&e.cooldownMs>0)).toBe(true);
   expect(equipmentById("untrusted").id).toBe("frag");
   expect(EQUIPMENT.map(e => e.unlockLevel)).toEqual([1,5,20,10,15,25]);
+  expect(equipmentById("taser").charges).toBe(3);
+  expect(equipmentById("knives").charges).toBe(2);
+  // All match, firing-range and bot refills should read the shared catalog.
+  expect(EQUIPMENT.filter(e => e.charges===3).map(e=>e.id).sort()).toEqual(["poison_dart","taser"]);
  });
  test("online match rejects an untrusted tactical item",()=>{
   const request={weaponId:"rifle_ar",secondaryWeaponId:"pistol_side",meleeWeaponId:"knife_tactical",
