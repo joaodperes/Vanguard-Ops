@@ -7374,7 +7374,7 @@ export class FPSEngine {
       this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
   }
-  private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"){
+  private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"|"ripper"|"seismic"|"cryo"){
     const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
     const mid=start.clone().lerp(end,.5);
     if(kind==="storm"){
@@ -7396,7 +7396,7 @@ export class FPSEngine {
     mid.y+=Math.min(2.5,start.distanceTo(end)*.055);
     const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(24);
     const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({color:0xff527f,transparent:true,opacity:.94}));
+      new THREE.LineBasicMaterial({color:kind==="ripper"?0xffb448:kind==="cryo"?0x80e8ff:kind==="seismic"?0xffaa66:0xff527f,transparent:true,opacity:kind==="seismic"?.7:.94}));
     this.scene.add(line);this.tracers.push({line,born:performance.now(),life:340});
   }
   /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
@@ -7535,6 +7535,41 @@ export class FPSEngine {
     const kind=w.wonder?.kind;
     const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
       (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
+    if(kind==="seismic"||kind==="cryo"){
+      const cryo=kind==="cryo",module=wonderModuleEffects(w.id,this.wonderModuleId);
+      const cosine=Math.cos((cryo?.45:.65)*module.radiusMul);
+      const end:Vec3=[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range];
+      this.spawnWonderBeam(origin,end,cryo?"cryo":"seismic");
+      for(const target of enemies()){
+        const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+        if(!wonderConeHit(origin,dir,point,this.eff.range,cosine)||!this.hasLineOfSight(origin,point))continue;
+        this.applyDamageLocal(target,this.eff.damage,false,w.id);
+        if(!target.alive)continue;
+        if(cryo)this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
+        else {
+          const next:Vec3=[target.pos[0]+dir[0]*3.3,target.pos[1],target.pos[2]+dir[2]*3.3];
+          if(!this.botMoveBlocked(target.pos,next,target.pos[1]))target.pos=next;
+        }
+      }
+      return;
+    }
+    if(kind==="ricochet"){
+      const module=wonderModuleEffects(w.id,this.wonderModuleId);
+      const visited=new Set<string>();
+      for(const segment of ripperSegments(origin,dir,this.map.cover,this.eff.range,module.targets||3)){
+        const vector:Vec3=[segment.to[0]-segment.from[0],segment.to[1]-segment.from[1],segment.to[2]-segment.from[2]];
+        const distance=Math.hypot(...vector);
+        if(distance<.05)continue;
+        const unit:Vec3=[vector[0]/distance,vector[1]/distance,vector[2]/distance];
+        this.spawnWonderBeam(segment.from,segment.to,"ripper");
+        for(const target of enemies()){
+          if(visited.has(target.id))continue;
+          const hit=rayCombatantHit(segment.from,unit,target.pos);
+          if(hit&&hit.t<=distance){visited.add(target.id);this.applyDamageLocal(target,this.eff.damage*segment.damageScale,hit.head,w.id);}
+        }
+      }
+      return;
+    }
     if(kind==="smart"){
       // All valid acquired targets are struck by the same smart volley, not
       // only the first marker. A single charge is still consumed per volley.
@@ -7726,7 +7761,11 @@ export class FPSEngine {
       if(now-this.lastMechPrimaryAt<1000/JUGGERNAUT_MINIGUN_RATE*.9)return;
       if(now-this.lastMechPrimaryAt>450)this.mechSpinAt=now;
       this.lastMechPrimaryAt=now;
-      if(now-this.mechSpinAt<tune.minigunSpinupMs)return;
+      if(now-this.mechSpinAt<tune.minigunSpinupMs){
+        if(this.opts.online){const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+          this.socket?.emit("message",{t:"mechShot",mode,origin,dir:this.aimDir(0)} as C2S);}
+        return;
+      }
       mech.minigunAmmo--;
     }else{
       const interval=1000/(isSwarm?JUGGERNAUT_SWARM_RATE:JUGGERNAUT_SHOTGUN_RATE);
