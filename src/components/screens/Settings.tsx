@@ -140,9 +140,6 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
               onChange={(v) => update({ scopeOverlay: v })}
             />
           </div>
-          <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200/80 leading-relaxed">
-            <span className="font-semibold text-amber-300">ADS trade-offs:</span> Aiming tightens bullet spread (uses the weapon&rsquo;s ADS-spread stat), halves recoil kick, zooms the view, and slows your movement. Higher-zoom sights (ACOG 4x, Hunter 6x) reduce mouse sensitivity for steadier aiming. Hipfire is faster but less accurate — especially while moving. Pick the rhythm that suits your weapon.
-          </div>
         </Section>
 
         {/* Master scales footsteps and sound effects independently. */}
