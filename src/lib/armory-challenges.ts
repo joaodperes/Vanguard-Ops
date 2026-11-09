@@ -288,7 +288,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
       barrel: ["bare_kills", "close_range_kills", "hipfire_kills", "ads_kills"],
       grip: ["hipfire_kills", "close_range_kills", "ads_kills", "bare_kills"],
-      magazine: ["kills", "ads_kills", "close_range_kills", "hipfire_kills", "comeback_kills", "bare_kills"],
+      magazine: ["ads_kills", "close_range_kills", "bare_kills", "hipfire_kills", "comeback_kills", "kills"],
     },
     dmr: {
       sight: ["long_range_kills", "ads_kills", "bare_kills", "comeback_kills"],
@@ -306,7 +306,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       sight: ["ads_kills", "bare_kills", "long_range_kills", "hipfire_kills"],
       barrel: ["bare_kills", "ads_kills", "long_range_kills", "multikill_kills"],
       grip: ["ads_kills", "multikill_kills", "long_range_kills", "bare_kills"],
-      magazine: ["kills", "multikill_kills", "ads_kills", "long_range_kills", "hipfire_kills"],
+      magazine: ["kills", "multikill_kills", "ads_kills", "long_range_kills", "long_range_kills"],
     },
     pistol: {
       sight: ["hipfire_kills", "ads_kills", "bare_kills", "close_range_kills"],
