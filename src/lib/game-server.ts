@@ -2955,8 +2955,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         for(const victim of allCombatants(room)){
           if(victim.id===p.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
           const target:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
-          if(inFlameCone(msg.origin,dir,target,eff.range)&&
-              wonderConeHit(msg.origin,dir,target,eff.range,Math.cos((module.radiusMul>1?1.25:.7)))&&hasLineOfSight(room,msg.origin,target))
+          if(wonderConeHit(msg.origin,dir,target,eff.range,Math.cos(70*Math.PI/180*module.radiusMul))&&
+              Math.abs(target[1]-msg.origin[1])<=2.3&&hasLineOfSight(room,msg.origin,target))
             applyDamage(room,p.id,victim,eff.damage,false,weapon.id);
         }
         // Flames remain airborne: no persistent ground fire or floor damage.
