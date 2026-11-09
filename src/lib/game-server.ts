@@ -2902,8 +2902,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   if (bot.ai.envJumpVelocityY !== undefined) {
     const dy = bot.ai.envJumpVelocityY;
-    const airborne=botAirStep(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos,
-      (bot.ai.envLaunchX ?? 0) / 20,dy / 20,(bot.ai.envLaunchZ ?? 0) / 20);
+    const launchDx=(bot.ai.envLaunchX ?? 0)/20,launchDz=(bot.ai.envLaunchZ ?? 0)/20;
+    const airCover=cityCoverAlong(room,bot.pos,
+      [bot.pos[0]+launchDx,bot.pos[1],bot.pos[2]+launchDz],2.5);
+    const airborne=botAirStep(airCover,bot.pos,launchDx,dy/20,launchDz);
     bot.pos=airborne.pos;
     bot.ai.envJumpVelocityY=airborne.hitCeiling?0:dy-22*orbitalGravity(room.map,bot.weaponId)/20;
     const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
