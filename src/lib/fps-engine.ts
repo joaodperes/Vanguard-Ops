@@ -476,6 +476,7 @@ interface Combatant {
   healthBar?: THREE.Mesh;
   healthBarBg?: THREE.Mesh;
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   bossCharge?: number;
   bossVisual?: SurvivalBossVisual;
   downed?:boolean;
@@ -5536,6 +5537,7 @@ export class FPSEngine {
         id, name: boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
         pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
+        eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
         weaponId: wid, weaponSkinId: "default", playerSkinId: boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation),
         kills: 0, deaths: 0, score: 0,
         ai,
@@ -6931,7 +6933,7 @@ export class FPSEngine {
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
-        bossMaxHealth:p.bossMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
+        bossMaxHealth:p.bossMaxHealth,eliteMaxHealth:p.eliteMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
       this.combatants.set(p.id, c);
@@ -6950,6 +6952,7 @@ export class FPSEngine {
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
     c.bossMaxHealth=p.bossMaxHealth;
+    c.eliteMaxHealth=p.eliteMaxHealth;
     c.bossCharge=p.bossCharge;
     c.downed=p.downed;
     c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;c.riotShieldReadyAt=p.riotShieldReadyAt;
@@ -9813,7 +9816,7 @@ export class FPSEngine {
         if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars;
         if (c.healthBar) {
           c.healthBar.visible = this.showHealthBars;
-          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? MAX_HEALTH)));
+          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? c.eliteMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
           (c.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x33dd66 : pct > 0.25 ? 0xffaa33 : 0xff3333);
