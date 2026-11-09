@@ -1357,6 +1357,9 @@ export interface LoadoutWire {
   perkId?: import("./perks").PerkId;
   /** Owned Wonder available only when the Wonder Weapon perk is equipped. */
   wonderWeaponId?: string;
+  wonderModuleId?: string;
+  wonderSkinId?: string;
+  wonderKillEffectId?: string;
   /** Persisted tactical selection; validated against the player's saved loadout. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
