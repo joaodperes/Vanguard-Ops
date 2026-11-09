@@ -57,3 +57,35 @@ Use the firing range on `dev`:
   remain unchanged, including destroyed-shield fallback.
 - Desktop and mobile, 60–110° FOV; check partial/aborted reload, weapon
   swap, sprint, recoil and equipment. Verify no teleport at action ends.
+
+
+## November 2026 — all-weapon support-arm calibration
+
+The earlier 0.55m receiver-length threshold selected discontinuous skeletal
+profiles for assault rifles, DMRs and LMGs with similar grip locations.
+Receiver-mounted sniper grips were also too close to the trigger.
+
+The current **`calibratedSupportArm`** derives shoulder depth from each
+weapon's *actual first-person support grip* at nominal hipfire, not an
+arbitrary weapon category/receiver breakpoint. Two-bone IK is shared across
+rifles, DMRs, LMGs, snipers and shotguns. Compact guns, launchers and an
+intact Bulwark use appropriate reach while retaining this common solver.
+
+The root shoulder follows the **already-blended** wrist movement; the prior
+code multiplied by actionWeight a second time, leaving most of the upper
+arm frozen during shell insertion. The elbow hint now follows the same
+animation path with stronger bounded shoulder motion.
+
+For shotguns, `firstPersonShellContacts` provides distinct loading-port and
+shell-pocket targets derived from receiver dimensions. The hand and prop
+are transformed by the same pitch/roll/pivot as the gun. The existing
+incremental per-round gameplay, interruption, timings and
+`ROUND_INSERT_FRACTION` are unchanged. Wraith Auto and Mauler CS retain
+their currently incremental reload behavior despite their stylized
+drum/box magazines; redesigning the magazine mechanics would be a
+separate gameplay/balance change.
+
+Regression checks now sample every modeled gun's rest geometry at desktop
+and touch viewports and representative entire reload cycles for every
+weapon category and reload style. This numerical verification does not
+replace in-game visual QA before promotion to main.
