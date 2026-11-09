@@ -1,7 +1,8 @@
 import {describe,expect,test} from "bun:test";
-import {MAP_LIST} from "../src/lib/game-protocol";
+import {MAP_LIST,PLAYER_HEIGHT,rayBox} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS} from "../src/lib/map-blueprints";
 import {makeEnvironmentMap} from "../src/lib/dynamic-environment";
+import {botGroundHeight,botMoveBlocked,botPositionEmbedded} from "../src/lib/bot-physics";
 import {botTraversableEdge,botNextWaypoint,botFloodFallbackWaypoint} from "../src/lib/bot-routing";
 import {
   FLOODGATE_SURGE_SECONDS,floodgateSurgeFront,floodgateWaterEffect,
@@ -90,6 +91,38 @@ describe("Floodgate hydraulic progression",()=>{
       expect(Math.max(...roof.map(b=>b.pos[1]+b.size[1]))).toBeCloseTo(FLOODGATE_ROOF_HEIGHT);
       // The continuation is physical, so bots and players can actually climb it.
       expect(botTraversableEdge([pillar.x,3.4,-49],pillar.x,-27,map.cover)).toBeCloseTo(FLOODGATE_ROOF_HEIGHT);
+    }
+  });
+
+  test("fallen roof stairs and bridge have real, shootable underpasses without losing climbable treads",()=>{
+    const map=makeEnvironmentMap(MAP_LIST.find(m=>m.id==="floodgate")!);
+    setFloodgateFreightStage(map,30);
+    for(const pillar of FLOODGATE_FREIGHT){
+      const prefix="floodgate-freight:"+pillar.id+":";
+      const roof=map.cover.filter(c=>c.environmentId?.startsWith(prefix+"roof-step-"));
+      const bridge=map.cover.find(c=>c.environmentId===prefix+"bridge")!;
+      expect(roof).toHaveLength(FLOODGATE_ROOF_STEPS);
+      expect(roof.every(c=>c.pos[1]-c.size[1]>PLAYER_HEIGHT)).toBe(true);
+      // Player-height underpass across the middle of the high flight.
+      const z=-39.5,from:[number,number,number]=[pillar.x-4,0,z];
+      const to:[number,number,number]=[pillar.x+4,0,z];
+      expect(botMoveBlocked(roof,from,to,0)).toBe(false);
+      expect(botPositionEmbedded(roof,[pillar.x,0,z])).toBe(false);
+      expect(botGroundHeight(roof,pillar.x,z,0)).toBe(0);
+      expect(roof.some(c=>rayBox([pillar.x-5,1.6,z],[1,0,0],c.pos,c.size)!==null)).toBe(false);
+      // The upper treads still collide with shots fired at deck height.
+      const middle=roof[Math.floor(roof.length/2)];
+      const top=middle.pos[1]+middle.size[1];
+      expect(rayBox([pillar.x-5,top-.06,middle.pos[2]],[1,0,0],middle.pos,middle.size)).not.toBeNull();
+      expect(botGroundHeight(roof,pillar.x,middle.pos[2],top-.25)).toBeCloseTo(top);
+      // Bridge used to be a solid 3.36-high block despite rendering as sheet metal.
+      expect(bridge.pos[1]-bridge.size[1]).toBeGreaterThan(PLAYER_HEIGHT);
+      expect(botMoveBlocked([bridge],[pillar.x-5,0,-59.3],[pillar.x+5,0,-59.3],0)).toBe(false);
+      expect(rayBox([pillar.x-5,1.6,-59.3],[1,0,0],bridge.pos,bridge.size)).toBeNull();
+      // The lower fallen container body remains visibly solid, so its
+      // corresponding low ramp is intentionally not an underpass.
+      expect(map.cover.filter(c=>c.environmentId?.startsWith(prefix+"step-"))
+        .every(c=>c.pos[1]-c.size[1]===0)).toBe(true);
     }
   });
 
