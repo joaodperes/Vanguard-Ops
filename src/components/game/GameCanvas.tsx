@@ -4,7 +4,7 @@ import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "
 import { teamSizeAllowed, type LoadoutWire, type GameMode, type MapId, type MapDef, type BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
-import { SURVIVAL_UPGRADES, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
+import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import type { PracticeSample } from "@/lib/tutorial";
 import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
@@ -356,7 +356,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
               <div>
                 <div className="mb-1 text-xs font-bold uppercase tracking-[.3em] text-amber-400">Survival · Wave {hud.survivalUpgradeOffer.wave} cleared</div>
                 <h2 className="text-2xl font-bold text-white sm:text-3xl">Choose your upgrade</h2>
-                <p className="mt-2 text-sm text-zinc-400">One pick per operative. Upgrades last for this run, and ranks never stop increasing.</p>
+                <p className="mt-2 text-sm text-zinc-400">One pick per operative. Upgrades last for this run; Self-Revive can only be picked once.</p>
               </div>
               <div className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
                 Next wave in <strong className="text-amber-300">{hud.survivalPrepLeft??0}s</strong>
@@ -372,6 +372,10 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
                     <span className="text-xs font-bold uppercase tracking-widest text-amber-400/80">{upgrade.rarity} · {upgrade.category}</span>
                     <span className="mt-4 text-xl font-bold text-white group-hover:text-amber-200">{upgrade.name}</span>
                     <span className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">{upgrade.description}</span>
+                    <span className="mt-3 rounded-md border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold leading-relaxed text-cyan-200">
+                      {survivalUpgradeValueText(id,hud.survivalUpgradeRanks??{})}
+                    </span>
+                    {id==="self_revive" && <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-purple-300">Boss exclusive · one-time pick</span>}
                     <span className="mt-4 text-xs font-semibold text-amber-300">Select rank {rank}</span>
                   </button>
                 );
