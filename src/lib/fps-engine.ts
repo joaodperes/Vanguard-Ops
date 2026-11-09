@@ -71,7 +71,7 @@ import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type Hig
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
+import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_ENTRANCE_Z, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -1092,6 +1092,7 @@ export class FPSEngine {
   // read the map/mode, and prepare before the action starts.
   private preMatchCountdown = 0;
   private rangeTimeSec = 0;
+  private rangeSignMeshes: THREE.Mesh[] = [];
   private static readonly PRE_MATCH_COUNTDOWN_SEC = 5;
 
   // ---- Per-kill difficulty tracking (for rewards scaling) ----
@@ -4902,6 +4903,32 @@ export class FPSEngine {
   /** Range dummies are regular hit-detectable combatants. Only scripted
    * side-to-side targets move; none shoot or award profile progression.
    */
+  /** Range-only billboard signs are visual: never inject collision into the
+   * bullet or player path, and always dispose their canvas textures on exit.
+   */
+  private addRangeStationSign(label:string,detail:string,x:number,y:number,z:number,color:string,width=5.6){
+    const canvas=document.createElement("canvas");
+    canvas.width=768;canvas.height=192;
+    const ctx=canvas.getContext("2d");
+    if(!ctx)return;
+    ctx.fillStyle="#0c1420";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle=color;ctx.fillRect(0,0,canvas.width,10);
+    ctx.strokeStyle=color;ctx.lineWidth=8;ctx.strokeRect(4,4,canvas.width-8,canvas.height-8);
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="#f2f7fa";ctx.font="bold 65px sans-serif";
+    ctx.fillText(label,canvas.width/2,72,canvas.width-52);
+    ctx.fillStyle=color;ctx.font="bold 34px sans-serif";
+    ctx.fillText(detail,canvas.width/2,149,canvas.width-48);
+    const texture=new THREE.CanvasTexture(canvas);
+    texture.colorSpace=THREE.SRGBColorSpace;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,1.4),
+      new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthWrite:false}));
+    mesh.position.set(x,y,z);
+    mesh.rotation.y=Math.PI; // face the shooter entering from negative Z
+    this.scene.add(mesh);
+    this.rangeSignMeshes.push(mesh);
+  }
+
   private setupFiringRangeTargets() {
     RANGE_TARGETS.forEach((point, i) => {
       const id = "range_target_" + i;
@@ -4936,6 +4963,35 @@ export class FPSEngine {
       track.position.set(target.center[0], 0.065, target.center[2]);
       this.scene.add(track);
     });
+    // Material stations occupy the two outer side corridors, not the center
+    // lane. Each has a real, respawning enemy target behind its sample panel,
+    // allowing damage comparison between normal ammo and Penetrator Rounds.
+    const materialColors:Record<string,string>={
+      glass:"#76dbea",thin_wood:"#d4a574",light_cover:"#dfc28c",
+      sheet_metal:"#a5bacc",concrete:"#f0a7a7",
+    };
+    for(const station of RANGE_MATERIAL_STATIONS){
+      const c:Combatant={
+        id:"range_material_target_"+station.id,
+        name:station.label+" · Test Dummy",
+        team:"red",isBot:true,isSelf:false,pos:[...station.target],
+        yaw:Math.PI,pitch:0,health:MAX_HEALTH,alive:true,
+        weaponId:"pistol_side",weaponSkinId:"default",playerSkinId:"red",
+        kills:0,deaths:0,score:0,
+      };
+      this.combatants.set(c.id,c);
+      this.addCombatantMesh(c);
+      this.addRangeStationSign(station.label,station.behavior,station.x,2.68,-.95,
+        materialColors[station.material]);
+      const line=new THREE.Mesh(new THREE.BoxGeometry(4.7,.025,.14),
+        new THREE.MeshBasicMaterial({color:new THREE.Color(materialColors[station.material])}));
+      line.position.set(station.x,.058,RANGE_MATERIAL_SHOOT_Z);
+      this.scene.add(line);
+    }
+    this.addRangeStationSign("MATERIAL TESTS","GLASS / THIN WOOD",-12,3.05,RANGE_MATERIAL_ENTRANCE_Z,
+      "#76dbea",6.2);
+    this.addRangeStationSign("MATERIAL TESTS","LIGHT / METAL / CONCRETE",12,3.05,RANGE_MATERIAL_ENTRANCE_Z,
+      "#f0c18c",6.2);
     // Mark the firing line and fixed target distances without bullet-blocking cover.
     for (const z of [-28, -10, 1, 13, 25]) {
       const marker = new THREE.Mesh(new THREE.BoxGeometry(18, 0.025, 0.12),
@@ -10868,6 +10924,14 @@ export class FPSEngine {
       knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
     }
     this.thrownKnives=[];
+    for(const mesh of this.rangeSignMeshes){
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      const material=mesh.material as THREE.MeshBasicMaterial;
+      material.map?.dispose();
+      material.dispose();
+    }
+    this.rangeSignMeshes=[];
     for(const item of this.ballisticParticles){
       this.scene.remove(item.mesh);item.mesh.geometry.dispose();(item.mesh.material as THREE.Material).dispose();
     }
