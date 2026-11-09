@@ -23,8 +23,10 @@ describe("material-based cover penetration",()=>{
       expect(weaponById(id).stats.coverPenetration).toBeGreaterThan(0);
     }
     for(const id of ["rifle_ar","pistol_side","smg_vector","shotgun_auto"]){
-      expect(weaponById(id).stats.coverPenetration ?? 0).toBe(0);
+      expect(weaponById(id).stats.coverPenetration).toBeGreaterThan(0);
     }
+    expect(weaponById("pistol_side").stats.coverPenetration)
+      .toBeLessThan(weaponById("rifle_ar").stats.coverPenetration ?? 0);
     expect(weaponById("sniper_heavy").stats.coverPenetration)
       .toBeGreaterThan(weaponById("dmr_cyclone").stats.coverPenetration ?? 0);
   });
@@ -37,7 +39,7 @@ describe("material-based cover penetration",()=>{
     expect(hits[0].damageScale).toBeGreaterThan(0);
     expect(hits[0].damageScale).toBeLessThan(.75);
     expect(selectMaterialPenetrationHits([hit("ahead",3),...targets],boxes,origin,dir,40,undefined,2)
-      .map(h=>h.target)).toEqual(["ahead"]); // no body penetration by default
+      .map(h=>h.target)).toEqual(["ahead","behind"]); // one shared budget covers both obstacles
   });
 
   test("thick and reinforced cover stay safe, including untagged walls, roofs and environment barriers",()=>{
@@ -97,8 +99,8 @@ describe("material-based cover penetration",()=>{
     const weapon=weaponById("rifle_ar");
     const base=computeEffectiveStats(weapon,flat);
     const round=computeEffectiveStats(weapon,{...flat,magazine:"mag_penetrator"});
-    expect(base.coverPenetration ?? 0).toBe(0);
-    expect(round.coverPenetration).toBeGreaterThan(0);
+    expect(base.coverPenetration).toBeCloseTo(1.0);
+    expect(round.coverPenetration).toBeCloseTo(1.6);
     expect(round.damage).toBeLessThan(base.damage);
     expect(round.bodyPenetration?.maxTargets).toBe(2);
     const heavy=weaponById("sniper_lr");
