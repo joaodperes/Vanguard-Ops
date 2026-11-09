@@ -4,7 +4,7 @@ import { ROUND_INSERT_FRACTION } from "./incremental-reload";
  * Timelines use elapsed time from an action's own start (never the weapon's
  * catalog reload time: recoverable bolts and active venting override it).
  */
-export type ReloadMotion = "magazine" | "shell" | "cylinder" | "side_bolt" | "bolt" | "vent";
+export type ReloadMotion = "magazine" | "shell" | "cylinder" | "cylinder_speedloader" | "side_bolt" | "bolt" | "vent";
 export type DeployMotion = "throw" | "place" | "aim";
 
 /** Cosmetic viewmodel swap only. Weapon readiness and Gun Game progression
@@ -253,6 +253,7 @@ export function reloadMotionFor(weaponId: string, category: string, special?: st
   if (special === "bolt") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
+  if (weaponId === "pistol_bastion") return "cylinder_speedloader";
   return "magazine";
 }
 export function equipmentMotionFor(id: string): DeployMotion {
@@ -317,6 +318,18 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
     const insert = ease((p-.24)/(ROUND_INSERT_FRACTION-.24));
     return {...empty,dip:-.10*weight,pitch:.33*weight,roll:-.16*weight,hand,prop:hand,
       handRoll:.24*(1-insert),propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
+  }
+  if (kind === "cylinder_speedloader") {
+    // Expose the swing-out cylinder, clear the empties, seat a loader, snap shut.
+    const cylinder: [number,number,number] = [-.095,-.13,-.19];
+    const pocket: [number,number,number] = [-.24,-.44,.16];
+    const hand = p < .23 ? mix(home,cylinder,ease(p/.23))
+      : p < .40 ? mix(cylinder,pocket,ease((p-.23)/.17))
+      : p < .70 ? mix(pocket,cylinder,ease((p-.40)/.30))
+      : mix(cylinder,home,ease((p-.70)/.30));
+    return {...empty,dip:-.10*weight,pitch:.22*weight,roll:-.40*weight,
+      hand,prop:[hand[0]-.018,hand[1]-.018,hand[2]-.045],
+      handRoll:.42*weight,propVisible:p>.39&&p<.74};
   }
   if (kind === "cylinder") {
     return {...empty,dip:-.11*weight,pitch:.30*weight,roll:-.35*weight,

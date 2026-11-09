@@ -1,4 +1,10 @@
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
+export const FAN_HAMMER_RATE_MULTIPLIER = 1.85;
+/** Fanning applies only to the Bastion's dedicated grip, never all revolvers. */
+export function isFanHammer(weaponId: string, grip: string | null | undefined): boolean {
+  return weaponId === "pistol_bastion" && grip === "grip_fan_hammer";
+}
+
 /** The Executioner and future en-bloc magazine weapons may only reload when empty. */
 export function canStartWeaponReload(stats: { reloadOnlyWhenEmpty?: boolean }, ammoInMag: number): boolean {
   return !stats.reloadOnlyWhenEmpty || ammoInMag <= 0;

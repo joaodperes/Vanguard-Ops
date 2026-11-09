@@ -48,7 +48,7 @@ import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER
 import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
-import { canStartWeaponReload } from "./weapon-mechanics";
+import { canStartWeaponReload, isFanHammer } from "./weapon-mechanics";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import {CoverSpatialIndex} from "./cover-spatial-index";
@@ -3228,7 +3228,10 @@ async function handle(socket: any, msg: C2S) {
       }
       room.lastMotionAt.set(socket.id,moveNow);
       const canAds=!isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(socket.id)??0,moveNow);
-      const aiming=canAds && !!msg.aiming;
+      const aimLoadout=room.loadouts.get(socket.id);
+      const aimGrip=aimLoadout?.secondaryWeaponId===p.weaponId
+        ? aimLoadout.secondaryAttachments?.grip : aimLoadout?.attachments?.grip;
+      const aiming=canAds && !!msg.aiming && !(room.mode!=="gungame" && isFanHammer(p.weaponId,aimGrip));
       if(aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
       room.sprintState.set(socket.id, !room.downed.has(socket.id) && !!msg.sprinting);
       p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;
@@ -3474,7 +3477,7 @@ async function handle(socket: any, msg: C2S) {
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
       let shotDir:Vec3=msg.dir;
-      if(weapon.stats.auto && !(weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1) && !weapon.wonder){
+      if(eff.auto && !(weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1) && !weapon.wonder){
         const previous=room.autoBloom.get(socket.id);
         const bloom=automaticBloom(previous?.weaponId===weapon.id?previous.value:0,
           eff.fireRate,now-(previous?.at??0));

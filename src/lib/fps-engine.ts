@@ -110,7 +110,7 @@ import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -3488,6 +3488,13 @@ export class FPSEngine {
     } else if (id === "shell") {
       add(new THREE.CylinderGeometry(.029,.029,.11,10),new THREE.MeshBasicMaterial({color:0xc75d32}),[0,0,0]);
       add(new THREE.CylinderGeometry(.030,.030,.023,10),amber,[0,-.067,0]);
+    } else if (id === "cylinder_speedloader") {
+      // Six aligned cartridges and their temporary loading collar.
+      add(new THREE.CylinderGeometry(.055,.055,.045,12),dark,[0,0,0]);
+      for(let i=0;i<6;i++){
+        const angle=2*Math.PI*i/6;
+        add(new THREE.CylinderGeometry(.012,.012,.078,8),amber,[.037*Math.cos(angle),.052,.037*Math.sin(angle)]);
+      }
     } else if (id === "cylinder") {
       add(new THREE.CylinderGeometry(.056,.056,.13,9),steel,[0,0,0]);
     } else {
@@ -3821,6 +3828,14 @@ export class FPSEngine {
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
+      if(p.obj.userData.fpRevolverCylinder && this.reloading && this.weaponId==="pistol_bastion"){
+        const fraction=Math.min(1,(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs));
+        const open=Math.max(0,Math.min(1,(fraction-.13)/.20));
+        const close=1-Math.max(0,Math.min(1,(fraction-.72)/.18));
+        const swing=Math.min(open,close);
+        p.obj.position.x-=.10*swing;
+        p.obj.rotateY(-.72*swing);
+      }
       p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }
     // Open iron and reflex frames remain physically visible in ADS.
@@ -8687,7 +8702,7 @@ export class FPSEngine {
     this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
       (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
-    this.sound.play("reload", { volume: 0.55 });
+    this.sound.play(this.weaponId==="pistol_bastion" ? "revolver_reload" : "reload", { volume: 0.55 });
     this.socket?.emit("message", { t: "reload" });
   }
 
@@ -8916,6 +8931,7 @@ export class FPSEngine {
       this.reloading = false;
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
       else this.ammoInMag = this.eff.magSize;
+      if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
       this.saveAmmoToSlot(this.currentSlot);
     }
     // A new trigger press interrupts an incremental reload as soon as there is
@@ -8934,7 +8950,8 @@ export class FPSEngine {
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
+    const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const wantsAds = !fanHammer && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
       !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&

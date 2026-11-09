@@ -91,6 +91,11 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
     noiseHz: 1950, noiseQ: 2.1, noiseSeconds: .055,
     bodyLevel: .22, noiseLevel: .18, bodyType: "triangle", filter: "bandpass",
   },
+  pistol_bastion: {
+    bodyHz: 184, bodyEndHz: 63, bodySeconds: .178,
+    noiseHz: 2750, noiseQ: .62, noiseSeconds: .135,
+    bodyLevel: .76, noiseLevel: .84, bodyType: "sawtooth", filter: "highpass",
+  },
   pistol_arc: {
     bodyHz: 1750, bodyEndHz: 145, bodySeconds: .115,
     noiseHz: 6200, noiseQ: 1.8, noiseSeconds: .14,
@@ -142,6 +147,7 @@ const SPECIAL_IMPACTS: Record<string, ImpactProfile> = {
   shotgun_combat:    { crackHz: 1800, crackSeconds: .014, crackLevel: 1.78, punchHz: 82, punchSeconds: .098, punchLevel: .62 },
   rifle_electron:     { crackHz: 3500, crackSeconds: .017, crackLevel: .32, punchHz: 115, punchSeconds: .080, punchLevel: .18 },
   crossbow_reclaimer: { crackHz: 2600, crackSeconds: .009, crackLevel: .12, punchHz: 105, punchSeconds: .045, punchLevel: .10 },
+  pistol_bastion:    { crackHz: 2050, crackSeconds: .024, crackLevel: 1.23, punchHz: 78, punchSeconds: .123, punchLevel: .62 },
   pistol_arc:        { crackHz: 4100, crackSeconds: .016, crackLevel: .44, punchHz: 125, punchSeconds: .055, punchLevel: .15 },
   wonder_hellfire:   { crackHz: 140, crackSeconds: .005, crackLevel: 0, punchHz: 80, punchSeconds: .005, punchLevel: 0 },
 };

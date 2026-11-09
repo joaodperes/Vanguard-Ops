@@ -63,7 +63,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   pistol_machine:  { receiver: [.105,.115,.29],guardLength:.13, barrelLength:.13, bore:.022, stock:"wire",      magazine:"straight", body:"block",features:["guard","rail"],signature:0xc85c5c },
   launcher_rocket: { receiver: [.23,.24,.61],  guardLength:.26, barrelLength:.70, bore:.115, stock:"none",      magazine:"rocket",   body:"block",features:["shield","carry","muzzle"],signature:0x93aa67 },
   pistol_ghost:    { receiver: [.087,.088,.18],guardLength:.04, barrelLength:.07,bore:.016, stock:"none",magazine:"grip",body:"slim",features:[],signature:0x8fe7bf },
-  pistol_bastion:  { receiver: [.115,.13,.30],guardLength:.07, barrelLength:.22,bore:.033, stock:"none",magazine:"grip",body:"angular",features:["brake","muzzle"],signature:0xcaa07a },
+  pistol_bastion:  { receiver: [.112,.12,.25],guardLength:.06, barrelLength:.23,bore:.034, stock:"none",magazine:"revolver",body:"tapered",features:["muzzle"],signature:0xcaa07a },
   pdw_mamba:       { receiver: [.112,.115,.25],guardLength:.075,barrelLength:.09,bore:.018, stock:"none",magazine:"straight",body:"ribbed",features:["vent","muzzle"],signature:0xd5db4a },
   pdw_sentinel:    { receiver: [.13,.125,.29],guardLength:.12, barrelLength:.13,bore:.026, stock:"wire",magazine:"straight",body:"block",features:["rail","guard"],signature:0x6fe2b7 },
   launcher_breach: { receiver: [.25,.22,.48],guardLength:.20, barrelLength:.46,bore:.105, stock:"none",magazine:"rocket",body:"angular",features:["shield","muzzle"],signature:0xb48b53 },
@@ -286,6 +286,11 @@ export function buildFirstPersonWeapon(
     head.rotation.x = -Math.PI/2;
     add(head, 0,.060,muzzle-.12);
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
+  } else if (id === "pistol_bastion") {
+    // Exposed hammer and ejector rod, not a semi-auto slide.
+    box(0,.11,c+l*.43,.048,.05,.038,metal);
+    tube(0,-.057,muzzle+.08,.009,.22,edge,8);
+    for(const side of [-1,1]) box(side*.048,-.086,c+.045,.012,.045,.09,edge);
   } else if (id === "pistol_arc") {
     const violet = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
     // Concentric emitter coils around an unmistakably wide front capacitor.
@@ -432,12 +437,19 @@ export function buildFirstPersonWeapon(
     }
     case "tube":tube(0,-.068,guardZ,.032,p.guardLength*.9,darkMat);break;
     case "revolver": {
-      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.11,12),sig);
-      drum.rotation.z=Math.PI/2;add(drum,0,-.034,c-.05);
+      // A grouped cylinder with six visible chambers can swing out as a unit.
+      const cylinder=new THREE.Group();
+      cylinder.userData.fpRevolverCylinder=id==="pistol_bastion";
+      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,.118,12),sig);
+      drum.rotation.z=Math.PI/2;cylinder.add(drum);
       for(let i=0;i<6;i++) {
-        const a=2*Math.PI*i/6;
-        tube(w*.55, -.034+.045*Math.sin(a),c-.05+.045*Math.cos(a),.010,.015,metal,6);
+        const angle=2*Math.PI*i/6;
+        const chamber=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.012,7),metal);
+        chamber.rotation.z=Math.PI/2;
+        chamber.position.set(.061,.045*Math.sin(angle),.045*Math.cos(angle));
+        cylinder.add(chamber);
       }
+      add(cylinder,0,-.034,c-.05);
       break;
     }
     case "grip":box(0,-.18,c+.08,.067,.18,.083,darkMat);break;

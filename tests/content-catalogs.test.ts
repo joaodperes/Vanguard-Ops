@@ -30,7 +30,7 @@ describe("JSON catalog contract", () => {
   });
   test("published JSON catalogs retain stable identifiers and expected content counts", () => {
     expect(WEAPONS.length).toBe(51);
-    expect(ATTACHMENTS.length).toBe(61);
+    expect(ATTACHMENTS.length).toBe(66);
     expect(WEAPON_SKINS.length).toBe(18);
     expect(PLAYER_SKINS.length).toBe(17);
     expect(WEAPON_CHALLENGES.length).toBe(189);

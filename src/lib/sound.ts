@@ -50,6 +50,8 @@ export type SfxName =
   | "headshot"
   | "kill"
   | "reload"
+  | "revolver_reload"
+  | "revolver_close"
   | "death"
   | "level_up"
   | "wave_start"
@@ -302,6 +304,8 @@ export class SoundManager {
       case "headshot": this.synthHeadshot(vol); break;
       case "kill": this.synthKill(vol); break;
       case "reload": this.synthReload(vol); break;
+      case "revolver_reload": this.synthRevolverReload(vol); break;
+      case "revolver_close": this.synthRevolverClose(vol); break;
       case "death": this.synthDeath(vol); break;
       case "level_up": this.synthLevelUp(vol); break;
       case "wave_start": this.synthWaveStart(vol); break;
@@ -571,6 +575,19 @@ export class SoundManager {
     // and at a slightly higher pitch (3200Hz vs 2500Hz) for a distinct metal-
     // on-metal "clack" that separates it from the mag-in click.
     this.clickAt(t + 0.6, vol * 0.45, 3200, 0.025);
+  }
+
+  /** Cylinder unlock, empty-case rattle and speedloader seating, not a pistol slide. */
+  private synthRevolverReload(vol: number) {
+    const t = this.ctx!.currentTime;
+    this.clickAt(t, vol * .66, 1250, .070);
+    this.clickAt(t + .20, vol * .40, 3400, .026);
+    for (let i=0;i<4;i++) this.clickAt(t + .37 + i*.060, vol*.24, 2600+i*270, .020);
+  }
+  private synthRevolverClose(vol: number) {
+    const t=this.ctx!.currentTime;
+    this.clickAt(t,vol*.75,1450,.055);
+    this.clickAt(t+.037,vol*.37,3500,.018);
   }
 
   /** Short filtered-noise mechanical click. `freq` controls the highpass cutoff

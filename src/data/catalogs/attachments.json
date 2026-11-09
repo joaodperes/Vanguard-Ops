@@ -1260,5 +1260,97 @@
       "damage": -10,
       "reloadTime": 6
     }
+  },
+  {
+    "id": "grip_fan_hammer",
+    "name": "Fan the Hammer",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 570,
+    "description": "Bastion .45 only: hold fire to fan the hammer at +85% rate without ADS. Hipfire spread +140%, recoil +30%. A six-shot cylinder empties fast.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "spread": 140,
+      "recoil": 30
+    }
+  },
+  {
+    "id": "mag_rev_speedloader",
+    "name": "Revolver Speedloader",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 310,
+    "description": "Reload all six chambers together 26% faster. Does not add rounds.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "reloadTime": -26
+    }
+  },
+  {
+    "id": "mag_rev_match",
+    "name": "Match .45 Rounds",
+    "slot": "magazine",
+    "unlockLevel": 20,
+    "unlockCost": 370,
+    "description": "Tighter hipfire and aimed grouping at the cost of slower precision round handling.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "spread": -12,
+      "adsSpread": -18,
+      "reloadTime": 10
+    }
+  },
+  {
+    "id": "mag_rev_hollow",
+    "name": "Hollow-Point .45",
+    "slot": "magazine",
+    "unlockLevel": 22,
+    "unlockCost": 420,
+    "description": "Harder close-range hits at the cost of range and heavier recoil. Still six rounds.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "damage": 8,
+      "range": -18,
+      "recoil": 17
+    }
+  },
+  {
+    "id": "mag_rev_light",
+    "name": "Light .45 Loads",
+    "slot": "magazine",
+    "unlockLevel": 18,
+    "unlockCost": 280,
+    "description": "Reduced-charge rounds tame kick and improve handling but sacrifice stopping power.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "damage": -9,
+      "recoil": -22,
+      "moveSpeed": 3
+    }
   }
 ]

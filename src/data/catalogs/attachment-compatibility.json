@@ -120,5 +120,31 @@
       "mag_antimaterial_lightchamber",
       "mag_antimaterial_stabilizer"
     ]
+  },
+  "pistol_bastion": {
+    "sight": [
+      "sight_red_dot",
+      "sight_laser",
+      "sight_holo",
+      "sight_compact_reflex"
+    ],
+    "barrel": [
+      "barrel_ported",
+      "barrel_compensator",
+      "barrel_lightweight",
+      "barrel_heavy"
+    ],
+    "grip": [
+      "grip_fan_hammer",
+      "grip_precision",
+      "grip_angled",
+      "grip_laser"
+    ],
+    "magazine": [
+      "mag_rev_speedloader",
+      "mag_rev_match",
+      "mag_rev_hollow",
+      "mag_rev_light"
+    ]
   }
 }
