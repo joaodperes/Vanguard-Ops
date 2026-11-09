@@ -2087,6 +2087,16 @@ export class FPSEngine {
     });
   }
 
+  /** Play the sudden-death cue exactly once when overtime first begins.
+   * Online clients detect the authoritative snapshot transition; offline
+   * matches enter here when their local regulation timer expires in a tie. */
+  private beginCtfOvertime(): void {
+    if (this.ctfOvertime || this.matchEnded) return;
+    this.ctfOvertime = true;
+    this.ctfNotice = { label: "OVERTIME — NEXT CAPTURE WINS", at: performance.now() };
+    this.sound.play("overtime_start", { volume: .9 });
+  }
+
   private dropOfflineCtfCarrier(id: string, pos: Vec3): void {
     const flag = ctfDrop(this.ctfFlags, id, pos);
     if (flag) this.announceCtfEvent("drop", flag, id);
@@ -6153,7 +6163,8 @@ export class FPSEngine {
           // Snapshots update visuals only: discrete server events distinguish
           // capture, drop and return without a timing-dependent guess.
           this.ctfFlags = msg.ctfFlags;
-          this.ctfOvertime = !!msg.ctfOvertime;
+          if (msg.ctfOvertime) this.beginCtfOvertime();
+          else this.ctfOvertime = false;
         }
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
@@ -9121,7 +9132,7 @@ export class FPSEngine {
         if (this.timeLeft <= 0) {
           this.timeLeft = 0;
           if (this.opts.mode === "ctf" && this.teamScores.red === this.teamScores.blue)
-            this.ctfOvertime = true;
+            this.beginCtfOvertime();
           else this.finalizeMatchLocal();
         }
       }
@@ -10167,7 +10178,7 @@ export class FPSEngine {
         ? ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map,Date.now(),this.ctfOvertime)
         : null;
       const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map) : null;
       ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
