@@ -7,7 +7,7 @@ import {
   firstPersonSupportGrip,firstPersonShellContacts,
 } from "../src/lib/weapon-models";
 import {
-  calibratedSupportArm, supportElbowPosition,sampleReloadMotion,
+  calibratedSupportArm, animatedSupportArm, supportElbowPosition,sampleReloadMotion,
   supportActionWeight,
 } from "../src/lib/first-person-animation";
 import {placeFirstPersonActionTarget} from "../src/lib/first-person-action-target";
@@ -176,14 +176,19 @@ describe("reload contacts stay on resized weapon geometry",()=>{
         hand.lerp(restHand,1-blend);
         const wrist=hand.clone().add(cuff.clone().applyQuaternion(rotation));
         const restWrist=restHand.add(cuff.clone().applyQuaternion(rotation));
-        const joint=calibratedSupportArm(category,wristFor(id,category),16/9);
-        // Check that the rest pose and moving target are both finite.
-        const elbow=supportElbowPosition(joint.shoulder,wrist,joint.pole,
-          joint.upperLength,joint.forearmLength);
+        // Simulate the exact runtime: the arm solver receives two numeric
+        // wrist points (never a Three.Vector3) and follows shoulder motion.
+        const joints=animatedSupportArm(
+          frame,restWrist.toArray() as [number,number,number],
+          wrist.toArray() as [number,number,number],
+          blend,frame.upperLength,frame.forearmLength,
+        );
+        const elbow=joints.elbow;
         if(!elbow.every(Number.isFinite)) throw new Error(
-          `Invalid elbow: ${id} ${category} ${kind} frame=${step} target=${JSON.stringify(wrist.toArray())} shoulder=${JSON.stringify(joint.shoulder)} pole=${JSON.stringify(joint.pole)} elbow=${JSON.stringify(elbow)}`);
+          `Invalid elbow: ${id} ${category} ${kind} frame=${step} target=${JSON.stringify(wrist.toArray())} shoulder=${JSON.stringify(joints.shoulder)} elbow=${JSON.stringify(elbow)}`);
         if(last)maxStep=Math.max(maxStep,distance(last,elbow));
         last=elbow;
+        expect(joints.shoulder.every(Number.isFinite)).toBe(true);
         expect(restWrist.toArray().every(Number.isFinite)).toBe(true);
         expect(frame.forearmLength).toBeGreaterThan(.3);
       }
