@@ -68,34 +68,45 @@ export function weaponChallengeProgress(
  * All existing purchased skins remain owned, regardless of challenge updates.
  */
 function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): WeaponChallengeDef {
-  // A melee strike cannot count as a headshot mastery milestone.
-  // Preserve the historical challenge ID and target, but express it as
-  // achievable close-range knife eliminations for existing player progress.
-  if (weapon.category === "melee" && ch.metric === "headshots") {
-    return {...ch,metric:"close_range_kills",
-      description:`Get ${ch.goal} melee eliminations with the ${weapon.name} at 10m or closer.`};
-  }
-  // Preserve the full hand-authored melee Carbon milestone after migrating
-  // the old impossible headshot requirement; don't rewrite to a generic
-  // hip-fire challenge or silently shrink its goal.
-  if (weapon.category==="melee" && ch.metric==="close_range_kills" &&
-      ch.id.includes("_hs_")) {
-    return {...ch,description:`Get ${ch.goal} close-range eliminations with the ${weapon.name}.`};
-  }
-    if (ch.metric === "headshots" && ch.skinId !== "gold") return ch;
+
   const category = weapon.category;
   const equipped = weaponAttachmentSlots(weapon).length > 0;
   const ranged = category === "sniper" || category === "dmr";
   const cqc = category === "shotgun" || category === "melee";
-  const mobile = category === "smg" || category === "pistol" || category === "pdw";
+  const mobile = category === "smg" || category === "pdw";
+
+  // Splash and melee kills cannot be headshots. Pellet headshot finishes are
+  // inconsistent enough that they should not gate a shotgun cosmetic either.
+  // Keep authored challenge IDs/goals and all previously purchased cosmetics.
+  if (ch.metric === "headshots" && ch.skinId !== "gold") {
+    if (category === "melee" || category === "shotgun" || category === "launcher") {
+      const replacement: WeaponConditionMetric = category === "melee" ? "close_range_kills"
+        : category === "shotgun" ? "ads_kills" : "multikill_kills";
+      const condition = category === "melee" ? "at 10m or closer"
+        : category === "shotgun" ? "while aiming down sights"
+        : "as part of a multi-kill (within 5 seconds)";
+      return { ...ch, metric: replacement,
+        description: "Get " + ch.goal + " kills with the " + weapon.name + " " + condition + "." };
+    }
+    return ch;
+  }
+  if (category === "melee" && ch.metric === "close_range_kills" && ch.id.includes("_hs_")) {
+    return { ...ch, description: "Get " + ch.goal + " close-range eliminations with the " + weapon.name + "." };
+  }
+  // Precision rifles never require hipfire or airborne eliminations. SMGs
+  // reward mobility, shotguns close quarters, and launchers splash multi-kills.
   const choice: Record<string, WeaponConditionMetric> = {
     arctic: ranged ? "long_range_kills" : cqc ? "close_range_kills" : mobile ? "airborne_kills" : "comeback_kills",
     crimson: equipped ? "bare_kills" : "multikill_kills",
     emerald: cqc ? "close_range_kills" : category === "assault" && compatibleAttachments(weapon.id, "barrel").includes("barrel_suppressor") ? "suppressed_kills" : "ads_kills",
-    carbon: ranged ? "long_range_kills" : "hipfire_kills",
-    neon: mobile ? "airborne_kills" : ranged ? "long_range_kills" : cqc ? "critical_health_kills" : "hipfire_kills",
+    carbon: ranged ? "long_range_kills" : category === "shotgun" ? "ads_kills" : category === "launcher" ? "multikill_kills" : "hipfire_kills",
+    neon: ranged ? "critical_health_kills" : category === "melee" ? "comeback_kills"
+      : category === "shotgun" ? "hipfire_kills" : mobile ? "airborne_kills"
+      : category === "launcher" || category === "lmg" ? "multikill_kills"
+      : category === "pistol" ? "comeback_kills" : "hipfire_kills",
     inferno: equipped ? "fully_equipped_kills" : "multikill_kills",
-    gold: ranged ? "long_range_kills" : cqc ? "multikill_kills" : equipped ? "fully_equipped_kills" : "bare_kills",
+    gold: ranged ? "long_range_kills" : cqc ? "close_range_kills"
+      : category === "launcher" ? "multikill_kills" : "fully_equipped_kills",
   };
   const metric = choice[ch.skinId];
   if (!metric) return ch;
@@ -118,22 +129,40 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     critical_health_kills: "while at 35 HP or lower",
     comeback_kills: "within 10 seconds of respawning",
   };
-  const goal = Math.max(5, Math.ceil(ch.goal * factors[metric]));
+  // Rare kill conditions are meaningful objectives, not most of the grind.
+  const factor = metric === "airborne_kills" ? .16
+    : metric === "critical_health_kills" ? .12
+    : metric === "comeback_kills" && (category === "melee" || category === "pistol") ? .16
+    : metric === "multikill_kills" && (category === "melee" || category === "launcher") ? .12
+    : factors[metric];
+  const goal = Math.max(5, Math.ceil(ch.goal * factor));
+
   if (ch.skinId === "gold") {
-    // Unlike a single 400-kill grind, final mastery asks the player to switch
-    // tactics: dedicated weapon configuration, opposite configuration, precision/mobility.
-    const second: WeaponConditionMetric = equipped ? "bare_kills" : "close_range_kills";
-    const third: WeaponConditionMetric = ranged ? "ads_kills"
-      : cqc ? "airborne_kills" : "hipfire_kills";
-    const requirements = [
-      { metric, goal },
-      { metric: second, goal: Math.max(10, Math.ceil(ch.goal * .16)) },
-      { metric: third, goal: Math.max(10, Math.ceil(ch.goal * .20)) },
-    ];
+    // Three varied but realistic mastery steps, including special treatment
+    // for weapons that cannot reliably jump-shoot or land headshots.
+    const steps: { metric: WeaponChallengeMetric; goal: number }[] =
+      category === "melee" ? [
+        { metric: "close_range_kills", goal: Math.max(15, Math.ceil(ch.goal * .55)) },
+        { metric: "comeback_kills", goal: Math.max(10, Math.ceil(ch.goal * .10)) },
+        { metric: "multikill_kills", goal: Math.max(5, Math.ceil(ch.goal * .06)) },
+      ] : category === "shotgun" ? [
+        { metric: "close_range_kills", goal: Math.max(10, Math.ceil(ch.goal * .55)) },
+        { metric: "bare_kills", goal: Math.max(10, Math.ceil(ch.goal * .16)) },
+        { metric: "ads_kills", goal: Math.max(10, Math.ceil(ch.goal * .16)) },
+      ] : category === "launcher" ? [
+        { metric: "multikill_kills", goal: Math.max(5, Math.ceil(ch.goal * .08)) },
+        { metric: "bare_kills", goal: Math.max(10, Math.ceil(ch.goal * .16)) },
+        { metric: "ads_kills", goal: Math.max(10, Math.ceil(ch.goal * .20)) },
+      ] : [
+        { metric, goal },
+        { metric: equipped ? "bare_kills" : "close_range_kills", goal: Math.max(10, Math.ceil(ch.goal * .16)) },
+        { metric: ranged || category === "lmg" ? "ads_kills" : "hipfire_kills",
+          goal: Math.max(10, Math.ceil(ch.goal * .20)) },
+      ];
     return {
-      ...ch, metric, goal, requirements,
-      title: `${weapon.name} Complete Mastery`,
-      description: requirements.map(r => `${r.goal} kills ${circumstances[r.metric]}`).join("; ") + ".",
+      ...ch, metric: steps[0].metric, goal: steps[0].goal, requirements: steps,
+      title: weapon.name + " Complete Mastery",
+      description: steps.map(r => r.goal + " kills " + circumstances[r.metric as WeaponConditionMetric]).join("; ") + ".",
     };
   }
   return { ...ch, metric, goal,
