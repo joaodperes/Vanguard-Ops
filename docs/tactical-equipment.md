@@ -53,7 +53,7 @@ limited per-life charges, cooldowns, cover-aware trajectory planning,
 non-protected line-of-sight targets and friendly blast safeguards. Proximity
 mines are deliberately reserved for defensive situations. Gun Game bots do
 not receive a tactical slot; Survival bosses retain their unique boss ability.
-Online battles resolve damage, stun and explosions on the match server.
+Online battles resolve blast damage, flash visibility effects and ADS disruption on the match server.
 Offline matches simulate the same throw selection, including correctly owned
 mines and bot-attributed kills.
 
