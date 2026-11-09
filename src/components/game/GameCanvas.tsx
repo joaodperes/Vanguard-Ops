@@ -174,20 +174,29 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const lobbyActive = !!lobby?.active;
   const upgradePending=mode==="survival" && !!hud?.survivalUpgradeOffer &&
     !lobbyActive && !menuOpen && !hud?.matchEnding;
-  upgradePendingRef.current=upgradePending;
+  const upgradeWaiting=mode==="survival" && !hud?.survivalUpgradeOffer &&
+    !!hud?.survivalPaused && (hud?.survivalUpgradePendingCount??0)>0 &&
+    !lobbyActive && !menuOpen && !hud?.matchEnding;
+  upgradePendingRef.current=upgradePending||upgradeWaiting;
+  const wasUpgradeOverlayRef=useRef(false);
   useEffect(()=>{
-    if(upgradePending){
+    const showUpgradeOverlay=upgradePending||upgradeWaiting;
+    if(showUpgradeOverlay){
       pointerLockMenuStateRef.current=ignorePointerLockRelease(pointerLockMenuStateRef.current);
       engineRef.current?.setInputSuspended(true);
     }else if(!menuOpenRef.current){
-      // Also release input when a choice was auto-awarded at wave start.
       engineRef.current?.setInputSuspended(false);
+      if(wasUpgradeOverlayRef.current)engineRef.current?.resumePointerLock();
     }
-  },[upgradePending]);
+    wasUpgradeOverlayRef.current=showUpgradeOverlay;
+  },[upgradePending,upgradeWaiting]);
   const takeSurvivalUpgrade=(id:SurvivalUpgradeId)=>{
     engineRef.current?.chooseSurvivalUpgrade(id);
-    engineRef.current?.setInputSuspended(false);
-    engineRef.current?.resumePointerLock();
+    // Co-op stays frozen until the other player chooses or times out.
+    if(!online){
+      engineRef.current?.setInputSuspended(false);
+      engineRef.current?.resumePointerLock();
+    }
   };
   const openMenu = () => {
     if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready || upgradePendingRef.current) return;
@@ -199,6 +208,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     setMenuPage("main");
     setMenuOpen(true);
     engineRef.current?.setInputSuspended(true);
+    if(mode==="survival")engineRef.current?.setSurvivalMenuPaused(true);
   };
   const resumeGame = (restorePointerLock = true) => {
     menuOpenRef.current = false;
@@ -206,6 +216,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     setMenuPage("main");
     setMenuOpen(false);
     engineRef.current?.setInputSuspended(false);
+    if(mode==="survival")engineRef.current?.setSurvivalMenuPaused(false);
     // Pointer lock can be requested directly by the Resume button's click.
     // Escape is the browser's own unlock key: requesting a new lock during its
     // keydown can immediately release it again (and reopen the menu).
@@ -322,9 +333,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       )}
       {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !hud?.matchEnding && <TouchControls engine={engineInstance} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
-      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !upgradePending && !hud?.matchEnding && (
+      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
@@ -359,7 +370,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
                 <p className="mt-2 text-sm text-zinc-400">One pick per operative. Upgrades last for this run; Self-Revive can only be picked once.</p>
               </div>
               <div className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
-                Next wave in <strong className="text-amber-300">{hud.survivalPrepLeft??0}s</strong>
+                <strong className="text-amber-300">{hud.survivalUpgradeSecondsLeft!==undefined
+                  ? `${hud.survivalUpgradeSecondsLeft}s left`
+                  : "Game paused"}</strong>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
@@ -382,7 +395,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
               })}
             </div>
             <div className="mt-5 flex items-center justify-between gap-3 text-sm text-zinc-400">
-              <span>Unchosen offers automatically take the first option when the wave starts.</span>
+              <span>{online ? "After one player chooses, the other has 10 seconds; otherwise their first option is assigned." : "The next wave waits until you choose."}</span>
               <button type="button" disabled={hud.survivalUpgradeOffer.rerollsRemaining<=0}
                 onClick={()=>engineRef.current?.rerollSurvivalUpgrade()}
                 className="shrink-0 rounded-lg border border-white/20 px-4 py-2 font-semibold text-white transition-colors hover:border-amber-400 disabled:cursor-not-allowed disabled:opacity-40">
@@ -390,6 +403,17 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
               </button>
             </div>
           </section>
+        </div>
+      )}
+      {upgradeWaiting && (
+        <div className="absolute inset-0 z-[65] flex items-center justify-center bg-black/75 backdrop-blur-md">
+          <div className="rounded-2xl border border-amber-500/30 bg-zinc-950 p-8 text-center">
+            <h2 className="text-2xl font-bold text-white">Upgrade selected</h2>
+            <p className="mt-2 text-zinc-300">Waiting for your teammate to choose…</p>
+            {hud?.survivalUpgradeSecondsLeft!==undefined && (
+              <p className="mt-4 text-3xl font-black tabular-nums text-amber-300">{hud.survivalUpgradeSecondsLeft}s</p>
+            )}
+          </div>
         </div>
       )}
       {/* Room lobby overlay (pre-match). Shown when the engine reports the room

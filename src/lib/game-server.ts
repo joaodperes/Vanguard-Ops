@@ -1,3 +1,4 @@
+import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
 import { blastCanDamage } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical, type TacticalStock } from "./perks";
@@ -196,6 +197,9 @@ interface Room {
   downed: Set<string>;
   survivalRanks: Map<string, SurvivalUpgradeRanks>;
   survivalOffers: Map<string, SurvivalUpgradeOffer>;
+  survivalUpgradeDeadline: number | null;
+  survivalPauseStartedAt: number | null;
+  survivalMenuPaused: boolean;
   survivalSelfReviveUntil: Map<string, number>;
   survivalSelfReviveUsedWave: Map<string, number>;
   survivalRerolls: Map<string, number>;
@@ -472,7 +476,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 2 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
-    survivalRanks:new Map(), survivalOffers:new Map(), survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalUpgradeDeadline:null, survivalPauseStartedAt:null, survivalMenuPaused:false, survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: "Quick Match", hostName: "Server", hostSocketId: "",
     teamSize, fillWithBots: true, password: null, capacity,
     botDifficulty: "normal",
@@ -641,7 +645,7 @@ function createLobbyRoom(
     tick: null, respawnTimers: new Map(), chat: [],
     wave: 0, waveActive: false, prepLeft: isSurvival ? 2 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
-    survivalRanks:new Map(), survivalOffers:new Map(), survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalUpgradeDeadline:null, survivalPauseStartedAt:null, survivalMenuPaused:false, survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: cfg.roomName?.trim() || `${name}'s Room`,
     hostName: name, hostSocketId: socketId,
     teamSize, fillWithBots: cfg.fillWithBots, password: cfg.password || null,
@@ -715,7 +719,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
   room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
-  room.survivalRanks.clear();room.survivalOffers.clear();room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
+  room.survivalRanks.clear();room.survivalOffers.clear();room.survivalUpgradeDeadline=null;room.survivalPauseStartedAt=null;room.survivalMenuPaused=false;room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
   room.turrets.clear();
   room.gravityWells.clear();
@@ -862,6 +866,10 @@ function snapshot(room: Room): S2C {
     (base as any).reinforcements = room.reinforcements;
     (base as any).prepLeft = Math.max(0, Math.ceil(room.prepLeft));
     (base as any).survivalPlayerRanks = Object.fromEntries([...room.players.keys()].map(id=>[id,room.survivalRanks.get(id)??{}]));
+    (base as any).survivalPaused = survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused);
+    (base as any).survivalUpgradePendingCount = room.survivalOffers.size;
+    (base as any).survivalUpgradeSecondsLeft = room.survivalUpgradeDeadline===null
+      ? undefined : remainingSurvivalUpgradeSeconds(room.survivalUpgradeDeadline,Date.now());
   }
   // Include the pre-match countdown so the client can render the big "GET READY"
   // overlay + freeze local gameplay during the countdown.
@@ -2078,13 +2086,19 @@ function sendSurvivalOffer(room:Room, playerId:string) {
 function awardSurvivalUpgrade(room:Room,playerId:string,id:SurvivalUpgradeId) {
   const offer=room.survivalOffers.get(playerId);
   if(!offer||!offer.choices.includes(id))return false;
+  const offersBefore=room.survivalOffers.size;
   const ranks=chooseSurvivalUpgrade(room.survivalRanks.get(playerId)??{},id);
   room.survivalRanks.set(playerId,ranks);
   room.survivalOffers.delete(playerId);
+  if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
+  else if(room.survivalUpgradeDeadline===null)room.survivalUpgradeDeadline=
+    survivalFirstChoiceDeadline(room.players.size,offersBefore,room.survivalOffers.size,Date.now());
   io.to(playerId).emit("message",{t:"survivalUpgradeChosen",upgradeId:id,ranks} as S2C);
   return true;
 }
 function offerSurvivalUpgrades(room:Room) {
+  room.survivalUpgradeDeadline=null;
+  room.survivalMenuPaused=false;
   for(const player of room.players.values()) {
     const ranks=room.survivalRanks.get(player.id)??{};
     room.survivalRanks.set(player.id,ranks);
@@ -2288,6 +2302,32 @@ function tickEnvironment(room: Room, dt: number): void {
 
 function tickRoom(room: Room) {
   if (room.ended) return;
+  if(room.mode==="survival"){
+    const now=Date.now();
+    if(survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused)){
+      if(room.survivalPauseStartedAt===null)room.survivalPauseStartedAt=now;
+      if(room.survivalUpgradeDeadline!==null&&now>=room.survivalUpgradeDeadline){
+        // The second co-op player gets their first offered option after ten seconds.
+        for(const [id,offer] of [...room.survivalOffers])
+          awardSurvivalUpgrade(room,id,offer.choices[0]);
+        room.survivalUpgradeDeadline=null;
+      }
+      if(survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused)){
+        io.to(room.id).emit("message",snapshot(room));
+        return; // No wave prep, enemies, match clock, health regen or world ticks.
+      }
+    }
+    if(room.survivalPauseStartedAt!==null){
+      const delay=now-room.survivalPauseStartedAt;
+      // Keep real-time cooldown/death timestamps aligned with simulation time.
+      room.startTime+=delay;
+      for(const [id,at] of room.lastDamagedAt)room.lastDamagedAt.set(id,at+delay);
+      for(const [id,at] of room.survivalLastKillAt)room.survivalLastKillAt.set(id,at+delay);
+      for(const [id,at] of room.survivalLastHeadshotKillAt)room.survivalLastHeadshotKillAt.set(id,at+delay);
+      for(const [id,at] of room.survivalSelfReviveUntil)room.survivalSelfReviveUntil.set(id,at+delay);
+      room.survivalPauseStartedAt=null;
+    }
+  }
   // ---- Pre-match countdown: decrement FIRST for ALL modes (including survival) ----
   // Previously the survival branch returned early, so `preMatchCountdown` never
   // decremented for survival rooms — the client's "GET READY 5" overlay stuck
@@ -3224,6 +3264,9 @@ io.on("connection", (socket) => {
     if (room) {
       if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
       room.players.delete(socket.id);
+        room.survivalOffers.delete(socket.id);
+        if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
+        if(room.players.size===0)room.survivalMenuPaused=false;
        room.orbitalHolders.delete(socket.id);
       room.downed.delete(socket.id);
       room.survivalSelfReviveUntil.delete(socket.id);
@@ -3284,6 +3327,11 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
 }
 
 async function handle(socket: any, msg: C2S) {
+  const pauseRoom=rooms.get(socketToRoom.get(socket.id)??"");
+  if(pauseRoom?.mode==="survival"&&pauseRoom.state==="playing"&&
+      survivalPauseActive(pauseRoom.players.size,pauseRoom.survivalOffers.size,pauseRoom.survivalMenuPaused)&&
+      !["chooseSurvivalUpgrade","rerollSurvivalUpgrade","setSurvivalPause","leaveRoom","leaveMatch","chat","queueLoadout"].includes(msg.t))
+    return; // Ignore client state/shot/equipment intents during an authoritative pause.
   switch (msg.t) {
     case "joinMatch": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
@@ -3337,6 +3385,9 @@ async function handle(socket: any, msg: C2S) {
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
+        room.survivalOffers.delete(socket.id);
+        if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
+        if(room.players.size===0)room.survivalMenuPaused=false;
        room.orbitalHolders.delete(socket.id);
         room.scores.delete(socket.id);
         socket.leave(roomId);
@@ -3905,6 +3956,13 @@ async function handle(socket: any, msg: C2S) {
       broadcastRadarPing(room, p, attsForShot?.barrel === "barrel_suppressor");
       break;
     }
+    case "setSurvivalPause": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      if(room?.mode!=="survival"||room.state!=="playing"||room.ended||!room.players.has(socket.id))return;
+      // Co-op Escape never freezes the other operative.
+      room.survivalMenuPaused=room.players.size===1&&msg.paused===true;
+      break;
+    }
     case "chooseSurvivalUpgrade": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");
       if(room?.mode!=="survival"||room.state!=="playing"||room.ended||room.waveActive||room.prepLeft<=0)return;
@@ -4179,6 +4237,9 @@ async function handle(socket: any, msg: C2S) {
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id);
+        room.survivalOffers.delete(socket.id);
+        if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
+        if(room.players.size===0)room.survivalMenuPaused=false;
        room.orbitalHolders.delete(socket.id);
         room.sockets.delete(socket.id);
         room.scores.delete(socket.id);

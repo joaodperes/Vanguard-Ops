@@ -101,7 +101,7 @@ import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
   GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
-  type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
+  type C2S, type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
@@ -309,6 +309,9 @@ export interface HudState {
   survivalWave?: number;
   survivalTier?: SurvivalTier;
   survivalUpgradeOffer?: SurvivalUpgradeOffer;
+  survivalPaused?: boolean;
+  survivalUpgradePendingCount?: number;
+  survivalUpgradeSecondsLeft?: number;
   survivalUpgradeRanks?: SurvivalUpgradeRanks;
   survivalPlayerRanks?: Record<string,SurvivalUpgradeRanks>;
   survivalDownedLeft?: number;
@@ -1076,6 +1079,11 @@ export class FPSEngine {
   private survivalSelfReviveUsedWave=-1;
   private survivalDownedUntil=0;
   private survivalUpgradeOffer:SurvivalUpgradeOffer|undefined;
+  private survivalServerPaused=false;
+  private survivalMenuPaused=false;
+  private survivalPauseStartedAt=0;
+  private survivalUpgradePendingCount=0;
+  private survivalUpgradeSecondsLeft:number|undefined;
   private survivalRerolls=1;
   private survivalLastKillAt=-Infinity;
   private survivalLastHeadshotKillAt=-Infinity;
@@ -4326,6 +4334,12 @@ export class FPSEngine {
         rerollsRemaining:this.survivalRerolls};
     }
   }
+  /** Solo Survival Escape pause is authoritative on the server; offline freezes locally. */
+  setSurvivalMenuPaused(paused:boolean) {
+    if(this.opts.mode!=="survival")return;
+    this.survivalMenuPaused=paused;
+    if(this.opts.online)this.socket?.emit("message",{t:"setSurvivalPause",paused} as C2S);
+  }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   setInputSuspended(suspended: boolean) {
     this.inputSuspended = suspended;
@@ -6241,6 +6255,9 @@ export class FPSEngine {
           this.survivalWaveActive = (msg as any).waveActive ?? (this.survivalEnemiesLeft>0);
           this.survivalTier=normalizeSurvivalTier((msg as any).survivalTier ?? this.survivalTier);
           this.survivalPlayerRanks=msg.survivalPlayerRanks??this.survivalPlayerRanks;
+          this.survivalServerPaused=msg.survivalPaused===true;
+          this.survivalUpgradePendingCount=msg.survivalUpgradePendingCount??0;
+          this.survivalUpgradeSecondsLeft=msg.survivalUpgradeSecondsLeft;
         }
         // Sync the server-side pre-match countdown. When > 0, the client's
         // update loop freezes local gameplay (movement, firing) and renders
@@ -9104,6 +9121,31 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    const survivalPaused=this.opts.mode==="survival"&&
+      (this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer));
+    if(survivalPaused&&!this.matchEnded&&!this.lobbyActive){
+      if(this.survivalPauseStartedAt===0)this.survivalPauseStartedAt=performance.now();
+      // Keep rendering the HUD, but do not simulate movement, AI, combat or timers.
+      this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
+      this.camera.rotation.set(this.pitch,this.yaw+Math.PI,0,"YXZ");
+      this.positionViewmodel();
+      const now=performance.now();
+      if(now-this.lastHudAt>80){this.lastHudAt=now;this.emitHud(now);}
+      return;
+    }
+    if(this.survivalPauseStartedAt!==0){
+      // Keep wall-clock-based combat timers from expiring during a local pause.
+      const delay=performance.now()-this.survivalPauseStartedAt;
+      this.matchStartedAt+=delay;
+      this.lastDamageAt+=delay;
+      this.lastSprintAt+=delay;
+      if(Number.isFinite(this.survivalLastKillAt))this.survivalLastKillAt+=delay;
+      if(Number.isFinite(this.survivalLastHeadshotKillAt))this.survivalLastHeadshotKillAt+=delay;
+      if(this.reloadEndsAt>0)this.reloadEndsAt+=delay;
+      if(this.reloadStartedAt>0)this.reloadStartedAt+=delay;
+      for(const boss of this.survivalBossTimers.values()){boss.nextPhaseAt+=delay;boss.nextSkillAt+=delay;}
+      this.survivalPauseStartedAt=0;
+    }
     this.tickDeployCovers();
     this.updateFlashAudio(performance.now());
     // Cinematic finish: keep recently killed operatives visible but never
@@ -11339,6 +11381,9 @@ export class FPSEngine {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
         survivalUpgradeOffer:this.survivalUpgradeOffer,
+        survivalPaused:this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer),
+        survivalUpgradePendingCount:this.opts.online?this.survivalUpgradePendingCount:(this.survivalUpgradeOffer?1:0),
+        survivalUpgradeSecondsLeft:this.survivalUpgradeSecondsLeft,
         survivalUpgradeRanks:this.survivalUpgradeRanks,
         survivalPlayerRanks:this.opts.online
           ?this.survivalPlayerRanks
