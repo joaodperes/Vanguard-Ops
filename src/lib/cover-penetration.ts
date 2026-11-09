@@ -4,7 +4,7 @@
  * Untagged geometry, concrete, reinforced walls and destructible barriers stop rounds.
  */
 import type { CoverBox, Vec3 } from "./game-protocol";
-import { type BodyPenetration, type BodyRayContact, type PenetratingBodyHit } from "./body-penetration";
+import { selectBodyPenetrationHits, type BodyPenetration, type BodyRayContact, type PenetratingBodyHit } from "./body-penetration";
 
 export const BALLISTIC_MATERIALS = ["concrete", "reinforced", "thin_wood", "sheet_metal", "glass", "light_cover"] as const;
 export type BallisticMaterial = typeof BALLISTIC_MATERIALS[number];
@@ -111,6 +111,17 @@ export function resolveMaterialPenetrationShot<T>(
   bodyProfile?:BodyPenetration,penetrationPower=0,
 ): UnifiedPenetrationResult<T> {
   const energyStart=Number.isFinite(penetrationPower)?Math.max(0,penetrationPower):0;
+  // Dedicated non-ballistic projectiles (e.g. an upgraded Reclaimer bolt)
+  // retain their explicitly authored body-pass profile, without acquiring
+  // the ability to penetrate any cover. Conventional firearms always have
+  // positive ammo energy and follow the unified traversal below.
+  if(energyStart===0&&bodyProfile){
+    const cover=traceCoverPenetration(boxes,origin,direction,maxDistance,0);
+    const hits=selectBodyPenetrationHits(contacts,maxDistance,cover.blockedAt,bodyProfile);
+    const last=hits[hits.length-1];
+    const exhausted=!!last&&(last.shield||last.protected||hits.length>=bodyProfile.maxTargets);
+    return {hits,stoppedAt:exhausted?last.t:cover.blockedAt};
+  }
   let energy=energyStart;
   const bodyLimit=Math.max(1,Math.min(MAX_PENETRATED_BODIES,
     bodyProfile?.maxTargets??(energyStart>=3.4?3:energyStart>=MIN_BODY_CHAIN_RATING?2:1)));
