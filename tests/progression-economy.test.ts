@@ -49,6 +49,26 @@ describe("multiplayer perk entitlement", () => {
   });
 });
 
+describe("multiplayer level-cap cosmetic entitlement", () => {
+  test("an unearned Ascendant Vanguard packet is rejected but level 40 owners can equip it", () => {
+    const request: LoadoutWire = {
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", perkId: "battle_hardened",
+      weaponSkinId: "default", playerSkinId: "ascendant_vanguard",
+      attachments: { sight: null, barrel: null, grip: null, magazine: null },
+    };
+    const player = {
+      xp: totalXpForLevel(39), weaponUnlocks: [],
+      loadout: { secondaryWeapon: "pistol_side", primaryReticle: "classic",
+        secondaryReticle: "classic", primaryCharm: "none", secondaryCharm: "none",
+        wonderWeaponId: "", equipmentId: "frag", playerSkin: "ascendant_vanguard" },
+    };
+    expect(resolveMatchLoadout(player, request).playerSkinId).toBe("default");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40) }, request).playerSkinId).toBe("ascendant_vanguard");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40), loadout: { ...player.loadout, playerSkin: "default" } }, request).playerSkinId).toBe("default");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40) }, { ...request, playerSkinId: "unlisted_skin" }).playerSkinId).toBe("default");
+  });
+});
+
 describe("credit economy across every match reward path", () => {
   test("a naturally completed 30-kill win pays 151 CR", () => {
     const result = calculateMatchRewards({ ...match, kills: 30, headshots: 10, assists: 6, won: true, completed: true, multikills: 3, killDifficulties: Array(30).fill("normal") });
