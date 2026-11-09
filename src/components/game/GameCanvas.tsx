@@ -231,6 +231,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       ...loadout,
       perkId: saved.perkId,
       wonderWeaponId: saved.perkId === "wonder_weapon" ? saved.wonderWeaponId : undefined,
+      wonderModuleId: saved.wonderModuleId,
+      wonderSkinId: saved.wonderSkinId,
+      wonderKillEffectId: saved.wonderKillEffectId,
       weaponId: saved.weapon.id,
       secondaryWeaponId: saved.perkId === "well_prepared" || !isPrimaryWeaponCategory(saved.secondary.category)
         ? saved.secondary.id : "pistol_side",
