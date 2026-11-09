@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { coverPanels, coverPlacement, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP } from "../src/lib/deployable-cover";
 import { rechargeTactical, spendTactical, TACTICIAN_RECHARGE_MS } from "../src/lib/perks";
+import { calculateThrowPath, TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
 import { fullThrowingKnives, spendThrowingKnife, tickThrowingKnives, THROWING_KNIFE_MAX_CHARGES, THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
 describe("tactical balance",()=>{
  test("shield is fixed, broader than Bulwark and has a real eye-height firing slot",()=>{
@@ -21,6 +22,13 @@ describe("tactical balance",()=>{
   expect(rechargeTactical(empty,100+TACTICIAN_RECHARGE_MS-1,"tactician",2).charges).toBe(1);
   expect(rechargeTactical(empty,100+TACTICIAN_RECHARGE_MS,"tactician",2).charges).toBe(2);
   expect(rechargeTactical({charges:0,nextAt:100},100+TACTICIAN_RECHARGE_MS,"quickdraw",2).charges).toBe(0);
+ });
+ test("tactical throwing knife path stops at configured range even with no obstacles",()=>{
+  const origin:[number,number,number]=[0,1.6,0];
+  const result=calculateThrowPath(origin,[0,0,1],"knives",()=>null);
+  expect(TACTICAL_KNIFE_RANGE).toBe(16);
+  expect(Math.hypot(result.impact[0]-origin[0],result.impact[1]-origin[1],result.impact[2]-origin[2])).toBeLessThanOrEqual(16.01);
+  expect(result.flightMs).toBeLessThan(1000);
  });
  test("throwing melee knives: one per life, 5.5-unit reach, Gun Game reload only",()=>{
   expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
