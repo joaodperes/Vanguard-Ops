@@ -41,7 +41,7 @@ export const ACHIEVEMENT_METRICS = [
   "daily_challenges_completed","weekly_challenges_completed",
   "elite_challenges_completed","total_challenges_completed",
   "best_killstreak","ctf_captures","ctf_wins","mastery_recruits",
-  "mastery_specialists","mastery_elites","collection_percent",
+  "mastery_specialists","mastery_elites","nexus_reaper_kills","collection_percent",
 ] as const;
 export const weaponChallengeMetric = z.enum(WEAPON_CHALLENGE_METRICS);
 export const rotatingMetric = z.enum(ROTATING_CHALLENGE_METRICS);
@@ -91,7 +91,7 @@ export const weapon = z.strictObject({
 });
 export const statEffect = z.strictObject({
   damage: num.optional(), recoil: num.optional(), spread: num.optional(),
-  adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
+  adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(), fireRate: num.optional(),
   reloadTime: num.optional(), moveSpeed: num.optional(), range: num.optional(),
 });
 export const attachment = z.strictObject({

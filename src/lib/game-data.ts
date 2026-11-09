@@ -256,6 +256,7 @@ export interface AttachmentDef {
     adsSpread?: number;    // additive percent — affects ADS spread (defaults to spread if unset)
     adsTime?: number;      // additive percent
     magSize?: number;      // additive rounds
+    fireRate?: number;     // additive firing-rate percentage
     reloadTime?: number;   // additive percent
     moveSpeed?: number;    // additive percent
     range?: number;        // additive percent

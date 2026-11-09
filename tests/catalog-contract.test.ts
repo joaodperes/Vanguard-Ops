@@ -53,6 +53,8 @@ describe("single-source content catalog contracts",()=>{
     const invalidWeapon={...weapons[0], stats:{...weapons[0].stats, accidentalStat:99}};
     expect(CATALOG_SCHEMAS.weapons.safeParse([invalidWeapon]).success).toBe(false);
     const invalidChallenge={...challenges[0],metric:"untracked_damage_metric"};
+    expect(CATALOG_SCHEMAS.attachments.safeParse(attachments).success).toBe(true);
+    expect(CATALOG_SCHEMAS.achievements.safeParse(achievements).success).toBe(true);
     expect(CATALOG_SCHEMAS["weapon-challenges"].safeParse([invalidChallenge]).success).toBe(false);
     const errors=validateGameContent({weaponChallenges:[invalidChallenge]});
     expect(errors.some(e=>e.includes("weapon challenges [0.metric]"))).toBe(true);

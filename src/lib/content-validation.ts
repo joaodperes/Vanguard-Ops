@@ -60,6 +60,8 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   }
   check("perks", PERKS, PERKS_SCHEMA);
   check("equipment", EQUIPMENT, EQUIPMENT_SCHEMA);
+  unique("perks", PERKS);
+  unique("equipment", EQUIPMENT);
   const arrays: [string, unknown, z.ZodTypeAny][] = [
     ["weapons", w, CATALOG_SCHEMAS["weapons"]],
     ["attachments", a, CATALOG_SCHEMAS["attachments"]],
