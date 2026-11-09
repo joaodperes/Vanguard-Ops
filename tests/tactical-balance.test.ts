@@ -1,8 +1,16 @@
 import {describe,expect,test} from "bun:test";
 import {equipmentById} from "../src/lib/equipment";
 import {MINE_TRIGGER_RADIUS,MINE_SPLASH_RADIUS,TASER_ADS_BLOCK_MS,isTaserAdsBlocked,
-  fragDamage,flashDurationMs,flashAudioGain,mineSplashDamage,tacticalDirectDamage} from "../src/lib/tactical-balance";
+  fragDamage,flashDurationMs,flashAudioGain,mineSplashDamage,tacticalDirectDamage,survivalNonLethalTaserDamage} from "../src/lib/tactical-balance";
 describe("tactical rebalance",()=>{
+ test("Survival enemy taser is always nonlethal, even after high damage bonuses",()=>{
+  expect(survivalNonLethalTaserDamage(25,100,"survival",true,"equipment_taser")).toBe(25);
+  expect(survivalNonLethalTaserDamage(100,10,"survival",true,"equipment_taser")).toBe(9);
+  expect(survivalNonLethalTaserDamage(300,1,"survival",true,"equipment_taser")).toBe(0);
+  expect(survivalNonLethalTaserDamage(25,10,"survival",false,"equipment_taser")).toBe(25);
+  expect(survivalNonLethalTaserDamage(25,10,"ffa",true,"equipment_taser")).toBe(25);
+  expect(survivalNonLethalTaserDamage(25,10,"survival",true,"equipment_poison_dart")).toBe(25);
+ });
  test("grenade and flash radii create impactful area control",()=>{
   expect(equipmentById("frag").radius).toBe(12);
   expect(equipmentById("flashbang").radius).toBe(14);
