@@ -111,7 +111,14 @@
               "vent_stack",
               "industrial_pipe",
               "steel_coil",
-              "cargo_pallet"
+              "cargo_pallet",
+              "castle_building",
+              "castle_well",
+              "castle_stall",
+              "castle_cart",
+              "castle_target",
+              "castle_barrel",
+              "castle_brazier"
             ]
           },
           "x": {
@@ -213,6 +220,17 @@
                 "type": "number",
                 "const": 3
               }
+            ]
+          },
+          "castleUse": {
+            "type": "string",
+            "enum": [
+              "smithy",
+              "stables",
+              "barracks",
+              "granary",
+              "kitchens",
+              "infirmary"
             ]
           }
         },

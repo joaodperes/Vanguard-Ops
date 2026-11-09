@@ -6,6 +6,7 @@ import { lavaAt, makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { MAP_DOCUMENTS } from "../src/lib/map-documents";
 import { importMapDocuments } from "../src/lib/map-document-io";
 import { featureBoxes, resolveStairAttachments } from "../src/lib/map-blueprints";
+import {castleSceneryBoxes,castleFixtures,CASTLE_SERVICES} from "../src/lib/castle-scenery";
 import { chooseSpawn, spawnClear } from "../src/lib/spawn-selection";
 
 const map = makeEnvironmentMap(getMap("emberhold"));
@@ -161,6 +162,63 @@ describe("Emberhold Castle", () => {
     // The descending stair remains a full-width, two-way gameplay route.
     expect(botTraversableEdge([-6, 5, 39], -6, 24, map.cover, map.environment)).toBe(0.5);
     expect(botTraversableEdge([-6, 0.5, 24], -6, 39, map.cover, map.environment)).toBe(5);
+  });
+
+  test("working bailey has six recognizable, physically enterable services",()=>{
+    const buildings=(map.props??[]).filter(p=>p.kind==="castle_building");
+    expect(buildings).toHaveLength(6);
+    expect(new Set(buildings.map(p=>p.castleUse))).toEqual(new Set(CASTLE_SERVICES));
+    const oldIds=["west-gallery-back","west-gallery-end","west-gallery-counter",
+      "east-gallery-back","east-gallery-end","east-gallery-counter",
+      "north-barricade-west","north-barricade-east","south-barricade-west",
+      "south-barricade-east","west-buttress","east-buttress"];
+    for(const id of oldIds)
+      expect(MAP_DOCUMENTS.emberhold.blueprint.features.some(f=>f.id===id)).toBe(false);
+    const compiled=new Set(map.cover.map(box=>JSON.stringify(box)));
+    for(const p of buildings){
+      expect(p.text).toBeTruthy();
+      expect(castleFixtures(p)).toHaveLength(3);
+      const pieces=castleSceneryBoxes(p);
+      for(const box of pieces)expect(compiled.has(JSON.stringify(box))).toBe(true);
+      const turns=p.turns??0,d=turns%2?p.w??10:p.d??10;
+      const vx=Math.sin(turns*Math.PI/2),vz=Math.cos(turns*Math.PI/2);
+      const inside=(x:number,y:number,z:number)=>pieces.some(b=>
+        Math.abs(x-b.pos[0])<b.size[0]-.001 &&
+        Math.abs(y-b.pos[1])<b.size[1]-.001 &&
+        Math.abs(z-b.pos[2])<b.size[2]-.001);
+      const h=(p.y??5)+1.35;
+      // All service buildings have a real collision-free courtyard entrance.
+      expect(inside(p.x+vx*d/2,h,p.z+vz*d/2),p.castleUse+" front").toBe(false);
+      // And a protective back wall rather than a ghost building.
+      expect(inside(p.x-vx*d/2,h,p.z-vz*d/2),p.castleUse+" back").toBe(true);
+    }
+  });
+
+  test("courtyard market, well, training yard and supplies are physical, spawn-safe props",()=>{
+    const counts:Record<string,number>={
+      castle_well:1,castle_stall:3,castle_cart:2,
+      castle_target:2,castle_barrel:3,castle_brazier:2,
+    };
+    const props=map.props??[];
+    for(const [kind,count] of Object.entries(counts))
+      expect(props.filter(p=>p.kind===kind)).toHaveLength(count);
+    const compiled=new Set(map.cover.map(box=>JSON.stringify(box)));
+    for(const p of props.filter(p=>p.kind.startsWith("castle_"))){
+      const pieces=castleSceneryBoxes(p);
+      expect(pieces.length).toBeGreaterThan(0);
+      for(const box of pieces){
+        expect(compiled.has(JSON.stringify(box))).toBe(true);
+        for(const spawn of map.spawns.ffa.filter(s=>s[1]>=4.9&&s[1]<=5.1)){
+          const obstructs=spawn[1]<box.pos[1]+box.size[1]+.3 &&
+            spawn[1]+1.8>box.pos[1]-box.size[1] &&
+            Math.abs(spawn[0]-box.pos[0])<box.size[0]+1.25 &&
+            Math.abs(spawn[2]-box.pos[2])<box.size[2]+1.25;
+          expect(obstructs,p.kind+" at "+p.x+","+p.z+" obstructs "+spawn.join(",")).toBe(false);
+        }
+      }
+    }
+    // The gate approach into the main keep should stay clear.
+    expect(botTraversableEdge([0,5,40],0,18,map.cover,map.environment)).toBe(5);
   });
 
   test("a full 32-player lobby has distinct spawns on safe, supported ground", () => {

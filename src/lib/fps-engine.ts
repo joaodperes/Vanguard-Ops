@@ -23,6 +23,8 @@ import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
+import {isCastlePropKind} from "./castle-scenery";
+import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
@@ -2191,7 +2193,9 @@ export class FPSEngine {
       const worldW=p.w??8,worldD=p.d??7;
       const h=p.h??(p.kind==="shop"?8:4);
       const w=quarter%2?worldD:worldW,d=quarter%2?worldW:worldD;
-      if(isFactoryMachineKind(p.kind)){
+      if(isCastlePropKind(p.kind)){
+        buildCastleScenery(group,p);
+      }else if(isFactoryMachineKind(p.kind)){
         // Machine meshes dress pre-existing blueprint solids; collision remains
         // authoritative in those features instead of being duplicated here.
         buildFactoryMachinery(group,p.kind,w,d,h,this.map.id==="floodgate"?p.color:undefined);
@@ -7536,18 +7540,8 @@ export class FPSEngine {
           if(v.offline&&!this.matchEnded){
             const point=s.path.impact;
             for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
-            this.damageDeployCoverBlast(point,s.radius,s.damage);
-            if(v.ownerId===this.selfId && this.alive){
-              const center:Vec3=[this.pos.x,this.pos.y+.85,this.pos.z];
-              const d=clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s);
-              const dmg=Math.max(0,Math.min(d,CLUSTER_MAX_DAMAGE-(v.dealt.get(this.selfId)??0)));
-              if(dmg>0 && this.hasLineOfSight(point,center)){
-                v.dealt.set(this.selfId,(v.dealt.get(this.selfId)??0)+dmg);
-                this.takeDamage(dmg,this.opts.playerName,this.opts.team,false,CLUSTER_ID);
-              }
-            }
             for(const target of this.combatants.values()){
-              if(!target.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              if(!target.alive||target.id===v.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
               const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
               const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
               if(dmg<=0||!this.hasLineOfSight(point,center))continue;

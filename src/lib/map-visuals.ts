@@ -7,6 +7,7 @@ import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
 import { insideRegions, featureBoxes } from "./map-blueprints";
+import {castleSceneryBoxes,isCastlePropKind} from "./castle-scenery";
 
 import type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
 export {MAP_SURFACE_PATTERNS as SURFACE_PATTERNS} from "./map-theme-contract";
@@ -220,7 +221,8 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
   }
   // Deterministic visual/physics parity: do not render an actor-blocking
   // structure whose generated hitboxes would be missing or intersect a spawn.
-  const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","building","container","boat","dock"]);
+  const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","building","container","boat","dock",
+  "castle_building","castle_well","castle_stall","castle_cart","castle_target","castle_barrel","castle_brazier"]);
   const stairways=result.filter(p=>p.kind==="building"||p.kind==="bandstand")
     .flatMap(p=>(p.kind==="building"?cityBuildingBoxes(p):cityBandstandBoxes(p)).filter(c=>c.kind==="stair"));
   return result.filter(p=>{
@@ -229,6 +231,12 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         Math.abs(c.pos[2]-p.z)<c.size[2]+3))return false;
     }
     if(!solidKinds.has(p.kind))return true;
+    if(isCastlePropKind(p.kind))
+      // A dungeon spawn beneath a courtyard prop must not hide its upper-floor model.
+      return !castleSceneryBoxes(p).some(c=>spawns.some(s=>
+        s[1]<c.pos[1]+c.size[1]+.3 && s[1]+1.8>c.pos[1]-c.size[1] &&
+        Math.abs(s[0]-c.pos[0])<c.size[0]+1.25 &&
+        Math.abs(s[2]-c.pos[2])<c.size[2]+1.25));
     if(p.kind==="building")
       // Same 3D spawn clearance as addBuilding: elevated spawns must not
       // disqualify safe residences many metres below them.
@@ -424,6 +432,10 @@ export function cityBandstandBoxes(p:MapProp):CoverBox[]{
 export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):CoverBox[] {
   const result:CoverBox[]=[];
   for(const p of props){
+    if(isCastlePropKind(p.kind)){
+      result.push(...castleSceneryBoxes(p));
+      continue;
+    }
     const h=p.h??(p.kind==="shop"?7:3);
     let size:Vec3|null=null;
     if(p.kind==="tree")size=[0.45,Math.min(3,h)/2,0.45];

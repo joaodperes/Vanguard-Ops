@@ -2,6 +2,7 @@
 import {STUDIO_BUILDING_PRESETS,STUDIO_STRUCTURE_PRESETS,studioBuildingPrefab,studioStructurePrefab} from "./map-studio-prefabs";
 import {featureFootprint,reconcileFeatureAttachments,type MapFeature} from "./map-blueprints";
 import type {MapProp} from "./map-visuals";
+import {CASTLE_SERVICES,CASTLE_PROP_KINDS} from "./castle-scenery";
 
 export interface StudioAsset {
   id:string;name:string;category:"Construction"|"Buildings"|"Props"|"My assets";
@@ -20,6 +21,14 @@ export const STUDIO_ASSETS:StudioAsset[]=[
     description:"Penetrable when a weapon has enough cover-penetration energy; front-facing shots lose damage.",
     features:[{id:"panel",kind:"cover" as const,x:0,z:0,w:p.w,d:p.d,h:p.h,y:0,label:p.name,material:p.material}],props:[]})),
   ...STUDIO_BUILDING_PRESETS.map(p=>({id:"building_"+p.id,name:p.label,category:"Buildings" as const,features:[],props:[studioBuildingPrefab(p.id,0,0)]})),
+  ...CASTLE_SERVICES.map(service=>({id:"castle_"+service,name:"Castle "+service,category:"Buildings" as const,
+    description:"Enterable medieval building with functional interior furniture.",features:[],
+    props:[{kind:"castle_building" as const,castleUse:service,x:0,z:0,y:0,w:12,d:10,h:5.2,text:service}]})),
+  ...(["castle_well","castle_stall","castle_cart","castle_target","castle_barrel","castle_brazier"] as const).map(kind=>({
+    id:kind,name:kind.replace("castle_","Castle "),category:"Props" as const,features:[],
+    props:[{kind,x:0,z:0,y:0,w:kind==="castle_well"?4.5:kind==="castle_stall"?5:kind==="castle_cart"?4.3:2,
+      d:kind==="castle_stall"?4:kind==="castle_cart"?2.6:kind==="castle_well"?4.5:2,
+      h:kind==="castle_stall"?3.5:kind==="castle_target"?2.8:1.55}]})),
   ...[{id:"container",name:"Container",color:"#8c9aa8"},{id:"container_red",name:"Red container",color:"#a8483c"},
     {id:"container_blue",name:"Blue container",color:"#396b9b"}].map(p=>({id:p.id,name:p.name,category:"Props" as const,
       description:"Editable container: change color, dimensions and orientation after placement.",features:[],
@@ -54,7 +63,7 @@ export function importStudioAssets(input:unknown):StudioAsset[]{
   const doc=input as {version?:number;assets?:StudioAsset[]};
   if(doc?.version!==1||!Array.isArray(doc.assets)||doc.assets.length>200)throw Error("Expected a v1 asset library (up to 200 recipes)");
   const seen=new Set<string>();
-  const kinds=new Set(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand","furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet"]);
+  const kinds=new Set(["tree","bush","rock","ruin","temple","shop","lamp","container","crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand","furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet",...CASTLE_PROP_KINDS]);
   for(const a of doc.assets){
     if(!a||typeof a.id!=="string"||!/^[a-z][a-z0-9_-]{0,100}$/.test(a.id)||seen.has(a.id)||typeof a.name!=="string"||!a.name.trim()||a.name.length>80||
       !Array.isArray(a.features)||!Array.isArray(a.props)||a.features.length+a.props.length<1||a.features.length+a.props.length>100)throw Error("Invalid asset recipe");

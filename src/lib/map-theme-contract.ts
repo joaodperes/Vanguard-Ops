@@ -7,12 +7,14 @@
  */
 import { z } from "zod";
 import { MAP_TEXTURES } from "./map-textures";
+import {CASTLE_PROP_KINDS,CASTLE_SERVICES} from "./castle-scenery";
 
 export const MAP_PROP_KINDS = [
   "tree","bush","rock","ruin","temple","shop","lamp","container","crane",
   "terminal","sign","antenna","building","boat","dock","garden","bench",
   "bandstand","sarcophagus","furnace","conveyor","hydraulic_press","generator",
   "storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet",
+  ...CASTLE_PROP_KINDS,
 ] as const;
 
 export const CITY_BUILDING_USES = [
@@ -48,6 +50,7 @@ export const MAP_PROP_SCHEMA = z.strictObject({
   facade:z.enum(CITY_BUILDING_FACADES).optional(),
   lotId:z.string().regex(/^city:-?[0-9]+:-?[0-9]+$/).optional(),
   turns:z.union([z.literal(0),z.literal(1),z.literal(2),z.literal(3)]).optional(),
+  castleUse:z.enum(CASTLE_SERVICES).optional(),
 });
 const surface = z.strictObject({
   pattern:z.enum(MAP_SURFACE_PATTERNS),
