@@ -98,7 +98,7 @@ export function ctfEngageThreat(enemyDistance:number, weaponId:string):boolean {
 export function ctfBotIntent(
   flags:CtfFlags, team:FlagTeam, id:string, pos:Vec3, weaponId:string,
   squadIds:readonly string[] = [], carriers:Readonly<Record<string,Vec3>> = {}, mapId:ObjectiveSource="forest_warfare",
-  now=Date.now(),
+  now=Date.now(), overtime=false,
 ):CtfBotIntent {
   const own=flags[team], enemyTeam=otherFlag(team), enemy=flags[enemyTeam];
   const home=ctfHome(team,mapId), enemyHome=ctfHome(enemyTeam,mapId);
@@ -106,8 +106,13 @@ export function ctfBotIntent(
   const roster=[...squadIds].sort(),ix=roster.indexOf(id);
   const rank=ix>=0?ix:hash%9, lane=((hash+rank*7)%7)-3;
   const side=team==="red"?-1:1;
-  const sniper=weaponId.startsWith("sniper_")||weaponId.startsWith("dmr_");
-  // Stagger patrol phases so defenders sweep approaches rather than clustering.
+  // Rotate the small defensive shift every 45 seconds: even marksmen must
+  // participate in attacks. Small teams have NO permanent guards, preventing
+  // 1v1/2v2 CTF matches from stalling on their own bases.
+  const guardSlots=roster.length>=5?Math.max(1,Math.floor(roster.length/5)):0;
+  const defending=!overtime && guardSlots>0 &&
+    (rank+Math.floor(now/45000))%roster.length<guardSlots;
+  // Stagger patrol phases so overwatch bots sweep approaches instead of clustering.
   const phase=Math.floor((now+(hash%4000))/9000)%3;
   // All roles immediately become recovery/interception assignments.
   if(own.carrierId || own.dropped) {
@@ -133,44 +138,43 @@ export function ctfBotIntent(
     }
     return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,ctfBase(team,mapId)[2]+lane*6]};
   }
-  const mapKey=typeof mapId==="string"?mapId:"id" in mapId?String(mapId.id):"";
+  // Sudden-death CTF has no static guards: the next capture wins. Continue
+  // intercepting stolen flags and escorting carriers (above), otherwise push
+  // the enemy flag on every bot, irrespective of weapon/archetype.
+  if(overtime)return {role:"attack",goal:[...enemyHome]};
+  const mapKey=typeof mapId==="string"?mapId:"id" in mapId?String(mapId.id):""; 
   if(CTF_LAYOUTS[mapKey]){
-    // One quarter of the squad guards its rear district. Raiders go directly
-    // to the ground objective; the shared region/A* motor chooses factory or
-    // jungle flanks without inheriting the Forest Warfare staircase route.
-    if(rank%4===0){
+    // The rotating rear guard holds an advanced interception lane; the rest
+    // push the enemy objective even with a marksman weapon.
+    if(defending){
       const towardX=enemyHome[0]-home[0],towardZ=enemyHome[2]-home[2];
       const length=Math.hypot(towardX,towardZ)||1;
       const forwardX=towardX/length,forwardZ=towardZ/length;
       const flankX=-forwardZ,flankZ=forwardX;
-      const station=Math.floor(rank/4)%4;
-      const flank=([-16,16,-9,9][station])+(phase===0?-4:phase===2?4:0);
-      const forward=phase===1?10:17;
+      const flank=(rank%2===0?1:-1)*(10+rank%3*4)+(phase===0?-4:phase===2?4:0);
+      const forward=Math.min(42,Math.max(18,length*.32))+(phase-1)*4;
       return {role:"defend_flag",goal:[home[0]+forwardX*forward+flankX*flank,home[1],home[2]+forwardZ*forward+flankZ*flank]};
     }
     return {role:"attack",goal:[...enemyHome]};
   }
   if(mapKey==="floodgate"){
-    // Four of a full squad defend, while twelve raiders share three broad lanes.
     // Ground-level flags need neither forest stairs nor orbital launch routing.
-    if(rank%4===0)return {role:"defend_flag",goal:[home[0]-side*(phase===1?15:8),0,(Math.floor(rank/4)%2===0?1:-1)*(phase===0?24:phase===1?13:33)]};
+    // Advance the rotating guard to the midfield approaches.
+    if(defending)return {role:"defend_flag",goal:[home[0]-side*(phase===1?32:25),0,(rank%2===0?1:-1)*(phase===0?24:phase===1?13:30)]};
     const flankZ=[-66,0,66][rank%3];
     if(Math.abs(pos[0]-enemyHome[0])>38)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*24,0,flankZ]};
     return {role:"attack",goal:[...enemyHome]};
   }
   if(!teamObjective(mapId,"flag",team)?.approachLandings?.length){
-    if(sniper||rank%4===0)return {role:"defend_flag",goal:[home[0]-side*5,Math.max(0,home[1]-.2),home[2]+lane*2]};
+    if(defending)return {role:"defend_flag",goal:[
+      home[0]+(enemyHome[0]-home[0])*.30,Math.max(0,home[1]-.2),
+      home[2]+(enemyHome[2]-home[2])*.30+lane*3]};
     return {role:"attack",goal:[enemyHome[0],Math.max(0,enemyHome[1]-.2),enemyHome[2]]};
   }
-  // Default: long-range defenders stay on different edges of the high deck.
-  if(sniper) {
-    const angle=((hash%12)/12)*Math.PI*2+phase*.45;
-    return {role:"defend_flag",goal:[
-      home[0]+Math.cos(angle)*8.2,home[1],home[2]+Math.sin(angle)*8.2,
-    ]};
-  }
-  if(rank%3===0)return {role:"defend_stairs",goal:[
-    home[0]+lane*1.8-side*(phase===1?8:0),0,(hash%2?28:-28)+(phase===0?-5:phase===2?5:0),
+  // On raised-tree maps the rotating guard watches the *forward* stair
+  // approach. Snipers are not automatically tied to the base all match.
+  if(defending)return {role:"defend_stairs",goal:[
+    home[0]+lane*1.8-side*(phase===1?22:14),0,(hash%2?28:-28)+(phase===0?-5:phase===2?5:0),
   ]};
   // Alternate approach lanes across the valley before converging on the stairs.
   const approach=enemyHome[0]-Math.sign(enemyHome[0])*33;
