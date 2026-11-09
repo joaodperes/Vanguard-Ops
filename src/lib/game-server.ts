@@ -27,7 +27,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
-import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -1680,6 +1680,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
   }
   if(directLethal)dmg=tacticalDirectDamage(dmg,victim.health,!!room.bots.get(victim.id)?.ai.boss);
+  dmg=survivalNonLethalTaserDamage(dmg,victim.health,room.mode,!!attacker?.isBot,weaponId);
   room.lastDamagedAt.set(victim.id, Date.now());
   const hitSource=room.players.get(attackerId)??room.bots.get(attackerId);
   const hurtBot=room.bots.get(victim.id);
