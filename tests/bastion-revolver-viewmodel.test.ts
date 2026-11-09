@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { buildFirstPersonWeapon, buildBastionIronSights } from "../src/lib/weapon-models";
 import {
-  BASTION_CYLINDER_CENTER, BASTION_CYLINDER_OPEN_X,
+  BASTION_CYLINDER_CENTER, BASTION_CYLINDER_OPEN_X, BASTION_CYLINDER_HALF_LENGTH,
   BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z,
   bastionReloadFrame, bastionLoaderContact,
   BASTION_TOPSTRAP, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y,
@@ -31,8 +31,13 @@ describe("Bastion viewmodel: geometry and reload continuity",()=>{
     expect(grip.geometry).toBeInstanceOf(THREE.CapsuleGeometry);
     expect(shroud.geometry).toBeInstanceOf(THREE.CylinderGeometry);
     expect(parts.filter(x=>x.name==="bastion_curved_frame_rail")).toHaveLength(2);
-    expect(parts.some(x=>x instanceof THREE.Mesh &&
-      x.geometry instanceof THREE.ExtrudeGeometry)).toBe(false);
+    // The generic full-size pistol slide must be absent. The two sculpted
+    // side cheeks intentionally ARE solid extruded geometry.
+    const extruded=parts.filter(x=>x instanceof THREE.Mesh &&
+      x.geometry instanceof THREE.ExtrudeGeometry);
+    expect(extruded.map(x=>x.name).sort()).toEqual([
+      "bastion_left_frame_cheek","bastion_right_frame_cheek",
+    ]);
     expect(top.position.z).toBe(BASTION_TOPSTRAP.z);
     expect(top.position.y).toBe(BASTION_TOPSTRAP.y);
     const face=cylinder.children.find(x=>x.name==="revolver_cylinder_front_web") as THREE.Mesh;
