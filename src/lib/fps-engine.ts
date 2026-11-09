@@ -62,7 +62,7 @@ import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, supportArmFraming, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
@@ -107,6 +107,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
 import { canStartWeaponReload } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
@@ -788,6 +789,7 @@ export class FPSEngine {
   // Its elbow is allowed to drop below the camera edge, as natural FPS arms do.
   private readonly fpShoulder = new THREE.Vector3(-.30, -.45, -.25);
   private readonly fpWrist = new THREE.Vector3();
+  private readonly fpRestWrist = new THREE.Vector3();
   private readonly fpElbow = new THREE.Vector3();
   private readonly fpArmDirection = new THREE.Vector3();
   private readonly fpArmUp = new THREE.Vector3(0, 1, 0);
@@ -3501,51 +3503,56 @@ export class FPSEngine {
     for (const m of materials.values()) if (!used.has(m)) m.dispose();
   }
 
-  /** Articulated shoulder/elbow/wrist IK with fixed lengths in normal poses.
-   * Geometry is reused every frame; extreme reaches only minimally stretch. */
-  private poseFirstPersonArm() {
-    const hand = this.fpActionHand;
-    const arm = this.fpSupportArm;
+  /** Place the shoulder, elbow, sleeve segments and glove cuff as ONE rig.
+   * During reloads the shoulder subtly follows the moving wrist and the elbow
+   * hint travels with it; this removes the old frozen-upper-arm illusion.
+   * Reuse geometry and vectors; no new meshes are allocated per frame. */
+  private poseFirstPersonArm(restPosition?: THREE.Vector3, restRotation?: THREE.Quaternion, actionWeight=0) {
+    const hand = this.fpActionHand, arm = this.fpSupportArm;
     if (!hand || !arm) return;
     arm.root.visible = hand.visible;
     if (!hand.visible) return;
 
-    // Compact guns use a true torso-side anchor rather than the forward
-    // rifle shoulder. The IK stays linked to the moving wrist in every pose.
     const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
     const shieldEquipped = visualWeaponId === RIOT_SHIELD_ID;
-    const isCompact = usesCompactSupportArm(
-      weaponById(visualWeaponId).category,
-      shieldEquipped,
-      !!this.riotShieldModel?.visible,
+    const category = weaponById(visualWeaponId).category;
+    const isCompact = usesCompactSupportArm(category,shieldEquipped,!!this.riotShieldModel?.visible);
+    const isLong = !isCompact && usesLongSupportArm(
+      category,WEAPON_VISUALS[visualWeaponId]?.receiver?.[2] ?? 0,shieldEquipped);
+    const frame = supportArmFraming(this.camera.aspect,isCompact,isLong);
+    const upperLength = isCompact ? SUPPORT_SIDEARM_UPPER_LENGTH
+      : isLong ? SUPPORT_LONG_UPPER_ARM_LENGTH : SUPPORT_UPPER_ARM_LENGTH;
+    const forearmLength = isCompact ? SUPPORT_SIDEARM_FOREARM_LENGTH
+      : isLong ? SUPPORT_LONG_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH;
+
+    // Both targets are the exact cuff offset on the animated/rest hand.
+    this.fpWrist.set(-.045,-.125,.10).applyQuaternion(hand.quaternion).add(hand.position);
+    this.fpRestWrist.set(-.045,-.125,.10).applyQuaternion(restRotation ?? hand.quaternion)
+      .add(restPosition ?? hand.position);
+    const joints = animatedSupportArm(
+      frame,
+      [this.fpRestWrist.x,this.fpRestWrist.y,this.fpRestWrist.z],
+      [this.fpWrist.x,this.fpWrist.y,this.fpWrist.z],
+      actionWeight,upperLength,forearmLength,
     );
-    const frame = supportArmFraming(this.camera.aspect, isCompact);
-    this.fpShoulder.set(...frame.shoulder);
+    this.fpShoulder.set(...joints.shoulder);
+    this.fpElbow.set(...joints.elbow);
     arm.shoulder.position.copy(this.fpShoulder);
-    // Anchor the forearm inside the glove cuff, following all hand rotations.
-    this.fpWrist.set(-.045, -.125, .10).applyQuaternion(hand.quaternion).add(hand.position);
-    const joint = supportElbowPosition(
-      frame.shoulder,
-      [this.fpWrist.x, this.fpWrist.y, this.fpWrist.z],
-      frame.pole,
-      isCompact ? SUPPORT_SIDEARM_UPPER_LENGTH : SUPPORT_UPPER_ARM_LENGTH,
-      isCompact ? SUPPORT_SIDEARM_FOREARM_LENGTH : SUPPORT_FOREARM_LENGTH,
-    );
-    this.fpElbow.set(...joint);
 
     const alignSleeve = (mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3) => {
       this.fpArmDirection.copy(to).sub(from);
       const length = Math.max(.001, this.fpArmDirection.length());
       mesh.position.copy(from).addScaledVector(this.fpArmDirection, .5);
       mesh.quaternion.setFromUnitVectors(this.fpArmUp, this.fpArmDirection.multiplyScalar(1 / length));
-      mesh.scale.set(1, length, 1); // unit-height cylinder ends meet both joints
+      mesh.scale.set(1, length, 1);
     };
-    alignSleeve(arm.upper, this.fpShoulder, this.fpElbow);
-    alignSleeve(arm.forearm, this.fpElbow, this.fpWrist);
+    alignSleeve(arm.upper,this.fpShoulder,this.fpElbow);
+    alignSleeve(arm.forearm,this.fpElbow,this.fpWrist);
     arm.elbow.position.copy(this.fpElbow);
   }
 
-  private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3) {
+  private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3,
+    offsetX: number, offsetY: number, offsetZ: number) {
     const hand = this.fpActionHand, prop = this.fpActionProp;
     if (!hand || !prop) return;
     const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
@@ -3590,7 +3597,7 @@ export class FPSEngine {
     if (!pose) {
       hand.position.copy(restPosition);
       hand.quaternion.copy(restRotation);
-      this.poseFirstPersonArm();
+      this.poseFirstPersonArm(restPosition,restRotation);
       return;
     }
     this.ensureFirstPersonProp(propId);
@@ -3598,17 +3605,24 @@ export class FPSEngine {
       hand.position.set(...pose.hand);
       prop.position.set(...pose.prop);
     } else {
-      hand.position.set(pose.hand[0] + this.vmOffset.x, pose.hand[1] + this.vmOffset.y, pose.hand[2] + this.vmOffset.z);
-      prop.position.set(pose.prop[0] + this.vmOffset.x, pose.prop[1] + this.vmOffset.y, pose.prop[2] + this.vmOffset.z);
+      // Reload contacts belong to the *weapon*, not the camera. Apply the same
+      // pivot, gun pitch/roll and translation as every rigid weapon part.
+      // Coordinates are already authored in camera viewmodel units (no scale).
+      placeFirstPersonActionTarget(hand.position,pose.hand,this._vmTotalQuat,offsetX,offsetY,offsetZ);
+      placeFirstPersonActionTarget(prop.position,pose.prop,this._vmTotalQuat,offsetX,offsetY,offsetZ);
     }
     hand.rotation.set(pose.handRoll * .25, 0, pose.handRoll);
     prop.rotation.set(0, 0, pose.handRoll * .6);
+    if (this.reloading && !this.equipmentAction) {
+      hand.quaternion.premultiply(this._vmTotalQuat);
+      prop.quaternion.premultiply(this._vmTotalQuat);
+    }
+    const blend = supportActionWeight(progress);
     if (restMode !== "none") {
-      const blend = supportActionWeight(progress);
       hand.position.lerp(restPosition, 1 - blend);
       hand.quaternion.slerp(restRotation, 1 - blend);
     }
-    this.poseFirstPersonArm();
+    this.poseFirstPersonArm(restPosition,restRotation,blend);
   }
 
   // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
@@ -3824,7 +3838,7 @@ export class FPSEngine {
     this.fpRestHand.x += pivotX + ox;
     this.fpRestHand.y += pivotY + oy;
     this.fpRestHand.z += pivotZ + oz;
-    this.renderFirstPersonAction(now, !hideEntireViewmodel && !quickMeleeActive, this.fpRestHand);
+    this.renderFirstPersonAction(now, !hideEntireViewmodel && !quickMeleeActive, this.fpRestHand, ox, oy, oz);
   }
 
   // ---- Laser indicator ----

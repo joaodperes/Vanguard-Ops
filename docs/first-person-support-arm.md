@@ -1,0 +1,59 @@
+# First-person support arm: reference-informed rigging
+
+## Why the old Annihilator pose failed
+
+The weapon catalog's **Annihilator** is `sniper_heavy` and its cosmetic
+reload is `side_bolt`. The old rifle shoulder sat at camera-local Z=-0.25,
+close to the animated left-hand contact; its elbow ended up beside the
+wrist. During reload, the glove followed a bolt-stroke path while the
+shoulder remained locked, so the forearm seemed to move independently of
+the upper arm. Previous fixes optimized screen visibility rather than a
+consistent skeleton.
+
+## Animation rules
+
+1. Preserve distinct weapon grips and compact-gun poses. Longer receivers
+   (sniper rifles, heavy DMRs, LMGs and similarly long rifles) use a deeper
+   shoulder anchor and longer forearm, but the arm is *not* forced on-screen.
+2. Idle/ADS/recoil: left-hand contact follows the **exact gun transform**.
+3. Reload: the hand and loose ammunition/bolt prop tracks are authored in
+   weapon-local viewmodel units. Apply the weapon's pivot rotation and
+   translation before rendering them, then smoothly release/reacquire the
+   support grip at the action ends.
+4. Solve the complete root-elbow-wrist chain each frame: the shoulder is
+   permitted small bounded translations during hand travel and the elbow
+   hint follows that travel. Sleeve segments span the computed endpoints.
+5. Avoid forced on-screen elbow placement or geometric stretching except
+   for genuinely unreachable edge poses. Do not change reload duration,
+   magazine timing, damage, or gameplay state.
+
+## External references
+
+- [Unity Animation Rigging — Two Bone IK](https://docs.unity.cn/Packages/com.unity.animation.rigging%401.3/manual/constraints/TwoBoneIKConstraint.html):
+  shoulder (root), elbow (mid/hint) and hand (tip/target) belong to one chain.
+- [Unigine — Two Bone IK](https://developer.unigine.com/en/docs/2.22/content/animations/graph/node_library/skeleton/two_bone_ik):
+  analytic solver, controlled pole vector.
+- [Neil Gilbert — UE5 hand-reference-based weapon animation](https://neilgilbertg.ca/2024/04/18/ue5-hand-reference-based-weapon-animation-system-2-0/):
+  weapon-relative reference mesh and hand targets with two-bone IK.
+- [Blender Stack Exchange — Sniper gun reload rig](https://blender.stackexchange.com/questions/198580/animation-issue-in-sniper-gun-reload/198961):
+  weapon-parented IK handles and reload hand targets.
+- [Blender Artists — First-person weapon rig](https://blenderartists.org/t/first-person-weapon-rig-question/650480):
+  switch left-hand target from weapon grip to reload target and back.
+
+These are **technique references**, not third-party game art or animations
+copied into Vanguard Ops.
+
+## Manual visual QA (not replaced by passing unit tests)
+
+Use the firing range on `dev`:
+
+- Annihilator `sniper_heavy` — hip-fire rest, scoped ADS exit,
+  repeated side-bolt reloads; verify elbow stays behind the palm at rest
+  and shoulder/upper arm move with the hand through the bolt stroke.
+- Longshot / heavy DMR / LMG — test both rest grip and magazine reload.
+- Standard AR and shotgun — compare against previous geometry; no
+  unexpected longer arms.
+- Pistols, PDWs, SMGs and Bulwark — compact-grip and shield poses
+  remain unchanged, including destroyed-shield fallback.
+- Desktop and mobile, 60–110° FOV; check partial/aborted reload, weapon
+  swap, sprint, recoil and equipment. Verify no teleport at action ends.

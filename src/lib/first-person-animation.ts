@@ -43,6 +43,12 @@ export function supportHandRestMode(
 export const SUPPORT_UPPER_ARM_LENGTH = .37;
 export const SUPPORT_FOREARM_LENGTH = .34;
 
+// Long rifles need a deeper torso anchor and a substantial forearm. The
+// original sniper pose put the elbow nearly on the glove because its root was
+// too far forward; keep legacy lengths for regular guns and launchers.
+export const SUPPORT_LONG_UPPER_ARM_LENGTH = .42;
+export const SUPPORT_LONG_FOREARM_LENGTH = .51;
+
 // Camera-relative lengths for a compact, two-handed sidearm grip. A full rifle
 // arm would fold past the pistol and stick an elbow in front of the hand.
 export const SUPPORT_SIDEARM_UPPER_LENGTH = .40;
@@ -67,18 +73,31 @@ export function usesCompactSupportArm(
  * Keep the bend toward the torso and slightly downward: forcing the elbow
  * high into the viewport creates a visibly broken, backward-looking arm.
  */
-export function supportArmFraming(aspect: number, compact = false): {
+/** Long receiver weapon class: ordinary rifles/shotguns keep their old arm. */
+export function usesLongSupportArm(category: string, receiverLength: number, shieldEquipped: boolean): boolean {
+  return !shieldEquipped && category !== "launcher"
+    && (category === "sniper" || receiverLength >= .55);
+}
+
+/** Rest shoulder and elbow-hint pose, independent of weapon-hand animation.
+ * A pole is a bend *direction*, never a screen-space target. */
+export function supportArmFraming(aspect: number, compact = false, longGun = false): {
   shoulder: [number, number, number];
   pole: [number, number, number];
 } {
   const narrow = Math.max(0, Math.min(1, (1.1 - aspect) / (1.1 - 9/16)));
   if (compact) {
-    // This anchor sits farther back near the torso. The elbow falls below
-    // the compact gun's wrist and BEHIND it on the camera's Z axis, so the
-    // forearm travels forward toward the hand instead of folding backwards.
     return {
       shoulder: [-.34 + .025 * narrow, -.50, .10],
       pole: [-.50 + .03 * narrow, -.30, .30],
+    };
+  }
+  if (longGun) {
+    // Annihilator and other snipers: torso behind the rear grip, elbow well
+    // behind the support glove, without pulling it artificially into frame.
+    return {
+      shoulder: [-.36 + .016 * narrow, -.50, .03],
+      pole: [-.60 + .05 * narrow, -.25, .25],
     };
   }
   return {
@@ -124,6 +143,43 @@ export function supportElbowPosition(
     shoulder[1]+dy*along+py*side/mag,
     shoulder[2]+dz*along+pz*side/mag,
   ];
+}
+
+/** Solve the WHOLE arm as the hand leaves the forward grip for a reload.
+ * Moving the tip alone while leaving the shoulder locked made the forearm
+ * scrape rearward while the upper arm looked frozen. Shift the torso-side root
+ * slightly with the wrist and carry the elbow hint with the action, then solve
+ * both fixed-length bones to the actual animated cuff. The root movement is
+ * clamped so extreme deploy/throw poses never drag the torso into the gun.
+ * This is a camera-local visual rig and has no gameplay side effects. */
+export function animatedSupportArm(
+  frame: {shoulder: readonly [number,number,number]; pole: readonly [number,number,number]},
+  restWrist: readonly [number,number,number],
+  wrist: readonly [number,number,number],
+  actionWeight: number,
+  upperLength = SUPPORT_UPPER_ARM_LENGTH,
+  forearmLength = SUPPORT_FOREARM_LENGTH,
+): {shoulder: [number,number,number]; elbow: [number,number,number]} {
+  const weight = Math.max(0,Math.min(1,actionWeight));
+  const dx = (wrist[0]-restWrist[0])*weight;
+  const dy = (wrist[1]-restWrist[1])*weight;
+  const dz = (wrist[2]-restWrist[2])*weight;
+  const clamp = (v:number,limit:number)=>Math.max(-limit,Math.min(limit,v));
+  const shoulder: [number,number,number] = [
+    frame.shoulder[0] + clamp(dx*.25,.08),
+    frame.shoulder[1] + clamp(dy*.28,.065),
+    frame.shoulder[2] + clamp(dz*.32,.12),
+  ];
+  // A stable elbow hint tracks the wrist's reload motion at lower weight.
+  // Using only the static camera-space pole produced an almost motionless
+  // elbow even while the hand swept the Annihilator bolt.
+  const neutral = supportElbowPosition(frame.shoulder,restWrist,frame.pole,upperLength,forearmLength);
+  const hint: [number,number,number] = [
+    neutral[0]+dx*.55-shoulder[0],
+    neutral[1]+dy*.55-shoulder[1],
+    neutral[2]+dz*.55-shoulder[2],
+  ];
+  return {shoulder, elbow:supportElbowPosition(shoulder,wrist,hint,upperLength,forearmLength)};
 }
 
 /** Blend the shared support hand smoothly out of the grip and back after an
