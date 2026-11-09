@@ -42,7 +42,7 @@ import { shotgunPelletDirection } from "./shotgun-pattern";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
-import { botHasJumpClearance } from "./bot-physics";
+import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botTurnLerp, botDecisionDelay, botReactionDelay, botAimDriftMultiplier } from "./bot-difficulty";
 import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_RADIUS, SCAVENGER_PICKUP_ARM_MS } from "./perks";
 import { EXPLO_FUSE_MS, explonandoDamage, explonandoCanHit } from "./explonando";
@@ -2889,10 +2889,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   if (bot.ai.envJumpVelocityY !== undefined) {
     const dy = bot.ai.envJumpVelocityY;
-    bot.pos = [bot.pos[0] + (bot.ai.envLaunchX ?? 0) / 20,
-      bot.pos[1] + dy / 20,
-      bot.pos[2] + (bot.ai.envLaunchZ ?? 0) / 20];
-    bot.ai.envJumpVelocityY = dy - 22 * orbitalGravity(room.map,bot.weaponId) / 20;
+    const airborne=botAirStep(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos,
+      (bot.ai.envLaunchX ?? 0) / 20,dy / 20,(bot.ai.envLaunchZ ?? 0) / 20);
+    bot.pos=airborne.pos;
+    bot.ai.envJumpVelocityY=airborne.hitCeiling?0:dy-22*orbitalGravity(room.map,bot.weaponId)/20;
     const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;

@@ -58,7 +58,7 @@ import { automaticBloom } from "./automatic-spread";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
-import { botHasJumpClearance } from "./bot-physics";
+import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
@@ -10168,10 +10168,10 @@ export class FPSEngine {
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     if (c.ai?.envJumpVelocityY !== undefined) {
       const vy = c.ai.envJumpVelocityY;
-      c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
-        c.pos[1] + vy * dt,
-        c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map,c.weaponId) * dt;
+      const airborne=botAirStep(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos,
+        (c.ai.envLaunchX ?? 0)*dt,vy*dt,(c.ai.envLaunchZ ?? 0)*dt);
+      c.pos=airborne.pos;
+      c.ai.envJumpVelocityY=airborne.hitCeiling?0:vy-22*orbitalGravity(this.map,c.weaponId)*dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;

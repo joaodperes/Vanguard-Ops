@@ -2,7 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { stairs, type CoverBox } from "../src/lib/game-protocol";
 import { botNextWaypoint, botTraversableEdge } from "../src/lib/bot-routing";
 
+import { botAirStep, botHasJumpClearance } from "../src/lib/bot-physics";
+
 describe("shared height-aware bot navigation", () => {
+  test("airborne bots cannot clip through a platform's underside, even with sideways launch",()=>{
+    const roof:CoverBox[]=[{pos:[0,4.5,0],size:[6,.5,6],kind:"platform"}];
+    expect(botHasJumpClearance(roof,[0,.5,0])).toBe(false);
+    expect(botAirStep(roof,[0,2.05,0],0,.4,0)).toEqual({
+      pos:[0,4-1.8-.001,0],hitCeiling:true,
+    });
+    expect(botAirStep(roof,[0,.5,0],0,.4,0).hitCeiling).toBe(false);
+    expect(botAirStep(roof,[8,2.05,0],-4,.4,0).hitCeiling).toBe(true);
+    expect(botAirStep(roof,[9,2.05,0],0,.4,0).hitCeiling).toBe(false);
+  });
   test("ground can route under a genuinely overhead bridge", () => {
     const cover: CoverBox[] = [{ pos: [0,5,0], size: [2,0.3,2], kind: "platform" }];
     expect(botTraversableEdge([-4,0,0],4,0,cover)).toBe(0);

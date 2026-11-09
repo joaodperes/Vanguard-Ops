@@ -148,10 +148,39 @@ export function botNextFeetY(cover: CoverBox[], pos: Vec3, dt: number): number {
   return support > pos[1] ? support : Math.max(support, pos[1] - 11 * dt);
 }
 
+/** Advance an airborne bot without letting its head penetrate an overhead
+ * platform. Horizontal motion is swept to catch sideways launch pads too.
+ * Grounded stair climbing keeps using its own step-up collision. */
+export function botAirStep(
+  cover:readonly CoverBox[],from:Vec3,dx:number,dy:number,dz:number,
+):{pos:Vec3;hitCeiling:boolean}{
+  const next:Vec3=[from[0]+dx,from[1]+dy,from[2]+dz];
+  if(dy<=0)return {pos:next,hitCeiling:false};
+  let maximumFeet=next[1],hitCeiling=false;
+  for(const c of cover){
+    if(c.kind==="accent")continue;
+    const underside=c.pos[1]-c.size[1];
+    // Only stop a head crossing the underside from below. Keep normal
+    // movement on platforms and the upper staircase landings untouched.
+    if(from[1]+PLAYER_HEIGHT>=underside-EPS ||
+       next[1]+PLAYER_HEIGHT<=underside+EPS)continue;
+    const minX=c.pos[0]-c.size[0]-PLAYER_RADIUS;
+    const maxX=c.pos[0]+c.size[0]+PLAYER_RADIUS;
+    const minZ=c.pos[2]-c.size[2]-PLAYER_RADIUS;
+    const maxZ=c.pos[2]+c.size[2]+PLAYER_RADIUS;
+    if(Math.max(from[0],next[0])<=minX||Math.min(from[0],next[0])>=maxX||
+       Math.max(from[2],next[2])<=minZ||Math.min(from[2],next[2])>=maxZ)continue;
+    maximumFeet=Math.min(maximumFeet,underside-PLAYER_HEIGHT-.001);
+    hitCeiling=true;
+  }
+  if(hitCeiling)next[1]=maximumFeet;
+  return {pos:next,hitCeiling};
+}
+
 /** Ordinary tactical jumps must not hit low ceilings or start while airborne. */
 export function botHasJumpClearance(cover:CoverBox[],pos:Vec3):boolean {
   if(Math.abs(botGroundHeight(cover,pos[0],pos[2],pos[1])-pos[1])>.08)return false;
   return !cover.some(c=>c.kind!=="accent"&&Math.abs(pos[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS&&
     Math.abs(pos[2]-c.pos[2])<c.size[2]+PLAYER_RADIUS&&
-    c.pos[1]-c.size[1]>pos[1]+.1&&c.pos[1]-c.size[1]<pos[1]+3.15);
+    c.pos[1]-c.size[1]>pos[1]+.1&&c.pos[1]-c.size[1]<pos[1]+PLAYER_HEIGHT+3.15);
 }

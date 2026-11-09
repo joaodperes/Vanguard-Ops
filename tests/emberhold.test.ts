@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getMap, type Vec3 } from "../src/lib/game-protocol";
-import { botGroundHeight } from "../src/lib/bot-physics";
+import { botAirStep, botGroundHeight, botHasJumpClearance } from "../src/lib/bot-physics";
 import { botEntersHazard, botTraversableEdge } from "../src/lib/bot-routing";
 import { lavaAt, makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { MAP_DOCUMENTS } from "../src/lib/map-documents";
@@ -17,6 +17,22 @@ const crossings: [Vec3, Vec3][] = [
 ];
 
 describe("Emberhold Castle", () => {
+  test("dungeon bots cannot jump or launch upward through the courtyard ceiling",()=>{
+    const crypt:Vec3=[-24,.5,1];
+    const underside=4; // keep-paving-0 above the crypt.
+    expect(botHasJumpClearance(map.cover,crypt)).toBe(false);
+    let pos:Vec3=[...crypt],velocity=11;
+    let impacted=false;
+    for(let tick=0;tick<28;tick++){
+      const step=botAirStep(map.cover,pos,0,velocity/20,0);
+      pos=step.pos;
+      impacted ||= step.hitCeiling;
+      velocity=step.hitCeiling?0:velocity-22/20;
+      expect(pos[1]+1.8).toBeLessThanOrEqual(underside+.00001);
+    }
+    expect(impacted).toBe(true);
+    expect(botAirStep(map.cover,[150,.5,150],0,1.5,0).hitCeiling).toBe(false);
+  });
   test("the map document preserves the complete authored geometry and lava", () => {
     const doc = MAP_DOCUMENTS.emberhold;
     const { documents } = importMapDocuments(doc, {}, doc.id);
