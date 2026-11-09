@@ -26,7 +26,7 @@ describe("new-player tutorial", () => {
     const saved = { ...newTutorialProgress(), phase: "practice", practiceStep: 3 };
     expect(parseTutorialProgress(JSON.stringify(saved))).toEqual(saved);
     expect(tutorialStorageKey("guest_a")).not.toBe(tutorialStorageKey("account_b"));
-    for (const raw of [null, "oops", "{}", JSON.stringify({ ...saved, version: 99 }), JSON.stringify({ ...saved, phase: "forged" }), JSON.stringify({ ...saved, practiceStep: -1 }), JSON.stringify({ ...saved, practiceStep: 6 }), JSON.stringify({ ...saved, status: "unknown" })])
+    for (const raw of [null, "oops", "{}", JSON.stringify({ ...saved, version: 99 }), JSON.stringify({ ...saved, phase: "forged" }), JSON.stringify({ ...saved, practiceStep: -1 }), JSON.stringify({ ...saved, practiceStep: 7 }), JSON.stringify({ ...saved, status: "unknown" })])
       expect(parseTutorialProgress(raw)).toBeNull();
   });
   test("live movement, ADS, a fresh elimination, a completed reload and swapping finish the drill in order", () => {
@@ -48,6 +48,10 @@ describe("new-player tutorial", () => {
     expect(state.step).toBe(4);
     state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side" });
     expect(state.step).toBe(5);
+    state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side", equipmentCharges: 2 });
+    expect(state.step).toBe(5);
+    state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side", equipmentCharges: 1 });
+    expect(state.step).toBe(6);
     expect(advancePractice(state, sample)).toBe(state);
   });
   test("cancelling reload by swapping cannot complete reload training", () => {
