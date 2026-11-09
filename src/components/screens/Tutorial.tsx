@@ -9,7 +9,7 @@ import type { LoadoutWire } from "@/lib/game-protocol";
 import { MATERIAL_PENETRATION_RULES, MAX_PENETRATED_SURFACES, MAX_PENETRATED_BODIES } from "@/lib/cover-penetration";
 import { perkById } from "@/lib/perks";
 import {
-  advancePractice, loadTutorialProgress, newTutorialProgress, saveTutorialProgress,
+  advancePractice, consumeTutorialChapter, loadTutorialProgress, newTutorialProgress, saveTutorialProgress,
   PRACTICE_TASKS, TUTORIAL_PHASES, TUTORIAL_CHAPTERS, COMPETITIVE_MODE_IDS, COMPETITIVE_MODE_GUIDES,
   type PracticeSample, type PracticeState, type TutorialPhase,
 } from "@/lib/tutorial";
@@ -29,7 +29,9 @@ export function Tutorial() {
   const [progress, setProgress] = useState(() => {
     const saved = loadTutorialProgress(playerKey);
     // Reading a guide never revokes an existing completed/skipped checkpoint.
-    return saved ? {...saved,phase:saved.status==="in_progress"?saved.phase:"welcome"} : newTutorialProgress();
+    const requested=consumeTutorialChapter();
+    return saved ? {...saved,phase:requested??(saved.status==="in_progress"?saved.phase:"welcome")}
+      : {...newTutorialProgress(),phase:requested??"welcome"};
   });
   const [touch] = useState(() => typeof window !== "undefined" &&
     (navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches));
