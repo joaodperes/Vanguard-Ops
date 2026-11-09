@@ -35,6 +35,7 @@ import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type 
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
+import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
 import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
@@ -4569,45 +4570,100 @@ export class FPSEngine {
     });
   }
 
-  /** Render the *actual* flight path with distinct equipment silhouettes. */
+  /** Readable, physically sized projectile silhouettes with a small additive
+   * halo and a short velocity-aligned streak. Nothing renders through cover:
+   * depth tests stay enabled and the flight position is still the real physics
+   * path. This is shared by offline and multiplayer tactical throws. */
   private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void, timesMs?: number[]): void {
     if(points.length<2){onImpact?.();return;}
-    const root=new THREE.Group();
-    const dark=new THREE.MeshStandardMaterial({color:0x303945,metalness:.55,roughness:.4});
-    const pale=new THREE.MeshStandardMaterial({color:0xe6e7de,metalness:.45});
-    const steel=new THREE.MeshStandardMaterial({color:0xb3c0c8,metalness:.6});
-    const add=(geo:THREE.BufferGeometry,mat:THREE.Material, y=0)=>{const m=new THREE.Mesh(geo,mat);m.position.y=y;root.add(m);};
+    const style=tacticalProjectileVisual(id);
+    const root=new THREE.Group(), model=new THREE.Group();
+    root.add(model);
+    const dark=new THREE.MeshStandardMaterial({color:0x35424a,metalness:.48,roughness:.42});
+    const pale=new THREE.MeshStandardMaterial({color:0xe6e9df,metalness:.34,roughness:.46});
+    const steel=new THREE.MeshStandardMaterial({color:0xc9dae1,metalness:.68,roughness:.29});
+    const accent=new THREE.MeshBasicMaterial({color:style.color});
+    const add=(geo:THREE.BufferGeometry,mat:THREE.Material,y=0)=>{
+      const mesh=new THREE.Mesh(geo,mat);
+      mesh.position.y=y;model.add(mesh);
+      return mesh;
+    };
     if(id==="knives"){
-      add(new THREE.BoxGeometry(.065,.26,.052),dark,-.12);
-      add(new THREE.ConeGeometry(.05,.31,4),steel,.16);
+      add(new THREE.BoxGeometry(.095,.30,.067),dark,-.16);
+      add(new THREE.ConeGeometry(.070,.39,4),steel,.20);
+      add(new THREE.BoxGeometry(.10,.038,.075),accent,-.02);
     }else if(id==="poison_dart"){
-      add(new THREE.CylinderGeometry(.012,.012,.35,8),steel);
-      add(new THREE.ConeGeometry(.04,.09,8),new THREE.MeshBasicMaterial({color:0x72ed5a}),.22);
+      add(new THREE.CylinderGeometry(.024,.024,.41,8),steel);
+      add(new THREE.ConeGeometry(.072,.15,8),accent,.27);
+      add(new THREE.BoxGeometry(.16,.045,.035),pale,-.17);
     }else if(id==="flashbang"){
-      add(new THREE.CylinderGeometry(.095,.095,.27,12),pale);
-      add(new THREE.CylinderGeometry(.1,.1,.025,12),dark,.14);
+      add(new THREE.CylinderGeometry(.13,.13,.32,12),pale);
+      add(new THREE.CylinderGeometry(.135,.135,.038,12),dark,.17);
+      add(new THREE.CylinderGeometry(.14,.14,.04,12),accent,-.08);
     }else if(id==="taser"){
-      add(new THREE.BoxGeometry(.15,.10,.18),dark);
+      add(new THREE.BoxGeometry(.22,.15,.24),dark);
+      add(new THREE.BoxGeometry(.19,.04,.05),accent,.07);
+      const prong=add(new THREE.CylinderGeometry(.026,.026,.14,6),steel,.16);
+      prong.position.x=-.064;
+      const second=add(new THREE.CylinderGeometry(.026,.026,.14,6),steel,.16);
+      second.position.x=.064;
+    }else if(id==="mine"){
+      add(new THREE.CylinderGeometry(.21,.21,.13,12),dark);
+      add(new THREE.TorusGeometry(.19,.032,6,16),accent).rotation.x=Math.PI/2;
     }else{
-      add(new THREE.SphereGeometry(.13,10,10),dark);
+      add(new THREE.SphereGeometry(.17,12,10),dark);
+      add(new THREE.TorusGeometry(.177,.038,6,18),accent).rotation.x=Math.PI/2;
     }
+
+    // A halo outlines small items against both bright concrete and dark rooms.
+    // Additive blending is deliberately restrained: the object remains legible
+    // as a physical projectile, not an oversized magic orb or a wallhack.
+    const halo=new THREE.Mesh(new THREE.SphereGeometry(style.haloRadius,12,8),
+      new THREE.MeshBasicMaterial({color:style.color,transparent:true,opacity:.24,
+        blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true}));
+    root.add(halo);
+    const streak=new THREE.Mesh(new THREE.ConeGeometry(style.trailWidth,1,7),
+      new THREE.MeshBasicMaterial({color:style.color,transparent:true,opacity:.44,
+        blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true,side:THREE.DoubleSide}));
+    streak.visible=false;
+    streak.frustumCulled=false;
+    root.add(streak);
     this.scene.add(root);
+
     const born=performance.now();
+    const last=new THREE.Vector3(...points[0]),movement=new THREE.Vector3();
+    const up=new THREE.Vector3(0,1,0);
+    const flight:TimedProjectilePath={points,impact:points[points.length-1],flightMs:durationMs,timesMs};
+    const dispose=()=>{
+      this.scene.remove(root);
+      const geos=new Set<THREE.BufferGeometry>(),mats=new Set<THREE.Material>();
+      root.traverse(o=>{
+        if(o instanceof THREE.Mesh){
+          geos.add(o.geometry);
+          for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);
+        }
+      });
+      geos.forEach(g=>g.dispose());
+      mats.forEach(m=>m.dispose());
+    };
     const tick=()=>{
-      if(this.disposed){this.scene.remove(root);return;}
-      const t=Math.min(1,(performance.now()-born)/Math.max(1,durationMs));
-      const position = projectilePositionAt(
-        { points, impact: points[points.length-1], flightMs: durationMs, timesMs },
-        t * durationMs);
-      root.position.set(position[0],position[1],position[2]);
-      root.rotation.z=t*8;
-      if(t<1)requestAnimationFrame(tick);
-      else {
-        this.scene.remove(root);
-        root.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
-        [dark,pale,steel].forEach(m=>m.dispose());
-        onImpact?.();
-      }
+      if(this.disposed){dispose();return;}
+      const age=Math.min(durationMs,Math.max(0,performance.now()-born));
+      const p=projectilePositionAt(flight,age);
+      root.position.set(p[0],p[1],p[2]);
+      model.rotation.z=(age/Math.max(1,durationMs))*8;
+      const traveled=movement.subVectors(root.position,last).length();
+      if(traveled>.014 && age<durationMs){
+        movement.multiplyScalar(1/traveled);
+        const length=Math.min(style.trailLength,traveled*3);
+        streak.visible=true;
+        streak.scale.set(1,length,1);
+        streak.quaternion.setFromUnitVectors(up,movement);
+        streak.position.copy(movement).multiplyScalar(-length*.5);
+      }else streak.visible=false;
+      last.copy(root.position);
+      if(age<durationMs)requestAnimationFrame(tick);
+      else {dispose();onImpact?.();}
     };
     requestAnimationFrame(tick);
   }

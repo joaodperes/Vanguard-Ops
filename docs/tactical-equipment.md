@@ -72,3 +72,12 @@ stay visible on shocked opponents, while the victim sees a distinct ADS JAMMED
 status. Server checks ignore malicious ADS flags throughout the effect.
 Frag and other tactical kills retain the real thrower in kill feed and death
 screen, with correct tactical weapon names rather than environmental labels.
+
+## Projectile visibility
+Airborne Frag, Flashbang, Throwing Knives, Taser and Poison Dart use brighter
+readable 3D models with compact color-coded halos and direction-aware tapered
+streaks. The highlights are depth-tested (not visible through walls), use no
+dynamic lights or per-frame geometry allocation, and are disposed after flight
+or when a match ends. The same renderer handles offline and network throws;
+trajectory, fuse, collision and damage remain unchanged. Mines retain their
+ground-level armed beacon rather than an airborne tracer.
