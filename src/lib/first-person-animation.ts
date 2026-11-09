@@ -299,7 +299,7 @@ export function reloadMotionFor(weaponId: string, category: string, special?: st
   return "magazine";
 }
 export function equipmentMotionFor(id: string): DeployMotion {
-  return id === "mine" ? "place" : id === "taser" ? "aim" : "throw";
+  return id === "mine" || id === "cover" ? "place" : id === "taser" ? "aim" : "throw";
 }
 /** Timeline point when the equipment intent is sent/applied. */
 export function deployReleaseFraction(kind: DeployMotion): number {
