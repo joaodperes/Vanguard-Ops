@@ -42,6 +42,9 @@ describe("procedural firearm physical continuity", () => {
   for (const [id, spec] of Object.entries(WEAPON_VISUALS)) {
     test(`${id}: structural receiver, barrel, grip and stock do not float`, () => {
       const meshes = build(id);
+      // Bastion deliberately replaces the generic solid receiver with an
+      // open revolver frame. Its named frame joins have separate detailed tests.
+      if (id === "pistol_bastion") return;
       const receiver = part(meshes, "weapon_receiver");
 
       if (spec.magazine === "rocket") {
@@ -53,9 +56,6 @@ describe("procedural firearm physical continuity", () => {
         assertAttached(tube, muzzleRing, `${id}: core to second muzzle collar`);
         return;
       }
-
-      // Bastion is a deliberately open revolver frame, tested separately.
-      if (id === "pistol_bastion") return;
 
       const guard = part(meshes, "weapon_handguard");
       const barrel = part(meshes, "weapon_barrel");
