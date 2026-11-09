@@ -93,11 +93,11 @@ describe("authored cover material penetration",()=>{
   test("weapon classes and magazine upgrades have intentional limits",()=>{
     expect(weaponById("sniper_heavy").stats.coverPenetration).toBeGreaterThan(weaponById("dmr_scout").stats.coverPenetration!);
     expect(weaponById("lmg_hv").stats.coverPenetration).toBeGreaterThan(0);
-    expect(weaponById("rifle_ar").stats.coverPenetration).toBeUndefined();
+    expect(weaponById("rifle_ar").stats.coverPenetration).toBeCloseTo(1);
     expect(weaponById("wonder_singularity").stats.coverPenetration).toBeUndefined();
     const empty={sight:null,barrel:null,grip:null,magazine:null};
-    expect(computeEffectiveStats(weaponById("rifle_ar"),empty).coverPenetration).toBeUndefined();
-    expect(computeEffectiveStats(weaponById("rifle_ar"),{...empty,magazine:"mag_penetrator"}).coverPenetration).toBeCloseTo(.6);
+    expect(computeEffectiveStats(weaponById("rifle_ar"),empty).coverPenetration).toBeCloseTo(1);
+    expect(computeEffectiveStats(weaponById("rifle_ar"),{...empty,magazine:"mag_penetrator"}).coverPenetration).toBeCloseTo(1.6);
     expect(computeEffectiveStats(weaponById("sniper_heavy"),{...empty,magazine:"mag_penetrator"}).coverPenetration)
       .toEqual(weaponById("sniper_heavy").stats.coverPenetration); // ineligible ammo never applies
   });
