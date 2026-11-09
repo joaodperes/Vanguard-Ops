@@ -1,7 +1,8 @@
 import { NextRequest,NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolvePlayerKey } from "@/lib/auth";
-import { buildProfileView,getOrCreatePlayer } from "@/lib/player-service";
+import { buildProfileView,getOrCreatePlayer,grantWeaponPrestiges,reconcileWonderTokenAwards } from "@/lib/player-service";
+import { lockedWonderWallet } from "@/lib/wonder-economy";
 import { shopItemById,shopItemKey } from "@/lib/shop-catalog";
 import { isShopOfferFeatured } from "@/lib/shop-rotation";
 import { WEAPONS,levelForXp } from "@/lib/game-data";
@@ -19,9 +20,16 @@ export async function POST(req:NextRequest){
 
   const player=await getOrCreatePlayer(playerKey);
   const weaponId=item.kind==="weaponSkin"&&typeof body.weaponId==="string"?body.weaponId:"";
-  if(!isShopOfferFeatured(item.id,item.kind==="weaponSkin"?weaponId:undefined))
+  if(item.currency==="wonder"){await grantWeaponPrestiges(player.id);await reconcileWonderTokenAwards(player.id);}
+  if(item.currency!=="wonder"&&!isShopOfferFeatured(item.id,item.kind==="weaponSkin"?weaponId:undefined))
     return NextResponse.json({error:"This exact offer is not in today\'s Shop rotation"},{status:403});
   const weapon=WEAPONS.find(w=>w.id===weaponId && !w.wonder);
+  if(item.currency==="wonder"){
+    const selected=WEAPONS.find(w=>w.id===item.wonderWeaponId&&w.wonder&&!w.disabled);
+    if(!selected)return NextResponse.json({error:"Wonder catalog unavailable"},{status:404});
+    const owned=await db.wonderUnlock.findUnique({where:{playerId_weaponId:{playerId:player.id,weaponId:selected.id}}});
+    if(!owned)return NextResponse.json({error:"Unlock this Wonder Weapon first"},{status:403});
+  }
   if(item.kind==="weaponSkin"&&(!weapon||!ownsWeapon(weapon,levelForXp(player.xp),player.weaponUnlocks.map(w=>w.weaponId))))
     return NextResponse.json({error:"Weapon locked"},{status:403});
   if(item.currency==="career"&&levelForXp(player.xp)<MAX_PLAYER_LEVEL)
@@ -32,6 +40,8 @@ export async function POST(req:NextRequest){
   const key=shopItemKey(item,weaponId);
   try{
     await db.$transaction(async tx=>{
+      // Serialize all Wonder purchases on the player row, even when item IDs differ.
+      if(item.currency==="wonder")await tx.player.update({where:{id:player.id},data:{updatedAt:new Date()}});
       const owned=await tx.careerShopPurchase.findUnique({where:{playerId_itemKey:{playerId:player.id,itemKey:key}}});
       if(owned)throw new Error("OWNED");
       if(item.kind==="weaponSkin"&&item.skinId){
@@ -50,6 +60,9 @@ export async function POST(req:NextRequest){
           data:{credits:{decrement:item.cost}},
         });
         if(paid.count!==1)throw new Error("NO_CREDITS");
+      }else if(item.currency==="wonder"){
+        const wallet=await lockedWonderWallet(tx,player.id);
+        if(wallet.available<item.cost)throw new Error("NO_WONDER_TOKENS");
       }else{
         const earned=await tx.careerReward.count({where:{playerId:player.id}});
         const state=await tx.player.findUniqueOrThrow({where:{id:player.id}});
@@ -77,6 +90,7 @@ export async function POST(req:NextRequest){
     const msg=e instanceof Error?e.message:"";
     const table:Record<string,[string,number]>={
       OWNED:["Already owned",409],NO_CREDITS:["Not enough credits",403],NO_TOKENS:["Not enough Career Tokens",403],
+      NO_WONDER_TOKENS:["Not enough Wonder Tokens",403],
     };
     const err=table[msg];
     if(err)return NextResponse.json({error:err[0]},{status:err[1]});
