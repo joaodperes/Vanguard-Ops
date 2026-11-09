@@ -107,7 +107,7 @@ import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS, firstPersonPresentationScale, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS, firstPersonPresentationScale, firstPersonHipPull, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE } from "@/lib/weapon-models";
 import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
@@ -3733,9 +3733,12 @@ export class FPSEngine {
     // like every classic FPS viewmodel. Desktop uses a stronger rightward offset;
     // mobile uses a smaller rightward offset so it doesn't sit under the
     // bottom-right action buttons.
+    // Pull resized long guns closer in hipfire without altering mesh scale.
+    // The shared vmOffset keeps the offhand, reload, recoil and muzzle in sync.
+    const hipPull = firstPersonHipPull(this.vmScale);
     const hipTarget = this.touchMode
-      ? { x: 0.22, y: -0.20, z: -0.50 }   // mobile: right side, lower, away from buttons
-      : { x: 0.30, y: -0.18, z: -0.48 };  // desktop: clearly right-offset (CoD-style)
+      ? { x: 0.22, y: -0.20, z: -0.50 + hipPull }   // mobile: clear of the action buttons
+      : { x: 0.30, y: -0.18, z: -0.48 + hipPull };  // desktop: right-offset (CoD-style)
     // The HUD reticle and ballistic aim stay at the exact camera center.
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.

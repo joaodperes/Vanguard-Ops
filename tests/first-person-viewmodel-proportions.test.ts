@@ -3,7 +3,7 @@ import * as THREE from "three";
 import catalog from "../src/data/catalogs/weapons.json";
 import {
   WEAPON_VISUALS, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE,
-  firstPersonPresentationScale,proceduralWeaponOverallLength,
+  firstPersonPresentationScale,firstPersonHipPull,proceduralWeaponOverallLength,
   firstPersonSupportGrip,firstPersonShellContacts,
 } from "../src/lib/weapon-models";
 import {
@@ -19,7 +19,7 @@ const scaleFor=(id:string,category:string) => firstPersonPresentationScale(id,ca
 const wristFor=(id:string,category:string,touch=false):[number,number,number]=>{
   const g=firstPersonSupportGrip(id),s=scaleFor(id,category);
   return [g[0]*s+(touch?.22:.30)-.045,g[1]*s+(touch?-.20:-.18)-.125,
-    g[2]*s+(touch?-.50:-.48)+.10];
+    g[2]*s+(touch?-.50:-.48)+firstPersonHipPull(s)+.10];
 };
 
 describe("first-person firearm proportions",()=>{
@@ -108,6 +108,58 @@ describe("first-person firearm proportions",()=>{
       expect(point(-.12)-point(muzzleLocal)).toBeGreaterThan(.16);
       expect(ox).toBe(.30);
     }
+  });
+});
+
+describe("first-person hipfire distance after the proportional-size pass",()=>{
+  test("compact weapons keep their original distance and model scale",()=>{
+    for(const weapon of catalog){
+      if(!["pistol","pdw","smg","melee"].includes(weapon.category))continue;
+      const scale=scaleFor(weapon.id,weapon.category);
+      expect(scale).toBe(FIRST_PERSON_COMPACT_SCALE);
+      expect(firstPersonHipPull(scale)).toBe(0);
+    }
+  });
+  test("full-sized firearms come six centimetres closer without being enlarged",()=>{
+    for(const [id,category] of [
+      ["rifle_ar","assault"],["dmr_heavy","dmr"],["sniper_heavy","sniper"],
+      ["lmg_heavy","lmg"],["shotgun_br","shotgun"],["launcher_rocket","launcher"],
+    ]){
+      const scale=scaleFor(id,category);
+      expect(scale).toBeCloseTo(WORLD_WEAPON_VISUAL_SCALE,8);
+      const pull=firstPersonHipPull(scale);
+      expect(pull).toBeCloseTo(.06,8);
+      expect(-.48+pull).toBeCloseTo(-.42,8);
+      expect(-.50+pull).toBeCloseTo(-.44,8); // touch hipfire
+      // Translation changes neither the mesh scale nor its nominal length.
+      expect(proceduralWeaponOverallLength(id)*scale).toBeGreaterThan(0);
+    }
+  });
+  test("intermediate lengths shift smoothly and stay in front of the near plane",()=>{
+    for(const weapon of catalog){
+      const profile=WEAPON_VISUALS[weapon.id];
+      if(!profile)continue;
+      const scale=scaleFor(weapon.id,weapon.category);
+      const pull=firstPersonHipPull(scale);
+      expect(pull).toBeGreaterThanOrEqual(0);
+      expect(pull).toBeLessThanOrEqual(.06+1e-8);
+      const c=-.12,rearZ=c+profile.receiver[2]/2+.05;
+      let rear=c+profile.receiver[2]/2;
+      switch(profile.stock){
+        case "fixed":rear=rearZ+.07+.20/2;break;
+        case "heavy":rear=Math.max(rearZ+.055+.23/2,rearZ+.16+.037/2);break;
+        case "wire":case "folding":rear=rearZ+.17+.035/2;break;
+        case "bullpup":rear=rearZ+.075+.12/2;break;
+        case "precision":rear=rearZ+.18+.038/2;break;
+        case "none":rear=Math.max(rear,c+.08+.083/2);break;
+      }
+      // Camera near plane is 0.05; the rear stock remains in front of it.
+      expect(rear*scale-.48+pull).toBeLessThan(-.05);
+    }
+    expect(firstPersonHipPull(1.0)).toBeGreaterThan(0);
+    expect(firstPersonHipPull(1.0)).toBeLessThan(.06);
+    expect(firstPersonHipPull(1.3)).toBe(0);
+    expect(firstPersonHipPull(.6)).toBe(.06);
   });
 });
 

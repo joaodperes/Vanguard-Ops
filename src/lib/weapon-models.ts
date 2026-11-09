@@ -191,6 +191,18 @@ export function firstPersonPresentationScale(id: string, category: string): numb
     (WORLD_WEAPON_VISUAL_SCALE-FIRST_PERSON_COMPACT_SCALE)*t;
 }
 
+/** Camera-local hipfire offset after the long-gun proportion pass.
+ * Full-length firearms were shrunk from 1.20 to 0.72 world-model scale but
+ * remained at the old distance from the camera. Pull them up to 6cm closer
+ * to the player without scaling the mesh, changing gameplay, or shifting ADS.
+ * Intermediate-length models interpolate; compact firearms stay untouched.
+ */
+export function firstPersonHipPull(presentationScale: number): number {
+  const reduction = (FIRST_PERSON_COMPACT_SCALE - presentationScale) /
+    (FIRST_PERSON_COMPACT_SCALE - WORLD_WEAPON_VISUAL_SCALE);
+  return 0.06 * Math.max(0, Math.min(1, reduction));
+}
+
 /** The Bastion uses a rear U-notch with an actual open centre and a narrow
  * front blade; no opaque plate covers the aim line. Geometry stays fixed to the
  * weapon; scope/reticle switching is still handled by the FPS engine. */
