@@ -3,7 +3,8 @@ import { getMap, type CoverBox, type MapDef, type Vec3 } from "../src/lib/game-p
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { traceCoverPenetration, selectMaterialPenetrationHits } from "../src/lib/cover-penetration";
 import { authoredBallisticCover, coverMaxIntegrity, damageBallisticCoverOnShot,
-  applyConfirmedCoverImpact, reconcileBallisticCover, damageBallisticCoverFromExplosion } from "../src/lib/material-cover-damage";
+  applyConfirmedCoverImpact, reconcileBallisticCover, damageBallisticCoverFromExplosion,
+  materialCoverBlastProfile } from "../src/lib/material-cover-damage";
 import { featureBoxes } from "../src/lib/map-blueprints";
 
 const o: Vec3 = [0,1.5,0], d: Vec3 = [0,0,1];
@@ -140,6 +141,51 @@ describe("per-match destructible ballistic cover",()=>{
     expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],6,160)).toEqual([]);
     expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],0,160)).toEqual([]);
     expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],6,NaN)).toEqual([]);
+  });
+
+
+  test("frag breaks light cover in one close blast, without turning its entire fragmentation radius into demolition",()=>{
+    const near=arena(panel("near","light_cover",5)),nearState=state();
+    const frag=materialCoverBlastProfile("frag",140,12);
+    expect(frag).toEqual({damage:196,radius:6});
+    const hit=damageBallisticCoverFromExplosion(near,nearState.hp,nearState.dead,[0,1.5,4.5],12,140,"frag");
+    expect(hit).toHaveLength(1);
+    expect(hit[0].destroyed).toBe(true);
+    const far=arena(panel("far","light_cover",5)),farState=state();
+    const distant=damageBallisticCoverFromExplosion(far,farState.hp,farState.dead,[0,1.5,-4],12,140,"frag");
+    expect(distant).toEqual([]);
+    expect(farState.dead.size).toBe(0);
+  });
+
+  test("RL-7 tears down light cover on direct impact; Swarm-3 takes three direct micro-rocket hits",()=>{
+    const origin:Vec3=[0,1.5,4.8];
+    const rl=arena(panel("rl","light_cover")),rlState=state();
+    const single=damageBallisticCoverFromExplosion(rl,rlState.hp,rlState.dead,origin,1.9,176,"launcher_rocket");
+    expect(single).toHaveLength(1);
+    expect(single[0].destroyed).toBe(true);
+    expect(rl.cover).toHaveLength(0);
+    const swarm=arena(panel("swarm","light_cover")),swarmState=state();
+    const first=damageBallisticCoverFromExplosion(swarm,swarmState.hp,swarmState.dead,origin,9.5,52,"launcher_swarm");
+    expect(first[0].destroyed).toBe(false);
+    expect(first[0].hp).toBeGreaterThan(85);
+    const second=damageBallisticCoverFromExplosion(swarm,swarmState.hp,swarmState.dead,origin,9.5,52,"launcher_swarm");
+    expect(second[0].destroyed).toBe(false);
+    const third=damageBallisticCoverFromExplosion(swarm,swarmState.hp,swarmState.dead,origin,9.5,52,"launcher_swarm");
+    expect(third[0].destroyed).toBe(true);
+    expect(swarm.cover).toHaveLength(0);
+  });
+
+  test("Breach-2 and proximity mines have different cover strength without altering combatant damage",()=>{
+    const weapon=arena(panel("breach","light_cover")),weaponState=state();
+    const mine=arena(panel("mine","light_cover")),mineState=state();
+    const impact:Vec3=[0,1.5,4.8];
+    const weak=damageBallisticCoverFromExplosion(weapon,weaponState.hp,weaponState.dead,impact,2.9,74,"launcher_breach");
+    const trap=damageBallisticCoverFromExplosion(mine,mineState.hp,mineState.dead,impact,2.4,140,"mine");
+    expect(weak[0].destroyed).toBe(false);
+    expect(trap[0].destroyed).toBe(false);
+    expect(trap[0].hp).toBeLessThan(weak[0].hp);
+    expect(damageBallisticCoverFromExplosion(weapon,weaponState.hp,weaponState.dead,impact,2.9,74,"launcher_breach")[0].destroyed).toBe(true);
+    expect(damageBallisticCoverFromExplosion(mine,mineState.hp,mineState.dead,impact,2.4,140,"mine")[0].destroyed).toBe(true);
   });
 
   test("all currently authored panels have stable network IDs",()=>{
