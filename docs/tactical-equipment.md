@@ -9,7 +9,7 @@ loadout changes take effect on the next spawn.
   First-person hand animation releases the device during the throw.
 - Frag/flash grenades bounce off world cover and explode after a 1.7s fuse, using
   map gravity. Projectile timestamps are transmitted for matching remote visuals.
-- Frag, flashbang and proximity mines have 2 charges per life; throwing knives have 1 charge per life;
+- Frag, flashbang, proximity mines and throwing knives have 2 charges per life;
   tasers and poison darts have 3. Stock replenishes on death/respawn, not weapon swaps.
 - Gun Game disables loadout tactical equipment.
 - Socket messages contain **intent only**, never item ID or damage. The server
