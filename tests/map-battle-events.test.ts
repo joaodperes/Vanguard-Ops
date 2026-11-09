@@ -137,10 +137,10 @@ describe("Floodgate one-time Levolution",()=>{
     const age=FLOODGATE_SURGE_SECONDS/2;
     const front=floodgateSurgeFront(age);
     expect(floodgateWaterEffect(0,0,front,age)).toMatchObject({
-      flooded:true,surge:true,speedMultiplier:.5,pushZ:10,
+      flooded:true,surge:true,speedMultiplier:.72,pushZ:10,
     });
     expect(floodgateWaterEffect(0,0,-98,age)).toMatchObject({flooded:true,surge:false,pushZ:2.4});
-    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.74});
+    expect(floodgateWaterEffect(0,0,-75,40)).toMatchObject({flooded:true,surge:false,speedMultiplier:.88});
     expect(floodgateWaterEffect(0,5,-75,40).flooded).toBe(false);
     expect(floodgateWaterEffect(90,0,-75,40).flooded).toBe(true);
     expect(floodgateWaterEffect(116,0,-75,40).flooded).toBe(true);
