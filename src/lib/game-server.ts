@@ -3909,13 +3909,14 @@ async function handle(socket: any, msg: C2S) {
     case "createRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       const cfg = msg.config;
-      if (!teamSizeAllowed(cfg.mapId, cfg.teamSize,cfg.mode)) {
-        socket.emit("message", { t: "roomError",
-          message: "Choose a player count supported by this map and mode." } as S2C);
-        break;
-      }
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
+        break;
+      }
+      if (!teamSizeAllowed(cfg.mapId, cfg.teamSize, cfg.mode)) {
+        const supported = teamSizesForMap(cfg.mapId, cfg.mode).map(n => roomCapacity(cfg.mode, n, cfg.survivalPlayers)).join(", ");
+        socket.emit("message", { t: "roomError",
+          message: `Unsupported player count for ${getMap(cfg.mapId).name} (${cfg.mode}). Available room sizes: ${supported}. If the selected size appears in the menu, restart or redeploy the game server.` } as S2C);
         break;
       }
       if (cfg.mode === "ctf" &&
