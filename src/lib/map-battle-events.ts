@@ -66,11 +66,12 @@ export function floodgateWaterEffect(
     z<FLOODGATE_FLOOD_START_Z||z>FLOODGATE_FLOOD_END_Z)return safe;
   const front=floodgateSurgeFront(age);
   // The hydraulic front is fast and dangerous for ~14s; after it passes,
-  // low ground is persistently flooded, slows movement and pushes south.
+  // low ground is persistently flooded, with a noticeable but modest slowdown
+  // so the spillway stays viable for flanking rather than trapping players.
   const surge=age<FLOODGATE_SURGE_SECONDS&&Math.abs(z-front)<10;
   const flooded=z<=front+2;
   if(!flooded&&!surge||floodgateOnStairs(x,y,z,cover))return safe;
-  return {flooded,surge,speedMultiplier:surge?.50:.74,pushZ:surge?10:2.4};
+  return {flooded,surge,speedMultiplier:surge?.72:.88,pushZ:surge?10:2.4};
 }
 
 /** Whether a direct ground route would walk into the moving or settled flood.
