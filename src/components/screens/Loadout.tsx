@@ -251,7 +251,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
           attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(primary), "primary") : undefined}
-          canCustomize={primary === current.weapon.id}
+          customizationConfirmed={primary === current.weapon.id}
         />
         <SlotCard
           slot="secondary"
@@ -269,7 +269,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
           attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
-          canCustomize={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
+          customizationConfirmed={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
         />
         {/* Melee has fewer applicable stats, so share the third column with
             the Perk and Tactical cards rather than spending a fourth column. */}
@@ -290,7 +290,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
             attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
             onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
-            canCustomize={melee === current.melee.id}
+            customizationConfirmed={melee === current.melee.id}
           />
           <div className="relative" data-slot-dropdown>
             <div className={`rounded-xl border border-amber-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
@@ -428,10 +428,10 @@ interface SlotCardProps {
   compact?: boolean;
   attachments: AttachmentMap;
   onCustomize?: () => void;
-  canCustomize?: boolean;
+  customizationConfirmed?: boolean;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSlot, onPurchaseRequest, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSlot, onPurchaseRequest, open, onToggle, onSelect, compact, attachments, onCustomize, customizationConfirmed }: SlotCardProps) {
   const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
   return (
@@ -452,10 +452,11 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSl
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
         <div className="mt-auto flex flex-col gap-2">
-          {canCustomize && onCustomize && (
+          {onCustomize && (
             <button type="button" onClick={onCustomize}
+              title={customizationConfirmed ? "Customize attachments, skins and challenges" : "Preview customization — confirm your loadout to equip attachments and skins"}
               className="w-full px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
-              {slot === "melee" ? "Skins & Challenges" : "Customize this slot"}
+              {customizationConfirmed ? (slot === "melee" ? "Skins & Challenges" : "Customize this slot") : "Preview customization"}
             </button>
           )}
           <button
