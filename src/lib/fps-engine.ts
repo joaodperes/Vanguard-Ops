@@ -63,7 +63,7 @@ import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, visualReloadRecoveryActive, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
@@ -713,6 +713,10 @@ export class FPSEngine {
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
   private reloadDurationMs = 0;
+  // The last shell is ready before its visual return stroke ends. This keeps
+  // the final glove/elbow/upper-arm motion smooth without delaying firing.
+  private fpReloadRecoveryUntil=0;
+  private fpReloadRecoveryWeaponId="";
   // One credit per insert animation. Retained rounds survive sprint, swap and
   // firing interruptions; cancelling mid-cycle cannot undo prior inserts.
   private reloadRoundInserted = false;
@@ -3577,6 +3581,18 @@ export class FPSEngine {
     arm.elbow.position.copy(this.fpElbow);
   }
 
+  /** Gameplay reload and the optional post-insertion cosmetic return share
+   * one timeline. New fire/ADS/equipment/swap inputs can cancel the latter. */
+  private visualReloadActive(now:number):boolean {
+    if(this.reloading)return true;
+    return visualReloadRecoveryActive(
+      now,this.fpReloadRecoveryUntil,
+      this.weaponId===this.fpReloadRecoveryWeaponId,
+      !this.alive||!!this.equipmentAction||this.manualAiming||this.aiming||
+        this.mouseDown||this.touchFiring,
+    );
+  }
+
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3,
     offsetX: number, offsetY: number, offsetZ: number) {
     const hand = this.fpActionHand, prop = this.fpActionProp;
@@ -3604,7 +3620,7 @@ export class FPSEngine {
       progress = (now - a.startedAt) / a.duration;
       pose = sampleDeployMotion(progress, a.kind);
       propId = a.id;
-    } else if (this.reloading) {
+    } else if (this.visualReloadActive(now)) {
       const def = weaponById(this.weaponId);
       const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
       progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
@@ -3639,7 +3655,7 @@ export class FPSEngine {
     }
     hand.rotation.set(pose.handRoll * .25, 0, pose.handRoll);
     prop.rotation.set(0, 0, pose.handRoll * .6);
-    if (this.reloading && !this.equipmentAction) {
+    if (this.visualReloadActive(now) && !this.equipmentAction) {
       hand.quaternion.premultiply(this._vmTotalQuat);
       prop.quaternion.premultiply(this._vmTotalQuat);
     }
@@ -3755,7 +3771,7 @@ export class FPSEngine {
       const a=this.equipmentAction;
       const pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
-    } else if (this.reloading) {
+    } else if (this.visualReloadActive(now)) {
       const def=weaponById(this.weaponId);
       const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
       const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
@@ -8710,6 +8726,7 @@ export class FPSEngine {
       if (this.reloading || !this.alive || heat <= 0) return;
       if (this.sprinting && this.activePerkId !== "field_loader") return;
       this.reloading = true;
+      this.fpReloadRecoveryUntil=0;
       this.reloadStartedAt = performance.now();
       this.reloadDurationMs = (effectiveHeatConfig(weaponById(this.weaponId),this.getCurrentAttachments()) ?? special).ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
       this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
@@ -8725,6 +8742,7 @@ export class FPSEngine {
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
+    this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
     const currentWeapon = weaponById(this.weaponId);
     // Shotguns and bolt-action rifles load one round at a time. Attachment
@@ -8961,6 +8979,10 @@ export class FPSEngine {
       this.reloadRoundInserted = step.inserted;
       if (step.magazineFull) {
         this.reloading = false;
+        // The shell already counts for gameplay. Finish just its visual
+        // return-to-grip stroke unless another action interrupts it.
+        this.fpReloadRecoveryUntil=this.reloadStartedAt+this.reloadDurationMs;
+        this.fpReloadRecoveryWeaponId=this.weaponId;
       } else if (step.cycleComplete) {
         this.reloadStartedAt = performance.now();
         this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;

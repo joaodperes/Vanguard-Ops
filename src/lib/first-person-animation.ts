@@ -207,6 +207,15 @@ export function calibratedSupportArm(
   };
 }
 
+/** The last incremental shell is credited at 70% for gameplay, but the
+ * cosmetic hand/arm motion should still reach its 100% return pose.
+ * Shooting, aiming, switching, deploying or dying may interrupt it. */
+export function visualReloadRecoveryActive(
+  now:number, endsAt:number, sameWeapon:boolean, interrupted:boolean,
+):boolean {
+  return endsAt>now && endsAt>0 && sameWeapon && !interrupted;
+}
+
 /** Blend the shared support hand smoothly out of the grip and back after an
  * action. At 0 and 1 it is fully attached to the weapon; between the ramps it
  * follows the reload/deploy animation without a duplicated stationary hand. */

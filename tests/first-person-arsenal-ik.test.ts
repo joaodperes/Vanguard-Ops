@@ -4,7 +4,7 @@ import catalog from "../src/data/catalogs/weapons.json";
 import {firstPersonSupportGrip,firstPersonShellContacts,WEAPON_VISUALS,weaponHoldPoints} from "../src/lib/weapon-models";
 import {
   calibratedSupportArm,animatedSupportArm,supportElbowPosition,
-  sampleReloadMotion,reloadMotionFor,supportActionWeight,
+  sampleReloadMotion,reloadMotionFor,supportActionWeight,visualReloadRecoveryActive,
 } from "../src/lib/first-person-animation";
 import {placeFirstPersonActionTarget} from "../src/lib/first-person-action-target";
 import {ROUND_INSERT_FRACTION} from "../src/lib/incremental-reload";
@@ -137,6 +137,15 @@ describe("complete offhand/shoulder/elbow reload motion for every weapon class",
     expect(firstPersonShellContacts("shotgun_br").port)
       .not.toEqual(firstPersonShellContacts("shotgun_auto").port);
     expect(ROUND_INSERT_FRACTION).toBe(.70);
+    // The final shell is available at 70% without snapping the animation
+    // back to rest at the same instant.
+    const started=1000,duration=800,until=started+duration;
+    expect(visualReloadRecoveryActive(started+duration*.69,until,true,false)).toBe(true);
+    expect(visualReloadRecoveryActive(started+duration*.71,until,true,false)).toBe(true);
+    expect(visualReloadRecoveryActive(started+duration*.99,until,true,false)).toBe(true);
+    expect(visualReloadRecoveryActive(until,until,true,false)).toBe(false);
+    expect(visualReloadRecoveryActive(started+duration*.71,until,false,false)).toBe(false);
+    expect(visualReloadRecoveryActive(started+duration*.71,until,true,true)).toBe(false);
     expect(reloadMotionFor("shotgun_br","shotgun")).toBe("shell");
     expect(reloadMotionFor("shotgun_auto","shotgun")).toBe("shell");
     expect(reloadMotionFor("shotgun_combat","shotgun")).toBe("shell");
