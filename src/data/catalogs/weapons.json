@@ -1329,7 +1329,7 @@
     "name": "Sentinel-45",
     "category": "pdw",
     "unlockLevel": 33,
-    "unlockCost": 1400,
+    "unlockCost": 2300,
     "description": "Compact automatic with a small magazine but high headshot reward for controlled accurate fire.",
     "stats": {
       "damage": 35,
