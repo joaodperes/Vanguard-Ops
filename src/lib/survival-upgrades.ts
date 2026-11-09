@@ -25,12 +25,18 @@ export const SURVIVAL_UPGRADES = [
   {id:"light_footed",name:"Light Footed",category:"mobility",rarity:"standard",description:"Increase movement speed."},
   {id:"adrenaline",name:"Adrenaline",category:"mobility",rarity:"signature",description:"Kills grant a temporary movement-speed boost."},
   {id:"fresh_start",name:"Fresh Start",category:"defense",rarity:"standard",description:"Restore health when the next wave begins."},
+  {id:"self_revive",name:"Self-Revive",category:"defense",rarity:"signature",description:"Once per wave, a lethal hit downs you for 30 seconds. Kill an enemy with your secondary weapon to revive with 35 HP. Boss-wave reward only."},
 ] as const;
 export type SurvivalUpgradeId = typeof SURVIVAL_UPGRADES[number]["id"];
 export type SurvivalUpgradeRanks = Partial<Record<SurvivalUpgradeId, number>>;
 export interface SurvivalUpgradeOffer {wave: number; choices: SurvivalUpgradeId[]; rerollsRemaining: number}
 export const SURVIVAL_UPGRADE_INTERVAL = 5;
-export const SURVIVAL_UPGRADE_PREP_SEC = 18;
+export const SURVIVAL_UPGRADE_PREP_SEC = 5;
+export const SURVIVAL_SELF_REVIVE_MS = 30000;
+export const SURVIVAL_SELF_REVIVE_HP = 35;
+export function canUseSelfRevive(ranks: SurvivalUpgradeRanks, usedWave: number, currentWave: number): boolean {
+  return upgradeRank(ranks, "self_revive") > 0 && currentWave > 0 && usedWave !== currentWave;
+}
 export function survivalUpgradeDue(completedWave: number): boolean {
   return completedWave >= 4 && (completedWave - 4) % SURVIVAL_UPGRADE_INTERVAL === 0;
 }
@@ -43,20 +49,24 @@ function power(ranks: SurvivalUpgradeRanks, id: SurvivalUpgradeId): number {
   return Math.log2(1 + upgradeRank(ranks,id));
 }
 export function chooseSurvivalUpgrade(ranks: SurvivalUpgradeRanks, id: SurvivalUpgradeId): SurvivalUpgradeRanks {
-  if (!SURVIVAL_UPGRADES.some(u=>u.id===id)) return ranks;
+  if (!SURVIVAL_UPGRADES.some(u=>u.id===id) || (id==="self_revive" && upgradeRank(ranks,id)>0)) return ranks;
   return {...ranks,[id]:upgradeRank(ranks,id)+1};
 }
 export function generateSurvivalUpgradeChoices(
   ranks: SurvivalUpgradeRanks, random: () => number = Math.random,
   exclude: readonly SurvivalUpgradeId[] = [],
+  bossReward = false,
 ): SurvivalUpgradeId[] {
-  const pool = SURVIVAL_UPGRADES.filter(u=>!exclude.includes(u.id)).map(u=>({
+  // The special appears once per run, as a guaranteed choice when a boss falls.
+  // It cannot be obtained from normal rewards or repeatedly ranked up.
+  const includeRevive = bossReward && !upgradeRank(ranks,"self_revive") && !exclude.includes("self_revive");
+  const pool = SURVIVAL_UPGRADES.filter(u=>u.id!=="self_revive" && !exclude.includes(u.id)).map(u=>({
     id:u.id,
     weight:(u.rarity==="signature"?.28:u.rarity==="advanced"?.75:1.25) *
       (upgradeRank(ranks,u.id)>0?1.65:1),
   }));
-  const result:SurvivalUpgradeId[]=[];
-  for(let i=0;i<3&&pool.length;i++){
+  const result:SurvivalUpgradeId[]=includeRevive?["self_revive"]:[];
+  for(let i=result.length;i<3&&pool.length;i++){
     const total=pool.reduce((sum,u)=>sum+u.weight,0);
     let roll=Math.max(0,Math.min(.999999,random()))*total;
     let index=pool.findIndex(u=>(roll-=u.weight)<0);
@@ -118,4 +128,43 @@ export function survivalKillReward(ranks:SurvivalUpgradeRanks,headshot:boolean):
 }
 export function survivalWaveHealing(ranks:SurvivalUpgradeRanks):number {
   return Math.min(45,Math.floor(12*power(ranks,"fresh_start")));
+}
+
+/** Values shown on reward cards use the same logarithmic power curve and caps
+ * as the combat functions above; no manually maintained, misleading numbers. */
+export function survivalUpgradeValueText(id:SurvivalUpgradeId,ranks:SurvivalUpgradeRanks):string {
+  if(id==="self_revive")return "30s downed · 35 HP on kill · once per wave";
+  const next={...ranks,[id]:upgradeRank(ranks,id)+1};
+  const pct=(n:number)=>`${Math.round(n*1000)/10}%`;
+  const value=(r:SurvivalUpgradeRanks):string=>{
+    const p=power(r,id);
+    switch(id) {
+      case "precision_loop": return `+${Math.min(8,Math.floor(2*p))} headshot ammo (shared 8-round cap)`;
+      case "salvage": return `+${Math.min(8,Math.floor(2*p))} ammo per kill (shared 8-round cap)`;
+      case "head_hunter": return `+${pct(.1*p)} headshot damage`;
+      case "point_blank": return `+${pct(.12*p)} damage at ≤12m`;
+      case "longshot": return `+${pct(.11*p)} damage at ≥25m`;
+      case "steady_focus": return `+${pct(.065*p)} ADS damage`;
+      case "glass_cannon": return `+${pct(.12*p)} dealt / +${pct(Math.min(.6,.09*p))} taken`;
+      case "last_stand": return `+${pct(.14*p)} damage under 40% HP`;
+      case "boss_hunter": return `+${pct(.13*p)} boss damage`;
+      case "blood_rush": return `+${pct(.075*p)} damage for 5s after kill`;
+      case "executioner": return `+${pct(.09*p)} damage for 5s after headshot kill`;
+      case "steel_skin": return `-${pct(Math.min(.42,.06*p))} incoming combat damage`;
+      case "blast_guard": return `-${pct(Math.min(.42,.1*p))} incoming explosion damage`;
+      case "unyielding": return `-${pct(Math.min(.42,.085*p))} damage under 40% HP`;
+      case "evasive": return `-${pct(Math.min(.42,.07*p))} damage while sprinting`;
+      case "combat_medic": return `+${Math.min(22,Math.floor(4*p))} HP per kill (shared 22 HP cap)`;
+      case "surgical_precision": return `+${Math.min(22,Math.floor(6*p))} HP per headshot kill (shared 22 HP cap)`;
+      case "quick_recovery": return `-${pct(1-survivalRegenDelayMultiplier(r))} regen delay`;
+      case "vitality": return `+${pct(survivalRegenRateMultiplier(r)-1)} regen rate`;
+      case "fast_hands": return `-${pct(1-survivalReloadMultiplier(r))} reload time`;
+      case "overclock": return `-${pct(1-survivalReloadMultiplier(r,0))} reload time for 5s after kill`;
+      case "light_footed": return `+${pct(survivalMovementMultiplier(r)-1)} movement speed`;
+      case "adrenaline": return `+${pct(survivalMovementMultiplier(r,0)-1)} movement for 5s after kill`;
+      case "fresh_start": return `+${survivalWaveHealing(r)} HP at next wave`;
+      default: return "";
+    }
+  };
+  return `Rank ${upgradeRank(next,id)}: ${value(next)} (currently ${value(ranks)})`;
 }
