@@ -155,9 +155,16 @@ describe("Capture the Flag objective rules", () => {
       const intent=ctfBotIntent(flags,"red",id,ctfHome("red"),
         "sniper_lr",ids,{},"forest_warfare",45000,true);
       expect(intent.role).toBe("attack");
-      expect(intent.goal).toEqual(ctfHome("blue"));
+      // Far-away attackers use the forest flank approach rather than
+      // crossing directly through the elevated flag's tree.
+      expect(intent.goal[0]).toBeGreaterThan(ctfHome("red")[0]+40);
+      expect(intent.goal[0]).toBeLessThanOrEqual(ctfHome("blue")[0]);
     }
+    ctfTouch(flags,{id:"red-runner",team:"red",pos:ctfHome("blue")});
     ctfTouch(flags,{id:"blue-thief",team:"blue",pos:ctfHome("red")});
+    expect(ctfBotIntent(flags,"red","red-runner",ctfHome("blue"),
+      "rifle_ar",ids,{"blue-thief":[0,0,8]},"forest_warfare",45000,true))
+      .toEqual({role:"escort",goal:ctfBase("red")});
     for(const id of ids) {
       const intent=ctfBotIntent(flags,"red",id,ctfHome("red"),
         "rifle_ar",ids,{"blue-thief":[0,0,8]},"forest_warfare",45000,true);
