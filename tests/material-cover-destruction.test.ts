@@ -3,7 +3,7 @@ import { getMap, type CoverBox, type MapDef, type Vec3 } from "../src/lib/game-p
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { traceCoverPenetration, selectMaterialPenetrationHits } from "../src/lib/cover-penetration";
 import { authoredBallisticCover, coverMaxIntegrity, damageBallisticCoverOnShot,
-  applyConfirmedCoverImpact, reconcileBallisticCover } from "../src/lib/material-cover-damage";
+  applyConfirmedCoverImpact, reconcileBallisticCover, damageBallisticCoverFromExplosion } from "../src/lib/material-cover-damage";
 import { featureBoxes } from "../src/lib/map-blueprints";
 
 const o: Vec3 = [0,1.5,0], d: Vec3 = [0,0,1];
@@ -93,6 +93,53 @@ describe("per-match destructible ballistic cover",()=>{
     })).toBe(true);
     expect(map.cover).toHaveLength(0);
     expect(traceCoverPenetration(map.cover,o,d,20,0).blockedAt).toBe(Infinity);
+  });
+
+
+  test("frag shatters nearby glass and wood while light cover needs sustained blast",()=>{
+    const map=arena(panel("pane","glass",3),panel("plank","thin_wood",6),
+      panel("crate","light_cover",8)),s=state();
+    const origin:Vec3=[0,1.5,4.8];
+    const impacts=damageBallisticCoverFromExplosion(map,s.hp,s.dead,origin,6,140);
+    expect(impacts.map(i=>i.coverId)).toEqual(["pane","plank","crate"]);
+    expect(impacts.map(i=>i.destroyed)).toEqual([true,true,false]);
+    expect(map.cover.map(i=>i.ballisticId)).toEqual(["crate"]);
+    const next=damageBallisticCoverFromExplosion(map,s.hp,s.dead,origin,6,140);
+    expect(next.map(i=>i.coverId)).toEqual(["crate"]);
+    expect(next[0].destroyed).toBe(true);
+    expect(map.cover).toHaveLength(0);
+  });
+
+  test("a wide window takes near-face damage, but high and distant cover does not",()=>{
+    const wide=panel("wide","glass",5);wide.pos=[50,1.5,5];wide.size=[50,1,.2];
+    const high=panel("high","glass",4);high.pos=[0,15,4];
+    const map=arena(wide,high,panel("far","glass",30)),s=state();
+    const impacts=damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,4],4,100);
+    expect(impacts.map(i=>i.coverId)).toEqual(["wide"]);
+    expect(impacts[0].point[0]).toBe(0);
+    expect(map.cover.map(i=>i.ballisticId)).toEqual(["high","far"]);
+  });
+
+  test("concrete, reinforced cover and sheet metal protect panels behind them",()=>{
+    const wall:CoverBox={pos:[0,1.5,5],size:[4,3,.4],kind:"solid",material:"concrete"};
+    const map=arena(panel("metal","sheet_metal",3),wall,panel("rear","glass",8)),s=state();
+    expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,1],12,200)).toEqual([]);
+    expect(map.cover).toHaveLength(3);
+    expect(s.dead.size).toBe(0);
+    const reinforced=arena(panel("structural","reinforced",3),panel("rear","glass",8));
+    const s2=state();
+    expect(damageBallisticCoverFromExplosion(reinforced,s2.hp,s2.dead,[0,1.5,1],12,200)).toEqual([]);
+  });
+
+  test("thin cover passes blast pressure; each explosion is resolved once",()=>{
+    const map=arena(panel("front","glass",4),panel("back","thin_wood",6)),s=state();
+    const impacts=damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],6,160);
+    expect(impacts.map(i=>i.coverId)).toEqual(["front","back"]);
+    expect(impacts.every(i=>i.destroyed)).toBe(true);
+    expect(map.cover).toHaveLength(0);
+    expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],6,160)).toEqual([]);
+    expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],0,160)).toEqual([]);
+    expect(damageBallisticCoverFromExplosion(map,s.hp,s.dead,[0,1.5,3],6,NaN)).toEqual([]);
   });
 
   test("all currently authored panels have stable network IDs",()=>{
