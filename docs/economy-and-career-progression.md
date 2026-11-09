@@ -24,6 +24,24 @@ active Career Contract. The older 36-level cap and repeatable promotion meter
 are retained below solely to explain legacy migrations. Validation still
 rejects equipment unlock levels above the configured cap.
 
+## Current account-level milestones (November 2026)
+
+All levels 2–40 now have at least one level-gated reward (a weapon, perk,
+tactical item, rank or operator skin). In particular:
+
+- **Level 2:** Breacher shotgun becomes purchasable (500 CR), giving a close-range
+  alternative to the starting VK-12. Level 4 still grants Field Loader.
+- **Level 25:** Executioner DMR, Explonando and Poison Dart remain; Sentinel-45
+  moves to **level 33** to fill the disabled Breacher Axe's old slot.
+- **Level 37:** Hydra Twin (formerly level 34); **level 38:** Machine Pistol
+  (formerly level 30). Their former levels retain other weapon choices.
+- **Level 39:** Vanguard Legend rank; **level 40:** Ascendant Vanguard, a unique
+  legendary operator skin automatically awarded at the XP cap, with no contract
+  or credit requirement. Existing level-40 profiles qualify immediately.
+- **Level-up results:** disabled weapons are never advertised as newly
+  available. Existing legitimately purchased weapons remain owned if their
+  minimum level moves upward; no inventory cleanup is performed.
+
 ## Credit payouts
 
 All combat/objective constants live in `src/data/catalogs/rewards.json` and
