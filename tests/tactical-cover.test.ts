@@ -3,7 +3,6 @@ import { blastCanDamage } from "../src/lib/explosion-damage-rules";
 import { coverPanels, coverPlacement, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP } from "../src/lib/deployable-cover";
 import { rechargeTactical, spendTactical, TACTICIAN_RECHARGE_MS } from "../src/lib/perks";
 import { calculateThrowPath, TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
-import { fullThrowingKnives, spendThrowingKnife, tickThrowingKnives, THROWING_KNIFE_MAX_CHARGES, THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
 describe("tactical balance",()=>{
  test("self-explosions damage their owner but never teammates",()=>{
   for(const mode of ["tdm","killconfirmed","ctf","survival"]){
@@ -38,14 +37,5 @@ describe("tactical balance",()=>{
   expect(TACTICAL_KNIFE_RANGE).toBe(16);
   expect(Math.hypot(result.impact[0]-origin[0],result.impact[1]-origin[1],result.impact[2]-origin[2])).toBeLessThanOrEqual(16.01);
   expect(result.flightMs).toBeLessThan(1000);
- });
- test("throwing melee knives: one per life, 5.5-unit reach, Gun Game reload only",()=>{
-  expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
-  expect(THROWING_KNIFE_RANGE).toBe(5.5);
-  const spent=spendThrowingKnife(fullThrowingKnives(),1000,false)!;
-  expect(spent.charges).toBe(0);
-  expect(tickThrowingKnives(spent,100000,false).charges).toBe(0);
-  const gg=spendThrowingKnife(fullThrowingKnives(),1000,true)!;
-  expect(tickThrowingKnives(gg,gg.nextAt,true).charges).toBe(1);
  });
 });

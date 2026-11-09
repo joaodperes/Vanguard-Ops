@@ -48,6 +48,9 @@ GitHub Actions:
   quantities are appropriate only when they are protected game design rules.
 - Avoid shadow configuration: derive dependent range, charge and allowed-value
   constants from their canonical catalog or shared contract.
+- Keep a behavioral regression in its **owning feature test file**; do not
+  duplicate that same rule in an unrelated tactical, UI or map test. A
+  duplicate assertion increases maintenance without increasing coverage.
 - Prefer pure logic and real public APIs; for the few prototype-created
   FPSEngine test doubles, use `tests/helpers/engine-stub.ts` so new default
   engine collections don't require updates to every test.
