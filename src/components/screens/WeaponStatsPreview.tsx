@@ -10,6 +10,7 @@ const STAT_DEFS: { key: keyof WeaponStats; label: string; unit: string; max: num
   { key: "fireRate", label: "Rate / sec", unit: "", max: 18, decimals: 1 },
   { key: "magSize", label: "Magazine", unit: "", max: 100, decimals: 0 },
   { key: "range", label: "Range", unit: "m", max: 200, decimals: 0 },
+  { key: "coverPenetration", label: "PEN", unit: "", max: 6, decimals: 1 },
   { key: "recoil", label: "Recoil", unit: "", max: 3, decimals: 2, lowerBetter: true },
   { key: "spread", label: "Hip spread", unit: "", max: 0.08, decimals: 1, lowerBetter: true },
   { key: "adsSpread", label: "ADS spread", unit: "", max: 0.05, decimals: 1, lowerBetter: true },
@@ -33,7 +34,6 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
   const hasPreview = !!preview && (
     currentSight.type !== shownSight.type ||
     STAT_DEFS.some(s => current[s.key] !== displayed[s.key]) ||
-    current.coverPenetration !== displayed.coverPenetration ||
     current.bodyPenetration?.maxTargets !== displayed.bodyPenetration?.maxTargets ||
     current.bodyPenetration?.damageRetention !== displayed.bodyPenetration?.damageRetention ||
     currentHeat?.heatPerShot !== shownHeat?.heatPerShot ||
@@ -60,28 +60,18 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
         <div className="text-white/70">Cooling delay: {(shownHeat.coolDelayMs/1000).toFixed(2)}s · Manual vent: {shownHeat.ventSeconds.toFixed(2)}s</div>
         {hasPreview && currentHeat && <div className="text-white/45">Current: {currentHeat.heatPerShot.toFixed(1)} heat/pulse, {currentHeat.coolPerSecond.toFixed(1)} cooling/s, {currentHeat.ventSeconds.toFixed(2)}s vent</div>}
       </div>}
-      {!compact && weapon.category !== "melee" &&
-        ((current.coverPenetration??0)>0 || (displayed.coverPenetration??0)>0) && (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5 text-[11px]">
-          <span className="text-white/55">Penetration</span>
-          <span className="font-mono font-semibold text-cyan-200 text-right">
-            {(displayed.coverPenetration??0).toFixed(1)}
-            {hasPreview && current.coverPenetration !== displayed.coverPenetration &&
-              <span className="ml-1.5 text-emerald-300/75">(↑)</span>}
-          </span>
-        </div>
-      )}
       <div className={compact ? "grid grid-cols-2 gap-x-4 gap-y-2" : "grid grid-cols-1 gap-y-2.5"}>
         {rows.map(s => {
-          const val = displayed[s.key] as number;
-          const previous = (hasPreview ? current[s.key] : baseline[s.key]) as number;
+          // PEN is optional for non-ballistic weapons; render 0 for ordinary weapons without it.
+          const val = (displayed[s.key] ?? 0) as number;
+          const previous = ((hasPreview ? current[s.key] : baseline[s.key]) ?? 0) as number;
           const change = val - previous;
           const { changed: difference, improved: isGood, arrow, percent: delta } = weaponStatDelta(previous, val, s.lowerBetter);
           const fmt = (n: number) => (s.key === "spread" || s.key === "adsSpread") ? formatSpreadMrad(n) : n.toFixed(s.decimals);
           const pct = Math.min(100, Math.max(0, val / s.max * 100));
           return <div key={s.key} className="min-w-0">
             <div className="flex justify-between gap-2 items-baseline text-[11px]">
-              <span className="text-white/55">{weapon.category === "melee" && s.key === "fireRate" ? "Swings / sec" : weapon.category === "melee" && s.key === "range" ? "Reach" : s.label}</span>
+              <span className="text-white/55" title={s.key === "coverPenetration" ? "Ammunition penetration energy for bodies and soft cover; solid barriers still block shots." : undefined}>{weapon.category === "melee" && s.key === "fireRate" ? "Swings / sec" : weapon.category === "melee" && s.key === "range" ? "Reach" : s.label}</span>
               <span className="tabular-nums font-mono whitespace-nowrap">
                 <span className="text-white font-semibold">{fmt(val)}{s.unit}</span>
                 {difference && <span className={`ml-1 ${isGood ? "text-emerald-300" : "text-rose-300"}`}>
