@@ -1284,7 +1284,7 @@
     "name": "Revolver Speedloader",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 310,
+    "unlockCost": 360,
     "description": "Reload all six chambers together 26% faster. Does not add rounds.",
     "weaponCategories": [
       "pistol"
@@ -1339,7 +1339,7 @@
     "name": "Light .45 Loads",
     "slot": "magazine",
     "unlockLevel": 18,
-    "unlockCost": 280,
+    "unlockCost": 350,
     "description": "Reduced-charge rounds tame kick and improve handling but sacrifice stopping power.",
     "weaponCategories": [
       "pistol"
