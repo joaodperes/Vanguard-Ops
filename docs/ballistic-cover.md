@@ -72,8 +72,41 @@ restore broken cover. Local offline play and offline bots call the same rules.
 Impacts use capped decals (up to six per panel) and short-lived particles
 (maximum 96) rather than expensive area-explosion effects.
 
+## Hands-on testing in the Firing Range
+
+The **Armory → Firing Range** is a private offline map. The main four
+stationary targets and three moving targets remain in the central lane.
+
+From the central spawn, move forward to the two side-wall doorways
+(at the -27 Z line). Turn left for **Glass** and **Thin Wood**; turn right
+for **Light Cover**, **Sheet Metal** and a **Concrete** control. Each
+station has a label, a floor shooting-line marker, and a respawning
+dummy behind the chest-height panel. Aim at the dummy's torso **through**
+the panel, not the head visible above it.
+
+Suggested comparison:
+1. Fire a conventional pistol or unmodified assault rifle into glass. Its
+   first bullets should crack the pane without hitting the dummy; continue
+   shooting until the pane shatters and subsequent shots hit the dummy.
+2. Leave/re-enter the range to restore fresh panels. Equip an LMG, heavy DMR
+   or sniper and shoot the **same** glass/wood cover. Qualifying shots
+   should register reduced damage against the dummy before the panel breaks.
+3. Compare a compatible assault rifle **with and without Penetrator Rounds**.
+   The magazine adds +0.6 cover energy. Straight-on hits may penetrate the
+   glass, thin-wood and light-cover samples, whereas the thicker sheet-metal
+   panel still requires a stronger weapon.
+4. Test sheet metal for sparks and marks **without** total destruction.
+   Test concrete with the strongest sniper: it stays bulletproof.
+5. After glass/wood/light cover breaks, walk or shoot through the opening
+   to verify collision removal. Restarting the range restores cover.
+
+The side openings are wide enough for a player to enter on foot, and
+material objects do not obstruct the existing central firing practice.
+These demos run locally; the main-map multiplayer server remains
+authoritative for ballistic cover destruction.
+
 ## Validation / regression
 
-Run `bun test tests/material-cover-penetration.test.ts tests/material-cover-destruction.test.ts tests/body-penetration.test.ts`; for full cross-system checks run `bun run content:validate`, `bun run typecheck`, `bun run test:smoke` and `bun run build`.
+Run `bun test tests/firing-range.test.ts tests/material-cover-penetration.test.ts tests/material-cover-destruction.test.ts tests/body-penetration.test.ts`; for full cross-system checks run `bun run content:validate`, `bun run typecheck`, `bun run test:smoke` and `bun run build`.
 
 The new regression suite covers materials, multiple layers, grazing angle, budget and damage reduction, solid obstacles, shields/spawn immunity, magazine behavior and propagation of tags into published maps. Check the [dev workflow](../.github/workflows/dev-validation.yml) before promoting changes to main.
