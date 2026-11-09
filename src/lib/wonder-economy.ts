@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prestigeTokens } from "./weapon-prestige";
 export interface WonderWallet {
  earned:number; unlocked:number; shopSpent:number; available:number;
@@ -10,12 +11,7 @@ export function calculateWonderWallet(awards:number,legacyCredits:number,unlocke
 }
 /** Caller must acquire a per-player write lock *before* reading these rows.
  * SQLite transactions serialize spenders, preventing duplicate token use. */
-export async function lockedWonderWallet(tx:{
- wonderTokenAward:{count:(args:unknown)=>Promise<number>};
- wonderUnlock:{count:(args:unknown)=>Promise<number>};
- careerShopPurchase:{findMany:(args:unknown)=>Promise<{currency:string;cost:number}[]>};
- player:{findUniqueOrThrow:(args:unknown)=>Promise<{wonderLegacyCredits:number}>}
-},playerId:string):Promise<WonderWallet>{
+export async function lockedWonderWallet(tx:Prisma.TransactionClient,playerId:string):Promise<WonderWallet>{
  const [awards,unlocked,purchases,player]=await Promise.all([
   tx.wonderTokenAward.count({where:{playerId}}),
   tx.wonderUnlock.count({where:{playerId}}),
