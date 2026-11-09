@@ -821,7 +821,7 @@
     "id": "launcher_rocket",
     "name": "RL-7 Rocket Launcher",
     "category": "launcher",
-    "unlockLevel": 36,
+    "unlockLevel": 39,
     "unlockCost": 4000,
     "description": "High direct-hit damage, very tight 1.9m impact blast. Precision beats crowd clearing.",
     "stats": {
