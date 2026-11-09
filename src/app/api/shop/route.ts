@@ -34,7 +34,7 @@ export async function POST(req:NextRequest){
     return NextResponse.json({error:"Weapon locked"},{status:403});
   if(item.currency==="career"&&levelForXp(player.xp)<MAX_PLAYER_LEVEL)
     return NextResponse.json({error:"Career Shop opens at level 40"},{status:403});
-  if(item.cosmeticId&&!cosmeticById(item.cosmeticId,
+  if(item.kind!=="wonderKillEffect"&&item.cosmeticId&&!cosmeticById(item.cosmeticId,
       item.kind==="reticle"?"reticle":item.kind==="charm"?"charm":"nameplate"))
     return NextResponse.json({error:"Invalid cosmetic catalog"},{status:500});
   const key=shopItemKey(item,weaponId);
