@@ -1,9 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { blastCanDamage } from "../src/lib/explosion-damage-rules";
 import { coverPanels, coverPlacement, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP } from "../src/lib/deployable-cover";
 import { rechargeTactical, spendTactical, TACTICIAN_RECHARGE_MS } from "../src/lib/perks";
 import { calculateThrowPath, TACTICAL_KNIFE_RANGE } from "../src/lib/throw-trajectory";
 import { fullThrowingKnives, spendThrowingKnife, tickThrowingKnives, THROWING_KNIFE_MAX_CHARGES, THROWING_KNIFE_RANGE } from "../src/lib/throwing-knives";
 describe("tactical balance",()=>{
+ test("self-explosions damage their owner but never teammates",()=>{
+  for(const mode of ["tdm","killconfirmed","ctf","survival"]){
+   expect(blastCanDamage("owner","red","owner","red",mode)).toBe(true);
+   expect(blastCanDamage("owner","red","ally","red",mode)).toBe(false);
+   expect(blastCanDamage("owner","red","opponent","blue",mode)).toBe(true);
+  }
+  expect(blastCanDamage("owner","ffa","other","ffa","ffa")).toBe(true);
+ });
  test("shield is fixed, broader than Bulwark and has a real eye-height firing slot",()=>{
   const location=coverPlacement([0,0,0],0,[],50);
   expect(location?.pos).toEqual([0,0,2.9]);
