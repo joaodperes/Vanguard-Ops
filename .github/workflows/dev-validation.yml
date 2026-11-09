@@ -26,7 +26,14 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Install Bun
+        id: setup-bun
         uses: oven-sh/setup-bun@v2
+        continue-on-error: true
+      # GitHub release downloads occasionally return 504; use npm's bundled
+      # platform binary as a fallback rather than skipping the entire suite.
+      - name: Install Bun (npm fallback)
+        if: steps.setup-bun.outcome == 'failure'
+        run: npm install --global bun@1.4.4 && bun --version
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Generate Prisma client
