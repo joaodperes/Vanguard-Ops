@@ -49,6 +49,7 @@ export const PRACTICE_TASKS = [
   { title: "Eliminate a target", desktop: "Face the targets down the lane. Left-click to fire until one falls.", touch: "Face the targets down the lane. Hold Fire until one falls." },
   { title: "Reload your weapon", desktop: "Press R and let the reload finish. Fire a shot first if the magazine is full.", touch: "Tap Reload and let it finish. Fire a shot first if the magazine is full." },
   { title: "Switch weapons", desktop: "Press 2 for your sidearm, 3 for melee, or Q to quick-swap. F performs a quick melee attack.", touch: "Tap slot 2 for your sidearm or 3 for melee. The knife button performs a quick melee attack." },
+  { title: "Throw a frag grenade", desktop: "Press G to throw a Frag Grenade downrange. You start with two per life; keep clear of the blast.", touch: "Tap Tactical to throw a Frag Grenade downrange. You start with two per life; keep clear of the blast." },
 ] as const;
 
 export function newTutorialProgress(): TutorialProgress {
@@ -88,7 +89,7 @@ export function shouldOfferTutorial(profile: { xp: number; matchesPlayed: number
 /** These are real simulation observations, shared by keyboard and touch input. */
 export interface PracticeSample {
   x: number; z: number; aiming: boolean; kills: number;
-  ammo: number; reloading: boolean; weaponId: string;
+  ammo: number; reloading: boolean; weaponId: string; equipmentCharges?: number;
 }
 export interface PracticeState {
   step: number;
@@ -115,6 +116,8 @@ export function advancePractice(state: PracticeState, sample: PracticeSample): P
         previous.weaponId === sample.weaponId && sample.ammo > previous.ammo;
       break;
     case 4: completed = !!previous && sample.weaponId !== previous.weaponId; break;
+    case 5: completed = previous?.equipmentCharges !== undefined && sample.equipmentCharges !== undefined &&
+      sample.equipmentCharges < previous.equipmentCharges; break;
   }
   return { step: state.step + (completed ? 1 : 0), distance, last: sample };
 }
