@@ -1,40 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Weapon skins",
-  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "id",
-      "name",
-      "unlockLevel",
-      "unlockCost",
-      "rarity",
-      "tier",
-      "color",
-      "metalness",
-      "roughness",
-      "artBrief"
-    ],
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_:-]*$"
       },
       "name": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1,
-        "maximum": 36
+        "exclusiveMinimum": 0,
+        "maximum": 40
       },
       "unlockCost": {
         "type": "integer",
-        "minimum": 0
+        "minimum": 0,
+        "maximum": 9007199254740991
       },
       "rarity": {
+        "type": "string",
         "enum": [
           "common",
           "rare",
@@ -44,11 +33,16 @@
         ]
       },
       "tier": {
+        "type": "string",
         "enum": [
           "standard",
           "rare",
           "legendary"
         ]
+      },
+      "artBrief": {
+        "type": "string",
+        "minLength": 1
       },
       "color": {
         "type": "string",
@@ -73,16 +67,33 @@
         "minimum": 0
       },
       "prestige": {
+        "type": "string",
         "enum": [
           "cosmic",
           "toxic"
         ]
       },
-      "artBrief": {
+      "shopCurrency": {
         "type": "string",
-        "minLength": 12
+        "enum": [
+          "credits",
+          "career"
+        ]
       }
     },
+    "required": [
+      "id",
+      "name",
+      "unlockLevel",
+      "unlockCost",
+      "rarity",
+      "tier",
+      "artBrief",
+      "color",
+      "metalness",
+      "roughness"
+    ],
     "additionalProperties": false
-  }
+  },
+  "title": "Vanguard Ops weapon-skins catalog"
 }

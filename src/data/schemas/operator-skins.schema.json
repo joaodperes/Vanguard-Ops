@@ -1,37 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Operator skins",
-  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "id",
-      "name",
-      "unlockLevel",
-      "unlockCost",
-      "rarity",
-      "color",
-      "accent"
-    ],
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_:-]*$"
       },
       "name": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1,
+        "exclusiveMinimum": 0,
         "maximum": 40
       },
       "unlockCost": {
         "type": "integer",
-        "minimum": 0
+        "minimum": 0,
+        "maximum": 9007199254740991
       },
       "rarity": {
+        "type": "string",
         "enum": [
           "common",
           "rare",
@@ -51,11 +43,27 @@
         "type": "string",
         "pattern": "^#[0-9a-fA-F]{6}$"
       },
+      "shopCurrency": {
+        "type": "string",
+        "enum": [
+          "credits",
+          "career"
+        ]
+      },
       "levelReward": {
-        "type": "boolean",
-        "description": "Account-level milestone reward; automatically owned at this level without a contract or purchase."
+        "type": "boolean"
       }
     },
+    "required": [
+      "id",
+      "name",
+      "unlockLevel",
+      "unlockCost",
+      "rarity",
+      "color",
+      "accent"
+    ],
     "additionalProperties": false
-  }
+  },
+  "title": "Vanguard Ops operator-skins catalog"
 }

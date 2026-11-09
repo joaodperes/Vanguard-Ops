@@ -1,31 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Attachments",
-  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "id",
-      "name",
-      "description",
-      "slot",
-      "unlockLevel",
-      "unlockCost",
-      "effects"
-    ],
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_:-]*$"
       },
       "name": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "description": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "slot": {
+        "type": "string",
         "enum": [
           "sight",
           "barrel",
@@ -35,12 +27,13 @@
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1,
-        "maximum": 36
+        "exclusiveMinimum": 0,
+        "maximum": 40
       },
       "unlockCost": {
         "type": "integer",
-        "minimum": 0
+        "minimum": 0,
+        "maximum": 9007199254740991
       },
       "exclusiveWeaponIds": {
         "type": "array",
@@ -52,17 +45,86 @@
       "weaponCategories": {
         "type": "array",
         "items": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "assault",
+            "smg",
+            "shotgun",
+            "dmr",
+            "sniper",
+            "lmg",
+            "pistol",
+            "pdw",
+            "launcher",
+            "melee"
+          ]
         }
       },
       "recommendedFor": {
         "type": "array",
         "items": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "assault",
+            "smg",
+            "shotgun",
+            "dmr",
+            "sniper",
+            "lmg",
+            "pistol",
+            "pdw",
+            "launcher",
+            "melee"
+          ]
         }
       },
       "sightType": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "iron",
+          "red_dot",
+          "holo",
+          "acog",
+          "hunter",
+          "thermal",
+          "nvg",
+          "laser",
+          "sniper_scope"
+        ]
+      },
+      "shotgunAmmo": {
+        "type": "string",
+        "enum": [
+          "slug",
+          "pellets",
+          "dragons_breath",
+          "beanbag"
+        ]
+      },
+      "bodyPenetration": {
+        "type": "object",
+        "properties": {
+          "maxTargets": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 3
+          },
+          "damageRetention": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "retentionBonus": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "maxTargets",
+          "damageRetention"
+        ],
+        "additionalProperties": false
       },
       "effects": {
         "type": "object",
@@ -85,6 +147,9 @@
           "magSize": {
             "type": "number"
           },
+          "fireRate": {
+            "type": "number"
+          },
           "reloadTime": {
             "type": "number"
           },
@@ -97,16 +162,14 @@
         },
         "additionalProperties": false
       },
-      "shotgunAmmo": {
-        "enum": [
-          "slug",
-          "pellets",
-          "dragons_breath",
-          "beanbag"
-        ]
+      "heatOnly": {
+        "type": "boolean"
       },
       "categoryEffects": {
         "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
         "additionalProperties": {
           "type": "object",
           "properties": {
@@ -128,6 +191,9 @@
             "magSize": {
               "type": "number"
             },
+            "fireRate": {
+              "type": "number"
+            },
             "reloadTime": {
               "type": "number"
             },
@@ -141,8 +207,47 @@
           "additionalProperties": false
         }
       },
-      "heatOnly": {
-        "type": "boolean"
+      "weaponEffects": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "number"
+            },
+            "recoil": {
+              "type": "number"
+            },
+            "spread": {
+              "type": "number"
+            },
+            "adsSpread": {
+              "type": "number"
+            },
+            "adsTime": {
+              "type": "number"
+            },
+            "magSize": {
+              "type": "number"
+            },
+            "fireRate": {
+              "type": "number"
+            },
+            "reloadTime": {
+              "type": "number"
+            },
+            "moveSpeed": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "heatEffects": {
         "type": "object",
@@ -167,69 +272,18 @@
           }
         },
         "additionalProperties": false
-      },
-      "bodyPenetration": {
-        "type": "object",
-        "required": [
-          "maxTargets",
-          "damageRetention"
-        ],
-        "properties": {
-          "maxTargets": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4
-          },
-          "damageRetention": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "retentionBonus": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          }
-        },
-        "additionalProperties": false
-      },
-      "weaponEffects": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "object",
-          "properties": {
-            "damage": {
-              "type": "number"
-            },
-            "recoil": {
-              "type": "number"
-            },
-            "spread": {
-              "type": "number"
-            },
-            "adsSpread": {
-              "type": "number"
-            },
-            "adsTime": {
-              "type": "number"
-            },
-            "magSize": {
-              "type": "number"
-            },
-            "reloadTime": {
-              "type": "number"
-            },
-            "moveSpeed": {
-              "type": "number"
-            },
-            "range": {
-              "type": "number"
-            }
-          },
-          "additionalProperties": false
-        }
       }
     },
+    "required": [
+      "id",
+      "name",
+      "description",
+      "slot",
+      "unlockLevel",
+      "unlockCost",
+      "effects"
+    ],
     "additionalProperties": false
-  }
+  },
+  "title": "Vanguard Ops attachments catalog"
 }

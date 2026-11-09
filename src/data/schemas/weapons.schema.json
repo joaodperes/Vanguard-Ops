@@ -1,31 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Weapons",
-  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "id",
-      "name",
-      "description",
-      "category",
-      "unlockLevel",
-      "unlockCost",
-      "stats"
-    ],
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_:-]*$"
       },
       "name": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "description": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "category": {
+        "type": "string",
         "enum": [
           "assault",
           "smg",
@@ -33,123 +25,36 @@
           "dmr",
           "sniper",
           "lmg",
-          "melee",
           "pistol",
           "pdw",
-          "launcher"
+          "launcher",
+          "melee"
         ]
       },
       "unlockLevel": {
         "type": "integer",
-        "minimum": 1,
-        "maximum": 36
+        "exclusiveMinimum": 0,
+        "maximum": 40
       },
       "unlockCost": {
         "type": "integer",
-        "minimum": 0
-      },
-      "attachments": {
-        "type": "array",
-        "uniqueItems": true,
-        "items": {
-          "enum": [
-            "sight",
-            "barrel",
-            "grip",
-            "magazine"
-          ]
-        }
-      },
-      "baseSightType": {
-        "type": "string"
-      },
-      "special": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "enum": [
-              "heat",
-              "arc",
-              "bolt",
-              "throwing_knife"
-            ]
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "additionalProperties": true
-      },
-      "wonder": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "enum": [
-              "singularity",
-              "corrosion",
-              "turret",
-              "smart",
-              "flame",
-              "storm",
-              "sludge",
-              "cluster",
-              "shield"
-            ]
-          },
-          "maxCharges": {
-            "enum": [
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8
-            ]
-          },
-          "rechargeMs": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "killBonusMs": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "radius": {
-            "type": "number",
-            "minimum": 0
-          }
-        },
-        "required": [
-          "kind",
-          "maxCharges",
-          "rechargeMs",
-          "killBonusMs",
-          "radius"
-        ],
-        "additionalProperties": false
+        "minimum": 0,
+        "maximum": 9007199254740991
       },
       "stats": {
         "type": "object",
-        "required": [
-          "damage",
-          "fireRate",
-          "magSize",
-          "reloadTime",
-          "spread",
-          "adsSpread",
-          "recoil",
-          "range",
-          "adsTime",
-          "moveSpeed",
-          "auto",
-          "headshotMult"
-        ],
         "properties": {
           "damage": {
             "type": "number",
             "minimum": 0
+          },
+          "fireRate": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "magSize": {
+            "type": "number",
+            "exclusiveMinimum": 0
           },
           "reloadTime": {
             "type": "number",
@@ -167,25 +72,20 @@
             "type": "number",
             "minimum": 0
           },
-          "adsTime": {
-            "type": "number",
-            "minimum": 0
-          },
-          "fireRate": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "magSize": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
           "range": {
             "type": "number",
             "exclusiveMinimum": 0
           },
+          "adsTime": {
+            "type": "number",
+            "minimum": 0
+          },
           "moveSpeed": {
             "type": "number",
             "exclusiveMinimum": 0
+          },
+          "auto": {
+            "type": "boolean"
           },
           "headshotMult": {
             "type": "number",
@@ -195,13 +95,6 @@
             "type": "number",
             "exclusiveMinimum": 0
           },
-          "reloadPerRound": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "auto": {
-            "type": "boolean"
-          },
           "minDamageMultiplier": {
             "type": "number",
             "minimum": 0,
@@ -209,43 +102,291 @@
           },
           "burst": {
             "type": "integer",
-            "minimum": 1
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
           },
           "pellets": {
             "type": "integer",
-            "minimum": 1
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
           },
           "reloadStyle": {
+            "type": "string",
             "const": "incremental"
+          },
+          "reloadPerRound": {
+            "type": "number",
+            "exclusiveMinimum": 0
           },
           "reloadOnlyWhenEmpty": {
             "type": "boolean"
           },
           "coverPenetration": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 6
+            "minimum": 0
+          },
+          "bodyPenetration": {
+            "type": "object",
+            "properties": {
+              "maxTargets": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 3
+              },
+              "damageRetention": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "maxTargets",
+              "damageRetention"
+            ],
+            "additionalProperties": false
           }
         },
+        "required": [
+          "damage",
+          "fireRate",
+          "magSize",
+          "reloadTime",
+          "spread",
+          "adsSpread",
+          "recoil",
+          "range",
+          "adsTime",
+          "moveSpeed",
+          "auto",
+          "headshotMult"
+        ],
         "additionalProperties": false
+      },
+      "disabled": {
+        "type": "boolean"
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "sight",
+            "barrel",
+            "grip",
+            "magazine"
+          ]
+        }
+      },
+      "baseSightType": {
+        "type": "string",
+        "enum": [
+          "iron",
+          "red_dot",
+          "holo",
+          "acog",
+          "hunter",
+          "thermal",
+          "nvg",
+          "laser",
+          "sniper_scope"
+        ]
       },
       "explosive": {
         "type": "object",
-        "required": [
-          "radius"
-        ],
         "properties": {
           "radius": {
             "type": "number",
             "exclusiveMinimum": 0
           }
         },
+        "required": [
+          "radius"
+        ],
         "additionalProperties": false
       },
-      "disabled": {
-        "type": "boolean"
+      "special": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "heat"
+              },
+              "heatPerShot": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "coolPerSecond": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "coolDelayMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "overheatAt": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "resumeAt": {
+                "type": "number",
+                "minimum": 0
+              },
+              "ventSeconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "kind",
+              "heatPerShot",
+              "coolPerSecond",
+              "coolDelayMs",
+              "overheatAt",
+              "resumeAt",
+              "ventSeconds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "arc"
+              },
+              "jumps": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "radius": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "decay": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "kind",
+              "jumps",
+              "radius",
+              "decay"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "bolt"
+              },
+              "pickupRadius": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "lifetimeMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "quickReloadSeconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "kind",
+              "pickupRadius",
+              "lifetimeMs",
+              "quickReloadSeconds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "throwing_knife"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "wonder": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "singularity",
+              "corrosion",
+              "turret",
+              "smart",
+              "flame",
+              "storm",
+              "sludge",
+              "cluster",
+              "shield"
+            ]
+          },
+          "maxCharges": {
+            "type": "number",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          "rechargeMs": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "killBonusMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "radius": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind",
+          "maxCharges",
+          "rechargeMs",
+          "killBonusMs",
+          "radius"
+        ],
+        "additionalProperties": false
       }
     },
+    "required": [
+      "id",
+      "name",
+      "description",
+      "category",
+      "unlockLevel",
+      "unlockCost",
+      "stats"
+    ],
     "additionalProperties": false
-  }
+  },
+  "title": "Vanguard Ops weapons catalog"
 }
