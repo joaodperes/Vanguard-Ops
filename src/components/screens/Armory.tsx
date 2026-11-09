@@ -1302,7 +1302,7 @@ function CustomizeModal(props: CustomizeModalProps) {
               <p className="text-white/60">
                 Skin trials: {prestigeStatus.skinCompleted}/{prestigeStatus.skinTotal} · Attachment trials: {prestigeStatus.attachmentCompleted}/{prestigeStatus.attachmentTotal}
               </p>
-              <p className="text-white/50 mt-1">{prestiged ? "Viridian Blight earned; previously awarded Prestige is never revoked." : "Complete all regular skin and compatible attachment challenges to earn Viridian Blight. Buying attachments is not required."}</p>
+              <p className="text-white/50 mt-1">{prestiged ? "Viridian Blight earned." : "Complete all regular skin and compatible attachment challenges to earn Viridian Blight."}</p>
             </div>
             <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
