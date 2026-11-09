@@ -7,6 +7,7 @@ import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { attachmentViewPermissions, showPendingAttachmentChallenge } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
+import { wonderModulesFor, WONDER_FINISHES, WONDER_KILL_EFFECTS } from "@/lib/wonder-expansion";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
@@ -229,6 +230,17 @@ export function Armory() {
       });
       toast.success(`Equipped ${weapon.name} in slot 4`);
     }catch(error){toast.error(error instanceof Error?error.message:"Equip failed");}
+    finally{setBusy(null);}
+  };
+
+  const setWonderCustomization=async(weaponId:string,field:"wonderModuleId"|"wonderSkinId"|"wonderKillEffectId",value:string)=>{
+    setBusy("wonder-custom:"+weaponId);
+    try{
+      const response=await fetch("/api/loadout",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({playerKey,wonderCustomizeWeaponId:weaponId,[field]:value})});
+      if(!response.ok)throw new Error((await response.json()).error??"Cannot equip Wonder customization");
+      await refreshProfile();toast.success("Wonder customization equipped");
+    }catch(error){toast.error(error instanceof Error?error.message:"Customization failed");}
     finally{setBusy(null);}
   };
 
@@ -477,10 +489,36 @@ export function Armory() {
                   <p className="text-white/60 text-sm">{w.description}</p>
                   {w.wonder!.kind === "turret" && <p className="text-white/45 text-xs">Deploy duration: 25s · Recharge: {w.wonder!.rechargeMs/1000}s (reduced by ordinary kills).</p>}
                   <div className="flex gap-3 text-xs font-mono text-violet-300">
-                    <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" ? `${w.wonder!.maxCharges}s fuel · full tank required` : `${w.wonder!.maxCharges} max shots`}</span>
+                    <span>{w.wonder!.kind === "shield" ? "250 HP shield · P-9 magazine" : w.wonder!.kind === "flame" || w.wonder!.kind === "cryo" ? `${w.wonder!.maxCharges}s fuel` : w.wonder!.kind === "mech" ? "Aircraft-delivered mech · finite ammo" : w.wonder!.kind === "chrono" ? "1 recall anchor" : w.wonder!.kind === "decoy" ? `${w.wonder!.maxCharges} holograms` : `${w.wonder!.maxCharges} max shots`}</span>
                     <span>{w.wonder!.kind === "shield" ? `Shield restores after ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
                     <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
+                  {owned&&<div className="rounded-lg border border-violet-500/20 p-3 space-y-3 bg-violet-500/5">
+                    <p className="text-[11px] uppercase tracking-wide text-violet-200 font-semibold">Wonder customization · one module at a time</p>
+                    {([
+                      {field:"wonderModuleId" as const,title:"Specialized module",value:profile?.prestige.wonderSetups[w.id]?.moduleId??"",
+                        options:wonderModulesFor(w.id).map(m=>({id:m.id,name:m.name,description:m.description,owned:profile?.prestige.wonderPurchases.includes("module_"+m.id)??false}))},
+                      {field:"wonderSkinId" as const,title:"Animated Wonder camo",value:profile?.prestige.wonderSetups[w.id]?.skinId??"",
+                        options:WONDER_FINISHES.map(f=>({id:f.id,name:f.name,description:f.description,owned:profile?.prestige.wonderPurchases.includes(f.id+"_"+w.id)??false}))},
+                      {field:"wonderKillEffectId" as const,title:"Elimination effect",value:profile?.prestige.wonderSetups[w.id]?.killEffectId??"",
+                        options:WONDER_KILL_EFFECTS.map(f=>({id:f.id,name:f.name,description:f.description,owned:profile?.prestige.wonderPurchases.includes(f.id+"_"+w.id)??false}))},
+                    ]).map(group=><label key={group.field} className="block text-xs text-white/65 space-y-1">
+                      <span>{group.title}</span>
+                      <select aria-label={w.name+" "+group.title} value={group.value}
+                        disabled={busy==="wonder-custom:"+w.id}
+                        onChange={e=>void setWonderCustomization(w.id,group.field,e.target.value)}
+                        className="w-full border border-violet-500/30 rounded-md px-2 py-2 bg-zinc-900 text-violet-100">
+                        <option value="">Default · no customization</option>
+                        {group.options.map(option=><option key={option.id} value={option.id} disabled={!option.owned}>
+                          {option.name}{option.owned?"":" · buy in Wonder Shop"}
+                        </option>)}
+                      </select>
+                      {group.value&&<span className="text-[11px] text-violet-300">
+                        {group.options.find(x=>x.id===group.value)?.description}
+                      </span>}
+                    </label>)}
+                    <p className="text-[11px] text-white/45">Unlock modules and visual effects permanently in the Wonder Token Shop.</p>
+                  </div>}
                   {owned
                     ? <Button variant="outline"
                         disabled={(profile?.loadout.perkId==="wonder_weapon" && profile?.loadout.wonderWeaponId===w.id) || busy === "equip:" + w.id}
