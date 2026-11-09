@@ -101,7 +101,7 @@ const PROFILES: Record<WeaponSoundCategory, SoundProfile> = {
   shotgun: { bodyHz: 116, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 480, noiseQ: 0.50, noiseSeconds: 0.155, bodyLevel: 0.78, noiseLevel: 0.95, bodyType: "sawtooth", filter: "highpass" },
   dmr:     { bodyHz: 173, bodyEndHz: 66, bodySeconds: 0.175, noiseHz: 2650, noiseQ: 1.00, noiseSeconds: 0.245, bodyLevel: 0.86, noiseLevel: 0.75, bodyType: "sawtooth", filter: "bandpass" },
   sniper:  { bodyHz: 82, bodyEndHz: 28, bodySeconds: 0.425, noiseHz: 1850, noiseQ: 0.68, noiseSeconds: 0.380, bodyLevel: 1.08, noiseLevel: 0.98, bodyType: "triangle", filter: "bandpass" },
-  lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.205, noiseHz: 2150, noiseQ: 0.65, noiseSeconds: 0.190, bodyLevel: 0.97, noiseLevel: 0.83, bodyType: "sawtooth", filter: "bandpass" },
+  lmg:     { bodyHz: 124, bodyEndHz: 45, bodySeconds: 0.113, noiseHz: 1720, noiseQ: 0.65, noiseSeconds: 0.095, bodyLevel: 0.94, noiseLevel: 0.82, bodyType: "sawtooth", filter: "bandpass" },
   pistol: { bodyHz: 325, bodyEndHz: 128, bodySeconds: 0.104, noiseHz: 3900, noiseQ: 0.75, noiseSeconds: 0.090, bodyLevel: 0.50, noiseLevel: 0.77, bodyType: "triangle", filter: "highpass" },
   pdw: { bodyHz: 295, bodyEndHz: 112, bodySeconds: 0.077, noiseHz: 4100, noiseQ: 0.68, noiseSeconds: 0.075, bodyLevel: 0.44, noiseLevel: 0.7, bodyType: "square", filter: "highpass" },
   melee:   { bodyHz: 780, bodyEndHz: 350, bodySeconds: 0.112, noiseHz: 1350, noiseQ: 0.80, noiseSeconds: 0.185, bodyLevel: 0.14, noiseLevel: 0.39, bodyType: "sine", filter: "bandpass" },
@@ -292,8 +292,8 @@ export function resolveShotAcoustics(
     reportSeconds: category === "sniper" || category === "shotgun" ? .078 : .051,
     mechanicalLevel: (nonBallistic ? (options.weaponId === "crossbow_reclaimer" ? .13 : 0) : isTurret ? .28 : mechanicalSize[category] ?? 0)
       * level * (suppressed ? 1.45 : 1),
-    mechanicalHz: isTurret ? 4150 : category === "shotgun" ? 2450 : category === "sniper" ? 1770 : category === "lmg" ? 1330 : 3200,
-    mechanicalDelay: isTurret ? .012 : category === "shotgun" ? .115 : category === "sniper" ? .086 : .022,
+    mechanicalHz: isTurret ? 4150 : options.weaponId === "pistol_bastion" ? 1150 : options.weaponId === "pistol_magnum" ? 1680 : category === "shotgun" ? 2450 : category === "sniper" ? 1770 : category === "lmg" ? 1330 : 3200,
+    mechanicalDelay: isTurret ? .012 : options.weaponId === "pistol_bastion" ? .047 : options.weaponId === "pistol_magnum" ? .06 : category === "shotgun" ? .115 : category === "sniper" ? .086 : .022,
     tailLevel: (nonBallistic ? 0 : isTurret ? .055 : tailGain * (category === "sniper" ? 1.55 : 1)) * level * (suppressed ? .18 : 1),
     tailDelay: space === "indoor" ? .029 : space === "urban" ? .074 : .105,
     tailSeconds: space === "indoor" ? .19 : space === "urban" ? .26 : .35,
@@ -517,6 +517,7 @@ export class WeaponAudio {
       sample.playbackRate.value = mix.rate;
       const sampleGain = ctx.createGain();
       const clipSeconds = Math.min(mix.duration, Math.max(.008, recorded.buffer.duration - recorded.onset) / mix.rate);
+      const sourceDuration = clipSeconds * mix.rate;
       const peak = level * mix.gain;
       sampleGain.gain.setValueAtTime(.0001, now);
       sampleGain.gain.linearRampToValueAtTime(Math.max(.0001, peak), now + .002);
@@ -528,7 +529,7 @@ export class WeaponAudio {
       track(sample, [sample, sampleFilter, sampleGain]);
       // The full 7.62 mm asset can contain multiple discharges. Only use the
       // first ~90–105 ms, then let the dedicated DMR/sniper tails ring out.
-      sample.start(now, recorded.onset, clipSeconds);
+      sample.start(now, recorded.onset, sourceDuration);
     }
 
     // Caliber body: audible mid/low sweep rather than just a sine-like bass tone.
