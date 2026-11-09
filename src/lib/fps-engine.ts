@@ -9133,7 +9133,7 @@ export class FPSEngine {
       if(now-this.lastHudAt>80){this.lastHudAt=now;this.emitHud(now);}
       return;
     }
-    if(this.survivalPauseStartedAt!==0){
+    if(this.survivalPauseStartedAt && this.survivalPauseStartedAt>0){
       // Keep wall-clock-based combat timers from expiring during a local pause.
       const delay=performance.now()-this.survivalPauseStartedAt;
       this.matchStartedAt+=delay;
