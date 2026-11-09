@@ -1675,7 +1675,7 @@ export const GUN_GAME_TYPE_PROGRESSION_FALLBACK: string[] = GUN_GAME_PROGRESSION
 
 // ---- Survival wave configuration ----
 // Endless mode: each wave spawns more / tougher bots. No kill limit, no time limit.
-export const SURVIVAL_PREP_SEC = 8;       // prep time between waves
+export const SURVIVAL_PREP_SEC = 5;       // maximum inter-wave prep (scales from 2s to 5s by wave 10)
 export const SURVIVAL_RESPAWN_MS = 5000;  // respawn delay after death (shared reinforcement pool)
 export function survivalWaveBotCount(wave: number): number {
   // wave 1 → 3 bots, +1 per wave, capped at 12
