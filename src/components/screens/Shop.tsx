@@ -25,6 +25,7 @@ export function Shop(){
   const {profile,playerKey,refreshProfile}=useGame();
   const [busy,setBusy]=useState("");
   const [currency,setCurrency]=useState<ShopCurrency>("credits");
+  const [wonderFilter,setWonderFilter]=useState<string>("owned");
   const [category,setCategory]=useState<ShopCategory>("all");
   const [rotation,setRotation]=useState<DailyShopRotation|null>(null);
   const [rotationError,setRotationError]=useState(false);
@@ -50,7 +51,10 @@ export function Shop(){
   const ownedWeapons=useMemo(()=>new Set(WEAPONS.filter(w=>!w.wonder&&!!profile
     &&ownsWeapon(w,profile.level,profile.unlocks.weapons)).map(w=>w.id)),[profile]);
   const offers=(c:ShopCurrency,g:ShopCategory):DailyShopOffer[]=>{
-    if(c==="wonder")return shopItemsForCategory(c,g).map(item=>({itemId:item.id}));
+    if(c==="wonder")return shopItemsForCategory(c,g).filter(item=>
+      wonderFilter==="all" ||(wonderFilter==="owned"
+        ?(profile?.prestige.wonderWeapons??[]).includes(item.wonderWeaponId??"")
+        :item.wonderWeaponId===wonderFilter)).map(item=>({itemId:item.id}));
     const eligible=new Set(shopItemsForCategory(c,g).map(i=>i.id));
     return (rotation?.offers??[]).filter(o=>eligible.has(o.itemId));
   };
@@ -145,6 +149,16 @@ export function Shop(){
             <TabsTrigger value="career">Career Token Shop</TabsTrigger>
             <TabsTrigger value="wonder">Wonder Token Shop</TabsTrigger>
           </TabsList>
+          {currency==="wonder"&&<div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
+            <label htmlFor="wonder-shop-filter" className="text-violet-200">Show offers for</label>
+            <select id="wonder-shop-filter" value={wonderFilter} onChange={e=>setWonderFilter(e.target.value)}
+              className="rounded-lg border border-violet-500/40 bg-zinc-900 text-white px-3 py-2 max-w-full">
+              <option value="owned">My unlocked Wonders</option>
+              <option value="all">All Wonders</option>
+              {WEAPONS.filter(w=>w.wonder&&!w.disabled).map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+            {!profile?.prestige.wonderWeapons.length&&<span className="text-white/50">Unlock a Wonder in the Armory to purchase its upgrades.</span>}
+          </div>}
           <div className="grid grid-cols-[128px_minmax(0,1fr)] sm:grid-cols-[192px_minmax(0,1fr)] gap-4 sm:gap-6 mt-5 items-start">
             <nav aria-label="Shop categories" className="sticky top-20 rounded-xl border border-white/10 bg-zinc-900/60 p-1.5 sm:p-2 flex flex-col gap-1">
               {SHOP_CATEGORIES.map(group=><button type="button" key={group.id}
