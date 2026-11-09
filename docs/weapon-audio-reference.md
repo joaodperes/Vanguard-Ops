@@ -6,7 +6,7 @@ Updated: 2026-11-09. Target: `dev` (not production).
 
 The browser currently synthesizes gunshots using short white-noise bursts and pitched oscillators. Those are inexpensive and reactive but lack the broadband midrange, metallic action and spatial decay of real shots. Raising master volume or bass alone will not restore that missing character. `WeaponAudio` now separates the **transient**, **midrange report**, **low pressure/body**, **receiver/bolt/pump action**, and **space-dependent reflection**. The map-wide acoustic space is a first approximation, not line-of-sight room classification.
 
-The current implementation **still uses procedural audio**; no third-party recordings are copied into the repository or fetched during gameplay. That means no license ambiguity, unexpected download, CORS or offline-play dependency. For maximum realism, the next production-audio pass should replace or supplement the procedural report/body layers with carefully edited CC0 recordings.
+**Implemented:** six short **CC0 field-recorded firearm reports** have now been bundled under `public/audio/weapons/`: two 9mm pistol takes, two SMG takes and two 12-gauge shotgun takes. The renderer lazily decodes these local assets after audio unlock, varies the take/pitch, and blends them with synthetic low-end body, action and spatial reflections. The first shot and any failed asset load fall back to synthesis. Rifles, DMRs, snipers and LMGs currently benefit from the new synthetic layers, **not yet recorded reports**. Suppressed and experimental weapons deliberately stay procedural. Exact upstream license/recordist notes are in [the asset manifest](../public/audio/weapons/SOURCES.md).
 
 ## Technique benchmarks
 
@@ -45,4 +45,4 @@ Do not rip audio from commercial games, video captures or YouTube. Do not commit
 
 ## Suggested reference asset workflow
 
-For a later CC0 recorded pass, select 2–4 individual takes per weapon family, remove dead air, clean peaks, and export trimmed mono/stereo Opus or Ogg assets rather than shipping multi-megabyte WAV archives. Normalize for the **mix**, not maximum loudness; align attacks to trigger timing, then blend under the existing procedural layers. Retain a `source-license.json` manifest with source URL, author, exact license and file hashes. Validate visual/audio sync in automatic fire, suppressors and networked shots before release.
+For a further CC0 recorded pass, expand the real samples to ARs, DMRs, snipers and LMGs using 2–4 individual takes per family, remove dead air, clean peaks, and export trimmed mono/stereo Opus or Ogg assets rather than shipping multi-megabyte WAV archives. Normalize for the **mix**, not maximum loudness; align attacks to trigger timing, then blend under the existing procedural layers. Retain a `source-license.json` manifest with source URL, author, exact license and file hashes. Validate visual/audio sync in automatic fire, suppressors and networked shots before release.
