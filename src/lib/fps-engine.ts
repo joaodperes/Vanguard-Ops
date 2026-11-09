@@ -7,8 +7,8 @@ import { captureThirdPersonDeathPose, applyThirdPersonDeathPose, resetThirdPerso
 import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
 import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
-import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss} from "./bot-appearances";
-import {addSurvivalBossArmor, updateSurvivalBossArmor, type SurvivalBossVisual} from "./survival-boss-visuals";
+import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss, isSurvivalElite} from "./bot-appearances";
+import {addSurvivalBossArmor, addSurvivalEliteArmor, updateSurvivalBossArmor, type SurvivalBossVisual} from "./survival-boss-visuals";
 import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
@@ -43,7 +43,7 @@ import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
 import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
-import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
+import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
@@ -87,8 +87,8 @@ import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
-import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
-import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, SURVIVAL_UPGRADE_PREP_SEC, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
+import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
+import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
@@ -99,7 +99,7 @@ import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbit
 import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
-  SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
+  SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
   GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
   type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
@@ -310,6 +310,8 @@ export interface HudState {
   survivalTier?: SurvivalTier;
   survivalUpgradeOffer?: SurvivalUpgradeOffer;
   survivalUpgradeRanks?: SurvivalUpgradeRanks;
+  survivalPlayerRanks?: Record<string,SurvivalUpgradeRanks>;
+  survivalDownedLeft?: number;
   survivalModifierNames?: string[];
   survivalBossWave?: boolean;
   survivalEnemiesLeft?: number;
@@ -476,6 +478,7 @@ interface Combatant {
   bossMaxHealth?: number;
   bossCharge?: number;
   bossVisual?: SurvivalBossVisual;
+  downed?:boolean;
   skinMaterial?: THREE.MeshStandardMaterial;
   thermalOverlays?: THREE.Mesh[];
   // humanoid animation parts
@@ -1067,6 +1070,9 @@ export class FPSEngine {
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
+  private survivalPlayerRanks:Record<string,SurvivalUpgradeRanks>={};
+  private survivalSelfReviveUsedWave=-1;
+  private survivalDownedUntil=0;
   private survivalUpgradeOffer:SurvivalUpgradeOffer|undefined;
   private survivalRerolls=1;
   private survivalLastKillAt=-Infinity;
@@ -4306,7 +4312,8 @@ export class FPSEngine {
     }else{
       this.survivalRerolls--;
       this.survivalUpgradeOffer={...offer,
-        choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,offer.choices),
+        choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,offer.choices,
+          survivalWaveMutators(this.survivalTier,offer.wave).boss),
         rerollsRemaining:this.survivalRerolls};
     }
   }
@@ -5471,11 +5478,15 @@ export class FPSEngine {
     this.survivalReinforcements = 0;
     this.survivalWave = 0;
     this.survivalUpgradeRanks={};
+    this.survivalPlayerRanks={};
+    this.survivalSelfReviveUsedWave=-1;
+    this.survivalDowned=false;
+    this.survivalDownedUntil=0;
     this.survivalUpgradeOffer=undefined;
     this.survivalRerolls=1;
     this.survivalLastKillAt=-Infinity;
     this.survivalLastHeadshotKillAt=-Infinity;
-    this.survivalPrepLeft = 5;       // short initial prep before wave 1
+    this.survivalPrepLeft = 2;       // short initial prep before wave 1
     this.survivalWaveActive = false;
     this.timeLeft = 99999;           // survival has no time limit
   }
@@ -5510,7 +5521,9 @@ export class FPSEngine {
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
       const boss=mutators.boss && n === count-1;
-      const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
+      const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
+        n===count-(mutators.boss?2:1);
+      const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
       const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
@@ -5520,8 +5533,8 @@ export class FPSEngine {
       ai.ammoInMag=weaponById(wid).stats.magSize;
       if(boss) this.survivalBossTimers.set(id,{phase:0,nextPhaseAt:performance.now()+5000,nextSkillAt:performance.now()+8500});
       const c: Combatant = {
-        id, name: boss ? `BOSS · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
-        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
+        id, name: boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
         weaponId: wid, weaponSkinId: "default", playerSkinId: boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation),
         kills: 0, deaths: 0, score: 0,
@@ -5557,13 +5570,14 @@ export class FPSEngine {
           this.finalizeMatchLocal();
           return;
         }
-        if(survivalWaveMutators(this.survivalTier,this.survivalWave).boss)this.survivalRerolls++;
-        if(survivalUpgradeDue(this.survivalWave)){
-          this.survivalPrepLeft=SURVIVAL_UPGRADE_PREP_SEC;
+        const bossCleared=survivalWaveMutators(this.survivalTier,this.survivalWave).boss;
+        if(bossCleared)this.survivalRerolls++;
+        if(survivalUpgradeDue(this.survivalWave)||bossCleared){
+          this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
           this.survivalUpgradeOffer={wave:this.survivalWave,
-            choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks),
+            choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,[],bossCleared),
             rerollsRemaining:this.survivalRerolls};
-        }else this.survivalPrepLeft=SURVIVAL_PREP_SEC;
+        }else this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
       }
     }
   }
@@ -5718,6 +5732,9 @@ export class FPSEngine {
           upperArmL:armL.upper,upperArmR:armR.upper,
           upperLegL:legL.upper,upperLegR:legR.upper})
       : undefined;
+    if(isSurvivalElite(c.id,c.name,c.isBot))
+      addSurvivalEliteArmor({torso:torsoGroup,head:headGroup,
+        upperArmL:armL.upper,upperArmR:armR.upper});
 
     // ---- Third-person weapon (model faces character-forward +Z) ----
     // The procedural weapon builder is camera-local (-Z forward). Its geometry,
@@ -10682,7 +10699,9 @@ export class FPSEngine {
     if(!ai||!bot.alive)return;
     let state=this.botTacticalState.get(bot.id);
     if(!state){
-      const id=botTacticalForArchetype(ai.archetype,Math.floor(Math.random()*2));
+      const id=this.opts.mode==="survival"
+        ?survivalBotTactical(Math.floor(Math.random()*2))
+        :botTacticalForArchetype(ai.archetype,Math.floor(Math.random()*2));
       state={id,charges:equipmentById(id).charges,nextAt:now+3500+Math.random()*3000};
       this.botTacticalState.set(bot.id,state);
     }
