@@ -4524,7 +4524,7 @@ export class FPSEngine {
           }
         }
         if(def.type==="blast"){
-          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage);
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage,def.id);
           this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
         } else if(def.type==="flash")this.spawnEquipmentVisual(impact,0xffffff);
         if(def.type==="blast"||def.type==="flash")this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
@@ -4639,7 +4639,7 @@ export class FPSEngine {
       if (remaining) continue;
       this.removeDeathBomb(id);
       this.spawnExplosion(new THREE.Vector3(...bomb.pos));
-      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE);
+      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
       for (const target of this.combatants.values()) {
         if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, this.opts.team as string, target.id, this.selfId)) continue;
         const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
@@ -4928,7 +4928,7 @@ export class FPSEngine {
           if(damage>0)this.takeDamage(damage,owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
         }
       }
-      this.damageLocalBallisticCoverExplosion(m.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage);
+      this.damageLocalBallisticCoverExplosion(m.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage,"mine");
       return false;
     });
   }
@@ -8459,10 +8459,10 @@ export class FPSEngine {
   }
 
   /** Offline explosions use the same soft-cover HP model as the game server. */
-  private damageLocalBallisticCoverExplosion(pos:Vec3,radius:number,damage:number){
+  private damageLocalBallisticCoverExplosion(pos:Vec3,radius:number,damage:number,sourceId:string){
     if(this.opts.online)return;
     for(const impact of damageBallisticCoverFromExplosion(this.map,this.ballisticHp,
-      this.ballisticDestroyed,pos,radius,damage))this.displayBallisticImpact(impact);
+      this.ballisticDestroyed,pos,radius,damage,sourceId))this.displayBallisticImpact(impact);
   }
 
   /** Small, capped decals and short-lived fragments; never emit heavy explosions
@@ -9265,7 +9265,7 @@ export class FPSEngine {
               }
             }
           }
-          this.damageLocalBallisticCoverExplosion([p.end.x,p.end.y,p.end.z],p.splashRadius,p.damage);
+          this.damageLocalBallisticCoverExplosion([p.end.x,p.end.y,p.end.z],p.splashRadius,p.damage,p.weaponId);
           this.hitMarkerAt = performance.now();
         }
         this.scene.remove(p.mesh);
@@ -10570,7 +10570,7 @@ export class FPSEngine {
           }
         }
         if(def.type==="blast"){
-          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage);
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage,def.id);
           this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
         } else this.spawnEquipmentVisual(impact,0xffffff);
         this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
