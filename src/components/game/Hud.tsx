@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
+import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
@@ -705,9 +706,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {mode === "survival" && hud.survivalDowned && (
         <div className="absolute left-1/2 top-1/3 -translate-x-1/2 z-40 rounded-xl border border-amber-400/50 bg-black/80 px-7 py-5 text-center">
-          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED</div>
-          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Hold position</div>
-          <div className="text-white/50 text-xs mt-2">Survive until your teammate clears the wave to rejoin during preparation.</div>
+          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED {hud.survivalDownedLeft!==undefined ? "· "+hud.survivalDownedLeft+"s" : ""}</div>
+          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Cannot move</div>
+          <div className="text-white/50 text-xs mt-2">
+            {hud.survivalDownedLeft!==undefined
+              ? "Eliminate an enemy within 30 seconds to self-revive with 35 HP."
+              : "Your teammate can bring you back by clearing this wave."}
+          </div>
         </div>
       )}
 
@@ -798,7 +803,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </div>
           </div>
         ) : (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-w-[92vw]">
+          <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${mode==="survival"?"w-[780px]":"w-[520px]"} max-w-[92vw]`}>
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
@@ -816,10 +821,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                       <th className="text-center px-2 py-1.5 font-medium w-14">K</th>
                       <th className="text-center px-2 py-1.5 font-medium w-14">D</th>
                       <th className="text-center px-4 py-1.5 font-medium w-16">Score</th>
+                      {mode==="survival" && <th className="text-left px-3 py-1.5 font-medium">Active upgrades</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {[...hud.scoreboard].sort((a, b) => b.score - a.score).map((r) => (
+                    {hud.scoreboard.filter(r=>mode!=="survival"||!r.isBot).sort((a, b) => b.score - a.score).map((r) => (
                       <tr key={r.id} className={`border-t border-white/5 ${r.isSelf ? "bg-emerald-500/10" : ""}`}>
                         <td className="px-4 py-1.5">
                           <span className={`inline-block w-2 h-2 rounded-full mr-2 ${teamDot(r.team)}`} />
@@ -829,6 +835,27 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                         <td className="text-center px-2 py-1.5 text-white tabular-nums">{r.kills}</td>
                         <td className="text-center px-2 py-1.5 text-white/50 tabular-nums">{r.deaths}</td>
                         <td className="text-center px-4 py-1.5 text-white font-bold tabular-nums">{r.score}</td>
+                        {mode==="survival" && (
+                          <td className="px-3 py-2">
+                            <div className="flex max-w-[390px] flex-wrap gap-1">
+                              {Object.entries(hud.survivalPlayerRanks?.[r.id]??
+                                (r.isSelf?hud.survivalUpgradeRanks??{}:{}))
+                                .filter(([,rank])=>(rank??0)>0)
+                                .map(([id,rank])=>{
+                                  const def=SURVIVAL_UPGRADES.find(u=>u.id===id);
+                                  const previous={ [id]: Math.max(0,(rank??0)-1) };
+                                  return <span key={id}
+                                    title={def?survivalUpgradeValueText(def.id,previous as Record<SurvivalUpgradeId,number>):id}
+                                    className="inline-flex rounded border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-200">
+                                    {def?.name??id} ×{rank}
+                                  </span>;
+                                })}
+                              {!Object.values(hud.survivalPlayerRanks?.[r.id]??
+                                (r.isSelf?hud.survivalUpgradeRanks??{}:{})).some(v=>(v??0)>0) &&
+                                <span className="text-xs text-white/35">No upgrades</span>}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
