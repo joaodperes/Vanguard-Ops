@@ -4,7 +4,12 @@ import {botGroundHeight} from "./bot-physics";
 import {lavaAt, withinEnvironment} from "./dynamic-environment";
 
 export function spawnClear(map:MapDef,sp:Vec3):boolean {
-  return !map.cover.some(c=>Math.abs(sp[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS &&
+  // Torches are render-only posts, so they are not in map.cover. Keep actual
+  // player/bot spawn capsules clear of them too (particularly in the crypt).
+  const atLamp=(map.props??[]).some(p=>p.kind==="lamp" &&
+    Math.hypot(sp[0]-p.x,sp[2]-p.z)<1.7 &&
+    (p.y??0)<sp[1]+PLAYER_HEIGHT && (p.y??0)+(p.h??3)>sp[1]);
+  return !atLamp && !map.cover.some(c=>Math.abs(sp[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS &&
     Math.abs(sp[2]-c.pos[2])<c.size[2]+PLAYER_RADIUS &&
     c.pos[1]+c.size[1]>sp[1]+.5 && c.pos[1]-c.size[1]<sp[1]+PLAYER_HEIGHT) &&
     !(map.environment??[]).some(o=>(o.type==="fire"||o.type==="spikes")&&withinEnvironment(o,sp,1)) &&
