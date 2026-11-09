@@ -535,7 +535,7 @@
     "category": "pistol",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Standard issue sidearm. Always equipped as backup.",
+    "description": "Standard issue sidearm.",
     "stats": {
       "damage": 41,
       "fireRate": 5,
