@@ -1068,6 +1068,7 @@ function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Ve
 function removeServerCover(room:Room,id:string):void{
   if(!room.deployedCovers.delete(id))return;
   room.map.cover=room.map.cover.filter(box=>box.environmentId!==DEPLOY_COVER_PREFIX+id);
+  cityCoverIndexes.delete(room.map); // invalidate precomputed collision broadphase after removal
   io.to(room.id).emit("message",{t:"deployedCoverRemoved",id} as S2C);
 }
 function damageServerCover(room:Room,id:string,damage:number):void{
@@ -1086,6 +1087,7 @@ function deployServerCover(room:Room,player:PlayerNet,now:number):boolean{
     ...place,hp:DEPLOY_COVER_HP,expiresAt:now+DEPLOY_COVER_LIFETIME_MS};
   room.deployedCovers.set(cover.id,cover);
   room.map.cover=[...room.map.cover,...coverPanels(cover)];
+  cityCoverIndexes.delete(room.map); // include new blockers in hitscan, LOS and bot pathing
   io.to(room.id).emit("message",{t:"deployedCoverPlaced",cover} as S2C);
   return true;
 }
