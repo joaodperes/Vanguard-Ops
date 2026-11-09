@@ -10174,7 +10174,7 @@ export class FPSEngine {
       const orbitalObjective=orbitalBotShouldContest(this.map,this.orbitalCharge,
         roster.find(b=>b.id===c.id)!,roster,threatDistance)
         ?orbitalBotDeckGoal(c.pos,c.team,this.map):null;
-      const ctfIntent = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
+      const ctfIntent = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId,this.ctfOvertime)
         ? ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
@@ -10505,7 +10505,9 @@ export class FPSEngine {
       const floorMismatch=Math.abs(navPoint[1]-c.pos[1])>1.15;
       ai.aiming=ai.archetype==="marksman" && d<=2.5 &&
         !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
-      ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
+      // Sudden death calls for direct objective pressure, not leisurely patrols.
+      ai.sprinting = (this.opts.mode==="ctf" && this.ctfOvertime && d>6) ||
+        botPatrolSprint(d,ai.difficulty,ai.archetype);
       if(d<=1.5&&!floorMismatch){
         if(ai.investigationLookAt){
           const last=ai.investigationLookAt;
