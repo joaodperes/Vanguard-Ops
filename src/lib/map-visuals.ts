@@ -471,6 +471,14 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53]});
       continue;
     }
+    if(p.kind==="terminal"){
+      // 3D terminals are solid-looking consoles, not walk-through decoration.
+      // Match the renderer's 2 x 2.2 x 1.3 body plus its shallow front screen
+      // (the screen extends to local Z +0.74). Keep this collider in the
+      // shared map so movement, bots and bullets agree in solo and online.
+      result.push({kind:"cover",pos:[p.x,(p.y??0)+1.1,p.z],size:[1,1.1,.75]});
+      continue;
+    }
     if(p.kind==="bandstand"){
       result.push(...cityBandstandBoxes(p));
       continue;
