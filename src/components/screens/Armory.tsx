@@ -1018,7 +1018,7 @@ function CustomizeModal(props: CustomizeModalProps) {
             </div>
           </div>
           {/* Stat bars */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
+          <div className={`grid grid-cols-2 ${w.category === "melee" ? "sm:grid-cols-4" : "sm:grid-cols-5"} gap-2 mt-3`}>
             <ModalStatBar label="DMG" value={currentEffectiveStats.damage} max={120} color="bg-rose-500" />
             <ModalStatBar label="RoF" value={currentEffectiveStats.fireRate} max={16} color="bg-amber-500" />
             <ModalStatBar label={w.special?.kind === "heat" ? "HEAT" : "MAG"} value={currentEffectiveStats.magSize} max={100} color="bg-emerald-500" />
