@@ -107,7 +107,8 @@ import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
 import { canStartWeaponReload, isFanHammer } from "@/lib/weapon-mechanics";
@@ -802,6 +803,7 @@ export class FPSEngine {
   // (avoids allocating new Quaternion/Euler objects every frame for every part).
   private _vmTotalQuat = new THREE.Quaternion();
   private _vmTotalEuler = new THREE.Euler();
+  private _vmRevolverSide = new THREE.Vector3();
 
   // ---- Sight system ----
   // Effective sight for the player's loadout (iron if no sight equipped).
@@ -3186,7 +3188,9 @@ export class FPSEngine {
     // single most impactful visual cue for weapon identification.
     // The band is ONLY added for ranged weapons (not melee — melee weapons
     // already have distinct shapes: knife/shiv/machete/hammer).
-    if (category !== "melee" && !weaponById(this.weaponId).wonder) {
+    // The Bastion already has a barrel and front blade. Its old bright
+    // category band looked like a solid grey sight block during ADS.
+    if (category !== "melee" && !weaponById(this.weaponId).wonder && this.weaponId !== "pistol_bastion") {
       const categoryAccentColors: Record<string, number> = {
         assault: 0xff3b3b,    // red
         smg: 0xffd93b,        // yellow
@@ -3230,6 +3234,7 @@ export class FPSEngine {
         (!wDef.wonder && this.sightDef.type === "iron"))) {
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
+      let bastionFront:THREE.Mesh | null=null;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
         // Magnified tube scope
         const tubeLen = (st === "hunter" || st === "sniper_scope") ? 0.16 : 0.12;
@@ -3278,9 +3283,14 @@ export class FPSEngine {
         emitter.position.set(0, 0, -0.031);
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
+      } else if (st === "iron" && wid === "pistol_bastion") {
+        // Two dark, separated rear ears + low bridge, not an opaque block.
+        // A front post remains visible through their centre in hipfire/ADS.
+        const bastionSights=buildBastionIronSights(accentMat);
+        scopeGroup.add(bastionSights.rear);
+        bastionFront=bastionSights.front;
       } else {
-        // Low-profile rear notch pressed directly onto the existing receiver.
-        // No elevated scope riser, tower, floating aperture or 'ladder'.
+        // Generic low-profile receiver notch for other unscoped weapons.
         for (const side of [-1,1]) {
           const ear = new THREE.Mesh(new THREE.BoxGeometry(.014,.036,.026),accentMat);
           ear.position.set(side*.029,.013,0);
@@ -3294,12 +3304,11 @@ export class FPSEngine {
         wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
       ).sightMountY;
       // Scope bodies and low rear notches are part of the same rigid gun pose.
-      addPart(scopeGroup, 0, mountHeight, -0.1);
+      addPart(scopeGroup, 0, mountHeight, wid === "pistol_bastion" && st === "iron" ? .09 : -.1);
       if (st === "iron") {
-        // Matching front blade: mounted on the actual barrel toward the muzzle,
-        // not raised on stilts above the player's weapon.
-        const front = new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
-        addPart(front, 0, mountHeight+.01, muzzleZ+.08);
+        // Align an actual slender front blade with the OPEN rear U notch.
+        const front=bastionFront ?? new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
+        addPart(front, 0, mountHeight+(bastionFront ? .008 : .01), muzzleZ+.08);
       }
       this.sightMesh = scopeGroup;
     }
@@ -3489,12 +3498,12 @@ export class FPSEngine {
       add(new THREE.CylinderGeometry(.029,.029,.11,10),new THREE.MeshBasicMaterial({color:0xc75d32}),[0,0,0]);
       add(new THREE.CylinderGeometry(.030,.030,.023,10),amber,[0,-.067,0]);
     } else if (id === "cylinder_speedloader") {
-      // Six aligned cartridges and their temporary loading collar.
-      add(new THREE.CylinderGeometry(.055,.055,.045,12),dark,[0,0,0]);
-      for(let i=0;i<6;i++){
-        const angle=2*Math.PI*i/6;
-        add(new THREE.CylinderGeometry(.012,.012,.078,8),amber,[.037*Math.cos(angle),.052,.037*Math.sin(angle)]);
-      }
+      // Only the loader collar is a transient offhand prop. The six brass
+      // cartridges are children of the actual swing-out cylinder and travel
+      // axially INTO its six chambers. They remain there when this prop leaves.
+      add(new THREE.CylinderGeometry(.061,.061,.040,12),dark,[0,0,0],Math.PI/2);
+      add(new THREE.CylinderGeometry(.025,.025,.020,10),steel,[0,0,.038],Math.PI/2);
+      add(new THREE.BoxGeometry(.065,.011,.022),amber,[0,0,.046]);
     } else if (id === "cylinder") {
       add(new THREE.CylinderGeometry(.056,.056,.13,9),steel,[0,0,0]);
     } else {
@@ -3828,13 +3837,30 @@ export class FPSEngine {
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
-      if(p.obj.userData.fpRevolverCylinder && this.reloading && this.weaponId==="pistol_bastion"){
-        const fraction=Math.min(1,(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs));
-        const open=Math.max(0,Math.min(1,(fraction-.13)/.20));
-        const close=1-Math.max(0,Math.min(1,(fraction-.72)/.18));
-        const swing=Math.min(open,close);
-        p.obj.position.x-=.10*swing;
-        p.obj.rotateY(-.72*swing);
+      if(p.obj.userData.fpRevolverCylinder && this.weaponId==="pistol_bastion"){
+        const fraction=this.reloading ? (now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs) : 1;
+        const frame=bastionReloadFrame(fraction);
+        if(this.reloading){
+          // Swing sideways in the weapon's own right/left axis. Never yaw the
+          // cylinder: the chamber bores remain PARALLEL to the barrel.
+          const side=this._vmRevolverSide.set(1,0,0).applyQuaternion(this._vmTotalQuat);
+          p.obj.position.addScaledVector(side,BASTION_CYLINDER_OPEN_X*this.vmScale*frame.open);
+        }
+        for(const component of p.obj.children){
+          const index=component.userData.fpRevolverCartridgeIndex;
+          if(typeof index==="number"){
+            // During a reload, empty chambers become visible first; six rounds
+            // then approach the open breech and seat along Z. Outside a reload,
+            // chambers reflect exactly how many rounds remain.
+            component.visible=this.reloading ? frame.cartridgesVisible : index<this.ammoInMag;
+            component.position.z=BASTION_CARTRIDGE_SEATED_Z+
+              (this.reloading ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
+          } else if(component.userData.fpRevolverYoke){
+            component.visible=this.reloading && frame.open>.01;
+            component.position.x=.085*frame.open;
+            component.scale.x=frame.open;
+          }
+        }
       }
       p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }

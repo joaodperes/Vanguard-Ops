@@ -30,7 +30,7 @@ describe("Bastion .45 six-shot revolver",()=>{
     buildFirstPersonWeapon("pistol_bastion",material,material,(part,x,y,z)=>{part.position.set(x,y,z);parts.push(part);});
     const cylinder=parts.find(p=>p.userData.fpRevolverCylinder);
     expect(cylinder).toBeDefined();
-    expect(cylinder!.children).toHaveLength(7);
+    expect(cylinder!.children.filter(p=>typeof p.userData.fpRevolverCartridgeIndex==="number")).toHaveLength(6);
   });
   test("fan attachment enables rapid held hipfire, not for other pistols",()=>{
     expect(isFanHammer("pistol_bastion","grip_fan_hammer")).toBe(true);

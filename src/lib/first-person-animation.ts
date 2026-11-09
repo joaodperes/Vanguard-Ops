@@ -1,4 +1,5 @@
 import { ROUND_INSERT_FRACTION } from "./incremental-reload";
+import { bastionReloadFrame, bastionLoaderContact } from "./bastion-revolver-rig";
 
 /** Deterministic cosmetic animation timing. No Three.js or gameplay side effects.
  * Timelines use elapsed time from an action's own start (never the weapon's
@@ -320,16 +321,18 @@ export function sampleReloadMotion(progress: number, kind: ReloadMotion): Action
       handRoll:.24*(1-insert),propVisible:p>.08&&p<ROUND_INSERT_FRACTION};
   }
   if (kind === "cylinder_speedloader") {
-    // Expose the swing-out cylinder, clear the empties, seat a loader, snap shut.
-    const cylinder: [number,number,number] = [-.095,-.13,-.19];
-    const pocket: [number,number,number] = [-.24,-.44,.16];
-    const hand = p < .23 ? mix(home,cylinder,ease(p/.23))
-      : p < .40 ? mix(cylinder,pocket,ease((p-.23)/.17))
-      : p < .70 ? mix(pocket,cylinder,ease((p-.40)/.30))
-      : mix(cylinder,home,ease((p-.70)/.30));
+    const frame=bastionReloadFrame(p);
+    const cylinder=bastionLoaderContact(p,1.20);
+    const pocket:[number,number,number]=[-.24,-.43,.14];
+    const grip:[number,number,number]=[cylinder[0]-.055,cylinder[1]-.035,cylinder[2]+.030];
+    const hand=p<.22?mix(home,grip,ease(p/.22))
+      : p<.41?mix(grip,pocket,ease((p-.22)/.19))
+      : p<.51?mix(pocket,grip,ease((p-.41)/.10))
+      : p<.79?grip:mix(grip,home,ease((p-.79)/.21));
+    // Contact is authored on the actual six-chamber rear face. Both this
+    // prop and the cylinder are transformed by the same weapon quaternion.
     return {...empty,dip:-.10*weight,pitch:.22*weight,roll:-.40*weight,
-      hand,prop:[hand[0]-.018,hand[1]-.018,hand[2]-.045],
-      handRoll:.42*weight,propVisible:p>.39&&p<.74};
+      hand,prop:cylinder,handRoll:0,propVisible:frame.loaderVisible};
   }
   if (kind === "cylinder") {
     return {...empty,dip:-.11*weight,pitch:.30*weight,roll:-.35*weight,

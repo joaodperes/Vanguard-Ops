@@ -4,6 +4,7 @@
  * The engine owns mesh parenting/animation and disposes all geometry on swap.
  */
 import * as THREE from "three";
+import { BASTION_CYLINDER_CENTER, BASTION_CHAMBER_RADIUS, BASTION_CYLINDER_HALF_LENGTH, BASTION_CARTRIDGE_SEATED_Z } from "./bastion-revolver-rig";
 
 type Magazine = "curved" | "straight" | "drum" | "box" | "belt" | "tube" | "revolver" | "grip" | "rocket" | "none";
 type Stock = "fixed" | "wire" | "folding" | "bullpup" | "precision" | "heavy" | "none";
@@ -136,6 +137,27 @@ export function firstPersonSupportGrip(id: string): [number, number, number] {
     -Math.max(.085, height * .42),
     Math.max(original[2], -.12 - length * .15),
   ];
+}
+
+/** The Bastion uses a rear U-notch with an actual open centre and a narrow
+ * front blade; no opaque plate covers the aim line. Geometry stays fixed to the
+ * weapon; scope/reticle switching is still handled by the FPS engine. */
+export function buildBastionIronSights(material: THREE.Material) {
+  const rear=new THREE.Group();
+  rear.name="bastion_rear_u_notch";
+  const component=(w:number,h:number,d:number,x:number,y:number)=>{
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+    mesh.position.set(x,y,0);
+    rear.add(mesh);
+  };
+  // The notch is open at and above y=0: only two slim side posts and a
+  // low, recessed bridge. No "solid grey block" between them.
+  component(.010,.035,.018,-.037,.002);
+  component(.010,.035,.018, .037,.002);
+  component(.083,.008,.020,0,-.024);
+  const front=new THREE.Mesh(new THREE.BoxGeometry(.009,.032,.012),material);
+  front.name="bastion_front_blade";
+  return {rear,front};
 }
 
 export type WeaponPartAdder = (mesh: THREE.Object3D, x: number, y: number, z: number) => void;
@@ -287,8 +309,9 @@ export function buildFirstPersonWeapon(
     add(head, 0,.060,muzzle-.12);
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
   } else if (id === "pistol_bastion") {
-    // Exposed hammer and ejector rod, not a semi-auto slide.
-    box(0,.11,c+l*.43,.048,.05,.038,metal);
+    // Spur hammer sits behind and off the sight line. The previous oversized
+    // centre block looked like an opaque rear sight in first person.
+    box(.047,.065,c+l*.48,.029,.020,.033,darkMat);
     tube(0,-.057,muzzle+.08,.009,.22,edge,8);
     for(const side of [-1,1]) box(side*.048,-.086,c+.045,.012,.045,.09,edge);
   } else if (id === "pistol_arc") {
@@ -437,19 +460,53 @@ export function buildFirstPersonWeapon(
     }
     case "tube":tube(0,-.068,guardZ,.032,p.guardLength*.9,darkMat);break;
     case "revolver": {
-      // A grouped cylinder with six visible chambers can swing out as a unit.
+      // The chamber and cartridge axes MUST follow local Z, like the barrel.
+      // Rotating a Y-axis cylinder about Z (the old implementation) pointed it
+      // across the weapon and made the swing-out animation look diagonal.
       const cylinder=new THREE.Group();
       cylinder.userData.fpRevolverCylinder=id==="pistol_bastion";
-      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,.118,12),sig);
-      drum.rotation.z=Math.PI/2;cylinder.add(drum);
-      for(let i=0;i<6;i++) {
+      const drum=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,BASTION_CYLINDER_HALF_LENGTH*2,12),sig);
+      drum.name="revolver_cylinder_body";
+      drum.rotation.x=Math.PI/2;
+      cylinder.add(drum);
+      const brass=new THREE.MeshBasicMaterial({color:0xcaa05a});
+      const primer=new THREE.MeshBasicMaterial({color:0xecc98b});
+      for(let i=0;i<6;i++){
         const angle=2*Math.PI*i/6;
-        const chamber=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.012,7),metal);
-        chamber.rotation.z=Math.PI/2;
-        chamber.position.set(.061,.045*Math.sin(angle),.045*Math.cos(angle));
-        cylinder.add(chamber);
+        const x=BASTION_CHAMBER_RADIUS*Math.cos(angle);
+        const y=BASTION_CHAMBER_RADIUS*Math.sin(angle);
+        // Black recessed chamber mouths remain readable with/without rounds.
+        const mouth=new THREE.Mesh(new THREE.RingGeometry(.010,.015,12),darkMat);
+        mouth.position.set(x,y,BASTION_CYLINDER_HALF_LENGTH+.001);
+        cylinder.add(mouth);
+        if(id==="pistol_bastion"){
+          const cartridge=new THREE.Group();
+          cartridge.name="revolver_cartridge_"+i;
+          cartridge.userData.fpRevolverCartridgeIndex=i;
+          cartridge.position.set(x,y,BASTION_CARTRIDGE_SEATED_Z);
+          const casing=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.078,10),brass);
+          casing.rotation.x=Math.PI/2;
+          cartridge.add(casing);
+          const cap=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.009,10),primer);
+          cap.rotation.x=Math.PI/2;
+          cap.position.z=.044;
+          cartridge.add(cap);
+          cylinder.add(cartridge);
+        }
       }
-      add(cylinder,0,-.034,c-.05);
+      if(id==="pistol_bastion"){
+        // Crane/yoke telescopes into view during the lateral swing. It links
+        // the released cylinder to the revolver frame instead of floating.
+        const yoke=new THREE.Mesh(new THREE.BoxGeometry(.17,.015,.028),metal);
+        yoke.name="bastion_cylinder_yoke";
+        yoke.userData.fpRevolverYoke=true;
+        yoke.position.set(.085,-.045,0);
+        yoke.visible=false;
+        cylinder.add(yoke);
+      }else{
+        brass.dispose();primer.dispose();
+      }
+      add(cylinder,...BASTION_CYLINDER_CENTER);
       break;
     }
     case "grip":box(0,-.18,c+.08,.067,.18,.083,darkMat);break;
