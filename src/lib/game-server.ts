@@ -28,7 +28,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
 import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
-import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
+import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
 import { shouldCreateScavengerDrop, canCollectScavengerDrop } from "./scavenger-pickups";
@@ -64,8 +64,8 @@ import { countEligibleAssists, type Contribution } from "./combat-assists";
 import { isFlagDefenseKill } from "./match-bonus-tracking";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
-import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty } from "./survival";
-import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, SURVIVAL_UPGRADE_PREP_SEC, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
+import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds } from "./survival";
+import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
 import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
@@ -196,6 +196,8 @@ interface Room {
   downed: Set<string>;
   survivalRanks: Map<string, SurvivalUpgradeRanks>;
   survivalOffers: Map<string, SurvivalUpgradeOffer>;
+  survivalSelfReviveUntil: Map<string, number>;
+  survivalSelfReviveUsedWave: Map<string, number>;
   survivalRerolls: Map<string, number>;
   survivalLastKillAt: Map<string, number>;
   survivalLastHeadshotKillAt: Map<string, number>;
@@ -468,9 +470,9 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "playing",
     tick: null, respawnTimers: new Map(), chat: [],
-    wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
+    wave: 0, waveActive: false, prepLeft: isSurvival ? 2 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
-    survivalRanks:new Map(), survivalOffers:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: "Quick Match", hostName: "Server", hostSocketId: "",
     teamSize, fillWithBots: true, password: null, capacity,
     botDifficulty: "normal",
@@ -637,9 +639,9 @@ function createLobbyRoom(
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
     tick: null, respawnTimers: new Map(), chat: [],
-    wave: 0, waveActive: false, prepLeft: isSurvival ? 5 : 0,
+    wave: 0, waveActive: false, prepLeft: isSurvival ? 2 : 0,
     reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
-    survivalRanks:new Map(), survivalOffers:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
+    survivalRanks:new Map(), survivalOffers:new Map(), survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
     name: cfg.roomName?.trim() || `${name}'s Room`,
     hostName: name, hostSocketId: socketId,
     teamSize, fillWithBots: cfg.fillWithBots, password: cfg.password || null,
@@ -713,7 +715,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
   room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
-  room.survivalRanks.clear();room.survivalOffers.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
+  room.survivalRanks.clear();room.survivalOffers.clear();room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
   room.turrets.clear();
   room.gravityWells.clear();
@@ -859,6 +861,7 @@ function snapshot(room: Room): S2C {
     (base as any).enemiesLeft = enemiesLeft;
     (base as any).reinforcements = room.reinforcements;
     (base as any).prepLeft = Math.max(0, Math.ceil(room.prepLeft));
+    (base as any).survivalPlayerRanks = Object.fromEntries([...room.players.keys()].map(id=>[id,room.survivalRanks.get(id)??{}]));
   }
   // Include the pre-match countdown so the client can render the big "GET READY"
   // overlay + freeze local gameplay during the countdown.
@@ -1781,7 +1784,19 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       if(room.mode==="survival"&&!attacker.isBot&&victim.isBot){
         const now=Date.now();
         const reward=survivalKillReward(room.survivalRanks.get(attackerId)??{},head);
-        attacker.health=Math.min(MAX_HEALTH,attacker.health+reward.health);
+        if(room.survivalSelfReviveUntil.has(attackerId)){
+          // One confirmed enemy kill restores the downed operative.
+          room.survivalSelfReviveUntil.delete(attackerId);
+          room.downed.delete(attackerId);
+          attacker.alive=true;
+          attacker.health=SURVIVAL_SELF_REVIVE_HP;
+          attacker.spawnProtectedUntil=Date.now()+1000;
+          room.lastDamagedAt.set(attackerId,Date.now());
+          io.to(room.id).emit("message",{t:"survivalRecovered",playerId:attackerId,
+            pos:[...attacker.pos] as Vec3,health:SURVIVAL_SELF_REVIVE_HP} as S2C);
+        }else if(!room.downed.has(attackerId)){
+          attacker.health=Math.min(MAX_HEALTH,attacker.health+reward.health);
+        }
         room.survivalLastKillAt.set(attackerId,now);
         if(head)room.survivalLastHeadshotKillAt.set(attackerId,now);
       }
@@ -1811,21 +1826,25 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     io.to(room.id).emit("message", { t: "kill", entry } as S2C);
     if (room.mode === "survival") {
       if (!victim.isBot) {
-        // Solo runs end on death rather than showing a co-op rescue state.
         const hasRescuer=[...room.players.values()].some(p=>
           p.id!==victim.id&&!p.isBot&&p.alive&&!room.downed.has(p.id));
-        if(!hasRescuer){endMatch(room);return;}
+        const canRevive=!fellInLava&&canUseSelfRevive(room.survivalRanks.get(victim.id)??{},
+          room.survivalSelfReviveUsedWave.get(victim.id)??-1,room.wave);
+        if(!hasRescuer&&!canRevive){endMatch(room);return;}
         room.downed.add(victim.id);
-        // A fallen player stays eliminated until the partner clears the wave.
-        if (fellInLava) return;
-        // Downed players can only shoot the secondary, cannot move or
-        // take further damage; every-operative-downed ends the match.
-        victim.health = 1;
-        victim.alive = true;
-        victim.weaponId = room.loadouts.get(victim.id)?.secondaryWeaponId ?? "pistol_side";
-        victim.spawnProtectedUntil = 0;
-        io.to(room.id).emit("message", { t: "survivalDowned", playerId: victim.id, weaponId: victim.weaponId } as S2C);
-        if (![...room.players.values()].some(p => p.alive && !room.downed.has(p.id))) endMatch(room);
+        // One temporary secondary-only recovery per wave; hazards remain fatal.
+        const selfReviveUntil=canRevive?Date.now()+SURVIVAL_SELF_REVIVE_MS:undefined;
+        if(canRevive){
+          room.survivalSelfReviveUsedWave.set(victim.id,room.wave);
+          room.survivalSelfReviveUntil.set(victim.id,selfReviveUntil!);
+        }
+        if(fellInLava)return;
+        victim.health=1;
+        victim.alive=true;
+        victim.weaponId=room.loadouts.get(victim.id)?.secondaryWeaponId??"pistol_side";
+        victim.spawnProtectedUntil=0;
+        io.to(room.id).emit("message",{t:"survivalDowned",playerId:victim.id,
+          weaponId:victim.weaponId,selfReviveUntil} as S2C);
       }
     } else if (room.mode === "gungame") {
       // Gun Game: the attacker advances their tier on each kill. If they were
@@ -2060,8 +2079,9 @@ function offerSurvivalUpgrades(room:Room) {
   for(const player of room.players.values()) {
     const ranks=room.survivalRanks.get(player.id)??{};
     room.survivalRanks.set(player.id,ranks);
+    const bossReward=survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss;
     const offer:SurvivalUpgradeOffer={wave:room.wave,
-      choices:generateSurvivalUpgradeChoices(ranks),
+      choices:generateSurvivalUpgradeChoices(ranks,Math.random,[],bossReward),
       rerollsRemaining:room.survivalRerolls.get(player.id)??1};
     room.survivalOffers.set(player.id,offer);
     sendSurvivalOffer(room,player.id);
