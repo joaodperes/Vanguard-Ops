@@ -2502,6 +2502,46 @@ function tickRoom(room: Room) {
   io.to(room.id).emit("message", snapshot(room));
 }
 
+/** Manage planted recall anchors, decoy signal, and physical drops at 20 Hz. */
+function tickWonderExpansion(room:Room,now:number):void{
+  for(const [id,anchor] of room.chronoAnchors)if(anchor.expiresAt<=now)room.chronoAnchors.delete(id);
+  for(const [id,decoy] of room.phantomDecoys){
+    if(now>=decoy.expiresAt){room.phantomDecoys.delete(id);continue;}
+    const age=(now-decoy.createdAt)/1000;
+    const distance=Math.min(12,age*1.45);
+    const owner=room.players.get(decoy.ownerId)??room.bots.get(decoy.ownerId);
+    if(!owner?.alive){room.phantomDecoys.delete(id);continue;}
+    const px=owner.pos[0]-Math.sin(decoy.yaw)*distance;
+    const pz=owner.pos[2]-Math.cos(decoy.yaw)*distance;
+    if(Math.abs(px)<room.map.size-2&&Math.abs(pz)<room.map.size-2&&!botMoveBlocked(room,decoy.pos,[px,decoy.pos[1],pz],decoy.pos[1]))
+      decoy.pos=[px,decoy.pos[1],pz];
+    if(Math.floor(now/900)!==Math.floor((now-50)/900))publishBotNoise(room,{sourceId:owner.id,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
+  }
+  for(const [id,drop] of room.mechDrops){
+    if(drop.expiresAt<=now){room.mechDrops.delete(id);continue;}
+    if(!drop.landed&&now>=drop.landAt){
+      drop.landed=true;
+      io.to(room.id).emit("message",{t:"mechLanded",id,pos:drop.pos} as S2C);
+      for(const victim of allCombatants(room)){
+        if(!victim.alive||!crushesAtLanding(victim.pos,drop.pos))continue;
+        // Unlike gunfire, a multi-ton impact kills teammates, enemies, and its owner.
+        victim.spawnProtectedUntil=0;
+        const prior=room.playerMechs.get(victim.id);
+        if(prior){room.playerMechs.delete(victim.id);
+          io.to(room.id).emit("message",{t:"mechDestroyed",id:prior.dropId,playerId:victim.id} as S2C);}
+        applyDamage(room,drop.ownerId,victim,victim.health+1000,false,"wonder_juggernaut");
+        if(room.ended)break;
+      }
+    }
+  }
+  for(const [playerId,mech] of room.playerMechs){
+    const player=room.players.get(playerId);
+    if(player?.alive&&now<mech.expiresAt)continue;
+    room.playerMechs.delete(playerId);
+    io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId} as S2C);
+  }
+}
+
 function tickScavengerDrops(room: Room, now: number): void {
   for (const [id, drop] of room.scavengerDrops) {
     if (now >= drop.expiresAt) {
