@@ -81,5 +81,9 @@ export type SurfaceRecipe = NonNullable<MapVisualTheme["surfaces"]>["floor"];
 export function validateMapTheme(value:unknown):string[] {
   const checked = MAP_THEME_SCHEMA.safeParse(value);
   return checked.success?[]:checked.error.issues.map(problem=>
-    "theme ["+problem.path.join(".")+"]: "+problem.message);
+    // Preserve the established import error used by Map Studio and clients,
+    // while keeping the texture allowlist owned by this one Zod contract.
+    problem.path[0]==="surfaces" && problem.path.at(-1)==="textureId"
+      ? "Unknown bundled texture ID"
+      : "theme ["+problem.path.join(".")+"]: "+problem.message);
 }
