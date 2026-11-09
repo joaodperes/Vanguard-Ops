@@ -4197,11 +4197,11 @@ export class FPSEngine {
       if (this.touchMode || this.inputSuspended) return;
       this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
-      if (e.button === 2) this.manualAiming = true;
+      if (e.button === 2) {if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}else this.manualAiming = true;}
     });
     document.addEventListener("mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
-      if (e.button === 2) this.manualAiming = false;
+      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;}
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => {
@@ -4212,7 +4212,8 @@ export class FPSEngine {
         this.lastJumpPressedAt = performance.now();
       }
       this.keys[e.code] = true;
-      if (e.code === "KeyR") this.startReload();
+      if (e.code === "KeyR" && !this.mechActive) this.startReload();
+      if (e.code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
       if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
         e.preventDefault();
         this.useEquipment();
@@ -5319,7 +5320,7 @@ export class FPSEngine {
   // the weapon cycles through a clean progression and ignores Armory skins.
   private getCurrentSkinId(): string {
     if (this.opts.mode === "gungame") return "default";
-    if(this.currentSlot==="wonder")return this.wonderSkinId||"default";
+    if(this.currentSlot==="wonder")return "default";
     if (this.currentSlot === "secondary") return this.opts.loadout.secondaryWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     if (this.currentSlot === "melee") return this.opts.loadout.meleeWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     return this.opts.loadout.weaponSkinId;
@@ -7873,7 +7874,7 @@ export class FPSEngine {
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
-    if (w.disabled || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
+    if (w.disabled || !!this.mechActive || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
@@ -7911,6 +7912,17 @@ export class FPSEngine {
       this.socket.emit("message", { t: "deployTurret" } as const);
       return;
     }
+    if(w.wonder?.kind==="chrono"&&this.chronoAnchor&&this.chronoAnchor.expiresAt>Date.now()){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir:this.aimDir(0),weaponId:w.id,skinId:"default"} as C2S);
+      else {this.pos.set(...this.chronoAnchor.pos);this.chronoAnchor=null;}
+      this.lastShotAt=now;return;
+    }
+    if(w.wonder?.kind==="mech"&&
+      (!juggernautDropPoint([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size)||
+        [...this.mechDrops.values()].some(d=>d.ownerId===this.selfId&&d.expiresAt>Date.now()))){
+      this.sound.play("empty_click",{volume:.55});return;
+    }
     if (usesWonderCharges(w) && w.wonder) {
       const state = this.ensureWonderState(w.id,w.wonder,now);
       if(w.wonder.kind==="flame"){
@@ -7937,6 +7949,27 @@ export class FPSEngine {
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
+    if(w.wonder?.kind==="chrono"||w.wonder?.kind==="decoy"||w.wonder?.kind==="mech"){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      const dir=this.aimDir(0);
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:"default"} as C2S);
+      else if(w.wonder.kind==="chrono"){
+        this.chronoAnchor={pos:[this.pos.x,this.pos.y,this.pos.z],expiresAt:Date.now()+CHRONO_ANCHOR_MS* wonderModuleEffects(w.id,this.wonderModuleId).durationMul};
+        this.placeChronoMarker(this.chronoAnchor.pos);
+      }else if(w.wonder.kind==="decoy"){
+        const mod=wonderModuleEffects(w.id,this.wonderModuleId);
+        for(let i=0;i<(mod.targets===2?2:1);i++){
+          const id="offline_phantom_"+(++this.localWonderSequence);
+          this.addPhantom(id,this.selfId,[this.pos.x+(i?1.5:0),this.pos.y,this.pos.z],this.yaw,
+            Date.now(),Date.now()+PHANTOM_DURATION_MS*mod.durationMul,mod.targets===2?2:1);
+        }
+      }else{
+        const pos=juggernautDropPoint([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size);
+        if(pos)this.addMechDrop("offline_mech_"+(++this.localWonderSequence),this.selfId,pos,
+          Date.now()+JUGGERNAUT_DROP_MS,Date.now()+JUGGERNAUT_DROP_MS+25000,this.wonderModuleId,false);
+      }
+      this.sound.play("swap",{volume:.56});return;
+    }
     if (w.wonder?.kind === "turret") {
       // Deploy equipment into the world; it is NOT a bullet, cannot hit a
       // target directly and never shows the normal muzzle flash / gunshot.
@@ -8011,7 +8044,7 @@ export class FPSEngine {
       return;
     }
     // These kinds implement new hitscan / area rules, never rocket splash.
-    if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
+    if(w.wonder&&["smart","flame","storm","sludge","seismic","cryo","ricochet"].includes(w.wonder.kind)){
       if(w.wonder.kind==="flame")this.spawnFlameSpray(origin,dir);
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:this.weaponId,skinId:this.getCurrentSkinId()});
       else this.fireNovelWonderOffline(w,origin,dir);
@@ -8019,7 +8052,7 @@ export class FPSEngine {
     }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
-    const isRocket = !!w.explosive || usesWonderCharges(w);
+    const isRocket = !!w.explosive || (usesWonderCharges(w)&&w.wonder?.kind!=="rail");
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -9306,6 +9339,7 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    this.updateWonderWorld(performance.now());
     const survivalPaused=this.opts.mode==="survival"&&
       (this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer));
     if(survivalPaused&&!this.matchEnded&&!this.lobbyActive){
@@ -9576,12 +9610,17 @@ export class FPSEngine {
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
     const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
-    const wantsAds = !fanHammer && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
+    const wantsAds = !this.mechActive && !fanHammer && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
       !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&
       (!this.sprinting || allowSprintAds);
-    if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
+    if(this.mechActive){
+      const now=performance.now();
+      if(wantFire)this.fireMech("minigun",now);
+      if((this.mechRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAiming))this.fireMech("secondary",now);
+      this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
+    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
@@ -10189,7 +10228,7 @@ export class FPSEngine {
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
     const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    this.sprinting = isSprintKey && movingForward && (!this.aiming || sprintAdsPerk) && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
+    this.sprinting = !this.mechActive && isSprintKey && movingForward && (!this.aiming || sprintAdsPerk) && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
     if (this.sprinting && this.reloading && this.activePerkId !== "field_loader") {
       this.reloading = false; // interrupted; keep partial mag
     }
@@ -10220,7 +10259,9 @@ export class FPSEngine {
     else if (this.sprinting) speedMul = MOVEMENT.sprintMultiplier;  // was 1.6 — higher sprint speed for better map traversal
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
-    if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(this.mechActive)speedMul*=mechTuning(this.mechActive.moduleId).movement;
+    else if(this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(this.localCryoSlowUntil>performance.now())speedMul*=CRYO_SLOW_FACTOR;
     if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
@@ -10264,7 +10305,7 @@ export class FPSEngine {
     this.wasJumpHeld = jumpHeld;
     this.touchJumpQueued = false;
     if (this.onGround) this.lastGroundedAt = now;
-    const wantJump = canUseBufferedJump(
+    const wantJump = !this.mechActive && canUseBufferedJump(
       now, this.lastJumpPressedAt, this.lastGroundedAt, this.onGround,
     );
     if (wantJump) {
@@ -11316,6 +11357,12 @@ export class FPSEngine {
       });
     dmg=survivalNonLethalTaserDamage(dmg,this.health,this.opts.mode,
       this.opts.mode==="survival"&&attackerTeam==="red",weaponId);
+    if(this.mechActive&&!this.opts.online&&weaponId!==LAVA_DEATH_SOURCE){
+      this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
+      this.damageFlashAt=performance.now();
+      if(this.mechActive.armor<=0){this.removeMechDrop(this.mechActive.id);this.mechActive=null;}
+      return;
+    }
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
