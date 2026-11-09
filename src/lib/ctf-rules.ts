@@ -89,11 +89,13 @@ export function ctfTouch(flags: CtfFlags, player: { id: string; team: FlagTeam; 
  */
 export type CtfBotRole = "attack" | "defend_flag" | "defend_stairs" | "escort" | "recover";
 export type CtfBotIntent = {role:CtfBotRole; goal:Vec3};
-export function ctfEngageThreat(enemyDistance:number, weaponId:string):boolean {
+export function ctfEngageThreat(enemyDistance:number, weaponId:string, overtime=false):boolean {
   if(!Number.isFinite(enemyDistance))return false;
   const limit=weaponId.startsWith("sniper_")||weaponId.startsWith("dmr_")?55:
     weaponId.startsWith("shotgun_")?25:weaponId.startsWith("pistol_")?34:45;
-  return enemyDistance<=limit;
+  // Sudden death: only a nearby opponent interrupts a flag run. Long-range
+  // contacts shouldn't tie up an entire squad in skirmishes forever.
+  return enemyDistance<=(overtime?Math.min(limit,18):limit);
 }
 export function ctfBotIntent(
   flags:CtfFlags, team:FlagTeam, id:string, pos:Vec3, weaponId:string,
