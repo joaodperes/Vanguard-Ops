@@ -3,6 +3,9 @@ import type { AttachmentSlot } from "./game-data";
  * before being restored; this module never grants ownership or entitlements. */
 export type WeaponSetup = {
   skin:string;
+  /** Optional Wonder-exclusive customization, persisted with the weapon itself. */
+  moduleId?:string;
+  killEffectId?:string;
   attachments:Record<AttachmentSlot,string|null>;
 };
 export type WeaponSetups = Record<string,WeaponSetup>;
@@ -18,6 +21,8 @@ export function parseWeaponSetups(raw:string|null|undefined):WeaponSetups {
         ?input.attachments:{}) as Record<string,unknown>;
       const safe=(k:AttachmentSlot)=>typeof att[k]==="string"?String(att[k]).slice(0,80):null;
       out[id]={skin:typeof input.skin==="string"?input.skin.slice(0,80):"default",
+        moduleId:typeof input.moduleId==="string"?input.moduleId.slice(0,80):"",
+        killEffectId:typeof input.killEffectId==="string"?input.killEffectId.slice(0,80):"",
         attachments:{sight:safe("sight"),barrel:safe("barrel"),grip:safe("grip"),magazine:safe("magazine")}};
     }
     return out;
