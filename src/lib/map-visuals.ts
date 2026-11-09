@@ -10,7 +10,7 @@ import { insideRegions, featureBoxes } from "./map-blueprints";
 
 export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "lamp" |
   "container" | "crane" | "terminal" | "sign" | "antenna" |
-  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand" |
+  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand" | "sarcophagus" |
   "furnace" | "conveyor" | "hydraulic_press" | "generator" | "storage_rack" |
   "vent_stack" | "industrial_pipe" | "steel_coil" | "cargo_pallet";
 export interface MapProp {
@@ -469,6 +469,13 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
     }
     if(p.kind==="bench"){
       result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53]});
+      continue;
+    }
+    if(p.kind==="sarcophagus"){
+      // Solid stone burial chests: preserve the exact same footprint in both
+      // authoritative collision and the client renderer.
+      result.push({kind:"cover",pos:[p.x,(p.y??0)+h/2,p.z],
+        size:[(p.w??2.2)/2,h/2,(p.d??3.1)/2]});
       continue;
     }
     if(p.kind==="terminal"){
