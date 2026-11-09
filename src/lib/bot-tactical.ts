@@ -32,7 +32,7 @@ export function botTacticalCanUse(args:{
     case "frag": return d>=8 && d<=27;
     case "flashbang": return d>=8 && d<=24;
     case "mine": return d>=4 && d<=13 && (!!args.guarding || !!args.lowHealth);
-    case "knives": return d>=3 && d<=23;
+    case "knives": return d>=3 && d<=15;
     case "taser": return d>=2 && d<=15;
     case "poison_dart": return d>=5 && d<=24;
     case "cover": return false; // tactical cover is a human-driven defensive placement
