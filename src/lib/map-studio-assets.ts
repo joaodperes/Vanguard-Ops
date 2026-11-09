@@ -23,7 +23,7 @@ export const STUDIO_ASSETS:StudioAsset[]=[
   ...STUDIO_BUILDING_PRESETS.map(p=>({id:"building_"+p.id,name:p.label,category:"Buildings" as const,features:[],props:[studioBuildingPrefab(p.id,0,0)]})),
   ...CASTLE_SERVICES.map(service=>({id:"castle_"+service,name:"Castle "+service,category:"Buildings" as const,
     description:"Enterable medieval building with functional interior furniture.",features:[],
-    props:[{kind:"castle_building" as const,castleUse:service,x:0,z:0,y:0,w:12,d:10,h:5.2,text:service}]})),
+    props:[{kind:"castle_building" as const,castleUse:service,x:0,z:0,y:0,w:12,d:10,h:5.2}]})),
   ...(["castle_well","castle_stall","castle_cart","castle_target","castle_barrel","castle_brazier"] as const).map(kind=>({
     id:kind,name:kind.replace("castle_","Castle "),category:"Props" as const,features:[],
     props:[{kind,x:0,z:0,y:0,w:kind==="castle_well"?4.5:kind==="castle_stall"?5:kind==="castle_cart"?4.3:2,

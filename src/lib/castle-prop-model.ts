@@ -1,6 +1,7 @@
 /** Distinct low-poly medieval services; physics is owned by castle-scenery.ts. */
 import * as THREE from "three";
-import {castleFixtures,type CastleProp} from "./castle-scenery";
+import type {CastleProp} from "./castle-scenery";
+import {buildCastleInterior} from "./castle-interiors";
 const m=(n:number,metalness=0)=>new THREE.MeshStandardMaterial({color:n,roughness:.88,metalness});
 const oak=m(0x987147),beam=m(0x63472f),stone=m(0x827466),iron=m(0x454545,.55),
   slate=m(0x4b4141),thatch=m(0x927a4b),cloth=m(0x9b5340),linen=m(0xbbad91),
@@ -43,50 +44,8 @@ export function buildCastleScenery(g:THREE.Group,p:CastleProp):void {
       cube(g,oak,0,1.22,d/2+.45,w*.65,.23,.2);
       cube(g,hay,0,1.46,d/2+.45,w*.55,.20,.18);
     }
-    if(p.text&&typeof document!=="undefined"){
-      const canvas=document.createElement("canvas");canvas.width=256;canvas.height=64;
-      const ctx=canvas.getContext("2d");
-      if(ctx){
-        ctx.fillStyle="#49321d";ctx.fillRect(0,0,256,64);
-        ctx.strokeStyle="#bfa472";ctx.lineWidth=5;ctx.strokeRect(3,3,250,58);
-        ctx.fillStyle="#f1d8a0";ctx.font="bold 27px serif";ctx.textAlign="center";
-        ctx.textBaseline="middle";ctx.fillText(p.text.slice(0,14).toUpperCase(),128,33,234);
-        const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
-        const sign=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(4,w*.55),.95),
-          new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
-        sign.position.set(0,Math.min(h-.4,3.6),d/2+.48);g.add(sign);
-      }
-    }
-    for(const f of castleFixtures(p)){
-      const {x,z,w:fw,d:fd,h:fh,style}=f;
-      if(style==="forge"||style==="oven"){
-        cube(g,stone,x,fh*.40,z,fw,fh*.80,fd);
-        cube(g,char,x,fh*.84,z+fd*.19,fw*.66,.15,fd*.40);
-        cube(g,fire,x,fh*.96,z+fd*.20,fw*.46,.07,fd*.24);
-      }else if(style==="anvil"){
-        cube(g,beam,x,.40,z,fw*.69,.8,fd*.68);
-        cube(g,iron,x,1.02,z,fw*.76,.31,fd*.50);
-      }else if(style==="bunk"||style==="cot"){
-        cube(g,beam,x,.27,z,fw,.5,fd);
-        cube(g,linen,x,.58,z,fw*.88,.18,fd*.85);
-        cube(g,linen,x,.7,z-fd*.29,fw*.64,.13,fd*.22);
-        if(style==="bunk"){
-          cube(g,oak,x,1.05,z,fw,.15,fd);
-          cube(g,linen,x,1.16,z,fw*.87,.12,fd*.85);
-        }
-      }else if(style==="sacks"||style==="hay"){
-        for(const [i,s] of [-1,0,1].entries())
-          cube(g,style==="hay"?hay:linen,x+s*fw*.29,.34+(i===1?.12:0),z,
-            fw*.29,.55+(i===1?.20:0),fd*.86);
-      }else if(style==="trough"){
-        cube(g,oak,x,.50,z,fw,.84,fd);
-        cube(g,hay,x,.98,z,fw*.8,.08,fd*.70);
-      }else if(style==="table"||style==="rack"||style==="shelf"||style==="stall"){
-        cube(g,oak,x,fh*.76,z,fw,.17,fd*.86);
-        for(const s of [-1,1])cube(g,beam,x+s*fw*.40,fh*.37,z,.14,fh*.69,fd*.66);
-        if(style==="rack"||style==="shelf")cube(g,oak,x,fh*.43,z,fw,.12,fd*.84);
-      }
-    }
+    // Purpose-specific furnishings and wall dressing; no building-name signs.
+    buildCastleInterior(g,p);
   }else if(p.kind==="castle_well"){
     const r=Math.min(w,d)*.44,t=.72;
     for(const s of [-1,1]){

@@ -6,7 +6,7 @@ import { lavaAt, makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { MAP_DOCUMENTS } from "../src/lib/map-documents";
 import { importMapDocuments } from "../src/lib/map-document-io";
 import { featureBoxes, resolveStairAttachments } from "../src/lib/map-blueprints";
-import {castleSceneryBoxes,castleFixtures,CASTLE_SERVICES} from "../src/lib/castle-scenery";
+import {castleSceneryBoxes,castleFixtures,castleFixtureBoxes,CASTLE_SERVICES} from "../src/lib/castle-scenery";
 import { chooseSpawn, spawnClear } from "../src/lib/spawn-selection";
 
 const map = makeEnvironmentMap(getMap("emberhold"));
@@ -176,8 +176,17 @@ describe("Emberhold Castle", () => {
       expect(MAP_DOCUMENTS.emberhold.blueprint.features.some(f=>f.id===id)).toBe(false);
     const compiled=new Set(map.cover.map(box=>JSON.stringify(box)));
     for(const p of buildings){
-      expect(p.text).toBeTruthy();
-      expect(castleFixtures(p)).toHaveLength(3);
+      expect(p.text).toBeUndefined(); // Visual identity comes from the room, not signs.
+      expect(castleFixtures(p).length).toBeGreaterThanOrEqual(8);
+      // Each service has a deliberately different room plan.
+      expect(castleFixtures(p).map(f=>f.style)).toEqual(
+        expect.arrayContaining(p.castleUse==="smithy"?["forge","anvil","quench"]:
+          p.castleUse==="stables"?["stall_fence","trough","tack"]:
+          p.castleUse==="barracks"?["bunk","locker","weapon_rack"]:
+          p.castleUse==="granary"?["grain_bin","sacks","scale"]:
+          p.castleUse==="kitchens"?["oven","cauldron","prep_table"]:
+          ["cot","screen","herbs"])
+      );
       const pieces=castleSceneryBoxes(p);
       for(const box of pieces)expect(compiled.has(JSON.stringify(box))).toBe(true);
       const turns=p.turns??0,d=turns%2?p.w??10:p.d??10;
@@ -219,6 +228,56 @@ describe("Emberhold Castle", () => {
     }
     // The gate approach into the main keep should stay clear.
     expect(botTraversableEdge([0,5,40],0,18,map.cover,map.environment)).toBe(5);
+  });
+
+  test("the six services have distinctive layouts, visible furniture and no signs",()=>{
+    const services=(map.props??[]).filter(p=>p.kind==="castle_building");
+    const styles=services.map(p=>castleFixtures(p).map(f=>f.style).join(","));
+    expect(new Set(styles).size).toBe(6);
+    for(const p of services){
+      expect(p.text).toBeUndefined();
+      const fixtures=castleFixtures(p);
+      expect(fixtures.length).toBeGreaterThanOrEqual(8);
+      expect(castleFixtureBoxes(p)).toHaveLength(fixtures.length);
+      const q=((p.turns??0)%4+4)%4,w=q%2?(p.d??10):(p.w??10),d=q%2?(p.w??10):(p.d??10);
+      // Furniture stays against side walls; maintain a navigable 3m+ aisle
+      // between the courtyard entrance and the rear of each service.
+      for(const f of fixtures){
+        expect(Math.abs(f.x)-f.w/2).toBeGreaterThanOrEqual(1.7);
+        expect(Math.abs(f.x)+f.w/2).toBeLessThan(w/2-.32);
+        expect(Math.abs(f.z)+f.d/2).toBeLessThanOrEqual(d/2-.32);
+      }
+      const doorWidth=Math.min(3.6,w*.39);
+      expect(doorWidth).toBeGreaterThan(2.7);
+    }
+    // Exported asset prefabs must not resurrect in-world labels.
+    expect(services.some(p=>!!p.text)).toBe(false);
+  });
+
+  test("the crypt stairs have a crenellated end rim and open top entry",()=>{
+    const f=MAP_DOCUMENTS.emberhold.blueprint.features;
+    const end=f.filter(x=>x.id.startsWith("chapel-stair-end-"));
+    expect(end).toHaveLength(8);
+    const far=end.filter(x=>x.id.startsWith("chapel-stair-end-north-"));
+    expect(far).toHaveLength(4);
+    expect(far.find(x=>x.id.endsWith("sill"))).toMatchObject({
+      x:-6,z:23.85,w:7.2,d:1.2,y:5,h:1.05,
+    });
+    expect(far.filter(x=>x.id.includes("merlon"))).toHaveLength(3);
+    // The upper approach has two small corner returns, not a wall across
+    // the doorway. No collider is allowed to seal the descending flight.
+    const upper=end.filter(x=>x.id.startsWith("chapel-stair-end-south-"));
+    expect(upper).toHaveLength(4);
+    const solidAt=(x:number,y:number,z:number)=>map.cover.some(b=>
+      b.kind==="cover"&&Math.abs(x-b.pos[0])<b.size[0]-.001&&
+      Math.abs(y-b.pos[1])<b.size[1]-.001&&
+      Math.abs(z-b.pos[2])<b.size[2]-.001);
+    expect(solidAt(-6,5.5,23.85)).toBe(true);
+    expect(solidAt(-6,6.6,23.85)).toBe(true);
+    expect(solidAt(-7.3,6.6,23.85)).toBe(false);
+    expect(solidAt(-6,5.5,36.25)).toBe(false);
+    expect(botTraversableEdge([-6,5,39],-6,24,map.cover,map.environment)).toBe(.5);
+    expect(botTraversableEdge([-6,.5,24],-6,39,map.cover,map.environment)).toBe(5);
   });
 
   test("a full 32-player lobby has distinct spawns on safe, supported ground", () => {

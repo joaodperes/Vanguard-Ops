@@ -24,7 +24,7 @@ import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
 import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
-import {isCastlePropKind} from "./castle-scenery";
+import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
@@ -1491,6 +1491,12 @@ export class FPSEngine {
     // furniture AABB and step, and then rendered them a second time for
     // shadows. Instance equal-material solids; physics still reads every
     // individual CoverBox from this.map.cover unchanged.
+    // Castle furniture uses detailed, collision-matched Three.js models.
+    // Retain cover boxes for bullets/AI, but don't draw the old opaque stone
+    // proxy over each bunk, anvil, trough, shelf or treatment bed.
+    const detailedCastleFixtures=new Set((this.map.props??[])
+      .filter(p=>p.kind==="castle_building")
+      .flatMap(p=>castleFixtureBoxes(p).map(b=>JSON.stringify(b))));
     const cityBatch=this.map.biome==="city"||this.map.biome==="city_day";
     if(cityBatch){
       // Keep all physics colliders, but don't ALSO draw a coplanar proxy for
@@ -1533,7 +1539,7 @@ export class FPSEngine {
         this.scene.add(instanced);
       }
     }else for(const c of this.map.cover) {
-      if (c.environmentId) continue;
+      if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
       const kind = c.kind ?? "cover";
       if (this.map.id === "forest_warfare" && kind !== "stair") continue;
       const mat = kind==="cover"&&c.material&&ballisticMats[c.material] ? ballisticMats[c.material]
