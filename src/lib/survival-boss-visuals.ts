@@ -73,6 +73,14 @@ export function addSurvivalBossArmor(parts: {
     const leg = sign<0 ? parts.upperLegR : parts.upperLegL;
     block(leg,[0.26,0.35,0.26],[0,-0.19,0.065],armor);
   }
+  // Oversized shoulder ramps and raised back fins give the boss a silhouette
+  // that does not resemble either ordinary bots or the smaller elite class.
+  for (const sign of [-1,1]) {
+    block(parts.torso,[0.39,0.22,0.66],[sign*0.52,1.48,-0.02],armor);
+    lit(parts.torso,[0.24,0.04,0.56],[sign*0.52,1.60,0.01]);
+    block(parts.root,[0.16,0.74,0.20],[sign*0.31,1.82,-0.41],edge);
+    lit(parts.root,[0.08,0.62,0.06],[sign*0.31,1.82,-0.54]);
+  }
   // Heavy raised helmet with side guards and a brilliant horizontal visor.
   block(parts.head,[0.42,0.34,0.42],[0,0.025,0],armor);
   block(parts.head,[0.49,0.10,0.47],[0,0.18,-0.02],edge);
@@ -82,6 +90,9 @@ export function addSurvivalBossArmor(parts: {
   for (const side of [-1,1]) {
     block(parts.head,[0.09,0.2,0.14],[side*0.18,0.30,-0.05],armor);
   }
+
+  block(parts.head,[0.38,0.14,0.48],[0,0.36,-0.03],armor);
+  lit(parts.head,[0.28,0.08,0.08],[0,0.45,0.21]);
 
   // Depth-tested danger telegraph. The ground ring grows during the actual
   // 2.2-second server-authoritative wind-up. A second ring sweeps outward
@@ -105,6 +116,29 @@ export function addSurvivalBossArmor(parts: {
   shockwaveRing.position.y=0.12;
   parts.root.add(shockwaveRing);
   return {chargedParts,core,warningRing,shockwaveRing,previousCharge:0,pulseStartedAt:-Infinity};
+}
+
+/** Purple-lit, shoulder-plated elite silhouette; never affects hitboxes. */
+export function addSurvivalEliteArmor(parts:{
+  torso:THREE.Object3D;head:THREE.Object3D;
+  upperArmL:THREE.Object3D;upperArmR:THREE.Object3D;
+}):void {
+  const plate=new THREE.MeshStandardMaterial({color:0x26253c,metalness:.68,roughness:.38});
+  const glow=new THREE.MeshBasicMaterial({color:0xba8cff,toneMapped:false});
+  const block=(parent:THREE.Object3D,size:[number,number,number],pos:[number,number,number],mat:THREE.Material)=>{
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);
+    mesh.position.set(...pos);mesh.castShadow=true;parent.add(mesh);
+  };
+  block(parts.torso,[.66,.19,.38],[0,1.46,0],plate);
+  block(parts.torso,[.52,.065,.40],[0,1.47,.012],glow);
+  for(const sign of [-1,1]){
+    block(parts.torso,[.24,.18,.36],[sign*.36,1.47,0],plate);
+    block(parts.torso,[.17,.035,.32],[sign*.36,1.57,.005],glow);
+    const arm=sign<0?parts.upperArmR:parts.upperArmL;
+    block(arm,[.21,.22,.24],[0,-.07,0],plate);
+  }
+  block(parts.head,[.32,.14,.31],[0,.17,0],plate);
+  block(parts.head,[.26,.055,.045],[0,.04,.16],glow);
 }
 
 export function updateSurvivalBossArmor(visual: SurvivalBossVisual, weaponId:string, charge:number, now:number):void {
