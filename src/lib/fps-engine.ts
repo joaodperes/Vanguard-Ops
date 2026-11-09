@@ -1,4 +1,5 @@
 import { blastCanDamage } from "./explosion-damage-rules";
+import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
 import {addOperativeSkinDetails} from "./operative-appearance";
@@ -4306,9 +4307,17 @@ export class FPSEngine {
   applyDisplayAndControlSettings(settings: { showHealthBars: boolean; sensitivity: number; fov: number; autoAdsOnFire: boolean; invertY: boolean }) {
     this.showHealthBars = settings.showHealthBars;
     this.sensitivityMul = settings.sensitivity;
-    this.baseFov = settings.fov;
+    this.baseFov = Number.isFinite(settings.fov)
+      ? Math.max(60, Math.min(110, settings.fov))
+      : this.baseFov;
     this.autoAdsOnFire = settings.autoAdsOnFire;
     this.invertY = settings.invertY;
+    // applyDisplayAndControlSettings can run while the lobby/countdown is
+    // displayed, before the normal gameplay FOV update ever executes.
+    // Refresh projection immediately so the first live frame does not "zoom"
+    // all camera-mounted weapons when it picks up the saved FOV.
+    syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
+      this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     for (const c of this.combatants.values()) {
       if (c.healthBar) c.healthBar.visible = this.showHealthBars && c.alive;
       if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars && c.alive;
@@ -9316,8 +9325,8 @@ export class FPSEngine {
     this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
     // The optical zoom field determines actual magnification across all player FOV settings.
     // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
-    this.camera.fov = this.weaponId===RIOT_SHIELD_ID?this.baseFov:adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
-    this.camera.updateProjectionMatrix();
+    syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
+      this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     this.positionViewmodel();
     // Update the laser indicator (visible only when a laser sight is equipped)
     this.updateLaserIndicator();
