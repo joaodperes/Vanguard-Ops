@@ -2727,14 +2727,14 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           p.pos=clampToArena(room,anchor.pos);
           room.chronoAnchors.delete(p.id);
           io.to(room.id).emit("message",{t:"chronoRecall",playerId:p.id,pos:p.pos} as S2C);
-          break;
+          return;
         }
       }
       if(weapon.wonder?.kind==="mech"){
         const location=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
         if(!location||room.playerMechs.has(p.id)||[...room.mechDrops.values()].some(d=>d.ownerId===p.id&&d.expiresAt>now)){
           io.to(p.id).emit("message",{t:"turretRejected",reason:"Juggernaut requires a clear outdoor drop area and no active suit"} as S2C);
-          break;
+          return;
         }
       }
       if (usesWonderCharges(weapon) && weapon.wonder) {
@@ -2841,7 +2841,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const anchor={pos:[...p.pos] as Vec3,expiresAt:now+CHRONO_ANCHOR_MS*module.durationMul};
         room.chronoAnchors.set(p.id,anchor);
         io.to(room.id).emit("message",{t:"chronoAnchor",playerId:p.id,pos:anchor.pos,expiresAt:anchor.expiresAt} as S2C);
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="decoy"){
         const count=module.targets===2?2:1;
@@ -2852,16 +2852,16 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           room.phantomDecoys.set(id,decoy);
           io.to(room.id).emit("message",{t:"phantomDecoy",...decoy} as S2C);
         }
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="mech"){
         const pos=juggernautDropPoint(p.pos,p.yaw,room.map.cover,room.map.size);
-        if(!pos)break; // Already checked before taking the charge.
+        if(!pos)return; // Already checked before taking the charge.
         const id=genId("mech"),landAt=now+JUGGERNAUT_DROP_MS,expiresAt=now+JUGGERNAUT_DROP_MS+25000;
         const drop={id,ownerId:p.id,pos,landAt,expiresAt,moduleId:loadout?.wonderModuleId??"",landed:false};
         room.mechDrops.set(id,drop);
         io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="seismic"||weapon.wonder?.kind==="cryo"){
         const isCryo=weapon.wonder.kind==="cryo";
@@ -2888,7 +2888,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           }
         }
         if(!isCryo)blastMaterialCover(room,end,range*.6,eff.damage,weapon.id);
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="ricochet"){
         const bounces=module.targets||3;
@@ -2907,7 +2907,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
               applyDamage(room,p.id,target,eff.damage*segment.damageScale,false,weapon.id);}
           }
         }
-        break;
+        return;
       }
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
