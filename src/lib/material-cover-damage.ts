@@ -99,6 +99,32 @@ export function damageBallisticCoverOnShot(
 }
 
 
+/** Material resistance to a blast is deliberately independent from player TTK.
+ * RL-7 and frags are panel breakers at close range; Swarm's micro-rockets
+ * instead chip away at integrity over several hits. A frag's material-breaking
+ * radius is tighter than its player-damage/fragmentation radius.
+ */
+export function materialCoverBlastProfile(
+  sourceId: string, damage: number, radius: number,
+): {damage: number; radius: number} {
+  switch(sourceId){
+    case "frag":
+      return {damage:damage*1.4,radius:Math.min(radius,6)};
+    case "launcher_rocket":
+      return {damage:damage*1.3,radius};
+    case "launcher_breach":
+      return {damage:damage*1.1,radius};
+    case "launcher_swarm":
+      return {damage,radius:Math.min(radius,8)};
+    case "mine":
+      return {damage:damage*.8,radius};
+    case "perk_explonando":
+      return {damage:damage*.95,radius};
+    default:
+      return {damage,radius};
+  }
+}
+
 /** Resolve a blast against the nearest face of each breakable panel.
  * All contacts use pre-explosion geometry; structural objects and sheet metal
  * block pressure, but thin destructible panels do not. Both client (offline)
@@ -106,9 +132,10 @@ export function damageBallisticCoverOnShot(
  */
 export function damageBallisticCoverFromExplosion(
   map: MapDef, hp: Map<string,number>, destroyed: Set<string>,
-  origin: Vec3, radius: number, peakDamage: number,
+  origin: Vec3, radius: number, peakDamage: number, sourceId = "",
 ): MaterialCoverImpact[] {
   if(!Number.isFinite(radius)||radius<=0||!Number.isFinite(peakDamage)||peakDamage<=0)return [];
+  const blast=materialCoverBlastProfile(sourceId,peakDamage,radius);
   const cover=[...map.cover];
   const multipliers:Partial<Record<BallisticMaterial,number>>={
     glass:1.6,thin_wood:1.15,light_cover:.9,
@@ -143,9 +170,9 @@ export function damageBallisticCoverFromExplosion(
     const point=box.pos.map((v,i)=>Math.max(v-box.size[i],
       Math.min(origin[i],v+box.size[i]))) as Vec3;
     const distance=Math.hypot(point[0]-origin[0],point[1]-origin[1],point[2]-origin[2]);
-    if(distance>radius||blocked(box,point))continue;
+    if(distance>blast.radius||blocked(box,point))continue;
     const remaining=Math.max(0,(hp.get(id)??BREAKABLE[material].hp)-
-      peakDamage*(multipliers[material]??1)*(1-(distance/radius)**2));
+      blast.damage*(multipliers[material]??1)*(1-(distance/blast.radius)**2));
     impacts.push({coverId:id,material,point,hp:remaining,destroyed:remaining<=0});
   }
   for(const impact of impacts)applyConfirmedCoverImpact(map,hp,destroyed,impact);
