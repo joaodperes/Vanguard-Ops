@@ -337,7 +337,14 @@
               "storm",
               "sludge",
               "cluster",
-              "shield"
+              "shield",
+              "rail",
+              "chrono",
+              "seismic",
+              "decoy",
+              "cryo",
+              "ricochet",
+              "mech"
             ]
           },
           "maxCharges": {
