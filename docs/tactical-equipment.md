@@ -37,6 +37,15 @@ even when not yet unlocked. Trial Loadout starts with the active or named
 preset's gear; Apply & Restart Test replenishes its stock. Trial choices do not
 alter the account.
 
+## New-player tutorial
+
+The starting training loadout explicitly includes Frag Grenades. The tutorial
+now has six drills, finishing with a real grenade throw verified by decreasing
+HUD charge stock. It uses the same **G** key / touch **Tactical** button as
+normal matches. The five-slot loadout briefing explains per-life charges,
+respawn refills, the Armory selection and Gun Game's tactical restriction.
+The firing-range tutorial never changes progression or consumes permanent gear.
+
 ## Tactical bots
 Archetype pools: rushers Flashbang/Knives, riflemen Frag/Taser, marksmen
 Poison Dart/Knives, support Mine/Frag. Normal modes and Survival bots use
