@@ -45,8 +45,8 @@ describe("weapon penetration stat presentation", () => {
 
   test("Armory weapon cards and customization modal use regular PEN stat bars", () => {
     const source = readFileSync(join(import.meta.dir, "../src/components/screens/Armory.tsx"), "utf8");
-    expect(source).toContain('<StatBar label="PEN"');
-    expect(source).toContain('<ModalStatBar label="PEN"');
+    expect(source).toContain('<StatBar label="Bullet Penetration"');
+    expect(source).toContain('<ModalStatBar label="Bullet Penetration"');
     expect(source).not.toContain('aria-label={`Penetration rating');
   });
 });
