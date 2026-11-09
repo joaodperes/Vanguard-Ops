@@ -573,7 +573,7 @@ export function Armory() {
                 const isOwned = (profile?.unlocks.playerSkins ?? []).includes(s.id) || (!s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0);
                 const contract = profile?.operatorContracts.find(c => c.rewardId === s.id);
                 const challengeReady = s.id === "default" || !!contract?.completed;
-                const canBuy = !s.shopCurrency && !isOwned && challengeReady && credits >= s.unlockCost;
+                const canBuy = !s.shopCurrency && !s.levelReward && !isOwned && challengeReady && level >= s.unlockLevel && credits >= s.unlockCost;
                 const rarityColor = RARITY_COLORS[s.rarity];
                 const equipped = profile?.loadout.playerSkin.id === s.id;
                 return (
@@ -596,6 +596,7 @@ export function Armory() {
                     </button>
                     <div className="text-white font-bold text-sm">{s.name}</div>
                     <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: rarityColor }}>{displayLabel(s.rarity)}</div>
+                    {s.levelReward && <div className="mb-2 text-[11px] font-semibold text-amber-300">{isOwned ? "Level 40 · Earned" : "Exclusive Level 40 reward"}</div>}
                     {!isOwned && contract && (
                       <div className="w-full mb-2">
                         <div className="text-[10px] text-white/60 mb-1">{contract.description}</div>
@@ -616,7 +617,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {s.levelReward ? `Unlocks at LVL ${s.unlockLevel}` : s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady || level < s.unlockLevel ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
                         </Button>}
                   </div>
                 );
