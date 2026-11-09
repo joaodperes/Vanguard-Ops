@@ -9254,7 +9254,7 @@ export class FPSEngine {
     }
     // Health regen: recover HP after a few seconds out of combat. This prevents the
     // "one bad engagement = dead" feel and lets players reset between fights.
-    if (!this.opts.online && this.alive && this.health < MAX_HEALTH && !this.matchEnded) {
+    if (!this.opts.online && this.alive && !this.survivalDowned && this.health < MAX_HEALTH && !this.matchEnded) {
       const since = performance.now() - this.lastDamageAt;
       const ranks=this.opts.mode==="survival"?this.survivalUpgradeRanks:{};
       if (since > regenDelayMs(this.activePerkId)*survivalRegenDelayMultiplier(ranks)) {
