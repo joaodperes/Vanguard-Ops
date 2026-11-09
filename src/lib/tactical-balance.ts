@@ -22,6 +22,11 @@ export function flashDurationMs(distance:number):number {
   if(distance>radius)return 0;
   return Math.round(1400+2200*(1-distance/radius));
 }
+/** Audio duck with short recovery as flash clears; independent of gameplay controls. */
+export function flashAudioGain(remainingMs:number):number {
+  if(remainingMs<=0)return 1;
+  return 1-0.85*Math.min(1,remainingMs/600);
+}
 export function mineSplashDamage(distance:number):number {
   if(distance>MINE_SPLASH_RADIUS)return 0;
   return Math.round(MINE_SPLASH_MAX_DAMAGE*Math.max(0,1-distance/MINE_SPLASH_RADIUS));

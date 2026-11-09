@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {equipmentById} from "../src/lib/equipment";
 import {MINE_TRIGGER_RADIUS,MINE_SPLASH_RADIUS,TASER_ADS_BLOCK_MS,isTaserAdsBlocked,
-  fragDamage,flashDurationMs,mineSplashDamage,tacticalDirectDamage} from "../src/lib/tactical-balance";
+  fragDamage,flashDurationMs,flashAudioGain,mineSplashDamage,tacticalDirectDamage} from "../src/lib/tactical-balance";
 describe("tactical rebalance",()=>{
  test("grenade and flash radii create impactful area control",()=>{
   expect(equipmentById("frag").radius).toBe(12);
@@ -13,6 +13,13 @@ describe("tactical rebalance",()=>{
   expect(flashDurationMs(5)).toBeGreaterThan(2500);
   expect(flashDurationMs(13)).toBeGreaterThan(1000);
   expect(flashDurationMs(15)).toBe(0);
+ });
+ test("flash audibility fades back to normal without changing duration",()=>{
+  expect(flashAudioGain(3600)).toBeCloseTo(0.15);
+  expect(flashAudioGain(1000)).toBeCloseTo(0.15);
+  expect(flashAudioGain(300)).toBeCloseTo(0.575);
+  expect(flashAudioGain(0)).toBe(1);
+  expect(flashAudioGain(-100)).toBe(1);
  });
  test("knife and the mine's trigger are lethal to regular health pools, not bosses",()=>{
   for(const hp of [40,100,160,500]){

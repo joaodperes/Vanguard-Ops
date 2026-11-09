@@ -42,7 +42,7 @@ import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
-import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, isTaserAdsBlocked, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage } from "./tactical-balance";
 import { botTacticalForArchetype, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -207,7 +207,6 @@ export interface HudState {
   equipmentCharges?: number;
   equipmentRechargeMs?: number;
   flashRemainingMs?: number;
-  stunRemainingMs?: number;
   taserRemainingMs?: number;
   weaponName: string;
   weaponId: string;
@@ -983,11 +982,10 @@ export class FPSEngine {
   private equipmentFlashUntil = 0;
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
-  private equipmentStunUntil = 0; // Full flash disruption only
   private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
   private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
   private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number }>();
-  private botTacticalStunUntil = new Map<string,number>(); // Flash only
+  private botFlashUntil = new Map<string,number>(); // Sensory blindness only, never immobilization
   private botTacticalAdsBlockedUntil = new Map<string,number>(); // Taser only
   /** Arc/flash status visuals on affected opponents, disposed on expiry. */
   private tacticalStatusVisuals = new Map<string,{group:THREE.Group;expiresAt:number;effect:"stun"|"flash"}>();
@@ -1054,6 +1052,8 @@ export class FPSEngine {
   private sound: SoundManager;
   // Engine-owned weapon audio: one sound per confirmed shot, including opponents.
   private weaponAudio: WeaponAudio;
+  private audioMix = { ...DEFAULT_AUDIO_MIX };
+  private flashAudioFactor = 1;
   private lastHitSoundAt = 0;    // throttle hit-marker SFX
 
   // ---- Death animation ----
@@ -4191,11 +4191,26 @@ export class FPSEngine {
    * WeaponAudio has its own Web Audio output, so scale FX by master there too.
    */
   setAudioMix(mix: { masterVolume: number; footstepVolume: number; fxVolume: number }) {
-    const levels = audioGainLevels(mix);
-    this.sound.setMasterVolume(levels.master);
+    this.audioMix = { ...mix };
+    this.applyAudioLevels();
+  }
+
+  /** Flashbang impairs hearing only, never movement or weapon controls.
+   * Procedural sounds and weapon audio have separate outputs.
+   */
+  private applyAudioLevels() {
+    const levels = audioGainLevels(this.audioMix);
+    this.sound.setMasterVolume(levels.master * this.flashAudioFactor);
     this.sound.setFootstepVolume(levels.footsteps);
     this.sound.setFxVolume(levels.fx);
-    this.weaponAudio.setVolume(levels.weaponOutputPercent);
+    this.weaponAudio.setVolume(levels.weaponOutputPercent * this.flashAudioFactor);
+  }
+
+  private updateFlashAudio(now: number) {
+    const factor=flashAudioGain(Math.max(0,this.equipmentFlashUntil-now));
+    if(Math.abs(factor-this.flashAudioFactor)<0.005)return;
+    this.flashAudioFactor=factor;
+    this.applyAudioLevels();
   }
 
   /** Queue a saved preset for the next life. The server validates account inventory
@@ -4524,7 +4539,7 @@ export class FPSEngine {
     if (this.disposed || this.inputSuspended || !this.alive || this.survivalDowned ||
         this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 ||
         this.opts.mode === "gungame" || this.equipmentAction ||
-        this.reloading || this.equipmentStunUntil > now ||
+        this.reloading ||
         (!this.pointerLocked && !this.touchMode) || this.equipmentCharges <= 0 ||
         (this.opts.online && !this.socket?.connected)) return;
     const def = equipmentById(this.opts.loadout.equipmentId);
@@ -4640,7 +4655,7 @@ export class FPSEngine {
             if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))
               {const duration=flashDurationMs(selfDist);
                 this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+duration);
-                this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+duration);}
+                }
           }
         }
         for(const c of targets){
@@ -4652,8 +4667,8 @@ export class FPSEngine {
           if(def.type==="blast")this.applyDamageLocal(c,fragDamage(dist),false,`equipment_${id}`);
           else if(def.type==="flash" && c.alive){
             const duration=flashDurationMs(dist);
-            this.botTacticalStunUntil.set(c.id,Math.max(this.botTacticalStunUntil.get(c.id)??0,performance.now()+duration));
-            if(c.ai){c.ai.targetId=null;c.ai.nextShotAt=performance.now()+duration;}
+            this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,performance.now()+duration));
+            if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
             this.spawnTacticalStatusVisual(c.id,"flash",duration);
           }
         }
@@ -6339,7 +6354,7 @@ export class FPSEngine {
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
-          this.equipmentAdsBlockedUntil=0;this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
@@ -6431,7 +6446,7 @@ export class FPSEngine {
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
           this.refillAmmoOnRespawn(); this.buildViewmodel();
-          this.equipmentAdsBlockedUntil=0;this.equipmentStunUntil=0;this.equipmentFlashUntil=0;
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;
         }
         break;
       case "deathBomb":
@@ -6480,7 +6495,7 @@ export class FPSEngine {
         break;
       case "equipmentStatus":
         if(msg.effect==="flash"){
-          this.equipmentStunUntil=Math.max(this.equipmentStunUntil,performance.now()+msg.durationMs);
+          
           this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,performance.now()+msg.durationMs);
         }else{
           this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,performance.now()+msg.durationMs);
@@ -6937,7 +6952,7 @@ export class FPSEngine {
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
-    this.equipmentStunUntil=0;this.equipmentFlashUntil=0;this.equipmentAdsBlockedUntil=0;
+    this.equipmentFlashUntil=0;this.equipmentAdsBlockedUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
@@ -7589,7 +7604,7 @@ export class FPSEngine {
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
   private fireOneShot(w: WeaponDef) {
-    if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
+    if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
     if (w.disabled || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
@@ -8276,7 +8291,7 @@ export class FPSEngine {
         this.botTacticalAdsBlockedUntil.delete(c.id);
         const state=this.botTacticalState.get(c.id);
         if(state){state.charges=equipmentById(state.id).charges;state.nextAt=performance.now()+3500+Math.random()*2500;}
-        this.botTacticalStunUntil.delete(c.id);
+        this.botFlashUntil.delete(c.id);
       }
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
@@ -9013,6 +9028,7 @@ export class FPSEngine {
 
   private update(dt: number) {
     this.tickDeployCovers();
+    this.updateFlashAudio(performance.now());
     // Cinematic finish: keep recently killed operatives visible but never
     // simulate another combat tick or change match results after the verdict.
     if (this.matchEnded) {
@@ -9830,7 +9846,6 @@ export class FPSEngine {
   }
 
   private updateMovement(dt: number) {
-    if (performance.now() < this.equipmentStunUntil) return;
     // Maintain mobile sprint hysteresis so small joystick fluctuations do not
     // repeatedly cancel sprint. The touch overlay uses the same shared rule.
     const touchAutoSprint = this.touchMode && shouldTouchAutoSprint(
@@ -10051,9 +10066,10 @@ export class FPSEngine {
   // Bots use the same ground-height logic as the player so they can climb
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
-    if((this.botTacticalStunUntil.get(c.id)??0)>now)return;
     const ai = c.ai!;
-    this.hearBotNoise(c,now);
+    const flashBlinded=(this.botFlashUntil.get(c.id)??0)>now;
+    if(flashBlinded){ai.targetId=null;ai.lastSighting=null;ai.lastAlert=null;}
+    else this.hearBotNoise(c,now);
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
     const boss=this.survivalBossTimers.get(c.id);
@@ -10085,14 +10101,14 @@ export class FPSEngine {
     const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
-    const rival=this.nearestEnemy(c);
+    const rival=flashBlinded?null:this.nearestEnemy(c);
     const hostiles=[...this.bulletSpitters.entries()].filter(([,t])=>t.offline &&
       t.ownerId!==c.id && turretCanAttack(this.opts.mode,c.team,this.opts.team as string,false) &&
       Math.hypot(c.pos[0]-t.pos[0],c.pos[2]-t.pos[2])<25 &&
       this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
       .sort((a,b)=>Math.hypot(a[1].pos[0]-c.pos[0],a[1].pos[2]-c.pos[2])-
         Math.hypot(b[1].pos[0]-c.pos[0],b[1].pos[2]-c.pos[2]));
-    if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
+    if(!flashBlinded && hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
       now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0){
       const [id,t]=hostiles[0],origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
       const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
@@ -10104,7 +10120,7 @@ export class FPSEngine {
     }
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
-      const enemy = this.nearestEnemy(c);
+      const enemy = flashBlinded?null:this.nearestEnemy(c);
       if(enemy)ai.lastSighting=botRememberSighting(enemy.id,enemy.pos,now);
       const remembered=ai.lastSighting;
       const rememberedEnemy=remembered
@@ -10224,7 +10240,7 @@ export class FPSEngine {
     };
     const candidate = targetIsSelf ? selfCombatant : target;
     const candidateDist=candidate?Math.hypot(candidate.pos[0]-c.pos[0],candidate.pos[2]-c.pos[2]):Infinity;
-    const tgt=candidate?.alive &&
+    const tgt=!flashBlinded && candidate?.alive &&
       candidateDist<=Math.min(botDetectionRange(ai.difficulty,w.category),
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity) &&
       this.hasLineOfSight([c.pos[0],c.pos[1]+PLAYER_HEIGHT/2,c.pos[2]],
@@ -10750,10 +10766,10 @@ export class FPSEngine {
             const duration=flashDurationMs(d),until=performance.now()+duration;
             if(c.id===this.selfId){
               this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,until);
-              this.equipmentStunUntil=Math.max(this.equipmentStunUntil,until);
+              
             }else{
-              this.botTacticalStunUntil.set(c.id,Math.max(this.botTacticalStunUntil.get(c.id)??0,until));
-              if(c.ai){c.ai.targetId=null;c.ai.nextShotAt=until;}
+              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,until));
+              if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
               this.spawnTacticalStatusVisual(c.id,"flash",duration);
             }
           }
@@ -11057,7 +11073,6 @@ export class FPSEngine {
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
       equipmentRechargeMs:Math.max(0,this.equipmentNextRechargeAt-now),
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
-      stunRemainingMs: Math.max(0,this.equipmentStunUntil-now),
       taserRemainingMs: Math.max(0,this.equipmentAdsBlockedUntil-now),
       reloading: this.reloading,
       weaponName: weaponById(this.weaponId).name,
