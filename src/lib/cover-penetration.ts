@@ -93,7 +93,7 @@ export function coverDamageScaleAt(trace:CoverPenetrationTrace,distance:number):
  * This gives ordinary weapons some material penetration while leaving hard
  * structure, shields and protected players fully protective.
  */
-export const BODY_PENETRATION_ENERGY_COST = 1.15;
+export const BODY_PENETRATION_ENERGY_COST = 0.85;
 export const MAX_PENETRATED_BODIES = 3;
 
 export interface UnifiedPenetrationResult<T> {
