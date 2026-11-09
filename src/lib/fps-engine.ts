@@ -56,7 +56,7 @@ import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetrati
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
 import type { MaterialCoverImpact } from "./game-protocol";
-import { launcherSplashFactor } from "./launcher-effects";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
@@ -9437,8 +9437,10 @@ export class FPSEngine {
             }
           }
           const selfDistance=Math.hypot(this.pos.x-p.end.x,this.pos.y+PLAYER_HEIGHT/2-p.end.y,this.pos.z-p.end.z);
+          const blastLosOrigin=launcherBlastVisibilityOrigin(
+            [p.end.x,p.end.y,p.end.z],[p.start.x,p.start.y,p.start.z]);
           if(this.alive&&selfDistance<=p.splashRadius&&this.hasLineOfSight(
-            [p.end.x,p.end.y,p.end.z],[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
+            blastLosOrigin,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
             const factor=launcherSplashFactor(p.weaponId,selfDistance,p.splashRadius);
             const dmg=explosionKind==="corrosion"?corrosionImpactDamage(p.damage,factor):p.damage*factor;
             this.takeDamage(dmg,this.opts.playerName,this.opts.team,false,p.weaponId);
