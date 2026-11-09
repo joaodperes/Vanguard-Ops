@@ -53,7 +53,7 @@ export async function register() {
   // and never seen by the Edge Runtime's static analyzer during build.
   try {
     const { startGameServer } = await import("./lib/game-server");
-    startGameServer(3003);
+    await startGameServer(3003);
   } catch (err) {
     console.warn(
       "[VANGUARD] Failed to start game server — multiplayer will be unavailable, " +
