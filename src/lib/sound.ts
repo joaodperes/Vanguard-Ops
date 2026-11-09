@@ -64,6 +64,7 @@ export type SfxName =
   | "ads_out"
   | "countdown_tick"
   | "match_start"
+  | "overtime_start"
   | "match_win"
   | "match_lose"
   | "flag_taken"
@@ -320,6 +321,7 @@ export class SoundManager {
       case "match_lose": this.synthMatchLose(vol); break;
       case "countdown_tick": this.synthBlip(740, .075, vol * .7, "sine"); break;
       case "match_start": this.synthMatchStart(vol); break;
+      case "overtime_start": this.synthOvertimeStart(vol); break;
       case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
       case "flag_scored": this.synthFlagFanfare("score", vol); break;
       case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
@@ -802,6 +804,39 @@ export class SoundManager {
       osc.connect(g).connect(this.masterGain!);
       osc.start(start); osc.stop(start + 0.55);
     });
+  }
+
+  /** Urgent two-tone warning with a final rising sting: distinct from the
+   * opening GO cue and score fanfares, without an external audio asset. */
+  private synthOvertimeStart(vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const notes = [392, 523.25, 392, 659.25];
+    notes.forEach((freq, i) => {
+      const start = t + i * .18;
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, start);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 1800;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(.0001, start);
+      gain.gain.linearRampToValueAtTime(Math.max(.0001,vol * .23), start + .018);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + .16);
+      osc.connect(filter).connect(gain).connect(this.masterGain!);
+      osc.start(start); osc.stop(start + .17);
+    });
+    const low = ctx.createOscillator();
+    low.type = "triangle";
+    low.frequency.setValueAtTime(196,t);
+    low.frequency.exponentialRampToValueAtTime(293.66,t + .85);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(.0001,t);
+    gain.gain.linearRampToValueAtTime(Math.max(.0001,vol * .12),t + .12);
+    gain.gain.exponentialRampToValueAtTime(.0001,t + .95);
+    low.connect(gain).connect(this.masterGain!);
+    low.start(t); low.stop(t + .96);
   }
 
   /** Player took damage: a sharp low thud. */
