@@ -1,4 +1,5 @@
 import { levelForXp } from "@/lib/progression";
+import { ownsOperativeSkin } from "@/lib/collection-ownership";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
@@ -11,6 +12,7 @@ import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
+  PLAYER_SKINS,
   activeMeleeWeaponId,
   isPrimaryWeaponCategory,
   weaponById,
@@ -290,10 +292,12 @@ export async function POST(req: NextRequest) {
   const sanitizedWeaponSkin=candidatePrimarySkin??(effectivePrimary!==previousPrimary?"default":undefined);
   const sanitizedSecondarySkin=candidateSecondarySkin??(effectiveSecondary!==previousSecondary?"default":undefined);
   const sanitizedMeleeSkin=candidateMeleeSkin??(effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical")?"default":undefined);
-    if (playerSkin !== undefined &&
-      playerSkin !== "default" && playerSkin !== player.selectedSkin &&
-      !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
-    return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+  if (playerSkin !== undefined) {
+    const def = PLAYER_SKINS.find(s => s.id === playerSkin);
+    if (!def || !ownsOperativeSkin(def, levelForXp(player.xp),
+      ["default", player.selectedSkin, ...player.playerSkinUnlocks.map(u => u.skinId)])) {
+      return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+    }
   }
 
   // Validate all paid cosmetic choices before committing an updated loadout.
