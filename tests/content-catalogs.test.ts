@@ -32,7 +32,7 @@ describe("JSON catalog contract", () => {
     expect(WEAPONS.length).toBe(51);
     expect(ATTACHMENTS.length).toBe(61);
     expect(WEAPON_SKINS.length).toBe(18);
-    expect(PLAYER_SKINS.length).toBe(16);
+    expect(PLAYER_SKINS.length).toBe(17);
     expect(WEAPON_CHALLENGES.length).toBe(189);
     expect(WEAPONS.some(w => w.id === "rifle_ar")).toBe(true);
     expect(WEAPONS.some(w => w.id === "wonder_turret")).toBe(true);
