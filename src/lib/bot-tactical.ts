@@ -35,6 +35,8 @@ export function botTacticalCanUse(args:{
     case "knives": return d>=3 && d<=23;
     case "taser": return d>=2 && d<=15;
     case "poison_dart": return d>=5 && d<=24;
+    case "cover": return false; // tactical cover is a human-driven defensive placement
+    default: return false;
   }
 }
 export interface BotTacticalThrow { yaw:number; pitch:number; path:TimedProjectilePath }
@@ -52,6 +54,7 @@ function segmentDistanceToPoint(points:Vec3[],point:Vec3):number {
  * shots through cover, no teleporting grenades, and no automatic guaranteed hits.
  */
 export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover:CoverBox[],mapId:MapId):BotTacticalThrow|null {
+  if(id==="cover")return null; // not a thrown projectile
   const dx=target[0]-owner[0],dz=target[2]-owner[2],distance=Math.hypot(dx,dz);
   if(distance<.1)return null;
   const yaw=Math.atan2(dx,dz);
