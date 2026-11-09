@@ -5042,6 +5042,15 @@ export class FPSEngine {
           if(damage>0)this.takeDamage(damage,owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
         }
       }
+      if(m.ownerId===this.selfId&&this.alive){
+        const d=distance(playerPos);
+        if(d<=MINE_SPLASH_RADIUS&&canHit(playerPos))
+          this.takeDamage(mineSplashDamage(d),this.opts.playerName,this.opts.team,false,"equipment_mine");
+      }else if(owner?.alive){
+        const d=distance(owner.pos);
+        if(d<=MINE_SPLASH_RADIUS&&canHit(owner.pos))
+          this.applyDamageLocal(owner,mineSplashDamage(d),false,"equipment_mine");
+      }
       this.damageLocalBallisticCoverExplosion(m.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage,"mine");
       return false;
     });
@@ -8585,6 +8594,7 @@ export class FPSEngine {
 
   private damageLocalBallisticCover(origin:Vec3,dir:Vec3,range:number,power:number,damage:number,stopAt=Infinity){
     if(this.opts.online)return; // only the server may destroy cover in a network match
+    this.damageDeployCoverRay(origin,dir,range,damage,stopAt);
     const events=damageBallisticCoverOnShot(this.map,this.ballisticHp,this.ballisticDestroyed,
       origin,dir,range,power,damage,stopAt);
     for(const impact of events)this.displayBallisticImpact(impact);
@@ -8593,6 +8603,7 @@ export class FPSEngine {
   /** Offline explosions use the same soft-cover HP model as the game server. */
   private damageLocalBallisticCoverExplosion(pos:Vec3,radius:number,damage:number,sourceId:string){
     if(this.opts.online)return;
+    this.damageDeployCoverBlast(pos,radius,damage);
     for(const impact of damageBallisticCoverFromExplosion(this.map,this.ballisticHp,
       this.ballisticDestroyed,pos,radius,damage,sourceId))this.displayBallisticImpact(impact);
   }
@@ -9362,7 +9373,7 @@ export class FPSEngine {
         // a rocket that narrowly missed an enemy but hit a wall 20m behind them
         // dealt ZERO damage. Now the closest point on the trajectory line is used,
         // so near-misses deal partial damage (the rocket's value is area denial).
-        // The local player is NOT hit by their own rocket (no self-damage).
+        // Self-damage is determined only by proximity to the detonation, never flight path.
         if (p.applyLocalSplash && explosionKind !== "singularity") {
           // Trajectory segment: p.start → p.end (both THREE.Vector3 in world space).
           const segDx = p.end.x - p.start.x;
@@ -9403,6 +9414,13 @@ export class FPSEngine {
                   damagePerTick: corrosionTickDamage(p.damage) });
               }
             }
+          }
+          const selfDistance=Math.hypot(this.pos.x-p.end.x,this.pos.y+PLAYER_HEIGHT/2-p.end.y,this.pos.z-p.end.z);
+          if(this.alive&&selfDistance<=p.splashRadius&&this.hasLineOfSight(
+            [p.end.x,p.end.y,p.end.z],[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
+            const factor=launcherSplashFactor(p.weaponId,selfDistance,p.splashRadius);
+            const dmg=explosionKind==="corrosion"?corrosionImpactDamage(p.damage,factor):p.damage*factor;
+            this.takeDamage(dmg,this.opts.playerName,this.opts.team,false,p.weaponId);
           }
           this.damageLocalBallisticCoverExplosion([p.end.x,p.end.y,p.end.z],p.splashRadius,p.damage,p.weaponId);
           this.hitMarkerAt = performance.now();
