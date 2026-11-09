@@ -16,6 +16,10 @@ const POOLS: Record<BotArchetype,readonly EquipmentId[]> = {
   marksman: ["poison_dart","knives"],
   support: ["mine","frag"],
 };
+/** Survival enemies are allowed disruptive, not lethal, tactical gear only. */
+export function survivalBotTactical(variant=0):EquipmentId {
+  return Math.abs(Math.floor(variant))%2===0?"flashbang":"taser";
+}
 export function botTacticalForArchetype(archetype:BotArchetype,variant=0):EquipmentId {
   const pool=POOLS[archetype];
   return pool[Math.abs(Math.floor(variant))%pool.length];
