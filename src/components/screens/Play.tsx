@@ -11,7 +11,7 @@ import {
   MATCH_MODES, RARITY_COLORS, weaponById, WEAPONS,
 } from "@/lib/game-data";
 import {
-  MAP_LIST, getMap, recommendedTeamSize, teamSizesForMap, roomCapacity, mapAllowedForMode,
+  MAP_LIST, getMap, recommendedTeamSize, teamSizesForMap, roomCapacity, mapAllowedForMode, resolveRoomSelection,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";
@@ -183,12 +183,15 @@ export function Play() {
       toast.error("Capture the Flag requires a capture target or a time limit.");
       return;
     }
-    const selectedMap = mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound";
+    const { mapId: selectedMap, teamSize } = resolveRoomSelection(mode, roomConfig.mapId, roomConfig.teamSize);
     if (mode === "survival" && !survivalUnlocked(roomConfig.survivalTier,survivalProgress)) {
       toast.error("This Survival tier is locked. Clear the previous milestone first.");
       return;
     }
-    const teamSize = roomConfig.teamSize;
+    // Last-line defense against a stale/invalid selection. The same normalized
+    // pair is used for the server payload and for the local player/bot count.
+    if (selectedMap !== roomConfig.mapId || teamSize !== roomConfig.teamSize)
+      setRoomConfig({ mapId: selectedMap, teamSize });
     const cfg = MATCH_MODES[mode];
     const cap = roomCapacity(mode, teamSize, roomConfig.survivalPlayers);
     const config: CreateRoomConfig = {
