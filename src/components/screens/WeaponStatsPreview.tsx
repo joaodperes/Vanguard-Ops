@@ -90,7 +90,7 @@ export function WeaponStatsPreview({ weapon, equipped, preview, compact = false 
           return (
             <div key={s.key} className="min-w-0">
               {compact ? (
-                <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(24px,1fr)_auto] items-center gap-x-2 min-h-6">
+                <div className="grid grid-cols-[112px_minmax(24px,1fr)_86px] items-center gap-x-2 min-h-6">
                   {label}
                   {bar}
                   {value}
