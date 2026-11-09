@@ -299,7 +299,10 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
                 <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
                 <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
               </div>
-              <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
+              <div className="flex min-w-0 items-baseline gap-2 mb-2">
+                <span className="max-w-[50%] shrink-0 truncate text-white font-bold text-sm" title={perkById(perkId).name}>{perkById(perkId).name}</span>
+                <span className="min-w-0 truncate text-white/40 text-[10px]" title={perkById(perkId).description}>{perkById(perkId).description}</span>
+              </div>
               {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
                 <label htmlFor="loadout-wonder" className="text-violet-200 text-[10px]">Slot 4 · Owned Wonder Weapon</label>
                 <select id="loadout-wonder" value={wonderWeaponId} onChange={e=>setWonderWeaponId(e.target.value)}
@@ -311,7 +314,6 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
                 {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
                   <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
               </div>}
-              <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
               <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
                 className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
                 <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
@@ -339,9 +341,9 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
                 <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
                 <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
               </div>
-              <div className="text-white font-bold text-sm truncate mb-1">{EQUIPMENT.find(e => e.id === equipmentId)?.name}</div>
-              <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">
-                {EQUIPMENT.find(e => e.id === equipmentId)?.description}
+              <div className="flex min-w-0 items-baseline gap-2 mb-2">
+                <span className="max-w-[50%] shrink-0 truncate text-white font-bold text-sm" title={EQUIPMENT.find(e => e.id === equipmentId)?.name}>{EQUIPMENT.find(e => e.id === equipmentId)?.name}</span>
+                <span className="min-w-0 truncate text-white/40 text-[10px]" title={EQUIPMENT.find(e => e.id === equipmentId)?.description}>{EQUIPMENT.find(e => e.id === equipmentId)?.description}</span>
               </div>
               <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
                 className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
