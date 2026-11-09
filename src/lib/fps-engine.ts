@@ -5473,7 +5473,13 @@ export class FPSEngine {
       this.combatants.set(id, c);
       if(wonderId){
         const wonder=weaponById(wonderId).wonder;
-        if(wonder)this.botWonderCharges.set(id,this.opts.mode==="survival"?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        if(wonder?.kind==="shield"){
+          c.riotShieldHp=this.opts.mode==="survival"?RIOT_SHIELD_HP:0;
+          c.riotShieldReadyAt=this.opts.mode==="survival"?0:performance.now()+RIOT_SHIELD_RECHARGE_MS;
+        }else if(wonder){
+          this.botWonderCharges.set(id,this.opts.mode==="survival"
+            ?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        }
       }
       this.addCombatantMesh(c);
       i++;
@@ -5621,7 +5627,13 @@ export class FPSEngine {
       this.combatants.set(id, c);
       if(wonderId){
         const wonder=weaponById(wonderId).wonder;
-        if(wonder)this.botWonderCharges.set(id,this.opts.mode==="survival"?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        if(wonder?.kind==="shield"){
+          c.riotShieldHp=this.opts.mode==="survival"?RIOT_SHIELD_HP:0;
+          c.riotShieldReadyAt=this.opts.mode==="survival"?0:performance.now()+RIOT_SHIELD_RECHARGE_MS;
+        }else if(wonder){
+          this.botWonderCharges.set(id,this.opts.mode==="survival"
+            ?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        }
       }
       this.addCombatantMesh(c);
     }
