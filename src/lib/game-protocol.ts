@@ -1472,6 +1472,7 @@ export interface SnapshotPlayer {
   /** Optional Survival boss HUD/armor metadata sent by the server. */
   bossMaxHealth?: number;
   bossCharge?: number;
+  downed?: boolean;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
