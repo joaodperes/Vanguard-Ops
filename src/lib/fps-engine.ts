@@ -1,4 +1,7 @@
 import { blastCanDamage } from "./explosion-damage-rules";
+import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
+import {wonderMechModel,wonderAircraftModel,wonderHologramModel,type WonderWorldVisual} from "./wonder-models";
+import {wonderConeHit,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
@@ -840,6 +843,19 @@ export class FPSEngine {
   // input
   private keys: Record<string, boolean> = {};
   private mouseDown = false;
+  private mechRightDown=false;
+  private mechRightPressed=false;
+  private lastMechPrimaryAt=0;
+  private lastMechSecondaryAt=0;
+  private mechSpinAt=0;
+  private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
+  private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
+  private phantomDecoys=new Map<string,{pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
+  private chronoAnchor:{pos:Vec3;expiresAt:number}|null=null;
+  private chronoMarker:THREE.Mesh|null=null;
+  private localCryoSlowUntil=0;
+  private botCryoSlowUntil=new Map<string,number>();
+  private wonderVisualFx:{group:THREE.Group;born:number;duration:number}[]=[];
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
   private inputSuspended = false;
@@ -1003,6 +1019,9 @@ export class FPSEngine {
   private secondaryWeaponId: string;
   private meleeWeaponId: string;
   private wonderWeaponId: string;
+  private wonderModuleId="";
+  private wonderSkinId="";
+  private wonderKillEffectId="";
   // Per-slot effective stats (precomputed on swap to avoid recompute each shot).
   private primaryEff: EffectiveStats;
   private secondaryEff: EffectiveStats;
@@ -1203,6 +1222,9 @@ export class FPSEngine {
     this.secondaryWeaponId = weaponById(opts.loadout.secondaryWeaponId ?? "pistol_side").disabled
       ? "pistol_side" : (opts.loadout.secondaryWeaponId ?? "pistol_side");
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
+    this.wonderModuleId=opts.loadout.wonderModuleId??"";
+    this.wonderSkinId=opts.loadout.wonderSkinId??"";
+    this.wonderKillEffectId=opts.loadout.wonderKillEffectId??"";
     this.wonderWeaponId = opts.mode !== "gungame" && opts.loadout.perkId === "wonder_weapon" && !!WEAPONS.find(w=>w.id===opts.loadout.wonderWeaponId && w.wonder&&!w.disabled) ? opts.loadout.wonderWeaponId! : "";
     this.weaponId = this.primaryWeaponId;
     // Gun Game: the local player starts on the FIRST progression weapon,
@@ -1238,7 +1260,7 @@ export class FPSEngine {
       : emptyAtts;
     this.secondaryEff = computeEffectiveStats(secW, secAtts);
     this.meleeEff = computeEffectiveStats(melW, emptyAtts);
-    this.wonderEff = computeEffectiveStats(weaponById(this.wonderWeaponId || "rifle_ar"), emptyAtts);
+    this.wonderEff = this.adjustWonderStats(computeEffectiveStats(weaponById(this.wonderWeaponId || "rifle_ar"), emptyAtts));
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
@@ -4248,6 +4270,12 @@ export class FPSEngine {
     this.applyAudioLevels();
   }
 
+  /** Wonder-specific module stats are computed once per loadout, never as regular attachments. */
+  private adjustWonderStats(stats:EffectiveStats):EffectiveStats{
+    const m=wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId);
+    return {...stats,damage:stats.damage*m.damageMul,range:stats.range*m.rangeMul,moveSpeed:stats.moveSpeed*m.mobilityMul};
+  }
+
   /** Queue a saved preset for the next life. The server validates account inventory
    * before acknowledging authoritative loadout changes in online matches. */
   queueLoadout(next: LoadoutWire) {
@@ -4267,11 +4295,15 @@ export class FPSEngine {
     this.secondaryWeaponId = next.secondaryWeaponId ?? "pistol_side";
     this.meleeWeaponId = next.meleeWeaponId ?? "knife_tactical";
     this.wonderWeaponId=next.perkId==="wonder_weapon" && !!WEAPONS.find(w=>w.id===next.wonderWeaponId && w.wonder&&!w.disabled) ? next.wonderWeaponId! : "";
+    this.wonderModuleId=next.wonderModuleId??"";
+    this.wonderSkinId=next.wonderSkinId??"";
+    this.wonderKillEffectId=next.wonderKillEffectId??"";
+    this.mechActive=null;this.chronoAnchor=null;
     const empty = { sight: null, barrel: null, grip: null, magazine: null };
     this.primaryEff = computeEffectiveStats(weaponById(this.primaryWeaponId), next.attachments);
     this.secondaryEff = computeEffectiveStats(weaponById(this.secondaryWeaponId), next.secondaryAttachments ?? empty);
     this.meleeEff = computeEffectiveStats(weaponById(this.meleeWeaponId), empty);
-    this.wonderEff=computeEffectiveStats(weaponById(this.wonderWeaponId||"rifle_ar"),empty);
+    this.wonderEff=this.adjustWonderStats(computeEffectiveStats(weaponById(this.wonderWeaponId||"rifle_ar"),empty));
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
@@ -5286,7 +5318,8 @@ export class FPSEngine {
   // changing a skin on one weapon doesn't change it for the others. In Gun Game
   // the weapon cycles through a clean progression and ignores Armory skins.
   private getCurrentSkinId(): string {
-    if (this.opts.mode === "gungame" || this.currentSlot==="wonder") return "default";
+    if (this.opts.mode === "gungame") return "default";
+    if(this.currentSlot==="wonder")return this.wonderSkinId||"default";
     if (this.currentSlot === "secondary") return this.opts.loadout.secondaryWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     if (this.currentSlot === "melee") return this.opts.loadout.meleeWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     return this.opts.loadout.weaponSkinId;
