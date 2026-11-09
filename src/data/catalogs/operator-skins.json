@@ -156,5 +156,16 @@
     "rarity": "legendary",
     "unlockLevel": 1,
     "unlockCost": 0
+  },
+  {
+    "id": "ascendant_vanguard",
+    "name": "Ascendant Vanguard",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "levelReward": true,
+    "rarity": "legendary",
+    "color": "#14213a",
+    "accent": "#f7c76e",
+    "emissive": "#53dcef"
   }
 ]
