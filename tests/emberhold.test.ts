@@ -71,6 +71,30 @@ describe("Emberhold Castle", () => {
     }
   });
 
+  test("keep corner gaps have masonry above their doorways instead of open shafts to the roof", () => {
+    // Probe compiled collision rather than a cosmetic wall: projectile rays
+    // and character movement must both see the new stone.
+    const stoneAt = ([x, y, z]: Vec3) => map.cover.some(box =>
+      box.kind === "cover" &&
+      Math.abs(x - box.pos[0]) < box.size[0] - 0.001 &&
+      Math.abs(y - box.pos[1]) < box.size[1] - 0.001 &&
+      Math.abs(z - box.pos[2]) < box.size[2] - 0.001
+    );
+    const masonry = MAP_DOCUMENTS.emberhold.blueprint.features.filter(f =>
+      f.id.startsWith("donjon-wall-") && f.id.includes("-entry-"));
+    expect(masonry).toHaveLength(3);
+    // South: 5-unit high ground-level entry with stone all the way to the roof.
+    for (const y of [5.5, 7, 9.8]) expect(stoneAt([-8, y, 11.5])).toBe(false);
+    for (const y of [10.2, 16, 22, 24.5]) expect(stoneAt([-8, y, 11.5])).toBe(true);
+    // North: the rear stair arrives at y=15. Keep headroom for jumping,
+    // but close the gap both under the landing and above its doorway.
+    for (const y of [6, 12.5, 20.2, 24.5]) expect(stoneAt([8, y, -11.5])).toBe(true);
+    for (const y of [13.5, 15.5, 18, 19.8]) expect(stoneAt([8, y, -11.5])).toBe(false);
+    // Neither the ground entrance nor the rear-stair access is blocked.
+    expect(botTraversableEdge([-8, 5, 14], -8, 8, map.cover, map.environment)).toBe(5);
+    expect(botTraversableEdge([8, 5, -32], 8, -8, map.cover, map.environment)).toBe(15);
+  });
+
   test("stair parapet merlons run along all four outer keep walls", () => {
     const merlons = MAP_DOCUMENTS.emberhold.blueprint.features.filter(f =>
       f.id.startsWith("donjon-outer-merlon-"));
