@@ -114,7 +114,11 @@ export function ctfBotIntent(
     (rank+Math.floor(now/45000))%roster.length<guardSlots;
   // Stagger patrol phases so overwatch bots sweep approaches instead of clustering.
   const phase=Math.floor((now+(hash%4000))/9000)%3;
-  // All roles immediately become recovery/interception assignments.
+  // A flag carrier always heads to their capture zone, even when their own
+  // flag was stolen. Teammates must handle the interception; sending the
+  // carrier back into that fight can prevent either team from scoring.
+  if(enemy.carrierId===id)return {role:"escort",goal:ctfBase(team,mapId)};
+  // All other roles immediately become recovery/interception assignments.
   if(own.carrierId || own.dropped) {
     const position=own.carrierId?carriers[own.carrierId]??own.pos:own.pos;
     const dist=Math.hypot(pos[0]-position[0],pos[2]-position[2]);
@@ -128,7 +132,6 @@ export function ctfBotIntent(
       [...enemy.pos]};
   }
   if(enemy.carrierId) {
-    if(enemy.carrierId===id)return {role:"escort",goal:ctfBase(team,mapId)};
     const carrier=carriers[enemy.carrierId];
     if(carrier) {
       const radius=6+Math.abs(lane)*2;
@@ -138,11 +141,10 @@ export function ctfBotIntent(
     }
     return {role:"escort",goal:[ctfBase(team,mapId)[0]-side*6,0,ctfBase(team,mapId)[2]+lane*6]};
   }
-  // Sudden-death CTF has no static guards: the next capture wins. Continue
-  // intercepting stolen flags and escorting carriers (above), otherwise push
-  // the enemy flag on every bot, irrespective of weapon/archetype.
-  if(overtime)return {role:"attack",goal:[...enemyHome]};
-  const mapKey=typeof mapId==="string"?mapId:"id" in mapId?String(mapId.id):""; 
+  // Sudden-death CTF has no static guards (defending=false), but attackers
+  // still follow each map's flank/stair routes instead of taking an impossible
+  // straight line to the flag through walls or floodgate structures.
+  const mapKey=typeof mapId==="string"?mapId:"id" in mapId?String(mapId.id):"";
   if(CTF_LAYOUTS[mapKey]){
     // The rotating rear guard holds an advanced interception lane; the rest
     // push the enemy objective even with a marksman weapon.
