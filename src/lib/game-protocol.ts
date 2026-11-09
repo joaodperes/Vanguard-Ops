@@ -20,7 +20,7 @@ export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 4, 5, 7, 9, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 9, 12, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
 /** The Afterlight editions share their city layout and room-size options. */
@@ -29,14 +29,17 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
-  if (isAfterlightCityMap(mapId)) return mode === "ffa" || mode === "gungame" ? [5,7,9,16] : [5,7,9,16];
-  if (mapId === "floodgate" || (mapId === "emberhold" && (mode === "ffa" || mode === "gungame"))) return [5,7,9,16];
+  if (isAfterlightCityMap(mapId)) return [5,7,9,16];
+  // Castle is dense at 32 operatives: cap every supported mode at 12 per side / 24 total.
+  if (mapId === "emberhold") return [5,7,9,12];
+  if (mapId === "floodgate") return [5,7,9,16];
   if (mapId === "compound" || mapId === "skybridge") return [3,5,7,9];
   return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
   if(mapId==="bunker")return 3;
-  if(isAfterlightCityMap(mapId))return mode==="ffa"||mode==="gungame"?7:9;
+  // 9 per side = 18 operatives in both day and night Afterlight editions.
+  if(isAfterlightCityMap(mapId))return 9;
   if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge"||mapId==="emberhold")return 7;
   return 5;
 }
