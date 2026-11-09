@@ -71,9 +71,9 @@ export interface WeaponStats {
   pellets?: number;      // for shotguns
   burst?: number;        // shots per burst (e.g. 3 = 3-round burst). Default 1 (no burst).
   headshotMult: number;  // headshot damage multiplier
-  /** Optional body-to-body hitscan penetration; shields and immunity still stop shots. */
+  /** Optional retained damage / maximum-body tuning for a projectile. Both body and cover consume the same energy. */
   bodyPenetration?: { maxTargets: number; damageRetention: number };
-  /** Energy budget for crossing explicitly tagged thin cover. */
+  /** Single ammunition penetration-energy rating, shared by bodies and tagged thin cover. */
   coverPenetration?: number;
 }
 
@@ -553,10 +553,13 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
           )),
         }
       : { maxTargets: piercingAmmo.maxTargets, damageRetention: piercingAmmo.damageRetention };
-  // Penetrator Rounds add a small amount of cover energy without buffing raw TTK.
-  const coverPenetration = Math.min(6,(base.coverPenetration ?? 0) + (piercingAmmo ? .6 : 0));
+  // This energy rating now governs both body and material penetration. Keep
+  // the intrinsic rating distinct from direct-hit damage and TTK.
   const shell = weapon.category === "shotgun" && ammoAttachment &&
     compatibleAttachments(weapon.id,"magazine").includes(ammoAttachment.id) ? ammoAttachment.shotgunAmmo : undefined;
+  // A slug is a single dense projectile, not a spray of low-energy pellets.
+  const coverPenetration = Math.min(6,(base.coverPenetration ?? 0) +
+    (piercingAmmo ? .6 : 0) + (shell === "slug" ? .9 : 0));
   const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
     shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
     shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .70, spreadMul: 1.8, rangeMul: .75, rateMul: 1 } :
