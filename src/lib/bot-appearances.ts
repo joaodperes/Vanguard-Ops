@@ -25,6 +25,10 @@ export function isSurvivalBoss(id: string, name: string, isBot: boolean): boolea
   return isBot && (id.startsWith("svboss_") || /^BOSS · W\d+$/.test(name));
 }
 
+/** Elite units are visually reinforced every fifth wave, below the boss tier. */
+export function isSurvivalElite(id:string,name:string,isBot:boolean):boolean {
+  return isBot && (/^ELITE · W\d+$/.test(name) || id.startsWith("svelite_"));
+}
 export const BOSS_SHOCKWAVE_WARNING_MS = 2200;
 
 export function bossShockwaveCharge(nextSkillAt: number, now: number): number {
