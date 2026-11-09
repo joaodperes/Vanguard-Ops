@@ -129,9 +129,10 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
     bodyLevel: .22, noiseLevel: .18, bodyType: "triangle", filter: "bandpass",
   },
   pistol_bastion: {
-    bodyHz: 184, bodyEndHz: 63, bodySeconds: .178,
-    noiseHz: 2750, noiseQ: .62, noiseSeconds: .135,
-    bodyLevel: .76, noiseLevel: .84, bodyType: "sawtooth", filter: "highpass",
+    // Full-power .45: heavy pressure tail and a distinct hammer crack.
+    bodyHz: 146, bodyEndHz: 46, bodySeconds: .255,
+    noiseHz: 2170, noiseQ: .60, noiseSeconds: .185,
+    bodyLevel: .98, noiseLevel: .95, bodyType: "sawtooth", filter: "highpass",
   },
   pistol_magnum: {
     bodyHz: 130, bodyEndHz: 46, bodySeconds: .245,
@@ -210,7 +211,7 @@ const SPECIAL_IMPACTS: Record<string, ImpactProfile> = {
   shotgun_combat:    { crackHz: 1800, crackSeconds: .014, crackLevel: 1.78, punchHz: 82, punchSeconds: .098, punchLevel: .62 },
   rifle_electron:     { crackHz: 3500, crackSeconds: .017, crackLevel: .32, punchHz: 115, punchSeconds: .080, punchLevel: .18 },
   crossbow_reclaimer: { crackHz: 2600, crackSeconds: .009, crackLevel: .12, punchHz: 105, punchSeconds: .045, punchLevel: .10 },
-  pistol_bastion:    { crackHz: 1770, crackSeconds: .027, crackLevel: 1.29, punchHz: 73, punchSeconds: .139, punchLevel: .74 },
+  pistol_bastion:    { crackHz: 1630, crackSeconds: .034, crackLevel: 1.46, punchHz: 61, punchSeconds: .205, punchLevel: .98 },
   pistol_magnum:    { crackHz: 1420, crackSeconds: .034, crackLevel: 1.60, punchHz: 58, punchSeconds: .220, punchLevel: 1.08 },
   sniper_heavy:     { crackHz: 920, crackSeconds: .039, crackLevel: 1.72, punchHz: 40, punchSeconds: .44, punchLevel: 1.56 },
   dmr_heavy:        { crackHz: 1550, crackSeconds: .027, crackLevel: 1.27, punchHz: 64, punchSeconds: .16, punchLevel: .85 },

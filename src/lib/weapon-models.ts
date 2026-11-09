@@ -4,7 +4,7 @@
  * The engine owns mesh parenting/animation and disposes all geometry on swap.
  */
 import * as THREE from "three";
-import { BASTION_CYLINDER_CENTER, BASTION_CHAMBER_RADIUS, BASTION_CYLINDER_HALF_LENGTH, BASTION_CARTRIDGE_SEATED_Z } from "./bastion-revolver-rig";
+import { BASTION_CYLINDER_CENTER, BASTION_CHAMBER_RADIUS, BASTION_CYLINDER_HALF_LENGTH, BASTION_CARTRIDGE_SEATED_Z, BASTION_TOPSTRAP } from "./bastion-revolver-rig";
 
 type Magazine = "curved" | "straight" | "drum" | "box" | "belt" | "tube" | "revolver" | "grip" | "rocket" | "none";
 type Stock = "fixed" | "wire" | "folding" | "bullpup" | "precision" | "heavy" | "none";
@@ -64,7 +64,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   pistol_machine:  { receiver: [.105,.115,.29],guardLength:.13, barrelLength:.13, bore:.022, stock:"wire",      magazine:"straight", body:"block",features:["guard","rail"],signature:0xc85c5c },
   launcher_rocket: { receiver: [.23,.24,.61],  guardLength:.26, barrelLength:.70, bore:.115, stock:"none",      magazine:"rocket",   body:"block",features:["shield","carry","muzzle"],signature:0x93aa67 },
   pistol_ghost:    { receiver: [.087,.088,.18],guardLength:.04, barrelLength:.07,bore:.016, stock:"none",magazine:"grip",body:"slim",features:[],signature:0x8fe7bf },
-  pistol_bastion:  { receiver: [.112,.12,.25],guardLength:.06, barrelLength:.23,bore:.034, stock:"none",magazine:"revolver",body:"tapered",features:["muzzle"],signature:0xcaa07a },
+  pistol_bastion:  { receiver: [.125,.14,.25],guardLength:.065,barrelLength:.28,bore:.038,stock:"none",magazine:"revolver",body:"tapered",features:["muzzle"],signature:0xcaa07a },
   pdw_mamba:       { receiver: [.112,.115,.25],guardLength:.075,barrelLength:.09,bore:.018, stock:"none",magazine:"straight",body:"ribbed",features:["vent","muzzle"],signature:0xd5db4a },
   pdw_sentinel:    { receiver: [.13,.125,.29],guardLength:.12, barrelLength:.13,bore:.026, stock:"wire",magazine:"straight",body:"block",features:["rail","guard"],signature:0x6fe2b7 },
   launcher_breach: { receiver: [.25,.22,.48],guardLength:.20, barrelLength:.46,bore:.105, stock:"none",magazine:"rocket",body:"angular",features:["shield","muzzle"],signature:0xb48b53 },
@@ -155,7 +155,7 @@ export function buildBastionIronSights(material: THREE.Material) {
   component(.010,.035,.018,-.037,.002);
   component(.010,.035,.018, .037,.002);
   component(.083,.008,.020,0,-.024);
-  const front=new THREE.Mesh(new THREE.BoxGeometry(.009,.032,.012),material);
+  const front=new THREE.Mesh(new THREE.BoxGeometry(.009,.055,.012),material);
   front.name="bastion_front_blade";
   return {rear,front};
 }
@@ -242,9 +242,54 @@ export function buildFirstPersonWeapon(
   const geo = new THREE.ExtrudeGeometry(shape,{depth:w, bevelEnabled:true, bevelThickness:.006, bevelSize:.006, bevelSegments:1,steps:1});
   geo.rotateY(Math.PI/2); // polygon's local x becomes -Z; extrusion depth becomes +X
   const receiver = new THREE.Mesh(geo,bodyMat);
-  add(receiver,-w/2,-.013,c);
+  // A conventional pistol's extruded receiver fills the cylinder aperture
+  // and hides the rounded chamber profile. Bastion instead uses an OPEN,
+  // curved frame with topstrap, breech, trigger guard and rounded butt.
+  if(id!=="pistol_bastion")add(receiver,-w/2,-.013,c);
+  else geo.dispose();
+  if(id==="pistol_bastion"){
+    const top=box(BASTION_TOPSTRAP.x,BASTION_TOPSTRAP.y,BASTION_TOPSTRAP.z,
+      BASTION_TOPSTRAP.width,BASTION_TOPSTRAP.height,BASTION_TOPSTRAP.length,bodyMat);
+    top.name="bastion_topstrap";
+    // Short solid rear breech is BEHIND the cylinder, not a slab across it.
+    box(0,-.046,-.052,.071,.073,.057,bodyMat).name="bastion_recoil_shield";
+    // Six open chamber sleeves now dominate the side profile. Machined curved
+    // lower frame arms follow the drum's contour instead of hiding its flutes.
+    for(const side of [-1,1]){
+      const arc=new THREE.CatmullRomCurve3([
+        new THREE.Vector3(side*.057,.038,-.305),
+        new THREE.Vector3(side*.073,-.039,-.282),
+        new THREE.Vector3(side*.083,-.111,-.254),
+        new THREE.Vector3(side*.086,-.132,-.194),
+        new THREE.Vector3(side*.081,-.123,-.119),
+        new THREE.Vector3(side*.055,-.060,-.052),
+      ]);
+      const rail=new THREE.Mesh(new THREE.TubeGeometry(arc,24,.011,8,false),edge);
+      rail.name="bastion_curved_frame_rail";
+      add(rail,0,0,0);
+    }
+    const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.13,6,14),darkMat);
+    grip.name="bastion_rounded_grip";
+    grip.rotation.x=-.22;
+    add(grip,0,-.183,.025);
+    // A separately curved trigger guard connects the frame to the grip.
+    const triggerLoop=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-.012,-.115,-.115),
+      new THREE.Vector3(-.012,-.184,-.145),
+      new THREE.Vector3(-.012,-.220,-.121),
+      new THREE.Vector3(-.012,-.217,-.015),
+      new THREE.Vector3(-.012,-.136,.023),
+    ]);
+    add(new THREE.Mesh(new THREE.TubeGeometry(triggerLoop,20,.007,7,false),metal),0,0,0);
+    // Slim contrasting oval grip panels reinforce the hammer-fired silhouette.
+    for(const side of [-1,1]){
+      const inlay=new THREE.Mesh(new THREE.CapsuleGeometry(.019,.075,4,10),metal);
+      inlay.rotation.x=-.22;
+      add(inlay,side*.040,-.198,.031);
+    }
+  }
   // Grips, firing controls, rails and side-mounted panels are large enough to read in hip-fire.
-  if(p.magazine!=="rocket") {
+  if(p.magazine!=="rocket"&&id!=="pistol_bastion") {
     const pistol = id.startsWith("pistol_") || id === "launcher_rocket";
     const gripZ = pistol ? c+.08 : c + .20;
     const grip = box(0,-.105,gripZ,.068,.16,.095,darkMat);
@@ -258,13 +303,18 @@ export function buildFirstPersonWeapon(
   const guardZ = c-l/2-p.guardLength/2+.02;
   const guardFront=guardZ-p.guardLength/2;
   if (p.magazine!=="rocket") {
-    box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,bodyMat);
-    // Offset vent ribs along the fore-end: visible on both sides.
-    const vents = id.includes("heavy") || p.features.includes("vent") ? 5 : 3;
-    for(let i=0;i<vents;i++) {
-      const vz=guardZ-p.guardLength*.37+(i/(vents-1))*p.guardLength*.74;
-      box(w*.45,.044,vz,.013,.034,.022,darkMat);
-      box(-w*.45,.044,vz,.013,.034,.022,darkMat);
+    if(id==="pistol_bastion"){
+      // The short round forcing cone meets the six-shot drum at the front;
+      // rectangular pistol-style handguards would conceal the chamber rim.
+      tube(0,-.004,guardZ,.048,p.guardLength+.035,bodyMat,18);
+    }else{
+      box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,bodyMat);
+      const vents = id.includes("heavy") || p.features.includes("vent") ? 5 : 3;
+      for(let i=0;i<vents;i++) {
+        const vz=guardZ-p.guardLength*.37+(i/(vents-1))*p.guardLength*.74;
+        box(w*.45,.044,vz,.013,.034,.022,darkMat);
+        box(-w*.45,.044,vz,.013,.034,.022,darkMat);
+      }
     }
   }
   const muzzle = c-l/2-p.guardLength-p.barrelLength+.04;
@@ -286,6 +336,16 @@ export function buildFirstPersonWeapon(
   }
   tube(0,.0,barrelCenter,p.bore,barrelLength,metal,14);
   tube(0,.0,muzzle+.02,p.bore*1.22,.06,edge,14);
+  if(id==="pistol_bastion"){
+    // Thick, circular heavy-revolver barrel shroud (not a square slide).
+    const shroud=tube(0,-.003,barrelCenter,.052,barrelLength*.92,bodyMat,20);
+    shroud.name="bastion_round_barrel_shroud";
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(.052,.007,7,20),edge);
+    rim.name="bastion_barrel_collar";
+    add(rim,0,-.003,muzzle+.070);
+    // Low front sight foot actually TOUCHES the round barrel shroud.
+    box(0,.046,muzzle+.08,.021,.020,.034,metal);
+  }
   // Three experimental weapon platforms. All meshes use the normal `add`
   // callback so the FPS engine can animate them and dispose them on swap.
   if (id === "rifle_electron") {
@@ -327,11 +387,11 @@ export function buildFirstPersonWeapon(
     add(head, 0,.060,muzzle-.12);
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
   } else if (id === "pistol_bastion") {
-    // Spur hammer sits behind and off the sight line. The previous oversized
-    // centre block looked like an opaque rear sight in first person.
-    box(.047,.065,c+l*.48,.029,.020,.033,darkMat);
+    // Offset exposed hammer and narrow ejector rod, clear of the rear notch.
+    const hammer=new THREE.Mesh(new THREE.CapsuleGeometry(.014,.015,4,8),darkMat);
+    hammer.rotation.x=-.38;
+    add(hammer,.046,.067,c+l*.47);
     tube(0,-.057,muzzle+.08,.009,.22,edge,8);
-    for(const side of [-1,1]) box(side*.048,-.086,c+.045,.012,.045,.09,edge);
   } else if (id === "pistol_arc") {
     const violet = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0xc2a3ff });
     // Concentric emitter coils around an unmistakably wide front capacitor.
@@ -489,7 +549,7 @@ export function buildFirstPersonWeapon(
       drum.name="revolver_cylinder_body";
       drum.rotation.x=Math.PI/2;
       cylinder.add(drum);
-      const frontWeb=new THREE.Mesh(new THREE.CylinderGeometry(.066,.066,.013,12),sig);
+      const frontWeb=new THREE.Mesh(new THREE.CylinderGeometry(id==="pistol_bastion"?.081:.066,id==="pistol_bastion"?.081:.066,.013,16),sig);
       frontWeb.name="revolver_cylinder_front_web";
       frontWeb.rotation.x=Math.PI/2;
       frontWeb.position.z=-BASTION_CYLINDER_HALF_LENGTH+.009;
@@ -504,12 +564,12 @@ export function buildFirstPersonWeapon(
         // visibly travel down their Z-aligned bores instead of disappearing
         // behind an opaque capped cylinder surface.
         const sleeve=new THREE.Mesh(
-          new THREE.CylinderGeometry(.020,.020,BASTION_CYLINDER_HALF_LENGTH*2,12,1,true),sig);
+          new THREE.CylinderGeometry(id==="pistol_bastion"?.023:.020,id==="pistol_bastion"?.023:.020,BASTION_CYLINDER_HALF_LENGTH*2,12,1,true),sig);
         sleeve.name="revolver_chamber_sleeve_"+i;
         sleeve.rotation.x=Math.PI/2;
         sleeve.position.set(x,y,0);
         cylinder.add(sleeve);
-        const mouth=new THREE.Mesh(new THREE.RingGeometry(.010,.018,12),darkMat);
+        const mouth=new THREE.Mesh(new THREE.RingGeometry(.010,.020,12),darkMat);
         mouth.position.set(x,y,BASTION_CYLINDER_HALF_LENGTH+.001);
         cylinder.add(mouth);
         if(id==="pistol_bastion"){

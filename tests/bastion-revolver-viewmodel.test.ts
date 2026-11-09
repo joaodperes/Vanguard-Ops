@@ -5,6 +5,7 @@ import {
   BASTION_CYLINDER_CENTER, BASTION_CYLINDER_OPEN_X,
   BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z,
   bastionReloadFrame, bastionLoaderContact,
+  BASTION_TOPSTRAP, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y,
 } from "../src/lib/bastion-revolver-rig";
 import { sampleReloadMotion } from "../src/lib/first-person-animation";
 import { placeFirstPersonActionTarget } from "../src/lib/first-person-action-target";
@@ -21,6 +22,49 @@ function model(id="pistol_bastion") {
 const axis=(q:THREE.Quaternion)=>new THREE.Vector3(0,1,0).applyQuaternion(q).normalize();
 
 describe("Bastion viewmodel: geometry and reload continuity",()=>{
+  test("open, curved frame exposes a large cylinder instead of a pistol slide",()=>{
+    const {parts,cylinder,material}=model();
+    const top=parts.find(x=>x.name==="bastion_topstrap") as THREE.Mesh;
+    const grip=parts.find(x=>x.name==="bastion_rounded_grip") as THREE.Mesh;
+    const shroud=parts.find(x=>x.name==="bastion_round_barrel_shroud") as THREE.Mesh;
+    expect(top).toBeDefined();
+    expect(grip.geometry).toBeInstanceOf(THREE.CapsuleGeometry);
+    expect(shroud.geometry).toBeInstanceOf(THREE.CylinderGeometry);
+    expect(parts.filter(x=>x.name==="bastion_curved_frame_rail")).toHaveLength(2);
+    expect(parts.some(x=>x instanceof THREE.Mesh &&
+      x.geometry instanceof THREE.ExtrudeGeometry)).toBe(false);
+    expect(top.position.z).toBe(BASTION_TOPSTRAP.z);
+    expect(top.position.y).toBe(BASTION_TOPSTRAP.y);
+    const face=cylinder.children.find(x=>x.name==="revolver_cylinder_front_web") as THREE.Mesh;
+    expect((face.geometry as THREE.CylinderGeometry).parameters.radiusTop).toBeGreaterThan(.075);
+    material.dispose();
+  });
+
+  test("rear U-notch rests ON the frame and front blade on barrel pedestal",()=>{
+    const {parts,material}=model();
+    const top=parts.find(x=>x.name==="bastion_topstrap") as THREE.Mesh;
+    top.geometry.computeBoundingBox();
+    const b=top.geometry.boundingBox!;
+    const halfTopWidth=(b.max.x-b.min.x)/2;
+    const halfTopLength=(b.max.z-b.min.z)/2;
+    expect(BASTION_REAR_SIGHT.z).toBeGreaterThan(top.position.z-halfTopLength);
+    expect(BASTION_REAR_SIGHT.z).toBeLessThan(top.position.z+halfTopLength);
+    expect(BASTION_REAR_SIGHT.x).toBeGreaterThanOrEqual(top.position.x-halfTopWidth);
+    expect(BASTION_REAR_SIGHT.x).toBeLessThanOrEqual(top.position.x+halfTopWidth);
+    const {rear,front}=buildBastionIronSights(material);
+    const bridge=rear.children[2] as THREE.Mesh;
+    bridge.geometry.computeBoundingBox();
+    const bridgeBottom=BASTION_REAR_SIGHT.y+bridge.position.y+
+      bridge.geometry.boundingBox!.min.y;
+    const frameTop=top.position.y+b.max.y;
+    expect(bridgeBottom).toBeLessThanOrEqual(frameTop);
+    expect(bridgeBottom).toBeGreaterThan(top.position.y+b.min.y);
+    const bladeBottom=BASTION_FRONT_SIGHT_Y-
+      (front.geometry as THREE.BoxGeometry).parameters.height/2;
+    expect(bladeBottom).toBeLessThan(.056);
+    expect(bladeBottom).toBeGreaterThan(.04);
+    material.dispose();
+  });
   test("cylinder bores point along the barrel, never sideways or diagonally",()=>{
     const {cylinder,material}=model();
     expect(cylinder).toBeDefined();

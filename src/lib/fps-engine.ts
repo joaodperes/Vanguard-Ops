@@ -108,7 +108,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS } from "@/lib/weapon-models";
-import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
+import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
 import { canStartWeaponReload, isFanHammer } from "@/lib/weapon-mechanics";
@@ -3073,6 +3073,7 @@ export class FPSEngine {
         shotgun_combat: 0x1a2a2a, // gunmetal
         pistol_side: 0x2a2a2a,    // dark grey
         pistol_magnum: 0x5a3a1a,  // gold-brown (revolver)
+        pistol_bastion: 0x3a3531, // heavy satin gunmetal: bronze cylinder and grip details stand out
         pistol_burst: 0x1a2a3a,   // blue-grey
         pistol_machine: 0x3a1a1a, // dark red
         dmr_scout: 0x1a3a1a,      // dark green
@@ -3308,12 +3309,16 @@ export class FPSEngine {
       const mountHeight = adsClearance(
         wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
       ).sightMountY;
-      // Scope bodies and low rear notches are part of the same rigid gun pose.
-      addPart(scopeGroup, 0, mountHeight, wid === "pistol_bastion" && st === "iron" ? .09 : -.1);
+      const bastionIron=wid==="pistol_bastion" && st==="iron";
+      // This rear U-notch rests directly on the machined topstrap. A .09 Z
+      // offset previously placed it behind the frame, floating in midair.
+      addPart(scopeGroup,bastionIron?BASTION_REAR_SIGHT.x:0,
+        bastionIron?BASTION_REAR_SIGHT.y:mountHeight,
+        bastionIron?BASTION_REAR_SIGHT.z:-.1);
       if (st === "iron") {
-        // Align an actual slender front blade with the OPEN rear U notch.
+        // Front blade grows from the round barrel shroud's fitted pedestal.
         const front=bastionFront ?? new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
-        addPart(front, 0, mountHeight+(bastionFront ? .008 : .01), muzzleZ+.08);
+        addPart(front,0,bastionFront?BASTION_FRONT_SIGHT_Y:mountHeight+.01,muzzleZ+.08);
       }
       this.sightMesh = scopeGroup;
     }

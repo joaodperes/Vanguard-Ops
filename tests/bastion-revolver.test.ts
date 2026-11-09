@@ -6,6 +6,7 @@ import { reloadMotionFor, sampleReloadMotion } from "../src/lib/first-person-ani
 import { WEAPON_VISUALS, buildFirstPersonWeapon } from "../src/lib/weapon-models";
 import { resolveShotAcoustics } from "../src/lib/weapon-audio";
 import { validateGameContent } from "../src/lib/content-validation";
+import { hitsToEliminate, idealTimeToKillMs } from "../src/lib/weapon-balance";
 
 const base:Record<AttachmentSlot,string|null>={sight:null,barrel:null,grip:null,magazine:null};
 const bastion=weaponById("pistol_bastion");
@@ -18,6 +19,27 @@ describe("Bastion .45 six-shot revolver",()=>{
     expect(bastion.stats.auto).toBe(false);
     expect(WEAPONS.some(w=>w.id==="pistol_magnum")).toBe(true);
     expect(validateGameContent()).toEqual([]);
+  });
+  test("heavy revolver: harder hits, slow hammer, high kick and real penetration",()=>{
+    const stats=computeEffectiveStats(bastion,base);
+    const magnum=weaponById("pistol_magnum").stats;
+    const sidearm=weaponById("pistol_side").stats;
+    expect(stats.damage).toBe(70);
+    expect(stats.damage).toBeGreaterThan(magnum.damage);
+    expect(stats.fireRate).toBe(1.55);
+    expect(stats.fireRate).toBeLessThan(magnum.fireRate*.75);
+    expect(stats.fireRate).toBeLessThan(sidearm.fireRate*.4);
+    expect(stats.recoil).toBeGreaterThan(magnum.recoil);
+    expect(stats.coverPenetration).toBeGreaterThan(magnum.coverPenetration!);
+    expect(stats.bodyPenetration?.maxTargets).toBe(2);
+    expect(stats.bodyPenetration?.damageRetention).toBeLessThan(magnum.bodyPenetration!.damageRetention);
+    expect(hitsToEliminate(stats,0)).toBe(2);
+    expect(hitsToEliminate(stats,0,1)).toBe(2);
+    expect(idealTimeToKillMs(bastion,stats)).toBeCloseTo(1000/1.55,5);
+    expect(idealTimeToKillMs(bastion,stats)).toBeGreaterThan(idealTimeToKillMs(weaponById("pistol_magnum"),magnum)!);
+    const fan=computeEffectiveStats(bastion,{...base,grip:"grip_fan_hammer"});
+    expect(fan.fireRate).toBeGreaterThan(2.8);
+    expect(fan.fireRate).toBeLessThan(sidearm.fireRate);
   });
   test("six physical chambers, a dedicated reload and speedloader prop",()=>{
     expect(WEAPON_VISUALS.pistol_bastion.magazine).toBe("revolver");

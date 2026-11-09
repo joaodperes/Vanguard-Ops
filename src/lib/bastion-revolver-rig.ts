@@ -3,11 +3,16 @@
  * player's eye, -Z along the barrel). The engine applies vmScale and the
  * same rigid weapon quaternion used for the body and hand. */
 export const BASTION_CYLINDER_CENTER = [0, -.034, -.17] as const;
-export const BASTION_CHAMBER_RADIUS = .045;
-export const BASTION_CYLINDER_HALF_LENGTH = .059;
+export const BASTION_CHAMBER_RADIUS = .052; // make the six-chamber outline visibly wider than the frame
+export const BASTION_CYLINDER_HALF_LENGTH = .071;
 export const BASTION_CYLINDER_OPEN_X = -.17;
 export const BASTION_CARTRIDGE_SEATED_Z = .014;
 export const BASTION_CARTRIDGE_TRAVEL_Z = .14;
+/** Both sights and frame geometry share these rest-space mounting dimensions.
+ * The rear notch sits ON the topstrap, not 9 cm behind the grip in empty air. */
+export const BASTION_TOPSTRAP = {x:0,y:.052,z:-.158,width:.066,height:.026,length:.36} as const;
+export const BASTION_REAR_SIGHT = {x:0,y:.082,z:-.035} as const;
+export const BASTION_FRONT_SIGHT_Y = .080;
 
 const clamp01=(v:number)=>Math.min(1,Math.max(0,v));
 const smooth=(a:number,b:number,p:number)=>{

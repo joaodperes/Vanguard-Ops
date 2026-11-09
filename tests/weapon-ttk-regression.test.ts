@@ -44,7 +44,7 @@ describe("2026 weapon-role and burst TTK tuning",()=>{
   });
   test("later pistols and compact PDWs occupy viable but different first-magazine profiles",()=>{
     const expected: Array<[string,number,number]> = [
-      ["pistol_ghost",3,1000/3], ["pistol_bastion",2,1000/2.7],
+      ["pistol_ghost",3,1000/3], ["pistol_bastion",2,1000/1.55],
       ["pistol_magnum",2,1000/2.3], ["pistol_burst",3,2*1000/(4*1.65)],
       ["pdw_mamba",6,5*1000/14], ["pdw_sentinel",3,2*1000/7.5],
       ["pistol_machine",5,4*1000/13],
