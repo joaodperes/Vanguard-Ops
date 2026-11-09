@@ -40,6 +40,50 @@ describe("Bastion viewmodel: geometry and reload continuity",()=>{
     material.dispose();
   });
 
+  test("solid rear frame seals both gaps behind the cylinder and joins the grip",()=>{
+    const {parts,cylinder,material}=model();
+    const named=(name:string)=>parts.find(x=>x.name===name) as THREE.Mesh;
+    const recoil=named("bastion_recoil_shield");
+    const backstrap=named("bastion_solid_backstrap");
+    const bridge=named("bastion_lower_frame_bridge");
+    const left=named("bastion_left_frame_cheek");
+    const right=named("bastion_right_frame_cheek");
+    expect([recoil,backstrap,bridge,left,right].every(Boolean)).toBe(true);
+    expect(recoil.geometry).toBeInstanceOf(THREE.CylinderGeometry);
+    expect((recoil.geometry as THREE.CylinderGeometry).parameters.openEnded).toBe(false);
+    expect(backstrap.geometry).toBeInstanceOf(THREE.CapsuleGeometry);
+    expect(left.geometry).toBeInstanceOf(THREE.ExtrudeGeometry);
+    expect(right.geometry).toBeInstanceOf(THREE.ExtrudeGeometry);
+    // The cylinder rear is z=-.099. Its protective solid breech must
+    // almost touch it, without being parented to the moving cylinder.
+    recoil.geometry.computeBoundingBox();
+    const rearBreechFace = recoil.position.z-
+      (recoil.geometry.boundingBox!.max.y-recoil.geometry.boundingBox!.min.y)/2;
+    const rearCylinderFace = cylinder.position.z +
+      BASTION_CYLINDER_HALF_LENGTH;
+    expect(Math.abs(rearCylinderFace-rearBreechFace)).toBeLessThan(.012);
+    // All these cast pieces are stationary vm parts, never children of the
+    // swinging drum: the gun cannot develop a new hole during reload.
+    for(const p of [recoil,backstrap,bridge,left,right])
+      expect(cylinder.getObjectByName(p.name)).toBeUndefined();
+    // Side-view rays must encounter SOLID steel around the rear of the
+    // cylinder and the grip transition; thin open arc outlines failed this.
+    const ray=new THREE.Raycaster();
+    const checks:[number,number][]=[
+      [-.028,-.067],[-.075,-.050],[-.125,-.025],[-.163,.018],
+    ];
+    for(const side of [-1,1]){
+      for(const [y,z] of checks){
+        ray.set(new THREE.Vector3(side*.32,y,z),new THREE.Vector3(-side,0,0));
+        ray.far=.40;
+        const intersections=ray.intersectObjects([recoil,backstrap,bridge,left,right],false);
+        expect(intersections.length,
+          "open back gap at side "+side+" y="+y+" z="+z).toBeGreaterThan(0);
+      }
+    }
+    material.dispose();
+  });
+
   test("rear U-notch rests ON the frame and front blade on barrel pedestal",()=>{
     const {parts,material}=model();
     const top=parts.find(x=>x.name==="bastion_topstrap") as THREE.Mesh;

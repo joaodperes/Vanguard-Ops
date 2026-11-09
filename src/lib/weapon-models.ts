@@ -251,20 +251,59 @@ export function buildFirstPersonWeapon(
     const top=box(BASTION_TOPSTRAP.x,BASTION_TOPSTRAP.y,BASTION_TOPSTRAP.z,
       BASTION_TOPSTRAP.width,BASTION_TOPSTRAP.height,BASTION_TOPSTRAP.length,bodyMat);
     top.name="bastion_topstrap";
-    // Short solid rear breech is BEHIND the cylinder, not a slab across it.
-    box(0,-.046,-.052,.071,.073,.057,bodyMat).name="bastion_recoil_shield";
-    // Six open chamber sleeves now dominate the side profile. Machined curved
-    // lower frame arms follow the drum's contour instead of hiding its flutes.
+    // A revolver needs an actual REAR FRAME, not just a top rail and six
+    // floating chambers. The previous tiny square recoil-shield ended before
+    // the cylinder's rear face and was disconnected from the grip.
+    // This circular, fully capped breech plate is directly BEHIND the cylinder
+    // (rear of cylinder: z=-.099; front of shield: z=-.096), while remaining
+    // fixed to the frame when the cylinder swings sideways for reloading.
+    const recoilShield=new THREE.Mesh(
+      new THREE.CylinderGeometry(.089,.084,.066,24),bodyMat);
+    recoilShield.name="bastion_recoil_shield";
+    recoilShield.rotation.x=Math.PI/2; // circular XY silhouette, barrel-parallel axis
+    add(recoilShield,0,-.027,-.063);
+    // Continuous rounded backstrap connects the upper frame, recoil shield,
+    // hammer housing and wooden grip. Unlike the removed generic receiver,
+    // this fills the rear void WITHOUT swallowing the exposed cylinder.
+    const backstrap=new THREE.Mesh(new THREE.CapsuleGeometry(.054,.126,8,16),bodyMat);
+    backstrap.name="bastion_solid_backstrap";
+    backstrap.rotation.x=-.18;
+    add(backstrap,0,-.128,-.006);
+    const lowerBridge=box(0,-.126,-.091,.075,.030,.112,bodyMat);
+    lowerBridge.name="bastion_lower_frame_bridge";
+    // Cast side cheeks are thick, closed plates, not skinny wire outlines.
+    // They overlap the round recoil shield and topstrap at their upper edge,
+    // then join the grip tang below, closing the conspicuous rear holes.
+    // Leave the trigger opening below and FORWARD of the grip.
+    const cheekOutline:[number,number][]=[
+      [-.096,.048],[-.023,.050],[.047,.031],[.079,-.042],
+      [.077,-.126],[.048,-.199],[.014,-.226],[-.022,-.195],
+      [-.028,-.137],[-.081,-.104],[-.096,-.031],
+    ];
     for(const side of [-1,1]){
+      const shape=new THREE.Shape();
+      shape.moveTo(-cheekOutline[0][0],cheekOutline[0][1]);
+      for(const [z,y] of cheekOutline.slice(1))shape.lineTo(-z,y);
+      shape.closePath();
+      const geo=new THREE.ExtrudeGeometry(shape,{
+        depth:.022,bevelEnabled:true,bevelThickness:.004,
+        bevelSize:.003,bevelSegments:2,steps:1,
+      });
+      geo.rotateY(Math.PI/2); // authored z/y outline -> weapon Z/Y, extrude along X
+      const cheek=new THREE.Mesh(geo,bodyMat);
+      cheek.name=side>0?"bastion_right_frame_cheek":"bastion_left_frame_cheek";
+      add(cheek,side>0?.049:-.071,0,0);
+      // Barrel-to-frame yoke rails curve around the cylinder and terminate IN
+      // the recoil shield instead of ending as disconnected, floating arcs.
       const arc=new THREE.CatmullRomCurve3([
-        new THREE.Vector3(side*.057,.038,-.305),
-        new THREE.Vector3(side*.073,-.039,-.282),
-        new THREE.Vector3(side*.083,-.111,-.254),
-        new THREE.Vector3(side*.086,-.132,-.194),
-        new THREE.Vector3(side*.081,-.123,-.119),
-        new THREE.Vector3(side*.055,-.060,-.052),
+        new THREE.Vector3(side*.032,.050,-.324),
+        new THREE.Vector3(side*.071,.018,-.291),
+        new THREE.Vector3(side*.084,-.069,-.263),
+        new THREE.Vector3(side*.081,-.122,-.204),
+        new THREE.Vector3(side*.079,-.117,-.128),
+        new THREE.Vector3(side*.065,-.057,-.068),
       ]);
-      const rail=new THREE.Mesh(new THREE.TubeGeometry(arc,24,.011,8,false),edge);
+      const rail=new THREE.Mesh(new THREE.TubeGeometry(arc,24,.012,8,false),edge);
       rail.name="bastion_curved_frame_rail";
       add(rail,0,0,0);
     }
