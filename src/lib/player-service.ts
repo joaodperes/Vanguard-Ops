@@ -563,6 +563,11 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   };
 }
 
+/** Only currently playable weapons are announced when a level gate opens. */
+export function newlyAvailableWeaponsAtLevel(level: number) {
+  return WEAPONS.filter(w => !w.wonder && !w.disabled && w.unlockLevel === level);
+}
+
 // Determine which items a player has unlocked by virtue of level (auto-unlocked, free).
 // NOTE: attachments and weapon skins are no longer auto-unlocked by level —
 // they're earned per-weapon via purchases (attachments) or weapon challenges (skins).
@@ -942,8 +947,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
   if (leveledUp) {
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) {
-        if (w.wonder || w.disabled || w.unlockLevel !== lvl) continue;
+      for (const w of newlyAvailableWeaponsAtLevel(lvl)) {
         if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
         else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
       }
