@@ -50,12 +50,15 @@ export function Shop(){
   const ownedWeapons=useMemo(()=>new Set(WEAPONS.filter(w=>!w.wonder&&!!profile
     &&ownsWeapon(w,profile.level,profile.unlocks.weapons)).map(w=>w.id)),[profile]);
   const offers=(c:ShopCurrency,g:ShopCategory):DailyShopOffer[]=>{
+    if(c==="wonder")return shopItemsForCategory(c,g).map(item=>({itemId:item.id}));
     const eligible=new Set(shopItemsForCategory(c,g).map(i=>i.id));
     return (rotation?.offers??[]).filter(o=>eligible.has(o.itemId));
   };
 
   async function buy(offer:DailyShopOffer){
-    if(!profile||!playerKey||busy||!rotation?.offers.some(o=>o.itemId===offer.itemId&&o.weaponId===offer.weaponId))return;
+    if(!profile||!playerKey||busy)return;
+    const item=shopItemById(offer.itemId);
+    if(!item||(item.currency!=="wonder"&&!rotation?.offers.some(o=>o.itemId===offer.itemId&&o.weaponId===offer.weaponId)))return;
     setBusy(offer.itemId);
     try{
       const res=await fetch("/api/shop",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -81,19 +84,22 @@ export function Shop(){
               const finish=WEAPON_SKINS.find(s=>s.id===item.skinId);
               const operator=PLAYER_SKINS.find(s=>s.id===item.skinId);
               const skin=finish??operator,cosmetic=cosmeticById(item.cosmeticId??"");
-              const weapon=item.kind==="weaponSkin"?WEAPONS.find(w=>w.id===offer.weaponId):undefined;
-              const owned=item.kind==="weaponSkin"
+              const weapon=item.kind==="weaponSkin"?WEAPONS.find(w=>w.id===offer.weaponId):
+                item.wonderWeaponId?WEAPONS.find(w=>w.id===item.wonderWeaponId):undefined;
+              const owned=item.currency==="wonder" ? (profile?.prestige.wonderPurchases??[]).includes(item.id)
+                :item.kind==="weaponSkin"
                 ?(profile?.unlocks.skinsByWeapon[offer.weaponId??""]??[]).includes(item.skinId??"")
                 :item.kind==="playerSkin"?(profile?.unlocks.playerSkins??[]).includes(item.skinId??"")
                 :(profile?.ownedCosmetics??[]).includes(item.cosmeticId??"");
               const status=shopPurchaseStatus(item,{
-                owned,weaponOwned:!!weapon&&ownedWeapons.has(weapon.id),
+                owned,weaponOwned:!!weapon&&(item.currency==="wonder"?!!profile?.prestige.wonderWeapons.includes(weapon.id):ownedWeapons.has(weapon.id)),
                 careerUnlocked:!!profile?.career.unlocked,credits:profile?.credits??0,
-                careerTokens:profile?.career.tokens??0,
+                careerTokens:profile?.career.tokens??0,wonderTokens:profile?.prestige.tokens??0,
               });
               return <article key={shopItemKey(item,offer.weaponId)} className="border border-white/10 bg-zinc-900/70 rounded-2xl p-4 flex flex-col">
                 <div className="h-16 rounded-lg mb-3 border border-white/10 flex items-center justify-center"
                   style={{background:`linear-gradient(125deg,#080c13,${skin?.color??cosmetic?.color??"#444"}55,#111827)`}}>
+                  {item.currency==="wonder"&&<span className="text-2xl text-violet-200 font-semibold">✦ {item.kind==="wonderModule"?"MODULE":item.kind==="wonderSkin"?"ANIMATED CAMO":"KILL EFFECT"}</span>}
                   {cosmetic&&<span className="text-3xl" style={{color:cosmetic.color,textShadow:`0 0 10px ${cosmetic.color}88`}}>{cosmetic.symbol}</span>}
                   {skin&&<span className="text-xs font-semibold px-3 py-1 rounded border border-white/20 bg-black/30" style={{color:skin.color==="black"?"#fff":skin.color}}>{item.kind==="weaponSkin"?"WEAPON FINISH":"OPERATIVE"}</span>}
                 </div>
@@ -102,13 +108,13 @@ export function Shop(){
                 <Button type="button" className={`w-full mt-4 ${statusStyles[status]}`}
                   disabled={busy!==""||status!=="available"} onClick={()=>void buy(offer)}>
                   {status==="owned"?<><Check className="w-4 h-4 mr-1"/>Already unlocked</>
-                    :status==="weapon-locked"?<><Lock className="w-4 h-4 mr-1"/>Weapon locked</>
+                    :status==="weapon-locked"?<><Lock className="w-4 h-4 mr-1"/>{c==="wonder"?"Unlock this Wonder first":"Weapon locked"}</>
                     :status==="career-locked"?<><Lock className="w-4 h-4 mr-1"/>Career locked · LVL 40</>
                     :status==="credits-short"?<><Coins className="w-4 h-4 mr-1"/>Not enough credits</>
-                    :status==="tokens-short"?<><Gem className="w-4 h-4 mr-1"/>Not enough Career Tokens</>
+                    :status==="tokens-short"?<><Gem className="w-4 h-4 mr-1"/>Not enough {c==="wonder"?"Wonder":"Career"} Tokens</>
                     :busy===offer.itemId?"Purchasing…"
                     :<>{c==="credits"?<Coins className="w-4 h-4 mr-1"/>:<Gem className="w-4 h-4 mr-1"/>}
-                      {item.cost.toLocaleString()} {c==="credits"?"CR":"Career Tokens"}</>}
+                      {item.cost.toLocaleString()} {c==="credits"?"CR":c==="wonder"?"Wonder Token"+(item.cost===1?"":"s"):"Career Tokens"}</>}
                 </Button>
               </article>;
             })}
@@ -126,17 +132,18 @@ export function Shop(){
     </header>
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex gap-4 text-sm"><span className="text-amber-300">{profile?.credits??0} CR</span><span className="text-violet-300">{profile?.career.tokens??0} Career Tokens</span></div>
+        <div className="flex gap-4 text-sm"><span className="text-amber-300">{profile?.credits??0} CR</span><span className="text-violet-300">{profile?.career.tokens??0} Career Tokens</span><span className="text-fuchsia-300">{profile?.prestige.tokens??0} Wonder Tokens</span></div>
         <div className="text-xs text-violet-200 flex items-center gap-2">
           <RefreshCw className="w-3.5 h-3.5"/> Daily rotation · Resets 00:00 UTC
         </div>
       </div>
       {rotationError&&<p role="alert" className="text-sm text-rose-300 mb-4">Shop rotation unavailable.</p>}
-      {!rotation?<p className="text-white/50 py-6">Loading today's offers…</p>:
+      {!rotation&&currency!=="wonder"?<p className="text-white/50 py-6">Loading today's offers…</p>:
         <Tabs value={currency} onValueChange={v=>setCurrency(v as ShopCurrency)}>
           <TabsList className="bg-zinc-900 border border-white/10">
             <TabsTrigger value="credits">Credit Shop</TabsTrigger>
             <TabsTrigger value="career">Career Token Shop</TabsTrigger>
+            <TabsTrigger value="wonder">Wonder Token Shop</TabsTrigger>
           </TabsList>
           <div className="grid grid-cols-[128px_minmax(0,1fr)] sm:grid-cols-[192px_minmax(0,1fr)] gap-4 sm:gap-6 mt-5 items-start">
             <nav aria-label="Shop categories" className="sticky top-20 rounded-xl border border-white/10 bg-zinc-900/60 p-1.5 sm:p-2 flex flex-col gap-1">
@@ -151,10 +158,11 @@ export function Shop(){
             <div className="min-w-0">
               <TabsContent value="credits" className="mt-0">{section("credits")}</TabsContent>
               <TabsContent value="career" className="mt-0">{section("career")}</TabsContent>
+              <TabsContent value="wonder" className="mt-0">{section("wonder")}</TabsContent>
             </div>
           </div>
         </Tabs>}
-      <p className="text-xs text-white/40 mt-6">Offers are shared by all players. Unlocked purchases stay available after the daily refresh.</p>
+      <p className="text-xs text-white/40 mt-6">Credit and Career offers rotate daily; Wonder Modules and Wonder cosmetics are permanently available. Purchases remain owned.</p>
     </main>
   </div>;
 }
