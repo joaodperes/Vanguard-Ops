@@ -316,8 +316,10 @@ function weaponPitch(weaponId: string): number {
 export class WeaponAudio {
   private ctx: AudioContext | null = null;
   private output: GainNode | null = null;
+  private feedbackOutput: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private volume: number;
+  private feedbackVolume: number;
   private activeVoices = 0;
   private readonly maxVoices = 32;
   private lastFlameHissAt = -Infinity; // prevent Web Audio overload during bot-heavy firefights
@@ -329,6 +331,7 @@ export class WeaponAudio {
 
   constructor(masterVolume = 70) {
     this.volume = Math.min(100, Math.max(0, masterVolume));
+    this.feedbackVolume = this.volume;
   }
 
   setVolume(masterVolume: number): void {
@@ -336,6 +339,13 @@ export class WeaponAudio {
     if (this.ctx && this.output) {
       this.output.gain.setTargetAtTime((this.volume / 100) * WEAPON_OUTPUT_SCALE, this.ctx.currentTime, 0.012);
     }
+  }
+
+  /** Independent elimination chimes: muting weapons cannot mute hit feedback. */
+  setFeedbackVolume(volume: number): void {
+    this.feedbackVolume = Math.min(100, Math.max(0, volume));
+    if (this.ctx && this.feedbackOutput)
+      this.feedbackOutput.gain.setTargetAtTime((this.feedbackVolume / 100) * WEAPON_OUTPUT_SCALE, this.ctx.currentTime, 0.012);
   }
 
   /** Locate the FIRST direct blast in a recording, avoiding MP3 encoder
@@ -402,6 +412,9 @@ export class WeaponAudio {
         this.output = this.ctx.createGain();
         this.output.gain.value = (this.volume / 100) * WEAPON_OUTPUT_SCALE;
         this.output.connect(compressor);
+        this.feedbackOutput = this.ctx.createGain();
+        this.feedbackOutput.gain.value = (this.feedbackVolume / 100) * WEAPON_OUTPUT_SCALE;
+        this.feedbackOutput.connect(compressor);
 
         // Shared white-noise buffer is created once, not for every shot.
         const length = Math.ceil(this.ctx.sampleRate * 0.72);
@@ -415,6 +428,7 @@ export class WeaponAudio {
       } catch {
         this.ctx = null; // Audio not supported or blocked; gameplay must continue.
         this.output = null;
+        this.feedbackOutput = null;
         this.noiseBuffer = null;
         return;
       }
@@ -690,10 +704,10 @@ export class WeaponAudio {
 
   /** Distinct two-note elimination chime. Invoked only for a confirmed local kill. */
   playElimination(headshot = false): void {
-    if (this.disposed || this.volume <= 0) return;
-    this.unlock(); // Recover a suspended context on every real shot, including scoped ADS.
+    if (this.disposed || this.feedbackVolume <= 0) return;
+    this.unlock(); // Combat chimes work even when gunfire is muted.
     const ctx = this.ctx;
-    if (!ctx || !this.output || ctx.state === "closed") return;
+    if (!ctx || !this.feedbackOutput || ctx.state === "closed") return;
     const t = ctx.currentTime;
     const notes = headshot ? [880, 1318] : [660, 990];
     notes.forEach((hz, index) => {
@@ -704,7 +718,7 @@ export class WeaponAudio {
       amp.gain.setValueAtTime(0.0001, t + index * 0.085);
       amp.gain.exponentialRampToValueAtTime(0.23, t + index * 0.085 + 0.012);
       amp.gain.exponentialRampToValueAtTime(0.0001, t + index * 0.085 + 0.17);
-      osc.connect(amp).connect(this.output!);
+      osc.connect(amp).connect(this.feedbackOutput!);
       osc.start(t + index * 0.085);
       osc.stop(t + index * 0.085 + 0.18);
       osc.onended = () => { osc.disconnect(); amp.disconnect(); };
@@ -716,6 +730,7 @@ export class WeaponAudio {
     if (this.ctx) void this.ctx.close().catch(() => {});
     this.ctx = null;
     this.output = null;
+    this.feedbackOutput = null;
     this.noiseBuffer = null;
     this.recordings = {};
   }
