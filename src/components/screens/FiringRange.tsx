@@ -9,10 +9,13 @@ import { useGame } from "@/lib/game-store";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import {
-  WEAPONS, ATTACHMENTS,
+  WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS,
   weaponById, weaponAttachmentSlots, compatibleAttachments, type AttachmentSlot,
 } from "@/lib/game-data";
-import { PERKS, perkSelection, perkById } from "@/lib/perks";
+import { PERKS, perkById } from "@/lib/perks";
+import {COSMETICS} from "@/lib/cosmetics";
+import {rangeWonderWeapons} from "@/lib/firing-range-loadout";
+import {wonderModulesFor,WONDER_FINISHES,WONDER_KILL_EFFECTS} from "@/lib/wonder-expansion";
 import { EQUIPMENT } from "@/lib/equipment";
 import {
   emptyRangeAttachments, normalizeRangeLoadout, rangePrimaryWeapons,
@@ -35,11 +38,20 @@ function initialTrial(profile: PlayerProfileView, requestedId: string | null): L
     secondaryWeaponId: saved.secondary.id,
     meleeWeaponId: saved.melee.id,
     equipmentId: saved.equipmentId,
-    perkId: perkSelection(profile.level),
-    weaponSkinId: "default",
-    secondaryWeaponSkinId: "default",
-    meleeWeaponSkinId: "default",
-    playerSkinId: "default",
+    perkId: saved.perkId,
+    wonderWeaponId: saved.wonderWeaponId,
+    wonderModuleId: saved.wonderModuleId,
+    wonderSkinId: saved.wonderSkinId,
+    wonderKillEffectId: saved.wonderKillEffectId,
+    weaponSkinId: saved.weaponSkin.id,
+    secondaryWeaponSkinId: saved.secondaryWeaponSkin.id,
+    meleeWeaponSkinId: saved.meleeWeaponSkin.id,
+    playerSkinId: saved.playerSkin.id,
+    primaryReticleId: saved.primaryReticle,
+    secondaryReticleId: saved.secondaryReticle,
+    primaryCharmId: saved.primaryCharm,
+    secondaryCharmId: saved.secondaryCharm,
+    nameplateId: profile.selectedNameplate,
     attachments: normalize(saved.attachments),
     secondaryAttachments: normalize(saved.secondaryAttachments),
     meleeAttachments: normalize(saved.meleeAttachments),
@@ -110,7 +122,9 @@ function RangeSession({ profile, requestedId, onExit }: {
       if (!valid) return prev;
       const attachmentField = field === "weaponId" ? "attachments"
         : field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
-      return normalizeRangeLoadout({ ...prev, [field]: id, [attachmentField]: emptyRangeAttachments() });
+      const skinField = field === "weaponId" ? "weaponSkinId"
+        : field === "secondaryWeaponId" ? "secondaryWeaponSkinId" : "meleeWeaponSkinId";
+      return normalizeRangeLoadout({ ...prev, [field]: id, [skinField]:"default", [attachmentField]: emptyRangeAttachments() });
     });
   }
 
@@ -123,10 +137,18 @@ function RangeSession({ profile, requestedId, onExit }: {
       secondaryWeaponId: preset.secondaryWeapon,
       meleeWeaponId: preset.meleeWeapon,
       equipmentId: preset.equipmentId,
-      weaponSkinId: "default",
-      secondaryWeaponSkinId: "default",
-      meleeWeaponSkinId: "default",
-      playerSkinId: "default",
+      weaponSkinId: draft.weaponSkinId,
+      secondaryWeaponSkinId: draft.secondaryWeaponSkinId,
+      meleeWeaponSkinId: draft.meleeWeaponSkinId,
+      playerSkinId: draft.playerSkinId,
+      primaryReticleId: draft.primaryReticleId,
+      secondaryReticleId: draft.secondaryReticleId,
+      primaryCharmId: draft.primaryCharmId,
+      secondaryCharmId: draft.secondaryCharmId,
+      wonderWeaponId: draft.wonderWeaponId,
+      wonderModuleId: draft.wonderModuleId,
+      wonderSkinId: draft.wonderSkinId,
+      wonderKillEffectId: draft.wonderKillEffectId,
       perkId: perkById(preset.perkId).id,
       attachments: normalize(preset.attachments),
       secondaryAttachments: normalize(preset.secondaryAttachments),
@@ -266,6 +288,67 @@ function RangeSession({ profile, requestedId, onExit }: {
                   {perkById(draft.perkId).description}
                 </p>
               </div>
+            </div>
+            <div className="mb-5 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+              <div className="flex items-center gap-2 mb-1 font-bold text-violet-200 text-sm">Visual trials</div>
+              <p className="text-xs text-white/55 mb-4">Try owned or locked visuals in real gameplay. Skins, charms, reticles and Wonder effects are preview-only and never affect your saved loadout or balance.</p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {([
+                  ["weaponSkinId","Primary weapon finish",WEAPON_SKINS],
+                  ["secondaryWeaponSkinId","Secondary weapon finish",WEAPON_SKINS],
+                  ["meleeWeaponSkinId","Melee weapon finish",WEAPON_SKINS],
+                  ["playerSkinId","Operative appearance",PLAYER_SKINS],
+                ] as const).map(([field,label,items])=><div key={field}>
+                  <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
+                  <select id={"trial-"+field} className={selectClass} value={draft[field]}
+                    onChange={e=>setDraft(prev=>({...prev,[field]:e.target.value}))}>
+                    {items.map(skin=><option key={skin.id} value={skin.id}>{skin.name}</option>)}
+                  </select>
+                </div>)}
+                {([
+                  ["primaryReticleId","Primary reticle","reticle"],
+                  ["secondaryReticleId","Secondary reticle","reticle"],
+                  ["primaryCharmId","Primary charm","charm"],
+                  ["secondaryCharmId","Secondary charm","charm"],
+                  ["meleeCharmId","Melee charm","charm"],
+                ] as const).map(([field,label,kind])=><div key={field}>
+                  <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
+                  <select id={"trial-"+field} className={selectClass} value={draft[field]??(kind==="reticle"?"classic":"none")}
+                    onChange={e=>setDraft(prev=>({...prev,[field]:e.target.value}))}>
+                    {COSMETICS.filter(c=>c.kind===kind).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>)}
+              </div>
+            </div>
+            <div className="mb-5 rounded-xl border border-violet-500/25 bg-black/30 p-4">
+              <label htmlFor="trial-wonder" className={labelClass}>Wonder Weapon (slot 4)</label>
+              <select id="trial-wonder" className={selectClass}
+                value={draft.perkId==="wonder_weapon"?(draft.wonderWeaponId??""):""}
+                onChange={e=>setDraft(prev=>normalizeRangeLoadout({
+                  ...prev,
+                  perkId:e.target.value?"wonder_weapon":"battle_hardened",
+                  wonderWeaponId:e.target.value,
+                  wonderModuleId:"",wonderSkinId:"",wonderKillEffectId:"",
+                }))}>
+                <option value="">No Wonder selected</option>
+                {rangeWonderWeapons.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              {draft.perkId==="wonder_weapon"&&!!draft.wonderWeaponId&&
+                <div className="grid sm:grid-cols-3 gap-3 mt-3">
+                  {([
+                    ["wonderModuleId","Wonder module",wonderModulesFor(draft.wonderWeaponId)],
+                    ["wonderSkinId","Animated finish",WONDER_FINISHES],
+                    ["wonderKillEffectId","Kill effect",WONDER_KILL_EFFECTS],
+                  ] as const).map(([field,label,items])=><div key={field}>
+                    <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
+                    <select id={"trial-"+field} className={selectClass} value={draft[field]??""}
+                      onChange={e=>setDraft(prev=>({...prev,[field]:e.target.value}))}>
+                      <option value="">Default</option>
+                      {items.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </div>)}
+                </div>}
+              <p className="mt-2 text-xs text-white/45">When a Wonder is selected, use slot 4 during the test to fire it. Eliminate practice targets to view kill effects.</p>
             </div>
             <div className="flex flex-wrap gap-2 items-center justify-between border-t border-white/10 pt-4">
               <div className="flex gap-2">
