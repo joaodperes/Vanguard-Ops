@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { calculateWonderWallet } from "../src/lib/wonder-economy";
 import { WONDER_MODULES, WONDER_FINISHES, WONDER_KILL_EFFECTS, validWonderModule,
-  wonderModuleEffects, wonderModulesFor } from "../src/lib/wonder-expansion";
+  wonderModuleEffects, wonderModulesFor, wonderFinishesFor, wonderKillEffectsFor } from "../src/lib/wonder-expansion";
 import { mechTuning, juggernautDropPoint, ripperSegments, crushesAtLanding } from "../src/lib/wonder-abilities";
 import { SHOP_ITEMS, shopItemById, shopPurchaseStatus } from "../src/lib/shop-catalog";
 import { WEAPONS } from "../src/lib/game-data";
@@ -23,11 +23,14 @@ describe("Wonder catalog and token balance",()=>{
         expect(shopItemById("module_"+m.id)?.currency).toBe("wonder");
         expect(shopItemById("module_"+m.id)?.wonderWeaponId).toBe(w.id);
       }
-      for(const camo of WONDER_FINISHES)
+      for(const camo of wonderFinishesFor(w.id))
         expect(shopItemById(camo.id+"_"+w.id)?.kind).toBe("wonderSkin");
-      for(const fx of WONDER_KILL_EFFECTS)
+      for(const fx of wonderKillEffectsFor(w.id))
         expect(shopItemById(fx.id+"_"+w.id)?.kind).toBe("wonderKillEffect");
     }
+    expect(enabled).toHaveLength(16);
+    expect(enabled.some(w=>w.id==="wonder_harbinger"&&w.wonder?.kind==="drone")).toBe(true);
+    expect(WEAPONS.find(w=>w.id==="wonder_bogfather")?.disabled).toBe(true);
     expect(new Set(WONDER_MODULES.map(m=>m.id)).size).toBe(WONDER_MODULES.length);
     expect(SHOP_ITEMS.filter(x=>x.currency==="wonder").every(x=>x.cost>0)).toBe(true);
   });
