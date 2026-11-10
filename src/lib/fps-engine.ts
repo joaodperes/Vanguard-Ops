@@ -821,6 +821,13 @@ export class FPSEngine {
   private muzzleFlash!: THREE.Mesh;
   private muzzleLight!: THREE.PointLight;
   private muzzleFlashUntil = 0;
+  private akimboLeftFlash:THREE.Mesh|null=null;
+  private akimboLeftLight:THREE.PointLight|null=null;
+  private akimboLeftFlashUntil=0;
+  private viewmodelAkimbo=false;
+  private readonly akimboPoseQuat=new THREE.Quaternion();
+  private readonly akimboPoseEuler=new THREE.Euler();
+  private readonly akimboPosePivot=new THREE.Vector3();
   private sightMesh: THREE.Object3D | null = null;
   // The viewmodel's local offset (hip/ADS position) in camera space. Synced to the
   // camera's world transform each frame to position the weapon in front of the camera.
@@ -3130,6 +3137,8 @@ export class FPSEngine {
     // Direct rebuilds supersede pending visual handoffs.
     this.swapViewmodelPending = false;
     this.viewmodelWeaponId = this.weaponId;
+    this.viewmodelAkimbo=this.isAkimboActive();
+    this.akimboLeftFlash=null;this.akimboLeftLight=null;
     // Physical presentation: full-size firearms use the same nominal model
     // dimensions as the 1.8m third-person operatives, instead of rendering
     // them 67% larger than their world-model counterparts. Compact weapons
@@ -3301,9 +3310,23 @@ export class FPSEngine {
       // Every ranged weapon is now built from its OWN substantial 3D silhouette,
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
-      muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart,
-        fullLegendaryFinish ? this.weaponMat : undefined,
-        !isDefaultSkin ? (skin.id === "gold" ? accentMat : this.weaponMat) : undefined);
+      if(this.viewmodelAkimbo){
+        // Build both complete revolvers separately; every part remembers its hand.
+        for(const hand of ["left","right"] as const){
+          const sign=hand==="left"?-1:1;
+          const mount:typeof addPart=(obj,x,y,z)=>{
+            obj.userData.akimboHand=hand;
+            addPart(obj,x+sign*.34/this.vmScale,y-.045/this.vmScale,z);
+          };
+          muzzleZ=buildFirstPersonWeapon(wid,this.weaponMat,accentMat,mount,
+            fullLegendaryFinish?this.weaponMat:undefined,
+            !isDefaultSkin?(skin.id==="gold"?accentMat:this.weaponMat):undefined);
+        }
+      }else{
+        muzzleZ=buildFirstPersonWeapon(wid,this.weaponMat,accentMat,addPart,
+          fullLegendaryFinish?this.weaponMat:undefined,
+          !isDefaultSkin?(skin.id==="gold"?accentMat:this.weaponMat):undefined);
+      }
     }
     // A purchased charm lives on the weapon model rather than the HUD. It
     // inherits all aim, reload, sway and recoil transforms automatically.
@@ -3364,7 +3387,7 @@ export class FPSEngine {
     // attachment or its own built-in scope — never another weapon's old slot
     // value or an incompatible/stale attachment identifier.
     const wDef = weaponById(this.weaponId);
-    if (category !== "melee" && (hasMountedSight(wDef, currentAtts) ||
+    if (category !== "melee" && !this.viewmodelAkimbo && (hasMountedSight(wDef, currentAtts) ||
         (!wDef.wonder && this.sightDef.type === "iron"))) {
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
@@ -3460,12 +3483,14 @@ export class FPSEngine {
       tip.rotation.x = -Math.PI / 2;
       addPart(tip, 0, 0.06, muzzleZ - 0.055);
     }
-    if (hasMuzzleAttachment) {
-      const supp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 12), accentMat);
-      supp.rotation.x = Math.PI / 2;
-      // Suppressor extends 0.2 forward from the bare muzzle tip (muzzleZ). Its
-      // center is therefore at muzzleZ - 0.1.
-      addPart(supp, 0, 0.0, muzzleZ - 0.1);
+    if(hasMuzzleAttachment){
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const supp=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,12),accentMat);
+        supp.rotation.x=Math.PI/2;
+        if(hand)supp.userData.akimboHand=hand;
+        addPart(supp,hand?(hand==="left"?-.34:.34)/this.vmScale:0,
+          hand?-.045/this.vmScale:0,muzzleZ-.1);
+      }
     }
     if (currentAtts.grip === "grip_laser") {
       const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
@@ -3476,12 +3501,24 @@ export class FPSEngine {
     // camera-space rig, so it can leave the handguard during reloads and throws.
     const gloveMaterial = new THREE.MeshBasicMaterial({ color: 0x354652 });
     const cuffMaterial = new THREE.MeshBasicMaterial({ color: 0x1c2832 });
-    const triggerGlove = new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12), gloveMaterial);
-    triggerGlove.rotation.z = -.15;
-    addPart(triggerGlove, .09, -.15, .15);
-    const wristCuff = new THREE.Mesh(new THREE.CylinderGeometry(.054,.066,.13,9), cuffMaterial);
-    wristCuff.rotation.x = -.55;
-    addPart(wristCuff, .11, -.23, .21);
+    for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+      const sign=hand==="left"?-1:1;
+      const mount:typeof addPart=(obj,x,y,z)=>{
+        if(hand)obj.userData.akimboHand=hand;
+        addPart(obj,x+(hand?sign*.34/this.vmScale:0),y+(hand?-.045/this.vmScale:0),z);
+      };
+      const glove=new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12),gloveMaterial);
+      glove.rotation.z=-sign*.15;
+      mount(glove,sign*.09,-.15,.15);
+      const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.054,.066,.13,9),cuffMaterial);
+      cuff.rotation.x=-.55;cuff.rotation.z=-sign*.15;
+      mount(cuff,sign*.11,-.23,.21);
+      if(hand){
+        const sleeve=new THREE.Mesh(new THREE.CylinderGeometry(.059,.074,.4,9),cuffMaterial);
+        sleeve.rotation.x=-.45;sleeve.rotation.z=-sign*.19;
+        mount(sleeve,sign*.14,-.40,.33);
+      }
+    }
 
     // muzzle flash — sits at the bare muzzle tip (or the suppressor tip if equipped)
     const flashZ = hasMuzzleAttachment ? muzzleZ - 0.2 : muzzleZ;
@@ -3491,9 +3528,24 @@ export class FPSEngine {
       new THREE.SphereGeometry(0.07, 8, 8),
       new THREE.MeshBasicMaterial({ color: flashColor, transparent: true, opacity: 0 })
     );
-    addPart(this.muzzleFlash, 0, 0.0, flashZ);
-    this.muzzleLight = new THREE.PointLight(flashColor, 0, 6);
-    addPart(this.muzzleLight, 0, 0.0, flashZ);
+    if(this.viewmodelAkimbo){
+      this.muzzleFlash.userData.akimboHand="right";
+      addPart(this.muzzleFlash,.34/this.vmScale,-.045/this.vmScale,flashZ);
+      this.muzzleLight=new THREE.PointLight(flashColor,0,6);
+      this.muzzleLight.userData.akimboHand="right";
+      addPart(this.muzzleLight,.34/this.vmScale,-.045/this.vmScale,flashZ);
+      this.akimboLeftFlash=new THREE.Mesh(new THREE.SphereGeometry(.07,8,8),
+        new THREE.MeshBasicMaterial({color:flashColor,transparent:true,opacity:0}));
+      this.akimboLeftFlash.userData.akimboHand="left";
+      addPart(this.akimboLeftFlash,-.34/this.vmScale,-.045/this.vmScale,flashZ);
+      this.akimboLeftLight=new THREE.PointLight(flashColor,0,6);
+      this.akimboLeftLight.userData.akimboHand="left";
+      addPart(this.akimboLeftLight,-.34/this.vmScale,-.045/this.vmScale,flashZ);
+    }else{
+      addPart(this.muzzleFlash,0,0,flashZ);
+      this.muzzleLight=new THREE.PointLight(flashColor,0,6);
+      addPart(this.muzzleLight,0,0,flashZ);
+    }
 
     // Add the camera to the scene so its children (the viewmodel parts) are in the
     // scene graph and get their world matrices updated each frame.
@@ -3739,7 +3791,12 @@ export class FPSEngine {
   private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3,
     offsetX: number, offsetY: number, offsetZ: number) {
     const hand = this.fpActionHand, prop = this.fpActionProp;
-    if (!hand || !prop) return;
+    if(!hand||!prop)return;
+    if(this.viewmodelAkimbo&&!this.equipmentAction){
+      hand.visible=false;prop.visible=false;
+      if(this.fpSupportArm)this.fpSupportArm.root.visible=false;
+      return;
+    }
     const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
     const isShield = visualWeaponId === RIOT_SHIELD_ID;
     const restMode = supportHandRestMode(
@@ -3850,9 +3907,9 @@ export class FPSEngine {
     // Pull resized long guns closer in hipfire without altering mesh scale.
     // The shared vmOffset keeps the offhand, reload, recoil and muzzle in sync.
     const hipPull = firstPersonHipPull(this.vmScale);
-    const hipTarget = this.touchMode
-      ? { x: 0.22, y: -0.20, z: -0.50 + hipPull }   // mobile: clear of the action buttons
-      : { x: 0.30, y: -0.18, z: -0.48 + hipPull };  // desktop: right-offset (CoD-style)
+    const hipTarget=this.viewmodelAkimbo?{x:0,y:-.23,z:-.51+hipPull}
+      :this.touchMode?{x:.22,y:-.20,z:-.50+hipPull}
+      :{x:.30,y:-.18,z:-.48+hipPull};
     // The HUD reticle and ballistic aim stay at the exact camera center.
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.
@@ -3938,7 +3995,7 @@ export class FPSEngine {
       const a=this.equipmentAction;
       const pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
-    } else if (this.visualReloadActive(now)) {
+    } else if(this.visualReloadActive(now)&&!this.viewmodelAkimbo){
       const def=weaponById(this.weaponId);
       const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
       const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),
@@ -10019,10 +10076,15 @@ export class FPSEngine {
       this.dirLight.intensity += (targetDir - this.dirLight.intensity) * Math.min(1, dt * 8);
     }
 
-    if (performance.now() > this.muzzleFlashUntil) {
-      (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity *= 0.6;
-      this.muzzleLight.intensity *= 0.6;
+    if(performance.now()>this.muzzleFlashUntil){
+      (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity*=.6;
+      this.muzzleLight.intensity*=.6;
     }
+    if(this.akimboLeftFlash&&this.akimboLeftLight&&performance.now()>this.akimboLeftFlashUntil){
+      (this.akimboLeftFlash.material as THREE.MeshBasicMaterial).opacity*=.6;
+      this.akimboLeftLight.intensity*=.6;
+    }
+    this.akimboKick.left*=.78;this.akimboKick.right*=.78;
     // Decay viewmodel recoil each frame.
     this.vmRecoilZ *= 0.82;
     this.vmRecoilPitch *= 0.82;
