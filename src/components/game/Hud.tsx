@@ -38,6 +38,7 @@ const CATEGORY_ACCENT: Record<WeaponCategory, { color: string; label: string }> 
 interface Props {
   hud: HudState;
   onExit: () => void;
+  onExitMech?: () => void;
   mode: GameMode;
   crosshairColor?: string;
   crosshairSize?: number;
@@ -47,7 +48,7 @@ interface Props {
   scopeOverlay?: boolean;
 }
 
-export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
@@ -189,7 +190,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           <span className="text-emerald-200">LMB · Minigun <b>{hud.mechMinigunAmmo??0}</b></span>
           <span className="text-amber-200">RMB · {hud.mechSecondaryName??"Shotgun"} <b>{hud.mechSecondaryAmmo??0}</b></span>
         </div>
-        <div className="text-[10px] text-white/50 mt-1">No jumping, sprinting or ADS</div>
+        <div className="text-[10px] text-white/50 mt-1">No jumping, sprinting or ADS · X to exit</div>
+        <button type="button" onClick={onExitMech} disabled={!onExitMech}
+          className="pointer-events-auto mt-2 rounded-md border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-100 hover:bg-cyan-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
+          Exit Juggernaut (X)
+        </button>
       </div>}
       {hud.railChargePercent!==undefined&&<div className="absolute left-1/2 -translate-x-1/2 top-[19%] rounded-md border border-sky-400/40 bg-black/70 px-4 py-2 text-xs text-sky-200">
         PHASEBREAKER CHARGING · {hud.railChargePercent}%
