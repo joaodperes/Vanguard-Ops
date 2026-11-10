@@ -16,7 +16,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { parseWeaponSetups } from "./weapon-setups";
 import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderKillEffect } from "./wonder-expansion";
 import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
-import { wonderConeHit, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
+import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
@@ -2948,32 +2948,43 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
         return;
       }
-      if(weapon.wonder?.kind==="seismic"||weapon.wonder?.kind==="cryo"){
-        const isCryo=weapon.wonder.kind==="cryo";
-        const range=eff.range,radiusMul=module.radiusMul;
-        const cosine=isCryo?Math.cos(.45*radiusMul):Math.cos(.65*radiusMul);
+      if(weapon.wonder?.kind==="seismic"){
+        // Point-first ground slam. Center the radius on server-authoritative
+        // player feet, not client aim/origin; hits behind the wielder too.
+        const feet:Vec3=[...p.pos],radius=weapon.wonder.radius||8;
+        const center:Vec3=[feet[0],feet[1]+.12,feet[2]];
+        io.to(room.id).emit("message",{t:"wonderBeam",from:center,to:center,kind:"seismic"} as S2C);
+        for(const target of allCombatants(room)){
+          if(target.id===p.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
+          if(!seismicPulseHit(feet,target.pos,radius))continue;
+          if(!hasLineOfSight(room,[feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
+          applyDamage(room,p.id,target,eff.damage,false,weapon.id);
+          if(!target.alive)continue;
+          const candidate=seismicPushPosition(feet,target.pos);
+          if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
+            target.pos=clampToArena(room,candidate);
+            io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
+          }
+        }
+        blastMaterialCover(room,center,radius,eff.damage,weapon.id);
+        return;
+      }
+      if(weapon.wonder?.kind==="cryo"){
+        const range=eff.range,cosine=Math.cos(.20*module.radiusMul);
         const end:Vec3=[msg.origin[0]+shotDir[0]*range,msg.origin[1]+shotDir[1]*range,msg.origin[2]+shotDir[2]*range];
-        io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:end,kind:isCryo?"cryo":"seismic"} as S2C);
+        io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:end,kind:"cryo"} as S2C);
         for(const target of allCombatants(room)){
           if(target.id===p.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
           const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
           if(!wonderConeHit(msg.origin,shotDir,point,range,cosine)||!hasLineOfSight(room,msg.origin,point))continue;
           applyDamage(room,p.id,target,eff.damage,false,weapon.id);
           if(!target.alive)continue;
-          if(isCryo){
-            room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS);
-            if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"cryo",durationMs:CRYO_SLOW_MS} as S2C);
-          }else{
-            const push=3.3;
-            const candidate:Vec3=[target.pos[0]+shotDir[0]*push,target.pos[1],target.pos[2]+shotDir[2]*push];
-            if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
-              target.pos=clampToArena(room,candidate);
-              io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
-            }
-          }
+          room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS);
+          // All players see the ice coating, not only the slowed victim.
+          io.to(room.id).emit("message",{t:"wonderFrozen",victimId:target.id,durationMs:CRYO_SLOW_MS} as S2C);
+          if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"cryo",durationMs:CRYO_SLOW_MS} as S2C);
         }
-        if(!isCryo)blastMaterialCover(room,end,range*.6,eff.damage,weapon.id);
-        else blastMaterialCover(room,end,2.2,eff.damage*.9,weapon.id);
+        blastMaterialCover(room,end,2.2,eff.damage*.9,weapon.id);
         return;
       }
       if(weapon.wonder?.kind==="ricochet"){
