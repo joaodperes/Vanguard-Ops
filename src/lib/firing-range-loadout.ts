@@ -70,7 +70,7 @@ export function normalizeRangeLoadout(input: LoadoutWire): LoadoutWire {
     secondaryCharmId: cosmeticById(input.secondaryCharmId??"none","charm")?.id??"none",
     meleeCharmId: cosmeticById(input.meleeCharmId??"none","charm")?.id??"none",
     wonderWeaponId: perkId==="wonder_weapon"&&rangeWonderWeapons.some(w=>w.id===input.wonderWeaponId)?input.wonderWeaponId:"",
-    wonderModuleId: wonderModuleById(input.wonderModuleId??"")?.wonderWeaponId===input.wonderWeaponId?input.wonderModuleId:"",
+    wonderModuleId: perkId==="wonder_weapon"&&wonderModuleById(input.wonderModuleId??"")?.wonderWeaponId===input.wonderWeaponId?input.wonderModuleId:"",
     wonderSkinId: wonderFinishById(input.wonderSkinId??"")?.id??"",
     wonderKillEffectId: wonderKillEffectById(input.wonderKillEffectId??"")?.id??"",
     attachments: safeAttachments(primary, input.attachments),
@@ -79,17 +79,34 @@ export function normalizeRangeLoadout(input: LoadoutWire): LoadoutWire {
   };
 }
 
+/** A Wonder picked in the range's Primary selector is actually fired from
+ * slot 4 by the engine. Keep a normal fallback primary weapon in the wire
+ * while exposing the Wonder and its modules in the same editor panel. */
+export function rangePrimarySelection(loadout: LoadoutWire): string {
+  if (loadout.perkId === "wonder_weapon" && rangeWonderWeapons.some(w => w.id === loadout.wonderWeaponId)) {
+    return loadout.wonderWeaponId!;
+  }
+  return loadout.weaponId;
+}
+
+export function selectRangePrimary(loadout: LoadoutWire, weaponId: string): LoadoutWire {
+  if (rangeWonderWeapons.some(w => w.id === weaponId)) return normalizeRangeLoadout({
+    ...loadout, perkId: "wonder_weapon", wonderWeaponId: weaponId,
+    wonderModuleId: "", wonderSkinId: "", wonderKillEffectId: "",
+  });
+  if (!rangePrimaryWeapons.some(w => w.id === weaponId)) return normalizeRangeLoadout(loadout);
+  return normalizeRangeLoadout({
+    ...loadout, weaponId, weaponSkinId: "default", attachments: emptyRangeAttachments(),
+    perkId: loadout.perkId === "wonder_weapon" ? "battle_hardened" : loadout.perkId,
+    wonderWeaponId: "", wonderModuleId: "", wonderSkinId: "", wonderKillEffectId: "",
+  });
+}
+
 /** A Try Free link previews its weapon in the correct slot, not always primary. */
 export function selectRangeWeapon(loadout: LoadoutWire, weaponId: string): LoadoutWire {
   const slot = rangeWeaponSlot(weaponId);
   if (!slot) return normalizeRangeLoadout(loadout);
-  if (rangeWonderWeapons.some(w=>w.id===weaponId)) return normalizeRangeLoadout({
-    ...loadout, perkId:"wonder_weapon",wonderWeaponId:weaponId,
-    wonderModuleId:"",wonderSkinId:"",wonderKillEffectId:"",
-  });
-  if (slot === "primary") return normalizeRangeLoadout({
-    ...loadout, weaponId, weaponSkinId:"default", attachments: emptyRangeAttachments(),
-  });
+  if (slot === "primary") return selectRangePrimary(loadout, weaponId);
   if (slot === "secondary") return normalizeRangeLoadout({
     ...loadout, secondaryWeaponId: weaponId, secondaryWeaponSkinId:"default", secondaryAttachments: emptyRangeAttachments(),
   });
