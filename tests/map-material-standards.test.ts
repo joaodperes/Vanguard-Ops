@@ -6,6 +6,7 @@ import {authoredBallisticCover,coverMaxIntegrity} from "../src/lib/material-cove
 import {cityBuildingBoxes,cityFixtureMaterial,mapPropBallisticId,propColliders} from "../src/lib/map-visuals";
 import {FOREST_OBJECTS,FOREST_WARFARE_COVER,forestLogCoverId} from "../src/lib/forest-warfare";
 import {STUDIO_ASSETS,instantiateStudioAsset,importStudioAssets} from "../src/lib/map-studio-assets";
+import {importMapDocuments} from "../src/lib/map-document-io";
 import {studioStructurePrefab,STUDIO_STRUCTURE_PRESETS} from "../src/lib/map-studio-prefabs";
 
 const SOFT=new Set(["thin_wood","glass","light_cover","sheet_metal"]);
@@ -31,6 +32,17 @@ describe("all-map material authoring contract",()=>{
     expect(validateMapDocument(doc).some(e=>e.includes("Missing ballistic material"))).toBe(true);
     cover.material="thin_wood";
     expect(validateMapDocument(doc).some(e=>e.includes("Missing ballistic material"))).toBe(false);
+  });
+
+  test("older saved maps are upgraded to reinforced cover instead of being discarded",()=>{
+    const old=structuredClone(MAP_DOCUMENTS.bunker);
+    const first=old.blueprint.features.find(f=>f.kind==="cover");
+    if(!first)throw Error("Bunker cover missing");
+    first.material=undefined;
+    const result=importMapDocuments(old,MAP_DOCUMENTS,"bunker");
+    expect(result.migrated).toBe(true);
+    expect(result.documents.bunker.blueprint.features.find(f=>f.id===first.id)?.material)
+      .toBe("reinforced");
   });
 
   test("every compiled static cover (including procedural props and legacy walls) is typed",()=>{
