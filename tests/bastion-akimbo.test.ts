@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {weaponById,computeEffectiveStats,compatibleAttachments,attachmentById} from "../src/lib/game-data";
-import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboReloadFraction,akimboCrossDrawAmount,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
+import {isBastionAkimbo,isFanHammer,akimboVolleyReady,akimboVolleyIntervalMs,akimboReloadDip,akimboCrossDrawAmount,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
 
 const empty={sight:null,barrel:null,grip:null,magazine:null};
 describe("Bastion .45 Akimbo",()=>{
@@ -25,20 +25,22 @@ describe("Bastion .45 Akimbo",()=>{
     expect(dual.reloadTime).toBeCloseTo(base.reloadTime*1.85);
     expect(dual.spread).toBeGreaterThan(base.spread);
   });
-  test("hand cadence and combined cadence both gate shots",()=>{
-    expect(akimboHandReady(6,-Infinity,-Infinity,1000,2,3.5)).toBe(true);
-    expect(akimboHandReady(0,-Infinity,-Infinity,1000,2,3.5)).toBe(false);
-    expect(akimboHandReady(4,900,0,1000,2,3.5)).toBe(false);
-    expect(akimboHandReady(4,0,900,1000,2,3.5)).toBe(false);
-    expect(akimboHandReady(4,0,0,1000,2,3.5)).toBe(true);
+  test("each accepted trigger fires two cylinders at one combined-rate interval",()=>{
+    const rate=3.5;
+    expect(akimboVolleyIntervalMs(rate)).toBeCloseTo(2000/3.5);
+    expect(akimboVolleyReady(6,6,-Infinity,1000,rate)).toBe(true);
+    expect(akimboVolleyReady(0,6,-Infinity,1000,rate)).toBe(false);
+    expect(akimboVolleyReady(6,0,-Infinity,1000,rate)).toBe(false);
+    expect(akimboVolleyReady(6,6,900,1000,rate)).toBe(false);
+    expect(akimboVolleyReady(4,4,0,1000,rate)).toBe(true);
   });
-  test("left cylinder reloads before right, with independent cross draws",()=>{
-    expect(akimboReloadFraction(0,"left")).toBe(0);
-    expect(akimboReloadFraction(.25,"left")).toBe(.5);
-    expect(akimboReloadFraction(.25,"right")).toBe(0);
-    expect(akimboReloadFraction(.75,"left")).toBe(1);
-    expect(akimboReloadFraction(.75,"right")).toBe(.5);
-    expect(akimboReloadFraction(1,"right")).toBe(1);
+  test("both barrels dip and return together without a staggered cylinder phase",()=>{
+    expect(akimboReloadDip(0)).toBe(0);
+    expect(akimboReloadDip(.1)).toBeGreaterThan(0);
+    expect(akimboReloadDip(.25)).toBe(1);
+    expect(akimboReloadDip(.6)).toBe(1);
+    expect(akimboReloadDip(.9)).toBeLessThan(1);
+    expect(akimboReloadDip(1)).toBe(0);
     expect(akimboCrossDrawAmount(0,false)).toBe(0);
     expect(akimboCrossDrawAmount(1,false)).toBe(1);
     expect(akimboCrossDrawAmount(0,true)).toBe(1);
