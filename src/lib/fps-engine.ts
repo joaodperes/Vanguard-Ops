@@ -960,6 +960,7 @@ export class FPSEngine {
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
   private ballisticOriginals = new Map<string,CoverBox>();
   private ballisticMeshes = new Map<string,THREE.Object3D>();
+  private ballisticDetailMeshes = new Map<string,THREE.Object3D[]>();
   private ballisticDecals = new Map<string,THREE.Object3D[]>();
   private ballisticHp = new Map<string,number>();
   private ballisticDestroyed = new Set<string>();
@@ -2748,7 +2749,19 @@ export class FPSEngine {
           }
         }
       }
-      if(group.children.length)scene.add(group);
+      if(group.children.length){
+        if(isCastlePropKind(p.kind)){
+          // Castle props use detailed timber, slate and furniture models on top of
+          // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
+          group.traverse(node=>{
+            const id=node.userData.ballisticId;
+            if(typeof id!=="string"||!this.ballisticOriginals.has(id))return;
+            const nodes=this.ballisticDetailMeshes.get(id)??[];
+            nodes.push(node);this.ballisticDetailMeshes.set(id,nodes);
+          });
+        }
+        scene.add(group);
+      }
     }
   }
 
@@ -9666,6 +9679,7 @@ export class FPSEngine {
   private trackBallisticCover(){
     this.ballisticOriginals.clear();
     this.ballisticMeshes.clear();
+    this.ballisticDetailMeshes.clear();
     this.ballisticDecals.clear();
     this.ballisticHp.clear();
     this.ballisticDestroyed.clear();
@@ -9677,6 +9691,7 @@ export class FPSEngine {
   private hideBrokenBallisticCover(id:string){
     const mesh=this.ballisticMeshes.get(id);
     if(mesh)mesh.visible=false;
+    for(const detail of this.ballisticDetailMeshes.get(id)??[])detail.visible=false;
     for(const decal of this.ballisticDecals.get(id)??[]){
       this.scene.remove(decal);
       decal.traverse(object=>{
