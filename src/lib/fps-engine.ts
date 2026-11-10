@@ -7803,7 +7803,7 @@ export class FPSEngine {
     mid.y+=Math.min(2.5,start.distanceTo(end)*.055);
     const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(24);
     const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({color:kind==="ripper"?0xffb448:kind==="cryo"?0x80e8ff:kind==="seismic"?0xffaa66:0xff527f,transparent:true,opacity:kind==="seismic"?.7:.94}));
+      new THREE.LineBasicMaterial({color:kind==="cryo"?0x80e8ff:0xff527f,transparent:true,opacity:.94}));
     this.scene.add(line);this.tracers.push({line,born:performance.now(),life:340});
   }
   /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
