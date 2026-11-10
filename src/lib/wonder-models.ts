@@ -92,6 +92,43 @@ export function wonderHologramModel():WonderWorldVisual{
    group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
    [uniform,armor,skin,weapon,strap,flash.material as THREE.Material].forEach(m=>m.dispose());}};
 }
+/** A compact, unmistakably airborne Harbinger scout—not a second ground turret. */
+export function wonderDroneModel():WonderWorldVisual{
+ const group=new THREE.Group();
+ const shell=new THREE.MeshStandardMaterial({color:0x344754,metalness:.66,roughness:.34});
+ const dark=new THREE.MeshStandardMaterial({color:0x141d29,metalness:.52,roughness:.42});
+ const sensor=new THREE.MeshStandardMaterial({color:0x4de1c4,emissive:0x13b892,emissiveIntensity:.75,metalness:.25,roughness:.3});
+ const rotorMat=new THREE.MeshStandardMaterial({color:0x859da4,metalness:.64,roughness:.4,side:THREE.DoubleSide});
+ const add=(geo:THREE.BufferGeometry,mat:THREE.Material,x=0,y=0,z=0)=>{
+  const mesh=new THREE.Mesh(geo,mat);mesh.position.set(x,y,z);group.add(mesh);mesh.castShadow=true;return mesh;
+ };
+ // Main fuselage with distinctive octagonal sensor dome and forward camera.
+ add(new THREE.CylinderGeometry(.30,.27,.22,8),shell).rotation.x=Math.PI/2;
+ add(new THREE.SphereGeometry(.18,12,8),sensor,0,.02,-.26);
+ add(new THREE.CylinderGeometry(.08,.11,.16,10),dark,0,-.15,-.15).rotation.x=Math.PI/2;
+ const muzzle=add(new THREE.CylinderGeometry(.036,.05,.23,8),dark,0,-.18,-.35);
+ muzzle.rotation.x=Math.PI/2;
+ // Four exposed ducted rotors make the silhouette distinct from Bullet Spitter.
+ for(const sx of [-1,1])for(const sz of [-1,1]){
+  const x=sx*.47,z=sz*.40;
+  const arm=add(new THREE.BoxGeometry(.40,.055,.06),shell,sx*.29,-.015,z);
+  arm.rotation.y=-sz*sx*.18;
+  const duct=add(new THREE.TorusGeometry(.17,.038,8,18),dark,x,.02,z);
+  duct.rotation.x=-Math.PI/2;
+  const blades=add(new THREE.BoxGeometry(.31,.015,.045),rotorMat,x,.035,z);
+  blades.name="harbinger_rotor";
+  add(new THREE.SphereGeometry(.052,8,6),sensor,x,.045,z);
+ }
+ // Navigation light and downward-facing scan cone.
+ add(new THREE.BoxGeometry(.13,.04,.09),sensor,0,.16,.10);
+ const ring=add(new THREE.TorusGeometry(.21,.012,7,32),sensor,0,-.20,0);
+ ring.rotation.x=Math.PI/2;
+ return {group,dispose:()=>{
+  group.removeFromParent();
+  group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+  [shell,dark,sensor,rotorMat].forEach(m=>m.dispose());
+ }};
+}
 export function wonderEventParticles(scene:THREE.Scene,pos:Vec3,color:number,n=16):void{
  const geometry=new THREE.SphereGeometry(.035,6,5);
  const material=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.9});
