@@ -1262,6 +1262,28 @@
     }
   },
   {
+    "id": "grip_akimbo",
+    "name": "Akimbo",
+    "slot": "grip",
+    "unlockLevel": 18,
+    "unlockCost": 730,
+    "description": "Bastion .45 only: dual-wield two six-shot revolvers. Left-click fires left, right-click fires right; ADS unavailable. +75% combined fire rate, +55% hipfire spread, +15% recoil, +85% reload time, -4% mobility.",
+    "weaponCategories": [
+      "pistol"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_bastion"
+    ],
+    "effects": {
+      "fireRate": 75,
+      "spread": 55,
+      "recoil": 15,
+      "magSize": 100,
+      "reloadTime": 85,
+      "moveSpeed": -4
+    }
+  },
+  {
     "id": "grip_fan_hammer",
     "name": "Fan the Hammer",
     "slot": "grip",
