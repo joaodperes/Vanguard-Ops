@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { LoadoutWire } from "../src/lib/game-protocol";
-import { WEAPONS, isPrimaryWeaponCategory } from "../src/lib/game-data";
+import { WEAPONS, WEAPON_SKINS, PLAYER_SKINS, isPrimaryWeaponCategory } from "../src/lib/game-data";
 import {
-  rangePrimaryWeapons, rangeSecondaryWeapons, rangeMeleeWeapons,
+  rangePrimaryWeapons, rangeWonderWeapons, rangeSecondaryWeapons, rangeMeleeWeapons,
   rangeWeaponSlot, normalizeRangeLoadout, selectRangeWeapon,
 } from "../src/lib/firing-range-loadout";
 
@@ -20,11 +20,12 @@ const sample: LoadoutWire = {
 };
 
 describe("Armory firing range loadout restrictions", () => {
-  test("primary selector includes only primary-class weapons and wonders", () => {
+  test("primary selector excludes Wonders, which occupy the distinct slot four", () => {
     expect(rangePrimaryWeapons.length).toBeGreaterThan(0);
-    expect(rangePrimaryWeapons.some(w => !!w.wonder)).toBe(true);
+    expect(rangePrimaryWeapons.some(w => !!w.wonder)).toBe(false);
+    expect(rangeWonderWeapons.every(w => !!w.wonder && !w.disabled)).toBe(true);
     for (const weapon of WEAPONS) {
-      const primary = !weapon.disabled && (!!weapon.wonder || isPrimaryWeaponCategory(weapon.category));
+      const primary = !weapon.disabled && !weapon.wonder && isPrimaryWeaponCategory(weapon.category);
       expect(rangePrimaryWeapons.some(w => w.id === weapon.id)).toBe(primary);
     }
     expect(rangeWeaponSlot("pistol_side")).toBe("secondary");
@@ -44,10 +45,13 @@ describe("Armory firing range loadout restrictions", () => {
     expect(previewMelee.weaponId).toBe(sample.weaponId);
     expect(previewMelee.meleeWeaponId).toBe(knife!.id);
     const wonder = WEAPONS.find(w => !!w.wonder)!;
-    expect(selectRangeWeapon(sample, wonder.id).weaponId).toBe(wonder.id);
+    const previewWonder=selectRangeWeapon(sample, wonder.id);
+    expect(previewWonder.weaponId).toBe(sample.weaponId);
+    expect(previewWonder.perkId).toBe("wonder_weapon");
+    expect(previewWonder.wonderWeaponId).toBe(wonder.id);
   });
 
-  test("normalizes incompatible or legacy saved presets without showing cosmetics", () => {
+  test("normalizes incompatible saved presets while retaining valid trial cosmetics", () => {
     const legacy = normalizeRangeLoadout({
       ...sample,
       weaponId: "pistol_side",
@@ -59,10 +63,14 @@ describe("Armory firing range loadout restrictions", () => {
     expect(legacy.secondaryWeaponId).toBe("pistol_side");
     expect(legacy.meleeWeaponId).toBe("knife_tactical");
     expect(legacy.attachments.sight).toBeNull();
-    expect(legacy.weaponSkinId).toBe("default");
-    expect(legacy.secondaryWeaponSkinId).toBe("default");
-    expect(legacy.meleeWeaponSkinId).toBe("default");
-    expect(legacy.playerSkinId).toBe("default");
+    expect(legacy.weaponSkinId).toBe(WEAPON_SKINS.find(s=>s.id===sample.weaponSkinId)?.id??"default");
+    expect(legacy.secondaryWeaponSkinId).toBe(WEAPON_SKINS.find(s=>s.id===sample.secondaryWeaponSkinId)?.id??"default");
+    expect(legacy.meleeWeaponSkinId).toBe(WEAPON_SKINS.find(s=>s.id===sample.meleeWeaponSkinId)?.id??"default");
+    expect(legacy.playerSkinId).toBe(PLAYER_SKINS.find(s=>s.id===sample.playerSkinId)?.id??"default");
+    const preview=normalizeRangeLoadout({...sample,primaryReticleId:"reticle_orbit",primaryCharmId:"charm_dice"});
+    expect(preview.primaryReticleId).toBe("reticle_orbit");
+    expect(preview.primaryCharmId).toBe("charm_dice");
+    expect(normalizeRangeLoadout({...sample,primaryReticleId:"invalid"}).primaryReticleId).toBe("classic");
   });
 
   test("range keeps any valid tactical choice independent of match unlocks", () => {
@@ -94,7 +102,7 @@ describe("Armory firing range loadout restrictions", () => {
 
 import { groupedRangeWeapons } from "../src/lib/firing-range-loadout";
 test("range weapon selectors hide disabled entries and group by type and unlock level",()=>{
- const grouped=groupedRangeWeapons(rangePrimaryWeapons);
+ const grouped=groupedRangeWeapons([...rangePrimaryWeapons,...rangeWonderWeapons]);
  expect(grouped.some(g=>g.weapons.some(w=>w.id==="wonder_bogfather"))).toBe(false);
  const wonder=grouped.find(g=>g.type==="wonder")!;
  expect(wonder.weapons.map(w=>w.name)).toEqual(
