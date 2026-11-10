@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { wonderModulesFor } from "../src/lib/wonder-expansion";
 import type { LoadoutWire } from "../src/lib/game-protocol";
 import { WEAPONS, WEAPON_SKINS, PLAYER_SKINS, isPrimaryWeaponCategory } from "../src/lib/game-data";
 import {
   rangePrimaryWeapons, rangeWonderWeapons, rangeSecondaryWeapons, rangeMeleeWeapons,
-  rangeWeaponSlot, normalizeRangeLoadout, selectRangeWeapon,
+  rangeWeaponSlot, normalizeRangeLoadout, selectRangeWeapon, rangePrimarySelection, selectRangePrimary,
 } from "../src/lib/firing-range-loadout";
 
 const sample: LoadoutWire = {
@@ -49,6 +50,25 @@ describe("Armory firing range loadout restrictions", () => {
     expect(previewWonder.weaponId).toBe(sample.weaponId);
     expect(previewWonder.perkId).toBe("wonder_weapon");
     expect(previewWonder.wonderWeaponId).toBe(wonder.id);
+  });
+
+  test("Wonder primary trials use slot-4 gameplay and offer only their own modules", () => {
+    const wonder = rangeWonderWeapons.find(w => wonderModulesFor(w.id).length > 0)!;
+    expect(wonder).toBeDefined();
+    const chosen = selectRangePrimary(sample, wonder.id);
+    expect(rangePrimarySelection(chosen)).toBe(wonder.id);
+    expect(chosen.weaponId).toBe(sample.weaponId); // valid fallback primary for the engine
+    expect(chosen.perkId).toBe("wonder_weapon");
+    expect(chosen.wonderWeaponId).toBe(wonder.id);
+    const module = wonderModulesFor(wonder.id)[0];
+    expect(normalizeRangeLoadout({...chosen,wonderModuleId:module.id}).wonderModuleId).toBe(module.id);
+    const wrongModule=rangeWonderWeapons.flatMap(w=>wonderModulesFor(w.id)).find(m=>m.wonderWeaponId!==wonder.id);
+    if(wrongModule)expect(normalizeRangeLoadout({...chosen,wonderModuleId:wrongModule.id}).wonderModuleId).toBe("");
+    const normal=selectRangePrimary(chosen,"smg_kp");
+    expect(rangePrimarySelection(normal)).toBe("smg_kp");
+    expect(normal.perkId).toBe("battle_hardened");
+    expect(normal.wonderWeaponId).toBe("");
+    expect(normal.wonderModuleId).toBe("");
   });
 
   test("normalizes incompatible saved presets while retaining valid trial cosmetics", () => {
