@@ -75,6 +75,7 @@ import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
+import { weaponLaserRay } from "./weapon-laser";
 import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, visualReloadRecoveryActive, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose, type ShellReloadSequence } from "@/lib/first-person-animation";
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
@@ -890,6 +891,9 @@ export class FPSEngine {
   // Visible laser beam (THREE.Line) — shown when a laser sight is equipped.
   private laserBeam: THREE.Line | null = null;
   private laserDot: THREE.Mesh | null = null;
+  // The active projector is a child of its animated weapon (right pistol for Akimbo).
+  private laserEmitter: THREE.Object3D | null = null;
+  private akimboLeftLaserEmitter: THREE.Object3D | null = null;
   private akimboLeftLaserBeam:THREE.Line|null=null;
   private akimboLeftLaserDot:THREE.Mesh|null=null;
   // Thermal/NVG overlay: brighten the scene lights when ADS with NVG, dim for thermal contrast.
@@ -3219,6 +3223,8 @@ export class FPSEngine {
       });
     }
     this.vmParts = [];
+    this.laserEmitter = null;
+    this.akimboLeftLaserEmitter = null;
     this.prestigeTexture?.dispose();
     this.prestigeTexture = null;
     this.sightMesh = null;
@@ -3506,6 +3512,12 @@ export class FPSEngine {
         emitter.position.set(0, 0, -0.031);
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
+        // This marker inherits the complete sight/weapon/hand transform.
+        const rayOrigin = new THREE.Object3D();
+        rayOrigin.position.set(0, 0, -0.034);
+        scopeGroup.add(rayOrigin);
+        if(hand==="left")this.akimboLeftLaserEmitter=rayOrigin;
+        else this.laserEmitter=rayOrigin;
       } else if (st === "iron" && wid === "pistol_bastion") {
         // Two dark, separated rear ears + low bridge, not an opaque block.
         // A front post remains visible through their centre in hipfire/ADS.
@@ -3565,6 +3577,13 @@ export class FPSEngine {
         if(hand)laser.userData.akimboHand=hand;
         addPart(laser,hand?(hand==="left"?-.34:.34)/this.vmScale:0,
           -.09+(hand?-.045/this.vmScale:0),-.2);
+        const rayOrigin=new THREE.Object3D();
+        rayOrigin.position.set(0,0,-.041);
+        laser.add(rayOrigin);
+        // A sight laser takes priority over an underbarrel projector on the same gun.
+        if(hand==="left"){
+          if(!this.akimboLeftLaserEmitter)this.akimboLeftLaserEmitter=rayOrigin;
+        }else if(!this.laserEmitter)this.laserEmitter=rayOrigin;
       }
     }
 
@@ -4283,12 +4302,12 @@ export class FPSEngine {
     this.buildLaserIndicator();
   }
 
-  // Builds a thin red line + dot mesh that shows where the player is aiming.
+  // Builds a thin red line + dot mesh emitted by the mounted projector.
   // Visible only when a laser sight is equipped (sight slot OR grip slot laser).
   private buildLaserIndicator() {
     const hasLaser = this.sightDef.type === "laser" || this.getCurrentAttachments().grip === "grip_laser";
     if (!hasLaser) return;
-    // The beam: a thin line from the muzzle to the aim point. Updated each frame.
+    // The beam: a thin line starting at each physical projector.
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1),
@@ -4318,71 +4337,58 @@ export class FPSEngine {
     }
   }
 
-  // Each frame, recompute the laser's start (muzzle) and end (impact point) from
-  // the camera's world position + aim direction.
+  // Each laser traces along its own weapon's bore axis. In Akimbo, the two
+  // revolvers rotate/reload independently, so they must NOT share a target.
   private updateLaserIndicator() {
     if (!this.laserBeam || !this.laserDot) return;
-    if (!this.alive) {
-      this.laserBeam.visible = false;
-      this.laserDot.visible = false;
-      if(this.akimboLeftLaserBeam)this.akimboLeftLaserBeam.visible=false;
-      if(this.akimboLeftLaserDot)this.akimboLeftLaserDot.visible=false;
+    this.updateOneLaserIndicator(
+      this.laserBeam, this.laserDot, this.laserEmitter, this.muzzleFlash.visible,
+    );
+    if (this.akimboLeftLaserBeam && this.akimboLeftLaserDot) {
+      this.updateOneLaserIndicator(
+        this.akimboLeftLaserBeam, this.akimboLeftLaserDot,
+        this.akimboLeftLaserEmitter, !!this.akimboLeftFlash?.visible,
+      );
+    }
+  }
+
+  private updateOneLaserIndicator(
+    beam: THREE.Line, dot: THREE.Mesh, emitter: THREE.Object3D | null,
+    weaponVisible: boolean,
+  ) {
+    if (!this.alive || !emitter || !weaponVisible || this.mechActive) {
+      beam.visible = false;
+      dot.visible = false;
       return;
     }
-    this.laserBeam.visible = true;
-    this.laserDot.visible = true;
-    if(this.akimboLeftLaserBeam)this.akimboLeftLaserBeam.visible=true;
-    if(this.akimboLeftLaserDot)this.akimboLeftLaserDot.visible=true;
-    // Raycast from the *crosshair* to determine the exact aim point. The
-    // visible beam starts at the weapon's muzzle (in camera-local coordinates),
-    // not at the camera eye: eye-origin lines collapse into screen-space streaks.
-    // The visible reticle aims from the rendered (stair-smoothed) camera eye.
-    const origin = this.camera.position.clone();
-    this.camera.updateMatrixWorld();
-    // Beam must originate at the ACTUAL transformed barrel tip. The old
-    // hardcoded (-0.48) was wrong even before weapon size correction, and
-    // became visibly detached from resized long-gun muzzles.
-    const muzzle = this.muzzleFlash.getWorldPosition(new THREE.Vector3());
-    // Aim direction: same as aimDir but with zero spread (laser shows where you'd actually hit)
-    const cp = Math.cos(this.pitch);
-    const dir: Vec3 = [Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch)];
-    // Find impact distance: nearest cover box or weapon range, whichever is closer
+    beam.visible = true;
+    dot.visible = true;
+    // The emitter is parented to the animated optic or underbarrel mount.
+    // Its forward axis inherits ADS, sway, recoil and reload pitch/roll, so
+    // the beam naturally sweeps away from the reticle as the gun moves.
+    const { origin, direction } = weaponLaserRay(emitter);
+    const dir: Vec3 = [direction.x, direction.y, direction.z];
+    // Trace from the projected ray itself, never from the camera crosshair.
     let maxT = this.eff.range;
     for (const cov of this.map.cover) {
       const t = rayBox([origin.x, origin.y, origin.z], dir, cov.pos, cov.size);
-      if (t !== null && t < maxT) maxT = t;
+      if (t !== null && t >= 0 && t < maxT) maxT = t;
     }
-    // Also stop at the first combatant (so the laser dot lands on enemies you're aiming at)
     for (const c of this.combatants.values()) {
       if (!c.alive || c.id === this.selfId) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
       const hit = rayCombatantHit([origin.x, origin.y, origin.z], dir, c.pos);
-      if (hit && hit.t < maxT) maxT = hit.t;
+      if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
-    const endX = origin.x + dir[0] * maxT;
-    const endY = origin.y + dir[1] * maxT;
-    const endZ = origin.z + dir[2] * maxT;
-    // Update beam geometry
-    const posAttr = this.laserBeam.geometry.getAttribute("position") as THREE.BufferAttribute;
-    posAttr.setXYZ(0, muzzle.x, muzzle.y, muzzle.z);
-    posAttr.setXYZ(1, endX, endY, endZ);
-    posAttr.needsUpdate = true;
-    this.laserBeam.geometry.computeBoundingSphere();
-    // Place the dot at the impact point
-    this.laserDot.position.set(endX, endY, endZ);
-    // Pulse the dot opacity slightly for visibility
-    const pulse = 0.7 + 0.3 * Math.sin(performance.now() * 0.012);
-    (this.laserDot.material as THREE.MeshBasicMaterial).opacity = pulse;
-    if(this.akimboLeftLaserBeam&&this.akimboLeftLaserDot&&this.akimboLeftFlash){
-      const leftMuzzle=this.akimboLeftFlash.getWorldPosition(new THREE.Vector3());
-      const leftPositions=this.akimboLeftLaserBeam.geometry.getAttribute("position") as THREE.BufferAttribute;
-      leftPositions.setXYZ(0,leftMuzzle.x,leftMuzzle.y,leftMuzzle.z);
-      leftPositions.setXYZ(1,endX,endY,endZ);
-      leftPositions.needsUpdate=true;
-      this.akimboLeftLaserBeam.geometry.computeBoundingSphere();
-      this.akimboLeftLaserDot.position.set(endX,endY,endZ);
-      (this.akimboLeftLaserDot.material as THREE.MeshBasicMaterial).opacity=pulse;
-    }
+    const endpoint = origin.clone().addScaledVector(direction, maxT);
+    const positions = beam.geometry.getAttribute("position") as THREE.BufferAttribute;
+    positions.setXYZ(0, origin.x, origin.y, origin.z);
+    positions.setXYZ(1, endpoint.x, endpoint.y, endpoint.z);
+    positions.needsUpdate = true;
+    beam.geometry.computeBoundingSphere();
+    dot.position.copy(endpoint);
+    (dot.material as THREE.MeshBasicMaterial).opacity =
+      0.7 + 0.3 * Math.sin(performance.now() * 0.012);
   }
 
   /** Independent first-person quick-melee prop. Does not change the weapon slot,
