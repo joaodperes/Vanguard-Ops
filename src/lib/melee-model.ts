@@ -9,6 +9,28 @@ export function buildMeleeWeaponParts(
   const box=(w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number)=>{
     place(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat),x,y,z);
   };
+  if(id==="wonder_seismic"){
+    // Two-handed impact lance: long connected shaft, narrow penetrator and
+    // stabilising vanes. The point is driven into the ground on activation.
+    const energy=new THREE.MeshBasicMaterial({color:0xffb76d});
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.037,.049,1.05,12),grip);
+    shaft.rotation.x=Math.PI/2;place(shaft,0,-.04,-.39);
+    const spine=new THREE.Mesh(new THREE.CylinderGeometry(.025,.027,.70,10),metal);
+    spine.rotation.x=Math.PI/2;place(spine,0,-.04,-.67);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(.092,.09,.10,12),metal);
+    collar.rotation.x=Math.PI/2;place(collar,0,-.04,-.82);
+    for(const side of [-1,1]){
+      const vane=new THREE.Mesh(new THREE.BoxGeometry(.18,.038,.22),metal);
+      vane.rotation.y=side*.28;place(vane,side*.13,-.04,-.84);
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(.014,.021,.53),energy);
+      place(rail,side*.04,-.015,-.52);
+    }
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.12,.45,6),metal);
+    tip.rotation.x=-Math.PI/2;place(tip,0,-.04,-1.06);
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.065,1),energy);
+    place(core,0,-.04,-.84);
+    return -1.28;
+  }
   if(id==="orbital_reaper"){
     // Curved plasma reaper: its crescent is a luminous cutting arc, never a
     // cross-shaped guard. Shared first/third-person profile.
