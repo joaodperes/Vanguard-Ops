@@ -42,6 +42,13 @@ export function accelerateWonderCharge(state: WonderChargeState, rules: WonderCh
     { ...current, nextAt: Math.max(now, current.nextAt - rules.killBonusMs) }, rules, now,
   );
 }
+/** Refund an already-spent shot on a confirmed precision headshot.
+ * Preserve the next recharge deadline unless this restores full capacity. */
+export function refundWonderCharge(state: WonderChargeState, rules: WonderChargeRules, now: number): WonderChargeState {
+  const current=tickWonderCharges(state,rules,now);
+  const charges=Math.min(rules.maxCharges,current.charges+1);
+  return {charges,nextAt:charges===rules.maxCharges?0:current.nextAt};
+}
 export function wonderCooldownMs(state: WonderChargeState, rules: WonderChargeRules, now: number): number {
   const current = tickWonderCharges(state, rules, now);
   return current.charges === rules.maxCharges ? 0 : Math.max(0, current.nextAt - now);

@@ -80,7 +80,7 @@ function boxRay(origin:Point3,dir:Point3,box:WonderBox):{t:number;axis:0|1|2}|nu
 export interface RipperSegment{from:Point3;to:Point3;damageScale:number;}
 /** Reflect off solid AABB walls; never go through the same face on the next bounce. */
 export function ripperSegments(origin:Point3,direction:Point3,cover:readonly WonderBox[],
- maxDistance:number,maxBounces=3):RipperSegment[]{
+ maxDistance:number,maxBounces=4):RipperSegment[]{
  const out:RipperSegment[]=[];
  const len=Math.hypot(...direction)||1;
  let dir:Point3=[direction[0]/len,direction[1]/len,direction[2]/len];
@@ -97,6 +97,9 @@ export function ripperSegments(origin:Point3,direction:Point3,cover:readonly Won
   out.push({from:[...pos],to,damageScale:Math.pow(.72,bounce)});
   remaining-=distance;
   if(!best)break;
+  // Each ricochet adds to the disc's total flight budget. A bounce no
+  // longer consumes the same fixed 55m range as an unbounced throw.
+  remaining+=Math.max(12,maxDistance*.35);
   dir=[...dir];dir[best.axis]*=-1;
   pos=[to[0]+dir[0]*.045,to[1]+dir[1]*.045,to[2]+dir[2]*.045];
   remaining-=.045;

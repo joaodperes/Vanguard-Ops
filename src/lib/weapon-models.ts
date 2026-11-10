@@ -662,12 +662,13 @@ export function buildFirstPersonWeapon(
       box(0,.10,c-.22,.32,.045,.34,metal);
       const blade=new THREE.Group();blade.name="wonder_ripper_carried_saw";
       const disc=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.035,16),energy);
-      disc.rotation.x=Math.PI/2;blade.add(disc);
+      // Horizontal disc plane (XZ), parallel to the launcher's forward body.
+      blade.add(disc);
       for(let i=0;i<12;i++){
         const a=i*Math.PI/6;
         const tooth=new THREE.Mesh(new THREE.BoxGeometry(.065,.035,.045),metal);
-        tooth.position.set(Math.cos(a)*.18,Math.sin(a)*.18,0);
-        tooth.rotation.z=a;blade.add(tooth);
+        tooth.position.set(Math.cos(a)*.18,0,Math.sin(a)*.18);
+        tooth.rotation.y=-a;blade.add(tooth);
       }
       add(blade,0,.125,c-.31);
     }

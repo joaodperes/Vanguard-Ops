@@ -27,12 +27,15 @@ export function wonderMechModel():WonderWorldVisual{
  // Forward-facing rotary cannon and underslung scattergun are visually distinct.
  const tube=new THREE.Mesh(new THREE.CylinderGeometry(.18,.21,1.8,12),shadow);
  tube.rotation.x=Math.PI/2;tube.position.set(-1.32,1.52,-1.15);group.add(tube);
+ const rotor=new THREE.Group();rotor.name="juggernaut_world_rotor";
+ rotor.position.set(-1.32,1.5,-1.43);
  for(let i=0;i<6;i++){
   const a=i*Math.PI/3;
   const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,1.55,8),armor);
-  barrel.rotation.x=Math.PI/2;barrel.position.set(-1.32+Math.cos(a)*.15,1.5+Math.sin(a)*.15,-1.43);
-  group.add(barrel);
+  barrel.rotation.x=Math.PI/2;barrel.position.set(Math.cos(a)*.15,Math.sin(a)*.15,0);
+  rotor.add(barrel);
  }
+ group.add(rotor);
  const shotgun=new THREE.Mesh(new THREE.CylinderGeometry(.17,.19,1.25,10),armor);
  shotgun.rotation.x=Math.PI/2;shotgun.position.set(1.34,1.4,-.99);group.add(shotgun);
  const shoulder=new THREE.Mesh(new THREE.BoxGeometry(2.8,.22,.88),glow);
@@ -76,24 +79,37 @@ export function wonderHologramModel():WonderWorldVisual{
  helmet.position.set(0,1.88,-.015);group.add(helmet);
  cube(.44,.085,.29,0,1.91,-.03,armor);
  for(const side of [-1,1]){
-   cube(.20,.52,.22,side*.36,1.32,-.11,uniform);
    cube(.22,.16,.26,side*.36,1.49,-.12,armor);
-   cube(.14,.17,.15,side*.33,1.09,-.28,skin);
    cube(.20,.66,.24,side*.16,.58,0,uniform);
    cube(.22,.18,.27,side*.16,.53,-.08,armor);
    cube(.25,.15,.34,side*.16,.15,-.07,weapon);
  }
- // Rifle points forward (-Z) and is held at natural shoulder height.
- cube(.14,.13,.65,0,1.17,-.39,weapon);
- cube(.11,.10,.25,0,1.16,-.85,armor);
+ // Aimed firing stance: bend both arms toward the trigger and handguard.
+ // Limb cylinders have genuine joint-to-joint direction, not vertical arms.
+ const limb=(a:[number,number,number],b:[number,number,number],radius:number,mat:THREE.Material)=>{
+   const start=new THREE.Vector3(...a),end=new THREE.Vector3(...b);
+   const direction=end.clone().sub(start);
+   const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,direction.length(),8),mat);
+   mesh.position.copy(start).add(end).multiplyScalar(.5);
+   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+   mesh.castShadow=true;group.add(mesh);
+ };
+ limb([-.34,1.46,-.05],[-.21,1.27,-.30],.10,uniform);
+ limb([-.21,1.27,-.30],[-.08,1.39,-.57],.075,uniform);
+ limb([.34,1.46,-.05],[.25,1.30,-.21],.10,uniform);
+ limb([.25,1.30,-.21],[.09,1.39,-.35],.075,uniform);
+ cube(.14,.13,.65,0,1.42,-.42,weapon);
+ cube(.11,.10,.25,0,1.42,-.88,armor);
  const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.025,.03,.51,10),weapon);
- barrel.rotation.x=Math.PI/2;barrel.position.set(0,1.18,-.99);group.add(barrel);
- cube(.09,.24,.10,0,.99,-.35,weapon);
- cube(.13,.035,.22,0,1.25,-.49,strap);
+ barrel.rotation.x=Math.PI/2;barrel.position.set(0,1.42,-1.03);group.add(barrel);
+ cube(.09,.24,.10,.09,1.26,-.37,weapon);
+ cube(.13,.035,.22,0,1.51,-.49,strap);
+ cube(.14,.13,.16,-.08,1.39,-.57,skin);
+ cube(.14,.13,.16,.09,1.39,-.35,skin);
  const flash=new THREE.Mesh(new THREE.ConeGeometry(.105,.26,7),
    new THREE.MeshBasicMaterial({color:0xffd285,transparent:true,opacity:.86,depthWrite:false}));
  flash.name="phantom_muzzle_flash";flash.rotation.x=-Math.PI/2;
- flash.position.set(0,1.18,-1.31);flash.visible=false;group.add(flash);
+ flash.position.set(0,1.42,-1.35);flash.visible=false;group.add(flash);
  return {group,dispose:()=>{group.removeFromParent();
    group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
    [uniform,armor,skin,weapon,strap,flash.material as THREE.Material].forEach(m=>m.dispose());}};

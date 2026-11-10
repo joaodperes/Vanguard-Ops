@@ -1512,7 +1512,7 @@
     "category": "sniper",
     "unlockLevel": 40,
     "unlockCost": 0,
-    "description": "Charge a precision sniper rail shot, piercing bodies and thin cover. Requires a charged round; thick concrete remains protective.",
+    "description": "Hold to charge an ultra-penetrating rail shot. Pierces concrete, but not reinforced structures; confirmed headshots refund the spent charge.",
     "wonder": {
       "kind": "rail",
       "maxCharges": 2,
@@ -1533,7 +1533,7 @@
       "moveSpeed": 0.74,
       "auto": false,
       "headshotMult": 1.25,
-      "coverPenetration": 3.2,
+      "coverPenetration": 18,
       "bodyPenetration": {
         "maxTargets": 3,
         "damageRetention": 0.65

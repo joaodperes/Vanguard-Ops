@@ -1,7 +1,9 @@
 /**
  * Shared hitscan cover-penetration rules for the offline FPS and online server.
  * Penetrability is explicit on a collider, NOT inferred from its texture or kind.
- * Untagged geometry, concrete, reinforced walls and destructible barriers stop rounds.
+ * Ordinary rounds stop at untagged concrete and reinforced cover. Phasebreaker's
+ * charged rail shots may spend extra energy crossing concrete; reinforced cover
+ * and event barriers remain protective.
  */
 import type { CoverBox, Vec3 } from "./game-protocol";
 import { selectBodyPenetrationHits, type BodyPenetration, type BodyRayContact, type PenetratingBodyHit } from "./body-penetration";
@@ -17,6 +19,14 @@ const SOFT: Partial<Record<BallisticMaterial, { resistance: number; retention: n
 };
 export { SOFT as MATERIAL_PENETRATION_RULES };
 export const MAX_PENETRATED_SURFACES = 2;
+export const PHASEBREAKER_MAX_SURFACES = 4;
+export const PHASEBREAKER_CONCRETE_RULE = {resistance:3.6,retention:0.68} as const;
+function materialRule(box:CoverBox,phasebreaker:boolean){
+  if(box.environmentId)return undefined;
+  const material=box.material??"concrete";
+  if(phasebreaker&&material==="concrete")return PHASEBREAKER_CONCRETE_RULE;
+  return box.kind==="cover"?SOFT[material]:undefined;
+}
 const EPS = 1e-5;
 
 export interface CoverCrossing {
@@ -51,7 +61,7 @@ function boxInterval(origin: Vec3, direction: Vec3, box: CoverBox): {entry:numbe
 
 /** Calculate materials crossed before the first indestructible/too-thick barrier. */
 export function traceCoverPenetration(
-  boxes:readonly CoverBox[],origin:Vec3,direction:Vec3,maxDistance:number,penetrationPower=0,
+  boxes:readonly CoverBox[],origin:Vec3,direction:Vec3,maxDistance:number,penetrationPower=0,phasebreaker=false,
 ):CoverPenetrationTrace {
   const intersections:{box:CoverBox;entry:number;exit:number}[]=[];
   for(const box of boxes){
@@ -64,9 +74,9 @@ export function traceCoverPenetration(
   for(const hit of intersections){
     const entry=Math.max(0,hit.entry);
     const material=hit.box.material??"concrete";
-    const settings=hit.box.kind==="cover"&&!hit.box.environmentId?SOFT[material]:undefined;
+    const settings=materialRule(hit.box,phasebreaker);
     const depth=hit.exit-entry;
-    if(hit.entry < -EPS || !settings || crossings.length>=MAX_PENETRATED_SURFACES ||
+    if(hit.entry < -EPS || !settings || crossings.length>=(phasebreaker?PHASEBREAKER_MAX_SURFACES:MAX_PENETRATED_SURFACES) ||
        hit.exit>maxDistance+EPS || power+EPS<depth*settings.resistance)
       return {blockedAt:entry,blockedBox:hit.box,crossings};
     const cost=depth*settings.resistance;
@@ -108,7 +118,7 @@ export interface UnifiedPenetrationResult<T> {
 export function resolveMaterialPenetrationShot<T>(
   contacts:readonly BodyRayContact<T>[],boxes:readonly CoverBox[],
   origin:Vec3,direction:Vec3,maxDistance:number,
-  bodyProfile?:BodyPenetration,penetrationPower=0,
+  bodyProfile?:BodyPenetration,penetrationPower=0,phasebreaker=false,
 ): UnifiedPenetrationResult<T> {
   const energyStart=Number.isFinite(penetrationPower)?Math.max(0,penetrationPower):0;
   // Dedicated non-ballistic projectiles (e.g. an upgraded Reclaimer bolt)
@@ -146,11 +156,11 @@ export function resolveMaterialPenetrationShot<T>(
     if(at>maxDistance)break;
     if(event.type==="cover"){
       const material=event.box.material??"concrete";
-      const properties=event.box.kind==="cover"&&!event.box.environmentId?SOFT[material]:undefined;
+      const properties=materialRule(event.box,phasebreaker);
       const depth=event.exit-at;
       const cost=properties?depth*properties.resistance:Infinity;
       if(event.entry < -EPS||!properties||
-          coverCount>=MAX_PENETRATED_SURFACES||event.exit>maxDistance+EPS||energy+EPS<cost){
+          coverCount>=(phasebreaker?PHASEBREAKER_MAX_SURFACES:MAX_PENETRATED_SURFACES)||event.exit>maxDistance+EPS||energy+EPS<cost){
         stoppedAt=at;
         break;
       }
