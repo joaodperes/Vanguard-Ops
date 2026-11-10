@@ -124,7 +124,7 @@ import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboHandReady, akimboReloadFraction, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboVolleyReady, akimboReloadDip, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -4170,13 +4170,13 @@ export class FPSEngine {
         let extraPitch=this.akimboKick[akimboSide]*.22;
         let extraRoll=-sign*this.akimboKick[akimboSide]*.13;
         if(this.reloading){
-          const local=akimboReloadFraction((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),akimboSide);
-          const pose=sampleReloadMotion(local,
-            reloadMotionFor("pistol_bastion","pistol",weaponById("pistol_bastion").special?.kind),
-            this.fpShellContacts??undefined);
-          p.obj.position.y+=pose.dip*.70;
-          extraPitch+=pose.pitch*.85;
-          extraRoll+=pose.roll*.70;
+          // Both guns, gloves, sleeves and mounted attachments drop out of frame
+          // together; they are reloaded offscreen, then raised in unison.
+          const dip=akimboReloadDip((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs));
+          p.obj.position.y-=dip*1.18;
+          p.obj.position.z+=dip*.13;
+          extraPitch+=dip*.18;
+          extraRoll+=sign*dip*.055;
         }
         this.akimboPoseQuat.setFromEuler(this.akimboPoseEuler.set(extraPitch,0,extraRoll,"XYZ"));
         this.akimboPosePivot.set(ox+sign*.34,oy-.11,oz+.12);
@@ -4185,9 +4185,8 @@ export class FPSEngine {
       }
       if(p.obj.userData.fpRevolverCylinder && this.weaponId==="pistol_bastion"){
         const fraction=this.reloading?(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs):1;
-        const frame=bastionReloadFrame(this.viewmodelAkimbo&&akimboSide
-          ?akimboReloadFraction(fraction,akimboSide):fraction);
-        if(this.reloading){
+        const frame=bastionReloadFrame(this.viewmodelAkimbo ? 0 : fraction);
+        if(this.reloading&&!this.viewmodelAkimbo){
           // Swing sideways in the weapon's own right/left axis. Never yaw the
           // cylinder: the chamber bores remain PARALLEL to the barrel.
           const side=this._vmRevolverSide.set(1,0,0).applyQuaternion(this._vmTotalQuat);
@@ -4199,14 +4198,13 @@ export class FPSEngine {
             // During a reload, empty chambers become visible first; six rounds
             // then approach the open breech and seat along Z. Outside a reload,
             // chambers reflect exactly how many rounds remain.
-            component.visible=this.reloading
-              ? (this.viewmodelAkimbo&&akimboSide&&akimboReloadFraction(fraction,akimboSide)===0
-                  ? index<this.akimboAmmo[akimboSide] : frame.cartridgesVisible)
-              : index<(this.viewmodelAkimbo&&akimboSide?this.akimboAmmo[akimboSide]:this.ammoInMag);
+            component.visible=this.viewmodelAkimbo&&akimboSide
+              ? index<this.akimboAmmo[akimboSide]
+              : this.reloading ? frame.cartridgesVisible : index<this.ammoInMag;
             component.position.z=BASTION_CARTRIDGE_SEATED_Z+
-              (this.reloading ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
+              (this.reloading&&!this.viewmodelAkimbo ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
           } else if(component.userData.fpRevolverYoke){
-            component.visible=this.reloading && frame.open>.01;
+            component.visible=this.reloading&&!this.viewmodelAkimbo && frame.open>.01;
             component.position.x=.085*frame.open;
             component.scale.x=frame.open;
           }
@@ -4595,8 +4593,13 @@ export class FPSEngine {
     this.touchMoveX = 0;
     this.touchMoveY = 0;
     this.touchFiring = false;
+    this.touchAkimboRight=false;
+    this.akimboRightDown=false;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
     this.touchAiming = false;
     this.touchPressedThisFrame = false;
+    this.akimboRightPressedThisFrame=false;
+    this.touchAkimboRightPressedThisFrame=false;
     this.touchJumpQueued = false;
     if (suspended && document.pointerLockElement === this.renderer.domElement) document.exitPointerLock();
   }
@@ -8864,7 +8867,12 @@ export class FPSEngine {
         }
       }
     } else if (this.opts.online) {
-      this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId(), aiming: this.aiming });
+      // The first half of a paired volley is ONE authoritative shot intent:
+      // the server validates the Akimbo grip and resolves two independent rays.
+      if(akimboHand!=="right")this.socket?.emit("message", {
+        t:"shot", origin, dir, weaponId:this.weaponId,
+        skinId:this.getCurrentSkinId(), aiming:false,
+      });
       this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
     } else {
       // Capture the tracer against PRE-destruction geometry; the finishing
@@ -10481,29 +10489,27 @@ export class FPSEngine {
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
-      // Semi-auto trigger edges are buffered briefly across the shared cadence gate.
-      const now=performance.now(), w=weaponById(this.weaponId);
-      if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
-      if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)this.akimboPending.right=now;
-      const ready=(["left","right"] as const).filter(hand=>
-        now-this.akimboPending[hand]<520 &&
-        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
-          this.lastShotAt,now,w.stats.fireRate,this.eff.fireRate));
-      const selected=ready.length===2
-        ? (this.akimboPending.left<=this.akimboPending.right?"left":"right") : ready[0];
-      if(selected&&!this.reloading&&!this.sprinting&&this.alive&&!this.matchEnded&&now>=this.swapReadyAt){
-        this.fireOneShot(w,selected);
-        this.akimboPending[selected]=-Infinity;
+      // Either mouse trigger (or the mobile fire button) produces one paired volley.
+      const now=performance.now(),w=weaponById(this.weaponId);
+      const pressed=this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
+        this.touchPressedThisFrame||this.touchAkimboRightPressedThisFrame;
+      if(pressed)this.akimboPending.left=now;
+      if(now-this.akimboPending.left<520&&
+         akimboVolleyReady(this.akimboAmmo.left,this.akimboAmmo.right,
+           this.lastShotAt,now,this.eff.fireRate)&&
+         !this.reloading&&!this.sprinting&&this.alive&&!this.matchEnded&&
+         now>=this.swapReadyAt){
+        // Client-side ammo, independent recoil/flashes/tracers and offline damage
+        // are processed twice at the SAME frame timestamp. Online is ONE packet.
+        this.fireOneShot(w,"left");
+        this.fireOneShot(w,"right");
+        this.akimboPending.left=-Infinity;
       }
-      for(const hand of ["left","right"] as const){
-        if(now-this.akimboPending[hand]<520 && this.akimboAmmo[hand]===0){
-          this.akimboPending[hand]=-Infinity;
-          this.sound.play("empty_click",{volume:.25,throttleMs:130});
-        }
+      if(pressed&&(this.akimboAmmo.left===0||this.akimboAmmo.right===0)){
+        this.akimboPending.left=-Infinity;
+        this.sound.play("empty_click",{volume:.25,throttleMs:130});
+        if(!this.reloading&&this.ammoInMag<this.eff.magSize)this.startReload();
       }
-      if(this.ammoInMag<=0&&!this.reloading&&
-        (this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
-         this.touchPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
