@@ -12778,6 +12778,24 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    this.clearMechCockpit();
+    for(const f of this.ripperFlights){
+      f.group.removeFromParent();
+      f.group.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});
+    }
+    this.ripperFlights=[];
+    for(const f of this.radialShockwaves){
+      f.mesh.removeFromParent();f.mesh.geometry.dispose();(f.mesh.material as THREE.Material).dispose();
+    }
+    this.radialShockwaves=[];
+    for(const fx of this.frozenFx.values()){
+      fx.removeFromParent();fx.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});
+    }
+    this.frozenFx.clear();this.frozenUntil.clear();
     for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
     for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
