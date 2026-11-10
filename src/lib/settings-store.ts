@@ -1,6 +1,6 @@
 "use client";
 import { create } from "zustand";
-import { DEFAULT_AUDIO_MIX, type AudioMixSettings } from "./audio-mix";
+import { DEFAULT_AUDIO_MIX, migrateLegacyAudioMix, type AudioMixSettings } from "./audio-mix";
 
 export interface GameSettings extends AudioMixSettings {
   sensitivity: number;     // 0.5 .. 3.0
@@ -41,8 +41,10 @@ function loadSettings(): GameSettings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const saved = JSON.parse(raw) as Record<string, unknown>;
+    const migratedAudio = migrateLegacyAudioMix(saved);
     delete saved.musicVolume; // Discard legacy music preference.
-    return { ...DEFAULTS, ...saved } as GameSettings;
+    delete saved.fxVolume; // Replaced by weapon/combat/UI controls.
+    return { ...DEFAULTS, ...saved, ...migratedAudio } as GameSettings;
   } catch {
     return DEFAULTS;
   }
