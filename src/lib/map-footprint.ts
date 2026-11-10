@@ -127,7 +127,8 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // New authored thin cover uses an explicit material and never relies on this.
   const legacyCover=compileVisibleLegacyBoxes(
     legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides)
-    .map(c=>c.kind==="cover"&&!c.material?{...c,material:"reinforced" as const}:c);
+    .map(c=>(c.kind??"cover")==="cover"&&!c.material?
+      {...c,kind:"cover" as const,material:"reinforced" as const}:c);
   // Ridgefall replaces the old skybridge arena. The inherited breakable wall
   // at (0,-28) sat inside the new central staircase, could absorb shots and
   // was not a usable doorway. Keep only authored factory hazards instead.
