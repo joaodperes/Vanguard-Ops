@@ -41,7 +41,8 @@
         "d": 3,
         "h": 3.2,
         "kind": "cover",
-        "label": "Quarry berm"
+        "label": "Quarry berm",
+        "material": "concrete"
       },
       {
         "id": "quarry-overlook",
@@ -71,7 +72,8 @@
         "d": 2.4,
         "h": 2.9,
         "kind": "cover",
-        "label": "compound district 2 hard cover"
+        "label": "compound district 2 hard cover",
+        "material": "concrete"
       },
       {
         "id": "fallen-column-1",
@@ -81,7 +83,8 @@
         "d": 6,
         "h": 1.8,
         "kind": "cover",
-        "label": "fallen column"
+        "label": "fallen column",
+        "material": "concrete"
       },
       {
         "id": "mossy-boulder-1",
@@ -91,7 +94,8 @@
         "d": 8,
         "h": 1.1,
         "kind": "cover",
-        "label": "mossy boulder"
+        "label": "mossy boulder",
+        "material": "concrete"
       },
       {
         "id": "broken-plinth-1",
@@ -101,7 +105,8 @@
         "d": 5,
         "h": 2.2,
         "kind": "cover",
-        "label": "broken plinth"
+        "label": "broken plinth",
+        "material": "concrete"
       },
       {
         "id": "fallen-column-2",
@@ -111,7 +116,8 @@
         "d": 6,
         "h": 1.8,
         "kind": "cover",
-        "label": "fallen column"
+        "label": "fallen column",
+        "material": "concrete"
       },
       {
         "id": "mossy-boulder-2",
@@ -121,7 +127,8 @@
         "d": 8,
         "h": 1.1,
         "kind": "cover",
-        "label": "mossy boulder"
+        "label": "mossy boulder",
+        "material": "concrete"
       },
       {
         "id": "mossy-boulder-3",
@@ -131,7 +138,8 @@
         "d": 8,
         "h": 1.1,
         "kind": "cover",
-        "label": "mossy boulder"
+        "label": "mossy boulder",
+        "material": "concrete"
       },
       {
         "id": "broken-plinth-3",
@@ -141,7 +149,8 @@
         "d": 5,
         "h": 2.2,
         "kind": "cover",
-        "label": "broken plinth"
+        "label": "broken plinth",
+        "material": "concrete"
       },
       {
         "id": "editor_mvl57cxp_11",
@@ -150,7 +159,8 @@
         "z": 43.55760455349407,
         "w": 6.671082119381326,
         "d": 1.150521295597434,
-        "h": 6.2424376338873735
+        "h": 6.2424376338873735,
+        "material": "concrete"
       }
     ],
     "spawns": {
