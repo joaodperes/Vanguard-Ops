@@ -135,6 +135,7 @@
       "barrel_heavy"
     ],
     "grip": [
+      "grip_akimbo",
       "grip_fan_hammer",
       "grip_precision",
       "grip_angled",
