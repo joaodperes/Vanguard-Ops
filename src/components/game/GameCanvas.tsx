@@ -334,7 +334,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           </div>
         </div>
       )}
-      {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
+      {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} onExitMech={()=>engineInstance?.exitMech()} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} akimbo={!!hud?.akimbo} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
