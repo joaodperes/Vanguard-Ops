@@ -1479,6 +1479,8 @@ export interface SnapshotPlayer {
   weaponId: string; weaponSkinId: string; playerSkinId: string; wonderSkinId?:string;
   /** Authoritative dual-revolver presentation (Bastion grip only). */
   akimbo?: boolean;
+  akimboSightId?: string;
+  akimboBarrelId?: string;
   charmId?: string; nameplateId?: string;
   /** Optional Survival boss HUD/armor metadata sent by the server. */
   bossMaxHealth?: number;
