@@ -344,7 +344,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
-            <div className="text-sm text-white/60">{hud?.akimbo ? "Akimbo: L-Click left revolver · R-Click right revolver · No ADS" : "WASD move · Mouse aim · L-Click fire · R-Click ADS"} · R reload · Shift sprint · Space jump</div>
+            <div className="text-sm text-white/60">{hud?.akimbo ? "Akimbo: L/R-Click fires BOTH revolvers · No ADS" : "WASD move · Mouse aim · L-Click fire · R-Click ADS"} · R reload · Shift sprint · Space jump</div>
             <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · G tactical · Q quick-swap · Tab scoreboard · Esc menu</div>
             <div className="text-xs text-amber-300/70 mt-2">{tutorial ? "Press Escape to use the tutorial controls" : firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
