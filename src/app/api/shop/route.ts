@@ -21,7 +21,7 @@ export async function POST(req:NextRequest){
   const player=await getOrCreatePlayer(playerKey);
   const weaponId=item.kind==="weaponSkin"&&typeof body.weaponId==="string"?body.weaponId:"";
   if(item.currency==="wonder"){await grantWeaponPrestiges(player.id);await reconcileWonderTokenAwards(player.id);}
-  if(item.currency!=="wonder"&&!isShopOfferFeatured(item.id,item.kind==="weaponSkin"?weaponId:undefined))
+  if(!isShopOfferFeatured(item.id,item.kind==="weaponSkin"?weaponId:undefined))
     return NextResponse.json({error:"This exact offer is not in today\'s Shop rotation"},{status:403});
   const weapon=WEAPONS.find(w=>w.id===weaponId && !w.wonder);
   if(item.currency==="wonder"){
