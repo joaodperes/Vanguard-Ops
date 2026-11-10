@@ -344,7 +344,8 @@
               "decoy",
               "cryo",
               "ricochet",
-              "mech"
+              "mech",
+              "drone"
             ]
           },
           "maxCharges": {
