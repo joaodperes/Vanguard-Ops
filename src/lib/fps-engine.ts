@@ -8113,6 +8113,8 @@ export class FPSEngine {
       if(time>=d.expiresAt||d.hp<=0){this.removeHarbinger(id);continue;}
       d.visual.group.position.set(d.pos[0],d.pos[1]+Math.sin(now*.004)*.12,d.pos[2]);
       d.visual.group.rotation.y=now*.00052;
+      // The four ducted propellers visibly spin even on remote (server-owned) drones.
+      d.visual.group.traverse(node=>{if(node.name==="harbinger_rotor")node.rotation.y=now*.037;});
       if(!d.offline||this.matchEnded)continue;
       const tune=harbingerTuning(d.moduleId);
       const targets=harbingerTargets(d.pos,d.ownerId,d.ownerTeam,this.opts.mode,
