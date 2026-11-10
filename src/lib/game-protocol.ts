@@ -1476,6 +1476,8 @@ export interface SnapshotPlayer {
   id: string; name: string; team: string; isBot: boolean;
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
   weaponId: string; weaponSkinId: string; playerSkinId: string; wonderSkinId?:string;
+  /** Authoritative dual-revolver presentation (Bastion grip only). */
+  akimbo?: boolean;
   charmId?: string; nameplateId?: string;
   /** Optional Survival boss HUD/armor metadata sent by the server. */
   bossMaxHealth?: number;
