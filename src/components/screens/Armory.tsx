@@ -12,7 +12,7 @@ import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
   weaponAttachmentSlots, compatibleAttachments, computeEffectiveStats, attachmentEffectsForWeapon,
-  weaponSkinById, weaponById,
+  weaponSkinById, weaponById, isStandardMeleeWeapon,
   type WeaponCategory, type WeaponSlot, type AttachmentSlot, type WeaponDef, type WeaponChallengeMetric,
 } from "@/lib/game-data";
 import type { ResolvedLoadout } from "@/lib/game-data";
@@ -568,7 +568,7 @@ export function Armory() {
             <WeaponSlotSection
               slot="melee"
               label="Melee"
-              weapons={WEAPONS.filter((w) => !w.disabled && w.category === "melee").sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
+              weapons={WEAPONS.filter(isStandardMeleeWeapon).sort((a, b) => a.unlockLevel - b.unlockLevel || a.unlockCost - b.unlockCost)}
               level={level}
               credits={credits}
               ownedWeaponIds={ownedWeaponIds}

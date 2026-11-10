@@ -11,6 +11,7 @@ import {
   WEAPONS,
   weaponById,
   isPrimaryWeaponCategory,
+  isStandardMeleeWeapon,
   type WeaponCategory, type WeaponSlot, type WeaponDef,
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
@@ -112,10 +113,10 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
     if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && PRIMARY_CATEGORIES.includes(w.category));
-    if (slot === "secondary") return WEAPONS.filter((w) => !w.disabled && (
+    if (slot === "secondary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && (
       ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
-        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary)));
-    return WEAPONS.filter((w) => !w.disabled && w.category === "melee");
+        isPrimaryWeaponCategory(w.category) && w.id !== primary)));
+    return WEAPONS.filter(isStandardMeleeWeapon);
   };
 
   // Unlock in the swap menu, then select the weapon in the draft loadout.

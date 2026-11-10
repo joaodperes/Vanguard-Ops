@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
     }
-    if(w.wonder) return NextResponse.json({error:"Wonder Weapons use the Primary slot"},{status:403});
+    if(w.wonder) return NextResponse.json({error:"Wonder Weapons must be equipped in slot 4"},{status:403});
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
     if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
     const w = WEAPONS.find((x) => x.id === meleeWeapon);
     if (!w) return NextResponse.json({ error: "unknown meleeWeapon" }, { status: 400 });
     if (w.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
+    if (w.wonder) return NextResponse.json({ error: "Wonder Weapons must be equipped in slot 4" }, { status: 403 });
     if (w.category !== "melee") {
       return NextResponse.json({ error: "meleeWeapon must be a melee weapon" }, { status: 400 });
     }

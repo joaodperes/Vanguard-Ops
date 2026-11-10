@@ -34,7 +34,8 @@ export type WeaponCategory = import("./catalog-contract").CatalogWeaponCategory;
 // Weapon slots are the three loadout positions a player can equip.
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
 // secondary -> pistol / pdw / launcher
-// melee    -> melee
+// melee    -> ordinary melee gear (Wonders, even melee-themed ones, use slot 4)
+// wonder   -> Prestige Wonder Weapon
 export type WeaponSlot = "primary" | "secondary" | "melee" | "wonder";
 
 // The secondary accepts a second primary only with Well Prepared.
@@ -59,9 +60,13 @@ export type WeaponDef = import("./catalog-contract").WeaponCatalogDef;
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
 
-/** Disabled/invalid melee choices safely fall back without deleting their catalog entries. */
+/** Melee is a combat category, not an entitlement: seismic and other melee Wonders use slot 4. */
+export function isStandardMeleeWeapon(weapon: WeaponDef): boolean {
+  return weapon.category === "melee" && !weapon.disabled && !weapon.wonder;
+}
+/** Invalid, disabled or Wonder-only melee choices safely fall back to the standard knife. */
 export function activeMeleeWeaponId(id: string | null | undefined): string {
-  return WEAPONS.find(w => w.id === id && w.category === "melee" && !w.disabled)?.id ?? "knife_tactical";
+  return WEAPONS.find(w => w.id === id && isStandardMeleeWeapon(w))?.id ?? "knife_tactical";
 }
 /** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
 export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WEAPONS, activeMeleeWeaponId, resolveLoadout } from "../src/lib/game-data";
+import { WEAPONS, activeMeleeWeaponId, isStandardMeleeWeapon, resolveLoadout } from "../src/lib/game-data";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { weaponAvailability } from "../src/lib/weapon-availability";
 import { buildGunGameWeapons } from "../src/lib/gun-game";
@@ -59,4 +59,40 @@ describe("disabled melee weapons", () => {
       for (const id of [tiers[29], tiers[59], tiers[89]]) expect(playable).toContain(id);
     }
   });
+
+  test("Seismic Lance stays Wonder-only despite its melee combat category", () => {
+    const lance = WEAPONS.find(w => w.id === "wonder_seismic")!;
+    expect(lance.category).toBe("melee");
+    expect(lance.wonder?.kind).toBe("seismic");
+    expect(WEAPONS.filter(w => !!w.wonder && !w.disabled)).toContain(lance);
+    expect(isStandardMeleeWeapon(lance)).toBe(false);
+    expect(WEAPONS.filter(isStandardMeleeWeapon).map(w => w.id)).not.toContain(lance.id);
+    expect(activeMeleeWeaponId(lance.id)).toBe("knife_tactical");
+
+    // Legacy saves cannot move a Wonder into ordinary melee, or carry its skin.
+    const resolved = resolveLoadout({
+      primaryWeapon: "rifle_ar", secondaryWeapon: "pistol_side",
+      meleeWeapon: lance.id, weaponSkin: "default",
+      meleeWeaponSkin: "crimson", playerSkin: "default", attachments: {},
+    });
+    expect(resolved.melee.id).toBe("knife_tactical");
+    expect(resolved.meleeWeaponSkin.id).toBe("default");
+
+    // Even a player who owns Seismic Lance cannot inject it as ordinary melee
+    // through their multiplayer loadout.
+    const server = resolveMatchLoadout(
+      { xp: 0, weaponUnlocks: [], wonderUnlocks: [{ weaponId: lance.id }], loadout: null },
+      {
+        weaponId: "rifle_ar", secondaryWeaponId: "pistol_side",
+        meleeWeaponId: lance.id, meleeWeaponSkinId: "crimson",
+        weaponSkinId: "default", playerSkinId: "default",
+        attachments: { sight: null, barrel: null, grip: null, magazine: null },
+      },
+    );
+    expect(server.meleeWeaponId).toBe("knife_tactical");
+    expect(server.meleeWeaponSkinId).toBe("default");
+
+    expect(buildGunGameWeapons("all", 1, () => 0.5)).not.toContain(lance.id);
+  });
+
 });
