@@ -1,6 +1,6 @@
 import { blastCanDamage } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
-import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual} from "./wonder-models";
+import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
 import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
@@ -5903,6 +5903,7 @@ export class FPSEngine {
   // Articulated body: torso, head, arms (upper+lower), legs (upper+lower), weapon in hands.
   private addCombatantMesh(c: Combatant) {
     const skin = playerSkinById(c.playerSkinId);
+    const isBoss = isSurvivalBoss(c.id, c.name, c.isBot);
     const bodyMat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(skin.color),
       roughness: 0.6, metalness: 0.3,
@@ -5938,6 +5939,17 @@ export class FPSEngine {
       weaponMat.color.set(0xffffff);
     }
 
+    // Bosses wear a sealed Juggernaut exosuit rather than a legendary
+    // operative skin. A neutral undersuit prevents exposed red cosmetic
+    // panels from bleeding through the armor and its visor.
+    if (isBoss) {
+      bodyMat.color.setHex(JUGGERNAUT_VISUAL_PALETTE.shadow);
+      bodyMat.emissive.setHex(0);
+      bodyMat.emissiveIntensity = 0;
+      accentMat.color.setHex(JUGGERNAUT_VISUAL_PALETTE.armor);
+      accentMat.emissive.setHex(0);
+      accentMat.emissiveIntensity = 0;
+    }
     c.skinMaterial = bodyMat;
     const root = new THREE.Group();
 
@@ -6036,7 +6048,7 @@ export class FPSEngine {
 
     // Visual-only, skin-specific equipment with shared geometry for the Armory.
     // Details follow articulated limbs, but never alter combat hitboxes.
-    addOperativeSkinDetails(skin, {
+    if (!isBoss) addOperativeSkinDetails(skin, {
       torso: torsoGroup, head: headGroup,
       upperArmL: armL.upper, upperArmR: armR.upper,
       upperLegL: legL.upper, upperLegR: legR.upper,
@@ -6044,12 +6056,13 @@ export class FPSEngine {
 
     // Larger-than-life armor is a cosmetic overlay over the standard hitbox.
     // Online boss identity is the authoritative name (IDs are random svbot IDs).
-    c.bossVisual = isSurvivalBoss(c.id,c.name,c.isBot)
+    c.bossVisual = isBoss
       ? addSurvivalBossArmor({root,torso:torsoGroup,head:headGroup,
           upperArmL:armL.upper,upperArmR:armR.upper,
-          upperLegL:legL.upper,upperLegR:legR.upper})
+          upperLegL:legL.upper,upperLegR:legR.upper,
+          lowerLegL:legL.lower,lowerLegR:legR.lower})
       : undefined;
-    if(isSurvivalElite(c.id,c.name,c.isBot))
+    if(!isBoss && isSurvivalElite(c.id,c.name,c.isBot))
       addSurvivalEliteArmor({torso:torsoGroup,head:headGroup,
         upperArmL:armL.upper,upperArmR:armR.upper});
 
@@ -10859,8 +10872,8 @@ export class FPSEngine {
         } else {
           // Reset to original skin emissive
           const skin = playerSkinById(c.playerSkinId);
-          c.skinMaterial.emissive.set(skin.emissive ? skin.emissive : "#000000");
-          c.skinMaterial.emissiveIntensity = skin.emissive ? 0.4 : 0;
+          c.skinMaterial.emissive.set(c.bossVisual ? "#000000" : (skin.emissive ?? "#000000"));
+          c.skinMaterial.emissiveIntensity = c.bossVisual ? 0 : skin.emissive ? 0.4 : 0;
         }
       }
       // Thermal ADS reveals exposed heat signatures through weather, not through
