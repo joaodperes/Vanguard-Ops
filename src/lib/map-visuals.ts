@@ -429,6 +429,10 @@ export function cityBandstandBoxes(p:MapProp):CoverBox[]{
   return [roof,...steps,...pillars];
 }
 
+/** Namespaced, coordinate-stable ID for non-structural authored map furniture. */
+export function mapPropBallisticId(p:MapProp):string {
+  return `prop:${p.kind}:${p.x}:${p.y??0}:${p.z}`;
+}
 export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):CoverBox[] {
   const result:CoverBox[]=[];
   for(const p of props){
@@ -447,7 +451,8 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       continue;
     }
     if(p.kind==="bench"){
-      result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53]});
+      result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53],
+        material:"thin_wood",ballisticId:mapPropBallisticId(p)});
       continue;
     }
     if(p.kind==="sarcophagus"){
