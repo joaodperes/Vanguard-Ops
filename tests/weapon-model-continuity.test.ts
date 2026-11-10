@@ -45,6 +45,13 @@ describe("procedural firearm physical continuity", () => {
       // Bastion deliberately replaces the generic solid receiver with an
       // open revolver frame. Its named frame joins have separate detailed tests.
       if (id === "pistol_bastion") return;
+      // Deployment electronics are intentionally not firearms. Enforce the
+      // handheld screen and absence of a rifle receiver instead.
+      if (["wonder_juggernaut","wonder_chrono","wonder_phantom"].includes(id)) {
+        expect(partsNamed(meshes,"wonder_controller_display")).toHaveLength(1);
+        expect(partsNamed(meshes,"weapon_receiver")).toHaveLength(0);
+        return;
+      }
       const receiver = part(meshes, "weapon_receiver");
 
       if (spec.magazine === "rocket") {
