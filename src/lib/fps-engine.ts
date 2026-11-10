@@ -179,7 +179,9 @@ export interface EngineOptions {
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
   masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
   footstepVolume?: number;     // 0..100, relative to master
-  fxVolume?: number;           // 0..100, relative to master (including WeaponAudio)
+  weaponVolume?: number;       // 0..100, gunfire, reloads, weapon handling
+  combatVolume?: number;       // 0..100, hits, eliminations and damage
+  uiVolume?: number;           // 0..100, countdown and match/objective alerts
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
   roomConnect?: {
     kind: "create" | "join";
@@ -1365,7 +1367,9 @@ export class FPSEngine {
     this.setAudioMix({
       masterVolume: opts.masterVolume ?? DEFAULT_AUDIO_MIX.masterVolume,
       footstepVolume: opts.footstepVolume ?? DEFAULT_AUDIO_MIX.footstepVolume,
-      fxVolume: opts.fxVolume ?? DEFAULT_AUDIO_MIX.fxVolume,
+      weaponVolume: opts.weaponVolume ?? DEFAULT_AUDIO_MIX.weaponVolume,
+      combatVolume: opts.combatVolume ?? DEFAULT_AUDIO_MIX.combatVolume,
+      uiVolume: opts.uiVolume ?? DEFAULT_AUDIO_MIX.uiVolume,
     });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
@@ -4420,10 +4424,8 @@ export class FPSEngine {
     window.addEventListener("resize", this.onResize);
   }
 
-  /** Apply settings without reconstructing the game/audio contexts.
-   * WeaponAudio has its own Web Audio output, so scale FX by master there too.
-   */
-  setAudioMix(mix: { masterVolume: number; footstepVolume: number; fxVolume: number }) {
+  /** Update all channels without reconstructing either Web Audio context. */
+  setAudioMix(mix: typeof DEFAULT_AUDIO_MIX) {
     this.audioMix = { ...mix };
     this.applyAudioLevels();
   }
@@ -4435,8 +4437,9 @@ export class FPSEngine {
     const levels = audioGainLevels(this.audioMix);
     this.sound.setMasterVolume(levels.master * this.flashAudioFactor);
     this.sound.setFootstepVolume(levels.footsteps);
-    this.sound.setFxVolume(levels.fx);
+    this.sound.setChannelVolumes({ weapons: levels.weapons, combat: levels.combat, ui: levels.ui });
     this.weaponAudio.setVolume(levels.weaponOutputPercent * this.flashAudioFactor);
+    this.weaponAudio.setFeedbackVolume(levels.combatOutputPercent * this.flashAudioFactor);
   }
 
   private updateFlashAudio(now: number) {
