@@ -39,7 +39,7 @@ describe("shared rotating Shop",()=>{
   });
   test("sidebar filters categories by selected shop and Wonder purchase eligibility",()=>{
     expect(shopCategoriesForCurrency("wonder").map(g=>shopCategoryLabel("wonder",g.id))).toEqual([
-      "All","Modules","Finishes","Kill effects",
+      "Modules","Finishes","Kill effects",
     ]);
     for(const c of ["credits","career"] as const){
       expect(shopCategoriesForCurrency(c).every(g=>g.id==="all"||
