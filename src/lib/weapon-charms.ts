@@ -1,12 +1,33 @@
 import * as THREE from "three";
 import { cosmeticById } from "./cosmetics";
-import { WEAPON_VISUALS } from "./weapon-models";
+import { WEAPON_VISUALS, firstPersonSupportGrip } from "./weapon-models";
 
-/** Mount closer to each receiver and slightly below its side, avoiding sights. */
+/**
+ * Receiver-mounted, but clear of the actual left-hand grip for each weapon.
+ * Viewmodel proportions changed without moving old charm pins, so pendants
+ * ended up inside the support glove on some short/long platforms.
+ *
+ * Choose the rear or front receiver-side anchor furthest from that weapon's
+ * support hand, then move outward only if its hanging pendant needs clearance.
+ * World-model pins remain unchanged (bots don't share the first-person pose).
+ */
 export function weaponCharmMountPoint(weaponId:string,view:"firstPerson"|"thirdPerson"):[number,number,number]{
-  const width=WEAPON_VISUALS[weaponId]?.receiver[0]??.13;
+  const p=WEAPON_VISUALS[weaponId];
+  const width=p?.receiver[0]??.13;
   const edge=Math.max(.09,width/2+.025);
-  return [view==="firstPerson"?-edge:edge,.025,-.22];
+  if(view==="thirdPerson")return [edge,.025,-.22];
+  const length=p?.receiver[2]??.35;
+  const hand=firstPersonSupportGrip(weaponId);
+  const rear=-.12+length*.35;
+  const front=-.12-length*.42;
+  const z=Math.abs(front-hand[2])>Math.abs(rear-hand[2])?front:rear;
+  const y=.04;
+  // A charm hangs roughly 0.13 units below its mount. The 0.19m buffer
+  // includes pendant size and hand thickness at idle and sway extremes.
+  const dz=z-hand[2],dy=(y-.13)-hand[1];
+  const lateral=Math.sqrt(Math.max(0,.19**2-dz**2-dy**2));
+  const x=Math.min(-edge,hand[0]-lateral);
+  return [x,y,z];
 }
 
 /** Model dimensions relative to the previous release: first person 1.22,
