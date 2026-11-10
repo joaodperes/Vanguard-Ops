@@ -77,12 +77,15 @@ penetration. A visual texture, a generic solid, a platform, a stair, a
 destructible environment barrier and a hard-coded concrete wall do *not*
 become penetrable by looking like a soft material.
 
-Current tagged samples:
-- **Blacksite / Bunker**: security console (light cover), maintenance bench (thin wood).
-- **Shipyard**: market stalls (thin wood), dry-dock crates (light cover).
-- **Ridgefall / Skybridge**: upper gantry and deck railings (sheet metal).
-- **Orbital Nexus**: glass screens near both vaults, sheet metal at reactor.
-- **Floodgate**: raised spillway railings (sheet metal).
+Every published map now explicitly classifies authored and generated cover.
+Breakable examples include Afterlight interior furniture, Forest Warfare fallen logs,
+Ridgefall forge crates, Whiteout Depot pallets, Floodgate yard pallets and
+Emberhold timber furniture/roofs. Metal roofs, safety rails and reactors use
+`sheet_metal`; castle walls, concrete bridges, heavily loaded containers and
+structural buildings remain protective.
+
+See [the cross-map ballistic material standard](ballistic-materials.md) for
+the full map-by-map policy, exceptions, visual parity and author checklist.
 
 In the private Armory Firing Range, turn into the side corridors for five
 labeled material samples with respawning targets behind them. Compare a
