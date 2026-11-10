@@ -5,13 +5,15 @@ export type AkimboHand = "left" | "right";
 export function isBastionAkimbo(weaponId: string, grip: string | null | undefined): boolean {
   return weaponId === "pistol_bastion" && grip === AKIMBO_GRIP_ID;
 }
-/** The displayed combined rate counts bullets; each Akimbo volley spends two. */
-export function akimboVolleyIntervalMs(combinedFireRate: number): number {
+/** The listed combined fire rate counts shots from BOTH guns. Each cylinder
+ * therefore has its own two-bullet-equivalent recovery time. A shot from the
+ * other hand never delays it, even when both triggers arrive on the same frame. */
+export function akimboHandIntervalMs(combinedFireRate: number):number {
   return 2000 / Math.max(.01,combinedFireRate);
 }
-/** Both chambers must be ready; a single round in one cylinder cannot fire a paired volley. */
-export function akimboVolleyReady(leftAmmo:number,rightAmmo:number,lastVolleyAt:number,now:number,combinedFireRate:number):boolean {
-  return leftAmmo>0&&rightAmmo>0&&now-lastVolleyAt>=akimboVolleyIntervalMs(combinedFireRate)*.9;
+export function akimboHandReady(ammo:number,lastHandShot:number,now:number,
+  combinedFireRate:number,tolerance=.9):boolean {
+  return ammo>0 && now-lastHandShot>=akimboHandIntervalMs(combinedFireRate)*tolerance;
 }
 /** Both revolvers drop below the camera frame together, remain out while refreshed,
  * then return simultaneously. No third hand or sequential swing-out cylinder. */
