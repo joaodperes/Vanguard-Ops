@@ -122,7 +122,7 @@ import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboHandReady, akimboReloadFraction, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -195,6 +195,9 @@ export interface HudState {
   maxHealth: number;
   ammo: number;
   magSize: number;
+  akimbo?: boolean;
+  akimboLeftAmmo?: number;
+  akimboRightAmmo?: number;
   reloading: boolean;
   heat?: number;
   overheated?: boolean;
@@ -723,6 +726,23 @@ export class FPSEngine {
   // of THAT slot, or on respawn.
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
+  private akimboAmmo:Record<AkimboHand,number>={left:AKIMBO_CYLINDER_CAPACITY,right:AKIMBO_CYLINDER_CAPACITY};
+  private akimboLastHandShot:Record<AkimboHand,number>={left:-Infinity,right:-Infinity};
+  private akimboPending:Record<AkimboHand,number>={left:-Infinity,right:-Infinity};
+  private akimboRightDown=false;
+  private akimboRightPressedThisFrame=false;
+  private touchAkimboRight=false;
+  private touchAkimboRightPressedThisFrame=false;
+  private akimboKick:Record<AkimboHand,number>={left:0,right:0};
+  private resetAkimboAmmo(){
+    this.akimboAmmo.left=AKIMBO_CYLINDER_CAPACITY;
+    this.akimboAmmo.right=AKIMBO_CYLINDER_CAPACITY;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
+    this.akimboLastHandShot.left=this.akimboLastHandShot.right=-Infinity;
+  }
+  private isAkimboActive():boolean{
+    return isBastionAkimbo(this.weaponId,this.getCurrentAttachments().grip);
+  }
   private meleeAmmoInMag = 1;
   private throwingKnifeState: ThrowingKnifeCharges = fullThrowingKnives();
   private lastThrowingKnifeAt = -10000;
@@ -1314,6 +1334,7 @@ export class FPSEngine {
     }
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    this.resetAkimboAmmo();
     this.meleeAmmoInMag = this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
@@ -4225,11 +4246,15 @@ export class FPSEngine {
       if (this.touchMode || this.inputSuspended) return;
       this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
-      if (e.button === 2) {if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}else this.manualAiming = true;}
+      if(e.button===2){
+        if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}
+        else if(this.isAkimboActive()){this.akimboRightDown=true;this.akimboRightPressedThisFrame=true;this.manualAiming=false;}
+        else this.manualAiming=true;
+      }
     });
     document.addEventListener("mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
-      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;}
+      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;this.akimboRightDown=false;}
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => {
@@ -4350,6 +4375,7 @@ export class FPSEngine {
     }
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    this.resetAkimboAmmo();
     this.throwingKnifeState=fullThrowingKnives();
     this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
@@ -4468,7 +4494,11 @@ export class FPSEngine {
     if (b && !this.touchFiring) { this.unlockAudio(); this.touchPressedThisFrame = true; }
     this.touchFiring = b;
   }
-  setTouchADS(b: boolean) { this.manualAiming = b; }
+  setTouchADS(b:boolean){this.manualAiming=this.isAkimboActive()?false:b;}
+  setTouchAkimboRight(b:boolean){
+    if(b&&!this.touchAkimboRight){this.unlockAudio();this.touchAkimboRightPressedThisFrame=true;}
+    this.touchAkimboRight=b;
+  }
   setTouchSprint(b: boolean) { this.touchSprint = b; }
   touchReload() { this.startReload(); }
   touchQuickMelee() { this.unlockAudio(); this.quickMelee(); }
@@ -7179,6 +7209,7 @@ export class FPSEngine {
   /** Ordinary firearms refill on spawn; Wonder charges and cooldowns do not.
    * Applying a queued kit separately drains its selected Wonder to zero. */
   private refillAmmoOnRespawn() {
+    this.resetAkimboAmmo();
     this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
     if(this.opts?.mode!=="gungame")this.throwingKnifeState=fullThrowingKnives();
@@ -8095,7 +8126,7 @@ export class FPSEngine {
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
-  private fireOneShot(w: WeaponDef) {
+  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
     if (w.disabled || !!this.mechActive || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
@@ -8166,6 +8197,12 @@ export class FPSEngine {
       this.startReload();
       return;
     }
+    if(akimboHand){
+      if(this.akimboAmmo[akimboHand]<=0)return;
+      this.akimboAmmo[akimboHand]--;
+      this.akimboLastHandShot[akimboHand]=now;
+      this.akimboKick[akimboHand]=1;
+    }
     this.lastShotAt = now;
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
     if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
@@ -8211,7 +8248,7 @@ export class FPSEngine {
       this.sound.play("swap", { volume: 0.65 });
       return;
     }
-    if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash();
+    if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash(akimboHand);
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     if(!this.opts.online&&!this.opts.firingRange&&w.wonder?.kind!=="flame")
       this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
@@ -9094,17 +9131,20 @@ export class FPSEngine {
     this.vmRecoilPitch = Math.min(0.12, this.vmRecoilPitch + 0.05 * recoilMultiplier(this.activePerkId));
   }
 
-  private triggerMuzzleFlash() {
+  private triggerMuzzleFlash(akimboHand?: AkimboHand) {
     // The crossbow has no firearm flash. Bulwark's integrated P-9 also hides
     // its first-person flash: the camera-space effect obscures the shield visor.
     // The standalone P-9 keeps its normal flash and all shots still fire.
     if (this.weaponId === "crossbow_reclaimer" || this.weaponId === RIOT_SHIELD_ID) return;
     const suppressed = this.getCurrentAttachments().barrel === "barrel_suppressor";
-    (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = suppressed ? .14 : 1;
-    this.muzzleFlash.scale.setScalar(suppressed ? .65 : 1 + Math.random() * .6);
-    this.muzzleFlash.rotation.z = Math.random() * Math.PI;
-    this.muzzleLight.intensity = suppressed ? .25 : 3;
-    this.muzzleFlashUntil = performance.now() + 60;
+    const flash=akimboHand==="left"&&this.akimboLeftFlash?this.akimboLeftFlash:this.muzzleFlash;
+    const light=akimboHand==="left"&&this.akimboLeftLight?this.akimboLeftLight:this.muzzleLight;
+    (flash.material as THREE.MeshBasicMaterial).opacity=suppressed?.14:1;
+    flash.scale.setScalar(suppressed?.65:1+Math.random()*.6);
+    flash.rotation.z=Math.random()*Math.PI;
+    light.intensity=suppressed?.25:3;
+    if(akimboHand==="left"&&this.akimboLeftFlash)this.akimboLeftFlashUntil=performance.now()+60;
+    else this.muzzleFlashUntil=performance.now()+60;
   }
 
   private aimDir(spread: number): Vec3 {
@@ -9840,6 +9880,7 @@ export class FPSEngine {
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
       else this.ammoInMag = this.eff.magSize;
       if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
+      if(this.isAkimboActive())this.resetAkimboAmmo();
       this.saveAmmoToSlot(this.currentSlot);
     }
     // A new trigger press interrupts an incremental reload as soon as there is
@@ -9854,12 +9895,15 @@ export class FPSEngine {
       this.meleeAmmoInMag=refreshedKnives.charges;
       if(isThrowingKnife(this.weaponId))this.ammoInMag=refreshedKnives.charges;
     }
-    const wantFire = !this.inputSuspended && ((this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring));
+    const akimbo=this.isAkimboActive();
+    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
+      (akimbo&&this.akimboRightDown&&this.pointerLocked) ||
+      (this.touchMode&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
     const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
-    const wantsAds = !this.mechActive && !fanHammer && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
+    const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
       !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&
@@ -9869,6 +9913,26 @@ export class FPSEngine {
       if(wantFire)this.fireMech("minigun",now);
       if((this.mechRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAiming))this.fireMech("secondary",now);
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
+    } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
+      // Semi-auto trigger edges are buffered briefly across the shared cadence gate.
+      const now=performance.now(), w=weaponById(this.weaponId);
+      if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
+      if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)this.akimboPending.right=now;
+      const ready=(["left","right"] as const).filter(hand=>
+        now-this.akimboPending[hand]<260 &&
+        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
+          this.lastShotAt,now,w.stats.fireRate,this.eff.fireRate));
+      const selected=ready.length===2
+        ? (this.akimboPending.left<=this.akimboPending.right?"left":"right") : ready[0];
+      if(selected&&!this.reloading){
+        this.fireOneShot(w,selected);
+        this.akimboPending[selected]=-Infinity;
+      }
+      if(this.ammoInMag<=0&&!this.reloading&&
+        (this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
+         this.touchPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
+      this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
+      this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
@@ -11896,6 +11960,9 @@ export class FPSEngine {
       maxHealth: MAX_HEALTH,
       ammo: this.ammoInMag,
       magSize: this.eff.magSize,
+      akimbo:this.isAkimboActive(),
+      akimboLeftAmmo:this.isAkimboActive()?this.akimboAmmo.left:undefined,
+      akimboRightAmmo:this.isAkimboActive()?this.akimboAmmo.right:undefined,
       heat: weaponById(this.weaponId).special?.kind === "heat" ? (this.heatStates.get(this.weaponId)?.heat ?? 0) : undefined,
       overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
       boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
