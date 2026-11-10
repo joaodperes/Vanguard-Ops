@@ -10708,7 +10708,26 @@ export class FPSEngine {
     for (const id of this.poisonBubbles.keys()) {
       if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], null, now);
     }
+    for (const [id,fx] of this.frozenFx) if(!this.combatants.has(id)){
+      fx.removeFromParent();fx.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});this.frozenFx.delete(id);this.frozenUntil.delete(id);
+    }
     for (const c of this.combatants.values()) {
+      const frozen=c.alive&&(this.frozenUntil.get(c.id)??0)>now;
+      if(frozen&&c.group&&!this.frozenFx.has(c.id)){
+        const frost=new THREE.Group();frost.name="whiteout_frozen_crystals";
+        const ice=new THREE.MeshBasicMaterial({color:0x9deeff,transparent:true,opacity:.52,depthWrite:false});
+        for(let j=0;j<14;j++){
+          const angle=j*2.39996,height=.20+(j%5)*.37;
+          const shard=new THREE.Mesh(new THREE.ConeGeometry(.055+(j%3)*.013,.28+(j%4)*.11,5),ice);
+          shard.position.set(Math.cos(angle)*(.25+j%3*.035),height,Math.sin(angle)*(.25+j%3*.035));
+          shard.rotation.z=.3*Math.sin(angle);
+          frost.add(shard);
+        }
+        c.group.add(frost);this.frozenFx.set(c.id,frost);
+      }
+      const frost=this.frozenFx.get(c.id);if(frost)frost.visible=frozen;
       const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
         || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
       const burning = c.alive && ((this.onlineBurning.get(c.id) ?? 0) > Date.now()
@@ -10722,7 +10741,10 @@ export class FPSEngine {
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
-        if (burning) {
+        if (frozen) {
+          c.skinMaterial.emissive.setHex(0x8defff);
+          c.skinMaterial.emissiveIntensity=.72;
+        } else if (burning) {
           c.skinMaterial.emissive.setHex(0xff4b12);
           c.skinMaterial.emissiveIntensity = 1.1;
         } else if (poisoned) {
