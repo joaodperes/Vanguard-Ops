@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game-store";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
@@ -26,6 +27,7 @@ import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, 
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
 import { WonderCustomizationDialog } from "@/components/screens/WonderCustomizationDialog";
+import {formatCredits} from "@/lib/format-credits";
 import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
@@ -174,7 +176,7 @@ export function Armory() {
       if (!res.ok) {
         toast.error(data.error || "Purchase failed");
       } else {
-        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "1 Wonder entitlement redeemed" : `-${cost} CR` });
+        toast.success(`Unlocked ${name}!`, { description: kind === "wonderWeapon" ? "1 Wonder entitlement redeemed" : `-${formatCredits(cost)} CR` });
         await refreshProfile();
         // Re-fetch weapon progress to refresh challenge completion tiles.
         try {
@@ -367,7 +369,7 @@ export function Armory() {
           </div>
           <div className="ml-auto flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
             <Coins className="w-4 h-4 text-amber-400" />
-            <span className="text-amber-300 font-bold tabular-nums">{credits}</span>
+            <span className="text-amber-300 font-bold tabular-nums">{formatCredits(credits)}</span>
             <span className="text-amber-500/60 text-xs">CR</span>
           </div>
           <div className="flex items-center gap-2 border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 rounded-lg">
@@ -638,7 +640,7 @@ export function Armory() {
                               } catch {}
                             }} className="bg-amber-500/80 hover:bg-amber-400 text-black font-semibold w-full">Equip</Button>)
                       : <Button size="sm" disabled={!canBuy || busy === s.id} onClick={() => purchase("playerSkin", s.id, s.unlockCost, s.name)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold w-full disabled:opacity-50">
-                          {s.levelReward ? `Unlocks at LVL ${s.unlockLevel}` : s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady || level < s.unlockLevel ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{s.unlockCost}</>}
+                          {s.levelReward ? `Unlocks at LVL ${s.unlockLevel}` : s.shopCurrency ? "Exclusive · Shop" : busy === s.id ? "…" : !challengeReady || level < s.unlockLevel ? "Locked" : <><Coins className="w-3.5 h-3.5 mr-1" />{formatCredits(s.unlockCost)}</>}
                         </Button>}
                   </div>
                 );
@@ -894,7 +896,7 @@ function WeaponCard(props: WeaponCardProps) {
         {!isOwned ? (
           <Button disabled={!canBuy || busy === w.id} onClick={() => onPurchase("weapon", w.id, w.unlockCost, w.name)}
             className="h-9 w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
-            {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{w.unlockCost} CR</>}
+            {busy === w.id ? "…" : lockedByLevel ? <><Lock className="w-4 h-4 mr-1.5" />Requires LVL {w.unlockLevel}</> : <><Coins className="w-4 h-4 mr-1.5" />{formatCredits(w.unlockCost)} CR</>}
           </Button>
         ) : (
           <Button variant="outline" disabled={equippedId === w.id || busy === "equip:" + w.id}
@@ -1268,7 +1270,7 @@ function CustomizeModal(props: CustomizeModalProps) {
                       <Button size="sm" disabled={!canBuySkin || busy === skinBusyKey}
                         onClick={() => onPurchase("weaponSkin", s.id, s.unlockCost, s.name, w.id)}
                         className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 shrink-0 disabled:opacity-50">
-                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{s.unlockCost}</> : "Locked"}
+                        {busy === skinBusyKey ? "…" : challenge.completed ? <><Coins className="w-3 h-3 mr-1"/>{formatCredits(s.unlockCost)}</> : "Locked"}
                       </Button>
                     ) : null}
                   </div>
@@ -1529,7 +1531,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                 </div>
                 <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
                 <div className="text-[11px] text-white/65 mb-2 flex flex-wrap gap-x-3 gap-y-1">
-                  <span>{isOwned ? "Owned for this weapon" : `Price: ${a.unlockCost} CR`}</span>
+                  <span>{isOwned ? "Owned for this weapon" : `Price: ${formatCredits(a.unlockCost)} CR`}</span>
                   {!canPurchase && !isOwned && <span className="text-amber-300/80">Weapon purchase required</span>}
                 </div>
                 {showChallenge && chProgress && (
@@ -1570,7 +1572,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                     onClick={() => onPurchase("attachment", a.id, a.unlockCost, a.name, weaponId)}
                     className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[10px] h-7 px-2 disabled:opacity-50"
                   >
-                    {busy === busyKey ? "…" : !canPurchase ? "Weapon required" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{a.unlockCost}</>}
+                    {busy === busyKey ? "…" : !canPurchase ? "Weapon required" : !chProgress?.completed ? <><Lock className="w-3 h-3 mr-0.5" />Locked</> : <><Coins className="w-3 h-3 mr-0.5" />{formatCredits(a.unlockCost)}</>}
                   </Button>
                 )}
               </div>
