@@ -71,13 +71,24 @@ export type SfxName =
   | "flag_scored"
   | "flag_enemy_scored"
   | "flag_returned"
-  | "flag_lost";
+  | "flag_lost"
+  | "equipment_throw"
+  | "equipment_impact"
+  | "equipment_frag"
+  | "equipment_flash"
+  | "equipment_taser"
+  | "equipment_mine_arm"
+  | "equipment_mine_detonate"
+  | "equipment_cover"
+  | "equipment_poison";
 
 /** All synthesized cues have one independently controllable sound category.
  * Distant gunfire is routed to Weapons by playDistantShot. */
 export type SfxChannel = "weapons" | "footsteps" | "combat" | "ui";
 export function soundChannelFor(name: SfxName): SfxChannel {
   if (name === "footstep" || name === "water_footstep") return "footsteps";
+  if (name === "equipment_throw") return "weapons";
+  if (name.startsWith("equipment_")) return "combat";
   if (name.startsWith("shot_") || name === "melee_swing" || name === "melee_hit" ||
       name === "reload" || name === "revolver_reload" || name === "revolver_close" ||
       name === "empty_click" || name === "swap" || name === "ads_in" || name === "ads_out")
@@ -357,6 +368,15 @@ export class SoundManager {
       case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
       case "flag_returned": this.synthFlagFanfare("return", vol); break;
       case "flag_lost": this.synthFlagFanfare("loss", vol); break;
+      case "equipment_throw":
+      case "equipment_impact":
+      case "equipment_frag":
+      case "equipment_flash":
+      case "equipment_taser":
+      case "equipment_mine_arm":
+      case "equipment_mine_detonate":
+      case "equipment_cover":
+      case "equipment_poison": this.synthEquipmentCue(name, vol); break;
     }
   }
 
@@ -541,6 +561,86 @@ export class SoundManager {
     noise.start(t); noise.stop(t + noiseDur + 0.05);
     osc.start(t); osc.stop(t + dur + 0.05);
     subOsc.start(t); subOsc.stop(t + dur + 0.05);
+  }
+
+  /** Short noise sweeps give tactical equipment a mechanical signature without assets. */
+  private equipmentNoise(vol: number, fromHz: number, toHz: number, duration: number, type: BiquadFilterType = "bandpass") {
+    const ctx = this.ctx!, t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.setValueAtTime(fromHz, t);
+    filter.frequency.exponentialRampToValueAtTime(toHz, t + duration);
+    if (type === "bandpass") filter.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(Math.max(0.0001, vol), t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    src.connect(filter).connect(gain).connect(this.masterGain!);
+    src.start(t); src.stop(t + duration);
+    src.onended = () => { src.disconnect(); filter.disconnect(); gain.disconnect(); };
+  }
+
+  private equipmentThump(vol: number, fromHz: number, toHz: number, duration: number) {
+    const ctx = this.ctx!, t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(fromHz, t);
+    osc.frequency.exponentialRampToValueAtTime(toHz, t + duration);
+    gain.gain.setValueAtTime(Math.max(0.0001, vol), t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(this.masterGain!);
+    osc.start(t); osc.stop(t + duration + 0.01);
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  }
+
+  /** Distinct throw, bounce/impact, explosive, electrical and placement cues.
+   *  All amplitudes go through the existing channel mixer and peak limiter. */
+  private synthEquipmentCue(name: SfxName, vol: number) {
+    const t = this.ctx!.currentTime;
+    switch (name) {
+      case "equipment_throw":
+        this.equipmentNoise(vol * 0.42, 950, 2600, 0.14);
+        this.clickAt(t + 0.015, vol * 0.45);
+        break;
+      case "equipment_impact":
+        this.equipmentNoise(vol * 0.42, 1300, 360, 0.12);
+        this.equipmentThump(vol * 0.26, 105, 60, 0.12);
+        break;
+      case "equipment_frag":
+        this.equipmentNoise(vol * 0.85, 2400, 430, 0.46, "lowpass");
+        this.equipmentNoise(vol * 0.46, 3300, 900, 0.065, "highpass");
+        this.equipmentThump(vol * 0.85, 110, 36, 0.42);
+        break;
+      case "equipment_flash":
+        // Short, forceful pop with no prolonged piercing high tone.
+        this.equipmentNoise(vol * 0.66, 1700, 600, 0.22, "lowpass");
+        this.equipmentThump(vol * 0.42, 175, 78, 0.12);
+        break;
+      case "equipment_taser":
+        this.equipmentNoise(vol * 0.58, 2800, 1200, 0.22, "highpass");
+        this.equipmentThump(vol * 0.28, 240, 105, 0.16);
+        this.synthBlip(680, 0.065, vol * 0.21, "sawtooth");
+        break;
+      case "equipment_mine_arm":
+        this.clickAt(t, vol * 0.45);
+        this.synthBlip(690, 0.075, vol * 0.35, "sine");
+        this.clickAt(t + 0.13, vol * 0.28);
+        break;
+      case "equipment_mine_detonate":
+        this.equipmentNoise(vol * 0.73, 1600, 320, 0.32, "lowpass");
+        this.equipmentThump(vol * 0.85, 140, 42, 0.33);
+        break;
+      case "equipment_cover":
+        this.equipmentNoise(vol * 0.57, 820, 190, 0.26, "lowpass");
+        this.equipmentThump(vol * 0.67, 125, 48, 0.25);
+        this.clickAt(t + 0.11, vol * 0.38);
+        break;
+      case "equipment_poison":
+        this.equipmentNoise(vol * 0.36, 2200, 800, 0.18, "highpass");
+        this.clickAt(t + 0.02, vol * 0.34);
+        break;
+    }
   }
 
   /** A short tonal blip. */
