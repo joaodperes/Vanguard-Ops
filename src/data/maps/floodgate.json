@@ -58,7 +58,7 @@
         "h": 1,
         "kind": "cover",
         "y": 8,
-        "material": "concrete"
+        "material": "sheet_metal"
       },
       {
         "id": "west-spawn-screen--28",
@@ -159,7 +159,7 @@
         "h": 1,
         "kind": "cover",
         "y": 8,
-        "material": "concrete"
+        "material": "sheet_metal"
       },
       {
         "id": "east-spawn-screen--28",
