@@ -48,6 +48,8 @@ export function studioStructurePrefab(id:StudioStructurePresetId,x:number,z:numb
   const add=(kind:MapFeature["kind"],dx:number,dz:number,w:number,d:number,h:number,
     label:string,autoStairs?:boolean)=>{
     out.push({id:id+"_"+out.length,kind,x:x+dx,z:z+dz,w,d,h,label,
+      ...(kind==="cover"?{material:id==="market"?"thin_wood" as const:
+        id==="checkpoint"?"light_cover" as const:"reinforced" as const}:{}),
       ...(kind==="platform"?{autoStairs:autoStairs??false}:{})});
   };
   switch(id){
