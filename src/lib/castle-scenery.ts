@@ -18,6 +18,32 @@ export type CastleFixtureStyle=
   "oven"|"cauldron"|"prep_table"|"pantry"|"bread"|"pots"|"firewood"|
   "cot"|"screen"|"bandages"|"herbs"|"cabinet"|"basin"|"treatment"|"medicine";
 export interface CastleFixture {x:number;z:number;w:number;d:number;h:number;style:CastleFixtureStyle}
+/** Stable per-part identity used identically by the client, bots and server. */
+export function castleBallisticId(p:CastleProp,index:number):string {
+  return `castle:${p.kind}:${p.x}:${p.y??0}:${p.z}:${p.turns??0}:${index}`;
+}
+/** Only non-structural timber can be destroyed; stone masonry and load-bearing
+ * posts stay protective. A dressed slate/thatch roof has timber decking beneath.
+ * Infirmary uses a stone roof and remains solid. */
+const WOODEN_FIXTURES=new Set<CastleFixtureStyle>([
+  "bellows","tool_rack","woodpile","stall_fence","trough","water_tub","tack",
+  "feed_bin","bunk","locker","chest","weapon_rack","mess_table","bench",
+  "helmet_stand","grain_bin","shelf","barrel_stack","crate_stack","basket",
+  "prep_table","pantry","firewood","cot","screen","cabinet","treatment",
+  "medicine","workbench","quench","saddle","scale",
+]);
+export function castleBallisticMaterial(p:CastleProp,index:number):
+  "thin_wood"|"light_cover"|undefined {
+  if(p.kind==="castle_building"){
+    if(index===6)return p.castleUse==="infirmary"?undefined:"thin_wood";
+    if(index>=7)return WOODEN_FIXTURES.has(castleFixtures(p)[index-7]?.style)
+      ?"thin_wood":undefined;
+  }
+  if(p.kind==="castle_stall")return index===4?"thin_wood":index===5?"light_cover":undefined;
+  if(p.kind==="castle_cart"||p.kind==="castle_target"||p.kind==="castle_barrel")
+    return index===0?"thin_wood":undefined;
+  return undefined;
+}
 
 /**
  * Actual room plans, not a repeated three-block template. All coordinates
@@ -100,6 +126,12 @@ export function castleSceneryBoxes(p:CastleProp):CoverBox[]{
   }else if(p.kind==="castle_target"){box(0,h*.52,0,w*.42,h*.48,.18);
   }else if(p.kind==="castle_barrel"){box(0,h/2,0,w*.44,h/2,d*.44);
   }else if(p.kind==="castle_brazier"){box(0,.65,0,w*.40,.65,d*.40);}
+  // These exact IDs are the integrity keys replicated by the multiplayer server.
+  // Never use visual color or geometry shape to infer penetrability.
+  a.forEach((cover,index)=>{
+    const material=castleBallisticMaterial(p,index);
+    if(material){cover.material=material;cover.ballisticId=castleBallisticId(p,index);}
+  });
   return a;
 }
 /** Models render these fixtures, never a duplicate solid stone proxy.
