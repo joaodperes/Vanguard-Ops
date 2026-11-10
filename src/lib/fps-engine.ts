@@ -4092,7 +4092,8 @@ export class FPSEngine {
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
       if(p.obj.name==="weapon_charm")swingWeaponCharm(p.obj,now);
-      if (quickMeleeActive || hideEntireViewmodel || !!this.mechActive) {
+      if (quickMeleeActive || hideEntireViewmodel || !!this.mechActive ||
+          (this.viewmodelAkimbo && !!this.equipmentAction && p.obj.userData.akimboHand==="left")) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
         continue;
