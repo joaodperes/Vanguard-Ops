@@ -7773,7 +7773,15 @@ export class FPSEngine {
       }
       group.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
       group.position.copy(start);this.scene.add(group);
-      this.ripperFlights.push({group,start,end,born:performance.now(),life:Math.max(180,dist/42*1000)});
+      // Follow a preceding segment's endpoint before playing this ricochet.
+      // Server sends segments in one tick; they must appear as a SINGLE saw
+      // travelling and rebounding, not multiple simultaneous blades.
+      const now=performance.now();
+      const prior=[...this.ripperFlights].reverse().find(f=>
+        f.end.distanceTo(start)<.4&&now-f.born<3000);
+      const begin=prior?prior.born+prior.life:now;
+      group.visible=begin<=now;
+      this.ripperFlights.push({group,start,end,born:begin,life:Math.max(180,dist/42*1000)});
       return;
     }
     if(kind==="storm"){
@@ -8298,8 +8306,15 @@ export class FPSEngine {
     }
     for(const [id,decoy] of this.phantomDecoys){
       if(time>=decoy.expiresAt){this.clearPhantom(id);continue;}
-      decoy.visual.group.position.set(...decoy.pos);
       const age=time-decoy.createdAt;
+      if(!this.opts.online){
+        const distance=Math.min(12,age*.00145);
+        const px=this.pos.x-Math.sin(decoy.yaw)*distance;
+        const pz=this.pos.z-Math.cos(decoy.yaw)*distance;
+        const next:Vec3=[px,decoy.pos[1],pz];
+        if(!this.botMoveBlocked(decoy.pos,next,decoy.pos[1]))decoy.pos=next;
+      }
+      decoy.visual.group.position.set(...decoy.pos);
       const flash=decoy.visual.group.getObjectByName("phantom_muzzle_flash");
       if(flash)flash.visible=age>250&&(age%850)<115;
       if(age>250&&Math.floor(age/850)!==Math.floor((age-50)/850)){
@@ -8310,6 +8325,8 @@ export class FPSEngine {
     }
     for(let i=this.ripperFlights.length-1;i>=0;i--){
       const f=this.ripperFlights[i],t=(now-f.born)/f.life;
+      if(t<0){f.group.visible=false;continue;}
+      f.group.visible=true;
       if(t>=1){f.group.removeFromParent();f.group.traverse(o=>{if(o instanceof THREE.Mesh){
         o.geometry.dispose();(o.material as THREE.Material).dispose();}});
         this.ripperFlights.splice(i,1);continue;}
