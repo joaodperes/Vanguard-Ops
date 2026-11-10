@@ -6,7 +6,7 @@
 import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
-import { insideRegions, featureBoxes } from "./map-blueprints";
+import { insideRegions, featureBoxes, type MapFeature } from "./map-blueprints";
 import {castleSceneryBoxes,isCastlePropKind} from "./castle-scenery";
 
 import type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
@@ -339,6 +339,20 @@ export function cityHasUsableInteriorStairs(p:MapProp):boolean{
   const tread=(d-5.2)/Math.ceil(h/.39);
   return w>=15.5&&d>=16&&tread>=.55&&h<=7.2;
 }
+/** Collision material is an authored gameplay role, not guessed from a facade
+ * color. Thin interior furniture can be shot through and destroyed; the heavy
+ * machinery and the building envelope cannot.
+ */
+export function cityFixtureMaterial(style:CityFixtureStyle):
+  "thin_wood"|"light_cover"|"reinforced" {
+  if(style==="partition"||style==="plant"||style==="sofa"||style==="reception"||
+     style==="display"||style==="exam_bed")return "light_cover";
+  if(["oven","server_rack","treadmill","locker","espresso"].includes(style))return "reinforced";
+  return "thin_wood";
+}
+export function cityFixtureBallisticId(p:MapProp,index:number):string{
+  return `city:fixture:${p.lotId??(`${p.x}:${p.z}`)}:${index}`;
+}
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const quarter=(((p.turns??0)%4)+4)%4;
   const odd=quarter%2===1;
@@ -348,10 +362,11 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const cosine=[1,0,-1,0][quarter],sine=[0,1,0,-1][quarter];
   const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
   const a:CoverBox[]=[];
-  const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover")=>{
+  const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover",material:CoverBox["material"]="reinforced",ballisticId?:string)=>{
     if(hx>.01&&hy>.01&&hz>.01)a.push({
       kind,pos:[p.x+cosine*x+sine*z,(p.y??0)+y,p.z-sine*x+cosine*z],
       size:[odd?hz:hx,hy,odd?hx:hz],
+      ...(kind==="cover"?{material,ballisticId}:{}),
     });
   };
   if(p.shape==="round"){
@@ -414,8 +429,10 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
   }
-  for(const fixture of cityInteriorFixtures({...p,w,d})){
-    put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2);
+  for(const [index,fixture] of cityInteriorFixtures({...p,w,d}).entries()){
+    const material=cityFixtureMaterial(fixture.style);
+    put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2,
+      "cover",material,material==="reinforced"?undefined:cityFixtureBallisticId(p,index));
   }
   return a;
 }
@@ -425,7 +442,7 @@ export function cityBandstandBoxes(p:MapProp):CoverBox[]{
   const steps=featureBoxes({id:"bandstand",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1);
   const pillars:CoverBox[]=[];
   for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
-    pillars.push({kind:"cover",pos:[p.x+x,(h+5.2)/2,p.z+z],size:[.36,(h+5.2)/2,.36]});
+    pillars.push({kind:"cover",material:"reinforced",pos:[p.x+x,(h+5.2)/2,p.z+z],size:[.36,(h+5.2)/2,.36]});
   return [roof,...steps,...pillars];
 }
 
@@ -433,7 +450,7 @@ export function cityBandstandBoxes(p:MapProp):CoverBox[]{
 export function mapPropBallisticId(p:MapProp):string {
   return `prop:${p.kind}:${p.x}:${p.y??0}:${p.z}`;
 }
-export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):CoverBox[] {
+export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],authoredFeatures:readonly MapFeature[]=[]):CoverBox[] {
   const result:CoverBox[]=[];
   for(const p of props){
     if(isCastlePropKind(p.kind)){
@@ -455,11 +472,22 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
         material:"thin_wood",ballisticId:mapPropBallisticId(p)});
       continue;
     }
+    if(p.kind==="cargo_pallet"){
+      // Most factory pallets dress an explicit blueprint crate. Whiteout's
+      // pallets were visual-only: give them the exact same server/client body.
+      const alreadyAuthored=authoredFeatures.some(f=>f.kind==="cover" &&
+        Math.abs(f.x-p.x)<.1&&Math.abs(f.z-p.z)<.1 &&
+        Math.abs(f.w-(p.w??7))<.2&&Math.abs(f.d-(p.d??6))<.2);
+      if(!alreadyAuthored)result.push({kind:"cover",pos:[p.x,(p.y??0)+h/2,p.z],
+        size:[(p.w??7)/2,h/2,(p.d??6)/2],material:"light_cover",
+        ballisticId:mapPropBallisticId(p)});
+      continue;
+    }
     if(p.kind==="sarcophagus"){
       // Solid stone burial chests: preserve the exact same footprint in both
       // authoritative collision and the client renderer.
       result.push({kind:"cover",pos:[p.x,(p.y??0)+h/2,p.z],
-        size:[(p.w??2.2)/2,h/2,(p.d??3.1)/2]});
+        size:[(p.w??2.2)/2,h/2,(p.d??3.1)/2],material:"reinforced"});
       continue;
     }
     if(p.kind==="terminal"){
@@ -467,7 +495,7 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       // Match the renderer's 2 x 2.2 x 1.3 body plus its shallow front screen
       // (the screen extends to local Z +0.74). Keep this collider in the
       // shared map so movement, bots and bullets agree in solo and online.
-      result.push({kind:"cover",pos:[p.x,(p.y??0)+1.1,p.z],size:[1,1.1,.75]});
+      result.push({kind:"cover",pos:[p.x,(p.y??0)+1.1,p.z],size:[1,1.1,.75],material:"reinforced"});
       continue;
     }
     if(p.kind==="bandstand"){
@@ -476,7 +504,8 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
     }
     if(!size)continue;
     if(spawns.some(s=>Math.abs(s[0]-p.x)<size[0]+3&&Math.abs(s[2]-p.z)<size[2]+3))continue;
-    result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size});
+    result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size,
+      material:["rock","ruin","temple"].includes(p.kind)?"concrete":"reinforced"});
   }
   return result;
 }
