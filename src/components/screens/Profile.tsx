@@ -232,7 +232,7 @@ export function Profile() {
               <StatCard icon={<TrendingUp className="w-5 h-5" />} label="K/D" value={profile.kd} color="text-amber-400" />
               <StatCard icon={<Trophy className="w-5 h-5" />} label="Wins" value={profile.matchesWon} color="text-purple-400" />
               <StatCard icon={<Crosshair className="w-5 h-5" />} label="Matches" value={profile.matchesPlayed} color="text-blue-400" />
-              <StatCard icon={<Coins className="w-5 h-5" />} label="Credits" value={profile.credits} color="text-amber-400" />
+              <StatCard icon={<Coins className="w-5 h-5" />} label="Credits" value={formatCredits(profile.credits)} color="text-amber-400" />
               <StatCard icon={<Zap className="w-5 h-5" />} label="Total XP" value={profile.xp} color="text-cyan-400" />
               <StatCard icon={<Award className="w-5 h-5" />} label="Win Rate" value={`${profile.matchesPlayed ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) : 0}%`} color="text-emerald-400" />
             </div>
