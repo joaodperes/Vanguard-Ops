@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { JUGGERNAUT_VISUAL_PALETTE } from "./wonder-models";
 
 // A silhouette made of solid armor, NOT a larger collision body.
 // Every piece is attached to an existing humanoid joint so weapon IK,
@@ -20,6 +21,12 @@ export function survivalBossPhase(weaponId: string): number {
   return 0;
 }
 
+/**
+ * An articulated, boss-sized version of the Juggernaut chassis. Armor follows
+ * the real bot joints so movement, weapon IK and death poses still animate.
+ * It deliberately adds no hitbox or collider: combat rules remain unchanged.
+ * Unlike the normal operator skins, this shell hides the undersuit.
+ */
 export function addSurvivalBossArmor(parts: {
   root: THREE.Group;
   torso: THREE.Object3D;
@@ -28,94 +35,122 @@ export function addSurvivalBossArmor(parts: {
   upperArmR: THREE.Object3D;
   upperLegL: THREE.Object3D;
   upperLegR: THREE.Object3D;
+  lowerLegL: THREE.Object3D;
+  lowerLegR: THREE.Object3D;
 }): SurvivalBossVisual {
-  const armor = new THREE.MeshStandardMaterial({color:0x20262e,metalness:0.8,roughness:0.32});
-  const edge = new THREE.MeshStandardMaterial({color:0x69737e,metalness:0.8,roughness:0.34});
-  const nearBlack = new THREE.MeshStandardMaterial({color:0x11151c,metalness:0.62,roughness:0.5});
-  const glow = () => new THREE.MeshBasicMaterial({color:PHASE_COLORS[0],toneMapped:false});
+  // Exact base metal palette of the player's Juggernaut drop, with separate
+  // phase lights to preserve the existing shotgun/rifle boss tells.
+  const armor = new THREE.MeshStandardMaterial({
+    color: JUGGERNAUT_VISUAL_PALETTE.armor, metalness: 0.72, roughness: 0.3,
+  });
+  const shadow = new THREE.MeshStandardMaterial({
+    color: JUGGERNAUT_VISUAL_PALETTE.shadow, metalness: 0.52, roughness: 0.32,
+  });
+  const edge = new THREE.MeshStandardMaterial({ color: 0x7591a2, metalness: 0.72, roughness: 0.34 });
+  const blue = new THREE.MeshStandardMaterial({
+    color: JUGGERNAUT_VISUAL_PALETTE.visor, emissive: 0x137dd1,
+    emissiveIntensity: 0.7, metalness: 0.42, roughness: 0.3,
+  });
   const chargedParts: THREE.MeshBasicMaterial[] = [];
   const block = (
-    parent: THREE.Object3D, size: [number,number,number],
-    pos: [number,number,number], material: THREE.Material,
-  ) => {
-    const obj = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
-    obj.position.set(...pos);
-    obj.castShadow = true;
-    parent.add(obj);
-    return obj;
+    parent: THREE.Object3D, name: string, size: [number, number, number],
+    pos: [number, number, number], material: THREE.Material,
+  ): THREE.Mesh => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+    mesh.name = `survival_boss_${name}`;
+    mesh.position.set(...pos);
+    mesh.castShadow = true;
+    parent.add(mesh);
+    return mesh;
   };
-  const lit = (parent: THREE.Object3D, size: [number,number,number], pos: [number,number,number]) => {
-    const mat = glow();
-    chargedParts.push(mat);
-    return block(parent,size,pos,mat);
+  const lit = (
+    parent: THREE.Object3D, name: string, size: [number, number, number],
+    pos: [number, number, number],
+  ) => {
+    const material = new THREE.MeshBasicMaterial({ color: PHASE_COLORS[0], toneMapped: false });
+    chargedParts.push(material);
+    return block(parent, name, size, pos, material);
   };
 
-  // Layered slab armor extends well beyond the default half-meter chest.
-  block(parts.torso,[0.83,0.58,0.42],[0,1.22,0.0],armor);
-  block(parts.torso,[0.73,0.13,0.47],[0,1.44,0.015],edge);
-  block(parts.torso,[0.66,0.20,0.47],[0,0.96,0],nearBlack);
-  block(parts.torso,[0.56,0.22,0.05],[0,1.25,0.245],edge);
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16,0),glow());
-  core.position.set(0,1.28,0.32);
-  core.rotation.z=Math.PI/4;
+  // Wide squared-off chest and shoulder span echo the actual Juggernaut suit.
+  // A front-facing breastplate wraps the bot's original small chest without
+  // moving or scaling the underlying humanoid skeleton.
+  block(parts.torso, "chassis", [1.08, 0.70, 0.55], [0, 1.28, 0], armor);
+  block(parts.torso, "abdomen", [0.78, 0.26, 0.54], [0, 0.91, 0], shadow);
+  block(parts.torso, "chest_front", [0.92, 0.50, 0.10], [0, 1.33, 0.30], armor);
+  block(parts.torso, "chest_bridge", [0.75, 0.12, 0.15], [0, 1.56, 0.29], edge);
+  block(parts.torso, "chest_belt", [0.92, 0.12, 0.54], [0, 0.98, 0], shadow);
+  for (const sign of [-1, 1]) {
+    const side = sign < 0 ? "right" : "left";
+    block(parts.torso, `chest_plate_${side}`, [0.34, 0.32, 0.10], [sign * 0.25, 1.29, 0.39], shadow);
+    block(parts.torso, `shoulder_${side}`, [0.55, 0.38, 0.74], [sign * 0.69, 1.51, -0.02], armor);
+    block(parts.torso, `shoulder_ridge_${side}`, [0.59, 0.10, 0.80], [sign * 0.69, 1.73, -0.02], edge);
+    block(parts.torso, `shoulder_light_${side}`, [0.38, 0.08, 0.07], [sign * 0.69, 1.65, 0.38], blue);
+
+    // Exposed rear radiator housings are a Juggernaut signature even when
+    // approached from behind. Their small red/amber/purple strips signal phase.
+    block(parts.root, `reactor_pod_${side}`, [0.32, 0.66, 0.42], [sign * 0.35, 1.31, -0.40], armor);
+    block(parts.root, `reactor_vent_${side}`, [0.22, 0.42, 0.06], [sign * 0.35, 1.32, -0.65], shadow);
+    lit(parts.root, `reactor_light_${side}`, [0.10, 0.32, 0.065], [sign * 0.35, 1.32, -0.70]);
+    block(parts.root, `reactor_fin_${side}`, [0.17, 0.42, 0.22], [sign * 0.35, 1.90, -0.43], edge);
+
+    const arm = sign < 0 ? parts.upperArmR : parts.upperArmL;
+    block(arm, `upper_arm_${side}`, [0.39, 0.42, 0.42], [0, -0.17, 0], armor);
+    block(arm, `gauntlet_${side}`, [0.32, 0.20, 0.46], [0, -0.36, 0.015], shadow);
+    block(arm, `arm_stripe_${side}`, [0.28, 0.055, 0.065], [0, -0.16, 0.24], blue);
+
+    const thigh = sign < 0 ? parts.upperLegR : parts.upperLegL;
+    block(thigh, `thigh_${side}`, [0.33, 0.42, 0.40], [0, -0.19, 0.04], armor);
+    block(thigh, `knee_${side}`, [0.35, 0.17, 0.46], [0, -0.40, 0.07], edge);
+    const shin = sign < 0 ? parts.lowerLegR : parts.lowerLegL;
+    block(shin, `shin_${side}`, [0.32, 0.37, 0.35], [0, -0.20, 0.01], armor);
+    block(shin, `boot_${side}`, [0.40, 0.15, 0.52], [0, -0.39, 0.11], shadow);
+    block(shin, `boot_toe_${side}`, [0.34, 0.09, 0.17], [0, -0.40, 0.35], edge);
+  }
+  block(parts.torso, "chest_indicator", [0.66, 0.045, 0.065], [0, 1.53, 0.39], blue);
+  const core = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.145, 0),
+    new THREE.MeshBasicMaterial({ color: PHASE_COLORS[0], toneMapped: false }),
+  );
+  core.name = "survival_boss_reactor_core";
+  core.position.set(0, 1.30, 0.47);
+  core.rotation.z = Math.PI / 4;
   parts.torso.add(core);
   chargedParts.push(core.material as THREE.MeshBasicMaterial);
-  for (const sign of [-1,1]) {
-    block(parts.torso,[0.13,0.38,0.08],[sign*0.31,1.24,0.24],armor);
-    lit(parts.torso,[0.045,0.27,0.055],[sign*0.29,1.25,0.30]);
-    // Back-mounted cooling ducts / energy reactor visible from behind.
-    block(parts.root,[0.27,0.62,0.33],[sign*0.27,1.21,-0.33],armor);
-    lit(parts.root,[0.12,0.34,0.035],[sign*0.27,1.23,-0.51]);
-    const arm = sign<0 ? parts.upperArmR : parts.upperArmL;
-    block(arm,[0.42,0.26,0.52],[0,-0.085,-0.01],armor);
-    block(arm,[0.40,0.07,0.57],[0,-0.03,0.0],edge);
-    lit(arm,[0.23,0.045,0.055],[0,-0.09,0.275]);
-    const leg = sign<0 ? parts.upperLegR : parts.upperLegL;
-    block(leg,[0.26,0.35,0.26],[0,-0.19,0.065],armor);
-  }
-  // Oversized shoulder ramps and raised back fins give the boss a silhouette
-  // that does not resemble either ordinary bots or the smaller elite class.
-  for (const sign of [-1,1]) {
-    block(parts.torso,[0.39,0.22,0.66],[sign*0.52,1.48,-0.02],armor);
-    lit(parts.torso,[0.24,0.04,0.56],[sign*0.52,1.60,0.01]);
-    block(parts.root,[0.16,0.74,0.20],[sign*0.31,1.82,-0.41],edge);
-    lit(parts.root,[0.08,0.62,0.06],[sign*0.31,1.82,-0.54]);
-  }
-  // Heavy raised helmet with side guards and a brilliant horizontal visor.
-  block(parts.head,[0.42,0.34,0.42],[0,0.025,0],armor);
-  block(parts.head,[0.49,0.10,0.47],[0,0.18,-0.02],edge);
-  block(parts.head,[0.09,0.25,0.44],[-0.24,0.01,-0.01],armor);
-  block(parts.head,[0.09,0.25,0.44],[0.24,0.01,-0.01],armor);
-  lit(parts.head,[0.34,0.085,0.038],[0,0.045,0.235]);
-  for (const side of [-1,1]) {
-    block(parts.head,[0.09,0.2,0.14],[side*0.18,0.30,-0.05],armor);
+
+  // Fully enclosed rectangular helmet: same dark faceplate, luminous blue
+  // visor and armored brow as the deployable Juggernaut (bot forward is +Z).
+  block(parts.head, "helmet", [0.59, 0.44, 0.55], [0, 0.07, 0], armor);
+  block(parts.head, "helmet_brow", [0.67, 0.15, 0.60], [0, 0.27, 0.02], edge);
+  block(parts.head, "helmet_face", [0.52, 0.23, 0.075], [0, 0.05, 0.30], shadow);
+  block(parts.head, "helmet_visor", [0.46, 0.10, 0.085], [0, 0.105, 0.355], blue);
+  block(parts.head, "helmet_jaw", [0.54, 0.11, 0.50], [0, -0.18, 0.015], shadow);
+  for (const sign of [-1, 1]) {
+    block(parts.head, `helmet_guard_${sign}`, [0.10, 0.33, 0.58], [sign * 0.30, 0.02, 0], armor);
   }
 
-  block(parts.head,[0.38,0.14,0.48],[0,0.36,-0.03],armor);
-  lit(parts.head,[0.28,0.08,0.08],[0,0.45,0.21]);
-
-  // Depth-tested danger telegraph. The ground ring grows during the actual
-  // 2.2-second server-authoritative wind-up. A second ring sweeps outward
-  // after the shockwave fires; neither raycasts nor alters collision.
+  // Depth-tested wind-up warning and shockwave. Neither affects collision.
   const warningRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1,0.055,6,40),
+    new THREE.TorusGeometry(1, 0.055, 6, 40),
     new THREE.MeshBasicMaterial({
-      color:0xff4969,transparent:true,opacity:0,depthWrite:false,depthTest:true,
+      color: PHASE_COLORS[0], transparent: true, opacity: 0, depthWrite: false, depthTest: true,
     }),
   );
-  warningRing.rotation.x=-Math.PI/2;
-  warningRing.position.y=0.09;
+  warningRing.name = "survival_boss_shockwave_warning";
+  warningRing.rotation.x = -Math.PI / 2;
+  warningRing.position.y = 0.09;
   parts.root.add(warningRing);
   const shockwaveRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1,0.10,6,48),
+    new THREE.TorusGeometry(1, 0.10, 6, 48),
     new THREE.MeshBasicMaterial({
-      color:0xffd3b2,transparent:true,opacity:0,depthWrite:false,depthTest:true,
+      color: 0xffd3b2, transparent: true, opacity: 0, depthWrite: false, depthTest: true,
     }),
   );
-  shockwaveRing.rotation.x=-Math.PI/2;
-  shockwaveRing.position.y=0.12;
+  shockwaveRing.name = "survival_boss_shockwave_pulse";
+  shockwaveRing.rotation.x = -Math.PI / 2;
+  shockwaveRing.position.y = 0.12;
   parts.root.add(shockwaveRing);
-  return {chargedParts,core,warningRing,shockwaveRing,previousCharge:0,pulseStartedAt:-Infinity};
+  return { chargedParts, core, warningRing, shockwaveRing, previousCharge: 0, pulseStartedAt: -Infinity };
 }
 
 /** Purple-lit, shoulder-plated elite silhouette; never affects hitboxes. */
