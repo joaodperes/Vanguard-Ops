@@ -8,7 +8,6 @@ import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { attachmentViewPermissions, showPendingAttachmentChallenge } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
-import { wonderModulesFor, WONDER_FINISHES, WONDER_KILL_EFFECTS } from "@/lib/wonder-expansion";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
@@ -27,7 +26,6 @@ import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, 
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
 import { WonderCustomizationDialog } from "@/components/screens/WonderCustomizationDialog";
-import {formatCredits} from "@/lib/format-credits";
 import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
