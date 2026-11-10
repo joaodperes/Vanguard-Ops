@@ -63,6 +63,33 @@ export function wonderHologramModel():WonderWorldVisual{
   group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
   glow.dispose();}};
 }
+/** Hovering Harbinger scout (not the stationary Bullet Spitter silhouette). */
+export function wonderDroneModel():WonderWorldVisual{
+ const group=new THREE.Group();
+ const alloy=new THREE.MeshStandardMaterial({color:0x203d48,metalness:.65,roughness:.3});
+ const glow=new THREE.MeshBasicMaterial({color:0x46e5cd});
+ const dark=new THREE.MeshStandardMaterial({color:0x10242c,metalness:.4,roughness:.4});
+ const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),alloy);
+ group.add(body);
+ for(let i=0;i<4;i++){
+  const a=i*Math.PI/2,x=Math.cos(a)*.48,z=Math.sin(a)*.48;
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(.42,.065,.075),dark);
+  arm.position.set(x*.58,0,z*.58);arm.rotation.y=-a;group.add(arm);
+  const rotor=new THREE.Mesh(new THREE.TorusGeometry(.18,.026,8,18),alloy);
+  rotor.position.set(x,.07,z);rotor.rotation.x=Math.PI/2;group.add(rotor);
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.05,8,8),glow);
+  light.position.set(x,.1,z);group.add(light);
+ }
+ const eye=new THREE.Mesh(new THREE.SphereGeometry(.12,12,10),glow);
+ eye.position.z=-.25;group.add(eye);
+ const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.055,.075,.45,10),dark);
+ barrel.rotation.x=Math.PI/2;barrel.position.set(0,-.2,-.27);group.add(barrel);
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.37,.02,8,24),glow);
+ ring.rotation.x=Math.PI/2;ring.position.y=-.12;group.add(ring);
+ return {group,dispose:()=>{group.removeFromParent();group.traverse(o=>{
+  if(o instanceof THREE.Mesh)o.geometry.dispose();
+ });alloy.dispose();glow.dispose();dark.dispose();}};
+}
 export function wonderEventParticles(scene:THREE.Scene,pos:Vec3,color:number,n=16):void{
  const geometry=new THREE.SphereGeometry(.035,6,5);
  const material=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.9});
