@@ -618,10 +618,10 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         ) : hud.akimbo ? (
           <div className="flex flex-col items-end">
             <div className="flex items-end gap-3">
-              <span className="text-xs text-white/60">LEFT <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
-              <span className="text-xs text-white/60">RIGHT <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
+              <span className="text-xs text-white/60">{isTouch ? "LEFT" : "LMB · LEFT"} <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
+              <span className="text-xs text-white/60">{isTouch ? "RIGHT" : "RMB · RIGHT"} <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
             </div>
-            <div className="text-[10px] text-amber-300/70 mt-1">{isTouch ? "FIRE BOTH · NO ADS · RELOAD BOTH" : "LMB/RMB FIRE BOTH · NO ADS · R RELOAD BOTH"}</div>
+            <div className="text-[10px] text-amber-300/70 mt-1">{isTouch ? "BOTH BUTTONS = BOTH GUNS · NO ADS" : "BOTH BUTTONS = SIMULTANEOUS SHOTS · NO ADS · R RELOAD"}</div>
           </div>
         ) : (
           <div className="flex items-end justify-end gap-1">
