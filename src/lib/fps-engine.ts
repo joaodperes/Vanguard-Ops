@@ -4356,7 +4356,8 @@ export class FPSEngine {
     beam: THREE.Line, dot: THREE.Mesh, emitter: THREE.Object3D | null,
     weaponVisible: boolean,
   ) {
-    if (!this.alive || !emitter || !weaponVisible || this.mechActive) {
+    if (!this.alive || !emitter || !weaponVisible || this.mechActive ||
+        (this.viewmodelAkimbo && this.reloading)) {
       beam.visible = false;
       dot.visible = false;
       return;
