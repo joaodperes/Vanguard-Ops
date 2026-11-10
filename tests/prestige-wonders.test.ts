@@ -64,7 +64,9 @@ describe("Wonder charge economy", () => {
   });
   test("charge Wonders have finite charges; Bulwark keeps its P-9 magazine", () => {
     const wonders = WEAPONS.filter(w => w.wonder);
-    expect(wonders).toHaveLength(9);
+    expect(wonders).toHaveLength(17); // 16 playable Wonders plus disabled Bogfather
+    expect(wonders.filter(w=>!w.disabled)).toHaveLength(16);
+    expect(wonders.find(w=>w.id==="wonder_bogfather")?.disabled).toBe(true);
     // Plagueheart deliberately stores three charges; the runtime charge model supports it.
     expect(wonders.find(w => w.id === "wonder_corrosion")?.wonder?.maxCharges).toBe(3);
     for (const w of wonders) {
