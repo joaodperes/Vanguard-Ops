@@ -8743,7 +8743,10 @@ export class FPSEngine {
         const mod=wonderModuleEffects(w.id,this.wonderModuleId);
         for(let i=0;i<(mod.targets===2?2:1);i++){
           const id="offline_phantom_"+(++this.localWonderSequence);
-          this.addPhantom(id,this.selfId,phantomSpawnPosition([this.pos.x,this.pos.y,this.pos.z],this.yaw,i?1.5:0),this.yaw,
+          const feet:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+          const desired=phantomSpawnPosition(feet,this.yaw,i?1.5:0);
+          const spawn=this.botMoveBlocked(feet,desired,feet[1])?feet:desired;
+          this.addPhantom(id,this.selfId,spawn,this.yaw,
             Date.now(),Date.now()+PHANTOM_DURATION_MS*mod.durationMul,mod.targets===2?2:1);
         }
       }else{
