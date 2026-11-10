@@ -490,6 +490,7 @@ interface Combatant {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  akimbo?: boolean;
   charmId?: string;
   nameplateId?: string;
   kills: number;
@@ -6040,11 +6041,22 @@ export class FPSEngine {
       const weaponFurniture = fullWorldLegendary
         ? weaponMat
         : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
-        mesh.position.set(x, y, z);
-        visual.add(mesh);
-      }, fullWorldLegendary ? weaponMat : undefined,
-        weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
+      if(c.akimbo&&wid==="pistol_bastion"){
+        // Two receivers with symmetric true grip contacts: remote players also dual wield.
+        for(const hand of ["left","right"] as const){
+          const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
+          buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+            mesh.position.set(x+sign*.28/BOT_WEAPON_VISUAL_SCALE,y-.035/BOT_WEAPON_VISUAL_SCALE,z);
+            visual.add(mesh);
+          },fullWorldLegendary?weaponMat:undefined,
+            weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+        }
+      }else{
+        buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+          mesh.position.set(x,y,z);visual.add(mesh);
+        },fullWorldLegendary?weaponMat:undefined,
+          weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+      }
       if(c.charmId && c.charmId!=="none"){
         const charm=createWeaponCharm(c.charmId);
         if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
@@ -6066,8 +6078,14 @@ export class FPSEngine {
       const contacts = weaponHoldPoints(wid);
       const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
         new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      weaponHoldRight = toBotHandSpace(contacts.trigger);
-      weaponHoldLeft = toBotHandSpace(contacts.support);
+      if(c.akimbo&&wid==="pistol_bastion"){
+        // Opposite hands now grip separate trigger guards rather than a support stock.
+        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(.28,-.035,0));
+        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(-.28,-.035,0));
+      }else{
+        weaponHoldRight=toBotHandSpace(contacts.trigger);
+        weaponHoldLeft=toBotHandSpace(contacts.support);
+      }
     }
     root.add(weaponStub);
 
@@ -7283,6 +7301,7 @@ export class FPSEngine {
         id: p.id, name: p.name, team: p.team, isBot: p.isBot, isSelf: p.id === this.selfId,
         pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
+        akimbo:p.akimbo===true,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
         bossMaxHealth:p.bossMaxHealth,eliteMaxHealth:p.eliteMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
@@ -7294,8 +7313,9 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
+      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.akimbo===true!== (c.akimbo===true) || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
         c.weaponId = p.weaponId;
+        c.akimbo=p.akimbo===true;
         c.charmId = p.charmId;
         c.nameplateId = p.nameplateId;
         this.rebuildCombatantMesh(c);
