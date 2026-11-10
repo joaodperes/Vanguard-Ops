@@ -4023,9 +4023,16 @@ export class FPSEngine {
     if(this.meleeSwingAt){
       const age=performance.now()-this.meleeSwingAt;
       if(age<this.meleeSwingDur){
-        const pose=meleeSwingPose(this.weaponId,age/this.meleeSwingDur);
-        meleeSwingPitch=pose.pitch;meleeSwingRoll=pose.roll;meleeSwingYaw=pose.yaw;
-        meleeSwingX=pose.x;meleeSwingY=pose.y;meleeSwingZ=pose.z;
+        if(this.weaponId==="wonder_seismic"){
+          const t=age/this.meleeSwingDur,impact=Math.sin(Math.PI*Math.min(1,t/.65));
+          meleeSwingPitch=-.65*impact;
+          meleeSwingY=-.36*impact;
+          meleeSwingZ=-.24*impact;
+        }else{
+          const pose=meleeSwingPose(this.weaponId,age/this.meleeSwingDur);
+          meleeSwingPitch=pose.pitch;meleeSwingRoll=pose.roll;meleeSwingYaw=pose.yaw;
+          meleeSwingX=pose.x;meleeSwingY=pose.y;meleeSwingZ=pose.z;
+        }
       }else this.meleeSwingAt=0;
     }
 
@@ -4081,7 +4088,7 @@ export class FPSEngine {
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
       if(p.obj.name==="weapon_charm")swingWeaponCharm(p.obj,now);
-      if (quickMeleeActive || hideEntireViewmodel) {
+      if (quickMeleeActive || hideEntireViewmodel || !!this.mechActive) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
         continue;
@@ -6757,6 +6764,9 @@ export class FPSEngine {
       case "mechAmmo":
         if(this.mechActive){this.mechActive.armor=msg.armor;this.mechActive.minigunAmmo=msg.minigunAmmo;this.mechActive.secondaryAmmo=msg.secondaryAmmo;}
         break;
+      case "wonderFrozen":
+        this.frozenUntil.set(msg.victimId,performance.now()+msg.durationMs);
+        break;
       case "mechShotFx":
         if(msg.attackerId!==this.selfId){
           if(msg.mode==="swarm")this.spawnRocketProjectile(msg.origin,msg.dir,"default",0,false,"launcher_swarm");
@@ -7904,20 +7914,32 @@ export class FPSEngine {
     const kind=w.wonder?.kind;
     const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
       (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
-    if(kind==="seismic"||kind==="cryo"){
-      const cryo=kind==="cryo",module=wonderModuleEffects(w.id,this.wonderModuleId);
-      const cosine=Math.cos((cryo?.45:.65)*module.radiusMul);
+    if(kind==="seismic"){
+      const feet:Vec3=[this.pos.x,this.pos.y,this.pos.z],radius=w.wonder?.radius??8;
+      this.spawnWonderBeam([feet[0],feet[1]+.12,feet[2]],[feet[0],feet[1]+.12,feet[2]],"seismic");
+      this.sound.play("melee_hit",{volume:.95});
+      for(const target of enemies()){
+        if(!seismicPulseHit(feet,target.pos,radius))continue;
+        if(!this.hasLineOfSight([feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
+        this.applyDamageLocal(target,this.eff.damage,false,w.id);
+        if(!target.alive)continue;
+        const next=seismicPushPosition(feet,target.pos);
+        if(!this.botMoveBlocked(target.pos,next,next[1]))target.pos=next;
+      }
+      this.damageDeployCoverBlast([feet[0],feet[1]+.5,feet[2]],radius,this.eff.damage);
+      return;
+    }
+    if(kind==="cryo"){
+      const module=wonderModuleEffects(w.id,this.wonderModuleId),cosine=Math.cos(.20*module.radiusMul);
       const end:Vec3=[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range];
-      this.spawnWonderBeam(origin,end,cryo?"cryo":"seismic");
+      this.spawnWonderBeam(origin,end,"cryo");
       for(const target of enemies()){
         const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
         if(!wonderConeHit(origin,dir,point,this.eff.range,cosine)||!this.hasLineOfSight(origin,point))continue;
         this.applyDamageLocal(target,this.eff.damage,false,w.id);
-        if(!target.alive)continue;
-        if(cryo)this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
-        else {
-          const next:Vec3=[target.pos[0]+dir[0]*3.3,target.pos[1],target.pos[2]+dir[2]*3.3];
-          if(!this.botMoveBlocked(target.pos,next,target.pos[1]))target.pos=next;
+        if(target.alive){
+          this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
+          this.frozenUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
         }
       }
       return;
@@ -8449,8 +8471,8 @@ export class FPSEngine {
       return;
     }
     const isMelee = w.category === "melee";
-    // Ordinary melee weapons have no ammo — just a swing cooldown.
-    if (isMelee) {
+    // Seismic Lance is held like melee gear but spends an actual wonder charge.
+    if (isMelee && w.wonder?.kind !== "seismic") {
       this.tryMeleeAttack(w, now);
       return;
     }
@@ -8516,6 +8538,7 @@ export class FPSEngine {
       this.akimboKick[akimboHand]=1;
     }
     this.lastShotAt = now;
+    if(w.wonder?.kind==="seismic"){this.meleeSwingAt=now;this.meleeSwingDur=660;}
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
     if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
@@ -8573,7 +8596,7 @@ export class FPSEngine {
       this.sound.play("swap", { volume: 0.65 });
       return;
     }
-    if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash(akimboHand);
+    if(w.wonder?.kind!=="flame"&&w.wonder?.kind!=="seismic")this.triggerMuzzleFlash(akimboHand);
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     if(!this.opts.online&&!this.opts.firingRange&&w.wonder?.kind!=="flame")
       this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
@@ -10302,8 +10325,11 @@ export class FPSEngine {
           const ready=now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9;
           if(w.wonder?.kind==="rail"){
             // Railgun must be deliberately charged by holding fire. No accidental instant shot.
-            if(!this.railChargeAt)this.railChargeAt=now;
-            if(!this.railShotLocked&&now-this.railChargeAt>=650&&this.ammoInMag>0&&ready){
+            if(this.ammoInMag<=0||this.reloading){
+              this.railChargeAt=0;this.railShotLocked=false;
+              if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.sound.play("empty_click",{volume:.36});
+            }else if(!this.railChargeAt)this.railChargeAt=now;
+            if(!this.railShotLocked&&this.railChargeAt>0&&now-this.railChargeAt>=650&&this.ammoInMag>0&&ready){
               this.fireOneShot(w);this.railShotLocked=true;
             }
           }else{
@@ -10333,6 +10359,12 @@ export class FPSEngine {
     syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
       this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     this.positionViewmodel();
+    if(this.fpSupportArm)this.fpSupportArm.root.visible=!this.mechActive;
+    if(this.mechActive){
+      if(this.fpActionHand)this.fpActionHand.visible=false;
+      if(this.fpActionProp)this.fpActionProp.visible=false;
+      if(this.riotShieldModel)this.riotShieldModel.visible=false;
+    }
     // Update the laser indicator (visible only when a laser sight is equipped)
     this.updateLaserIndicator();
     // Thermal/NVG: brighten the scene lights while ADS with NVG; thermal uses a HUD overlay only.
@@ -10521,7 +10553,7 @@ export class FPSEngine {
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    this.camera.position.set(this.pos.x,this.cameraFeetY+(this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
+    this.camera.position.set(this.pos.x,this.cameraFeetY+(this.mechActive?2.75:this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
     // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
     // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
     // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
@@ -12302,7 +12334,7 @@ export class FPSEngine {
       mechSecondaryAmmo:this.mechActive?.secondaryAmmo,
       mechSecondaryName:this.mechActive?(mechTuning(this.mechActive.moduleId).secondary==="swarm"?"Swarm-3":"Shotgun"):undefined,
       mechEnterAvailable,
-      railChargePercent:this.weaponId==="wonder_phasebreaker"&&this.railChargeAt?Math.max(0,Math.min(100,Math.round((now-this.railChargeAt)/650*100))):undefined,
+      railChargePercent:this.weaponId==="wonder_phasebreaker"&&this.ammoInMag>0&&this.railChargeAt?Math.max(0,Math.min(100,Math.round((now-this.railChargeAt)/650*100))):undefined,
       chronoRecallMs:this.chronoAnchor?Math.max(0,this.chronoAnchor.expiresAt-Date.now()):undefined,
       health: Math.max(0, Math.round(this.health)),
       maxHealth: MAX_HEALTH,
