@@ -11,6 +11,8 @@ describe("Wonder gear roles and charge economy", () => {
     const w=weaponById("wonder_phasebreaker");
     expect(w.category).toBe("sniper");
     expect(w.stats.magSize).toBe(2);
+    expect(w.baseSightType).toBe("sniper_scope");
+    expect(w.stats.range).toBeGreaterThan(100);
     expect(w.wonder?.maxCharges).toBe(2);
     expect(usesWonderCharges(w)).toBe(true);
   });
