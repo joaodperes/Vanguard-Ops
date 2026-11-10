@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {weaponById,computeEffectiveStats,compatibleAttachments,attachmentById} from "../src/lib/game-data";
-import {isBastionAkimbo,isFanHammer,akimboVolleyReady,akimboVolleyIntervalMs,akimboReloadDip,akimboCrossDrawAmount,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
+import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboHandIntervalMs,akimboReloadDip,akimboCrossDrawAmount,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
 
 const empty={sight:null,barrel:null,grip:null,magazine:null};
 describe("Bastion .45 Akimbo",()=>{
@@ -25,14 +25,26 @@ describe("Bastion .45 Akimbo",()=>{
     expect(dual.reloadTime).toBeCloseTo(base.reloadTime*1.15);
     expect(dual.spread).toBeGreaterThan(base.spread);
   });
-  test("each accepted trigger fires two cylinders at one combined-rate interval",()=>{
-    const rate=3.5;
-    expect(akimboVolleyIntervalMs(rate)).toBeCloseTo(2000/3.5);
-    expect(akimboVolleyReady(6,6,-Infinity,1000,rate)).toBe(true);
-    expect(akimboVolleyReady(0,6,-Infinity,1000,rate)).toBe(false);
-    expect(akimboVolleyReady(6,0,-Infinity,1000,rate)).toBe(false);
-    expect(akimboVolleyReady(6,6,900,1000,rate)).toBe(false);
-    expect(akimboVolleyReady(4,4,0,1000,rate)).toBe(true);
+  test("each trigger is independent: both hands can shoot on the same frame",()=>{
+    const rate=3.5, now=1000;
+    expect(akimboHandIntervalMs(rate)).toBeCloseTo(2000/3.5);
+    const left={ammo:6,lastShot:-Infinity};
+    const right={ammo:6,lastShot:-Infinity};
+    expect(akimboHandReady(left.ammo,left.lastShot,now,rate)).toBe(true);
+    expect(akimboHandReady(right.ammo,right.lastShot,now,rate)).toBe(true);
+    left.ammo--;left.lastShot=now;
+    // Even after the left shot is recorded, the right shot is still ready now.
+    expect(akimboHandReady(right.ammo,right.lastShot,now,rate)).toBe(true);
+    expect(akimboHandReady(left.ammo,left.lastShot,now,rate)).toBe(false);
+    right.ammo--;right.lastShot=now;
+    expect(akimboHandReady(right.ammo,right.lastShot,now,rate)).toBe(false);
+    expect(akimboHandReady(left.ammo,left.lastShot,1600,rate)).toBe(true);
+    expect(akimboHandReady(right.ammo,right.lastShot,1600,rate)).toBe(true);
+  });
+  test("an empty left cylinder does not prevent the right revolver firing",()=>{
+    expect(akimboHandReady(0,-Infinity,1000,3.5)).toBe(false);
+    expect(akimboHandReady(4,-Infinity,1000,3.5)).toBe(true);
+    expect(akimboHandReady(4,900,1000,3.5)).toBe(false);
   });
   test("both barrels dip and return together without a staggered cylinder phase",()=>{
     expect(akimboReloadDip(0)).toBe(0);
