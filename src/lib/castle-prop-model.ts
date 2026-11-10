@@ -1,6 +1,6 @@
 /** Distinct low-poly medieval services; physics is owned by castle-scenery.ts. */
 import * as THREE from "three";
-import type {CastleProp} from "./castle-scenery";
+import {castleBallisticId,castleBallisticMaterial,type CastleProp} from "./castle-scenery";
 import {buildCastleInterior} from "./castle-interiors";
 const m=(n:number,metalness=0)=>new THREE.MeshStandardMaterial({color:n,roughness:.88,metalness});
 const oak=m(0x987147),beam=m(0x63472f),darkWood=m(0x3f2e20),stone=m(0x827466),iron=m(0x454545,.55),
@@ -27,12 +27,16 @@ export function buildCastleScenery(g:THREE.Group,p:CastleProp):void {
       for(const z of [-d*.32,d*.32])cube(g,oak,x,h*.73,z,.26,.23,.3);
     }
     for(const z of [-d/2+.14,d/2-.14])cube(g,beam,0,h*.87,z,w-.55,.20,.22);
+    const roofGroup=new THREE.Group();
+    if(castleBallisticMaterial(p,6))
+      roofGroup.userData.ballisticId=castleBallisticId(p,6);
+    g.add(roofGroup);
     const incline=Math.atan2(1.2,w/2);
     for(const s of [-1,1]){
-      const tile=cube(g,roof,s*w*.24,h+.73,0,w/2+.65,.28,d+.84);
+      const tile=cube(roofGroup,roof,s*w*.24,h+.73,0,w/2+.65,.28,d+.84);
       tile.rotation.z=-s*incline;
     }
-    cube(g,oak,0,h+1.35,0,.25,.22,d+.80);
+    cube(roofGroup,oak,0,h+1.35,0,.25,.22,d+.80);
     const door=Math.min(3.6,w*.39);
     // Closed timber shutters on the front wall: believable windows, but no
     // misleading shoot-through opening in the server-authoritative masonry.
@@ -70,12 +74,19 @@ export function buildCastleScenery(g:THREE.Group,p:CastleProp):void {
   }else if(p.kind==="castle_stall"){
     for(const sx of [-1,1])for(const sz of [-1,1])
       cube(g,beam,sx*(w/2-.22),h/2,sz*(d/2-.22),.35,h,.35);
-    cube(g,oak,0,.64,-d*.24,w*.84,1.28,d*.26);
+    const counter=new THREE.Group();
+    counter.userData.ballisticId=castleBallisticId(p,4);
+    cube(counter,oak,0,.64,-d*.24,w*.84,1.28,d*.26);
+    cube(counter,hay,0,1.29,-d*.24,w*.52,.13,d*.18);
+    g.add(counter);
+    const canopy=new THREE.Group();
+    canopy.userData.ballisticId=castleBallisticId(p,5);
     const awning=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:1}):cloth;
-    cube(g,awning,0,h+.28,0,w+.25,.16,d+.24);
-    for(const x of [-w*.3,0,w*.3])cube(g,linen,x,h+.38,0,.13,.03,d+.2);
-    cube(g,hay,0,1.29,-d*.24,w*.52,.13,d*.18);
+    cube(canopy,awning,0,h+.28,0,w+.25,.16,d+.24);
+    for(const x of [-w*.3,0,w*.3])cube(canopy,linen,x,h+.38,0,.13,.03,d+.2);
+    g.add(canopy);
   }else if(p.kind==="castle_cart"){
+    g.userData.ballisticId=castleBallisticId(p,0);
     cube(g,beam,0,.69,0,w*.87,1.28,d*.77);
     cube(g,hay,0,1.37,0,w*.67,.19,d*.61);
     for(const x of [-w*.32,w*.32])for(const z of [-d*.26,d*.26]){
@@ -83,11 +94,13 @@ export function buildCastleScenery(g:THREE.Group,p:CastleProp):void {
     }
     cube(g,oak,0,.65,d*.42,.22,.18,d*.25);
   }else if(p.kind==="castle_target"){
+    g.userData.ballisticId=castleBallisticId(p,0);
     cube(g,oak,0,h*.51,0,w*.79,h*.91,.3);
     for(const [r,z,material] of [[w*.38,.19,linen],[w*.22,.28,cloth],[w*.085,.38,char]] as const){
       const face=cyl(g,material,0,h*.64,z,r,.12);face.rotation.x=Math.PI/2;
     }
   }else if(p.kind==="castle_barrel"){
+    g.userData.ballisticId=castleBallisticId(p,0);
     cyl(g,oak,0,h/2,0,Math.min(w,d)*.42,h);
     for(const at of [.17,.82])cyl(g,iron,0,h*at,0,Math.min(w,d)*.44,.1);
   }else if(p.kind==="castle_brazier"){
