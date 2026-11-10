@@ -3346,7 +3346,11 @@ export class FPSEngine {
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
     if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"){
       const charm=createWeaponCharm(equippedCharm,true);
-      if(charm)addPart(charm,...weaponCharmMountPoint(this.weaponId,"firstPerson"));
+      if(charm){
+        const [x,y,z]=weaponCharmMountPoint(this.weaponId,"firstPerson");
+        if(this.viewmodelAkimbo)charm.userData.akimboHand="right";
+        addPart(charm,x+(this.viewmodelAkimbo?.34/this.vmScale:0),y+(this.viewmodelAkimbo?-.045/this.vmScale:0),z);
+      }
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -3939,7 +3943,7 @@ export class FPSEngine {
       : { x: 0, y: clearance.bodyY, z: -.43 };
     // Rigid ADS: the optic has a real mount, not a screen-space sight lift.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
-    const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
+    const sprintTarget = this.viewmodelAkimbo ? {x:0,y:-.38,z:-.40} : { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
     // the camera. This also exposes the hammer/axe head during idle movement.
     const meleePose = this.touchMode ? { x: 0.25, y: -0.11, z: -0.47 } : { x: 0.35, y: -0.085, z: -0.49 };
@@ -4153,8 +4157,10 @@ export class FPSEngine {
             // During a reload, empty chambers become visible first; six rounds
             // then approach the open breech and seat along Z. Outside a reload,
             // chambers reflect exactly how many rounds remain.
-            component.visible=this.reloading?frame.cartridgesVisible:
-              index<(this.viewmodelAkimbo&&akimboSide?this.akimboAmmo[akimboSide]:this.ammoInMag);
+            component.visible=this.reloading
+              ? (this.viewmodelAkimbo&&akimboSide&&akimboReloadFraction(fraction,akimboSide)===0
+                  ? index<this.akimboAmmo[akimboSide] : frame.cartridgesVisible)
+              : index<(this.viewmodelAkimbo&&akimboSide?this.akimboAmmo[akimboSide]:this.ammoInMag);
             component.position.z=BASTION_CARTRIDGE_SEATED_Z+
               (this.reloading ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
           } else if(component.userData.fpRevolverYoke){
@@ -5413,6 +5419,9 @@ export class FPSEngine {
         : this.wonderAmmoInMag;
     }
     this.reloading = false;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
+    this.akimboRightPressedThisFrame=false;
+    this.touchAkimboRightPressedThisFrame=false;
     this.startWeaponSwapVisual(this.activePerkId === "quickdraw" ? 155 : 0);
     this.swapReadyAt = performance.now() + (this.activePerkId === "quickdraw" ? 110 : 290);
     this.sound.play("swap", { volume: 0.6 });
@@ -7331,7 +7340,7 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.akimbo===true!== (c.akimbo===true) || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
+      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || (p.akimbo===true)!==(c.akimbo===true) || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
         c.weaponId = p.weaponId;
         c.akimbo=p.akimbo===true;
         c.charmId = p.charmId;
@@ -7444,9 +7453,21 @@ export class FPSEngine {
     const w=weaponById(this.weaponId);
     const eligible=(this.currentSlot==="primary" || this.currentSlot==="secondary") &&
       !w.wonder && w.category!=="melee" && w.special?.kind!=="heat";
-    this.scavengerAmmoGained=eligible ? Math.max(0,this.eff.magSize-this.ammoInMag) : 0;
+    const before=this.ammoInMag;
+    this.scavengerAmmoGained=eligible?Math.max(0,this.eff.magSize-this.ammoInMag):0;
     if(eligible){
-      this.ammoInMag=scavengerAmmoAmount(this.eff.magSize);
+      if(this.isAkimboActive()){
+        const gained=Math.min(this.eff.magSize-this.ammoInMag,scavengerAmmoAmount(this.eff.magSize));
+        for(let n=0;n<gained;n++){
+          const hand=this.akimboAmmo.left<=this.akimboAmmo.right?"left":"right";
+          if(this.akimboAmmo[hand]>=AKIMBO_CYLINDER_CAPACITY)break;
+          this.akimboAmmo[hand]++;
+        }
+        this.ammoInMag=this.akimboAmmo.left+this.akimboAmmo.right;
+      }else{
+        this.ammoInMag=scavengerAmmoAmount(this.eff.magSize);
+      }
+      this.scavengerAmmoGained=Math.max(0,this.ammoInMag-before);
       this.saveAmmoToSlot(this.currentSlot);
     }
     this.scavengerFeedbackAt=performance.now();
@@ -10261,20 +10282,27 @@ export class FPSEngine {
       if(wantFire)this.fireMech("minigun",now);
       if((this.mechRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAiming))this.fireMech("secondary",now);
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
+      this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
       // Semi-auto trigger edges are buffered briefly across the shared cadence gate.
       const now=performance.now(), w=weaponById(this.weaponId);
       if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
       if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)this.akimboPending.right=now;
       const ready=(["left","right"] as const).filter(hand=>
-        now-this.akimboPending[hand]<260 &&
+        now-this.akimboPending[hand]<520 &&
         akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
           this.lastShotAt,now,w.stats.fireRate,this.eff.fireRate));
       const selected=ready.length===2
         ? (this.akimboPending.left<=this.akimboPending.right?"left":"right") : ready[0];
-      if(selected&&!this.reloading){
+      if(selected&&!this.reloading&&!this.sprinting&&this.alive&&!this.matchEnded&&now>=this.swapReadyAt){
         this.fireOneShot(w,selected);
         this.akimboPending[selected]=-Infinity;
+      }
+      for(const hand of ["left","right"] as const){
+        if(now-this.akimboPending[hand]<520 && this.akimboAmmo[hand]===0){
+          this.akimboPending[hand]=-Infinity;
+          this.sound.play("empty_click",{volume:.25,throttleMs:130});
+        }
       }
       if(this.ammoInMag<=0&&!this.reloading&&
         (this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
