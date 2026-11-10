@@ -12,7 +12,7 @@ export const emptyRangeAttachments = (): AttachmentMap => ({
   sight: null, barrel: null, grip: null, magazine: null,
 });
 
-/** Wonders are primary-slot equipment even if their underlying weapon category differs. */
+/** Internal selector classification: Wonders are dispatched separately as slot-4 perks. */
 export function rangeWeaponSlot(weaponId: string): WeaponSlot | null {
   const weapon = WEAPONS.find(w => w.id === weaponId);
   if (!weapon || weapon.disabled) return null;
