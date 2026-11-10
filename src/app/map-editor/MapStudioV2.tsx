@@ -4,7 +4,7 @@ import Link from "next/link";
 import MapStudio3D,{type StudioSelection,type StudioMode,type StudioTransform} from "./MapStudio3D";
 import {MAP_DOCUMENTS,validateMapDocument,type MapDocument} from "@/lib/map-documents";
 import {BALLISTIC_MATERIALS} from "@/lib/cover-penetration";
-import {importMapDocuments,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
+import {importMapDocuments,migrateLegacyCoverMaterials,exportMapLibrary,type MapDocumentLibrary} from "@/lib/map-document-io";
 import {validateBlueprint,overrideBox,nearestPlatformSnap,snapCoverToPlatform,
   featureFootprint,reconcileFeatureAttachments,resolveStairAttachments,attachStairsToPlatform,MAP_HAZARD_TYPES,
   type PlatformEdge,type MapRegion,type MapFeature,type MapHazard} from "@/lib/map-blueprints";
@@ -167,8 +167,9 @@ export default function MapEditorClient(){
       const newer=localStorage.getItem("vanguard-map-studio-v2");
       if(newer){
         const saved=JSON.parse(newer) as Record<string,MapDocument>;
-        const accepted=Object.entries(saved).filter(([key,value])=>
-          key===value?.id&&validateMapDocument(value).length===0);
+        const accepted=Object.entries(saved)
+          .map(([key,value])=>[key,migrateLegacyCoverMaterials(value)] as const)
+          .filter(([key,value])=>key===value?.id&&validateMapDocument(value).length===0);
         if(accepted.length){setLibrary(old=>({...old,...Object.fromEntries(accepted)}));setMessage("Restored previous map drafts.");}
       }else{
         const older=localStorage.getItem("vanguard-map-studio-v1");
