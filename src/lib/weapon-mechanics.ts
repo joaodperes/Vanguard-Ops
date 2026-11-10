@@ -5,15 +5,22 @@ export type AkimboHand = "left" | "right";
 export function isBastionAkimbo(weaponId: string, grip: string | null | undefined): boolean {
   return weaponId === "pistol_bastion" && grip === AKIMBO_GRIP_ID;
 }
-/** Each hammer has its own mechanical recovery; the server still enforces combined cadence. */
-export function akimboHandReady(ammo: number, lastHandShot: number, lastSharedShot: number,
-  now: number, perHandRate: number, combinedRate: number): boolean {
-  return ammo > 0 && now - lastHandShot >= 900 / Math.max(.01, perHandRate) &&
-    now - lastSharedShot >= 900 / Math.max(.01, combinedRate);
+/** The displayed combined rate counts bullets; each Akimbo volley spends two. */
+export function akimboVolleyIntervalMs(combinedFireRate: number): number {
+  return 2000 / Math.max(.01,combinedFireRate);
 }
-/** Sequential left/right swing-out cylinders in one complete reload animation. */
-export function akimboReloadFraction(progress: number, hand: AkimboHand): number {
-  return Math.max(0, Math.min(1, progress * 2 - (hand === "right" ? 1 : 0)));
+/** Both chambers must be ready; a single round in one cylinder cannot fire a paired volley. */
+export function akimboVolleyReady(leftAmmo:number,rightAmmo:number,lastVolleyAt:number,now:number,combinedFireRate:number):boolean {
+  return leftAmmo>0&&rightAmmo>0&&now-lastVolleyAt>=akimboVolleyIntervalMs(combinedFireRate)*.9;
+}
+/** Both revolvers drop below the camera frame together, remain out while refreshed,
+ * then return simultaneously. No third hand or sequential swing-out cylinder. */
+export function akimboReloadDip(progress:number):number {
+  const p=Math.max(0,Math.min(1,progress));
+  const smooth=(v:number)=>v*v*(3-2*v);
+  if(p<.20)return smooth(p/.20);
+  if(p<.76)return 1;
+  return 1-smooth((p-.76)/.24);
 }
 /** Hand crosses to the opposite hip during the holster/draw half of the shared swap. */
 export function akimboCrossDrawAmount(progress: number, incoming: boolean): number {
