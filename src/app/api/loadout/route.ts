@@ -2,7 +2,7 @@ import { levelForXp } from "@/lib/progression";
 import { ownsOperativeSkin } from "@/lib/collection-ownership";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
-import { validWonderModule, wonderFinishById, wonderKillEffectById } from "@/lib/wonder-expansion";
+import { validWonderModule, validWonderFinish, validWonderKillEffect } from "@/lib/wonder-expansion";
 import { parseSavedLoadouts } from "@/lib/saved-loadouts";
 import { EQUIPMENT, equipmentUnlocked } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
@@ -235,8 +235,8 @@ export async function POST(req: NextRequest) {
     const moduleId=picked("wonderModuleId"),skinId=picked("wonderSkinId"),effectId=picked("wonderKillEffectId");
     if(moduleId===null||skinId===null||effectId===null||
       (moduleId!==undefined&&(!validWonderModule(selected.id,moduleId)||(moduleId!==""&&!keys.has("module_"+moduleId))))||
-      (skinId!==undefined&&skinId!==""&&(!wonderFinishById(skinId)||!keys.has(skinId+"_"+selected.id)))||
-      (effectId!==undefined&&effectId!==""&&(!wonderKillEffectById(effectId)||!keys.has(effectId+"_"+selected.id))))
+      (skinId!==undefined&&skinId!==""&&(!validWonderFinish(selected.id,skinId)||!keys.has(skinId+"_"+selected.id)))||
+      (effectId!==undefined&&effectId!==""&&(!validWonderKillEffect(selected.id,effectId)||!keys.has(effectId+"_"+selected.id))))
       return NextResponse.json({error:"Purchase this Wonder customization before equipping it"},{status:403});
     const current=setups[selected.id]??{skin:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}};
     setups[selected.id]={...current,
