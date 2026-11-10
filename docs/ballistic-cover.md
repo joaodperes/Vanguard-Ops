@@ -15,7 +15,14 @@ Select a **Cover** feature in Map Studio → **Ballistic material**. Supported i
 | `glass` | Low resistance/damage loss | Glass room divider |
 | `light_cover` | Moderate penetration loss | Lightweight crates and barricades |
 
-**No material** is equivalent to solid/concrete for ballistics. The engine never marks arbitrary generic `cover` as penetrable, even if its visual texture looks like wood or metal. Only rectangular `cover` colliders with a soft material can be pierced. Collision boundaries, platforms, stairs, solids and destructible environmental barriers remain hard stops regardless of tags. Existing map safety and hard cover are unchanged.
+All published `cover` features must now declare a material. Legacy/static
+colliders without one are compiled as explicit `reinforced` cover rather than
+guessed from a render texture. Map Studio defaults new cover to `reinforced`
+and automatically migrates older saved drafts/assets with missing material tags.
+Only rectangular `cover` colliders with a soft material can be pierced.
+Boundary solids, platforms, stairs and dedicated environment barriers remain
+hard stops. See [ballistic-materials.md](ballistic-materials.md) for the rules
+applied to all maps and generated props.
 
 The prefab asset palette includes wood, sheet-metal, glass and light-cover pieces. The shared compiler `featureBoxes` copies the authored `material` tag to its collider, so Map Studio preview, offline bots, and the online server read the same geometry and material. Both `validateMapDocument` and `validateBlueprint` reject invalid material tags.
 
