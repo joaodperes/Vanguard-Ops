@@ -155,6 +155,29 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none font-mono">
+      {/* Inside the Juggernaut: the view through a steel helmet aperture, not an
+          ordinary infantry HUD. Keep the centre unobstructed for aiming. */}
+      {hud.mechArmor!==undefined && (
+        <div className="absolute inset-0 overflow-hidden" data-testid="juggernaut-visor">
+          <div className="absolute inset-0" style={{
+            boxShadow:"inset 0 0 0 9px rgba(12,19,25,.93), inset 0 0 0 17px rgba(65,88,100,.74), inset 0 0 95px 40px rgba(0,0,0,.75)",
+          }} />
+          <div className="absolute inset-x-[5%] top-0 h-8 rounded-b-[55%] border-b-[5px] border-slate-500/80 bg-gradient-to-b from-slate-950 to-transparent" />
+          <div className="absolute inset-x-[5%] bottom-0 h-10 rounded-t-[55%] border-t-[5px] border-slate-500/80 bg-gradient-to-t from-slate-950 to-transparent" />
+          <div className="absolute top-[7%] bottom-[7%] left-0 w-[4%] rounded-r-[60%] border-r-[5px] border-slate-500/70 bg-slate-950/90" />
+          <div className="absolute top-[7%] bottom-[7%] right-0 w-[4%] rounded-l-[60%] border-l-[5px] border-slate-500/70 bg-slate-950/90" />
+          <div className="absolute bottom-16 left-[7%] text-cyan-200/80 text-[10px] uppercase tracking-[.23em]">
+            <span className="block text-xs font-black tracking-wider">L / MINIGUN</span>
+            <span>LMB · {hud.mechMinigunAmmo??0} ROUNDS</span>
+          </div>
+          <div className="absolute bottom-16 right-[7%] text-amber-200/80 text-right text-[10px] uppercase tracking-[.23em]">
+            <span className="block text-xs font-black tracking-wider">R / {hud.mechSecondaryName??"Shotgun"}</span>
+            <span>RMB · {hud.mechSecondaryAmmo??0} ROUNDS</span>
+          </div>
+          <div className="absolute top-[15%] left-[7%] text-cyan-300/65 text-[9px] tracking-[.18em]">PILOT LINK · ACTIVE</div>
+          <div className="absolute top-[15%] right-[7%] text-cyan-300/65 text-[9px] tracking-[.18em] text-right">TACTICAL VISOR</div>
+        </div>
+      )}
       {hud.mechEnterAvailable&&<div className="absolute top-[28%] left-1/2 -translate-x-1/2 rounded-lg border border-sky-400/70 bg-slate-950/90 px-5 py-3 text-center shadow-lg shadow-sky-900/30">
         <div className="text-sky-200 text-sm font-black tracking-widest">JUGGERNAUT READY</div>
         <div className="text-white text-xs mt-1">PRESS E TO ENTER MECH</div>
@@ -557,7 +580,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {/* bottom right: ammo + weapon + slot indicator (desktop only — mobile
           uses the centered bottom cluster below). */}
-      {!isTouch && (
+      {!isTouch && hud.mechArmor===undefined && (
       <div className="absolute bottom-6 right-6 text-right">
         <div className="text-white/60 text-xs uppercase tracking-widest mb-0.5 flex items-center justify-end gap-1.5">
           {/* Category color dot — matches the 3D accent band on the weapon model */}
