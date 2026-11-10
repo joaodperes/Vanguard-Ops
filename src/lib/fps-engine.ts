@@ -29,7 +29,7 @@ import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
-import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
+import { cityInteriorFixtures, cityFixtureMaterial, cityFixtureBallisticId, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
 import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
@@ -2324,8 +2324,14 @@ export class FPSEngine {
       if(isCastlePropKind(p.kind)){
         buildCastleScenery(group,p);
       }else if(isFactoryMachineKind(p.kind)){
-        // Machine meshes dress pre-existing blueprint solids; collision remains
-        // authoritative in those features instead of being duplicated here.
+        // Most pallets dress named authored cover; whiteout uses a prop collider.
+        // Both geometry and its visible contents disappear together when broken.
+        if(p.kind==="cargo_pallet"){
+          const matching=this.map.cover.find(c=>c.kind==="cover"&&
+            c.material==="light_cover"&&!!c.ballisticId&&
+            Math.abs(c.pos[0]-p.x)<.1&&Math.abs(c.pos[2]-p.z)<.1);
+          group.userData.ballisticId=matching?.ballisticId??mapPropBallisticId(p);
+        }
         buildFactoryMachinery(group,p.kind,w,d,h,this.map.id==="floodgate"?p.color:undefined);
       }else if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
@@ -2431,10 +2437,14 @@ export class FPSEngine {
         }
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
-        for(const item of cityInteriorFixtures({...p,w,d})){
+        for(const [index,item] of cityInteriorFixtures({...p,w,d}).entries()){
           const {x,z,w:fw,d:fd,h:fh,style}=item;
+          const itemGroup=new THREE.Group();
+          if(cityFixtureMaterial(style)!=="reinforced")
+            itemGroup.userData.ballisticId=cityFixtureBallisticId(p,index);
+          group.add(itemGroup);
           const part=(mat:THREE.Material,px:number,py:number,pz:number,pw:number,ph:number,pd:number)=>
-            cube(group,mat,x+px,py,z+pz,pw,ph,pd);
+            cube(itemGroup,mat,x+px,py,z+pz,pw,ph,pd);
           if(style==="partition"){
             part(wallPaint,0,fh/2,0,fw,fh,fd);
             part(wood,0,.09,0,fw,.16,fd+.09);
@@ -2481,7 +2491,7 @@ export class FPSEngine {
             part(wood,0,.3,0,fw*.65,.60,fd*.65);
             const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
             leaves.position.set(x,fh*.71,z);
-            leaves.scale.set(.8,1.1,.8);group.add(leaves);
+            leaves.scale.set(.8,1.1,.8);itemGroup.add(leaves);
           }else if(style==="espresso"){
             part(metal,0,.28,0,fw*.94,.54,fd*.94);
             part(wood,0,.63,0,fw,.14,fd);
@@ -2511,7 +2521,7 @@ export class FPSEngine {
           }else if(style==="sculpture"){
             part(wood,0,.23,0,fw*.92,.44,fd*.92);
             const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
-            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
+            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);itemGroup.add(sculpture);
           }else if(style==="server_rack"){
             part(asphalt,0,fh*.48,0,fw,fh*.96,fd);
             for(let i=0;i<6;i++){
@@ -2757,8 +2767,8 @@ export class FPSEngine {
         }
       }
       if(group.children.length){
-        if(isCastlePropKind(p.kind)||p.kind==="bench"){
-          // Castle props and city benches use detailed timber, slate and furniture models on top of
+        if(isCastlePropKind(p.kind)||p.kind==="bench"||p.kind==="building"||p.kind==="cargo_pallet"){
+          // Detailed props may render many meshes for one ballistic cover part., slate and furniture models on top of
           // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
           group.traverse(node=>{
             const id=node.userData.ballisticId;
