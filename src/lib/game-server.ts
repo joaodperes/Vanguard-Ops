@@ -266,7 +266,7 @@ interface Room {
   wonderFields: Map<string, { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
   harbingerDrones: Map<string, {id:string; ownerId:string; ownerTeam:string; pos:Vec3; expiresAt:number; hp:number; moduleId:string; nextShotAt:number; nextScanAt:number; priorityId?:string}>;
-  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
+  turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number; priorityId?:string }>;
   gravityWells: Map<string, { ownerId: string; ownerTeam: string; weaponId: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
   boltReadyAt: Map<string, number>;
   boltCharges: Map<string, number>;
@@ -1426,7 +1426,7 @@ function placePlayerTurret(room: Room, player: PlayerNet, ownerId: string, now: 
   const expiresAt = now + TURRET_LIFETIME_MS*wonderModuleEffects("wonder_turret",room.loadouts.get(ownerId)?.wonderModuleId).durationMul;
   room.turrets.set(id, {
     ownerId, ownerTeam: player.team, pos, yaw: player.yaw,
-    expiresAt, nextShotAt: now + 300, hp: TURRET_HP,
+    expiresAt, nextShotAt: now + 300, hp: TURRET_HP*wonderModuleEffects("wonder_turret",room.loadouts.get(ownerId)?.wonderModuleId).durabilityMul,
   });
   io.to(room.id).emit("message", {
     t: "turretPlaced", id, ownerId, pos, yaw: player.yaw, expiresAt,
@@ -1452,6 +1452,7 @@ function tickBulletSpitters(room: Room, now: number) {
       hasLineOfSight(room, [turret.pos[0], turret.pos[1] + TURRET_MUZZLE_HEIGHT, turret.pos[2]],
         [p.pos[0], p.pos[1] + PLAYER_HEIGHT / 2, p.pos[2]])
     ).sort((a,b) =>
+      (a.id===turret.priorityId?-1000:0)-(b.id===turret.priorityId?-1000:0)+
       Math.hypot(a.pos[0]-turret.pos[0],a.pos[2]-turret.pos[2]) -
       Math.hypot(b.pos[0]-turret.pos[0],b.pos[2]-turret.pos[2]))[0];
     if (!target) continue;
@@ -1525,7 +1526,8 @@ function tickGravityWells(room: Room, now: number) {
     for (const bot of room.bots.values()) {
       if (!bot.alive || (room.mode !== "ffa" && room.mode !== "gungame" && bot.team === well.ownerTeam) ||
           (bot.spawnProtectedUntil && bot.spawnProtectedUntil > now)) continue;
-      const [dx, dz] = gravityPullOffset(well.pos, bot.pos, well.radius, 1 / 20);
+      const pull=wonderModuleEffects("wonder_singularity",room.loadouts.get(well.ownerId)?.wonderModuleId).pullMul;
+      const [dx, dz] = gravityPullOffset(well.pos, bot.pos, well.radius, pull / 20);
       if (dx === 0 && dz === 0) continue;
       if (!hasLineOfSight(room, well.pos, [bot.pos[0], bot.pos[1] + 1, bot.pos[2]])) continue;
       const next: Vec3 = [bot.pos[0] + dx, bot.pos[1], bot.pos[2] + dz];
@@ -1599,7 +1601,7 @@ function serverPlaceStormMine(room:Room,ownerId:string,ownerTeam:string,pos:Vec3
     io.to(room.id).emit("message",{t:"stormMineRemoved",id:oldest.id,triggered:false,pos:oldest.pos} as S2C);
   }
   const mine={id:genId("stormmine"),ownerId,ownerTeam,pos,
-    armedAt:now+STORM_MINE_ARM_MS,expiresAt:now+STORM_MINE_LIFETIME_MS};
+    armedAt:now+STORM_MINE_ARM_MS*wonderModuleEffects("wonder_stormweaver",room.loadouts.get(ownerId)?.wonderModuleId).armMul,expiresAt:now+STORM_MINE_LIFETIME_MS};
   room.stormMines.set(mine.id,mine);
   io.to(room.id).emit("message",{t:"stormMinePlaced",id:mine.id,pos,expiresAt:mine.expiresAt} as S2C);
 }
@@ -1784,6 +1786,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if(directLethal)dmg=tacticalDirectDamage(dmg,victim.health,!!room.bots.get(victim.id)?.ai.boss);
   dmg=survivalNonLethalTaserDamage(dmg,victim.health,room.mode,!!attacker?.isBot,weaponId);
   room.lastDamagedAt.set(victim.id, Date.now());
+  if(attackerId!==victim.id && room.loadouts.get(victim.id)?.wonderModuleId==="targeting_uplink")
+    for(const turret of room.turrets.values())if(turret.ownerId===victim.id)turret.priorityId=attackerId;
   const hitSource=room.players.get(attackerId)??room.bots.get(attackerId);
   const hurtBot=room.bots.get(victim.id);
   if(hurtBot?.ai && hitSource?.alive && hitSource.id!==victim.id &&
@@ -1813,7 +1817,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     mech.armor=Math.max(0,mech.armor-dmg);
     io.to(victim.id).emit("message",{t:"mechAmmo",armor:mech.armor,minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo} as S2C);
-    if(mech.armor<=0){room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
+    if(mech.armor<=0){if(mech.moduleId==="emergency_ejection")victim.health=Math.max(30,victim.health);room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
     return;
   }
   victim.health -= dmg;
@@ -1833,7 +1837,42 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     ...(killDiff ? { botDifficulty: killDiff } : {}),
     ...(defendedFlag ? { defendedFlag: true } : {}),
   } as S2C);
+  if(killed&&weaponId==="wonder_phasebreaker"&&room.loadouts.get(attackerId)?.wonderModuleId==="capacitor_siphon"&&attacker){
+    const from:Vec3=[attacker.pos[0],attacker.pos[1]+1.4,attacker.pos[2]];
+    const to:Vec3=[victim.pos[0],victim.pos[1]+1.0,victim.pos[2]];
+    if(!hasLineOfSight(room,from,to)){
+      const key=attackerId+":wonder_phasebreaker",w=weaponById("wonder_phasebreaker").wonder!;
+      const state=room.wonderCharges.get(key);
+      if(state)room.wonderCharges.set(key,accelerateWonderCharge(state,{...w,killBonusMs:12000},Date.now()));
+    }
+  }
   if (killed) {
+    const poison=room.poison.get(victim.id);
+    if(poison?.weaponId==="wonder_corrosion"&&room.loadouts.get(poison.attackerId)?.wonderModuleId==="spore_relay"){
+      const owner=room.players.get(poison.attackerId)??room.bots.get(poison.attackerId);
+      for(const other of allCombatants(room)){
+        if(!other.alive||other.id===victim.id||other.id===poison.attackerId||
+           (room.mode!=="ffa"&&room.mode!=="gungame"&&other.team===owner?.team))continue;
+        if(Math.hypot(other.pos[0]-victim.pos[0],other.pos[2]-victim.pos[2])<=3.5&&
+          hasLineOfSight(room,[victim.pos[0],victim.pos[1]+1,victim.pos[2]],
+          [other.pos[0],other.pos[1]+1,other.pos[2]]))room.poison.set(other.id,{
+          attackerId:poison.attackerId,weaponId:"wonder_corrosion",expiresAt:Date.now()+1800,
+          tickAt:Date.now()+CORROSION_TICK_MS,damagePerTick:(poison.damagePerTick??2)*.4});
+      }
+    }
+    if(weaponId==="wonder_deadlock"&&room.loadouts.get(attackerId)?.wonderModuleId==="tag_relay"){
+      const tags=room.smartTags.get(attackerId)??[];
+      if(tags.some(tag=>tag.id===victim.id&&tag.expiresAt>Date.now())){
+        const owner=room.players.get(attackerId)??room.bots.get(attackerId);
+        if(owner){
+          const candidates=allCombatants(room).filter(e=>e.alive&&e.id!==victim.id&&e.id!==owner.id&&
+            (room.mode==="ffa"||room.mode==="gungame"||e.team!==owner.team)&&
+            Math.hypot(e.pos[0]-victim.pos[0],e.pos[2]-victim.pos[2])<12&&
+            hasLineOfSight(room,victim.pos,[e.pos[0],e.pos[1]+1,e.pos[2]]));
+          if(candidates.length)room.smartTags.set(attackerId,[...tags.filter(t=>t.id!==victim.id),{id:candidates[0].id,expiresAt:Date.now()+SMART_TAG_MS}].slice(-SMART_MAX_TAGS));
+        }
+      }
+    }
     const contributions=room.damageContributions.get(victim.id);
     if (contributions && attacker) for(const id of countEligibleAssists(contributions,attackerId,attacker.team,Date.now()))
       { room.assists.set(id,(room.assists.get(id)??0)+1);
@@ -1856,7 +1895,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         if (!key.startsWith(attackerId + ":")) continue;
         const wid = key.slice(attackerId.length + 1);
         const rules = weaponById(wid).wonder;
-        if (rules) room.wonderCharges.set(key, accelerateWonderCharge(state, rules, Date.now()));
+        if (rules) room.wonderCharges.set(key, accelerateWonderCharge(state,{...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(wid,room.loadouts.get(attackerId)?.wonderModuleId).rechargeMul},Date.now()));
       }
     }
     victim.alive = false;
@@ -2612,7 +2651,8 @@ function tickWonderExpansion(room:Room,now:number):void{
     const pz=owner.pos[2]-Math.cos(decoy.yaw)*distance;
     if(Math.abs(px)<room.map.size-2&&Math.abs(pz)<room.map.size-2&&!botMoveBlocked(room,decoy.pos,[px,decoy.pos[1],pz],decoy.pos[1]))
       decoy.pos=[px,decoy.pos[1],pz];
-    if(Math.floor(now/900)!==Math.floor((now-50)/900))publishBotNoise(room,{sourceId:owner.id,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
+    const fakeCadence=room.loadouts.get(owner.id)?.wonderModuleId==="mimic_signal"?450:900;
+    if(Math.floor(now/fakeCadence)!==Math.floor((now-50)/fakeCadence))publishBotNoise(room,{sourceId:owner.id,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
   }
   for(const [id,drop] of room.mechDrops){
     if(drop.expiresAt<=now){room.mechDrops.delete(id);continue;}
@@ -2779,6 +2819,14 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       if(weapon.wonder?.kind==="chrono"){
         const anchor=room.chronoAnchors.get(p.id);
         if(anchor&&anchor.expiresAt>now){
+          if(room.loadouts.get(p.id)?.wonderModuleId==="residual_beacon"){
+            const origin:Vec3=[...anchor.pos] as Vec3;
+            const ids=allCombatants(room).filter(e=>e.alive&&e.id!==p.id&&
+              (room.mode==="ffa"||room.mode==="gungame"||e.team!==p.team)&&
+              Math.hypot(e.pos[0]-origin[0],e.pos[2]-origin[2])<12&&
+              hasLineOfSight(room,origin,[e.pos[0],e.pos[1]+1,e.pos[2]])).map(e=>e.id);
+            io.to(p.id).emit("message",{t:"harbingerScan",ids,durationMs:2200} as S2C);
+          }
           p.pos=clampToArena(room,anchor.pos);
           room.chronoAnchors.delete(p.id);
           io.to(room.id).emit("message",{t:"chronoRecall",playerId:p.id,pos:p.pos} as S2C);
@@ -2797,13 +2845,14 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const state = room.wonderCharges.get(key) ?? drainedWonderCharges(weapon.wonder,now);
         room.wonderCharges.set(key,state);
         if(weapon.wonder.kind==="flame"){
-          const paid=spendHellfireFuelOnShot(state,weapon.wonder,now,
+          const paid=spendHellfireFuelOnShot(state,{...weapon.wonder,rechargeMs:weapon.wonder.rechargeMs*module.rechargeMul},now,
             room.hellfireUntil.get(p.id)??0,HELLFIRE_FUEL_STEP_MS);
           if(!paid)return;
           room.wonderCharges.set(key,paid.state);
           room.hellfireUntil.set(p.id,paid.paidThrough);
         }else{
-          const next=spendWonderCharge(state,weapon.wonder,now);
+          const tunedRules={...weapon.wonder,rechargeMs:weapon.wonder.rechargeMs*module.rechargeMul};
+          const next=spendWonderCharge(state,tunedRules,now);
           if(!next)return;
           room.wonderCharges.set(key,next);
         }
@@ -2960,7 +3009,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           if(!hasLineOfSight(room,[feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
           applyDamage(room,p.id,target,eff.damage,false,weapon.id);
           if(!target.alive)continue;
-          const candidate=seismicPushPosition(feet,target.pos);
+          const candidate=seismicPushPosition(feet,target.pos,undefined,undefined,module.knockbackMul);
           if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
             target.pos=clampToArena(room,candidate);
             io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
@@ -2979,10 +3028,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           if(!wonderConeHit(msg.origin,shotDir,point,range,cosine)||!hasLineOfSight(room,msg.origin,point))continue;
           applyDamage(room,p.id,target,eff.damage,false,weapon.id);
           if(!target.alive)continue;
-          room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS);
+          room.cryoSlowUntil.set(target.id,now+CRYO_SLOW_MS*module.durationMul);
           // All players see the ice coating, not only the slowed victim.
-          io.to(room.id).emit("message",{t:"wonderFrozen",victimId:target.id,durationMs:CRYO_SLOW_MS} as S2C);
-          if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"cryo",durationMs:CRYO_SLOW_MS} as S2C);
+          io.to(room.id).emit("message",{t:"wonderFrozen",victimId:target.id,durationMs:CRYO_SLOW_MS*module.durationMul} as S2C);
+          if(!target.isBot)io.to(target.id).emit("message",{t:"equipmentStatus",effect:"cryo",durationMs:CRYO_SLOW_MS*module.durationMul} as S2C);
         }
         blastMaterialCover(room,end,2.2,eff.damage*.9,weapon.id);
         return;
@@ -3008,7 +3057,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       }
       if(weapon.wonder?.kind==="cluster"){
         const volley:ClusterVolley={id:genId("cluster"),ownerId:p.id,ownerTeam:p.team,launchedAt:now,
-          shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map)};
+          shots:clusterShots(msg.origin,shotDir,room.map.cover,room.map,loadout?.wonderModuleId)};
         room.clusterVolleys.set(volley.id,{...volley,done:new Set(),dealt:new Map()});
         io.to(room.id).emit("message",{t:"clusterVolley",volley,serverNow:now} as S2C);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,weaponId:weapon.id,attackerId:p.id,skinId:msg.skinId,suppressed:false} as S2C);
@@ -3087,7 +3136,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
                 hits.set(victim.id,count+1);
               }
               if(!room.ended)serverStormChain(room,p.id,p.team,victim,
-                STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,now,chains);
+                STORM_DIRECT_DAMAGE,Math.max(1,Math.floor(STORM_CHAIN_JUMPS*module.chainMul)),now,chains);
             }
           }else{
             serverPlaceStormMine(room,p.id,p.team,
@@ -3141,7 +3190,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           const id = genId("gravity");
           const activatesAt = now + gravityTravelMs(Math.hypot(impact[0] - msg.origin[0], impact[1] - msg.origin[1], impact[2] - msg.origin[2]));
           const radius = weapon.wonder.radius*module.radiusMul;
-          const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS;
+          const expiresAt = activatesAt + GRAVITY_WELL_DURATION_MS*module.durationMul;
           room.gravityWells.set(id, {
             ownerId: p.id, ownerTeam: p.team, weaponId: weapon.id, pos: impact,
             radius, damage: eff.damage, activatesAt, expiresAt,
@@ -4381,7 +4430,7 @@ async function handle(socket: any, msg: C2S) {
       if(room.mode==="ctf"&&(room.flags.red.carrierId===p.id||room.flags.blue.carrierId===p.id))break;
       const tuning=mechTuning(drop.moduleId),now=Date.now();
       drop.enteredBy=p.id;
-      drop.expiresAt=now+JUGGERNAUT_ACTIVE_MS;
+      drop.expiresAt=now+JUGGERNAUT_ACTIVE_MS*wonderModuleEffects("wonder_juggernaut",drop.moduleId).durationMul;
       const mech={dropId:drop.id,moduleId:drop.moduleId,armor:tuning.armor,minigunAmmo:tuning.minigunAmmo,
         secondaryAmmo:tuning.secondaryAmmo,enteredAt:now,lastPrimaryAt:0,lastSecondaryAt:0,
         spinAt:now,expiresAt:drop.expiresAt};
