@@ -35,7 +35,8 @@
         "d": 100,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "sheet_metal"
       },
       {
         "id": "west-flag-screen",
@@ -44,7 +45,8 @@
         "w": 3,
         "d": 20,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-spawn-screen--28",
@@ -53,7 +55,8 @@
         "w": 3,
         "d": 22,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-spawn-screen-28",
@@ -62,7 +65,8 @@
         "w": 3,
         "d": 22,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-rear-wing--52",
@@ -71,7 +75,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-rear-wing-52",
@@ -80,7 +85,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-shed-roof",
@@ -90,7 +96,8 @@
         "d": 34,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "sheet_metal"
       },
       {
         "id": "west-shed-wall-20--18",
@@ -99,7 +106,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-shed-wall-64--18",
@@ -108,7 +116,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-shed-wall-20-18",
@@ -117,7 +126,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-shed-wall-64-18",
@@ -126,7 +136,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-cargo-60",
@@ -135,7 +146,8 @@
         "w": 10,
         "d": 12,
         "h": 3.2,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-cargo-20",
@@ -144,7 +156,8 @@
         "w": 10,
         "d": 12,
         "h": 3.2,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-signal-deck",
@@ -162,7 +175,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-snow-break-76--70",
@@ -171,7 +185,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-snow-break-36--28",
@@ -180,7 +195,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-snow-break-76--28",
@@ -189,7 +205,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-snow-break-36-68",
@@ -198,7 +215,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-snow-break-76-68",
@@ -207,7 +225,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-service-wall-20-32",
@@ -216,7 +235,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-service-wall-60-32",
@@ -225,7 +245,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-service-wall-20-56",
@@ -234,7 +255,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-service-wall-60-56",
@@ -243,7 +265,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-service-roof-20",
@@ -253,7 +276,8 @@
         "d": 26,
         "h": 0.8,
         "kind": "cover",
-        "y": 5
+        "y": 5,
+        "material": "sheet_metal"
       },
       {
         "id": "west-service-baffle-20",
@@ -262,7 +286,8 @@
         "w": 3,
         "d": 8,
         "h": 3.8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-service-roof-60",
@@ -272,7 +297,8 @@
         "d": 26,
         "h": 0.8,
         "kind": "cover",
-        "y": 5
+        "y": 5,
+        "material": "sheet_metal"
       },
       {
         "id": "west-service-baffle-60",
@@ -281,7 +307,8 @@
         "w": 3,
         "d": 8,
         "h": 3.8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-dispatch-roof",
@@ -291,7 +318,8 @@
         "d": 100,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "sheet_metal"
       },
       {
         "id": "east-flag-screen",
@@ -300,7 +328,8 @@
         "w": 3,
         "d": 20,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-spawn-screen--28",
@@ -309,7 +338,8 @@
         "w": 3,
         "d": 22,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-spawn-screen-28",
@@ -318,7 +348,8 @@
         "w": 3,
         "d": 22,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-rear-wing--52",
@@ -327,7 +358,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-rear-wing-52",
@@ -336,7 +368,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-shed-roof",
@@ -346,7 +379,8 @@
         "d": 34,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "sheet_metal"
       },
       {
         "id": "east-shed-wall-20--18",
@@ -355,7 +389,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-shed-wall-64--18",
@@ -364,7 +399,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-shed-wall-20-18",
@@ -373,7 +409,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-shed-wall-64-18",
@@ -382,7 +419,8 @@
         "w": 24,
         "d": 2,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-cargo-60",
@@ -391,7 +429,8 @@
         "w": 10,
         "d": 12,
         "h": 3.2,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-cargo-20",
@@ -400,7 +439,8 @@
         "w": 10,
         "d": 12,
         "h": 3.2,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-signal-deck",
@@ -418,7 +458,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-snow-break-76--70",
@@ -427,7 +468,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-snow-break-36--28",
@@ -436,7 +478,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-snow-break-76--28",
@@ -445,7 +488,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-snow-break-36-68",
@@ -454,7 +498,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-snow-break-76-68",
@@ -463,7 +508,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-service-wall-20-32",
@@ -472,7 +518,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-service-wall-60-32",
@@ -481,7 +528,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-service-wall-20-56",
@@ -490,7 +538,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-service-wall-60-56",
@@ -499,7 +548,8 @@
         "w": 24,
         "d": 2,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-service-roof-20",
@@ -509,7 +559,8 @@
         "d": 26,
         "h": 0.8,
         "kind": "cover",
-        "y": 5
+        "y": 5,
+        "material": "sheet_metal"
       },
       {
         "id": "east-service-baffle-20",
@@ -518,7 +569,8 @@
         "w": 3,
         "d": 8,
         "h": 3.8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-service-roof-60",
@@ -528,7 +580,8 @@
         "d": 26,
         "h": 0.8,
         "kind": "cover",
-        "y": 5
+        "y": 5,
+        "material": "sheet_metal"
       },
       {
         "id": "east-service-baffle-60",
@@ -537,7 +590,8 @@
         "w": 3,
         "d": 8,
         "h": 3.8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "platform-canopy--80",
@@ -547,7 +601,8 @@
         "d": 18,
         "h": 0.8,
         "kind": "cover",
-        "y": 7.5
+        "y": 7.5,
+        "material": "sheet_metal"
       },
       {
         "id": "platform-column--80",
@@ -556,7 +611,8 @@
         "w": 2,
         "d": 2,
         "h": 7.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "platform-canopy--40",
@@ -566,7 +622,8 @@
         "d": 18,
         "h": 0.8,
         "kind": "cover",
-        "y": 7.5
+        "y": 7.5,
+        "material": "sheet_metal"
       },
       {
         "id": "platform-column--40",
@@ -575,7 +632,8 @@
         "w": 2,
         "d": 2,
         "h": 7.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "platform-canopy-0",
@@ -585,7 +643,8 @@
         "d": 18,
         "h": 0.8,
         "kind": "cover",
-        "y": 7.5
+        "y": 7.5,
+        "material": "sheet_metal"
       },
       {
         "id": "platform-column-0",
@@ -594,7 +653,8 @@
         "w": 2,
         "d": 2,
         "h": 7.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "platform-canopy-40",
@@ -604,7 +664,8 @@
         "d": 18,
         "h": 0.8,
         "kind": "cover",
-        "y": 7.5
+        "y": 7.5,
+        "material": "sheet_metal"
       },
       {
         "id": "platform-column-40",
@@ -613,7 +674,8 @@
         "w": 2,
         "d": 2,
         "h": 7.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "platform-canopy-80",
@@ -623,7 +685,8 @@
         "d": 18,
         "h": 0.8,
         "kind": "cover",
-        "y": 7.5
+        "y": 7.5,
+        "material": "sheet_metal"
       },
       {
         "id": "platform-column-80",
@@ -632,7 +695,8 @@
         "w": 2,
         "d": 2,
         "h": 7.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "center-windbreak--70",
@@ -641,7 +705,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "center-windbreak--28",
@@ -650,7 +715,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "center-windbreak-68",
@@ -659,7 +725,8 @@
         "w": 4,
         "d": 8,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "rail--49.5",
@@ -947,7 +1014,8 @@
         "w": 4,
         "d": 20,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "rail-windbreak-0",
@@ -956,7 +1024,8 @@
         "w": 4,
         "d": 20,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "rail-windbreak-80",
@@ -965,7 +1034,8 @@
         "w": 4,
         "d": 20,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "rail-cargo--40",
@@ -974,7 +1044,8 @@
         "w": 4,
         "d": 10,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "rail-cargo-40",
@@ -983,7 +1054,8 @@
         "w": 4,
         "d": 10,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "service-signal--40",
@@ -992,7 +1064,8 @@
         "w": 4,
         "d": 12,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "service-signal-0",
@@ -1001,7 +1074,8 @@
         "w": 4,
         "d": 12,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "service-signal-40",
@@ -1010,7 +1084,8 @@
         "w": 4,
         "d": 12,
         "h": 5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "hall-north-screen",
@@ -1019,7 +1094,8 @@
         "w": 5,
         "d": 18,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "hall-south-screen",
@@ -1028,7 +1104,8 @@
         "w": 5,
         "d": 12,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "hall-cargo",
@@ -1037,7 +1114,8 @@
         "w": 6,
         "d": 6,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "gallery-west-screen",
@@ -1046,7 +1124,8 @@
         "w": 4,
         "d": 14,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "gallery-east-screen",
@@ -1055,7 +1134,8 @@
         "w": 4,
         "d": 14,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "gallery-west-crates",
@@ -1064,7 +1144,8 @@
         "w": 6,
         "d": 4,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "gallery-east-crates",
@@ -1073,7 +1154,8 @@
         "w": 6,
         "d": 4,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "gallery-rear-screen",
@@ -1082,7 +1164,8 @@
         "w": 4,
         "d": 8,
         "h": 4.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "hatch-jamb-35.5",
@@ -1091,7 +1174,8 @@
         "w": 3,
         "d": 7,
         "h": 3.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hatch-jamb-52.5",
@@ -1100,7 +1184,8 @@
         "w": 3,
         "d": 7,
         "h": 3.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       }
     ],
     "hazards": [
