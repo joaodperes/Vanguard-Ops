@@ -14,7 +14,7 @@ describe("Throwing Knives replacement",()=>{
     expect(melee.id).not.toBe(tactical.id);
     expect(melee.stats.range).toBe(THROWING_KNIFE_RANGE);
     expect(melee.stats.magSize).toBe(THROWING_KNIFE_MAX_CHARGES);
-    expect(THROWING_KNIFE_MAX_CHARGES).toBe(2);
+    expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
     expect(tactical.type).toBe("knife");
     expect(tactical.charges).toBe(1);
     expect(tactical.radius).toBe(TACTICAL_KNIFE_RANGE);
@@ -32,45 +32,38 @@ describe("Throwing Knives replacement",()=>{
     expect(knife.unlockLevel).toBe(16);
     expect(knife.unlockCost).toBe(900);
     expect(knife.special?.kind).toBe("throwing_knife");
-    expect(knife.stats.magSize).toBe(2);
+    expect(knife.stats.magSize).toBe(THROWING_KNIFE_MAX_CHARGES);
     expect(knife.stats.reloadTime).toBe(0);
     expect(knife.stats.range).toBe(THROWING_KNIFE_RANGE);
     expect(knife.stats.damage).toBeGreaterThanOrEqual(100);
     expect(knife.attachments).toEqual([]);
   });
 
-  test("at most two throws; no reload, no charge regeneration in ordinary modes",()=>{
+  test("one throw per life, no regeneration until death in ordinary modes",()=>{
     const initial=fullThrowingKnives();
     expect(initial.charges).toBe(THROWING_KNIFE_MAX_CHARGES);
-    const once=spendThrowingKnife(initial,1000,false)!;
-    const twice=spendThrowingKnife(once,1700,false)!;
-    expect(once.charges).toBe(1);
-    expect(twice.charges).toBe(0);
-    expect(spendThrowingKnife(twice,1000000,false)).toBeNull();
-    expect(tickThrowingKnives(twice,1000000,false)).toEqual(twice);
-    expect(throwingKnifeRemainingMs(twice,1000000,false)).toBe(0);
-    // Death replenishes the entire shared reserve; swapping does not.
-    expect(fullThrowingKnives().charges).toBe(2);
+    const spent=spendThrowingKnife(initial,1000,false)!;
+    expect(spent.charges).toBe(0);
+    expect(spendThrowingKnife(spent,1000000,false)).toBeNull();
+    expect(tickThrowingKnives(spent,1000000,false)).toEqual(spent);
+    expect(throwingKnifeRemainingMs(spent,1000000,false)).toBe(0);
+    // A new life replenishes the reserve; merely waiting or swapping does not.
+    expect(fullThrowingKnives()).toEqual(initial);
   });
 
-  test("Gun Game recovers one knife per cooldown, even when fully exhausted",()=>{
+  test("Gun Game restores the spent knife after the cooldown expires",()=>{
     const t=1000;
-    const once=spendThrowingKnife(fullThrowingKnives(),t,true)!;
-    const empty=spendThrowingKnife(once,t+600,true)!;
-    expect(once.nextAt).toBe(t+THROWING_KNIFE_GUNGAME_RECHARGE_MS);
-    expect(empty.nextAt).toBe(once.nextAt);
-    expect(spendThrowingKnife(empty,t+1000,true)).toBeNull();
-    expect(throwingKnifeRemainingMs(empty,t+4500,true)).toBe(500);
-    expect(tickThrowingKnives(empty,t+4999,true).charges).toBe(0);
-    const restored=tickThrowingKnives(empty,t+5000,true);
-    expect(restored.charges).toBe(1);
-    expect(restored.nextAt).toBe(t+10000);
-    const complete=tickThrowingKnives(restored,t+10000,true);
-    expect(complete).toEqual(fullThrowingKnives());
-    expect(tickThrowingKnives(empty,t+10000,true)).toEqual(fullThrowingKnives());
+    const spent=spendThrowingKnife(fullThrowingKnives(),t,true)!;
+    expect(spent.charges).toBe(0);
+    expect(spent.nextAt).toBe(t+THROWING_KNIFE_GUNGAME_RECHARGE_MS);
+    expect(spendThrowingKnife(spent,t+1000,true)).toBeNull();
+    expect(throwingKnifeRemainingMs(spent,t+4500,true)).toBe(500);
+    expect(tickThrowingKnives(spent,t+4999,true).charges).toBe(0);
+    expect(tickThrowingKnives(spent,t+5000,true)).toEqual(fullThrowingKnives());
+    expect(tickThrowingKnives(spent,t+10000,true)).toEqual(fullThrowingKnives());
   });
 
-  test("a newly spent charge joins an existing Gun Game recharge timer",()=>{
+  test("Gun Game starts another recharge timer after a restored knife is thrown",()=>{
     const t=3000;
     const once=spendThrowingKnife(fullThrowingKnives(),t,true)!;
     const restored=tickThrowingKnives(once,t+5000,true);

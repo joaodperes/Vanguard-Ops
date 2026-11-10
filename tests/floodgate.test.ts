@@ -155,7 +155,10 @@ describe("Floodgate 16v16 CTF",()=>{
       expect(new Set(intents.filter(i=>i.role==="attack").map(i=>i.goal[2])).size).toBe(3);
       for(const intent of intents){
         expect(intent.goal[1]).toBe(0);
-        expect(botPositionEmbedded(collision,intent.goal)).toBe(false);
+        if(botPositionEmbedded(collision,intent.goal)) {
+          const hit=collision.find(c=>botPositionEmbedded([c],intent.goal));
+          throw new Error(`Embedded ${team} ${intent.role} goal ${JSON.stringify(intent.goal)} in ${JSON.stringify(hit)}`);
+        }
         expect(ctfStairWaypoint(intent.goal,[0,0,0],map.id)).toEqual(intent.goal);
       }
       const flags=createCtfFlags(map.id),enemy=team==="red"?"blue":"red";
