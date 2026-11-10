@@ -944,6 +944,10 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
     akimbo:p.weaponId==="pistol_bastion" && loadout?.secondaryWeaponId===p.weaponId &&
       loadout.secondaryAttachments?.grip==="grip_akimbo",
+    akimboSightId:p.weaponId==="pistol_bastion"&&loadout?.secondaryAttachments?.grip==="grip_akimbo"
+      ?loadout.secondaryAttachments.sight??undefined:undefined,
+    akimboBarrelId:p.weaponId==="pistol_bastion"&&loadout?.secondaryAttachments?.grip==="grip_akimbo"
+      ?loadout.secondaryAttachments.barrel??undefined:undefined,
     charmId:currentCharm??"none",nameplateId:p.nameplateId,
     perkId:loadout?.perkId,
     bossMaxHealth:p.bossMaxHealth,
