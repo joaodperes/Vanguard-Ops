@@ -87,6 +87,17 @@ export const SHOP_CATEGORIES = [
   {id:"wonderKillEffect",label:"Wonder kill effects"},
 ] as const;
 export type ShopCategory = (typeof SHOP_CATEGORIES)[number]["id"];
+/** Only display categories with stock in the selected shop. */
+export function shopCategoriesForCurrency(currency:ShopCurrency){
+  return SHOP_CATEGORIES.filter(group=>group.id==="all"||
+    SHOP_ITEMS.some(item=>item.currency===currency&&item.kind===group.id));
+}
+export function shopCategoryLabel(currency:ShopCurrency,category:ShopCategory):string{
+  if(currency==="wonder")return ({
+    all:"All",wonderModule:"Modules",wonderSkin:"Finishes",wonderKillEffect:"Kill effects",
+  } as Partial<Record<ShopCategory,string>>)[category]??category;
+  return SHOP_CATEGORIES.find(group=>group.id===category)?.label??category;
+}
 export function shopItemsForCategory(currency:ShopCurrency,category:ShopCategory):ShopItem[]{
   return SHOP_ITEMS.filter(item=>item.currency===currency&&(category==="all"||item.kind===category));
 }
