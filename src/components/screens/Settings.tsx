@@ -142,13 +142,15 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
           </div>
         </Section>
 
-        {/* Master scales footsteps and sound effects independently. */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Louder baseline with peak protection. Master scales footsteps and combat effects together.">
+        {/* Independent channels; master is applied once over all sounds. */}
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Balance sound types independently. Master controls every channel.">
           <div className="space-y-5">
             {([
               { key: "masterVolume", label: "Master Volume", help: "Overall game volume" },
-              { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and nearby players" },
-              { key: "fxVolume", label: "Sound Effects", help: "Gunfire, explosions, hits and UI sounds" },
+              { key: "weaponVolume", label: "Weapons", help: "Gunfire, reloads, melee and weapon handling" },
+              { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and other players" },
+              { key: "combatVolume", label: "Combat Feedback", help: "Hit markers, eliminations, damage and deaths" },
+              { key: "uiVolume", label: "UI & Announcements", help: "Countdown, match and objective cues" },
             ] as const).map(({ key, label, help }) => (
               <div key={key}>
                 <div className="flex justify-between gap-3 text-xs mb-1">
