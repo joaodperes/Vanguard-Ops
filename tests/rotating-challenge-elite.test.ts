@@ -9,7 +9,12 @@ const pool = [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL];
 
 describe("rotating challenge Elite fairness", () => {
   test("grind and opponent-dependent objectives never promote", () => {
-    const forbidden = ["ch_win_3", "ch_play_5", "ch_denials_5", "wk_wins_10"];
+    const forbidden = [
+      "ch_win_3", "ch_play_5", "ch_denials_5", "wk_wins_10",
+      "ch_ctf_captures_2", "ch_ctf_returns_2", "ch_ctf_defense_3",
+      "wk_ctf_captures_6", "wk_ctf_returns_8", "wk_ctf_defense_12",
+      "wk_hard_waves_8",
+    ];
     for (const id of forbidden) {
       const challenge = pool.find(q => q.id === id)!;
       expect(canPromoteChallengeToElite(challenge)).toBe(false);
