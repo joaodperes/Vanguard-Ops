@@ -14,7 +14,7 @@ import { usesWonderCharges } from "./game-data";
 import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
 import { parseWeaponSetups } from "./weapon-setups";
-import { wonderModuleEffects, validWonderModule, wonderFinishById, wonderKillEffectById } from "./wonder-expansion";
+import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderKillEffect } from "./wonder-expansion";
 import { wonderConeHit, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
@@ -3994,8 +3994,8 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
   const setup=parseWeaponSetups(player.loadout?.weaponSetups)[wonderId];
   const keys=new Set(purchases.map(p=>p.itemKey));
   const wonderModuleId=setup?.moduleId&&validWonderModule(wonderId,setup.moduleId)&&keys.has("module_"+setup.moduleId)?setup.moduleId:"";
-  const wonderSkinId=setup?.skin&&wonderFinishById(setup.skin)&&keys.has(setup.skin+"_"+wonderId)?setup.skin:"";
-  const wonderKillEffectId=setup?.killEffectId&&wonderKillEffectById(setup.killEffectId)&&keys.has(setup.killEffectId+"_"+wonderId)?setup.killEffectId:"";
+  const wonderSkinId=setup?.skin&&validWonderFinish(wonderId,setup.skin)&&keys.has(setup.skin+"_"+wonderId)?setup.skin:"";
+  const wonderKillEffectId=setup?.killEffectId&&validWonderKillEffect(wonderId,setup.killEffectId)&&keys.has(setup.killEffectId+"_"+wonderId)?setup.killEffectId:"";
   // Match sockets cannot supply cosmetic IDs they did not purchase.
   return {
     wonderModuleId,wonderSkinId,wonderKillEffectId,
