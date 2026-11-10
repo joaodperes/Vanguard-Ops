@@ -287,7 +287,7 @@ function RangeSession({ profile, requestedId, onExit }: {
                       </select>
                     </div>
                   ))}
-                  {!primaryIsWonder && weaponAttachmentSlots(weapon).length === 0 && <p className="text-xs text-white/40">No compatible attachments.</p>}
+                  {(weaponField!=="weaponId" || !primaryIsWonder) && weaponAttachmentSlots(weapon).length === 0 && <p className="text-xs text-white/40">No compatible attachments.</p>}
                 </div>;
               })}
             </div>
