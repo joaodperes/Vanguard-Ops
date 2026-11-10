@@ -47,7 +47,8 @@
         "d": 40,
         "h": 5.8,
         "kind": "cover",
-        "label": "West hydraulic press line"
+        "label": "West hydraulic press line",
+        "material": "reinforced"
       },
       {
         "id": "press-line-east",
@@ -57,7 +58,8 @@
         "d": 40,
         "h": 5.8,
         "kind": "cover",
-        "label": "East hydraulic press line"
+        "label": "East hydraulic press line",
+        "material": "reinforced"
       },
       {
         "id": "assembly-divider-north",
@@ -67,7 +69,8 @@
         "d": 14,
         "h": 9,
         "kind": "cover",
-        "label": "North assembly divider"
+        "label": "North assembly divider",
+        "material": "reinforced"
       },
       {
         "id": "assembly-divider-north-r",
@@ -77,7 +80,8 @@
         "d": 14,
         "h": 9,
         "kind": "cover",
-        "label": "North assembly divider"
+        "label": "North assembly divider",
+        "material": "reinforced"
       },
       {
         "id": "conveyor-west",
@@ -87,7 +91,8 @@
         "d": 4,
         "h": 1.7,
         "kind": "cover",
-        "label": "West conveyor"
+        "label": "West conveyor",
+        "material": "reinforced"
       },
       {
         "id": "conveyor-east",
@@ -97,7 +102,8 @@
         "d": 4,
         "h": 1.7,
         "kind": "cover",
-        "label": "East conveyor"
+        "label": "East conveyor",
+        "material": "reinforced"
       },
       {
         "id": "furnace-housing",
@@ -107,7 +113,8 @@
         "d": 16,
         "h": 7.8,
         "kind": "cover",
-        "label": "Blast furnace casing"
+        "label": "Blast furnace casing",
+        "material": "reinforced"
       },
       {
         "id": "furnace-exhaust",
@@ -117,7 +124,8 @@
         "d": 10,
         "h": 5,
         "kind": "cover",
-        "label": "Exhaust duct"
+        "label": "Exhaust duct",
+        "material": "reinforced"
       },
       {
         "id": "forge-crates",
@@ -127,7 +135,8 @@
         "d": 8,
         "h": 2.8,
         "kind": "cover",
-        "label": "Forge inventory stacks"
+        "label": "Forge inventory stacks",
+        "material": "light_cover"
       },
       {
         "id": "forge-baffle",
@@ -137,7 +146,8 @@
         "d": 32,
         "h": 6.5,
         "kind": "cover",
-        "label": "Foundry heat baffle"
+        "label": "Foundry heat baffle",
+        "material": "sheet_metal"
       },
       {
         "id": "east-racks",
@@ -147,7 +157,8 @@
         "d": 8,
         "h": 5.5,
         "kind": "cover",
-        "label": "Parts storage rack"
+        "label": "Parts storage rack",
+        "material": "reinforced"
       },
       {
         "id": "east-racks-south",
@@ -157,7 +168,8 @@
         "d": 8,
         "h": 5.5,
         "kind": "cover",
-        "label": "Parts storage rack"
+        "label": "Parts storage rack",
+        "material": "reinforced"
       },
       {
         "id": "east-loading-wall",
@@ -167,7 +179,8 @@
         "d": 25,
         "h": 8,
         "kind": "cover",
-        "label": "Loading dock partition"
+        "label": "Loading dock partition",
+        "material": "reinforced"
       },
       {
         "id": "east-tool-cabin",
@@ -177,7 +190,8 @@
         "d": 15,
         "h": 4.2,
         "kind": "cover",
-        "label": "Tool cage"
+        "label": "Tool cage",
+        "material": "reinforced"
       },
       {
         "id": "north-sorter",
@@ -187,7 +201,8 @@
         "d": 8,
         "h": 3.3,
         "kind": "cover",
-        "label": "Freight sorting machine"
+        "label": "Freight sorting machine",
+        "material": "reinforced"
       },
       {
         "id": "north-sorter-r",
@@ -197,7 +212,8 @@
         "d": 8,
         "h": 3.3,
         "kind": "cover",
-        "label": "Freight sorting machine"
+        "label": "Freight sorting machine",
+        "material": "reinforced"
       },
       {
         "id": "north-gantry-brace",
@@ -207,7 +223,8 @@
         "d": 24,
         "h": 9,
         "kind": "cover",
-        "label": "Overhead hoist support"
+        "label": "Overhead hoist support",
+        "material": "reinforced"
       },
       {
         "id": "south-generator",
@@ -217,7 +234,8 @@
         "d": 16,
         "h": 4.6,
         "kind": "cover",
-        "label": "Backup generator"
+        "label": "Backup generator",
+        "material": "reinforced"
       },
       {
         "id": "south-generator-r",
@@ -227,7 +245,8 @@
         "d": 16,
         "h": 4.6,
         "kind": "cover",
-        "label": "Cooling skid"
+        "label": "Cooling skid",
+        "material": "reinforced"
       },
       {
         "id": "south-service-divider",
@@ -237,7 +256,8 @@
         "d": 18,
         "h": 7,
         "kind": "cover",
-        "label": "Maintenance partition"
+        "label": "Maintenance partition",
+        "material": "reinforced"
       },
       {
         "id": "paint-booth-north",
@@ -247,7 +267,8 @@
         "d": 3,
         "h": 8,
         "kind": "cover",
-        "label": "Spray chamber wall"
+        "label": "Spray chamber wall",
+        "material": "sheet_metal"
       },
       {
         "id": "paint-booth-east",
@@ -257,7 +278,8 @@
         "d": 15,
         "h": 8,
         "kind": "cover",
-        "label": "Spray chamber return"
+        "label": "Spray chamber return",
+        "material": "sheet_metal"
       },
       {
         "id": "paint-booth-south",
@@ -267,7 +289,8 @@
         "d": 3,
         "h": 8,
         "kind": "cover",
-        "label": "Spray chamber wall"
+        "label": "Spray chamber wall",
+        "material": "sheet_metal"
       },
       {
         "id": "central-gantry",
@@ -441,7 +464,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "steel-crate-2",
@@ -451,7 +475,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "steel-crate-3",
@@ -461,7 +486,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "steel-crate-4",
@@ -471,7 +497,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "steel-crate-5",
@@ -481,7 +508,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "steel-crate-6",
@@ -491,7 +519,8 @@
         "d": 6,
         "h": 2,
         "kind": "cover",
-        "label": "Reinforced supply palette"
+        "label": "Reinforced supply palette",
+        "material": "reinforced"
       },
       {
         "id": "shipping-security-frame-west",
@@ -501,7 +530,8 @@
         "d": 2,
         "h": 8,
         "kind": "cover",
-        "label": "Freight blast-door west frame"
+        "label": "Freight blast-door west frame",
+        "material": "reinforced"
       },
       {
         "id": "shipping-security-frame-east",
@@ -511,7 +541,8 @@
         "d": 2,
         "h": 8,
         "kind": "cover",
-        "label": "Freight blast-door east frame"
+        "label": "Freight blast-door east frame",
+        "material": "reinforced"
       },
       {
         "id": "freight-security-left-wing",
@@ -521,7 +552,8 @@
         "d": 2,
         "h": 8,
         "kind": "cover",
-        "label": "Freight hall security partition; left"
+        "label": "Freight hall security partition; left",
+        "material": "reinforced"
       },
       {
         "id": "freight-security-right-wing",
@@ -531,7 +563,8 @@
         "d": 2,
         "h": 8,
         "kind": "cover",
-        "label": "Freight hall security partition; right"
+        "label": "Freight hall security partition; right",
+        "material": "reinforced"
       }
     ],
     "hazards": [
