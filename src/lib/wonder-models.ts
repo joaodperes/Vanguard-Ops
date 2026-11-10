@@ -1,11 +1,17 @@
 import * as THREE from "three";
 import type {Vec3} from "./game-protocol";
 export interface WonderWorldVisual {group:THREE.Group;dispose:()=>void;}
+/** Shared Juggernaut chassis palette for the deployable suit and Survival bosses. */
+export const JUGGERNAUT_VISUAL_PALETTE = {
+ armor: 0x344758,
+ shadow: 0x111e2e,
+ visor: 0x42bfee,
+} as const;
 export function wonderMechModel():WonderWorldVisual{
  const group=new THREE.Group();
- const armor=new THREE.MeshStandardMaterial({color:0x344758,metalness:.72,roughness:.3});
- const shadow=new THREE.MeshStandardMaterial({color:0x111e2e,metalness:.52,roughness:.32});
- const glow=new THREE.MeshStandardMaterial({color:0x42bfee,metalness:.42,emissive:0x137dd1,emissiveIntensity:.55});
+ const armor=new THREE.MeshStandardMaterial({color:JUGGERNAUT_VISUAL_PALETTE.armor,metalness:.72,roughness:.3});
+ const shadow=new THREE.MeshStandardMaterial({color:JUGGERNAUT_VISUAL_PALETTE.shadow,metalness:.52,roughness:.32});
+ const glow=new THREE.MeshStandardMaterial({color:JUGGERNAUT_VISUAL_PALETTE.visor,metalness:.42,emissive:0x137dd1,emissiveIntensity:.55});
  const block=(w:number,h:number,d:number,x:number,y:number,z:number,mat:THREE.Material)=>{
   const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);group.add(m);return m;};
  block(1.8,1.8,1.1,0,2,0,armor);
