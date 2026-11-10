@@ -189,7 +189,7 @@ export function firstPersonPresentationScale(id: string, category: string): numb
   if (!["assault","dmr","sniper","lmg","shotgun","launcher"].includes(category))
     return FIRST_PERSON_COMPACT_SCALE;
   const p=WEAPON_VISUALS[id];
-  if (!p || id==="wonder_turret") return FIRST_PERSON_COMPACT_SCALE;
+  if (!p || id==="wonder_turret" || id==="wonder_harbinger") return FIRST_PERSON_COMPACT_SCALE;
   if(p.magazine==="rocket"||category==="launcher")return WORLD_WEAPON_VISUAL_SCALE;
   const length=proceduralWeaponOverallLength(id);
   // The tiny experimental emitters in rifle/DMR/shotgun classes can be
@@ -298,16 +298,21 @@ export function buildFirstPersonWeapon(
     }
     return -.25;
   }
-  if (id === "wonder_turret") {
+  if (id === "wonder_turret" || id === "wonder_harbinger") {
     const body = new THREE.Mesh(new THREE.BoxGeometry(.19,.11,.32), bodyMat);
     add(body,0,-.07,-.12);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(.10,.16,.11),darkMat);
     add(grip,0,-.19,-.03);
     // Unskinned utilitarian remote; only a plain status stripe is visible.
-    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),new THREE.MeshBasicMaterial({color:0x6b8190}));
+    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),new THREE.MeshBasicMaterial({color:id==="wonder_harbinger"?0x4de1c4:0x6b8190}));
     add(indicator,0,.0,-.13);
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.21,8),darkMat);
     add(antenna,.08,.045,-.23);
+    if(id==="wonder_harbinger"){
+      const scanner=new THREE.Mesh(new THREE.TorusGeometry(.063,.011,8,22),new THREE.MeshBasicMaterial({color:0x4de1c4}));
+      scanner.rotation.x=Math.PI/2;add(scanner,0,.03,-.19);
+      const lens=new THREE.Mesh(new THREE.SphereGeometry(.038,10,8),new THREE.MeshBasicMaterial({color:0x9ffff1}));add(lens,0,.04,-.19);
+    }
     return -.3;
   }
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
@@ -582,7 +587,7 @@ export function buildFirstPersonWeapon(
   if(id.startsWith("wonder_")){
     const colours:Record<string,number>={
       wonder_singularity:0x546078,wonder_corrosion:0x46643f,
-      wonder_turret:0x687782,wonder_deadlock:0x695b65,
+      wonder_turret:0x687782,wonder_harbinger:0x4de1c4,wonder_deadlock:0x695b65,
       wonder_hellfire:0xff6c1c,wonder_stormweaver:0x4defff,
       wonder_bogfather:0x8dcc31,
     };
