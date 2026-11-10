@@ -3,7 +3,7 @@
  * These detailed meshes replace the previously-visible anonymous stone AABBs.
  */
 import * as THREE from "three";
-import {castleFixtures,type CastleProp,type CastleFixture} from "./castle-scenery";
+import {castleFixtures,castleBallisticId,castleBallisticMaterial,type CastleProp,type CastleFixture} from "./castle-scenery";
 const mat=(color:number,metal=0,emissive=0)=>new THREE.MeshStandardMaterial({
   color,roughness:.82,metalness:metal,emissive,emissiveIntensity:emissive?.28:0});
 const wood=mat(0x95663f),darkWood=mat(0x523927),iron=mat(0x565b5a,.64),
@@ -253,9 +253,12 @@ function roomIdentity(g:THREE.Group,p:CastleProp):void {
 }
 export function buildCastleInterior(g:THREE.Group,p:CastleProp):void{
   roomIdentity(g,p);
-  for(const fixture of castleFixtures(p)){
+  for(const [index,fixture] of castleFixtures(p).entries()){
     const group=new THREE.Group();
     group.position.set(fixture.x,0,fixture.z);
+    // One authored fixture collider corresponds to all of its visual pieces.
+    if(castleBallisticMaterial(p,7+index))
+      group.userData.ballisticId=castleBallisticId(p,7+index);
     visibleFixture(group,fixture);
     g.add(group);
   }
