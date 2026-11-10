@@ -35,7 +35,8 @@
         "d": 3,
         "h": 1.35,
         "kind": "cover",
-        "label": "Vault counter"
+        "label": "Vault counter",
+        "material": "light_cover"
       },
       {
         "id": "generator",
@@ -45,7 +46,8 @@
         "d": 4,
         "h": 2.6,
         "kind": "cover",
-        "label": "Power generator"
+        "label": "Power generator",
+        "material": "reinforced"
       },
       {
         "id": "security-console",
