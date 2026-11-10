@@ -1,4 +1,4 @@
-import { WONDER_MODULES, WONDER_FINISHES, WONDER_KILL_EFFECTS } from "./wonder-expansion";
+import { WONDER_MODULES, wonderFinishesFor, wonderKillEffectsFor } from "./wonder-expansion";
 export type ShopCurrency = "credits" | "career" | "wonder";
 export type ShopKind = "weaponSkin" | "playerSkin" | "reticle" | "charm" | "nameplate" | "wonderModule" | "wonderSkin" | "wonderKillEffect";
 export interface ShopItem {
@@ -8,9 +8,9 @@ export interface ShopItem {
 
 const WONDER_SHOP_ITEMS:ShopItem[]=[
  ...WONDER_MODULES.map(m=>({id:"module_"+m.id,name:m.name,description:m.description,currency:"wonder" as const,cost:m.cost,kind:"wonderModule" as const,wonderWeaponId:m.wonderWeaponId,moduleId:m.id})),
- ...["wonder_singularity","wonder_corrosion","wonder_turret","wonder_deadlock","wonder_hellfire","wonder_stormweaver","wonder_cluster","wonder_riot_shield","wonder_phasebreaker","wonder_chrono","wonder_seismic","wonder_phantom","wonder_whiteout","wonder_ripper","wonder_juggernaut"].flatMap(wonderWeaponId=>[
-   ...WONDER_FINISHES.map(f=>({id:f.id+"_"+wonderWeaponId,name:f.name,description:f.description,currency:"wonder" as const,cost:f.cost,kind:"wonderSkin" as const,skinId:f.id,wonderWeaponId})),
-   ...WONDER_KILL_EFFECTS.map(e=>({id:e.id+"_"+wonderWeaponId,name:e.name,description:e.description,currency:"wonder" as const,cost:e.cost,kind:"wonderKillEffect" as const,cosmeticId:e.id,wonderWeaponId})),
+ ...["wonder_singularity","wonder_corrosion","wonder_turret","wonder_deadlock","wonder_hellfire","wonder_stormweaver","wonder_cluster","wonder_riot_shield","wonder_phasebreaker","wonder_chrono","wonder_seismic","wonder_phantom","wonder_whiteout","wonder_ripper","wonder_juggernaut","wonder_harbinger"].flatMap(wonderWeaponId=>[
+   ...wonderFinishesFor(wonderWeaponId).map(f=>({id:f.id+"_"+wonderWeaponId,name:f.name,description:f.description,currency:"wonder" as const,cost:f.cost,kind:"wonderSkin" as const,skinId:f.id,wonderWeaponId})),
+   ...wonderKillEffectsFor(wonderWeaponId).map(e=>({id:e.id+"_"+wonderWeaponId,name:e.name,description:e.description,currency:"wonder" as const,cost:e.cost,kind:"wonderKillEffect" as const,cosmeticId:e.id,wonderWeaponId})),
  ]),
 ];
 /** Server-authoritative fixed pricing. Existing aim settings remain free. */
