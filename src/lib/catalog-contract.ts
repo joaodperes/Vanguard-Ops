@@ -135,6 +135,9 @@ export const rotatingChallenge = z.strictObject({
   id, metric: rotatingMetric, goal: pos, rewardXp: count, rewardCredits: count,
   title: label, description: label, icon: label,
   category: z.enum(["daily", "weekly", "elite"]).optional(),
+  // Optional eligibility and curated target for period-based Elite promotions.
+  eliteEligible: z.boolean().optional(),
+  eliteGoal: pos.int().optional(),
 });
 export const achievement = z.strictObject({
   id, metric: achievementMetric, goal: pos, rewardXp: count, rewardCredits: count,

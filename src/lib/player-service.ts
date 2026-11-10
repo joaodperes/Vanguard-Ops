@@ -34,7 +34,9 @@ import {
   DAILY_ELITE_CHANCE,
   WEEKLY_ELITE_CHANCE,
   shouldPromoteToElite,
+  canPromoteChallengeToElite,
   promoteChallengeToElite,
+  nextChallengeProgress,
   type ChallengeMetric,
   type ChallengeDef,
   type WeaponChallengeMetric,
@@ -775,7 +777,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     const existing = await db.dailyChallenge.findUnique({
       where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey } },
     });
-    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const newProgress = nextChallengeProgress(ch, existing?.progress ?? 0, delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
       id: ch.id, kind: isElite ? "elite" : "daily", title: ch.title, description: ch.description,
@@ -819,7 +821,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     const existing = await db.dailyChallenge.findUnique({
       where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey: weekKey } },
     });
-    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const newProgress = nextChallengeProgress(ch, existing?.progress ?? 0, delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
       id: ch.id, kind: isElite ? "elite" : "weekly", title: ch.title, description: ch.description,
@@ -1262,7 +1264,7 @@ export interface WeeklyChallengeView {
 function effectiveDailyChallenges(playerKey: string, dayKey: string): ChallengeDef[] {
   const base = dailyChallengeSet();
   return base.map((c) =>
-    shouldPromoteToElite(playerKey, dayKey, c.id, DAILY_ELITE_CHANCE)
+    canPromoteChallengeToElite(c) && shouldPromoteToElite(playerKey, dayKey, c.id, DAILY_ELITE_CHANCE)
       ? promoteChallengeToElite(c)
       : c,
   );
@@ -1273,7 +1275,7 @@ function effectiveDailyChallenges(playerKey: string, dayKey: string): ChallengeD
 function effectiveWeeklyChallenges(playerKey: string, weekKey: string): ChallengeDef[] {
   const base = weeklyChallengeSet();
   return base.map((c) =>
-    shouldPromoteToElite(playerKey, weekKey, c.id, WEEKLY_ELITE_CHANCE)
+    canPromoteChallengeToElite(c) && shouldPromoteToElite(playerKey, weekKey, c.id, WEEKLY_ELITE_CHANCE)
       ? promoteChallengeToElite(c)
       : c,
   );

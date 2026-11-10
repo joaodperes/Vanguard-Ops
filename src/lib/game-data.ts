@@ -485,16 +485,14 @@ export type ChallengeDef = import("./catalog-contract").RotatingChallengeCatalog
 
 export const DAILY_CHALLENGE_POOL: ChallengeDef[] = dailyChallengesData as unknown as ChallengeDef[];
 
-// Deterministic daily rotation: 3 challenges per day, rotating through the pool.
+// Deterministic daily rotation: 3 challenges per UTC day, matching the DB day key.
 export function dailyChallengeSet(date = new Date()): ChallengeDef[] {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
+  const utcDate = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+  const dayOfYear = Math.floor((utcDate - start) / 86400000) + 1;
   const pool = DAILY_CHALLENGE_POOL;
   const n = pool.length;
-  // 3 challenges with offset based on day
   const indices = [0, 1, 2].map((i) => (dayOfYear * 3 + i) % n);
-  // de-dupe just in case pool < 3
   const unique = Array.from(new Set(indices));
   while (unique.length < 3) {
     for (let i = 0; i < n && unique.length < 3; i++) if (!unique.includes(i)) unique.push(i);
@@ -509,14 +507,20 @@ export function dailyChallengeSet(date = new Date()): ChallengeDef[] {
 // ============================================================================
 export const WEEKLY_CHALLENGE_POOL: ChallengeDef[] = weeklyChallengesData as unknown as ChallengeDef[];
 
-// Deterministic weekly rotation: 2 challenges per ISO week, picked from the
-// pool using the week number so every player sees the same pair that week.
+// ISO weeks start on Monday; use the UTC ISO week-year, including year boundaries.
+function isoWeekParts(date: Date): { year: number; week: number } {
+  const thursday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = thursday.getUTCDay() || 7;
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - day);
+  const year = thursday.getUTCFullYear();
+  const yearStart = Date.UTC(year, 0, 1);
+  const week = Math.ceil(((thursday.getTime() - yearStart) / 86400000 + 1) / 7);
+  return { year, week };
+}
+
+// Deterministic weekly rotation: 2 challenges per ISO week, identical for all players.
 export function weeklyChallengeSet(date = new Date()): ChallengeDef[] {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
-  // ISO-ish week number: floor((dayOfYear + 6) / 7). 1-based.
-  const week = Math.floor((dayOfYear + 6) / 7);
+  const { week } = isoWeekParts(date);
   const pool = WEEKLY_CHALLENGE_POOL;
   const n = pool.length;
   const indices = [0, 1].map((i) => (week * 2 + i) % n);
@@ -527,14 +531,10 @@ export function weeklyChallengeSet(date = new Date()): ChallengeDef[] {
   return unique.slice(0, 2).map((i) => pool[i]);
 }
 
-// Stable week key (YYYY-Www) used as the "period key" for weekly challenge
-// progress rows in the DB. Same string for all players in the same week.
+// The same ISO week-year is used for rotation and persisted progress.
 export function weeklyChallengeKey(date = new Date()): string {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
-  const week = Math.floor((dayOfYear + 6) / 7);
-  return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
+  const { year, week } = isoWeekParts(date);
+  return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
 // ============================================================================
@@ -549,6 +549,11 @@ export const DAILY_ELITE_CHANCE = 0.15;
 export const WEEKLY_ELITE_CHANCE = 0.25;
 export const ELITE_GOAL_MULTIPLIER = 3;
 export const ELITE_REWARD_MULTIPLIER = 3;
+
+// Grind-only or opponent-dependent quests can explicitly opt out of promotion.
+export function canPromoteChallengeToElite(challenge: ChallengeDef): boolean {
+  return challenge.eliteEligible !== false;
+}
 
 // Stable 0..1 hash from an arbitrary string (FNV-1a 32-bit, normalized).
 // Deterministic — same input always returns same output. Used to decide
@@ -579,17 +584,34 @@ export function shouldPromoteToElite(
 // scaled by ELITE_GOAL_MULTIPLIER / ELITE_REWARD_MULTIPLIER. The category is
 // preserved (daily/weekly) — elite is just a flag on top.
 export function promoteChallengeToElite(base: ChallengeDef): ChallengeDef {
+  if (!canPromoteChallengeToElite(base)) throw new Error(`Elite promotion disabled for ${base.id}`);
+  const goal = base.eliteGoal ?? base.goal * ELITE_GOAL_MULTIPLIER;
+  // Keep the objective description accurate when its Elite target is curated.
+  const description = base.description.replace(new RegExp(`\\b${base.goal}\\b`), String(goal));
   return {
     ...base,
     id: `${base.id}_elite`,
-    goal: base.goal * ELITE_GOAL_MULTIPLIER,
+    goal,
     rewardXp: base.rewardXp * ELITE_REWARD_MULTIPLIER,
     rewardCredits: base.rewardCredits * ELITE_REWARD_MULTIPLIER,
-    // Title/description get an "Elite" prefix so the UI can show it distinctly
-    // even without reading the separate isElite flag.
     title: `Elite ${base.title}`,
-    description: `ELITE — ${base.description} (3× goal, 3× reward)`,
+    description: `${description} · Elite rewards (3× XP and credits)`,
   };
+}
+
+// "In one run" Survival wave challenges track the best run within the period,
+// not the sum of waves from multiple matches. Other metrics stay cumulative.
+export function nextChallengeProgress(
+  challenge: Pick<ChallengeDef, "metric" | "goal">,
+  existingProgress: number,
+  matchDelta: number,
+): number {
+  const previous = Math.max(0, existingProgress);
+  const contribution = Math.max(0, matchDelta);
+  return Math.min(challenge.goal,
+    challenge.metric === "survival_waves"
+      ? Math.max(previous, contribution)
+      : previous + contribution);
 }
 
 // ============================================================================

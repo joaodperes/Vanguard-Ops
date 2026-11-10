@@ -17,7 +17,8 @@
     "rewardCredits": 200,
     "title": "Exterminator",
     "description": "Get 50 kills",
-    "icon": "Crosshair"
+    "icon": "Crosshair",
+    "eliteGoal": 100
   },
   {
     "id": "ch_hs_10",
@@ -37,7 +38,8 @@
     "rewardCredits": 300,
     "title": "Marksman",
     "description": "Land 25 headshots",
-    "icon": "Target"
+    "icon": "Target",
+    "eliteGoal": 45
   },
   {
     "id": "ch_win_3",
@@ -47,7 +49,8 @@
     "rewardCredits": 180,
     "title": "Victor",
     "description": "Win 3 matches",
-    "icon": "Trophy"
+    "icon": "Trophy",
+    "eliteEligible": false
   },
   {
     "id": "ch_play_5",
@@ -57,7 +60,8 @@
     "rewardCredits": 80,
     "title": "Active Duty",
     "description": "Play 5 matches",
-    "icon": "Swords"
+    "icon": "Swords",
+    "eliteEligible": false
   },
   {
     "id": "ch_tags_12",
@@ -67,7 +71,8 @@
     "rewardCredits": 180,
     "title": "Dog Tag Collector",
     "description": "Recover 12 enemy tags in Kill Confirmed",
-    "icon": "Shield"
+    "icon": "Shield",
+    "eliteGoal": 24
   },
   {
     "id": "ch_denials_5",
@@ -77,7 +82,8 @@
     "rewardCredits": 180,
     "title": "Last-Second Save",
     "description": "Deny 5 enemy confirmations by retrieving allied tags",
-    "icon": "Shield"
+    "icon": "Shield",
+    "eliteEligible": false
   },
   {
     "id": "ch_tdm_20",
@@ -107,7 +113,8 @@
     "rewardCredits": 180,
     "title": "Killing Spree",
     "description": "Achieve 5 multi-kills",
-    "icon": "Zap"
+    "icon": "Zap",
+    "eliteGoal": 8
   },
   {
     "id": "ch_shotgun_10",
@@ -137,7 +144,8 @@
     "rewardCredits": 150,
     "title": "Last Stand",
     "description": "Get 30 kills in Survival",
-    "icon": "Skull"
+    "icon": "Skull",
+    "eliteGoal": 120
   },
   {
     "id": "ch_surv_waves_5",
@@ -147,7 +155,8 @@
     "rewardCredits": 180,
     "title": "Holdout",
     "description": "Survive 5 waves in one run",
-    "icon": "Shield"
+    "icon": "Shield",
+    "eliteGoal": 12
   },
   {
     "id": "ch_secondary_15",
@@ -157,7 +166,8 @@
     "rewardCredits": 100,
     "title": "Sidearm Slinger",
     "description": "Get 15 kills with secondary weapons",
-    "icon": "Crosshair"
+    "icon": "Crosshair",
+    "eliteGoal": 35
   },
   {
     "id": "ch_melee_5",
@@ -167,6 +177,7 @@
     "rewardCredits": 140,
     "title": "Blade Master",
     "description": "Get 5 kills with melee weapons",
-    "icon": "Swords"
+    "icon": "Swords",
+    "eliteGoal": 12
   }
 ]

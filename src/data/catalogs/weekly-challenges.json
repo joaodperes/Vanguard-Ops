@@ -8,7 +8,8 @@
     "title": "Evidence Locker",
     "description": "Collect 50 enemy dog tags across Kill Confirmed matches",
     "icon": "Shield",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 90
   },
   {
     "id": "wk_kills_200",
@@ -19,7 +20,8 @@
     "title": "Slayer",
     "description": "Get 200 kills this week",
     "icon": "Crosshair",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 400
   },
   {
     "id": "wk_hs_50",
@@ -27,10 +29,11 @@
     "goal": 50,
     "rewardXp": 1800,
     "rewardCredits": 600,
-    "title": "Marksman Elite",
+    "title": "Precision Expert",
     "description": "Land 50 headshots this week",
     "icon": "Target",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 120
   },
   {
     "id": "wk_wins_10",
@@ -41,7 +44,8 @@
     "title": "Champion",
     "description": "Win 10 matches this week",
     "icon": "Trophy",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteEligible": false
   },
   {
     "id": "wk_multi_30",
@@ -52,7 +56,8 @@
     "title": "Spree Master",
     "description": "Achieve 30 multi-kills this week",
     "icon": "Zap",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 50
   },
   {
     "id": "wk_surv_kills_100",
@@ -63,7 +68,8 @@
     "title": "Last Stand Veteran",
     "description": "Get 100 kills in Survival this week",
     "icon": "Skull",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 350
   },
   {
     "id": "wk_gungame_30",
@@ -74,7 +80,8 @@
     "title": "Gun Game Pro",
     "description": "Get 30 kills in Gun Game this week",
     "icon": "Swords",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 60
   },
   {
     "id": "wk_secondary_50",
@@ -85,7 +92,8 @@
     "title": "Pistolero",
     "description": "Get 50 kills with secondary weapons this week",
     "icon": "Crosshair",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 110
   },
   {
     "id": "wk_melee_15",
@@ -96,6 +104,7 @@
     "title": "Edgewalker",
     "description": "Get 15 kills with melee weapons this week",
     "icon": "Swords",
-    "category": "weekly"
+    "category": "weekly",
+    "eliteGoal": 30
   }
 ]

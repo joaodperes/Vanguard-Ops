@@ -6,7 +6,7 @@ import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { PERKS } from "../src/lib/perks";
 import { autoUnlockedItems, newlyAvailableWeaponsAtLevel } from "../src/lib/player-service";
 import { ownsOperativeSkin } from "../src/lib/collection-ownership";
-import { WEAPONS, PLAYER_SKINS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, promoteChallengeToElite } from "../src/lib/game-data";
+import { WEAPONS, PLAYER_SKINS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, canPromoteChallengeToElite, promoteChallengeToElite } from "../src/lib/game-data";
 import { achievementTitle, titledDisplayName } from "../src/lib/achievement-titles";
 import type { LoadoutWire } from "../src/lib/game-protocol";
 import type { MatchResultInput } from "../src/lib/player-service";
@@ -98,7 +98,7 @@ describe("credit economy across every match reward path", () => {
     expect(calculateMatchRewards({ ...match, mode: "survival", survivalTier: "nightmare", survivalWaves: 10 }).creditsGained).toBe(160);
   });
   test("elite variants multiply the reduced base quest reward", () => {
-    for (const q of [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL]) {
+    for (const q of [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL].filter(canPromoteChallengeToElite)) {
       expect(promoteChallengeToElite(q).rewardCredits).toBe(q.rewardCredits * 3);
     }
     expect(DAILY_CHALLENGE_POOL.find(q => q.id === "ch_kills_25")!.rewardCredits).toBe(100);
