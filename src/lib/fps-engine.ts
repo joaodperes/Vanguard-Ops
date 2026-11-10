@@ -10595,8 +10595,15 @@ export class FPSEngine {
          now>=this.swapReadyAt){
         // Client-side ammo, independent recoil/flashes/tracers and offline damage
         // are processed twice at the SAME frame timestamp. Online is ONE packet.
+        // Lock both trajectories to the SAME pre-recoil camera direction.
+        // Each shot still rolls its own spread and recoil, but the second cannot
+        // inherit the first revolver's muzzle kick before it leaves the barrel.
+        const originalYaw=this.yaw,originalPitch=this.pitch;
         this.fireOneShot(w,"left");
+        const firstYawKick=this.yaw-originalYaw,firstPitchKick=this.pitch-originalPitch;
+        this.yaw=originalYaw;this.pitch=originalPitch;
         this.fireOneShot(w,"right");
+        this.yaw+=firstYawKick;this.pitch+=firstPitchKick;
         this.akimboPending.left=-Infinity;
       }
       if(pressed&&(this.akimboAmmo.left===0||this.akimboAmmo.right===0)){
