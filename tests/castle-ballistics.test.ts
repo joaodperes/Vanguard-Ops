@@ -18,7 +18,7 @@ describe("Emberhold castle material and durability parity",()=>{
     expect(timberRoof.material).toBe("thin_wood");
     expect(timberRoof.ballisticId).toBe(castleBallisticId(building,6));
     const wall=castleSceneryBoxes(building)[0];
-    expect(wall.material).toBeUndefined();
+    expect(wall.material).toBe("reinforced");
     const origin:Vec3=[wall.pos[0],wall.pos[1],wall.pos[2]-wall.size[2]-2];
     expect(Number.isFinite(traceCoverPenetration([wall],origin,[0,0,1],10,20).blockedAt)).toBe(true);
     expect(castleSceneryBoxes(props.find(p=>p.kind==="castle_building"&&p.castleUse==="infirmary")??building)[6].kind).toBe("cover");
