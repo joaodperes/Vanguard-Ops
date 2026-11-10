@@ -36,8 +36,10 @@ export function castleBallisticMaterial(p:CastleProp,index:number):
   "thin_wood"|"light_cover"|undefined {
   if(p.kind==="castle_building"){
     if(index===6)return p.castleUse==="infirmary"?undefined:"thin_wood";
-    if(index>=7)return WOODEN_FIXTURES.has(castleFixtures(p)[index-7]?.style)
-      ?"thin_wood":undefined;
+    if(index>=7){
+      const fixture=castleFixtures(p)[index-7];
+      return fixture&&WOODEN_FIXTURES.has(fixture.style)?"thin_wood":undefined;
+    }
   }
   if(p.kind==="castle_stall")return index===4?"thin_wood":index===5?"light_cover":undefined;
   if(p.kind==="castle_cart"||p.kind==="castle_target"||p.kind==="castle_barrel")
