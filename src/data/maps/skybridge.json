@@ -147,7 +147,7 @@
         "h": 6.5,
         "kind": "cover",
         "label": "Foundry heat baffle",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "east-racks",
@@ -268,7 +268,7 @@
         "h": 8,
         "kind": "cover",
         "label": "Spray chamber wall",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "paint-booth-east",
@@ -279,7 +279,7 @@
         "h": 8,
         "kind": "cover",
         "label": "Spray chamber return",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "paint-booth-south",
@@ -290,7 +290,7 @@
         "h": 8,
         "kind": "cover",
         "label": "Spray chamber wall",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "central-gantry",
