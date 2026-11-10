@@ -498,6 +498,8 @@ interface Combatant {
   weaponSkinId: string;
   playerSkinId: string;
   akimbo?: boolean;
+  akimboSightId?: string;
+  akimboBarrelId?: string;
   charmId?: string;
   nameplateId?: string;
   kills: number;
@@ -6202,11 +6204,43 @@ export class FPSEngine {
         // Two receivers with symmetric true grip contacts: remote players also dual wield.
         for(const hand of ["left","right"] as const){
           const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
-          buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
-            mesh.position.set(x+sign*.28/BOT_WEAPON_VISUAL_SCALE,y-.035/BOT_WEAPON_VISUAL_SCALE,z);
+          const shiftX=sign*.28/BOT_WEAPON_VISUAL_SCALE;
+          const shiftY=-.035/BOT_WEAPON_VISUAL_SCALE;
+          const muzzleZ=buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+            mesh.position.set(x+shiftX,y+shiftY,z);
             visual.add(mesh);
           },fullWorldLegendary?weaponMat:undefined,
             weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+          // Each receiver's hardware duplicates the owner's actual sight and
+          // barrel attachment instead of showing bare guns to other players.
+          if(c.akimboBarrelId){
+            const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,10),weaponFurniture);
+            barrel.rotation.x=Math.PI/2;
+            barrel.position.set(shiftX,shiftY,muzzleZ-.1);
+            visual.add(barrel);
+          }
+          if(c.akimboSightId){
+            const laser=c.akimboSightId==="sight_laser";
+            const sight=new THREE.Group();
+            if(laser){
+              const housing=new THREE.Mesh(new THREE.BoxGeometry(.055,.045,.075),weaponFurniture);
+              sight.add(housing);
+              const emitter=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),
+                new THREE.MeshBasicMaterial({color:0xff3333}));
+              emitter.position.z=-.042;
+              sight.add(emitter);
+            }else{
+              // Lightweight open-frame reflex/holo hardware; no blocked optic window.
+              for(const side of [-1,1]){
+                const upright=new THREE.Mesh(new THREE.BoxGeometry(.009,.07,.012),weaponFurniture);
+                upright.position.x=side*.041;sight.add(upright);
+              }
+              const bridge=new THREE.Mesh(new THREE.BoxGeometry(.092,.009,.012),weaponFurniture);
+              bridge.position.y=.034;sight.add(bridge);
+            }
+            sight.position.set(shiftX,shiftY+.105,-.16);
+            visual.add(sight);
+          }
         }
       }else{
         buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
@@ -7483,6 +7517,7 @@ export class FPSEngine {
         pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
         akimbo:p.akimbo===true,
+        akimboSightId:p.akimboSightId,akimboBarrelId:p.akimboBarrelId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
         bossMaxHealth:p.bossMaxHealth,eliteMaxHealth:p.eliteMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
@@ -7494,9 +7529,14 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || (p.akimbo===true)!==(c.akimbo===true) || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
-        c.weaponId = p.weaponId;
+      if(!c.isSelf&&c.group&&(p.weaponId!==c.weaponId||
+        (p.akimbo===true)!==(c.akimbo===true)||p.akimboSightId!==c.akimboSightId||
+        p.akimboBarrelId!==c.akimboBarrelId||
+        p.charmId!==c.charmId||p.nameplateId!==c.nameplateId)){
+        c.weaponId=p.weaponId;
         c.akimbo=p.akimbo===true;
+        c.akimboSightId=p.akimboSightId;
+        c.akimboBarrelId=p.akimboBarrelId;
         c.charmId = p.charmId;
         c.nameplateId = p.nameplateId;
         this.rebuildCombatantMesh(c);
@@ -13030,6 +13070,18 @@ export class FPSEngine {
     // Clean up the laser indicator meshes (if any)
     if (this.laserBeam) { this.scene.remove(this.laserBeam); (this.laserBeam.geometry as THREE.BufferGeometry).dispose(); (this.laserBeam.material as THREE.Material).dispose(); this.laserBeam = null; }
     if (this.laserDot) { this.scene.remove(this.laserDot); (this.laserDot.geometry as THREE.BufferGeometry).dispose(); (this.laserDot.material as THREE.Material).dispose(); this.laserDot = null; }
+    if(this.akimboLeftLaserBeam){
+      this.scene.remove(this.akimboLeftLaserBeam);
+      this.akimboLeftLaserBeam.geometry.dispose();
+      (this.akimboLeftLaserBeam.material as THREE.Material).dispose();
+      this.akimboLeftLaserBeam=null;
+    }
+    if(this.akimboLeftLaserDot){
+      this.scene.remove(this.akimboLeftLaserDot);
+      this.akimboLeftLaserDot.geometry.dispose();
+      (this.akimboLeftLaserDot.material as THREE.Material).dispose();
+      this.akimboLeftLaserDot=null;
+    }
     for (const g of this.environmentMeshes.values()) {
       this.scene.remove(g);
       g.traverse(child => {
