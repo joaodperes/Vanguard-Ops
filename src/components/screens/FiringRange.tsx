@@ -314,6 +314,7 @@ function RangeSession({ profile, requestedId, onExit }: {
                 </p>
               </div>
             </div>
+            </div>
             </>}
             {editorTab==="visuals" && <>
             <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
