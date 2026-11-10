@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
 import { EQUIPMENT, DEFAULT_EQUIPMENT, equipmentUnlocked, type EquipmentId } from "@/lib/equipment";
@@ -156,7 +157,7 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
       setPendingPurchase(null);
       toast.success(`Unlocked ${weapon.name}`, {
         description: weapon.unlockCost
-          ? `-${weapon.unlockCost} CR · Confirm your loadout to equip`
+          ? `-${formatCredits(weapon.unlockCost)} CR · Confirm your loadout to equip`
           : "Confirm your loadout to equip",
       });
     } catch {
@@ -380,16 +381,16 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
               <div className="flex justify-between gap-3">
                 <span className="text-white/60">Unlock price</span>
                 <span className="font-semibold text-amber-300 flex items-center gap-1">
-                  <Coins className="w-4 h-4" /> {pendingPurchase.weapon.unlockCost.toLocaleString()} CR
+                  <Coins className="w-4 h-4" /> {formatCredits(pendingPurchase.weapon.unlockCost)} CR
                 </span>
               </div>
               <div className="flex justify-between gap-3">
                 <span className="text-white/60">Your balance</span>
-                <span className="text-white">{profile.credits.toLocaleString()} CR</span>
+                <span className="text-white">{formatCredits(profile.credits)} CR</span>
               </div>
               {profile.credits < pendingPurchase.weapon.unlockCost && (
                 <p className="text-rose-300 text-xs">
-                  Not enough credits. You need {(pendingPurchase.weapon.unlockCost - profile.credits).toLocaleString()} more CR.
+                  Not enough credits. You need {formatCredits(pendingPurchase.weapon.unlockCost - profile.credits)} more CR.
                 </p>
               )}
             </div>
@@ -495,7 +496,7 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSl
                 )}
                 {availability === "purchasable" && (
                   <span className="text-amber-300 text-[10px] shrink-0 flex items-center gap-0.5">
-                    <Coins className="w-2.5 h-2.5" /> {w.unlockCost.toLocaleString()} CR
+                    <Coins className="w-2.5 h-2.5" /> {formatCredits(w.unlockCost)} CR
                   </span>
                 )}
               </button>
