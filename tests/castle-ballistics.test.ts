@@ -32,6 +32,11 @@ describe("Emberhold castle material and durability parity",()=>{
     expect(trace.blockedAt).toBe(Infinity);
     expect(trace.crossings).toHaveLength(1);
     expect(trace.crossings[0].damageRetention).toBeLessThan(1);
+    // The higher pitched roof is targetable from the side as well; the former
+    // flat slab let shots through its visible upper slopes without any impact.
+    const side:Vec3=[roof.pos[0]-roof.size[0]-2,roof.pos[1]+.3,roof.pos[2]];
+    const sideTrace=traceCoverPenetration([roof],side,[1,0,0],35,3);
+    expect(sideTrace.blockedBox?.ballisticId).toBe(roof.ballisticId);
     const gameMap:MapDef={...castle,cover:[roof]};
     const hp=new Map<string,number>(),destroyed=new Set<string>();
     for(let i=0;i<3;i++){
