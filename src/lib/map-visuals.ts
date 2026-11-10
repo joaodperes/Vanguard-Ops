@@ -504,8 +504,25 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],au
     }
     if(!size)continue;
     if(spawns.some(s=>Math.abs(s[0]-p.x)<size[0]+3&&Math.abs(s[2]-p.z)<size[2]+3))continue;
+    if(p.kind==="ruin"||p.kind==="temple"){
+      // The models are OPEN stone frames, not solid volumes. Previously the
+      // invisible AABB blocked bullets and actors through the centre of a
+      // visibly empty ruin. Match all four columns and the overhead lintel.
+      const q=(((p.turns??0)%4)+4)%4,odd=q%2===1;
+      const w=odd?(p.d??7):(p.w??8),d=odd?(p.w??8):(p.d??7);
+      const cos=[1,0,-1,0][q],sin=[0,1,0,-1][q],col=Math.max(1.2,w*.14);
+      const put=(x:number,y:number,z:number,wx:number,hy:number,dz:number)=>{
+        result.push({kind:"cover",material:"concrete",
+          pos:[p.x+cos*x+sin*z,(p.y??0)+y,p.z-sin*x+cos*z],
+          size:[odd?dz:wx,hy,odd?wx:dz]});
+      };
+      for(const x of [-w*.35,w*.35])for(const z of [-d*.35,d*.35])
+        put(x,h*.37,z,col/2,h*.37,col/2);
+      put(0,h*.8,0,w/2,.325,d*.08);
+      continue;
+    }
     result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size,
-      material:["rock","ruin","temple"].includes(p.kind)?"concrete":"reinforced"});
+      material:p.kind==="rock"?"concrete":"reinforced"});
   }
   return result;
 }
