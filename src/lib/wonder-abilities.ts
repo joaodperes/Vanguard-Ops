@@ -48,6 +48,17 @@ export function juggernautDropPoint(
 export function crushesAtLanding(victim:Point3,landing:Point3):boolean{
  return Math.abs(victim[1]-landing[1])<2.4&&Math.hypot(victim[0]-landing[0],victim[2]-landing[2])<=JUGGERNAUT_CRUSH_RADIUS;
 }
+/** Ground slam strikes in every direction at comparable elevation. */
+export function seismicPulseHit(origin:Point3,target:Point3,radius:number):boolean{
+ return Math.abs(origin[1]-target[1])<=2.6&&
+   Math.hypot(target[0]-origin[0],target[2]-origin[2])<=radius;
+}
+/** Radial push rather than the player's aiming direction. */
+export function seismicPushPosition(origin:Point3,target:Point3,meters=4.5):Point3{
+ const dx=target[0]-origin[0],dz=target[2]-origin[2],len=Math.hypot(dx,dz);
+ return [target[0]+(len>.001?dx/len:0)*meters,target[1],
+         target[2]+(len>.001?dz/len:1)*meters];
+}
 export function wonderConeHit(origin:Point3,dir:Point3,target:Point3,range:number,cosine:number):boolean{
  const diff:Point3=[target[0]-origin[0],target[1]-origin[1],target[2]-origin[2]];
  const distance=Math.hypot(...diff);
