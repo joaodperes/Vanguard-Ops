@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 
 import { achievementTitle, achievementRequirement, titledDisplayName } from "@/lib/achievement-titles";
 import { useEffect, useRef, useState } from "react";
@@ -115,7 +116,7 @@ export default function Page() {
         for (const a of rewards.newAchievements) {
           const title = achievementTitle(a.id);
           const requirement = achievementRequirement(a.id, a.description);
-          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${formatCredits(a.rewardCredits)} CR${title ? ` · Title unlocked: ${title}` : ""}` });
         }
       }
       if (rewards.newPrestiges?.length) {
@@ -127,7 +128,7 @@ export default function Page() {
         }
       }
       if (rewards.challengeAwards?.length) {
-        for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${c.rewardCredits} CR` });
+        for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${formatCredits(c.rewardCredits)} CR` });
       }
     } catch {
       setMatchResult({ ...r });
