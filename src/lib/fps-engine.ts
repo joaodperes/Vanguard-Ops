@@ -1,6 +1,7 @@
 import { blastCanDamage } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
-import {wonderMechModel,wonderAircraftModel,wonderHologramModel,type WonderWorldVisual} from "./wonder-models";
+import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual} from "./wonder-models";
+import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
 import {wonderConeHit,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
@@ -896,6 +897,8 @@ export class FPSEngine {
   private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
   private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
   private phantomDecoys=new Map<string,{pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
+  private harbingerDrones=new Map<string,{ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string;nextShotAt:number;nextScanAt:number;priorityId?:string;offline:boolean;visual:WonderWorldVisual}>();
+  private lastHarbingerAimAt=0;
   private chronoAnchor:{pos:Vec3;expiresAt:number}|null=null;
   private chronoMarker:THREE.Mesh|null=null;
   private localCryoSlowUntil=0;
@@ -6390,6 +6393,11 @@ export class FPSEngine {
           for(const d of msg.mechDrops)this.addMechDrop(d.id,d.ownerId,d.pos,d.landAt,d.expiresAt,d.moduleId,d.landed,d.enteredBy);
           for(const [id] of this.mechDrops)if(!current.has(id))this.removeMechDrop(id);
         }
+        if(msg.harbingerDrones){
+          const active=new Set(msg.harbingerDrones.map(d=>d.id));
+          for(const d of msg.harbingerDrones)this.addHarbinger(d.id,d.ownerId,d.ownerTeam,d.pos,d.expiresAt,d.hp,d.moduleId,false);
+          for(const [id,d] of this.harbingerDrones)if(!d.offline&&!active.has(id))this.removeHarbinger(id);
+        }
         if(msg.phantomDecoys){
           const current=new Set(msg.phantomDecoys.map(d=>d.id));
           for(const d of msg.phantomDecoys)this.addPhantom(d.id,d.ownerId,d.pos,d.yaw,d.createdAt,d.expiresAt,d.count);
@@ -6729,6 +6737,24 @@ export class FPSEngine {
           else this.spawnTracer(msg.origin,msg.dir,"default",0,msg.mode==="minigun"?70:17);
           this.playEnemyFireSound(msg.origin,msg.mode==="swarm"?"launcher_swarm":msg.mode==="minigun"?"lmg_hv":"shotgun_combat",false);
         }
+        break;
+      case "harbingerPlaced":
+        this.addHarbinger(msg.id,msg.ownerId,msg.ownerTeam,msg.pos,msg.expiresAt,msg.hp,msg.moduleId,false);
+        break;
+      case "harbingerRemoved":
+        this.removeHarbinger(msg.id);
+        break;
+      case "harbingerFired":{
+        const d=this.harbingerDrones.get(msg.id);
+        if(d){
+          const dir=this.normalize([msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]]);
+          this.spawnTracer(d.pos,dir,"default",0,Math.hypot(msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]));
+          this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
+        }
+        break;
+      }
+      case "harbingerScan":
+        for(const id of msg.ids)this.smartTags.set(id,performance.now()+msg.durationMs);
         break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
@@ -7441,7 +7467,7 @@ export class FPSEngine {
     for(const c of this.combatants.values()){
       const marker=c.group?.getObjectByName("deadlock_tag");
       if(marker){
-        marker.visible=this.weaponId==="wonder_deadlock"&&c.alive&&this.smartTags.has(c.id);
+        marker.visible=(this.weaponId==="wonder_deadlock"||[...this.harbingerDrones.values()].some(d=>d.ownerId===this.selfId&&d.expiresAt>Date.now()))&&c.alive&&this.smartTags.has(c.id);
         if(marker.visible)marker.rotation.z=now*.002;
       }
     }
@@ -7951,6 +7977,67 @@ export class FPSEngine {
     this.phantomDecoys.set(id,{pos,yaw,createdAt,expiresAt,count,visual});
   }
   private clearPhantom(id:string){const p=this.phantomDecoys.get(id);if(!p)return;p.visual.dispose();this.phantomDecoys.delete(id);}
+  private addHarbinger(id:string,ownerId:string,ownerTeam:string,pos:Vec3,expiresAt:number,hp:number,moduleId:string,offline:boolean){
+    const existing=this.harbingerDrones.get(id);
+    if(existing){existing.pos=pos;existing.hp=hp;existing.expiresAt=expiresAt;return;}
+    if(this.disposed||expiresAt<=Date.now())return;
+    const visual=wonderDroneModel();visual.group.position.set(...pos);this.scene.add(visual.group);
+    this.harbingerDrones.set(id,{ownerId,ownerTeam,pos,expiresAt,hp,moduleId,nextShotAt:Date.now()+750,nextScanAt:0,offline,visual});
+  }
+  private removeHarbinger(id:string){
+    const d=this.harbingerDrones.get(id);if(!d)return;d.visual.dispose();this.harbingerDrones.delete(id);
+  }
+  private tickHarbingerWorld(now:number){
+    const time=Date.now();
+    for(const [id,d] of this.harbingerDrones){
+      if(time>=d.expiresAt||d.hp<=0){this.removeHarbinger(id);continue;}
+      d.visual.group.position.set(d.pos[0],d.pos[1]+Math.sin(now*.004)*.12,d.pos[2]);
+      d.visual.group.rotation.y=now*.00052;
+      if(!d.offline||this.matchEnded)continue;
+      const tune=harbingerTuning(d.moduleId);
+      const targets=harbingerTargets(d.pos,d.ownerId,d.ownerTeam,this.opts.mode,
+        [...this.combatants.values()].map(c=>({id:c.id,pos:c.pos,team:c.team,alive:c.alive,
+          protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>time})).concat(
+          d.ownerId!==this.selfId&&this.alive?[{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,
+            team:this.opts.team as string,alive:true,protected:this.selfSpawnProtectedUntil>now}]:[]),
+        tune.range,to=>this.hasLineOfSight(d.pos,[...to] as Vec3),d.priorityId);
+      if(time>=d.nextScanAt){
+        d.nextScanAt=time+HARBINGER_SCAN_INTERVAL_MS;
+        if(d.ownerId===this.selfId)for(const t of targets.slice(0,3))this.smartTags.set(t.id,now+1800);
+      }
+      if(time<d.nextShotAt||!targets.length)continue;
+      const target=targets[0],point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+      const dir=this.normalize([point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]]);
+      d.nextShotAt=time+HARBINGER_INTERVAL_MS;
+      this.spawnTracer(d.pos,dir,"default",0,Math.hypot(point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]));
+      this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
+      if(target.id===this.selfId)this.takeDamage(tune.damage,"Harbinger",d.ownerTeam,false,"wonder_harbinger");
+      else{
+        const victim=this.combatants.get(target.id);
+        if(!victim?.alive)continue;
+        if(d.ownerId===this.selfId)this.applyDamageLocal(victim,tune.damage,false,"wonder_harbinger");
+        else{
+          const owner=this.combatants.get(d.ownerId);
+          if(owner)this.botWonderDamage(owner,victim,tune.damage,"wonder_harbinger");
+        }
+      }
+    }
+    const own=[...this.harbingerDrones.values()].find(d=>d.ownerId===this.selfId&&d.expiresAt>time);
+    if(!own||this.weaponId!=="wonder_harbinger"||!this.alive||!this.aiming||now-this.lastHarbingerAimAt<400)return;
+    this.lastHarbingerAimAt=now;
+    if(this.opts.online)this.socket?.emit("message",{t:"harbingerDesignate"} as C2S);
+    else{
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z],dir=this.aimDir(0);
+      const candidates=harbingerTargets(origin,this.selfId,this.opts.team as string,this.opts.mode,
+        [...this.combatants.values()].map(c=>({id:c.id,pos:c.pos,team:c.team,alive:c.alive,
+          protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>time})),32,to=>this.hasLineOfSight(origin,[...to] as Vec3));
+      const selected=candidates.find(c=>{
+        const toward=this.normalize([c.pos[0]-origin[0],c.pos[1]+1-origin[1],c.pos[2]-origin[2]]);
+        return toward[0]*dir[0]+toward[1]*dir[1]+toward[2]*dir[2]>.97;
+      });
+      if(selected)own.priorityId=selected.id;
+    }
+  }
   private showWonderBurst(pos:Vec3,id:string){
     const effect=wonderKillEffectById(id),finish=wonderFinishById(id);
     const color=parseInt((effect?.color??finish?.color??"#ad84ff").slice(1),16);
@@ -7993,6 +8080,7 @@ export class FPSEngine {
   }
   private updateWonderWorld(now:number){
     const time=Date.now();
+    this.tickHarbingerWorld(now);
     for(const [id,drop] of this.mechDrops){
       if(time>=drop.expiresAt){this.removeMechDrop(id);continue;}
       if(!drop.landed&&time>=drop.landAt){
@@ -8297,6 +8385,19 @@ export class FPSEngine {
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
+    if(w.wonder?.kind==="drone"){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z],dir=this.aimDir(0);
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:"default"} as C2S);
+      else{
+        for(const [id,d] of this.harbingerDrones)if(d.ownerId===this.selfId)this.removeHarbinger(id);
+        const hit=closestCoverHit(this.map.cover,origin,dir,14,rayBox);
+        const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning(this.wonderModuleId);
+        this.addHarbinger("offline_harbinger_"+(++this.localWonderSequence),this.selfId,this.opts.team as string,
+          pos,Date.now()+tune.durationMs,tune.health,this.wonderModuleId,true);
+      }
+      this.spawnTracer(origin,dir,"default",0,14);
+      this.sound.play("swap",{volume:.55});return;
+    }
     if(w.wonder?.kind==="chrono"||w.wonder?.kind==="decoy"||w.wonder?.kind==="mech"){
       const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
       const dir=this.aimDir(0);
@@ -10864,7 +10965,13 @@ export class FPSEngine {
     const targets=this.botWonderTargets(owner);
     const rules=w.wonder!;
     const kind=rules.kind;
-    if(kind==="turret"){
+    if(kind==="drone"){
+      for(const [id,d] of this.harbingerDrones)if(d.ownerId===owner.id)this.removeHarbinger(id);
+      const hit=closestCoverHit(this.map.cover,origin,dir,14,rayBox);
+      const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning();
+      this.addHarbinger("bot_harbinger_"+(++this.localWonderSequence),owner.id,owner.team,pos,
+        Date.now()+tune.durationMs,tune.health,"",true);
+    }else if(kind==="turret"){
       const candidate=turretDeployPosition(owner.pos,owner.yaw,this.map.cover,this.map.size);
       const pos:Vec3=[candidate[0],botGroundHeight(this.map.cover,candidate[0],candidate[2],candidate[1]),candidate[2]];
       for(const [id,t] of this.bulletSpitters)if(t.ownerId===owner.id)this.removeBulletSpitter(id);
@@ -11055,6 +11162,18 @@ export class FPSEngine {
       ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
       this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default");
       if(t.hp<=0)this.removeBulletSpitter(id);
+    }
+    const scout=[...this.harbingerDrones.values()].find(d=>d.offline&&d.ownerId!==c.id&&
+      (this.opts.mode==="ffa"||this.opts.mode==="gungame"||d.ownerTeam!==c.team)&&
+      Math.hypot(c.pos[0]-d.pos[0],c.pos[2]-d.pos[2])<22&&
+      this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],d.pos));
+    if(!flashBlinded&&scout&&(!rival||Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17)&&
+      now>=ai.nextShotAt&&now>ai.reloadingUntil&&ai.ammoInMag>0){
+      const origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
+      const dir=this.normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
+      scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
+      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);this.spawnTracer(origin,dir,"default");
+      if(scout.hp<=0)for(const [id,d] of this.harbingerDrones)if(d===scout)this.removeHarbinger(id);
     }
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
@@ -12359,6 +12478,7 @@ export class FPSEngine {
   dispose() {
     for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
+    for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
     if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
     for(const fx of this.wonderVisualFx){fx.group.removeFromParent();const meshes=fx.group.children.filter((o):o is THREE.Mesh=>o instanceof THREE.Mesh);for(const m of meshes)m.geometry.dispose();if(meshes[0])(meshes[0].material as THREE.Material).dispose();}
     this.wonderVisualFx=[];
