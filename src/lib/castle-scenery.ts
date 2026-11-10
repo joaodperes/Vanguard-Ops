@@ -135,7 +135,10 @@ export function castleSceneryBoxes(p:CastleProp):CoverBox[]{
   // Never use visual color or geometry shape to infer penetrability.
   a.forEach((cover,index)=>{
     const material=castleBallisticMaterial(p,index);
-    if(material){cover.material=material;cover.ballisticId=castleBallisticId(p,index);}
+    // Hard masonry and structural posts are explicitly reinforced, not
+    // silently treated as concrete just because they lack a material tag.
+    cover.material=material??"reinforced";
+    if(material)cover.ballisticId=castleBallisticId(p,index);
   });
   return a;
 }
