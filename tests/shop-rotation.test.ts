@@ -1,8 +1,10 @@
 import {describe,test,expect} from "bun:test";
 import {DAILY_SHOP_SLOTS,dailyShopRotation,isShopItemFeatured,isShopOfferFeatured} from "../src/lib/shop-rotation";
-import {SHOP_CATEGORIES,SHOP_ITEMS,shopItemById,shopItemKey,shopPurchaseStatus} from "../src/lib/shop-catalog";
+import {SHOP_CATEGORIES,SHOP_ITEMS,shopItemById,shopItemKey,shopPurchaseStatus,shopCategoriesForCurrency,shopCategoryLabel} from "../src/lib/shop-catalog";
 import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS} from "../src/lib/game-data";
 import {cosmeticById} from "../src/lib/cosmetics";
+import {formatCredits} from "../src/lib/format-credits";
+import {wonderModuleById,wonderFinishById,wonderKillEffectById} from "../src/lib/wonder-expansion";
 
 describe("shared rotating Shop",()=>{
   const first=new Date("2026-10-29T00:00:01Z");
@@ -19,13 +21,14 @@ describe("shared rotating Shop",()=>{
     expect(today.offers).toHaveLength(today.itemIds.length);
     expect(today.offers.map(o=>o.itemId)).toEqual(today.itemIds);
   });
-  test("exactly three offers per type in both currencies; each type changes daily",()=>{
+  test("exactly three offers per populated category in all three currencies; each changes daily",()=>{
     const a=new Set(dailyShopRotation(first).itemIds),b=new Set(dailyShopRotation(second).itemIds);
     expect(DAILY_SHOP_SLOTS).toBe(3);
-    expect(a.size).toBe(DAILY_SHOP_SLOTS*5*2);
-    for(const currency of ["credits","career"] as const)for(const category of SHOP_CATEGORIES){
+    expect(a.size).toBe(DAILY_SHOP_SLOTS*13);
+    for(const currency of ["credits","career","wonder"] as const)for(const category of SHOP_CATEGORIES){
       if(category.id==="all")continue;
       const candidates=SHOP_ITEMS.filter(i=>i.currency===currency&&i.kind===category.id);
+      if(candidates.length===0)continue;
       const now=candidates.filter(i=>a.has(i.id));
       const next=candidates.filter(i=>b.has(i.id));
       expect(candidates.length).toBeGreaterThan(3);
@@ -33,6 +36,25 @@ describe("shared rotating Shop",()=>{
       expect(next).toHaveLength(3);
       expect(now.map(i=>i.id).sort()).not.toEqual(next.map(i=>i.id).sort());
     }
+  });
+  test("sidebar filters categories by selected shop and Wonder purchase eligibility",()=>{
+    expect(shopCategoriesForCurrency("wonder").map(g=>shopCategoryLabel("wonder",g.id))).toEqual([
+      "All","Modules","Finishes","Kill effects",
+    ]);
+    for(const c of ["credits","career"] as const){
+      expect(shopCategoriesForCurrency(c).every(g=>g.id==="all"||
+        SHOP_ITEMS.some(i=>i.currency===c&&i.kind===g.id))).toBe(true);
+      expect(shopCategoriesForCurrency(c).some(g=>g.id==="wonderModule")).toBe(false);
+    }
+    const rotation=dailyShopRotation(first);
+    const wonder=rotation.offers.find(o=>shopItemById(o.itemId)?.currency==="wonder")!;
+    expect(wonder).toBeDefined();
+    expect(isShopOfferFeatured(wonder.itemId,wonder.weaponId,first)).toBe(true);
+    const unfeatured=SHOP_ITEMS.find(i=>i.currency==="wonder"&&!rotation.itemIds.includes(i.id))!;
+    expect(isShopOfferFeatured(unfeatured.id,undefined,first)).toBe(false);
+    expect(formatCredits(1234567)).toBe("1 234 567");
+    expect(formatCredits(999)).toBe("999");
+    expect(formatCredits(1000)).toBe("1 000");
   });
   test("purchase status distinguishes weapon, career, currency and owned",()=>{
     const weapon=SHOP_ITEMS.find(i=>i.kind==="weaponSkin"&&i.currency==="credits")!;
@@ -52,6 +74,9 @@ describe("shared rotating Shop",()=>{
       expect(item).toBeDefined();
       if(item.kind==="weaponSkin")expect(WEAPON_SKINS.some(s=>s.id===item.skinId)).toBe(true);
       else if(item.kind==="playerSkin")expect(PLAYER_SKINS.some(s=>s.id===item.skinId)).toBe(true);
+      else if(item.kind==="wonderModule")expect(wonderModuleById(item.moduleId??"")).toBeDefined();
+      else if(item.kind==="wonderSkin")expect(wonderFinishById(item.skinId??"")).toBeDefined();
+      else if(item.kind==="wonderKillEffect")expect(wonderKillEffectById(item.cosmeticId??"")).toBeDefined();
       else expect(cosmeticById(item.cosmeticId??"",item.kind)).toBeDefined();
     }
     const offered=dailyShopRotation(first).offers.filter(o=>shopItemById(o.itemId)?.kind==="weaponSkin");
