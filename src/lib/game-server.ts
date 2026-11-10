@@ -2790,7 +2790,12 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           ? { sight:null, barrel:null, grip:null, magazine:null }
           : cadenceAtts)
         : weapon.stats;
-      const interval = 1000 / Math.max(.1, quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
+      // Akimbo's 75% bonus describes combined bullets/sec; a trigger spends
+      // two rounds together. Do not allow double the intended multiplayer DPS.
+      const pairedAkimbo=room.mode!=="gungame" && weapon.id==="pistol_bastion" &&
+        cadenceAtts?.grip==="grip_akimbo";
+      const interval = (pairedAkimbo ? 2000 : 1000) /
+        Math.max(.1, quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
       if(weapon.category==="melee" &&
         now-(room.quickMeleeAt.get(p.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
@@ -3260,7 +3265,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         } // Other explosives retain their immediate splash behavior.
       } else {
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
-        const pellets = eff.pellets ?? 1;
+        const pellets = pairedAkimbo ? 2 : eff.pellets ?? 1;
         const multiPelletShotgun = weapon.category === "shotgun" && !weapon.wonder && pellets > 1;
         const shotgunAds = !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(p.id)??0,now) &&
           (msg.aiming ?? room.adsStartedAt.has(p.id));
@@ -3268,6 +3273,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           const dir = multiPelletShotgun
             ? shotgunPelletDirection(shotDir, {...eff,spread:eff.spread*
                 (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)}, shotgunAds)
+            : pairedAkimbo ? normalize(add(shotDir,randSpread(eff.spread*
+                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1))))
             : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
@@ -3312,7 +3319,12 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         room.droppedBolts.set(id, { id, ownerId: p.id, pos, expiresAt });
         io.to(room.id).emit("message", { t: "boltDrop", id, ownerId: p.id, pos, expiresAt } as S2C);
       }
-      io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: shotDir, weaponId: msg.weaponId, attackerId: p.id, skinId: room.mode === "gungame" ? "default" : msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
+      // Broadcast both simultaneous barrels to remote players as one validated
+      // input event, with two distinct but closely aligned ballistic tracers.
+      for(let barrel=0;barrel<(pairedAkimbo?2:1);barrel++){
+        const effectDir=pairedAkimbo ? normalize(add(shotDir,randSpread(eff.spread))) : shotDir;
+        io.to(room.id).emit("message", { t: "shotFx", origin: msg.origin, dir: effectDir, weaponId: msg.weaponId, attackerId: p.id, skinId: room.mode === "gungame" ? "default" : msg.skinId, suppressed: attsForShot?.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
+      }
       broadcastRadarPing(room, p, attsForShot?.barrel === "barrel_suppressor");
       return;
     
