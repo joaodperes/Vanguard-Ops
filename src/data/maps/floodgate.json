@@ -46,7 +46,8 @@
         "w": 3,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-flag-canopy",
@@ -56,7 +57,8 @@
         "d": 36,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "concrete"
       },
       {
         "id": "west-spawn-screen--28",
@@ -65,7 +67,8 @@
         "w": 3,
         "d": 24,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-spawn-screen-28",
@@ -74,7 +77,8 @@
         "w": 3,
         "d": 24,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-side-wall--48",
@@ -83,7 +87,8 @@
         "w": 28,
         "d": 2,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-side-wall-48",
@@ -92,7 +97,8 @@
         "w": 28,
         "d": 2,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "west-entry-baffle--66",
@@ -101,7 +107,8 @@
         "w": 4,
         "d": 20,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-entry-cover--66",
@@ -110,7 +117,8 @@
         "w": 8,
         "d": 4,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-entry-baffle-66",
@@ -119,7 +127,8 @@
         "w": 4,
         "d": 20,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "west-entry-cover-66",
@@ -128,7 +137,8 @@
         "w": 8,
         "d": 4,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-flag-screen",
@@ -137,7 +147,8 @@
         "w": 3,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-flag-canopy",
@@ -147,7 +158,8 @@
         "d": 36,
         "h": 1,
         "kind": "cover",
-        "y": 8
+        "y": 8,
+        "material": "concrete"
       },
       {
         "id": "east-spawn-screen--28",
@@ -156,7 +168,8 @@
         "w": 3,
         "d": 24,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-spawn-screen-28",
@@ -165,7 +178,8 @@
         "w": 3,
         "d": 24,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-side-wall--48",
@@ -174,7 +188,8 @@
         "w": 28,
         "d": 2,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-side-wall-48",
@@ -183,7 +198,8 @@
         "w": 28,
         "d": 2,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "east-entry-baffle--66",
@@ -192,7 +208,8 @@
         "w": 4,
         "d": 20,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-entry-cover--66",
@@ -201,7 +218,8 @@
         "w": 8,
         "d": 4,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-entry-baffle-66",
@@ -210,7 +228,8 @@
         "w": 4,
         "d": 20,
         "h": 6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "east-entry-cover-66",
@@ -219,7 +238,8 @@
         "w": 8,
         "d": 4,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "turbine-roof--81",
@@ -229,7 +249,8 @@
         "d": 56,
         "h": 1,
         "kind": "cover",
-        "y": 10
+        "y": 10,
+        "material": "sheet_metal"
       },
       {
         "id": "turbine-roof--27",
@@ -239,7 +260,8 @@
         "d": 56,
         "h": 1,
         "kind": "cover",
-        "y": 10
+        "y": 10,
+        "material": "sheet_metal"
       },
       {
         "id": "turbine-roof-27",
@@ -249,7 +271,8 @@
         "d": 56,
         "h": 1,
         "kind": "cover",
-        "y": 10
+        "y": 10,
+        "material": "sheet_metal"
       },
       {
         "id": "turbine-roof-81",
@@ -259,7 +282,8 @@
         "d": 56,
         "h": 1,
         "kind": "cover",
-        "y": 10
+        "y": 10,
+        "material": "sheet_metal"
       },
       {
         "id": "hall-wall--90--30",
@@ -268,7 +292,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall--30--30",
@@ -277,7 +302,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall-30--30",
@@ -286,7 +312,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall-90--30",
@@ -295,7 +322,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall--90-30",
@@ -304,7 +332,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall--30-30",
@@ -313,7 +342,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall-30-30",
@@ -322,7 +352,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-wall-90-30",
@@ -331,7 +362,8 @@
         "w": 36,
         "d": 2,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar--102--24",
@@ -340,7 +372,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar--102-24",
@@ -349,7 +382,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar--54--24",
@@ -358,7 +392,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar--54-24",
@@ -367,7 +402,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-0--24-west",
@@ -377,7 +413,8 @@
         "d": 12,
         "h": 10,
         "kind": "cover",
-        "label": "hall-pillar-0--24 west"
+        "label": "hall-pillar-0--24 west",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-0--24-east",
@@ -387,7 +424,8 @@
         "d": 12,
         "h": 10,
         "kind": "cover",
-        "label": "hall-pillar-0--24 east"
+        "label": "hall-pillar-0--24 east",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-0-24-west",
@@ -397,7 +435,8 @@
         "d": 12,
         "h": 10,
         "kind": "cover",
-        "label": "hall-pillar-0-24 west"
+        "label": "hall-pillar-0-24 west",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-0-24-east",
@@ -407,7 +446,8 @@
         "d": 12,
         "h": 10,
         "kind": "cover",
-        "label": "hall-pillar-0-24 east"
+        "label": "hall-pillar-0-24 east",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-54--24",
@@ -416,7 +456,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-54-24",
@@ -425,7 +466,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-102--24",
@@ -434,7 +476,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "hall-pillar-102-24",
@@ -443,7 +486,8 @@
         "w": 3,
         "d": 12,
         "h": 10,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "turbine--72",
@@ -452,7 +496,8 @@
         "w": 14,
         "d": 24,
         "h": 6.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "turbine--24",
@@ -461,7 +506,8 @@
         "w": 14,
         "d": 24,
         "h": 6.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "turbine-24",
@@ -470,7 +516,8 @@
         "w": 14,
         "d": 24,
         "h": 6.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "turbine-72",
@@ -479,7 +526,8 @@
         "w": 14,
         "d": 24,
         "h": 6.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "junction-cover--100--40",
@@ -488,7 +536,8 @@
         "w": 7,
         "d": 18,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover--100-40",
@@ -497,7 +546,8 @@
         "w": 7,
         "d": 18,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover--50--40",
@@ -506,7 +556,8 @@
         "w": 7,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover--50-40",
@@ -515,7 +566,8 @@
         "w": 7,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-0-40-west",
@@ -525,7 +577,8 @@
         "d": 18,
         "h": 7,
         "kind": "cover",
-        "label": "junction-cover-0-40 west"
+        "label": "junction-cover-0-40 west",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-0-40-east",
@@ -535,7 +588,8 @@
         "d": 18,
         "h": 7,
         "kind": "cover",
-        "label": "junction-cover-0-40 east"
+        "label": "junction-cover-0-40 east",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-50--40",
@@ -544,7 +598,8 @@
         "w": 7,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-50-40",
@@ -553,7 +608,8 @@
         "w": 7,
         "d": 18,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-100--40",
@@ -562,7 +618,8 @@
         "w": 7,
         "d": 18,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "junction-cover-100-40",
@@ -571,7 +628,8 @@
         "w": 7,
         "d": 18,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "spillway-baffle--96",
@@ -580,7 +638,8 @@
         "w": 4,
         "d": 40,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-baffle-central-west",
@@ -589,7 +648,8 @@
         "w": 5,
         "d": 40,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-baffle-central-east",
@@ -598,7 +658,8 @@
         "w": 5,
         "d": 40,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-baffle-96",
@@ -607,7 +668,8 @@
         "w": 4,
         "d": 40,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-baffle--48",
@@ -616,7 +678,8 @@
         "w": 4,
         "d": 34,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-baffle-48",
@@ -625,7 +688,8 @@
         "w": 4,
         "d": 34,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "spillway-deck--104",
@@ -696,7 +760,8 @@
         "w": 10,
         "d": 3,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "spillway-low-cover--24",
@@ -705,7 +770,8 @@
         "w": 10,
         "d": 3,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "spillway-low-cover-24",
@@ -714,7 +780,8 @@
         "w": 10,
         "d": 3,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "spillway-low-cover-72",
@@ -723,7 +790,8 @@
         "w": 10,
         "d": 3,
         "h": 2.5,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-cover--96",
@@ -732,7 +800,8 @@
         "w": 10,
         "d": 3,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-cover--48",
@@ -741,7 +810,8 @@
         "w": 10,
         "d": 3,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-cover-0-west",
@@ -751,7 +821,8 @@
         "d": 3,
         "h": 2.7,
         "kind": "cover",
-        "label": "yard-cover-0 west"
+        "label": "yard-cover-0 west",
+        "material": "concrete"
       },
       {
         "id": "yard-cover-0-east",
@@ -761,7 +832,8 @@
         "d": 3,
         "h": 2.7,
         "kind": "cover",
-        "label": "yard-cover-0 east"
+        "label": "yard-cover-0 east",
+        "material": "concrete"
       },
       {
         "id": "yard-cover-48",
@@ -770,7 +842,8 @@
         "w": 10,
         "d": 3,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-cover-96",
@@ -779,7 +852,8 @@
         "w": 10,
         "d": 3,
         "h": 2.7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-baffle--72",
@@ -788,7 +862,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-pallet--72",
@@ -797,7 +872,8 @@
         "w": 7,
         "d": 6,
         "h": 2.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "yard-baffle--24",
@@ -806,7 +882,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-pallet--24",
@@ -815,7 +892,8 @@
         "w": 7,
         "d": 6,
         "h": 2.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "yard-baffle-24",
@@ -824,7 +902,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-pallet-24",
@@ -833,7 +912,8 @@
         "w": 7,
         "d": 6,
         "h": 2.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "yard-baffle-72",
@@ -842,7 +922,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-pallet-72",
@@ -851,7 +932,8 @@
         "w": 7,
         "d": 6,
         "h": 2.6,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "light_cover"
       },
       {
         "id": "maintenance-deck--88",
@@ -870,7 +952,8 @@
         "d": 8,
         "h": 1.35,
         "kind": "cover",
-        "y": 3.36
+        "y": 3.36,
+        "material": "sheet_metal"
       },
       {
         "id": "maintenance-rail--88-7.5",
@@ -880,7 +963,8 @@
         "d": 8,
         "h": 1.35,
         "kind": "cover",
-        "y": 3.36
+        "y": 3.36,
+        "material": "sheet_metal"
       },
       {
         "id": "maintenance-deck-88",
@@ -899,7 +983,8 @@
         "d": 8,
         "h": 1.35,
         "kind": "cover",
-        "y": 3.36
+        "y": 3.36,
+        "material": "sheet_metal"
       },
       {
         "id": "maintenance-rail-88-7.5",
@@ -909,7 +994,8 @@
         "d": 8,
         "h": 1.35,
         "kind": "cover",
-        "y": 3.36
+        "y": 3.36,
+        "material": "sheet_metal"
       },
       {
         "id": "yard-lower-baffle--48",
@@ -918,7 +1004,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "yard-lower-baffle-48",
@@ -927,7 +1014,8 @@
         "w": 4,
         "d": 36,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "pressure-tower--152",
@@ -936,7 +1024,8 @@
         "w": 12,
         "d": 12,
         "h": 18,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "pressure-tower-152",
@@ -945,7 +1034,8 @@
         "w": 12,
         "d": 12,
         "h": 18,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "reinforced"
       },
       {
         "id": "maintenance-shutter-wing--8",
@@ -954,7 +1044,8 @@
         "w": 10,
         "d": 1.2,
         "h": 4,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "maintenance-shutter-wing-8",
@@ -963,7 +1054,8 @@
         "w": 10,
         "d": 1.2,
         "h": 4,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "sheet_metal"
       },
       {
         "id": "central-switchgear-west",
@@ -973,7 +1065,8 @@
         "d": 15,
         "h": 7,
         "kind": "cover",
-        "label": "central-switchgear west"
+        "label": "central-switchgear west",
+        "material": "concrete"
       },
       {
         "id": "central-switchgear-east",
@@ -983,7 +1076,8 @@
         "d": 15,
         "h": 7,
         "kind": "cover",
-        "label": "central-switchgear east"
+        "label": "central-switchgear east",
+        "material": "concrete"
       },
       {
         "id": "base-flank-screen--130--28",
@@ -992,7 +1086,8 @@
         "w": 14,
         "d": 4,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "base-flank-screen--130-28",
@@ -1001,7 +1096,8 @@
         "w": 14,
         "d": 4,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "base-flank-screen-130--28",
@@ -1010,7 +1106,8 @@
         "w": 14,
         "d": 4,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "base-flank-screen-130-28",
@@ -1019,7 +1116,8 @@
         "w": 14,
         "d": 4,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "spillway-overlook-1",
@@ -1194,7 +1292,8 @@
         "w": 7,
         "d": 16,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "breach-spillway-deflector-east",
@@ -1203,7 +1302,8 @@
         "w": 7,
         "d": 16,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "breach-baffle-inner-west",
@@ -1212,7 +1312,8 @@
         "w": 6,
         "d": 12,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "breach-baffle-inner-east",
@@ -1221,7 +1322,8 @@
         "w": 6,
         "d": 12,
         "h": 7,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "breach-route-anti-snipe-west",
@@ -1230,7 +1332,8 @@
         "w": 9,
         "d": 10,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       },
       {
         "id": "breach-route-anti-snipe-east",
@@ -1239,7 +1342,8 @@
         "w": 9,
         "d": 10,
         "h": 8,
-        "kind": "cover"
+        "kind": "cover",
+        "material": "concrete"
       }
     ],
     "hazards": [
