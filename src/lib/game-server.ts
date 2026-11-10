@@ -2840,6 +2840,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           return;
         }
       }
+      const module=weapon.wonder?wonderModuleEffects(weapon.id,room.loadouts.get(p.id)?.wonderModuleId):wonderModuleEffects("","");
       if (usesWonderCharges(weapon) && weapon.wonder) {
         const key = p.id + ":" + weapon.id;
         const state = room.wonderCharges.get(key) ?? drainedWonderCharges(weapon.wonder,now);
@@ -2901,7 +2902,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       }
       if (room.mode === "gungame") attsForShot = { sight: null, barrel: null, grip: null, magazine: null };
       const baseEff = loadout && attsForShot ? computeEffectiveStats(weapon, attsForShot as Record<AttachmentSlot, string | null>) : weapon.stats;
-      const module=weapon.wonder?wonderModuleEffects(weapon.id,loadout?.wonderModuleId):wonderModuleEffects("","");
+
       const eff={...baseEff,damage:baseEff.damage*module.damageMul,range:baseEff.range*module.rangeMul};
       if(weapon.category!=="melee" && weapon.wonder?.kind!=="flame" && weapon.wonder?.kind!=="turret")
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
