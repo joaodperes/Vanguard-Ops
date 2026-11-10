@@ -485,23 +485,23 @@ export type ChallengeDef = import("./catalog-contract").RotatingChallengeCatalog
 
 export const DAILY_CHALLENGE_POOL: ChallengeDef[] = dailyChallengesData as unknown as ChallengeDef[];
 
-// Deterministic daily rotation: 3 challenges per UTC day, matching the DB day key.
+// Each day combines a general objective, an arsenal quest and a map/mode quest.
+// Independent buckets avoid assigning three restrictive maps or attachments.
+export const CHALLENGE_FOCUSES = ["general", "arsenal", "operations"] as const;
 export function dailyChallengeSet(date = new Date()): ChallengeDef[] {
   const utcDate = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  const start = Date.UTC(date.getUTCFullYear(), 0, 1);
-  const dayOfYear = Math.floor((utcDate - start) / 86400000) + 1;
-  const pool = DAILY_CHALLENGE_POOL;
-  const n = pool.length;
-  const indices = [0, 1, 2].map((i) => (dayOfYear * 3 + i) % n);
-  const unique = Array.from(new Set(indices));
-  while (unique.length < 3) {
-    for (let i = 0; i < n && unique.length < 3; i++) if (!unique.includes(i)) unique.push(i);
-  }
-  return unique.slice(0, 3).map((i) => pool[i]);
+  const year = date.getUTCFullYear();
+  const dayOfYear = Math.floor((utcDate - Date.UTC(year, 0, 1)) / 86400000);
+  return CHALLENGE_FOCUSES.map(focus => {
+    const candidates = DAILY_CHALLENGE_POOL.filter(c => c.focus === focus);
+    if (!candidates.length) throw new Error(`No daily challenges for focus ${focus}`);
+    const offset = Math.floor(hashToUnitInterval(`daily|${year}|${focus}`) * candidates.length);
+    return candidates[(offset + dayOfYear) % candidates.length];
+  });
 }
 
 // ============================================================================
-// WEEKLY CHALLENGES — 2 harder objectives rotating weekly (ISO week). Larger
+// WEEKLY CHALLENGES — 3 varied objectives rotating weekly (ISO week). Larger
 // goals + bigger rewards than daily challenges. All players share the same
 // weekly set, so it's a global "this week's challenge" for everyone.
 // ============================================================================
@@ -518,17 +518,16 @@ function isoWeekParts(date: Date): { year: number; week: number } {
   return { year, week };
 }
 
-// Deterministic weekly rotation: 2 challenges per ISO week, identical for all players.
+// One general, one arsenal and one operations quest per ISO week.
+// Independent round-robin cycles guarantee that every authored quest eventually appears.
 export function weeklyChallengeSet(date = new Date()): ChallengeDef[] {
-  const { week } = isoWeekParts(date);
-  const pool = WEEKLY_CHALLENGE_POOL;
-  const n = pool.length;
-  const indices = [0, 1].map((i) => (week * 2 + i) % n);
-  const unique = Array.from(new Set(indices));
-  while (unique.length < 2) {
-    for (let i = 0; i < n && unique.length < 2; i++) if (!unique.includes(i)) unique.push(i);
-  }
-  return unique.slice(0, 2).map((i) => pool[i]);
+  const { year, week } = isoWeekParts(date);
+  return CHALLENGE_FOCUSES.map(focus => {
+    const candidates = WEEKLY_CHALLENGE_POOL.filter(c => c.focus === focus);
+    if (!candidates.length) throw new Error(`No weekly challenges for focus ${focus}`);
+    const offset = Math.floor(hashToUnitInterval(`weekly|${year}|${focus}`) * candidates.length);
+    return candidates[(offset + week - 1) % candidates.length];
+  });
 }
 
 // The same ISO week-year is used for rotation and persisted progress.
@@ -597,6 +596,24 @@ export function promoteChallengeToElite(base: ChallengeDef): ChallengeDef {
     title: `Elite ${base.title}`,
     description: `${description} · Elite rewards (3× XP and credits)`,
   };
+}
+
+/** Restrict map, Survival tier and equipped-attachment quests using match telemetry.
+ * Missing telemetry must never be interpreted as qualifying for a filtered quest.
+ */
+export function contextualChallengeDelta(
+  challenge: Pick<ChallengeDef, "metric" | "mapId" | "attachmentId" | "survivalTier">,
+  match: { mapId?: string; survivalTier?: string; mode: string; kills: number; perAttachmentKills?: Record<string, number> },
+  baseDelta: number,
+): number {
+  if (challenge.mapId && challenge.mapId !== match.mapId) return 0;
+  if (challenge.survivalTier && (match.mode !== "survival" || challenge.survivalTier !== match.survivalTier)) return 0;
+  if (challenge.attachmentId) {
+    if (challenge.metric !== "kills") return 0;
+    const hits = match.perAttachmentKills?.[challenge.attachmentId] ?? 0;
+    return Math.min(Math.max(0, match.kills), Math.max(0, hits));
+  }
+  return baseDelta;
 }
 
 // "In one run" Survival wave challenges track the best run within the period,

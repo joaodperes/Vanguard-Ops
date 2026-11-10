@@ -104,6 +104,8 @@ export default function Page() {
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
           perWeaponActions: r.perWeaponActions,
+          perAttachmentKills: r.perAttachmentKills,
+          mapId: r.mapId,
         }),
       });
       const rewards = await res.json();

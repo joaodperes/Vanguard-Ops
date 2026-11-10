@@ -9,7 +9,8 @@
     "description": "Collect 50 enemy dog tags across Kill Confirmed matches",
     "icon": "Shield",
     "category": "weekly",
-    "eliteGoal": 90
+    "eliteGoal": 90,
+    "focus": "operations"
   },
   {
     "id": "wk_kills_200",
@@ -21,7 +22,8 @@
     "description": "Get 200 kills this week",
     "icon": "Crosshair",
     "category": "weekly",
-    "eliteGoal": 400
+    "eliteGoal": 400,
+    "focus": "general"
   },
   {
     "id": "wk_hs_50",
@@ -33,7 +35,8 @@
     "description": "Land 50 headshots this week",
     "icon": "Target",
     "category": "weekly",
-    "eliteGoal": 120
+    "eliteGoal": 120,
+    "focus": "general"
   },
   {
     "id": "wk_wins_10",
@@ -45,7 +48,8 @@
     "description": "Win 10 matches this week",
     "icon": "Trophy",
     "category": "weekly",
-    "eliteEligible": false
+    "eliteEligible": false,
+    "focus": "general"
   },
   {
     "id": "wk_multi_30",
@@ -57,7 +61,8 @@
     "description": "Achieve 30 multi-kills this week",
     "icon": "Zap",
     "category": "weekly",
-    "eliteGoal": 50
+    "eliteGoal": 50,
+    "focus": "general"
   },
   {
     "id": "wk_surv_kills_100",
@@ -69,7 +74,8 @@
     "description": "Get 100 kills in Survival this week",
     "icon": "Skull",
     "category": "weekly",
-    "eliteGoal": 350
+    "eliteGoal": 350,
+    "focus": "operations"
   },
   {
     "id": "wk_gungame_30",
@@ -81,7 +87,8 @@
     "description": "Get 30 kills in Gun Game this week",
     "icon": "Swords",
     "category": "weekly",
-    "eliteGoal": 60
+    "eliteGoal": 60,
+    "focus": "operations"
   },
   {
     "id": "wk_secondary_50",
@@ -93,7 +100,8 @@
     "description": "Get 50 kills with secondary weapons this week",
     "icon": "Crosshair",
     "category": "weekly",
-    "eliteGoal": 110
+    "eliteGoal": 110,
+    "focus": "arsenal"
   },
   {
     "id": "wk_melee_15",
@@ -105,6 +113,283 @@
     "description": "Get 15 kills with melee weapons this week",
     "icon": "Swords",
     "category": "weekly",
-    "eliteGoal": 30
+    "eliteGoal": 30,
+    "focus": "arsenal"
+  },
+  {
+    "id": "wk_suppressor_55",
+    "metric": "kills",
+    "goal": 55,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Ghost Division",
+    "description": "Get 55 kills with the Suppressor equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "barrel_suppressor",
+    "eliteGoal": 105,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_laser_45",
+    "metric": "kills",
+    "goal": 45,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Laser Specialist",
+    "description": "Get 45 kills with the Laser Sight equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_laser",
+    "eliteGoal": 90,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_red_dot_55",
+    "metric": "kills",
+    "goal": 55,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Optic Operator",
+    "description": "Get 55 kills with the Red Dot Sight equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_red_dot",
+    "eliteGoal": 105,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_acog_40",
+    "metric": "kills",
+    "goal": 40,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Long-Range Optics",
+    "description": "Get 40 kills with the ACOG 4x Scope equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_acog",
+    "eliteGoal": 80,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_extended_50",
+    "metric": "kills",
+    "goal": 50,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Sustained Fire",
+    "description": "Get 50 kills with the Extended Mag equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "mag_extended",
+    "eliteGoal": 100,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_compensator_50",
+    "metric": "kills",
+    "goal": 50,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Controlled Burst",
+    "description": "Get 50 kills with the Compensator equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "barrel_compensator",
+    "eliteGoal": 100,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_angled_45",
+    "metric": "kills",
+    "goal": 45,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Firm Grip",
+    "description": "Get 45 kills with the Angled Grip equipped this week",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "grip_angled",
+    "eliteGoal": 90,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_blacksite_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Blacksite Lockdown",
+    "description": "Get 60 kills on Blacksite this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "bunker",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_ridgefall_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Factory Siege",
+    "description": "Get 60 kills on Ridgefall this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "skybridge",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_afterlight_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "City After Dark",
+    "description": "Get 60 kills on Afterlight City (Night) this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "arena_neon",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_floodgate_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Dam Breaker",
+    "description": "Get 60 kills on Floodgate this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "floodgate",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_orbital_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Orbital Deployment",
+    "description": "Get 60 kills on Orbital Nexus this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "orbital_nexus",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_whiteout_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Whiteout Veteran",
+    "description": "Get 60 kills on Whiteout Depot this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "whiteout_depot",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_emberhold_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Fortress Campaign",
+    "description": "Get 60 kills on Emberhold this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "emberhold",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_map_forest_60",
+    "metric": "kills",
+    "goal": 60,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Woodland Campaign",
+    "description": "Get 60 kills on Forest Warfare this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "forest_warfare",
+    "eliteGoal": 110,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_ctf_captures_6",
+    "metric": "ctf_captures",
+    "goal": 6,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Flagbearer",
+    "description": "Capture 6 flags in Capture the Flag this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_ctf_returns_8",
+    "metric": "ctf_flag_returns",
+    "goal": 8,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Fortress Guardian",
+    "description": "Return 8 friendly flags in Capture the Flag this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_ctf_defense_12",
+    "metric": "ctf_defense_kills",
+    "goal": 12,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Home Guard",
+    "description": "Get 12 defense kills in Capture the Flag this week",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_hard_waves_8",
+    "metric": "survival_waves",
+    "goal": 8,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Hard Holdout",
+    "description": "Survive 8 waves in one Hard Survival run",
+    "icon": "Shield",
+    "focus": "operations",
+    "survivalTier": "hard",
+    "eliteEligible": false,
+    "category": "weekly"
+  },
+  {
+    "id": "wk_assists_40",
+    "metric": "assists",
+    "goal": 40,
+    "rewardXp": 1800,
+    "rewardCredits": 600,
+    "title": "Force Multiplier",
+    "description": "Earn 40 assists this week",
+    "icon": "Target",
+    "focus": "general",
+    "eliteGoal": 75,
+    "category": "weekly"
   }
 ]

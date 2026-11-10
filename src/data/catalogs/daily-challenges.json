@@ -7,7 +7,8 @@
     "rewardCredits": 100,
     "title": "Bloodhound",
     "description": "Get 25 kills",
-    "icon": "Crosshair"
+    "icon": "Crosshair",
+    "focus": "general"
   },
   {
     "id": "ch_kills_50",
@@ -18,7 +19,8 @@
     "title": "Exterminator",
     "description": "Get 50 kills",
     "icon": "Crosshair",
-    "eliteGoal": 100
+    "eliteGoal": 100,
+    "focus": "general"
   },
   {
     "id": "ch_hs_10",
@@ -28,7 +30,8 @@
     "rewardCredits": 150,
     "title": "Sharpshooter",
     "description": "Land 10 headshots",
-    "icon": "Target"
+    "icon": "Target",
+    "focus": "general"
   },
   {
     "id": "ch_hs_25",
@@ -39,7 +42,8 @@
     "title": "Marksman",
     "description": "Land 25 headshots",
     "icon": "Target",
-    "eliteGoal": 45
+    "eliteGoal": 45,
+    "focus": "general"
   },
   {
     "id": "ch_win_3",
@@ -50,7 +54,8 @@
     "title": "Victor",
     "description": "Win 3 matches",
     "icon": "Trophy",
-    "eliteEligible": false
+    "eliteEligible": false,
+    "focus": "general"
   },
   {
     "id": "ch_play_5",
@@ -61,7 +66,8 @@
     "title": "Active Duty",
     "description": "Play 5 matches",
     "icon": "Swords",
-    "eliteEligible": false
+    "eliteEligible": false,
+    "focus": "general"
   },
   {
     "id": "ch_tags_12",
@@ -72,7 +78,8 @@
     "title": "Dog Tag Collector",
     "description": "Recover 12 enemy tags in Kill Confirmed",
     "icon": "Shield",
-    "eliteGoal": 24
+    "eliteGoal": 24,
+    "focus": "operations"
   },
   {
     "id": "ch_denials_5",
@@ -83,7 +90,8 @@
     "title": "Last-Second Save",
     "description": "Deny 5 enemy confirmations by retrieving allied tags",
     "icon": "Shield",
-    "eliteEligible": false
+    "eliteEligible": false,
+    "focus": "operations"
   },
   {
     "id": "ch_tdm_20",
@@ -93,7 +101,8 @@
     "rewardCredits": 130,
     "title": "Team Player",
     "description": "Get 20 kills in TDM",
-    "icon": "Shield"
+    "icon": "Shield",
+    "focus": "operations"
   },
   {
     "id": "ch_ffa_20",
@@ -103,7 +112,8 @@
     "rewardCredits": 130,
     "title": "Lone Wolf",
     "description": "Get 20 kills in FFA",
-    "icon": "Users"
+    "icon": "Users",
+    "focus": "operations"
   },
   {
     "id": "ch_multi_5",
@@ -114,7 +124,8 @@
     "title": "Killing Spree",
     "description": "Achieve 5 multi-kills",
     "icon": "Zap",
-    "eliteGoal": 8
+    "eliteGoal": 8,
+    "focus": "general"
   },
   {
     "id": "ch_shotgun_10",
@@ -124,7 +135,8 @@
     "rewardCredits": 130,
     "title": "Breacher",
     "description": "Get 10 kills with shotguns",
-    "icon": "Crosshair"
+    "icon": "Crosshair",
+    "focus": "arsenal"
   },
   {
     "id": "ch_sniper_8",
@@ -134,7 +146,8 @@
     "rewardCredits": 180,
     "title": "Longshot",
     "description": "Get 8 kills with snipers",
-    "icon": "Crosshair"
+    "icon": "Crosshair",
+    "focus": "arsenal"
   },
   {
     "id": "ch_surv_kills_30",
@@ -145,7 +158,8 @@
     "title": "Last Stand",
     "description": "Get 30 kills in Survival",
     "icon": "Skull",
-    "eliteGoal": 120
+    "eliteGoal": 120,
+    "focus": "operations"
   },
   {
     "id": "ch_surv_waves_5",
@@ -156,7 +170,8 @@
     "title": "Holdout",
     "description": "Survive 5 waves in one run",
     "icon": "Shield",
-    "eliteGoal": 12
+    "eliteGoal": 10,
+    "focus": "operations"
   },
   {
     "id": "ch_secondary_15",
@@ -167,7 +182,8 @@
     "title": "Sidearm Slinger",
     "description": "Get 15 kills with secondary weapons",
     "icon": "Crosshair",
-    "eliteGoal": 35
+    "eliteGoal": 35,
+    "focus": "arsenal"
   },
   {
     "id": "ch_melee_5",
@@ -178,6 +194,250 @@
     "title": "Blade Master",
     "description": "Get 5 kills with melee weapons",
     "icon": "Swords",
-    "eliteGoal": 12
+    "eliteGoal": 12,
+    "focus": "arsenal"
+  },
+  {
+    "id": "ch_suppressor_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Silent Operator",
+    "description": "Get 12 kills with the Suppressor equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "barrel_suppressor",
+    "eliteGoal": 25
+  },
+  {
+    "id": "ch_laser_10",
+    "metric": "kills",
+    "goal": 10,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Point & Shoot",
+    "description": "Get 10 kills with the Laser Sight equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_laser",
+    "eliteGoal": 22
+  },
+  {
+    "id": "ch_red_dot_10",
+    "metric": "kills",
+    "goal": 10,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Red Dot Discipline",
+    "description": "Get 10 kills with the Red Dot Sight equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_red_dot",
+    "eliteGoal": 22
+  },
+  {
+    "id": "ch_acog_8",
+    "metric": "kills",
+    "goal": 8,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Four-Power Focus",
+    "description": "Get 8 kills with the ACOG 4x Scope equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "sight_acog",
+    "eliteGoal": 18
+  },
+  {
+    "id": "ch_extended_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Extra Capacity",
+    "description": "Get 12 kills with the Extended Mag equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "mag_extended",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_compensator_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Recoil Control",
+    "description": "Get 12 kills with the Compensator equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "barrel_compensator",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_angled_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Steady Hands",
+    "description": "Get 12 kills with the Angled Grip equipped",
+    "icon": "Crosshair",
+    "focus": "arsenal",
+    "attachmentId": "grip_angled",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_blacksite_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Blacksite Raid",
+    "description": "Get 12 kills on Blacksite",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "bunker",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_ridgefall_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Steelworks Patrol",
+    "description": "Get 12 kills on Ridgefall",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "skybridge",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_afterlight_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Neon Pursuit",
+    "description": "Get 12 kills on Afterlight City (Night)",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "arena_neon",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_floodgate_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Floodgate Assault",
+    "description": "Get 12 kills on Floodgate",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "floodgate",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_orbital_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Zero-G Patrol",
+    "description": "Get 12 kills on Orbital Nexus",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "orbital_nexus",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_whiteout_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Cold Front",
+    "description": "Get 12 kills on Whiteout Depot",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "whiteout_depot",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_emberhold_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Castle Siege",
+    "description": "Get 12 kills on Emberhold",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "emberhold",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_map_forest_12",
+    "metric": "kills",
+    "goal": 12,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Forest Recon",
+    "description": "Get 12 kills on Forest Warfare",
+    "icon": "Shield",
+    "focus": "operations",
+    "mapId": "forest_warfare",
+    "eliteGoal": 26
+  },
+  {
+    "id": "ch_ctf_captures_2",
+    "metric": "ctf_captures",
+    "goal": 2,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Flag Runner",
+    "description": "Capture 2 flags in Capture the Flag",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false
+  },
+  {
+    "id": "ch_ctf_returns_2",
+    "metric": "ctf_flag_returns",
+    "goal": 2,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Base Defender",
+    "description": "Return 2 friendly flags in Capture the Flag",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false
+  },
+  {
+    "id": "ch_ctf_defense_3",
+    "metric": "ctf_defense_kills",
+    "goal": 3,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Defensive Line",
+    "description": "Get 3 defense kills in Capture the Flag",
+    "icon": "Shield",
+    "focus": "operations",
+    "eliteEligible": false
+  },
+  {
+    "id": "ch_assists_10",
+    "metric": "assists",
+    "goal": 10,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Team Support",
+    "description": "Earn 10 assists",
+    "icon": "Target",
+    "focus": "general",
+    "eliteGoal": 22
   }
 ]

@@ -32,7 +32,8 @@ export const ROTATING_CHALLENGE_METRICS = [
   "kills","headshots","wins","matches","tdm_kills","ffa_kills",
   "kills_with_shotgun","kills_with_sniper","kills_with_secondary","kills_with_melee",
   "multikills","survival_kills","survival_waves","gungame_kills",
-  "kill_confirmations","kill_denials","level",
+  "kill_confirmations","kill_denials","assists",
+  "ctf_captures","ctf_flag_returns","ctf_defense_kills","level",
 ] as const;
 export const ACHIEVEMENT_METRICS = [
   "kills","headshots","wins","matches","level","credits_earned_total",
@@ -138,6 +139,11 @@ export const rotatingChallenge = z.strictObject({
   // Optional eligibility and curated target for period-based Elite promotions.
   eliteEligible: z.boolean().optional(),
   eliteGoal: pos.int().optional(),
+  // Curated, auditable quest dimensions.
+  focus: z.enum(["general", "arsenal", "operations"]).optional(),
+  mapId: id.optional(),
+  attachmentId: id.optional(),
+  survivalTier: z.enum(["default", "hard", "elite", "nightmare"]).optional(),
 });
 export const achievement = z.strictObject({
   id, metric: achievementMetric, goal: pos, rewardXp: count, rewardCredits: count,

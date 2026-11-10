@@ -34,7 +34,7 @@ describe("rotating challenge Elite fairness", () => {
   test("curated Elite values avoid unrealistic 3× daily and weekly demands", () => {
     const lookup = (id: string) => promoteChallengeToElite(pool.find(q => q.id === id)!);
     expect(lookup("ch_multi_5").goal).toBe(8);
-    expect(lookup("ch_surv_waves_5").goal).toBe(12);
+    expect(lookup("ch_surv_waves_5").goal).toBe(10);
     expect(lookup("wk_multi_30").goal).toBe(50);
     expect(lookup("wk_gungame_30").goal).toBe(60);
     expect(lookup("wk_melee_15").goal).toBe(30);
@@ -46,7 +46,7 @@ describe("rotating challenge Elite fairness", () => {
     expect(nextChallengeProgress(waves, 3, 5)).toBe(5);
     const elite = promoteChallengeToElite(waves);
     expect(nextChallengeProgress(elite, 7, 6)).toBe(7);
-    expect(nextChallengeProgress(elite, 7, 12)).toBe(12);
+    expect(nextChallengeProgress(elite, 7, 10)).toBe(10);
     const kills = DAILY_CHALLENGE_POOL.find(q => q.id === "ch_kills_25")!;
     expect(nextChallengeProgress(kills, 8, 10)).toBe(18);
     expect(nextChallengeProgress(kills, 24, 10)).toBe(25);

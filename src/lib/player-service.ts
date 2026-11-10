@@ -37,6 +37,7 @@ import {
   canPromoteChallengeToElite,
   promoteChallengeToElite,
   nextChallengeProgress,
+  contextualChallengeDelta,
   type ChallengeMetric,
   type ChallengeDef,
   type WeaponChallengeMetric,
@@ -90,6 +91,8 @@ export interface MatchResultInput {
   // Optional — non-gungame callers omit it (kills default to `weaponId`).
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
   perWeaponActions?: Record<string, Partial<WeaponConditionStats>>;
+  mapId?: string;
+  perAttachmentKills?: Record<string, number>;
 }
 
 /** Older hosted SQLite files predate the dedicated Wonder slot.
@@ -640,6 +643,10 @@ export interface AwardResult {
 function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
   switch (metric) {
     case "kills": return m.kills;
+    case "assists": return m.assists ?? 0;
+    case "ctf_captures": return m.mode === "ctf" ? m.score : 0;
+    case "ctf_flag_returns": return m.mode === "ctf" ? (m.flagReturns ?? 0) : 0;
+    case "ctf_defense_kills": return m.mode === "ctf" ? (m.defenseKills ?? 0) : 0;
     case "headshots": return m.headshots;
     case "wins": return m.won ? 1 : 0;
     case "matches": return 1;
@@ -771,7 +778,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
   const challengeProgress: AwardResult["challengeProgress"] = [];
   for (const ch of todaysChallenges) {
-    const delta = metricDelta(ch.metric, input);
+    const delta = contextualChallengeDelta(ch, input, metricDelta(ch.metric, input));
     if (delta <= 0) continue;
     const isElite = ch.id.endsWith("_elite");
     const existing = await db.dailyChallenge.findUnique({
@@ -811,11 +818,11 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     }
   }
 
-  // --- Weekly challenges progress (2 rotating objectives, ISO week, with elite promotion) ---
+  // --- Weekly challenges progress (3 focused objectives, ISO week, with elite promotion) ---
   const weekKey = weeklyChallengeKey();
   const thisWeeksChallenges = effectiveWeeklyChallenges(player.playerKey, weekKey);
   for (const ch of thisWeeksChallenges) {
-    const delta = metricDelta(ch.metric, input);
+    const delta = contextualChallengeDelta(ch, input, metricDelta(ch.metric, input));
     if (delta <= 0) continue;
     const isElite = ch.id.endsWith("_elite");
     const existing = await db.dailyChallenge.findUnique({

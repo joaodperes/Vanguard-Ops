@@ -29,7 +29,7 @@ import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
-import { cityInteriorFixtures, cityFixtureMaterial, cityFixtureBallisticId, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
+import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
 import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
@@ -398,6 +398,8 @@ export interface MatchEndResult {
   // attributing all kills to `weaponId`.
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
   perWeaponActions?: Record<string, Partial<Record<WeaponConditionMetric, number>>>;
+  mapId?: string;
+  perAttachmentKills?: Record<string, number>;
   confirmations?: number;
   denials?: number;
 }
@@ -1233,6 +1235,7 @@ export class FPSEngine {
   // attributing all kills to the match-start weapon. Sent in MatchEndResult.
   private perWeaponKills: Map<string, { kills: number; headshots: number }> = new Map();
   private perWeaponActions: Map<string, Partial<Record<WeaponConditionMetric, number>>> = new Map();
+  private perAttachmentKills: Map<string, number> = new Map();
 
   // ---- Gun Game progression (gungame mode only) ----
   // The local player's current tier index. Set to 0 at match start; advanced by
@@ -2319,14 +2322,8 @@ export class FPSEngine {
       if(isCastlePropKind(p.kind)){
         buildCastleScenery(group,p);
       }else if(isFactoryMachineKind(p.kind)){
-        // Most pallets dress named authored cover; others are backed by the
-        // deterministic prop collider. Both must disappear when broken.
-        if(p.kind==="cargo_pallet"){
-          const matching=this.map.cover.find(c=>c.kind==="cover"&&
-            c.material==="light_cover"&&!!c.ballisticId&&
-            Math.abs(c.pos[0]-p.x)<.1&&Math.abs(c.pos[2]-p.z)<.1);
-          group.userData.ballisticId=matching?.ballisticId??mapPropBallisticId(p);
-        }
+        // Machine meshes dress pre-existing blueprint solids; collision remains
+        // authoritative in those features instead of being duplicated here.
         buildFactoryMachinery(group,p.kind,w,d,h,this.map.id==="floodgate"?p.color:undefined);
       }else if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
@@ -2432,14 +2429,10 @@ export class FPSEngine {
         }
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
-        for(const [index,item] of cityInteriorFixtures({...p,w,d}).entries()){
+        for(const item of cityInteriorFixtures({...p,w,d})){
           const {x,z,w:fw,d:fd,h:fh,style}=item;
-          const itemGroup=new THREE.Group();
-          if(cityFixtureMaterial(style)!=="reinforced")
-            itemGroup.userData.ballisticId=cityFixtureBallisticId(p,index);
-          group.add(itemGroup);
           const part=(mat:THREE.Material,px:number,py:number,pz:number,pw:number,ph:number,pd:number)=>
-            cube(itemGroup,mat,x+px,py,z+pz,pw,ph,pd);
+            cube(group,mat,x+px,py,z+pz,pw,ph,pd);
           if(style==="partition"){
             part(wallPaint,0,fh/2,0,fw,fh,fd);
             part(wood,0,.09,0,fw,.16,fd+.09);
@@ -2486,7 +2479,7 @@ export class FPSEngine {
             part(wood,0,.3,0,fw*.65,.60,fd*.65);
             const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
             leaves.position.set(x,fh*.71,z);
-            leaves.scale.set(.8,1.1,.8);itemGroup.add(leaves);
+            leaves.scale.set(.8,1.1,.8);group.add(leaves);
           }else if(style==="espresso"){
             part(metal,0,.28,0,fw*.94,.54,fd*.94);
             part(wood,0,.63,0,fw,.14,fd);
@@ -2516,7 +2509,7 @@ export class FPSEngine {
           }else if(style==="sculpture"){
             part(wood,0,.23,0,fw*.92,.44,fd*.92);
             const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
-            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);itemGroup.add(sculpture);
+            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
           }else if(style==="server_rack"){
             part(asphalt,0,fh*.48,0,fw,fh*.96,fd);
             for(let i=0;i<6;i++){
@@ -2762,8 +2755,8 @@ export class FPSEngine {
         }
       }
       if(group.children.length){
-        if(isCastlePropKind(p.kind)||p.kind==="bench"||p.kind==="building"||p.kind==="cargo_pallet"){
-          // Detailed props use material-specific physics but may render many meshes., slate and furniture models on top of
+        if(isCastlePropKind(p.kind)||p.kind==="bench"){
+          // Castle props and city benches use detailed timber, slate and furniture models on top of
           // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
           group.traverse(node=>{
             const id=node.userData.ballisticId;
@@ -5527,11 +5520,12 @@ export class FPSEngine {
     const won = false;
     return {
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won,
-      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: false, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
@@ -7240,6 +7234,7 @@ export class FPSEngine {
         // per-weapon tallies don't bleed into the new match).
         this.perWeaponKills = new Map();
         this.perWeaponActions = new Map();
+        this.perAttachmentKills = new Map();
         this.wonderStates.clear();
         const startTime=performance.now();
         const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
@@ -9331,6 +9326,13 @@ export class FPSEngine {
     // Temporary Reaper kills earn their unique achievement, not regular
     // Armory challenge or permanent weapon mastery progression.
     if(weaponId===ORBITAL_REAPER_ID)return;
+    // Count only attachments mounted on the weapon credited for the elimination.
+    // Gun Game weapons have no authored attachments regardless of saved loadout.
+    if (weaponId === this.weaponId && this.opts.mode !== "gungame") {
+      for (const attachmentId of Object.values(this.getCurrentAttachments())) {
+        if (attachmentId) this.perAttachmentKills.set(attachmentId, (this.perAttachmentKills.get(attachmentId) ?? 0) + 1);
+      }
+    }
     // Applied at elimination, including online kills acknowledged by the server.
     const actions = this.perWeaponActions.get(weaponId) ?? {};
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
@@ -9574,11 +9576,12 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: true, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
@@ -9632,11 +9635,12 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: true, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
