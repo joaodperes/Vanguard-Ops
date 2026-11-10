@@ -32,6 +32,13 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   wonder_deadlock: { receiver:[.135,.15,.32],guardLength:.15,barrelLength:.18,bore:.028,stock:"none",magazine:"grip",body:"tapered",features:["muzzle","vent"],signature:0xb154d4 },
   wonder_hellfire: { receiver:[.24,.24,.52],guardLength:.49,barrelLength:.45,bore:.15,stock:"heavy",magazine:"drum",body:"ribbed",features:["dual","vent","shield"],signature:0xff7424 },
   wonder_stormweaver: { receiver:[.14,.18,.33],guardLength:.16,barrelLength:.23,bore:.075,stock:"none",magazine:"revolver",body:"tapered",features:["vent","muzzle","rail"],signature:0x48d6ff },
+  wonder_phasebreaker: { receiver:[.17,.16,.68],guardLength:.56,barrelLength:.66,bore:.035,stock:"precision",magazine:"box",body:"angular",features:["scope","vent","rail","brake"],signature:0x6de3fc },
+  wonder_chrono: { receiver:[.11,.06,.23],guardLength:0,barrelLength:0,bore:0,stock:"none",magazine:"none",body:"block",features:[],signature:0x9d8bf3 },
+  wonder_seismic: { receiver:[.13,.15,.37],guardLength:.15,barrelLength:.5,bore:.02,stock:"none",magazine:"none",body:"slim",features:[],signature:0xffaf5d },
+  wonder_phantom: { receiver:[.12,.065,.23],guardLength:0,barrelLength:0,bore:0,stock:"none",magazine:"none",body:"block",features:[],signature:0x73b4c3 },
+  wonder_whiteout: { receiver:[.13,.14,.50],guardLength:.35,barrelLength:.4,bore:.025,stock:"precision",magazine:"straight",body:"slim",features:["scope","vent","rail"],signature:0x97e8fa },
+  wonder_ripper: { receiver:[.25,.14,.48],guardLength:.3,barrelLength:.18,bore:.02,stock:"folding",magazine:"none",body:"angular",features:["guard"],signature:0xff913e },
+  wonder_juggernaut: { receiver:[.17,.07,.29],guardLength:0,barrelLength:0,bore:0,stock:"none",magazine:"none",body:"block",features:[],signature:0xeebc75 },
   wonder_bogfather: { receiver:[.23,.19,.48],guardLength:.4,barrelLength:.29,bore:.12,stock:"heavy",magazine:"drum",body:"block",features:["shield","dual","vent"],signature:0x86e042 },
   rifle_electron:   { receiver: [.180,.175,.48], guardLength:.32, barrelLength:.27, bore:.042, stock:"bullpup", magazine:"none", body:"ribbed", features:["vent","rail","muzzle"], signature:0x29d9fa },
   crossbow_reclaimer:{ receiver: [.125,.115,.34], guardLength:.42, barrelLength:.18, bore:.012, stock:"precision", magazine:"none", body:"slim", features:["rail","guard"], signature:0x84919a },
@@ -84,6 +91,8 @@ export function weaponHoldPoints(id: string): {
   support: [number, number, number];
 } {
   const p = WEAPON_VISUALS[id] ?? WEAPON_VISUALS.rifle_ar;
+  if (id === "wonder_juggernaut" || id === "wonder_chrono" || id === "wonder_phantom")
+    return { trigger:[.08,-.16,.07], support:[-.08,-.065,-.13] };
   const centerZ = -0.12;
 
   if (p.magazine === "rocket") {
@@ -256,6 +265,39 @@ export function buildFirstPersonWeapon(
   // Bullet Spitter is a deployable tool rather than a conventional LMG.
   // Show a compact placement controller in both first-person and world models;
   // the actual machine is a separate turret mesh anchored on the map.
+  if (id === "wonder_juggernaut" || id === "wonder_chrono" || id === "wonder_phantom") {
+    // Handheld deployment devices: no gun receiver, barrel, stock or magazine.
+    const tablet=id==="wonder_juggernaut";
+    const chrono=id==="wonder_chrono";
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(tablet?.32:.15,tablet?.22:.18,.055),bodyMat);
+    panel.rotation.x=-.22;add(panel,0,-.035,-.13);
+    const rubber=new THREE.Mesh(new THREE.BoxGeometry(tablet?.35:.18,tablet?.035:.025,.07),darkMat);
+    rubber.rotation.x=-.22;add(rubber,0,-.16,-.115);
+    const display=new THREE.Mesh(new THREE.BoxGeometry(tablet?.255:.105,tablet?.155:.12,.008),
+      new THREE.MeshBasicMaterial({color:chrono?0x796be4:tablet?0x2d7f8c:0x5cb2b4}));
+    display.name="wonder_controller_display";display.rotation.x=-.22;
+    add(display,0,-.017,-.17);
+    if(tablet){
+      for(let i=0;i<4;i++){
+        const line=new THREE.Mesh(new THREE.BoxGeometry(.15-i*.016,.006,.01),new THREE.MeshBasicMaterial({color:i===0?0xbef6ff:0x7ebbb7}));
+        line.rotation.x=-.22;add(line,-.035,-.052+i*.024,-.183);
+      }
+      const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.008,.011,.22,8),darkMat);
+      antenna.rotation.z=.18;add(antenna,.14,.13,-.14);
+    }else if(chrono){
+      const dial=new THREE.Mesh(new THREE.TorusGeometry(.041,.011,8,24),
+        new THREE.MeshBasicMaterial({color:0xddd0ff}));
+      add(dial,0,-.025,-.195);
+      const button=new THREE.Mesh(new THREE.SphereGeometry(.018,10,8),darkMat);
+      add(button,0,-.027,-.20);
+    }else{
+      for(const x of [-.037,.037])add(new THREE.Mesh(new THREE.BoxGeometry(.021,.021,.012),
+        new THREE.MeshBasicMaterial({color:0xa8efff})),x,-.028,-.197);
+      const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.15,8),darkMat);
+      add(antenna,.065,.09,-.12);
+    }
+    return -.25;
+  }
   if (id === "wonder_turret") {
     const body = new THREE.Mesh(new THREE.BoxGeometry(.19,.11,.32), bodyMat);
     add(body,0,-.07,-.12);
@@ -597,6 +639,32 @@ export function buildFirstPersonWeapon(
       orb(0,.09,muzzle,.10);
     }else if(id==="wonder_bogfather"){
       for(const side of [-1,1])orb(side*.11,.08,c-.1,.09);
+    }else if(id==="wonder_phasebreaker"){
+      // Twin floating-inset conduction rails make the sniper unlike a conventional rifle.
+      for(const side of [-1,1]){
+        box(side*.11,.055,guardZ,.025,.035,p.guardLength*.95,energy);
+        for(let i=0;i<5;i++)box(side*.12,.09,guardZ+(i-2)*.08,.038,.035,.024,metal);
+      }
+      orb(0,.045,muzzle+.03,.055);
+    }else if(id==="wonder_whiteout"){
+      for(let i=0;i<3;i++){
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.057,.012,7,20),energy);
+        add(ring,0,.015,muzzle+.05+i*.082);
+      }
+      box(0,.095,guardZ,.085,.034,.25,energy);
+    }else if(id==="wonder_ripper"){
+      // Visible exposed saw in the launcher itself. It also fires a full 3D disc.
+      box(0,.10,c-.22,.32,.045,.34,metal);
+      const blade=new THREE.Group();blade.name="wonder_ripper_carried_saw";
+      const disc=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.035,16),energy);
+      disc.rotation.x=Math.PI/2;blade.add(disc);
+      for(let i=0;i<12;i++){
+        const a=i*Math.PI/6;
+        const tooth=new THREE.Mesh(new THREE.BoxGeometry(.065,.035,.045),metal);
+        tooth.position.set(Math.cos(a)*.18,Math.sin(a)*.18,0);
+        tooth.rotation.z=a;blade.add(tooth);
+      }
+      add(blade,0,.125,c-.31);
     }
   }
   if (p.features.includes("dual")) {
