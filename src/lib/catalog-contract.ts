@@ -84,7 +84,7 @@ export const weapon = z.strictObject({
   explosive: z.strictObject({ radius: pos }).optional(),
   special: z.discriminatedUnion("kind", [heat, arc, bolt, throwingKnife]).optional(),
   wonder: z.strictObject({
-    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield", "rail", "chrono", "seismic", "decoy", "cryo", "ricochet", "mech"]),
+    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield", "rail", "chrono", "seismic", "decoy", "cryo", "ricochet", "mech", "drone"]),
     maxCharges: z.literal([1,2,3,4,5,6,7,8]),
     rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
   }).optional(),
