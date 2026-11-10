@@ -210,12 +210,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
         </div>
         {/* Fire + ADS stacked vertically (ADS on top, Fire below) */}
         <div className="flex flex-col gap-3 items-end">
-          {akimbo ? (
-            <HoldBtn label="Right Gun" icon={<Crosshair className="w-6 h-6" />}
-              onDown={() => engine?.setTouchAkimboRight(true)}
-              onUp={() => engine?.setTouchAkimboRight(false)}
-              color="border-amber-500/50 bg-amber-600/25 text-amber-100" />
-          ) : (
+          {!akimbo && (
             <HoldBtn
               label="ADS"
               icon={<ZoomIn className="w-6 h-6" />}
@@ -225,7 +220,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
             />
           )}
           <HoldBtn
-            label={akimbo ? "Left Gun" : "Fire"}
+            label={akimbo ? "Fire Both" : "Fire"}
             icon={<Crosshair className="w-7 h-7" />}
             onDown={() => engine?.setTouchFire(true)}
             onUp={() => engine?.setTouchFire(false)}
