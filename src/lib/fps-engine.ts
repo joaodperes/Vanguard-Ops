@@ -125,7 +125,7 @@ import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboVolleyReady, akimboReloadDip, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -8968,12 +8968,13 @@ export class FPSEngine {
         }
       }
     } else if (this.opts.online) {
-      // The first half of a paired volley is ONE authoritative shot intent:
-      // the server validates the Akimbo grip and resolves two independent rays.
-      if(akimboHand!=="right")this.socket?.emit("message", {
+      // Each revolver sends its OWN shot; two simultaneous inputs yield two
+      // messages and two server-authorized rays without an alternating delay.
+      this.socket?.emit("message", {
         t:"shot", origin, dir, weaponId:this.weaponId,
-        skinId:this.getCurrentSkinId(), aiming:false,
-      });
+        skinId:this.getCurrentSkinId(), aiming:akimboHand?false:this.aiming,
+        akimboHand,
+      } as C2S);
       this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
     } else {
       // Capture the tracer against PRE-destruction geometry; the finishing
@@ -10590,35 +10591,47 @@ export class FPSEngine {
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
-      // Either mouse trigger (or the mobile fire button) produces one paired volley.
+      // Independent left/right triggers. Process BOTH ready edges within the same
+      // frame: neither hand is blocked by the other hand's firing timestamp.
       const now=performance.now(),w=weaponById(this.weaponId);
-      const pressed=this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
-        this.touchPressedThisFrame||this.touchAkimboRightPressedThisFrame;
-      if(pressed&&!this.reloading)this.akimboPending.left=now;
-      if(this.reloading)this.akimboPending.left=-Infinity;
-      if(now-this.akimboPending.left<520&&
-         akimboVolleyReady(this.akimboAmmo.left,this.akimboAmmo.right,
-           this.lastShotAt,now,this.eff.fireRate)&&
-         !this.reloading&&!this.sprinting&&this.alive&&!this.matchEnded&&
-         now>=this.swapReadyAt){
-        // Client-side ammo, independent recoil/flashes/tracers and offline damage
-        // are processed twice at the SAME frame timestamp. Online is ONE packet.
-        // Lock both trajectories to the SAME pre-recoil camera direction.
-        // Each shot still rolls its own spread and recoil, but the second cannot
-        // inherit the first revolver's muzzle kick before it leaves the barrel.
+      if(!this.reloading){
+        if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
+        if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)
+          this.akimboPending.right=now;
+      }else this.akimboPending.left=this.akimboPending.right=-Infinity;
+      const hands=(["left","right"] as const).filter(hand=>
+        now-this.akimboPending[hand]<520 &&
+        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
+          now,this.eff.fireRate));
+      if(hands.length && !this.reloading&&!this.sprinting&&this.alive&&
+         !this.matchEnded&&now>=this.swapReadyAt){
+        // Sample each direction from the SAME pre-recoil camera when both are
+        // pressed together; apply the accumulated kick only after both shots.
         const originalYaw=this.yaw,originalPitch=this.pitch;
-        this.fireOneShot(w,"left");
-        const firstYawKick=this.yaw-originalYaw,firstPitchKick=this.pitch-originalPitch;
-        this.yaw=originalYaw;this.pitch=originalPitch;
-        this.fireOneShot(w,"right");
-        this.yaw+=firstYawKick;this.pitch+=firstPitchKick;
-        this.akimboPending.left=-Infinity;
+        let recoilYaw=0,recoilPitch=0;
+        for(const hand of hands){
+          this.yaw=originalYaw;this.pitch=originalPitch;
+          this.fireOneShot(w,hand);
+          recoilYaw+=this.yaw-originalYaw;
+          recoilPitch+=this.pitch-originalPitch;
+          this.akimboPending[hand]=-Infinity;
+        }
+        this.yaw=originalYaw+recoilYaw;this.pitch=originalPitch+recoilPitch;
       }
-      if(pressed&&(this.akimboAmmo.left===0||this.akimboAmmo.right===0)){
-        this.akimboPending.left=-Infinity;
-        this.sound.play("empty_click",{volume:.25,throttleMs:130});
-        if(!this.reloading&&this.ammoInMag<this.eff.magSize)this.startReload();
+      for(const hand of ["left","right"] as const){
+        const pressed=hand==="left"
+          ?this.mousePressedThisFrame||this.touchPressedThisFrame
+          :this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame;
+        if(pressed&&this.akimboAmmo[hand]===0){
+          this.akimboPending[hand]=-Infinity;
+          this.sound.play("empty_click",{volume:.25,throttleMs:130});
+        }
       }
+      // Keep the surviving cylinder usable; automatically reload only when BOTH
+      // cylinders are empty (or when the player explicitly presses R).
+      if(this.ammoInMag===0&&!this.reloading&&
+        (this.mousePressedThisFrame||this.touchPressedThisFrame||
+         this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
