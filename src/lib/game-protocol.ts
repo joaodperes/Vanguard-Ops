@@ -1431,6 +1431,7 @@ export type C2S =
   | { t: "harbingerDesignate" } // ADS requests a new visible priority target for the deployed drone
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
   | { t: "enterMech"; dropId: string }
+  | { t: "exitMech" } // pilot voluntarily leaves and consumes the Juggernaut
   | { t: "mechShot"; mode: "minigun" | "secondary"; origin: Vec3; dir: Vec3 }
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
