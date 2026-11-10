@@ -132,7 +132,7 @@ export function regionBoundary(regions: readonly MapRegion[], height = 11): Cove
 
 export function featureBoxes(feature: MapFeature): CoverBox[] {
   const h=Math.max(0.3,feature.h),baseY=feature.y??0;
-  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind,...(feature.kind==="cover"?{material:feature.material,ballisticId:feature.material?feature.id:undefined}:{})};
+  const main: CoverBox={pos:[feature.x,baseY+h/2,feature.z],size:[feature.w/2,h/2,feature.d/2],kind:feature.kind==="stairs"?"stair":feature.kind,...(feature.kind==="cover"?{material:feature.material??"reinforced",ballisticId:feature.material?feature.id:undefined}:{})};
   if(feature.kind==="stairs")return stairFeatureBoxes(feature);
   if(feature.kind!=="platform"||feature.autoStairs===false)return [main];
   // Two physically walkable stair flights connect each elevated roof to grade.
@@ -262,6 +262,7 @@ export function validateBlueprint(b: MapBlueprint): string[] {
     if(!["cover","accent","platform","stairs"].includes(f.kind)||![f.x,f.z,f.w,f.d,f.h,f.y??0].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)
       issues.push(`Feature ${f.id||i} has invalid geometry`);
     if(!insideRegions(f.x,f.z,b.regions??[])) issues.push(`Feature ${f.id||i} is outside walkable space`);
+    if(f.kind==="cover"&&!f.material)issues.push(`Feature ${f.id||i} missing ballistic material`);
     if(f.material!==undefined && (f.kind!=="cover" || !BALLISTIC_MATERIALS.includes(f.material)))
       issues.push(`Feature ${f.id||i} invalid ballistic material`);
     if(f.assemblyId!==undefined&&(typeof f.assemblyId!=="string"||!f.assemblyId||f.assemblyId.length>160))issues.push(`Feature ${f.id} invalid assembly`);
