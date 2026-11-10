@@ -99,7 +99,7 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
-import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
+import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
@@ -1734,6 +1734,7 @@ export class FPSEngine {
     for (const cover of FOREST_TREE_PARAPETS) {
       const rail=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),barkLight);
       place(rail,...cover.pos);
+      if(cover.ballisticId)this.ballisticMeshes.set(cover.ballisticId,rail);
     }
     for (const prop of FOREST_OBJECTS) {
       const {x,z,w,d,h,kind}=prop;
@@ -1757,6 +1758,7 @@ export class FPSEngine {
         log.rotation.z=Math.PI/2;place(log,x,.95,z);
         const ring=new THREE.Mesh(new THREE.CylinderGeometry(.90,.90,.13,10),bark);
         ring.rotation.z=Math.PI/2;place(ring,x+w,.95,z);
+        this.ballisticDetailMeshes.set(forestLogCoverId(prop),[log,ring]);
       }
     }
     // Landmark trees are intentionally MUCH taller and broader than ordinary
