@@ -173,6 +173,7 @@ test("death does not freeze cluster timers or leave a shield on the death camera
   riotShieldModel:new THREE.Group(),riotShieldHp:250,weaponId:RIOT_SHIELD_ID,aiming:false,combatants:new Map(),
   vmParts:[],tracers:[],projectiles:[],respawnAt:performance.now()+5000,lastHudAt:performance.now(),
   tickDeathBombs(){},tickBulletSpitters(){},animateOrbitalReactor(){},tickOrbitalPickup(){},
+  updateWonderWorld(){}, // World-effect rendering is unrelated to this death-state regression.
   tickOfflineMines(){},pulseMineBeacons(){},updateEnvironment(){},tickGravityWells(){},
   tickClusterVolleys(){ticks++;},updateCombatantMeshes(){}});
  e.update(.05);expect(ticks).toBe(1);expect(e.riotShieldModel.visible).toBe(false);

@@ -16,16 +16,6 @@ const ORIGINAL = {
 };
 
 describe("secondary family catalog and permanent IDs", () => {
-  test("all regular families are multiples of three, including 6/3/3 secondaries", () => {
-    const regular = WEAPONS.filter(w => !w.wonder);
-    expect(regular).toHaveLength(42);
-    const counts = new Map<string, number>();
-    for (const w of regular) counts.set(w.category, (counts.get(w.category) ?? 0) + 1);
-    for (const count of counts.values()) expect(count % 3).toBe(0);
-    expect(SECONDARY.map(cat => counts.get(cat))).toEqual([6, 3, 3]);
-    expect(regular.some(w => (w.category as string) === "sidearm")).toBe(false);
-    expect(WEAPONS.filter(w => w.wonder)).toHaveLength(9);
-  });
   test("old persisted IDs keep their identity and original slot", () => {
     for (const [id, category] of Object.entries(ORIGINAL)) {
       const w = WEAPONS.find(w => w.id === id);

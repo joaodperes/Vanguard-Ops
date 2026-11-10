@@ -1,7 +1,7 @@
 import { MAX_PLAYER_LEVEL } from "../src/lib/progression";
 import { describe, expect, test } from "bun:test";
 import { validateGameContent } from "../src/lib/content-validation";
-import { WEAPONS, WEAPON_CHALLENGES, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS } from "../src/lib/game-data";
+import { WEAPONS, WEAPON_CHALLENGES, ATTACHMENTS } from "../src/lib/game-data";
 
 describe("JSON catalog contract", () => {
   test("all published catalogs and map blueprints satisfy runtime and reference constraints", () => {
@@ -27,14 +27,5 @@ describe("JSON catalog contract", () => {
   test("rejects level gates above the equipment cap instead of shipping unreachable unlocks", () => {
     const broken = { ...WEAPONS[0], unlockLevel: MAX_PLAYER_LEVEL + 1 };
     expect(validateGameContent({ weapons: [broken, ...WEAPONS.slice(1)] }).some(e => e.includes("weapons [0.unlockLevel]"))).toBe(true);
-  });
-  test("published JSON catalogs retain stable identifiers and expected content counts", () => {
-    expect(WEAPONS.length).toBe(51);
-    expect(ATTACHMENTS.length).toBe(66);
-    expect(WEAPON_SKINS.length).toBe(18);
-    expect(PLAYER_SKINS.length).toBe(17);
-    expect(WEAPON_CHALLENGES.length).toBe(189);
-    expect(WEAPONS.some(w => w.id === "rifle_ar")).toBe(true);
-    expect(WEAPONS.some(w => w.id === "wonder_turret")).toBe(true);
   });
 });

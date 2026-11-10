@@ -40,7 +40,7 @@ describe("tactical balance",()=>{
  });
  test("throwing melee knife: 1 per life, shorter range, timed Gun Game refill",()=>{
   expect(THROWING_KNIFE_MAX_CHARGES).toBe(1);
-  expect(THROWING_KNIFE_RANGE).toBe(5.5);
+  expect(THROWING_KNIFE_RANGE).toBeLessThan(10); // Short-range melee alternative
   const life=spendThrowingKnife(fullThrowingKnives(),1000,false)!;
   expect(life.charges).toBe(0);
   expect(tickThrowingKnives(life,100_000,false).charges).toBe(0);

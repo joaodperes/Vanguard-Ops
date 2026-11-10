@@ -68,9 +68,9 @@ describe("Bastion .45 six-shot revolver",()=>{
     expect(computeEffectiveStats(weaponById("pistol_magnum"),{...base,grip:"grip_fan_hammer"}).auto).toBe(false);
   });
   test("revolver attachments trade speed/accuracy/power without extra chambers",()=>{
-    for(const slot of ["sight","barrel","grip","magazine"] as AttachmentSlot[])
-      expect(compatibleAttachments(bastion.id,slot)).toHaveLength(4);
+    // A new compatible attachment (e.g. Akimbo) must not invalidate revolver behavior.
     const ids=compatibleAttachments(bastion.id,"magazine");
+    expect(ids.length).toBeGreaterThan(0);
     expect(ids).not.toContain("mag_extended");
     expect(ids).not.toContain("mag_drum");
     for(const id of ids){

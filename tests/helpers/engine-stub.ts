@@ -6,6 +6,15 @@
 import {FPSEngine} from "../../src/lib/fps-engine";
 export function makeEngineStub(): any {
   return Object.assign(Object.create(FPSEngine.prototype), {
+    // Tests that bypass the browser-only WebGL constructor should share these
+    // minimal defaults instead of repeating assumptions about new subsystems.
+    opts:{mode:"ffa",online:false,loadout:{
+      attachments:{sight:null,barrel:null,grip:null,magazine:null},
+    }},
     deployedCovers:new Map(),
+    akimboAmmo:{left:0,right:0},
+    akimboPending:{left:-Infinity,right:-Infinity},
+    akimboLastHandShot:{left:-Infinity,right:-Infinity},
+    harbingerDrones:new Map(),
   });
 }

@@ -78,13 +78,13 @@ describe("tactical grenade physics and input",()=>{
   Object.assign(e,{
     sound:{setMasterVolume:(v:number)=>volumes.push(v),setFootstepVolume:()=>{},setFxVolume:()=>{}},
     weaponAudio:{setVolume:(v:number)=>weapons.push(v)},
-    equipmentFlashUntil:0,flashAudioFactor:1,
+    equipmentFlashAudioUntil:0,flashAudioFactor:1,
   });
   e.setAudioMix({masterVolume:80,footstepVolume:60,fxVolume:50});
   expect(volumes.at(-1)).toBeCloseTo(0.8);
   expect(weapons.at(-1)).toBeCloseTo(40);
   const now=performance.now();
-  e.equipmentFlashUntil=now+2000;
+  e.equipmentFlashAudioUntil=now+2000;
   e.updateFlashAudio(now);
   expect(volumes.at(-1)).toBeCloseTo(0.12);
   expect(weapons.at(-1)).toBeCloseTo(6);

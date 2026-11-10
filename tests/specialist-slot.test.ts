@@ -1,5 +1,5 @@
 import {describe,expect,test} from "bun:test";
-import {FPSEngine} from "../src/lib/fps-engine";
+import {makeEngineStub} from "./helpers/engine-stub";
 import {PERKS,DEFAULT_PERK_ID,scavengerAmmoAmount} from "../src/lib/perks";
 import {parseSavedLoadouts} from "../src/lib/saved-loadouts";
 import {drainedWonderCharges,fullWonderCharges,tickWonderCharges,accelerateWonderCharge,spendWonderCharge} from "../src/lib/wonder-charge";
@@ -39,7 +39,7 @@ describe("Specialist perk and slot-four loadout",()=>{
     const weapon="wonder_deadlock";
     const now=performance.now();
     const state=drainedWonderCharges({maxCharges:2,rechargeMs:50000,killBonusMs:1000},now);
-    const e:any=Object.create(FPSEngine.prototype);
+    const e:any=makeEngineStub();
     Object.assign(e,{weaponId:weapon,wonderWeaponId:weapon,primaryWeaponId:"rifle_ar",
       primaryEff:{magSize:30},secondaryEff:{magSize:12},meleeEff:{magSize:1},
       wonderEff:{magSize:2},wonderStates:new Map([[weapon,state]]),
@@ -55,7 +55,7 @@ describe("Specialist perk and slot-four loadout",()=>{
   });
   test("missing match charge state is empty; Firing Range may test Wonders immediately",()=>{
     const rules={maxCharges:2,rechargeMs:50000,killBonusMs:1000};
-    const engine:any=Object.create(FPSEngine.prototype);
+    const engine:any=makeEngineStub();
     engine.wonderStates=new Map();
     engine.opts={firingRange:false};
     const state=engine.ensureWonderState("wonder_deadlock",rules,1000);
@@ -66,7 +66,7 @@ describe("Specialist perk and slot-four loadout",()=>{
     expect(engine.ensureWonderState("wonder_deadlock",rules,1000).charges).toBe(2);
   });
   test("Scavenger fills the active conventional magazine but not holstered slots",()=>{
-    const e:any=Object.create(FPSEngine.prototype);
+    const e:any=makeEngineStub();
     Object.assign(e,{currentSlot:"secondary",weaponId:"pistol_side",ammoInMag:3,
       primaryAmmoInMag:4,secondaryAmmoInMag:3,meleeAmmoInMag:1,
       eff:{magSize:12},sound:{play(){}},scavengerAmmoGained:0});
@@ -82,9 +82,9 @@ describe("Specialist perk and slot-four loadout",()=>{
     expect(e.scavengerAmmoGained).toBe(0);
   });
   test("Bulwark P-9 ammo is not reloaded by weapon swapping",()=>{
-    const p9:any=Object.create(FPSEngine.prototype);
+    const p9:any=makeEngineStub();
     Object.assign(p9,{
-      opts:{mode:"tdm",online:false,loadout:{perkId:"wonder_weapon"}},
+      opts:{mode:"tdm",online:false,loadout:{perkId:"wonder_weapon",attachments:{sight:null,barrel:null,grip:null,magazine:null}}},
       currentSlot:"wonder",wonderWeaponId:"wonder_riot_shield",weaponId:"wonder_riot_shield",
       alive:true,ammoInMag:5,wonderAmmoInMag:12,primaryAmmoInMag:16,
       secondaryAmmoInMag:9,meleeAmmoInMag:1,
