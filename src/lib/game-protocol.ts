@@ -1426,7 +1426,7 @@ export type C2S =
   | { t: "joinMatch"; playerKey: string; name: string; mode: GameMode; botCount: number; loadout: LoadoutWire; team?: "red" | "blue"; mapId?: MapId }
   | { t: "leaveMatch" }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
-  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean }   // server-side raycast; shotgun ADS is sampled at fire-time
+  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right" }   // server-side raycast; shotgun ADS is sampled at fire-time
   | { t: "reload" }
   | { t: "harbingerDesignate" } // ADS requests a new visible priority target for the deployed drone
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
