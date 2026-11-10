@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { useEffect, useState } from "react";
 import { CareerProgress } from "@/components/game/CareerProgress";
 import { useGame } from "@/lib/game-store";
@@ -189,7 +190,7 @@ export function Profile() {
                   <Star className="w-3 h-3" /> LVL {lvl}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
-                  <Zap className="w-3 h-3" /> {profile.credits} CR
+                  <Zap className="w-3 h-3" /> {formatCredits(profile.credits)} CR
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
                   <Target className="w-3 h-3" /> {profile.kills} kills
@@ -324,7 +325,7 @@ export function Profile() {
                         )}
                         {a.earned && (
                           <div className="text-[10px] text-purple-300/80 mt-1 flex items-center gap-1">
-                            <Coins className="w-3 h-3" /> +{a.rewardCredits.toLocaleString()} CR · <Zap className="w-3 h-3" /> +{a.rewardXp.toLocaleString()} XP
+                            <Coins className="w-3 h-3" /> +{formatCredits(a.rewardCredits)} CR · <Zap className="w-3 h-3" /> +{a.rewardXp.toLocaleString()} XP
                           </div>
                         )}
                       </div>
@@ -353,7 +354,7 @@ export function Profile() {
                     <AchievementTitleReward id={a.id} earned={a.earned} />
                     <div className="flex justify-between text-[11px] text-white/50 mb-1"><span>{a.currentValue} / {a.goal}</span><span className="uppercase" style={{color}}>{a.tier}</span></div>
                     <div className="h-1.5 bg-black/70 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{width:`${pct}%`}}/></div>
-                    <p className="text-[11px] text-white/50 mt-2">+{a.rewardXp} XP · +{a.rewardCredits} CR</p>
+                    <p className="text-[11px] text-white/50 mt-2">+{a.rewardXp} XP · +{formatCredits(a.rewardCredits)} CR</p>
                   </div>;
                 })}
               </div>
@@ -400,7 +401,7 @@ export function Profile() {
                       )}
                       {a.earned && (
                         <div className="text-[10px] text-rose-300/80 mt-1 flex items-center gap-1">
-                          <Coins className="w-3 h-3" /> +{a.rewardCredits} CR · <Zap className="w-3 h-3" /> +{a.rewardXp} XP
+                          <Coins className="w-3 h-3" /> +{formatCredits(a.rewardCredits)} CR · <Zap className="w-3 h-3" /> +{a.rewardXp} XP
                         </div>
                       )}
                     </div>
@@ -450,7 +451,7 @@ export function Profile() {
                       )}
                       {a.earned && (
                         <div className="text-[10px] text-emerald-300/80 mt-1 flex items-center gap-1">
-                          <Coins className="w-3 h-3" /> +{a.rewardCredits} CR · <Zap className="w-3 h-3" /> +{a.rewardXp} XP
+                          <Coins className="w-3 h-3" /> +{formatCredits(a.rewardCredits)} CR · <Zap className="w-3 h-3" /> +{a.rewardXp} XP
                         </div>
                       )}
                     </div>
