@@ -1528,9 +1528,9 @@
       "spread": 0.0008,
       "adsSpread": 0.00015,
       "recoil": 2.4,
-      "range": 88,
-      "adsTime": 0.36,
-      "moveSpeed": 0.82,
+      "range": 145,
+      "adsTime": 0.52,
+      "moveSpeed": 0.74,
       "auto": false,
       "headshotMult": 1.25,
       "coverPenetration": 3.2,
@@ -1538,7 +1538,8 @@
         "maxTargets": 3,
         "damageRetention": 0.65
       }
-    }
+    },
+    "baseSightType": "sniper_scope"
   },
   {
     "id": "wonder_chrono",
