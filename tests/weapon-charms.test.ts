@@ -1,19 +1,26 @@
 import { describe, test, expect } from "bun:test";
 import * as THREE from "three";
 import { CHARM_SCALE, createWeaponCharm, weaponCharmMountPoint, swingWeaponCharm } from "../src/lib/weapon-charms";
-import { WEAPON_VISUALS } from "../src/lib/weapon-models";
+import { WEAPON_VISUALS, firstPersonSupportGrip } from "../src/lib/weapon-models";
 
 describe("weapon charms remain visible on gun models",()=>{
-  test("mounted on visible outside of each receiver, not hanging off-screen",()=>{
-    for(const id of ["rifle_dm","rifle_ar","pistol_side","smg_vector","lmg_heavy"]){
-      const half=WEAPON_VISUALS[id].receiver[0]/2;
+  test("first-person mounts clear each weapon's support hand, without moving bot charms",()=>{
+    for(const [id,profile] of Object.entries(WEAPON_VISUALS)){
+      const half=profile.receiver[0]/2;
       const [x,y,z]=weaponCharmMountPoint(id,"firstPerson");
+      const hand=firstPersonSupportGrip(id);
+      const pendantCenter:[number,number,number]=[x,y-.13,z];
+      const clearance=Math.hypot(...pendantCenter.map((v,i)=>v-hand[i]));
       expect(x).toBeLessThan(-half);
       expect(y).toBeGreaterThan(0);
       expect(y).toBeLessThan(.065);
-      expect(Math.abs(x)).toBeLessThan(Math.max(.115,half+.045));
-      expect(z).toBeLessThan(-.1);
-      expect(weaponCharmMountPoint(id,"thirdPerson")[0]).toBeGreaterThan(half);
+      expect(z).toBeGreaterThanOrEqual(-.12-profile.receiver[2]/2);
+      expect(z).toBeLessThanOrEqual(-.12+profile.receiver[2]/2);
+      expect(clearance).toBeGreaterThanOrEqual(.19-1e-8);
+      // Third-person operator/bot pins must not move with viewmodel calibration.
+      expect(weaponCharmMountPoint(id,"thirdPerson")).toEqual([
+        Math.max(.09,half+.025),.025,-.22,
+      ]);
     }
   });
   test("Skull Token is lit, sizeable, and has visible skull features",()=>{
