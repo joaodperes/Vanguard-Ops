@@ -706,7 +706,7 @@
         "d": 8,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "center-windbreak--28",
@@ -716,7 +716,7 @@
         "d": 8,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "center-windbreak-68",
@@ -726,7 +726,7 @@
         "d": 8,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "rail--49.5",
@@ -1015,7 +1015,7 @@
         "d": 20,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "rail-windbreak-0",
@@ -1025,7 +1025,7 @@
         "d": 20,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "rail-windbreak-80",
@@ -1035,7 +1035,7 @@
         "d": 20,
         "h": 5,
         "kind": "cover",
-        "material": "sheet_metal"
+        "material": "reinforced"
       },
       {
         "id": "rail-cargo--40",
