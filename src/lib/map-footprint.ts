@@ -122,8 +122,12 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // Detect flights before spatial overrides, so groups remain stable even when
   // a user modifies an individual tread's position or elevation.
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
+  // Existing tactical prefabs were historically untyped and silently behaved
+  // as concrete. Preserve their protective gameplay, but record the decision.
+  // New authored thin cover uses an explicit material and never relies on this.
   const legacyCover=compileVisibleLegacyBoxes(
-    legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides);
+    legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides)
+    .map(c=>c.kind==="cover"&&!c.material?{...c,material:"reinforced" as const}:c);
   // Ridgefall replaces the old skybridge arena. The inherited breakable wall
   // at (0,-28) sat inside the new central staircase, could absorb shots and
   // was not a usable doorway. Keep only authored factory hazards instead.
@@ -133,7 +137,7 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
-    ...propColliders(props,allSpawns),
+    ...propColliders(props,allSpawns,flankFeatures),
     ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
