@@ -3009,7 +3009,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           if(!hasLineOfSight(room,[feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
           applyDamage(room,p.id,target,eff.damage,false,weapon.id);
           if(!target.alive)continue;
-          const candidate=seismicPushPosition(feet,target.pos,undefined,undefined,module.knockbackMul);
+          const candidate=seismicPushPosition(feet,target.pos,4.5*module.knockbackMul);
           if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
             target.pos=clampToArena(room,candidate);
             io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
