@@ -16,7 +16,7 @@ import { cosmeticShopOwnership } from "./cosmetics";
 import { parseWeaponSetups } from "./weapon-setups";
 import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderKillEffect } from "./wonder-expansion";
 import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
-import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
+import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
@@ -251,7 +251,7 @@ interface Room {
   specialHeat: Map<string, HeatState & { updatedAt: number; ventUntil: number }>;
   wonderCharges: Map<string, WonderChargeState>;
   chronoAnchors:Map<string,{pos:Vec3;expiresAt:number}>;
-  phantomDecoys:Map<string,{id:string;ownerId:string;pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}>;
+  phantomDecoys:Map<string,{id:string;ownerId:string;pos:Vec3;spawnPos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}>;
   cryoSlowUntil:Map<string,number>;
   mechDrops:Map<string,{id:string;ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string}>;
   playerMechs:Map<string,{dropId:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;lastPrimaryAt:number;lastSecondaryAt:number;spinAt:number;expiresAt:number}>;
@@ -2651,14 +2651,12 @@ function tickWonderExpansion(room:Room,now:number):void{
   for(const [id,anchor] of room.chronoAnchors)if(anchor.expiresAt<=now)room.chronoAnchors.delete(id);
   for(const [id,decoy] of room.phantomDecoys){
     if(now>=decoy.expiresAt){room.phantomDecoys.delete(id);continue;}
-    const age=(now-decoy.createdAt)/1000;
-    const distance=Math.min(12,age*1.45);
+    const age=now-decoy.createdAt;
     const owner=room.players.get(decoy.ownerId)??room.bots.get(decoy.ownerId);
     if(!owner?.alive){room.phantomDecoys.delete(id);continue;}
-    const px=owner.pos[0]-Math.sin(decoy.yaw)*distance;
-    const pz=owner.pos[2]-Math.cos(decoy.yaw)*distance;
-    if(Math.abs(px)<room.map.size-2&&Math.abs(pz)<room.map.size-2&&!botMoveBlocked(room,decoy.pos,[px,decoy.pos[1],pz],decoy.pos[1]))
-      decoy.pos=[px,decoy.pos[1],pz];
+    const next=phantomTravelPosition(decoy.spawnPos,decoy.yaw,age);
+    if(Math.abs(next[0])<room.map.size-2&&Math.abs(next[2])<room.map.size-2&&!botMoveBlocked(room,decoy.pos,next,decoy.pos[1]))
+      decoy.pos=next;
     const fakeCadence=room.loadouts.get(owner.id)?.wonderModuleId==="mimic_signal"?450:900;
     if(Math.floor(now/fakeCadence)!==Math.floor((now-50)/fakeCadence))publishBotNoise(room,{sourceId:owner.id,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
   }
@@ -2990,8 +2988,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const count=module.targets===2?2:1;
         for(let n=0;n<count;n++){
           const id=genId("phantom");
-          const pos:Vec3=[p.pos[0]+(n===1?1.5:0),p.pos[1],p.pos[2]];
-          const decoy={id,ownerId:p.id,pos,yaw:p.yaw,createdAt:now,expiresAt:now+PHANTOM_DURATION_MS*module.durationMul,count};
+          const desired=phantomSpawnPosition(p.pos,p.yaw,n===1?1.5:0);
+          const pos:Vec3=botMoveBlocked(room,p.pos,desired,p.pos[1])?[...p.pos]:desired;
+          const decoy={id,ownerId:p.id,pos,spawnPos:[...pos] as Vec3,yaw:p.yaw,createdAt:now,expiresAt:now+PHANTOM_DURATION_MS*module.durationMul,count};
           room.phantomDecoys.set(id,decoy);
           io.to(room.id).emit("message",{t:"phantomDecoy",...decoy} as S2C);
         }

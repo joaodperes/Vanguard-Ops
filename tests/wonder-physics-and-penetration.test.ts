@@ -2,7 +2,7 @@ import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
 import {weaponById} from "../src/lib/game-data";
 import {PHASEBREAKER_MAX_SURFACES,resolveMaterialPenetrationShot,traceCoverPenetration} from "../src/lib/cover-penetration";
-import {ripperSegments} from "../src/lib/wonder-abilities";
+import {ripperSegments,phantomSpawnPosition,phantomTravelPosition} from "../src/lib/wonder-abilities";
 import {fullWonderCharges,refundWonderCharge,spendWonderCharge} from "../src/lib/wonder-charge";
 import {wonderMechModel,wonderHologramModel} from "../src/lib/wonder-models";
 import {buildFirstPersonWeapon} from "../src/lib/weapon-models";
@@ -55,6 +55,12 @@ describe("Phasebreaker deep penetration and headshot recharge",()=>{
 });
 
 describe("Wonder visual fidelity and Ripper gameplay",()=>{
+  test("Phantom starts ahead and advances independently of owner movement",()=>{
+    const spawn=phantomSpawnPosition([0,0,0],0);
+    expect(spawn).toEqual([0,0,1.8]);
+    expect(phantomTravelPosition(spawn,0,2000)[2]).toBeCloseTo(4.7);
+    expect(phantomSpawnPosition([0,0,0],Math.PI/2)[0]).toBeCloseTo(1.8);
+  });
   test("ricochets add range rather than dividing one short flight budget",()=>{
     const segments=ripperSegments(origin,direction,[wall(10,"concrete",1)],55,4);
     expect(segments.length).toBeGreaterThanOrEqual(2);

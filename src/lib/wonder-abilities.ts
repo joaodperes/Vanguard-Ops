@@ -4,6 +4,16 @@ export interface WonderBox{pos:Point3;size:Point3;kind?:string;}
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
 export const CHRONO_ANCHOR_MS=12000;
 export const PHANTOM_DURATION_MS=13500;
+/** Place decoys in front of the pilot and laterally stagger double decoys. */
+export function phantomSpawnPosition(feet:Point3,yaw:number,lateral=0):Point3{
+ return [feet[0]+Math.sin(yaw)*1.8+Math.cos(yaw)*lateral,feet[1],
+         feet[2]+Math.cos(yaw)*1.8-Math.sin(yaw)*lateral];
+}
+/** Movement originates at deployment rather than tracking the owner's position. */
+export function phantomTravelPosition(spawn:Point3,yaw:number,elapsedMs:number):Point3{
+ const distance=Math.min(12,Math.max(0,elapsedMs)*.00145);
+ return [spawn[0]+Math.sin(yaw)*distance,spawn[1],spawn[2]+Math.cos(yaw)*distance];
+}
 export const CRYO_SLOW_MS=1800;
 export const CRYO_SLOW_FACTOR=.58;
 export const JUGGERNAUT_DROP_MS=2750;

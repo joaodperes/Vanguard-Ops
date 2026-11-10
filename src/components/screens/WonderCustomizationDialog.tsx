@@ -19,7 +19,7 @@ export function WonderCustomizationDialog({weapon,open,onOpenChange,busy,onEquip
   const setup=profile?.prestige.wonderSetups[weapon.id];
   const purchases=profile?.prestige.wonderPurchases??[];
   const [previewModuleId,setPreviewModuleId]=useState<string|null>(null);
-  const previewValid=previewModuleId!==null&&wonderModulesFor(weapon.id).some(m=>m.id===previewModuleId);
+  const previewValid=previewModuleId!==null&&(previewModuleId===""||wonderModulesFor(weapon.id).some(m=>m.id===previewModuleId));
   const inspectedModule=wonderModuleById(previewValid?previewModuleId!:setup?.moduleId??"");
   const groups=[
     {id:"modules",label:"Modules",field:"wonderModuleId" as const,selected:setup?.moduleId??"",

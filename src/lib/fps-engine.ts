@@ -2,7 +2,7 @@ import { blastCanDamage } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
 import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
-import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
+import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
@@ -905,7 +905,7 @@ export class FPSEngine {
   private railShotLocked=false;
   private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
   private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
-  private phantomDecoys=new Map<string,{pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
+  private phantomDecoys=new Map<string,{pos:Vec3;spawnPos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
   private harbingerDrones=new Map<string,{ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string;nextShotAt:number;nextScanAt:number;priorityId?:string;offline:boolean;visual:WonderWorldVisual}>();
   private lastHarbingerAimAt=0;
   private chronoAnchor:{pos:Vec3;expiresAt:number}|null=null;
@@ -8177,9 +8177,10 @@ export class FPSEngine {
     const existing=this.phantomDecoys.get(id);
     if(existing){existing.pos=pos;existing.expiresAt=expiresAt;return;}
     const visual=wonderHologramModel();
-    visual.group.position.set(pos[0],pos[1]+.04,pos[2]);visual.group.rotation.y=yaw;
+    visual.group.position.set(pos[0],pos[1]+.04,pos[2]);
+    visual.group.rotation.y=yaw+Math.PI; // Model muzzle faces -Z; game forward is +Z.
     this.scene.add(visual.group);
-    this.phantomDecoys.set(id,{pos,yaw,createdAt,expiresAt,count,visual});
+    this.phantomDecoys.set(id,{pos,spawnPos:[...pos],yaw,createdAt,expiresAt,count,visual});
   }
   private clearPhantom(id:string){const p=this.phantomDecoys.get(id);if(!p)return;p.visual.dispose();this.phantomDecoys.delete(id);}
   private addHarbinger(id:string,ownerId:string,ownerTeam:string,pos:Vec3,expiresAt:number,hp:number,moduleId:string,offline:boolean){
@@ -8399,10 +8400,7 @@ export class FPSEngine {
       if(time>=decoy.expiresAt){this.clearPhantom(id);continue;}
       const age=time-decoy.createdAt;
       if(!this.opts.online){
-        const distance=Math.min(12,age*.00145);
-        const px=this.pos.x-Math.sin(decoy.yaw)*distance;
-        const pz=this.pos.z-Math.cos(decoy.yaw)*distance;
-        const next:Vec3=[px,decoy.pos[1],pz];
+        const next=phantomTravelPosition(decoy.spawnPos,decoy.yaw,age);
         if(!this.botMoveBlocked(decoy.pos,next,decoy.pos[1]))decoy.pos=next;
       }
       decoy.visual.group.position.set(decoy.pos[0],decoy.pos[1]+.04,decoy.pos[2]);
@@ -8745,7 +8743,7 @@ export class FPSEngine {
         const mod=wonderModuleEffects(w.id,this.wonderModuleId);
         for(let i=0;i<(mod.targets===2?2:1);i++){
           const id="offline_phantom_"+(++this.localWonderSequence);
-          this.addPhantom(id,this.selfId,[this.pos.x+(i?1.5:0),this.pos.y,this.pos.z],this.yaw,
+          this.addPhantom(id,this.selfId,phantomSpawnPosition([this.pos.x,this.pos.y,this.pos.z],this.yaw,i?1.5:0),this.yaw,
             Date.now(),Date.now()+PHANTOM_DURATION_MS*mod.durationMul,mod.targets===2?2:1);
         }
       }else{
