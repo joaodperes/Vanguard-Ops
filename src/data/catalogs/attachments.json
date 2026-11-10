@@ -1267,7 +1267,7 @@
     "slot": "grip",
     "unlockLevel": 18,
     "unlockCost": 730,
-    "description": "Bastion .45 only: dual-wield two six-shot revolvers. Each trigger fires both guns simultaneously (2 rounds per volley); no ADS. +75% combined bullet rate, +55% hipfire spread, +15% recoil, +85% reload time, -4% mobility.",
+    "description": "Bastion .45 only: dual-wield two six-shot revolvers. Each trigger fires both guns simultaneously (2 rounds per volley); no ADS. +75% combined bullet rate, +55% hipfire spread, +15% recoil,+15% reload time, -4% mobility.",
     "weaponCategories": [
       "pistol"
     ],
@@ -1279,7 +1279,7 @@
       "spread": 55,
       "recoil": 15,
       "magSize": 100,
-      "reloadTime": 85,
+      "reloadTime": 15,
       "moveSpeed": -4
     }
   },
