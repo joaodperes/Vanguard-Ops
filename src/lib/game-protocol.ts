@@ -1572,6 +1572,7 @@ export type S2C =
   | { t: "boltRemoved"; id: string }
   | { t: "boltRecovered"; id: string; ownerId: string }
   | { t: "arcFx"; from: Vec3; to: Vec3 }
+  | { t: "wonderFrozen"; victimId: string; durationMs: number }
   | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" | "ripper" | "seismic" | "cryo" }
   | { t: "stormMinePlaced"; id: string; pos: Vec3; expiresAt: number }
   | { t: "stormMineRemoved"; id: string; pos: Vec3; triggered: boolean }
