@@ -164,7 +164,9 @@ export function ctfBotIntent(
   if(mapKey==="floodgate"){
     // Ground-level flags need neither forest stairs nor orbital launch routing.
     // Advance the rotating guard to the midfield approaches.
-    if(defending)return {role:"defend_flag",goal:[home[0]-side*(phase===1?32:25),0,(rank%2===0?1:-1)*(phase===0?24:phase===1?13:30)]};
+    // The turbine hall has solid walls at z=±30. A guard station directly
+    // on those lines clips inside cover; the outer station must sit beyond it.
+    if(defending)return {role:"defend_flag",goal:[home[0]-side*(phase===1?32:25),0,(rank%2===0?1:-1)*(phase===0?24:phase===1?13:36)]};
     const flankZ=[-66,0,66][rank%3];
     if(Math.abs(pos[0]-enemyHome[0])>38)return {role:"attack",goal:[enemyHome[0]-Math.sign(enemyHome[0])*24,0,flankZ]};
     return {role:"attack",goal:[...enemyHome]};

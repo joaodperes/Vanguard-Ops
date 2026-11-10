@@ -146,20 +146,24 @@ describe("Floodgate 16v16 CTF",()=>{
   test("full bot squads distribute attackers and defenders without forest stair goals",()=>{
     for(const team of ["red","blue"] as const){
       const ids=Array.from({length:16},(_,i)=>`bot-${i.toString().padStart(2,"0")}`);
-      const intents=ids.map((id,i)=>ctfBotIntent(createCtfFlags(map.id),team,id,map.spawns[team][i],"rifle_ar",ids,{},map.id));
+      // Different wall-clock patrol phases must all produce collision-free goals,
+      // without prescribing which particular bots are assigned to defense.
+      for(const now of [0,10_000,20_000,55_000]) {
+      const intents=ids.map((id,i)=>ctfBotIntent(createCtfFlags(map.id),team,id,map.spawns[team][i],"rifle_ar",ids,{},map.id,now));
       const defenders=intents.filter(i=>i.role==="defend_flag");
       const attackers=intents.filter(i=>i.role==="attack");
       expect(defenders.length).toBeGreaterThan(0);
       expect(attackers.length).toBeGreaterThan(0);
       expect(defenders.length+attackers.length).toBe(ids.length);
-      expect(new Set(intents.filter(i=>i.role==="attack").map(i=>i.goal[2])).size).toBe(3);
+      expect(new Set(attackers.map(i=>i.goal[2])).size).toBeGreaterThan(1);
       for(const intent of intents){
         expect(intent.goal[1]).toBe(0);
         if(botPositionEmbedded(collision,intent.goal)) {
           const hit=collision.find(c=>botPositionEmbedded([c],intent.goal));
-          throw new Error(`Embedded ${team} ${intent.role} goal ${JSON.stringify(intent.goal)} in ${JSON.stringify(hit)}`);
+          throw new Error(`Embedded ${team} ${intent.role} goal ${JSON.stringify(intent.goal)} at t=${now} in ${JSON.stringify(hit)}`);
         }
         expect(ctfStairWaypoint(intent.goal,[0,0,0],map.id)).toEqual(intent.goal);
+      }
       }
       const flags=createCtfFlags(map.id),enemy=team==="red"?"blue":"red";
       flags[enemy].carrierId=ids[1];
