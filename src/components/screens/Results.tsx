@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { achievementTitle, achievementRequirement } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
@@ -118,7 +119,7 @@ export function Results() {
                 <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-center gap-3">
                   <Coins className="w-5 h-5 text-amber-400" />
                   <div>
-                    <div className="text-2xl font-black text-white tabular-nums">+{rewards.creditsGained}</div>
+                    <div className="text-2xl font-black text-white tabular-nums">+{formatCredits(rewards.creditsGained)}</div>
                     <div className="text-white/50 text-xs uppercase tracking-wider">Credits</div>
                   </div>
                 </div>
@@ -141,7 +142,7 @@ export function Results() {
                     <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-5 border-b border-white/5 px-4 py-3 text-sm last:border-b-0">
                       <span className="text-white/80 font-medium">{label}</span>
                       <span className="w-16 text-right tabular-nums text-cyan-300">+{rewards.breakdown?.[key]?.xp ?? 0}</span>
-                      <span className="w-16 text-right tabular-nums text-amber-300">+{rewards.breakdown?.[key]?.credits ?? 0}</span>
+                      <span className="w-16 text-right tabular-nums text-amber-300">+{formatCredits(rewards.breakdown?.[key]?.credits ?? 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -242,7 +243,7 @@ export function Results() {
                   <div className="text-cyan-300 font-bold text-sm mb-2"><Crosshair className="w-4 h-4 inline mr-1" /> Now Available in the Armory</div>
                   <div className="flex flex-wrap gap-2">
                     {rewards.newUnlocks.purchasableWeapons.map((id: string) => <span key={id} className="text-xs border border-cyan-500/20 bg-cyan-500/10 text-cyan-100 rounded-md px-2 py-1">
-                      {weaponById(id).name} · {weaponById(id).unlockCost} CR
+                      {weaponById(id).name} · {formatCredits(weaponById(id).unlockCost)} CR
                     </span>)}
                   </div>
                 </div>
