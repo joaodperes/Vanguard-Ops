@@ -68,7 +68,7 @@ import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
 import { botAirStep, botHasJumpClearance } from "./bot-physics";
@@ -901,6 +901,7 @@ export class FPSEngine {
   private lastMechSecondaryAt=0;
   private mechSpinAt=0;
   private railChargeAt=0;
+  private railRefundShotAt=-1;
   private railShotLocked=false;
   private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
   private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
@@ -6693,6 +6694,18 @@ export class FPSEngine {
         if (msg.attackerId === this.selfId) {
           this.hitMarkerAt = performance.now();
           if (msg.headshot) this.headshotMarkerAt = performance.now(); // Round 20g
+          // Do not refund twice for a rail shot that pierces multiple heads.
+          if (msg.weaponId==="wonder_phasebreaker" && msg.headshot && msg.damage>0 &&
+              this.railRefundShotAt!==this.lastShotAt) {
+            const w=weaponById("wonder_phasebreaker"),state=this.wonderStates.get(w.id);
+            if(state&&w.wonder){
+              const next=refundWonderCharge(state,w.wonder,performance.now());
+              this.wonderStates.set(w.id,next);
+              this.wonderAmmoInMag=next.charges;
+              if(this.weaponId===w.id)this.ammoInMag=next.charges;
+              this.railRefundShotAt=this.lastShotAt;
+            }
+          }
           // Hit-marker SFX for non-killing hits (kills get the kill chime).
           if (!msg.killed) this.sound.play("hit_marker", { volume: 0.5, throttleMs: 60 });
         }
@@ -7843,7 +7856,7 @@ export class FPSEngine {
         tooth.position.set(Math.cos(a)*.31,0,Math.sin(a)*.31);tooth.rotation.y=-a;
         group.add(tooth);
       }
-      group.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+      // Keep flying disc in the horizontal XZ plane, spinning about Y.
       group.position.copy(start);this.scene.add(group);
       // Follow a preceding segment's endpoint before playing this ricochet.
       // Server sends segments in one tick; they must appear as a SINGLE saw
@@ -8060,7 +8073,7 @@ export class FPSEngine {
     if(kind==="ricochet"){
       const module=wonderModuleEffects(w.id,this.wonderModuleId);
       const visited=new Set<string>();
-      for(const segment of ripperSegments(origin,dir,this.map.cover,this.eff.range,module.targets||3)){
+      for(const segment of ripperSegments(origin,dir,this.map.cover,this.eff.range,module.targets||4)){
         const vector:Vec3=[segment.to[0]-segment.from[0],segment.to[1]-segment.from[1],segment.to[2]-segment.from[2]];
         const distance=Math.hypot(...vector);
         if(distance<.05)continue;
@@ -8164,7 +8177,7 @@ export class FPSEngine {
     const existing=this.phantomDecoys.get(id);
     if(existing){existing.pos=pos;existing.expiresAt=expiresAt;return;}
     const visual=wonderHologramModel();
-    visual.group.position.set(...pos);visual.group.rotation.y=yaw;
+    visual.group.position.set(pos[0],pos[1]+.04,pos[2]);visual.group.rotation.y=yaw;
     this.scene.add(visual.group);
     this.phantomDecoys.set(id,{pos,yaw,createdAt,expiresAt,count,visual});
   }
@@ -8373,7 +8386,11 @@ export class FPSEngine {
       const remotePilot=drop.enteredBy&&drop.enteredBy!==this.selfId?this.combatants.get(drop.enteredBy):undefined;
       drop.mech.group.visible=!drop.enteredBy||!!remotePilot?.alive;
       drop.mech.group.position.set(remotePilot?.pos[0]??drop.pos[0],remotePilot?.pos[1]??(drop.pos[1]+(!drop.landed?20*(1-progress):0)),remotePilot?.pos[2]??drop.pos[2]);
-      if(remotePilot)drop.mech.group.rotation.y=remotePilot.yaw;
+      if(remotePilot){
+        drop.mech.group.rotation.y=remotePilot.yaw;
+        // Rotate the barrel cluster around the cannon's forward axis only.
+        drop.mech.group.getObjectByName("juggernaut_world_rotor")?.rotateZ(.24);
+      }
       drop.aircraft.group.visible=!drop.landed&&progress<.88;
       drop.aircraft.group.position.set(drop.pos[0]-30+progress*62,drop.pos[1]+28,drop.pos[2]+15);
       drop.aircraft.group.rotation.y=-.18;
@@ -8388,7 +8405,7 @@ export class FPSEngine {
         const next:Vec3=[px,decoy.pos[1],pz];
         if(!this.botMoveBlocked(decoy.pos,next,decoy.pos[1]))decoy.pos=next;
       }
-      decoy.visual.group.position.set(...decoy.pos);
+      decoy.visual.group.position.set(decoy.pos[0],decoy.pos[1]+.04,decoy.pos[2]);
       const flash=decoy.visual.group.getObjectByName("phantom_muzzle_flash");
       if(flash)flash.visible=age>250&&(age%850)<115;
       if(age>250&&Math.floor(age/850)!==Math.floor((age-50)/850)){
@@ -8415,7 +8432,7 @@ export class FPSEngine {
     }
     if(this.mechActive&&!this.mechCockpit)this.buildMechCockpit();
     else if(!this.mechActive&&this.mechCockpit)this.clearMechCockpit();
-    if(this.mechRotary&&this.mechActive)this.mechRotary.rotateY(.28);
+    if(this.mechRotary&&this.mechActive)this.mechRotary.rotateZ(.28);
     if(this.mechMuzzles){
       this.mechMuzzles.minigun.visible=now<this.mechMuzzleUntil.minigun;
       this.mechMuzzles.secondary.visible=now<this.mechMuzzleUntil.secondary;
@@ -8999,11 +9016,12 @@ export class FPSEngine {
         return null;
       }
       const resolved=resolveMaterialPenetrationShot(contacts,this.map.cover,origin,dir,maxDistance,
-        this.eff.bodyPenetration,this.eff.coverPenetration);
+        this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
       const hits=resolved.hits;
       this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
         resolved.stoppedAt);
       let firstVictim: Combatant | null = null;
+      let refundedRailShot=false;
       for (const hit of hits) {
         const victim = hit.target;
         if (hit.protected) { this.hitMarkerAt = performance.now(); break; }
@@ -9018,6 +9036,15 @@ export class FPSEngine {
         const damage = damageAtRange(base, hit.t, this.eff.range, this.eff) * hit.damageScale;
         const willKill = victim.health - damage <= 0 && victim.alive;
         this.applyDamageLocal(victim, damage, hit.head);
+        if(hit.head&&!refundedRailShot&&this.weaponId==="wonder_phasebreaker"){
+          const rail=weaponById(this.weaponId),state=this.wonderStates.get(rail.id);
+          if(state&&rail.wonder){
+            const next=refundWonderCharge(state,rail.wonder,performance.now());
+            this.wonderStates.set(rail.id,next);
+            this.ammoInMag=next.charges;this.wonderAmmoInMag=next.charges;
+            refundedRailShot=true;
+          }
+        }
         if (!firstVictim) firstVictim = victim;
         this.hitMarkerAt = performance.now();
         if (hit.head) this.headshotMarkerAt = performance.now();
@@ -9851,7 +9878,7 @@ export class FPSEngine {
     // Visual path must match the damage ray: punching through thin cover cannot
     // draw a tracer that stops at the entry face. Structural cover still stops it.
     const maxT = Math.max(0,Math.min(range,serverStop!==undefined&&Number.isFinite(serverStop)
-      ?serverStop:traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower).blockedAt));
+      ?serverStop:traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower, this.weaponId==="wonder_phasebreaker").blockedAt));
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
