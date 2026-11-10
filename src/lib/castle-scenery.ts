@@ -114,7 +114,9 @@ export function castleSceneryBoxes(p:CastleProp):CoverBox[]{
       box(s*(w+door)/4,h/2,d/2,side,h/2,t);
     }
     box(0,(h+2.75)/2,d/2,door/2,(h-2.75)/2,t);
-    box(0,h+.14,0,w/2,.14,d/2);
+    // One durable collider envelops the pitched timber-decked roof (the old
+    // 0.28m flat slab missed shots aimed at its visible raised slopes).
+    box(0,h+.74,0,w/2,.74,d/2);
     for(const f of castleFixtures(p))box(f.x,f.h/2,f.z,f.w/2,f.h/2,f.d/2);
   }else if(p.kind==="castle_well"){
     const r=Math.min(w,d)*.44,t=.36;
@@ -123,7 +125,8 @@ export function castleSceneryBoxes(p:CastleProp):CoverBox[]{
     for(const sx of [-1,1])for(const sz of [-1,1])
       box(sx*(w/2-.22),h/2,sz*(d/2-.22),.22,h/2,.22);
     box(0,.65,-d*.24,w*.42,.65,d*.13);
-    box(0,h+.10,0,w/2,.10,d/2);
+    // Cover the visible awning, not merely the empty space underneath it.
+    box(0,h+.28,0,w/2,.22,d/2);
   }else if(p.kind==="castle_cart"){box(0,.70,0,w*.44,.70,d*.39);
   }else if(p.kind==="castle_target"){box(0,h*.52,0,w*.42,h*.48,.18);
   }else if(p.kind==="castle_barrel"){box(0,h/2,0,w*.44,h/2,d*.44);
