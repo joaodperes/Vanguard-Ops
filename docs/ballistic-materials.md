@@ -65,10 +65,12 @@ an author forgets its tag.
   and treetop wooden parapets are destructible. Rocks and giant tree supports
   remain protective.
 - **Ridgefall:** Industrial plant shell and loaded steel cargo are reinforced;
-  paint-booth sheet walls and railings are `sheet_metal`, and the forge's
+  gantry railings are `sheet_metal`; thick paint-booth shells remain
+  `reinforced`, and the forge's
   breakable supply stack is `light_cover`.
 - **Whiteout Depot:** Thin metal rooftops and platform canopies use
-  `sheet_metal`; gallery crates use `light_cover`. Previously visual-only
+  `sheet_metal`; thick windbreak structures remain reinforced, while gallery
+  crates use `light_cover`. Previously visual-only
   cargo pallets receive actual destructible colliders.
 - **Floodgate:** Turbine hall roofing, selected railings and shutters use
   `sheet_metal`; the four yard pallets use `light_cover`; concrete dam
