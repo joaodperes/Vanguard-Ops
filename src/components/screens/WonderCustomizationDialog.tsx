@@ -2,7 +2,7 @@
 
 import {useGame} from "@/lib/game-store";
 import {type WeaponDef} from "@/lib/game-data";
-import {wonderModulesFor,WONDER_FINISHES,WONDER_KILL_EFFECTS} from "@/lib/wonder-expansion";
+import {wonderModulesFor,wonderFinishesFor,wonderKillEffectsFor} from "@/lib/wonder-expansion";
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {Button} from "@/components/ui/button";
@@ -23,11 +23,11 @@ export function WonderCustomizationDialog({weapon,open,onOpenChange,busy,onEquip
         id:m.id,name:m.name,description:m.description,owned:purchases.includes("module_"+m.id)
       }))},
     {id:"finishes",label:"Finishes",field:"wonderSkinId" as const,selected:setup?.skinId??"",
-      entries:WONDER_FINISHES.map(f=>({
+      entries:wonderFinishesFor(weapon.id).map(f=>({
         id:f.id,name:f.name,description:f.description,owned:purchases.includes(f.id+"_"+weapon.id)
       }))},
     {id:"kill-effects",label:"Kill effects",field:"wonderKillEffectId" as const,selected:setup?.killEffectId??"",
-      entries:WONDER_KILL_EFFECTS.map(f=>({
+      entries:wonderKillEffectsFor(weapon.id).map(f=>({
         id:f.id,name:f.name,description:f.description,owned:purchases.includes(f.id+"_"+weapon.id)
       }))},
   ];
