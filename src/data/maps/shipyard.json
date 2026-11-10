@@ -69,7 +69,8 @@
         "d": 6,
         "h": 2.9,
         "kind": "cover",
-        "label": "Container stack"
+        "label": "Container stack",
+        "material": "reinforced"
       },
       {
         "id": "forklift",
@@ -79,7 +80,8 @@
         "d": 4,
         "h": 1.6,
         "kind": "cover",
-        "label": "Forklift"
+        "label": "Forklift",
+        "material": "reinforced"
       },
       {
         "id": "dock-bollards",
@@ -89,7 +91,8 @@
         "d": 3,
         "h": 1.1,
         "kind": "cover",
-        "label": "Mooring bollards"
+        "label": "Mooring bollards",
+        "material": "concrete"
       }
     ],
     "spawns": {
