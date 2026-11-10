@@ -10,6 +10,15 @@ export interface MapImportResult { documents: MapDocumentLibrary; selectedId: st
 const clone=<T,>(value:T):T=>JSON.parse(JSON.stringify(value));
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);
 const validId=(id:string)=>/^[a-z][a-z0-9_:-]*$/.test(id);
+/** Preserve old editor drafts rather than discard them when material becomes
+ * mandatory. Unknown historical cover was fully protective, so reinforced is
+ * the only safe backwards-compatible choice.
+ */
+export function migrateLegacyCoverMaterials(doc:MapDocument):MapDocument {
+  if(!doc?.blueprint || !Array.isArray(doc.blueprint.features))return doc;
+  return {...doc,blueprint:{...doc.blueprint,features:doc.blueprint.features.map(f=>
+    f.kind==="cover"&&!f.material?{...f,material:"reinforced" as const}:f)}};
+}
 
 /** Import a single v2 JSON, a v2 library, or the previous split-file/bundle format.
  * Invalid imports never silently replace an entire library. */
@@ -22,7 +31,10 @@ export function importMapDocuments(
   const next=clone(existing);
   let selectedId=activeId,migrated=false;
   const install=(doc:MapDocument)=>{
-    doc=clone(doc);
+    const original=clone(doc);
+    doc=migrateLegacyCoverMaterials(original);
+    if(doc.blueprint?.features?.some((f,i)=>f.material!==original.blueprint?.features?.[i]?.material))
+      migrated=true;
     if(doc?.blueprint&&doc.blueprint.objectives===undefined){
       const defaults=legacyObjectiveMap(doc.id);
       if(defaults.objectives){
