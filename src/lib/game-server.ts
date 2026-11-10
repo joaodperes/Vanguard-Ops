@@ -15,6 +15,7 @@ import { resolveMatchLoadout } from "./match-loadout";
 import { cosmeticShopOwnership } from "./cosmetics";
 import { parseWeaponSetups } from "./weapon-setups";
 import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderKillEffect } from "./wonder-expansion";
+import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
 import { wonderConeHit, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
@@ -264,6 +265,7 @@ interface Room {
   hellfireUntil: Map<string, number>;
   wonderFields: Map<string, { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>;
   deathBombs: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; explodesAt: number }>;
+  harbingerDrones: Map<string, {id:string; ownerId:string; ownerTeam:string; pos:Vec3; expiresAt:number; hp:number; moduleId:string; nextShotAt:number; nextScanAt:number; priorityId?:string}>;
   turrets: Map<string, { ownerId: string; ownerTeam: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; hp: number }>;
   gravityWells: Map<string, { ownerId: string; ownerTeam: string; weaponId: string; pos: Vec3; radius: number; damage: number; activatesAt: number; expiresAt: number }>;
   boltReadyAt: Map<string, number>;
@@ -522,7 +524,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
@@ -695,7 +697,7 @@ function createLobbyRoom(
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
@@ -755,6 +757,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.survivalRanks.clear();room.survivalOffers.clear();room.survivalUpgradeDeadline=null;room.survivalPauseStartedAt=null;room.survivalMenuPaused=false;room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
   room.turrets.clear();
+  room.harbingerDrones.clear();
   room.gravityWells.clear();
   room.assists.clear(); room.damageContributions.clear();
   for (const id of room.scores.keys()) room.scores.set(id, 0);
@@ -873,6 +876,7 @@ function snapshot(room: Room): S2C {
     ...(room.map.id==="floodgate"?{floodgateRulesVersion:6}:{}),
     deployedCovers: [...room.deployedCovers.values()],
     mechDrops:[...room.mechDrops.values()],phantomDecoys:[...room.phantomDecoys.values()],
+    harbingerDrones: [...room.harbingerDrones.values()].map(d=>({id:d.id,ownerId:d.ownerId,ownerTeam:d.ownerTeam,pos:d.pos,expiresAt:d.expiresAt,hp:d.hp,moduleId:d.moduleId})),
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
@@ -1278,6 +1282,13 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
 
 /** Explosive and melee hits destroy Bullet Spitter immediately. */
 function destroyTurretsNear(room: Room, pos: Vec3, radius: number, onlyOwner?: string) {
+  // Blast effects also destroy hovering drones; no teammate damage to operators.
+  for(const [id,d] of room.harbingerDrones){
+    if(onlyOwner&&d.ownerId!==onlyOwner)continue;
+    if(Math.hypot(d.pos[0]-pos[0],d.pos[1]-pos[1],d.pos[2]-pos[2])>radius+.5)continue;
+    room.harbingerDrones.delete(id);
+    io.to(room.id).emit("message",{t:"harbingerRemoved",id} as S2C);
+  }
   for (const [id, turret] of room.turrets) {
     if (onlyOwner && turret.ownerId !== onlyOwner) continue;
     if (Math.hypot(turret.pos[0] - pos[0], turret.pos[2] - pos[2]) > radius) continue;
@@ -1453,6 +1464,38 @@ function tickBulletSpitters(room: Room, now: number) {
   }
 }
 
+/** The Harbinger scout scans only visible hostiles. All damage and target
+ * acquisition are server-authoritative, including ADS priority designations.
+ */
+function tickHarbingerDrones(room:Room,now:number):void {
+  for(const [id,d] of room.harbingerDrones){
+    const owner=room.players.get(d.ownerId)??room.bots.get(d.ownerId);
+    if(!owner?.alive||now>=d.expiresAt||d.hp<=0){
+      room.harbingerDrones.delete(id);
+      io.to(room.id).emit("message",{t:"harbingerRemoved",id} as S2C);
+      continue;
+    }
+    if(room.preMatchCountdown>0)continue;
+    const tune=harbingerTuning(d.moduleId);
+    const candidates=harbingerTargets(d.pos,d.ownerId,d.ownerTeam,room.mode,
+      allCombatants(room).map(e=>({id:e.id,pos:e.pos,team:e.team,alive:e.alive,protected:!!e.spawnProtectedUntil&&e.spawnProtectedUntil>now})),
+      tune.range,to=>hasLineOfSight(room,d.pos,[...to] as Vec3),d.priorityId);
+    if(now>=d.nextScanAt){
+      d.nextScanAt=now+HARBINGER_SCAN_INTERVAL_MS;
+      if(!owner.isBot)io.to(owner.id).emit("message",{t:"harbingerScan",ids:candidates.slice(0,3).map(e=>e.id),durationMs:1800} as S2C);
+    }
+    if(now<d.nextShotAt||!candidates.length)continue;
+    const victim=room.players.get(candidates[0].id)??room.bots.get(candidates[0].id);
+    if(!victim?.alive)continue;
+    const hit:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
+    const dir=normalize([hit[0]-d.pos[0],hit[1]-d.pos[1],hit[2]-d.pos[2]]);
+    d.nextShotAt=now+HARBINGER_INTERVAL_MS;
+    io.to(room.id).emit("message",{t:"harbingerFired",id,target:hit} as S2C);
+    applyDamage(room,d.ownerId,victim,tune.damage,false,"wonder_harbinger",rayRiotShield(d.pos,dir,victim)!==null);
+    if(room.ended)return;
+  }
+}
+
 /** Server-authoritative Event Horizon: pull bots each tick, then detonate.
  * Human movement stays client-authoritative: the client applies the same pull
  * to its own motion, with cover collision.
@@ -1615,6 +1658,8 @@ function tickSpecialEffects(room: Room, now: number) {
  tickWonderFields(room,now);
  tickStormMines(room,now);
   tickBulletSpitters(room, now);
+  if (room.ended) return;
+  tickHarbingerDrones(room, now);
   if (room.ended) return;
   tickGravityWells(room, now);
   for (const [id, bomb] of room.deathBombs) {
@@ -2831,6 +2876,22 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // shotFx is broadcast; attached ammo may also alter cover penetration.
       const shotCoverStop=traceCoverPenetration(room.map.cover,msg.origin,shotDir,
         maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0).blockedAt;
+      // Bullets can destroy enemy recon drones, but never through solid cover.
+      if(weapon.category!=="melee"&&!weapon.wonder){
+        const maxDist=Math.min(maxWeaponHitRange(eff.range,eff),shotCoverStop??Infinity);
+        const hits=[...room.harbingerDrones.values()].filter(d=>d.ownerId!==p.id&&
+          (room.mode==="ffa"||room.mode==="gungame"||d.ownerTeam!==p.team))
+          .map(d=>({drone:d,t:harbingerRayHit(msg.origin,shotDir,d.pos,maxDist)}))
+          .filter(h=>h.t!==null).sort((a,b)=>(a.t??0)-(b.t??0));
+        if(hits.length){
+          const d=hits[0].drone;
+          d.hp-=Math.max(1,eff.damage);
+          io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:shotDir,
+            weaponId:weapon.id,attackerId:p.id,skinId:msg.skinId,suppressed:false} as S2C);
+          if(d.hp<=0){room.harbingerDrones.delete(d.id);io.to(room.id).emit("message",{t:"harbingerRemoved",id:d.id} as S2C);}
+          return;
+        }
+      }
       if(weapon.category==="melee"){
         applyMeleeStrike(room,p,weapon.id,now);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,
@@ -2845,6 +2906,20 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         return;
       }
 
+      if(weapon.wonder?.kind==="drone"){
+        for(const [id,old] of room.harbingerDrones)if(old.ownerId===p.id){
+          room.harbingerDrones.delete(id);
+          io.to(room.id).emit("message",{t:"harbingerRemoved",id} as S2C);
+        }
+        const hit=closestCoverHit(room.map.cover,msg.origin,shotDir,14,rayBox);
+        const pos=harbingerPlacement(msg.origin,shotDir,hit?.distance??14,room.map.size);
+        const id=genId("harbinger"),tune=harbingerTuning(loadout?.wonderModuleId);
+        const data={id,ownerId:p.id,ownerTeam:p.team,pos,
+          expiresAt:now+tune.durationMs,hp:tune.health,moduleId:loadout?.wonderModuleId??""};
+        room.harbingerDrones.set(id,{...data,nextShotAt:now+750,nextScanAt:now});
+        io.to(room.id).emit("message",{t:"harbingerPlaced",...data} as S2C);
+        return;
+      }
       if(weapon.wonder?.kind==="chrono"){
         const anchor={pos:[...p.pos] as Vec3,expiresAt:now+CHRONO_ANCHOR_MS*module.durationMul};
         room.chronoAnchors.set(p.id,anchor);
@@ -3234,6 +3309,24 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     io.to(room.id).emit("message",{t:"shotFx",origin,dir:[diff[0]/len,diff[1]/len,diff[2]/len],
       weaponId:bot.weaponId,attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
     if(t.hp<=0){room.turrets.delete(id);io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);}
+  }
+
+  // Bots can disable hostile drones when no nearby opponent is available.
+  const scout=[...room.harbingerDrones.values()].filter(d=>d.ownerId!==bot.id&&
+    (room.mode==="ffa"||room.mode==="gungame"||d.ownerTeam!==bot.team)&&
+    Math.hypot(bot.pos[0]-d.pos[0],bot.pos[2]-d.pos[2])<22&&
+    hasLineOfSight(room,[bot.pos[0],bot.pos[1]+1.4,bot.pos[2]],d.pos))
+    .sort((a,b)=>Math.hypot(bot.pos[0]-a.pos[0],bot.pos[2]-a.pos[2])-
+      Math.hypot(bot.pos[0]-b.pos[0],bot.pos[2]-b.pos[2]))[0];
+  if(!flashBlinded&&scout&&(!rival||Math.hypot(rival.pos[0]-bot.pos[0],rival.pos[2]-bot.pos[2])>17)&&
+    now>=ai.nextShotAt&&now>ai.reloadingUntil&&ai.ammoInMag>0){
+    const origin:Vec3=[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]];
+    const dir=normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
+    scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
+    ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+    io.to(room.id).emit("message",{t:"shotFx",origin,dir,weaponId:bot.weaponId,
+      attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
+    if(scout.hp<=0){room.harbingerDrones.delete(scout.id);io.to(room.id).emit("message",{t:"harbingerRemoved",id:scout.id} as S2C);}
   }
 
   if (now > ai.nextDecisionAt) {
@@ -4213,6 +4306,24 @@ async function handle(socket: any, msg: C2S) {
       if(p.weaponId===meleeId)p.lastShotAt=now;
       clearSpawnProtection(room, p);
       applyMeleeStrike(room,p,meleeId,now);
+      break;
+    }
+    case "harbingerDesignate": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      const player=room?.players.get(socket.id);
+      if(!room||room.state!=="playing"||room.ended||!player?.alive||player.weaponId!=="wonder_harbinger")break;
+      const drone=[...room.harbingerDrones.values()].find(d=>d.ownerId===socket.id&&d.expiresAt>Date.now());
+      if(!drone)break;
+      const origin:Vec3=[player.pos[0],player.pos[1]+EYE_HEIGHT,player.pos[2]];
+      const dir=dirFromYawPitch(player.yaw,player.pitch);
+      const candidates=harbingerTargets(origin,player.id,player.team,room.mode,
+        allCombatants(room).map(c=>({id:c.id,pos:c.pos,team:c.team,alive:c.alive,protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()})),
+        32,to=>hasLineOfSight(room,origin,[...to] as Vec3));
+      const target=candidates.find(c=>{
+        const v=normalize([c.pos[0]-origin[0],c.pos[1]+1-origin[1],c.pos[2]-origin[2]]);
+        return v[0]*dir[0]+v[1]*dir[1]+v[2]*dir[2]>.97;
+      });
+      if(target)drone.priorityId=target.id;
       break;
     }
     case "deployTurret": {
