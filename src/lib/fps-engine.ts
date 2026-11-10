@@ -2,7 +2,7 @@ import { blastCanDamage } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
 import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
-import {wonderConeHit,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
+import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
@@ -904,6 +904,14 @@ export class FPSEngine {
   private chronoMarker:THREE.Mesh|null=null;
   private localCryoSlowUntil=0;
   private botCryoSlowUntil=new Map<string,number>();
+  private frozenUntil=new Map<string,number>();
+  private frozenFx=new Map<string,THREE.Group>();
+  private ripperFlights:{group:THREE.Group;start:THREE.Vector3;end:THREE.Vector3;born:number;life:number}[]=[];
+  private radialShockwaves:{mesh:THREE.Mesh;born:number;life:number;radius:number}[]=[];
+  private mechCockpit:THREE.Group|null=null;
+  private mechMuzzles:{minigun:THREE.Mesh;secondary:THREE.Mesh}|null=null;
+  private mechMuzzleUntil:{minigun:number;secondary:number}={minigun:0,secondary:0};
+  private mechRotary:THREE.Group|null=null;
   private wonderVisualFx:{group:THREE.Group;born:number;duration:number}[]=[];
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
@@ -7696,6 +7704,35 @@ export class FPSEngine {
   private spawnWonderBeam(from:Vec3,to:Vec3,kind:Extract<S2C,{t:"wonderBeam"}>["kind"]){
     const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
     const mid=start.clone().lerp(end,.5);
+    if(kind==="seismic"){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.075,8,60),
+        new THREE.MeshBasicMaterial({color:0xffc17e,transparent:true,opacity:.86,depthWrite:false}));
+      ring.rotation.x=-Math.PI/2;ring.position.set(start.x,start.y+.10,start.z);
+      ring.scale.setScalar(.2);this.scene.add(ring);
+      this.radialShockwaves.push({mesh:ring,born:performance.now(),life:540,radius:8});
+      return;
+    }
+    if(kind==="ripper"){
+      // A visibly spinning and travelling sawblade for every ricochet leg.
+      const dir=end.clone().sub(start),dist=dir.length();
+      if(dist<.1)return;
+      const group=new THREE.Group();group.name="ripper_flying_blade";
+      const steel=new THREE.MeshBasicMaterial({color:0xc6cdd0,side:THREE.DoubleSide});
+      const glow=new THREE.MeshBasicMaterial({color:0xff822e,side:THREE.DoubleSide});
+      const core=new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.065,20),steel);
+      core.name="ripper_blade_core";group.add(core);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,.075,12),glow);group.add(hub);
+      for(let i=0;i<12;i++){
+        const a=i*Math.PI/6;
+        const tooth=new THREE.Mesh(new THREE.BoxGeometry(.15,.05,.11),i%2?steel:glow);
+        tooth.position.set(Math.cos(a)*.31,0,Math.sin(a)*.31);tooth.rotation.y=-a;
+        group.add(tooth);
+      }
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+      group.position.copy(start);this.scene.add(group);
+      this.ripperFlights.push({group,start,end,born:performance.now(),life:Math.max(180,dist/42*1000)});
+      return;
+    }
     if(kind==="storm"){
       mid.x+=.24;mid.y+=.18;
       // ONE thick, jagged electrical tube instead of three fine lines.
@@ -8081,6 +8118,57 @@ export class FPSEngine {
     this.chronoMarker.position.set(pos[0],pos[1]+.1,pos[2]);
     this.scene.add(this.chronoMarker);
   }
+  private clearMechCockpit(){
+    if(!this.mechCockpit)return;
+    this.mechCockpit.removeFromParent();
+    this.mechCockpit.traverse(o=>{if(o instanceof THREE.Mesh){
+      o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];
+      mats.forEach(m=>m.dispose());
+    }});
+    this.mechCockpit=null;this.mechMuzzles=null;this.mechRotary=null;
+  }
+  private buildMechCockpit(){
+    this.clearMechCockpit();
+    const rig=new THREE.Group();rig.name="juggernaut_cockpit_weapons";
+    const metal=new THREE.MeshBasicMaterial({color:0x344855});
+    const black=new THREE.MeshBasicMaterial({color:0x131d24});
+    const light=new THREE.MeshBasicMaterial({color:0x70bfd5});
+    const box=(w:number,h:number,d:number,x:number,y:number,z:number,mat:THREE.Material)=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);rig.add(m);return m;
+    };
+    const barrel=(radius:number,length:number,x:number,y:number,z:number,mat:THREE.Material)=>{
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,12),mat);
+      m.rotation.x=Math.PI/2;m.position.set(x,y,z);rig.add(m);return m;
+    };
+    // LEFT weapon: exposed rotating minigun barrel assembly.
+    box(.29,.28,.66,-.49,-.36,-.62,metal);
+    barrel(.16,.48,-.49,-.35,-1.03,black);
+    const spin=new THREE.Group();spin.position.set(-.49,-.35,-1.05);
+    for(let n=0;n<6;n++){
+      const a=n*Math.PI/3;
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(.034,.034,.58,8),metal);
+      m.rotation.x=Math.PI/2;m.position.set(Math.cos(a)*.105,Math.sin(a)*.105,-.17);spin.add(m);
+    }
+    rig.add(spin);this.mechRotary=spin;
+    // RIGHT weapon: shotgun tubes or Swarm-3 triple-pod by module.
+    const swarm=mechTuning(this.mechActive?.moduleId).secondary==="swarm";
+    box(.32,.26,.50,.48,-.39,-.58,metal);
+    if(swarm){
+      for(let n=-1;n<=1;n++)barrel(.064,.49,.48+n*.09,-.38,-1,black);
+      box(.33,.08,.24,.48,-.24,-.75,light);
+    }else{
+      barrel(.11,.74,.48,-.40,-.97,black);
+      barrel(.07,.74,.48,-.29,-.97,metal);
+      barrel(.16,.16,.48,-.50,-.44,black);
+    }
+    const flash=(x:number,y:number,z:number)=>{
+      const m=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),
+        new THREE.MeshBasicMaterial({color:0xffd283,transparent:true,opacity:.9,depthWrite:false}));
+      m.position.set(x,y,z);m.visible=false;rig.add(m);return m;
+    };
+    this.mechMuzzles={minigun:flash(-.49,-.35,-1.49),secondary:flash(.48,-.37,-1.34)};
+    this.camera.add(rig);this.mechCockpit=rig;
+  }
   private enterNearbyMech(){
     if(!this.alive||this.mechActive||this.opts.mode==="gungame")return;
     const nearby=[...this.mechDrops.entries()].find(([,d])=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
@@ -8128,10 +8216,35 @@ export class FPSEngine {
     for(const [id,decoy] of this.phantomDecoys){
       if(time>=decoy.expiresAt){this.clearPhantom(id);continue;}
       decoy.visual.group.position.set(...decoy.pos);
-      decoy.visual.group.scale.setScalar(1+.028*Math.sin(now*.006+id.length));
-      if(!this.opts.online&&this.combatants.size&&Math.floor(time/850)!==Math.floor((time-50)/850)){
-        this.publishBotNoise({sourceId:this.selfId,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
+      const age=time-decoy.createdAt;
+      const flash=decoy.visual.group.getObjectByName("phantom_muzzle_flash");
+      if(flash)flash.visible=age>250&&(age%850)<115;
+      if(age>250&&Math.floor(age/850)!==Math.floor((age-50)/850)){
+        this.playEnemyFireSound(decoy.pos,"rifle_ar",false);
+        if(!this.opts.online&&this.combatants.size)
+          this.publishBotNoise({sourceId:this.selfId,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
       }
+    }
+    for(let i=this.ripperFlights.length-1;i>=0;i--){
+      const f=this.ripperFlights[i],t=(now-f.born)/f.life;
+      if(t>=1){f.group.removeFromParent();f.group.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+        this.ripperFlights.splice(i,1);continue;}
+      f.group.position.lerpVectors(f.start,f.end,Math.max(0,t));
+      f.group.rotateY(.35);
+    }
+    for(let i=this.radialShockwaves.length-1;i>=0;i--){
+      const f=this.radialShockwaves[i],t=(now-f.born)/f.life;
+      if(t>=1){f.mesh.removeFromParent();f.mesh.geometry.dispose();(f.mesh.material as THREE.Material).dispose();this.radialShockwaves.splice(i,1);continue;}
+      f.mesh.scale.setScalar(.3+f.radius*t);
+      (f.mesh.material as THREE.MeshBasicMaterial).opacity=.8*(1-t);
+    }
+    if(this.mechActive&&!this.mechCockpit)this.buildMechCockpit();
+    else if(!this.mechActive&&this.mechCockpit)this.clearMechCockpit();
+    if(this.mechRotary&&this.mechActive)this.mechRotary.rotateY(.28);
+    if(this.mechMuzzles){
+      this.mechMuzzles.minigun.visible=now<this.mechMuzzleUntil.minigun;
+      this.mechMuzzles.secondary.visible=now<this.mechMuzzleUntil.secondary;
     }
     if(this.chronoAnchor&&time>=this.chronoAnchor.expiresAt){this.chronoAnchor=null;}
     if(!this.chronoAnchor&&this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
@@ -8148,7 +8261,7 @@ export class FPSEngine {
       const first=v.group.children[0] as THREE.Mesh|undefined;
       if(first)(first.material as THREE.MeshBasicMaterial).opacity=.85*(1-fraction);
     }
-    if(this.mechActive&&time>=this.mechActive.expiresAt)this.mechActive=null;
+    if(this.mechActive&&time>=this.mechActive.expiresAt){this.mechActive=null;this.clearMechCockpit();}
   }
   private fireMech(mode:"minigun"|"secondary",now:number){
     const mech=this.mechActive;if(!mech||!this.alive||this.matchEnded||this.survivalDowned)return;
@@ -8189,7 +8302,10 @@ export class FPSEngine {
       }
     }
     this.selfSpawnProtectedUntil=0;
-    this.triggerMuzzleFlash();
+    if(this.mechMuzzles){
+      this.mechMuzzleUntil[mode]=now+95;
+      this.mechMuzzles[mode].visible=true;
+    }
     this.weaponAudio.play(mode==="secondary"?(isSwarm?"launcher":"shotgun"):"lmg",{
       weaponId:mode==="minigun"?"lmg_hv":isSwarm?"launcher_swarm":"shotgun_combat",
       volume:mode==="minigun"?.46:.75});
