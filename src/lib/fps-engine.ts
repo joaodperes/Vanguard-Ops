@@ -4089,9 +4089,39 @@ export class FPSEngine {
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
+      const akimboSide=p.obj.userData.akimboHand as AkimboHand|undefined;
+      if(this.viewmodelAkimbo&&akimboSide){
+        const sign=akimboSide==="left"?-1:1;
+        const swapAge=this.swapAnimAt?Math.max(0,Math.min(1,(now-this.swapAnimAt)/WEAPON_SWAP_VISUAL_MS)):1;
+        const cross=this.swapAnimAt&&swapAge<1
+          ?akimboCrossDrawAmount(this.swapViewmodelPending
+            ?Math.min(1,swapAge/WEAPON_SWAP_HANDOFF)
+            :Math.max(0,(swapAge-WEAPON_SWAP_HANDOFF)/(1-WEAPON_SWAP_HANDOFF)),
+            !this.swapViewmodelPending):0;
+        // Opposite-side holsters: left hand crosses right, right hand crosses left.
+        p.obj.position.x-=sign*.54*cross;
+        p.obj.position.y-=.49*cross;
+        p.obj.position.z+=.12*cross;
+        let extraPitch=this.akimboKick[akimboSide]*.22;
+        let extraRoll=-sign*this.akimboKick[akimboSide]*.13;
+        if(this.reloading){
+          const local=akimboReloadFraction((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),akimboSide);
+          const pose=sampleReloadMotion(local,
+            reloadMotionFor("pistol_bastion","pistol",weaponById("pistol_bastion").special?.kind),
+            this.fpShellContacts??undefined);
+          p.obj.position.y+=pose.dip*.70;
+          extraPitch+=pose.pitch*.85;
+          extraRoll+=pose.roll*.70;
+        }
+        this.akimboPoseQuat.setFromEuler(this.akimboPoseEuler.set(extraPitch,0,extraRoll,"XYZ"));
+        this.akimboPosePivot.set(ox+sign*.34,oy-.11,oz+.12);
+        p.obj.position.sub(this.akimboPosePivot).applyQuaternion(this.akimboPoseQuat).add(this.akimboPosePivot);
+        p.obj.quaternion.premultiply(this.akimboPoseQuat);
+      }
       if(p.obj.userData.fpRevolverCylinder && this.weaponId==="pistol_bastion"){
-        const fraction=this.reloading ? (now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs) : 1;
-        const frame=bastionReloadFrame(fraction);
+        const fraction=this.reloading?(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs):1;
+        const frame=bastionReloadFrame(this.viewmodelAkimbo&&akimboSide
+          ?akimboReloadFraction(fraction,akimboSide):fraction);
         if(this.reloading){
           // Swing sideways in the weapon's own right/left axis. Never yaw the
           // cylinder: the chamber bores remain PARALLEL to the barrel.
@@ -4104,7 +4134,8 @@ export class FPSEngine {
             // During a reload, empty chambers become visible first; six rounds
             // then approach the open breech and seat along Z. Outside a reload,
             // chambers reflect exactly how many rounds remain.
-            component.visible=this.reloading ? frame.cartridgesVisible : index<this.ammoInMag;
+            component.visible=this.reloading?frame.cartridgesVisible:
+              index<(this.viewmodelAkimbo&&akimboSide?this.akimboAmmo[akimboSide]:this.ammoInMag);
             component.position.z=BASTION_CARTRIDGE_SEATED_Z+
               (this.reloading ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
           } else if(component.userData.fpRevolverYoke){
