@@ -9,12 +9,12 @@ import { useGame } from "@/lib/game-store";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { LoadoutWire } from "@/lib/game-protocol";
 import {
-  WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS,
+  WEAPONS, ATTACHMENTS, WEAPON_SKINS,
   weaponById, weaponAttachmentSlots, compatibleAttachments, type AttachmentSlot,
 } from "@/lib/game-data";
 import { PERKS, perkById } from "@/lib/perks";
 import {COSMETICS} from "@/lib/cosmetics";
-import {rangeWonderWeapons} from "@/lib/firing-range-loadout";
+import {rangeWonderWeapons, rangePrimarySelection, selectRangePrimary} from "@/lib/firing-range-loadout";
 import {wonderModulesFor,WONDER_FINISHES,WONDER_KILL_EFFECTS} from "@/lib/wonder-expansion";
 import { EQUIPMENT } from "@/lib/equipment";
 import {
@@ -75,6 +75,9 @@ function RangeSession({ profile, requestedId, onExit }: {
   const [applied, setApplied] = useState<LoadoutWire>(() => initialTrial(profile, requestedId));
   const [session, setSession] = useState(0);
   const [editing, setEditing] = useState(true);
+  const [editorTab, setEditorTab] = useState<"equipment"|"visuals">("equipment");
+  const primaryIsWonder = draft.perkId === "wonder_weapon" && rangeWonderWeapons.some(w => w.id === draft.wonderWeaponId);
+  const selectedPrimary = rangePrimarySelection(draft);
   const ownedIds = useMemo(() => new Set([
     ...profile.unlocks.weapons,
     ...profile.prestige.wonderWeapons,
@@ -120,6 +123,7 @@ function RangeSession({ profile, requestedId, onExit }: {
         : field === "secondaryWeaponId" ? rangeSecondaryWeapons(prev.perkId, prev.weaponId).some(w => w.id === id)
         : rangeWeaponSlot(id) === "melee";
       if (!valid) return prev;
+      if (field === "weaponId") return selectRangePrimary(prev, id);
       const attachmentField = field === "weaponId" ? "attachments"
         : field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
       const skinField = field === "weaponId" ? "weaponSkinId"
@@ -194,7 +198,7 @@ function RangeSession({ profile, requestedId, onExit }: {
       </div>
       {editing && (
         <div className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-3xl max-h-[94vh] overflow-y-auto rounded-2xl border border-amber-500/35 bg-zinc-900 shadow-2xl p-5 sm:p-6">
+          <div className="w-full max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/35 bg-zinc-900 shadow-2xl p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
                 <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-widest text-lg"><Crosshair className="w-5 h-5" /> Firing Range</div>
@@ -209,6 +213,14 @@ function RangeSession({ profile, requestedId, onExit }: {
                 </Button>
               </div>
             </div>
+            <div className="flex gap-2 mb-3 border-b border-white/10 pb-3" role="tablist" aria-label="Firing range customization">
+              <button role="tab" aria-selected={editorTab==="equipment"} onClick={()=>setEditorTab("equipment")}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${editorTab==="equipment"?"bg-amber-500 text-black":"border border-white/15 text-white/70 hover:bg-white/10"}`}>Weapons &amp; Equipment</button>
+              <button role="tab" aria-selected={editorTab==="visuals"} onClick={()=>setEditorTab("visuals")}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${editorTab==="visuals"?"bg-violet-500 text-white":"border border-white/15 text-white/70 hover:bg-white/10"}`}>Visual customization (optional)</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            {editorTab==="equipment" && <>
             <div className="grid grid-cols-3 gap-2 mb-4">
               {RANGE_MOVING_TARGETS.map(target => (
                 <div key={target.id} className="rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2 text-center">
@@ -227,13 +239,13 @@ function RangeSession({ profile, requestedId, onExit }: {
             </div>
             <div className="grid sm:grid-cols-3 gap-3 mb-4">
               {([
-                ["weaponId", "Primary (1)", rangePrimaryWeapons],
+                ["weaponId", "Primary (Wonder uses 4)", [...rangePrimaryWeapons, ...rangeWonderWeapons]],
                 ["secondaryWeaponId", "Secondary (2)", rangeSecondaryWeapons(draft.perkId, draft.weaponId)],
                 ["meleeWeaponId", "Melee (3)", rangeMeleeWeapons],
               ] as const).map(([field, label, weapons]) => (
                 <div key={field}>
                   <label className={labelClass} htmlFor={field}>{label}</label>
-                  <select id={field} className={selectClass} value={draft[field] ?? ""} onChange={e => changeWeapon(field, e.target.value)}>
+                  <select id={field} className={selectClass} value={field==="weaponId" ? selectedPrimary : (draft[field] ?? "")} onChange={e => changeWeapon(field, e.target.value)}>
                     {groupedRangeWeapons(weapons).map(group=>(
                       <optgroup key={group.type} label={group.label}>
                         {group.weapons.map(w=><option key={w.id} value={w.id}>
@@ -245,15 +257,27 @@ function RangeSession({ profile, requestedId, onExit }: {
                 </div>
               ))}
             </div>
-            <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            <div className="grid sm:grid-cols-2 gap-3 mb-3">
               {([
                 ["weaponId", "attachments", "Primary"],
                 ["secondaryWeaponId", "secondaryAttachments", "Secondary"],
               ] as const).map(([weaponField, attField, label]) => {
                 const weapon = weaponById(draft[weaponField] ?? "");
                 return <div key={weaponField} className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
-                  <div className="font-bold text-sm text-white">{label}: <span className="text-amber-200">{weapon.name}</span></div>
-                  {slots.filter(slot => weaponAttachmentSlots(weapon).includes(slot)).map(slot => (
+                  <div className="font-bold text-sm text-white">{label}: <span className="text-amber-200">{weaponField==="weaponId"&&primaryIsWonder?weaponById(draft.wonderWeaponId??"").name:weapon.name}</span></div>
+                  {weaponField==="weaponId" && primaryIsWonder ? (
+                    <div className="space-y-2">
+                      <label className={labelClass} htmlFor="trial-wonder-module">Wonder customization module</label>
+                      <select id="trial-wonder-module" className={selectClass} value={draft.wonderModuleId ?? ""}
+                        onChange={e=>setDraft(prev=>normalizeRangeLoadout({...prev,wonderModuleId:e.target.value}))}>
+                        <option value="">Standard configuration</option>
+                        {wonderModulesFor(draft.wonderWeaponId ?? "").map(module=>(
+                          <option key={module.id} value={module.id}>{module.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-violet-200/70">Wonder Weapons use special modules, not standard sights, barrels, grips or magazines. Fire with 4 during the test.</p>
+                    </div>
+                  ) : slots.filter(slot => weaponAttachmentSlots(weapon).includes(slot)).map(slot => (
                     <div key={slot}>
                       <label className={labelClass}>{slot}</label>
                       <select className={selectClass} value={draft[attField]?.[slot] ?? ""}
@@ -265,11 +289,12 @@ function RangeSession({ profile, requestedId, onExit }: {
                       </select>
                     </div>
                   ))}
-                  {weaponAttachmentSlots(weapon).length === 0 && <p className="text-xs text-white/40">No compatible attachments.</p>}
+                  {!primaryIsWonder && weaponAttachmentSlots(weapon).length === 0 && <p className="text-xs text-white/40">No compatible attachments.</p>}
                 </div>;
               })}
             </div>
-            <div className="mb-4">
+            <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <div>
               <label className={labelClass} htmlFor="trial-tactical">Tactical (G / touch)</label>
               <select id="trial-tactical" className={selectClass} value={draft.equipmentId ?? "frag"}
                 onChange={e => setDraft(prev => normalizeRangeLoadout({ ...prev, equipmentId: e.target.value as typeof prev.equipmentId }))}>
@@ -277,27 +302,28 @@ function RangeSession({ profile, requestedId, onExit }: {
               </select>
               <p className="mt-1.5 text-[11px] text-white/45">All tactics available for free trials. Apply &amp; Restart Test restores full charges; trials never change your real loadout.</p>
             </div>
-            <div className="mb-5">
+            <div>
               <label className={labelClass} htmlFor="trial-perk">Passive perk</label>
-              <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 items-center">
-                <select id="trial-perk" className={selectClass} value={draft.perkId ?? "battle_hardened"}
+              <div className="space-y-2">
+                <select id="trial-perk" disabled={primaryIsWonder} className={selectClass} value={draft.perkId ?? "battle_hardened"}
                   onChange={e => setDraft(prev => normalizeRangeLoadout({ ...prev, perkId: perkById(e.target.value).id }))}>
-                  {PERKS.map(perk => <option key={perk.id} value={perk.id}>{perk.name}</option>)}
+                  {PERKS.filter(perk=>perk.id!=="wonder_weapon"||primaryIsWonder).map(perk => <option key={perk.id} value={perk.id}>{perk.name}</option>)}
                 </select>
                 <p aria-live="polite" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/85 leading-relaxed">
-                  {perkById(draft.perkId).description}
+                  {primaryIsWonder?"Wonder weapon takes your perk slot. Choose a standard primary to try other perks.":perkById(draft.perkId).description}
                 </p>
               </div>
             </div>
-            <div className="mb-5 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+            </>}
+            {editorTab==="visuals" && <>
+            <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
               <div className="flex items-center gap-2 mb-1 font-bold text-violet-200 text-sm">Visual trials</div>
-              <p className="text-xs text-white/55 mb-4">Try owned or locked visuals in real gameplay. Skins, charms, reticles and Wonder effects are preview-only and never affect your saved loadout or balance.</p>
+              <p className="text-xs text-white/55 mb-4">Optional: preview weapon finishes, reticles, charms and Wonder effects. These never change your saved loadout or balance.</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {([
                   ["weaponSkinId","Primary weapon finish",WEAPON_SKINS],
                   ["secondaryWeaponSkinId","Secondary weapon finish",WEAPON_SKINS],
                   ["meleeWeaponSkinId","Melee weapon finish",WEAPON_SKINS],
-                  ["playerSkinId","Operative appearance",PLAYER_SKINS],
                 ] as const).map(([field,label,items])=><div key={field}>
                   <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
                   <select id={"trial-"+field} className={selectClass} value={draft[field]}
@@ -310,7 +336,6 @@ function RangeSession({ profile, requestedId, onExit }: {
                   ["secondaryReticleId","Secondary reticle","reticle"],
                   ["primaryCharmId","Primary charm","charm"],
                   ["secondaryCharmId","Secondary charm","charm"],
-                  ["meleeCharmId","Melee charm","charm"],
                 ] as const).map(([field,label,kind])=><div key={field}>
                   <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
                   <select id={"trial-"+field} className={selectClass} value={draft[field]??(kind==="reticle"?"classic":"none")}
@@ -320,37 +345,25 @@ function RangeSession({ profile, requestedId, onExit }: {
                 </div>)}
               </div>
             </div>
-            <div className="mb-5 rounded-xl border border-violet-500/25 bg-black/30 p-4">
-              <label htmlFor="trial-wonder" className={labelClass}>Wonder Weapon (slot 4)</label>
-              <select id="trial-wonder" className={selectClass}
-                value={draft.perkId==="wonder_weapon"?(draft.wonderWeaponId??""):""}
-                onChange={e=>setDraft(prev=>normalizeRangeLoadout({
-                  ...prev,
-                  perkId:e.target.value?"wonder_weapon":"battle_hardened",
-                  wonderWeaponId:e.target.value,
-                  wonderModuleId:"",wonderSkinId:"",wonderKillEffectId:"",
-                }))}>
-                <option value="">No Wonder selected</option>
-                {rangeWonderWeapons.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-              {draft.perkId==="wonder_weapon"&&!!draft.wonderWeaponId&&
-                <div className="grid sm:grid-cols-3 gap-3 mt-3">
-                  {([
-                    ["wonderModuleId","Wonder module",wonderModulesFor(draft.wonderWeaponId)],
-                    ["wonderSkinId","Animated finish",WONDER_FINISHES],
-                    ["wonderKillEffectId","Kill effect",WONDER_KILL_EFFECTS],
-                  ] as const).map(([field,label,items])=><div key={field}>
-                    <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
-                    <select id={"trial-"+field} className={selectClass} value={draft[field]??""}
-                      onChange={e=>setDraft(prev=>({...prev,[field]:e.target.value}))}>
-                      <option value="">Default</option>
-                      {items.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
-                    </select>
-                  </div>)}
-                </div>}
-              <p className="mt-2 text-xs text-white/45">When a Wonder is selected, use slot 4 during the test to fire it. Eliminate practice targets to view kill effects.</p>
+            {primaryIsWonder && <div className="mb-3 rounded-xl border border-violet-500/25 bg-black/30 p-4">
+              <div className="font-bold text-violet-200 text-sm mb-3">Wonder visuals · {weaponById(draft.wonderWeaponId??"").name}</div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {([
+                  ["wonderSkinId","Animated finish",WONDER_FINISHES],
+                  ["wonderKillEffectId","Kill effect",WONDER_KILL_EFFECTS],
+                ] as const).map(([field,label,items])=><div key={field}>
+                  <label className={labelClass} htmlFor={"trial-"+field}>{label}</label>
+                  <select id={"trial-"+field} className={selectClass} value={draft[field]??""}
+                    onChange={e=>setDraft(prev=>({...prev,[field]:e.target.value}))}>
+                    <option value="">Default</option>
+                    {items.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </div>)}
+              </div>
+            </div>}
+            </>}
             </div>
-            <div className="flex flex-wrap gap-2 items-center justify-between border-t border-white/10 pt-4">
+            <div className="flex flex-wrap gap-2 items-center justify-between border-t border-white/10 pt-3 mt-3">
               <div className="flex gap-2">
                 <Button variant="outline" className="border-white/20 text-white" onClick={() => setDraft(initialTrial(profile, requestedId))}>
                   <RotateCcw className="w-4 h-4 mr-1.5" /> Reset
