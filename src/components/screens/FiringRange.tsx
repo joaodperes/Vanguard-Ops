@@ -124,10 +124,8 @@ function RangeSession({ profile, requestedId, onExit }: {
         : rangeWeaponSlot(id) === "melee";
       if (!valid) return prev;
       if (field === "weaponId") return selectRangePrimary(prev, id);
-      const attachmentField = field === "weaponId" ? "attachments"
-        : field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
-      const skinField = field === "weaponId" ? "weaponSkinId"
-        : field === "secondaryWeaponId" ? "secondaryWeaponSkinId" : "meleeWeaponSkinId";
+      const attachmentField = field === "secondaryWeaponId" ? "secondaryAttachments" : "meleeAttachments";
+      const skinField = field === "secondaryWeaponId" ? "secondaryWeaponSkinId" : "meleeWeaponSkinId";
       return normalizeRangeLoadout({ ...prev, [field]: id, [skinField]:"default", [attachmentField]: emptyRangeAttachments() });
     });
   }
