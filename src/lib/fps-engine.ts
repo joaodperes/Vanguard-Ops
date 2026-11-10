@@ -4381,6 +4381,10 @@ export class FPSEngine {
       this.keys[e.code] = true;
       if (e.code === "KeyR" && !this.mechActive) this.startReload();
       if (e.code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
+      if (e.code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
+        e.preventDefault();
+        this.exitMech();
+      }
       if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
         e.preventDefault();
         this.useEquipment();
@@ -6768,7 +6772,7 @@ export class FPSEngine {
         break;
       }
       case "mechDestroyed":
-        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.sound.play("melee_hit",{volume:.75});}
+        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;this.clearMechCockpit();this.sound.play("swap",{volume:.65});}
         this.removeMechDrop(msg.id);
         break;
       case "mechAmmo":
@@ -8212,6 +8216,19 @@ export class FPSEngine {
     };
     this.mechMuzzles={minigun:flash(-.49,-.35,-1.49),secondary:flash(.48,-.37,-1.34)};
     this.camera.add(rig);this.mechCockpit=rig;
+  }
+  /** Voluntary ejection leaves normal health/ammo intact and consumes the suit. */
+  public exitMech(){
+    if(!this.mechActive||!this.alive)return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"exitMech"} as C2S);
+      return; // await the authoritative mechDestroyed broadcast
+    }
+    const id=this.mechActive.id;
+    this.mechActive=null;
+    this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;
+    this.clearMechCockpit();this.removeMechDrop(id);
+    this.sound.play("swap",{volume:.55});
   }
   private enterNearbyMech(){
     if(!this.alive||this.mechActive||this.opts.mode==="gungame")return;
