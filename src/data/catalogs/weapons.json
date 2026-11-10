@@ -1713,5 +1713,35 @@
       "auto": false,
       "headshotMult": 1
     }
+  },
+  {
+    "id": "wonder_harbinger",
+    "name": "Harbinger",
+    "category": "pdw",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Fires a reconnaissance dart to deploy a hovering armed scout drone. Scans exposed enemies within 20m, marks contacts for its owner, and fires restrained supporting bursts. ADS with its controller designates priority targets. One drone at a time; enemies can shoot it down.",
+    "wonder": {
+      "kind": "drone",
+      "maxCharges": 1,
+      "rechargeMs": 95000,
+      "killBonusMs": 1600,
+      "radius": 20
+    },
+    "stats": {
+      "damage": 12,
+      "fireRate": 3,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 0,
+      "range": 20,
+      "adsTime": 0.2,
+      "moveSpeed": 0.93,
+      "auto": false,
+      "headshotMult": 1
+    },
+    "disabled": false
   }
 ]
