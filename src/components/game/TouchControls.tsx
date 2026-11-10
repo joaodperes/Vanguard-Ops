@@ -6,6 +6,7 @@ import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife, Bomb } from "lucide
 
 interface Props {
   engine: FPSEngine | null;
+  akimbo?: boolean;
 }
 
 // On-screen controls for touch devices.
@@ -20,7 +21,7 @@ interface Props {
 //
 // The joystick knob glows cyan when auto-sprint is engaged so the player has
 // clear feedback that pushing harder = sprinting.
-export function TouchControls({ engine }: Props) {
+export function TouchControls({ engine, akimbo = false }: Props) {
   // ---- Movement joystick (left half, floating) ----
   const joyBaseRef = useRef<{ x: number; y: number } | null>(null);
   const joyTouchId = useRef<number | null>(null);
@@ -209,15 +210,22 @@ export function TouchControls({ engine }: Props) {
         </div>
         {/* Fire + ADS stacked vertically (ADS on top, Fire below) */}
         <div className="flex flex-col gap-3 items-end">
+          {akimbo ? (
+            <HoldBtn label="Right Gun" icon={<Crosshair className="w-6 h-6" />}
+              onDown={() => engine?.setTouchAkimboRight(true)}
+              onUp={() => engine?.setTouchAkimboRight(false)}
+              color="border-amber-500/50 bg-amber-600/25 text-amber-100" />
+          ) : (
+            <HoldBtn
+              label="ADS"
+              icon={<ZoomIn className="w-6 h-6" />}
+              onDown={() => engine?.setTouchADS(true)}
+              onUp={() => engine?.setTouchADS(false)}
+              color="border-white/30 bg-white/10 text-white"
+            />
+          )}
           <HoldBtn
-            label="ADS"
-            icon={<ZoomIn className="w-6 h-6" />}
-            onDown={() => engine?.setTouchADS(true)}
-            onUp={() => engine?.setTouchADS(false)}
-            color="border-white/30 bg-white/10 text-white"
-          />
-          <HoldBtn
-            label="Fire"
+            label={akimbo ? "Left Gun" : "Fire"}
             icon={<Crosshair className="w-7 h-7" />}
             onDown={() => engine?.setTouchFire(true)}
             onUp={() => engine?.setTouchFire(false)}
