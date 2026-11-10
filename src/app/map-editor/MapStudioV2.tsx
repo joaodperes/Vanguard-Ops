@@ -307,7 +307,8 @@ export default function MapEditorClient(){
         const type=kind as MapFeature["kind"];
         let feature:MapFeature={id:unique("feature"),kind:type,x,z,y,w:constructionDimension(w??(type==="stairs"?4:12),grid),
           d:constructionDimension(d??(type==="stairs"?10:12),grid),h:type==="cover"?3:STUDIO_STOREY_HEIGHT,
-          label:"New "+type,...(type==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
+          label:"New "+type,...(type==="cover"?{material:"reinforced" as const}:{}),
+          ...(type==="stairs"?{axis:"z" as const,sign:1 as const}:{})};
         if(type==="stairs"&&placed.feature)feature={...placed.feature,id:feature.id,label:feature.label};
         if(type==="stairs"&&smartSnap&&!bypass){
           const attached=nearestPlatformSnap(feature,bp.features);
