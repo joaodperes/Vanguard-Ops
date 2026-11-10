@@ -10571,7 +10571,7 @@ export class FPSEngine {
     }
     const akimbo=this.isAkimboActive();
     const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
-      (akimbo&&this.akimboRightDown&&this.pointerLocked) ||
+      (akimbo&&!this.mechActive&&this.akimboRightDown&&this.pointerLocked) ||
       (this.touchMode&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
@@ -10593,7 +10593,8 @@ export class FPSEngine {
       const now=performance.now(),w=weaponById(this.weaponId);
       const pressed=this.mousePressedThisFrame||this.akimboRightPressedThisFrame||
         this.touchPressedThisFrame||this.touchAkimboRightPressedThisFrame;
-      if(pressed)this.akimboPending.left=now;
+      if(pressed&&!this.reloading)this.akimboPending.left=now;
+      if(this.reloading)this.akimboPending.left=-Infinity;
       if(now-this.akimboPending.left<520&&
          akimboVolleyReady(this.akimboAmmo.left,this.akimboAmmo.right,
            this.lastShotAt,now,this.eff.fireRate)&&
@@ -10680,10 +10681,15 @@ export class FPSEngine {
       // Clear the press-edge flags after they've been consumed this frame.
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
+      this.akimboRightPressedThisFrame=false;
+      this.touchAkimboRightPressedThisFrame=false;
     } else {
       // Trigger released — clear press-edge flags too so they don't queue a shot on next press.
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
+      this.akimboRightPressedThisFrame=false;
+      this.touchAkimboRightPressedThisFrame=false;
+      this.akimboPending.left=-Infinity;
       this.railChargeAt=0;this.railShotLocked=false;
     }
     if (this.alive && inputActive && !this.survivalDowned) this.updateMovement(dt);
