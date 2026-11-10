@@ -20,7 +20,7 @@ import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CH
 import { db } from "./db";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -1034,7 +1034,7 @@ function blastMaterialCover(room:Room,pos:Vec3,radius:number,damage:number,sourc
 /** Conventional hitscan rounds can cross explicitly tagged thin cover.
  * Structural cover, Bulwark shields and protected spawns still absorb shots. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
-  range: number, eff: WeaponStats): { hits:{ victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[]; stoppedAt:number } {
+  range: number, eff: WeaponStats, phasebreaker=false): { hits:{ victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[]; stoppedAt:number } {
   if (!eff.bodyPenetration && !(eff.coverPenetration ?? 0)) {
     const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
     return {hits:first ? [{ ...first, damageScale: 1 }] : [],stoppedAt:first?.t??Infinity};
@@ -1056,7 +1056,7 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
       protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
   }
   const resolved=resolveMaterialPenetrationShot(contacts,room.map.cover,origin,dir,maxDistance,
-      eff.bodyPenetration,eff.coverPenetration);
+      eff.bodyPenetration,eff.coverPenetration,phasebreaker);
   return {hits:resolved.hits.map(({ target, t, head, shield, damageScale }) => (
     { victim: target, t, head, shield, damageScale })),stoppedAt:resolved.stoppedAt};
 }
@@ -2935,7 +2935,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // Preserve the struck cover for remote tracers even if it breaks before
       // shotFx is broadcast; attached ammo may also alter cover penetration.
       const shotCoverStop=traceCoverPenetration(room.map.cover,msg.origin,shotDir,
-        maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0).blockedAt;
+        maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0,weapon.wonder?.kind==="rail").blockedAt;
       // Bullets can destroy enemy recon drones, but never through solid cover.
       if(weapon.category!=="melee"&&!weapon.wonder){
         const maxDist=Math.min(maxWeaponHitRange(eff.range,eff),shotCoverStop??Infinity);
@@ -3046,7 +3046,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         return;
       }
       if(weapon.wonder?.kind==="ricochet"){
-        const bounces=module.targets||3;
+        const bounces=module.targets||4;
         const segments=ripperSegments(msg.origin,shotDir,room.map.cover,eff.range,bounces);
         const hitIds=new Set<string>();
         for(const segment of segments){
@@ -3273,8 +3273,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
           const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
-          const resolved=firePenetratingRay(room, p.id, msg.origin, dir, eff.range, eff);
+          const resolved=firePenetratingRay(room, p.id, msg.origin, dir, eff.range, eff, weapon.wonder?.kind==="rail");
           const hits=resolved.hits;
+          let refundedRailShot=false;
           hitMaterialCover(room,msg.origin,dir,eff,resolved.stoppedAt);
           if (coverHit?.box.environmentId && room.environmentWalls.has(coverHit.box.environmentId) &&
               hits.length === 0) {
@@ -3284,7 +3285,16 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           for (const hit of hits) {
             const baseDmg = eff.damage * (hit.head ? weapon.stats.headshotMult : 1);
             const dmg = damageAtRange(baseDmg, hit.t, eff.range, eff) * hit.damageScale;
+            const railHeadshot=weapon.wonder?.kind==="rail"&&hit.head&&!hit.shield&&
+              hit.victim.alive&&(!hit.victim.spawnProtectedUntil||hit.victim.spawnProtectedUntil<=now);
             applyDamage(room, p.id, hit.victim, dmg, hit.head, msg.weaponId,hit.shield);
+            if(railHeadshot&&!refundedRailShot){
+              const key=p.id+":"+weapon.id,state=room.wonderCharges.get(key);
+              if(state){
+                room.wonderCharges.set(key,refundWonderCharge(state,weapon.wonder!,now));
+                refundedRailShot=true;
+              }
+            }
             if (!hit.shield && incendiary && hit.victim.alive)
               room.poison.set(hit.victim.id, { attackerId:p.id, weaponId:msg.weaponId,
                 expiresAt:now+3000, tickAt:now+500, damagePerTick:2 });
