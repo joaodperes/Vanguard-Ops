@@ -153,7 +153,7 @@ export function Shop(){
       </div>
       {rotationError&&<p role="alert" className="text-sm text-rose-300 mb-4">Shop rotation unavailable.</p>}
       {!rotation?<p className="text-white/50 py-6">Loading today's offers…</p>:
-        <Tabs value={currency} onValueChange={v=>{setCurrency(v as ShopCurrency);setCategory("all");}}>
+        <Tabs value={currency} onValueChange={v=>{setCurrency(v as ShopCurrency);setCategory(v==="wonder"?"wonderModule":"all");}}>
           <TabsList className="bg-zinc-900 border border-white/10">
             <TabsTrigger value="credits">Credit Shop</TabsTrigger>
             <TabsTrigger value="career">Career Token Shop</TabsTrigger>
