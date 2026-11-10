@@ -10,7 +10,7 @@ export interface StudioAsset {
 }
 export const STUDIO_ASSETS:StudioAsset[]=[
   ...[4,8,16].map(length=>({id:"wall_"+length,name:length+"u wall",category:"Construction" as const,
-    features:[{id:"wall",kind:"cover" as const,x:0,z:0,w:length,d:1,h:5,y:0,label:"Wall"}],props:[]})),
+    features:[{id:"wall",kind:"cover" as const,x:0,z:0,w:length,d:1,h:5,y:0,label:"Wall",material:"reinforced" as const}],props:[]})),
   ...STUDIO_STRUCTURE_PRESETS.map(p=>({id:"structure_"+p.id,name:p.label,category:"Construction" as const,features:studioStructurePrefab(p.id,0,0),props:[]})),
   ...([
     {id:"thin_wood_panel",name:"Thin wood screen",material:"thin_wood",w:6,d:.65,h:2.35},
@@ -43,7 +43,8 @@ export function assetBounds(asset:StudioAsset){
 export function instantiateStudioAsset(asset:StudioAsset,x:number,z:number,makeId:()=>string,y=0){
   const ids=new Map(asset.features.map(f=>[f.id,makeId()]));
   const assemblyId=asset.features.length>1?makeId():undefined;
-  return {features:reconcileFeatureAttachments(asset.features.map(f=>({...structuredClone(f),id:ids.get(f.id)!,
+  return {features:reconcileFeatureAttachments(asset.features.map(f=>({...structuredClone(f),
+      ...(f.kind==="cover"?{material:f.material??"reinforced"}:{}),id:ids.get(f.id)!,
       assemblyId,x:f.x+x,z:f.z+z,y:(f.y??0)+y,
       attachment:f.attachment&&ids.has(f.attachment.platformId)?{...f.attachment,platformId:ids.get(f.attachment.platformId)!,baseY:(f.attachment.baseY??0)+y}:undefined}))),
     props:asset.props.map(p=>({...structuredClone(p),lotId:undefined,x:p.x+x,z:p.z+z,y:(p.y??0)+y}))};
@@ -54,7 +55,9 @@ export function saveStudioAsset(name:string,features:readonly MapFeature[],props
   const x=reference.x,z=reference.z,y=reference.y??0;
   const ids=new Set(features.map(f=>f.id));
   return {id,name:name.trim().slice(0,80)||"Custom asset",category:"My assets",
-    features:features.map(f=>({...structuredClone(f),assemblyId:undefined,x:f.x-x,z:f.z-z,y:(f.y??0)-y,
+    features:features.map(f=>({...structuredClone(f),
+      ...(f.kind==="cover"?{material:f.material??"reinforced"}:{}),
+      assemblyId:undefined,x:f.x-x,z:f.z-z,y:(f.y??0)-y,
       attachment:f.attachment&&ids.has(f.attachment.platformId)?{...f.attachment,baseY:(f.attachment.baseY??0)-y}:undefined})),
     props:props.map(p=>({...structuredClone(p),lotId:undefined,x:p.x-x,z:p.z-z,y:(p.y??0)-y}))};
 }
@@ -80,5 +83,8 @@ export function importStudioAssets(input:unknown):StudioAsset[]{
     }
     for(const p of a.props)if(!kinds.has(p.kind)||(p.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(p.color)))throw Error("Unsupported prop or color");
   }
-  return structuredClone(doc.assets).map(a=>({...a,category:"My assets"}));
+  // Legacy custom recipes had no explicit cover material. Preserve their
+  // protective behavior when migrating instead of guessing from their name.
+  return structuredClone(doc.assets).map(a=>({...a,category:"My assets",
+    features:a.features.map(f=>f.kind==="cover"?{...f,material:f.material??"reinforced"}:f)}));
 }
