@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {formatCredits} from "@/lib/format-credits";
 import {useGame} from "@/lib/game-store";
-import {SHOP_CATEGORIES,shopCategoriesForCurrency,shopCategoryLabel,shopItemById,shopItemsForCategory,shopPurchaseStatus,shopItemKey,
+import {shopCategoriesForCurrency,shopCategoryLabel,shopItemById,shopItemsForCategory,shopPurchaseStatus,shopItemKey,
   type ShopCategory,type ShopCurrency,type ShopPurchaseStatus} from "@/lib/shop-catalog";
 import type {DailyShopRotation,DailyShopOffer} from "@/lib/shop-rotation";
 import {cosmeticById} from "@/lib/cosmetics";
@@ -10,7 +10,7 @@ import {WEAPONS,WEAPON_SKINS,PLAYER_SKINS} from "@/lib/game-data";
 import {ownsWeapon} from "@/lib/collection-ownership";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {Button} from "@/components/ui/button";
-import {Coins,Gem,ShoppingBag,Lock,RefreshCw,Check,Clock3,ShieldAlert} from "lucide-react";
+import {Coins,Gem,ShoppingBag,Lock,RefreshCw,Check} from "lucide-react";
 import {toast} from "sonner";
 
 const statusStyles:Record<ShopPurchaseStatus,string>={
@@ -26,7 +26,7 @@ export function Shop(){
   const {profile,playerKey,refreshProfile}=useGame();
   const [busy,setBusy]=useState("");
   const [currency,setCurrency]=useState<ShopCurrency>("credits");
-    const [category,setCategory]=useState<ShopCategory>("all");
+  const [category,setCategory]=useState<ShopCategory>("all");
   const [rotation,setRotation]=useState<DailyShopRotation|null>(null);
   const [rotationError,setRotationError]=useState(false);
   const [now,setNow]=useState(0);
@@ -43,7 +43,7 @@ export function Shop(){
       }catch{if(active)setRotationError(true);}
     }
     void reload();
-    const timer=setInterval(()=>void reload(),60000);
+    const timer=setInterval(()=>void reload(),10000);
     function visible(){if(document.visibilityState==="visible")void reload();}
     document.addEventListener("visibilitychange",visible);
     return()=>{active=false;clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
