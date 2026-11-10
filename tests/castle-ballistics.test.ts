@@ -3,6 +3,7 @@ import * as THREE from "three";
 import {getMap,type MapDef,type Vec3} from "../src/lib/game-protocol";
 import {castleBallisticId,castleSceneryBoxes,type CastleProp} from "../src/lib/castle-scenery";
 import {buildCastleScenery} from "../src/lib/castle-prop-model";
+import {mapPropBallisticId} from "../src/lib/map-visuals";
 import {authoredBallisticCover,damageBallisticCoverOnShot} from "../src/lib/material-cover-damage";
 import {traceCoverPenetration} from "../src/lib/cover-penetration";
 
@@ -69,6 +70,19 @@ describe("Emberhold castle material and durability parity",()=>{
       }
       if(p.kind==="castle_well"||p.kind==="castle_brazier")
         expect(boxes.every(b=>!b.ballisticId)).toBe(true);
+    }
+  });
+
+  test("Afterlight's wooden benches also inherit the shared ballistic and durability rules",()=>{
+    for(const id of ["terminal","arena_neon"] as const){
+      const map=getMap(id);
+      const benches=(map.props??[]).filter(p=>p.kind==="bench");
+      expect(benches.length).toBeGreaterThan(0);
+      for(const bench of benches){
+        const cover=map.cover.find(c=>c.ballisticId===mapPropBallisticId(bench));
+        expect(cover?.kind).toBe("cover");
+        expect(cover?.material).toBe("thin_wood");
+      }
     }
   });
 
