@@ -46,6 +46,7 @@ import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type 
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
+import { equipmentSoundFor, equipmentSoundVolume, type EquipmentAudioPhase } from "@/lib/equipment-audio";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
 import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
@@ -4854,6 +4855,16 @@ export class FPSEngine {
     if (this.equipmentPreviewLine) this.equipmentPreviewLine.visible = false;
   }
 
+  /** Spatial tactical SFX. Online cues are driven by accepted server FX,
+   * while offline players and bots use the exact same lifecycle mapping. */
+  private playEquipmentCue(id: string, phase: EquipmentAudioPhase, at: Vec3): void {
+    const cue = equipmentSoundFor(equipmentById(id).id, phase);
+    if (!cue) return;
+    const distance = Math.hypot(at[0] - this.pos.x, at[1] - (this.pos.y + EYE_HEIGHT), at[2] - this.pos.z);
+    const volume = equipmentSoundVolume(distance);
+    if (volume >= 0.012) this.sound.play(cue, { volume });
+  }
+
   private commitEquipmentUse(id: string): void {
     const def=equipmentById(id), now=performance.now();
     let place:ReturnType<typeof coverPlacement>=null;
@@ -4877,18 +4888,21 @@ export class FPSEngine {
       this.installDeployCover({id:"offline_cover_"+(++this.localWonderSequence),ownerId:this.selfId,
         ownerTeam:this.opts.team,pos:place.pos,yaw:place.yaw,hp:DEPLOY_COVER_HP,
         expiresAt:Date.now()+DEPLOY_COVER_LIFETIME_MS});
-      this.sound.play("melee_hit",{volume:.45});
+      this.playEquipmentCue("cover","deploy",place.pos);
       return;
     }
     const path=this.equipmentTrajectory(id);
     if(def.type==="mine"){
       this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
         ownerId:this.selfId,ownerTeam:this.opts.team as string});
+      this.playEquipmentCue(id,"placed",path.impact);
       return;
     }
+    this.playEquipmentCue(id,"release",path.points[0]);
     this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
       if(this.disposed || this.matchEnded)return;
       const impact=path.impact;
+      this.playEquipmentCue(id,"impact",impact);
       const targets=[...this.combatants.values()].filter(c=>c.alive && c.id!==this.selfId &&
         blastCanDamage(this.selfId,this.opts.team,c.id,c.team,this.opts.mode) &&
         !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
@@ -5358,6 +5372,7 @@ export class FPSEngine {
         .sort((a,b)=>distance(a.pos)-distance(b.pos))[0];
       if(!trigger)return true;
       this.removeMineMarker(m.mesh);
+      this.playEquipmentCue("mine","triggered",m.pos);
       this.spawnEquipmentVisual(m.pos,0xffb448);
       this.spawnTacticalBlastRing(m.pos,MINE_SPLASH_RADIUS,false);
       for(const c of rivals){
@@ -6970,6 +6985,7 @@ export class FPSEngine {
         break;
       case "deployedCoverPlaced":
         this.installDeployCover(msg.cover);
+        this.playEquipmentCue("cover","deploy",msg.cover.pos);
         break;
       case "deployedCoverDamaged": {
         const item=this.deployedCovers.get(msg.id);
@@ -7002,13 +7018,17 @@ export class FPSEngine {
           const existing=this.remoteEquipmentMines.get(msg.mineId);
           if(existing)this.removeMineMarker(existing);
           this.remoteEquipmentMines.set(msg.mineId,this.makeMineMarker(msg.position));
+          this.playEquipmentCue("mine","placed",msg.position);
         } else if(msg.mineState==="triggered"){
           if(msg.mineId){const old=this.remoteEquipmentMines.get(msg.mineId);
             if(old)this.removeMineMarker(old);this.remoteEquipmentMines.delete(msg.mineId);}
+          this.playEquipmentCue("mine","triggered",msg.position);
           this.spawnEquipmentVisual(msg.position,0xffb448);
           this.spawnTacticalBlastRing(msg.position,MINE_SPLASH_RADIUS,false);
         } else if(msg.path?.length){
+          this.playEquipmentCue(msg.equipmentId,"release",msg.path[0]);
           this.animateEquipmentPath(msg.path,msg.equipmentId,msg.flightMs??500,()=>{
+            this.playEquipmentCue(msg.equipmentId,"impact",msg.position);
             if(msg.equipmentId==="frag"){
               this.spawnExplosion(new THREE.Vector3(...msg.position),undefined,equipmentById("frag").radius);
               this.spawnTacticalBlastRing(msg.position,equipmentById("frag").radius,false);
@@ -12122,11 +12142,14 @@ export class FPSEngine {
     if(id==="mine"){
       this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
         ownerId:bot.id,ownerTeam:bot.team});
+      this.playEquipmentCue(id,"placed",path.impact);
       return;
     }
+    this.playEquipmentCue(id,"release",path.points[0]);
     this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
       if(this.disposed||this.matchEnded)return;
       const impact=path.impact;
+      this.playEquipmentCue(id,"impact",impact);
       const targets=[...this.combatants.values()].filter(c=>c.alive&&c.id!==bot.id&&
         (this.opts.mode==="ffa"||c.team!==bot.team)&&
         !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
