@@ -29,7 +29,7 @@ import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
-import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
+import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
 import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
@@ -2358,6 +2358,7 @@ export class FPSEngine {
           cube(group,stone,0,.11,side*d*.49,w,.22,.45);
         }
       }else if(p.kind==="bench"){
+        group.userData.ballisticId=mapPropBallisticId(p);
         const wood=new THREE.MeshStandardMaterial({color:0xa8835c,roughness:.85});
         cube(group,wood,0,.78,0,2.5,.22,.9);
         cube(group,wood,0,1.3,-.43,2.5,1.1,.18);
@@ -2751,8 +2752,8 @@ export class FPSEngine {
         }
       }
       if(group.children.length){
-        if(isCastlePropKind(p.kind)){
-          // Castle props use detailed timber, slate and furniture models on top of
+        if(isCastlePropKind(p.kind)||p.kind==="bench"){
+          // Castle props and city benches use detailed timber, slate and furniture models on top of
           // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
           group.traverse(node=>{
             const id=node.userData.ballisticId;
