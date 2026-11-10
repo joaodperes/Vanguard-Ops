@@ -3908,8 +3908,11 @@ export class FPSEngine {
     if(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId)&&this.weaponMat){
       const t=performance.now()*.001,finish=wonderFinishById(this.wonderSkinId)!;
       const color=new THREE.Color(finish.color);
+      // Scoped Wonders retain their distinctive hue, but their casing pulses
+      // with alternating slow/fast signal bands instead of a static recolor.
+      const personal="wonderWeaponId" in finish,phase=personal?Math.sin(t*1.7)*.14:0;
       if(finish.id==="wonder_prismatic")color.setHSL((t*.13)%1,.76,.59);
-      const pulse=.68+Math.sin(t*3.2)*.17+Math.sin(t*.9)*.1;
+      const pulse=.68+Math.sin(t*3.2+phase)*.17+Math.sin(t*.9+phase)*.1;
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.copy(color.multiplyScalar(pulse));
     }
     if (this.prestigeTexture) {
@@ -7506,7 +7509,7 @@ export class FPSEngine {
     for (const [id, state] of this.wonderStates) {
       const rules = weaponById(id).wonder;
       if (!rules) continue;
-      const next = tickWonderCharges(state, rules, now);
+      const next = tickWonderCharges(state, {...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(id,this.wonderModuleId).rechargeMul}, now);
       this.wonderStates.set(id, next);
       // Show stored reserve only. Including the current prepaid slice caused
       // the HUD to drop by one AFTER trigger release when that slice expired.
@@ -7846,7 +7849,7 @@ export class FPSEngine {
     cross.rotation.y=Math.PI/2;cross.position.y=.14;group.add(cross);
     group.position.set(...pos);
     this.scene.add(group);
-    this.stormMines.set(id,{mesh:group,pos,expiresAt,armedAt:Date.now()+STORM_MINE_ARM_MS,
+    this.stormMines.set(id,{mesh:group,pos,expiresAt,armedAt:Date.now()+STORM_MINE_ARM_MS*(ownerId===this.selfId?wonderModuleEffects("wonder_stormweaver",this.wonderModuleId).armMul:1),
       offline,ownerId,ownerTeam});
   }
   private removeStormMine(id:string){
@@ -7949,7 +7952,7 @@ export class FPSEngine {
         if(!this.hasLineOfSight([feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
         this.applyDamageLocal(target,this.eff.damage,false,w.id);
         if(!target.alive)continue;
-        const next=seismicPushPosition(feet,target.pos);
+        const next=seismicPushPosition(feet,target.pos,4.5*wonderModuleEffects(w.id,this.wonderModuleId).knockbackMul);
         if(!this.botMoveBlocked(target.pos,next,next[1]))target.pos=next;
       }
       this.damageDeployCoverBlast([feet[0],feet[1]+.5,feet[2]],radius,this.eff.damage);
@@ -7964,8 +7967,8 @@ export class FPSEngine {
         if(!wonderConeHit(origin,dir,point,this.eff.range,cosine)||!this.hasLineOfSight(origin,point))continue;
         this.applyDamageLocal(target,this.eff.damage,false,w.id);
         if(target.alive){
-          this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
-          this.frozenUntil.set(target.id,performance.now()+CRYO_SLOW_MS);
+          this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS*module.durationMul);
+          this.frozenUntil.set(target.id,performance.now()+CRYO_SLOW_MS*module.durationMul);
         }
       }
       return;
@@ -8047,7 +8050,7 @@ export class FPSEngine {
             this.applyDamageLocal(victim,STORM_DIRECT_DAMAGE,false,w.id);
             hits.set(victim.id,amount+1);
           }
-          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,chains);
+          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,Math.max(1,Math.floor(STORM_CHAIN_JUMPS*wonderModuleEffects("wonder_stormweaver",this.wonderModuleId).chainMul)),chains);
         }else{
           const place=stormMinePosition(impact.point,this.map.cover);
           const owned=[...this.stormMines].filter(([,m])=>m.offline&&m.ownerId===this.selfId);
@@ -8148,11 +8151,26 @@ export class FPSEngine {
     const color=parseInt((effect?.color??finish?.color??"#ad84ff").slice(1),16);
     const group=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.83,depthWrite:false});
     const geo=new THREE.OctahedronGeometry(.075);
-    const n=id==="wonder_kill_disintegrate"?32:20;
+    const pattern=effect&&"pattern" in effect?effect.pattern:"generic";
+    const n=id==="wonder_kill_disintegrate"?32:pattern==="generic"?20:26;
     for(let i=0;i<n;i++){
+      const angle=i*2.399963,ring=i/n,vertical=Math.sin(i*7.93);
       const particle=new THREE.Mesh(geo,mat);
-      const angle=i*2.4,height=Math.sin(i*7.93);
-      particle.position.set(Math.sin(angle)*(.25+i*.025),.7+height*.6,Math.cos(angle)*(.25+i*.025));
+      switch(pattern){
+        case "event_collapse": particle.position.set(Math.sin(angle)*(1-ring),.7+vertical*.7,Math.cos(angle)*(1-ring));break;
+        case "toxic_bloom": particle.position.set(Math.sin(angle)*ring*1.6,Math.cos(angle)*.32+1,Math.cos(angle)*ring*1.6);break;
+        case "brass_storm": case "heavy_metal": particle.position.set(Math.sin(angle)*1.2,.3+(i%7)*.26,Math.cos(angle)*1.2);break;
+        case "thunderstruck":case "rail_fracture": particle.position.set(vertical*.25,i*.076,Math.cos(i*3)*.25);break;
+        case "chain_reaction": particle.position.set(Math.sin(angle)*(.2+(i%4)*.28),.3+(i%5)*.28,Math.cos(angle)*(.2+(i%4)*.28));break;
+        case "system_failure":case "false_reality":case "digital_erasure":particle.position.set((i%5-2)*.27,(Math.floor(i/5)+1)*.26,Math.sin(i)*.13);break;
+        case "ashes_to_ashes":particle.position.set(Math.sin(angle)*.42,.2+ring*2.2,Math.cos(angle)*.42);break;
+        case "last_stand":case "earthshatter":case "razor_divide":particle.position.set(Math.sin(angle)*ring*1.2,.4+ring*1.5,Math.cos(angle)*ring*1.2);particle.rotation.set(angle,angle*.5,angle);break;
+        case "temporal_echo":particle.position.set(Math.sin(angle)*(.55+ring*.4),.5+ring*1.3,Math.cos(angle)*(.55+ring*.4));break;
+        case "deep_freeze":particle.position.set(Math.sin(angle)*.72,.3+ring*1.65,Math.cos(angle)*.72);break;
+        default:particle.position.set(Math.sin(angle)*(.25+i*.025),.7+vertical*.6,Math.cos(angle)*(.25+i*.025));
+      }
+      if(pattern==="digital_erasure"||pattern==="system_failure")particle.scale.setScalar(.6);
+      else if(pattern==="last_stand"||pattern==="earthshatter"||pattern==="deep_freeze")particle.scale.setScalar(1.8);
       group.add(particle);
     }
     group.position.set(...pos);this.scene.add(group);
@@ -8240,9 +8258,9 @@ export class FPSEngine {
     if(this.opts.online)this.socket?.emit("message",{t:"enterMech",dropId:id} as C2S);
     else{
       const t=mechTuning(d.moduleId);
-      d.enteredBy=this.selfId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS;
+      d.enteredBy=this.selfId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS*wonderModuleEffects("wonder_juggernaut",d.moduleId).durationMul;
       this.mechActive={id,moduleId:d.moduleId,armor:t.armor,minigunAmmo:t.minigunAmmo,
-        secondaryAmmo:t.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS};
+        secondaryAmmo:t.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS*wonderModuleEffects("wonder_juggernaut",d.moduleId).durationMul};
       this.pos.set(...d.pos);this.aiming=false;this.manualAiming=false;this.sprinting=false;
       this.sound.play("swap",{volume:.7});
     }
@@ -8541,6 +8559,14 @@ export class FPSEngine {
     }
     if(w.wonder?.kind==="chrono"&&this.chronoAnchor&&this.chronoAnchor.expiresAt>Date.now()){
       const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      if(!this.opts.online&&this.wonderModuleId==="residual_beacon"){
+        const a=this.chronoAnchor.pos;
+        for(const target of this.combatants.values())if(target.alive&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||target.team!==this.opts.team)&&
+          Math.hypot(target.pos[0]-a[0],target.pos[2]-a[2])<12&&
+          this.hasLineOfSight(a,[target.pos[0],target.pos[1]+1,target.pos[2]]))
+          this.smartTags.set(target.id,performance.now()+2200);
+      }
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir:this.aimDir(0),weaponId:w.id,skinId:"default"} as C2S);
       else {this.pos.set(...this.chronoAnchor.pos);this.chronoAnchor=null;}
       this.lastShotAt=now;return;
@@ -8554,13 +8580,13 @@ export class FPSEngine {
       const state = this.ensureWonderState(w.id,w.wonder,now);
       if(w.wonder.kind==="flame"){
         // Only accepted trigger-held shots call this function.
-        const spent=spendHellfireFuelOnShot(state,w.wonder,now,
+        const spent=spendHellfireFuelOnShot(state,{...w.wonder,rechargeMs:w.wonder.rechargeMs*wonderModuleEffects(w.id,this.wonderModuleId).rechargeMul},now,
           this.hellfireActiveUntil,HELLFIRE_FUEL_STEP_MS);
         if(!spent){this.sound.play("empty_click",{volume:.4});return;}
         this.wonderStates.set(w.id,spent.state);
         this.hellfireActiveUntil=spent.paidThrough;
       }else{
-        const next=spendWonderCharge(state,w.wonder,now);
+        const next=spendWonderCharge(state,{...w.wonder,rechargeMs:w.wonder.rechargeMs*wonderModuleEffects(w.id,this.wonderModuleId).rechargeMul},now);
         if(!next){this.sound.play("empty_click",{volume:.4});return;}
         this.wonderStates.set(w.id,next);
       }
@@ -8687,7 +8713,7 @@ export class FPSEngine {
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
     if(w.wonder?.kind==="cluster"){
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
-      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map)},true);
+      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map,this.wonderModuleId)},true);
       return;
     }
     // These kinds implement new hitscan / area rules, never rocket splash.
@@ -9031,6 +9057,25 @@ export class FPSEngine {
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
+      if(sourceWeaponId==="wonder_deadlock"&&this.wonderModuleId==="tag_relay"){
+        const expire=this.smartTags.get(victim.id)??0;
+        if(expire>performance.now()){
+          const match=[...this.combatants.values()].find(c=>c.alive&&c.id!==victim.id&&
+            (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team)&&
+            Math.hypot(c.pos[0]-victim.pos[0],c.pos[2]-victim.pos[2])<12&&
+            this.hasLineOfSight(victim.pos,[c.pos[0],c.pos[1]+1,c.pos[2]]));
+          if(match)this.smartTags.set(match.id,performance.now()+SMART_TAG_MS);
+        }
+      }
+      const dot=this.poisonByVictim.get(victim.id);
+      if(dot?.weaponId==="wonder_corrosion"&&this.wonderModuleId==="spore_relay"){
+        for(const other of this.combatants.values())if(other.alive&&other.id!==victim.id&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||other.team!==this.opts.team)&&
+          Math.hypot(other.pos[0]-victim.pos[0],other.pos[2]-victim.pos[2])<=3.5&&
+          this.hasLineOfSight(victim.pos,[other.pos[0],other.pos[1]+1,other.pos[2]]))
+            this.poisonByVictim.set(other.id,{expiresAt:performance.now()+1800,tickAt:performance.now()+CORROSION_TICK_MS,
+              weaponId:"wonder_corrosion",ownerId:this.selfId,damagePerTick:(dot.damagePerTick??2)*.4});
+      }
       if(sourceWeaponId===this.wonderWeaponId && this.wonderKillEffectId)this.showWonderBurst(victim.pos,this.wonderKillEffectId);
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
@@ -9231,7 +9276,7 @@ export class FPSEngine {
     if (!weaponById(weaponId).wonder) {
       for (const [id, state] of this.wonderStates) {
         const rules = weaponById(id).wonder;
-        if (rules) this.wonderStates.set(id, accelerateWonderCharge(state, rules, performance.now()));
+        if (rules) this.wonderStates.set(id, accelerateWonderCharge(state, {...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(id,this.wonderModuleId).rechargeMul}, performance.now()));
       }
     }
   }
@@ -9945,7 +9990,7 @@ export class FPSEngine {
       for (const enemy of this.combatants.values()) {
         if (!enemy.alive || !enemy.isBot || enemy.id === well.ownerId ||
             (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
-        const [dx, dz] = gravityPullOffset(well.pos, enemy.pos, well.radius, dt);
+        const [dx, dz] = gravityPullOffset(well.pos, enemy.pos, well.radius, dt*wonderModuleEffects("wonder_singularity",well.ownerId===this.selfId?this.wonderModuleId:undefined).pullMul);
         if (!dx && !dz) continue;
         if (!this.hasLineOfSight(well.pos, [enemy.pos[0], enemy.pos[1] + 1, enemy.pos[2]])) continue;
         const dest: Vec3 = [enemy.pos[0] + dx, enemy.pos[1], enemy.pos[2] + dz];
@@ -10477,7 +10522,7 @@ export class FPSEngine {
             const at = Date.now();
             this.addGravityWell(`offline_gravity_${at}_${Math.random()}`, ownerId, ownerTeam,
               [p.end.x, p.end.y, p.end.z], p.splashRadius,
-              at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
+              at, at + GRAVITY_WELL_DURATION_MS*wonderModuleEffects(p.weaponId,this.wonderModuleId).durationMul, true, undefined, p.weaponId);
           }
         } else {
           this.spawnExplosion(p.end, explosionKind, p.splashRadius,p.weaponId);
@@ -11095,7 +11140,7 @@ export class FPSEngine {
           well.ownerId === this.selfId ||
           (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && well.ownerTeam === this.opts.team)) continue;
       if (!this.hasLineOfSight(well.pos, [this.pos.x, this.pos.y + 1, this.pos.z])) continue;
-      const [dx, dz] = gravityPullOffset(well.pos, [this.pos.x, this.pos.y, this.pos.z], well.radius, dt);
+      const [dx, dz] = gravityPullOffset(well.pos, [this.pos.x, this.pos.y, this.pos.z], well.radius, dt*wonderModuleEffects("wonder_singularity",well.ownerId===this.selfId?this.wonderModuleId:undefined).pullMul);
       next.x += dx;
       next.z += dz;
     }
@@ -12309,7 +12354,7 @@ export class FPSEngine {
       if(this.mechActive.moduleId==="guardian_protocol"&&frontal)dmg*=.64;
       this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
       this.damageFlashAt=performance.now();
-      if(this.mechActive.armor<=0){this.removeMechDrop(this.mechActive.id);this.mechActive=null;}
+      if(this.mechActive.armor<=0){if(this.mechActive.moduleId==="emergency_ejection")this.health=Math.max(30,this.health);this.removeMechDrop(this.mechActive.id);this.mechActive=null;}
       return;
     }
     this.health -= dmg;
