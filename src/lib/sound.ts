@@ -73,6 +73,20 @@ export type SfxName =
   | "flag_returned"
   | "flag_lost";
 
+/** All synthesized cues have one independently controllable sound category.
+ * Distant gunfire is routed to Weapons by playDistantShot. */
+export type SfxChannel = "weapons" | "footsteps" | "combat" | "ui";
+export function soundChannelFor(name: SfxName): SfxChannel {
+  if (name === "footstep" || name === "water_footstep") return "footsteps";
+  if (name.startsWith("shot_") || name === "melee_swing" || name === "melee_hit" ||
+      name === "reload" || name === "revolver_reload" || name === "revolver_close" ||
+      name === "empty_click" || name === "swap" || name === "ads_in" || name === "ads_out")
+    return "weapons";
+  if (name === "hit_marker" || name === "headshot" || name === "kill" ||
+      name === "death" || name === "hit_taken") return "combat";
+  return "ui"; // Level-up, countdown, match and objective alerts.
+}
+
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
 export function shotCategoryForWeapon(weaponId: string): WeaponShotCategory {
@@ -166,7 +180,10 @@ export class SoundManager {
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
   private footstepVolume = 0.85;
-  private fxVolume = 1;
+  private fxVolume = 1; // Legacy general-effects bus; stays at unity with the new mixer.
+  private weaponVolume = 1;
+  private combatVolume = 1;
+  private uiVolume = 1;
   private muted = false;
   // Throttle: don't play more than N of the same sfx within `windowMs`.
   private lastPlayed: Map<SfxName, number> = new Map();
@@ -238,6 +255,14 @@ export class SoundManager {
     }
   }
 
+  /** Apply gains when synthesizing a cue so its reverb follows its channel.
+   * Footsteps already have a dedicated Web Audio bus, so are not doubled. */
+  setChannelVolumes(levels: { weapons: number; combat: number; ui: number }) {
+    this.weaponVolume = Math.max(0, Math.min(1, levels.weapons));
+    this.combatVolume = Math.max(0, Math.min(1, levels.combat));
+    this.uiVolume = Math.max(0, Math.min(1, levels.ui));
+  }
+
   setFxVolume(v: number) {
     this.fxVolume = Math.max(0, Math.min(1, v));
     if (this.masterGain && this.ctx) {
@@ -282,7 +307,12 @@ export class SoundManager {
     if (!this.ctx || !this.masterGain || this.muted) return;
     if(this.ctx.state==="suspended")void this.ctx.resume().catch(()=>{});
     const now = this.ctx.currentTime;
-    const vol = opts.volume ?? 1.0;
+    const channel = soundChannelFor(name);
+    const channelLevel = channel === "weapons" ? this.weaponVolume
+      : channel === "combat" ? this.combatVolume
+      : channel === "ui" ? this.uiVolume : 1;
+    const vol = (opts.volume ?? 1.0) * channelLevel;
+    if (vol <= 0) return;
     const throttle = opts.throttleMs ?? 0;
     if (throttle > 0) {
       const last = this.lastPlayed.get(name) ?? 0;
@@ -379,7 +409,7 @@ export class SoundManager {
     if (distAtten <= 0.01) return;
     // Suppressor: -60% volume AND low-pass @ 500Hz (muffled, deeper).
     const suppMul = suppressed ? 0.4 : 1.0;
-    const finalVol = volume * distAtten * suppMul;
+    const finalVol = volume * distAtten * suppMul * this.weaponVolume;
     if (finalVol <= 0.001) return;
 
     if (suppressed) {
