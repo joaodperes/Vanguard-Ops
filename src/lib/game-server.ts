@@ -4441,6 +4441,16 @@ async function handle(socket: any, msg: C2S) {
         minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo,moduleId:drop.moduleId} as S2C);
       break;
     }
+    case "exitMech": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      const player=room?.players.get(socket.id);
+      const mech=room?.playerMechs.get(socket.id);
+      if(!room||room.state!=="playing"||room.ended||!player?.alive||!mech)break;
+      room.playerMechs.delete(socket.id);
+      room.mechDrops.delete(mech.dropId); // consumed, never available for re-entry
+      io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:socket.id} as S2C);
+      break;
+    }
     case "mechShot": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");
       const p=room?.players.get(socket.id),mech=room?.playerMechs.get(socket.id);
