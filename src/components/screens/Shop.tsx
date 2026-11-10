@@ -1,7 +1,8 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
+import {formatCredits} from "@/lib/format-credits";
 import {useGame} from "@/lib/game-store";
-import {SHOP_CATEGORIES,shopItemById,shopItemsForCategory,shopPurchaseStatus,shopItemKey,
+import {SHOP_CATEGORIES,shopCategoriesForCurrency,shopCategoryLabel,shopItemById,shopItemsForCategory,shopPurchaseStatus,shopItemKey,
   type ShopCategory,type ShopCurrency,type ShopPurchaseStatus} from "@/lib/shop-catalog";
 import type {DailyShopRotation,DailyShopOffer} from "@/lib/shop-rotation";
 import {cosmeticById} from "@/lib/cosmetics";
@@ -25,10 +26,10 @@ export function Shop(){
   const {profile,playerKey,refreshProfile}=useGame();
   const [busy,setBusy]=useState("");
   const [currency,setCurrency]=useState<ShopCurrency>("credits");
-  const [wonderFilter,setWonderFilter]=useState<string>("owned");
-  const [category,setCategory]=useState<ShopCategory>("all");
+    const [category,setCategory]=useState<ShopCategory>("all");
   const [rotation,setRotation]=useState<DailyShopRotation|null>(null);
   const [rotationError,setRotationError]=useState(false);
+  const [now,setNow]=useState(0);
 
   useEffect(()=>{
     let active=true;
@@ -48,21 +49,30 @@ export function Shop(){
     return()=>{active=false;clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
   },[]);
 
+  useEffect(()=>{
+    const tick=()=>setNow(Date.now());
+    tick();
+    const timer=setInterval(tick,1000);
+    return()=>clearInterval(timer);
+  },[]);
+  const visibleCategories=shopCategoriesForCurrency(currency);
+  const nextRotation=rotation?Math.max(0,Math.ceil((Date.parse(rotation.refreshAt)-now)/1000)):0;
+  const countdown=now&&rotation
+    ?[Math.floor(nextRotation/3600),Math.floor(nextRotation%3600/60),nextRotation%60]
+      .map(n=>String(n).padStart(2,"0")).join(":")
+    :"--:--:--";
+
   const ownedWeapons=useMemo(()=>new Set(WEAPONS.filter(w=>!w.wonder&&!!profile
     &&ownsWeapon(w,profile.level,profile.unlocks.weapons)).map(w=>w.id)),[profile]);
   const offers=(c:ShopCurrency,g:ShopCategory):DailyShopOffer[]=>{
-    if(c==="wonder")return shopItemsForCategory(c,g).filter(item=>
-      wonderFilter==="all" ||(wonderFilter==="owned"
-        ?(profile?.prestige.wonderWeapons??[]).includes(item.wonderWeaponId??"")
-        :item.wonderWeaponId===wonderFilter)).map(item=>({itemId:item.id}));
-    const eligible=new Set(shopItemsForCategory(c,g).map(i=>i.id));
-    return (rotation?.offers??[]).filter(o=>eligible.has(o.itemId));
+    const eligible=new Set(shopItemsForCategory(c,g).map(item=>item.id));
+    return (rotation?.offers??[]).filter(offer=>eligible.has(offer.itemId));
   };
 
   async function buy(offer:DailyShopOffer){
     if(!profile||!playerKey||busy)return;
     const item=shopItemById(offer.itemId);
-    if(!item||(item.currency!=="wonder"&&!rotation?.offers.some(o=>o.itemId===offer.itemId&&o.weaponId===offer.weaponId)))return;
+    if(!item||!rotation?.offers.some(o=>o.itemId===offer.itemId&&o.weaponId===offer.weaponId))return;
     setBusy(offer.itemId);
     try{
       const res=await fetch("/api/shop",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -77,11 +87,11 @@ export function Shop(){
 
   const section=(c:ShopCurrency)=>(
     <div className="space-y-6">
-      {SHOP_CATEGORIES.filter(g=>g.id!=="all"&&(category==="all"||category===g.id)).map(group=>{
+      {visibleCategories.filter(g=>g.id!=="all"&&(category==="all"||category===g.id)).map(group=>{
         const featured=offers(c,group.id);
         if(!featured.length)return null;
-        return <section key={group.id} aria-label={group.label}>
-          {category==="all"&&<h2 className="text-sm font-bold text-white mb-3">{group.label}</h2>}
+        return <section key={group.id} aria-label={shopCategoryLabel(c,group.id)}>
+          {category==="all"&&<h2 className="text-sm font-bold text-white mb-3">{shopCategoryLabel(c,group.id)}</h2>}
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {featured.map(offer=>{
               const item=shopItemById(offer.itemId)!;
@@ -118,7 +128,7 @@ export function Shop(){
                     :status==="tokens-short"?<><Gem className="w-4 h-4 mr-1"/>Not enough {c==="wonder"?"Wonder":"Career"} Tokens</>
                     :busy===offer.itemId?"Purchasing…"
                     :<>{c==="credits"?<Coins className="w-4 h-4 mr-1"/>:<Gem className="w-4 h-4 mr-1"/>}
-                      {item.cost.toLocaleString()} {c==="credits"?"CR":c==="wonder"?"Wonder Token"+(item.cost===1?"":"s"):"Career Tokens"}</>}
+                      {c==="credits"?formatCredits(item.cost):item.cost} {c==="credits"?"CR":c==="wonder"?"Wonder Token"+(item.cost===1?"":"s"):"Career Tokens"}</>}
                 </Button>
               </article>;
             })}
@@ -136,37 +146,27 @@ export function Shop(){
     </header>
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex gap-4 text-sm"><span className="text-amber-300">{profile?.credits??0} CR</span><span className="text-violet-300">{profile?.career.tokens??0} Career Tokens</span><span className="text-fuchsia-300">{profile?.prestige.tokens??0} Wonder Tokens</span></div>
+        <div className="flex gap-4 text-sm"><span className="text-amber-300">{formatCredits(profile?.credits??0)} CR</span><span className="text-violet-300">{profile?.career.tokens??0} Career Tokens</span><span className="text-fuchsia-300">{profile?.prestige.tokens??0} Wonder Tokens</span></div>
         <div className="text-xs text-violet-200 flex items-center gap-2">
-          <RefreshCw className="w-3.5 h-3.5"/> Daily rotation · Resets 00:00 UTC
+          <RefreshCw className="w-3.5 h-3.5"/> Next rotation in <span className="tabular-nums font-semibold">{countdown}</span>
         </div>
       </div>
       {rotationError&&<p role="alert" className="text-sm text-rose-300 mb-4">Shop rotation unavailable.</p>}
-      {!rotation&&currency!=="wonder"?<p className="text-white/50 py-6">Loading today's offers…</p>:
-        <Tabs value={currency} onValueChange={v=>setCurrency(v as ShopCurrency)}>
+      {!rotation?<p className="text-white/50 py-6">Loading today's offers…</p>:
+        <Tabs value={currency} onValueChange={v=>{setCurrency(v as ShopCurrency);setCategory("all");}}>
           <TabsList className="bg-zinc-900 border border-white/10">
             <TabsTrigger value="credits">Credit Shop</TabsTrigger>
             <TabsTrigger value="career">Career Token Shop</TabsTrigger>
             <TabsTrigger value="wonder">Wonder Token Shop</TabsTrigger>
           </TabsList>
-          {currency==="wonder"&&<div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
-            <label htmlFor="wonder-shop-filter" className="text-violet-200">Show offers for</label>
-            <select id="wonder-shop-filter" value={wonderFilter} onChange={e=>setWonderFilter(e.target.value)}
-              className="rounded-lg border border-violet-500/40 bg-zinc-900 text-white px-3 py-2 max-w-full">
-              <option value="owned">My unlocked Wonders</option>
-              <option value="all">All Wonders</option>
-              {WEAPONS.filter(w=>w.wonder&&!w.disabled).map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
-            </select>
-            {!profile?.prestige.wonderWeapons.length&&<span className="text-white/50">Unlock a Wonder in the Armory to purchase its upgrades.</span>}
-          </div>}
           <div className="grid grid-cols-[128px_minmax(0,1fr)] sm:grid-cols-[192px_minmax(0,1fr)] gap-4 sm:gap-6 mt-5 items-start">
             <nav aria-label="Shop categories" className="sticky top-20 rounded-xl border border-white/10 bg-zinc-900/60 p-1.5 sm:p-2 flex flex-col gap-1">
-              {SHOP_CATEGORIES.map(group=><button type="button" key={group.id}
+              {visibleCategories.map(group=><button type="button" key={group.id}
                 aria-current={category===group.id?"page":undefined} onClick={()=>setCategory(group.id)}
                 className={`w-full text-left rounded-lg px-2.5 sm:px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${category===group.id
                   ?"bg-violet-500/20 text-violet-200 border border-violet-500/40"
                   :"text-white/65 hover:text-white hover:bg-white/5 border border-transparent"}`}>
-                {group.label}
+                {shopCategoryLabel(currency,group.id)}
               </button>)}
             </nav>
             <div className="min-w-0">
@@ -176,7 +176,7 @@ export function Shop(){
             </div>
           </div>
         </Tabs>}
-      <p className="text-xs text-white/40 mt-6">Credit and Career offers rotate daily; Wonder Modules and Wonder cosmetics are permanently available. Purchases remain owned.</p>
+
     </main>
   </div>;
 }
