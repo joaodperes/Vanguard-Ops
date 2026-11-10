@@ -56,9 +56,13 @@ export function validateMapDocument(value: unknown): string[] {
     if(Array.isArray(plan.features))for(const f of plan.features)
       if(!f||typeof f.id!=="string"||!["cover","platform","stairs","accent"].includes(f.kind)||
         ![f.x,f.z,f.y??0,f.w,f.d,f.h].every(Number.isFinite)||f.w<=0||f.d<=0||f.h<=0)issues.push("Invalid feature geometry");
-    if(Array.isArray(plan.features))for(const f of plan.features)
-      if(f?.material!==undefined && (f.kind!=="cover" || !BALLISTIC_MATERIALS.includes(f.material as typeof BALLISTIC_MATERIALS[number])))
+    if(Array.isArray(plan.features))for(const f of plan.features){
+      if(f?.kind==="cover"&&!f.material)
+        issues.push("Missing ballistic material on cover "+(f?.id??"?"));
+      else if(f?.material!==undefined && (f.kind!=="cover" ||
+        !BALLISTIC_MATERIALS.includes(f.material as typeof BALLISTIC_MATERIALS[number])))
         issues.push("Invalid ballistic material on feature "+(f?.id??"?"));
+    }
   }
   if(!doc.theme || typeof doc.theme!=="object") issues.push("Missing theme");
   else issues.push(...validateMapTheme(doc.theme));
