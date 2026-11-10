@@ -16,22 +16,23 @@ export interface ClusterVolley { id: string; ownerId: string; ownerTeam: string;
 /** Ordnance follows the map's gravity, independently of an operator's equipped perk/weapon. */
 export function clusterGravity(mapId:ObjectiveSource):number { return MOVEMENT.gravity*orbitalGravity(mapId); }
 
-export function clusterShots(origin:Vec3,direction:Vec3,cover:CoverBox[],mapId:ObjectiveSource="compound"):ClusterShot[] {
+export function clusterShots(origin:Vec3,direction:Vec3,cover:CoverBox[],mapId:ObjectiveSource="compound",moduleId=""):ClusterShot[] {
   const len=Math.hypot(...direction)||1, dir=direction.map(v=>v/len) as Vec3;
   const weapon=weaponById(CLUSTER_ID), damage=weapon.stats.damage, radius=projectileSplashRadius(weapon);
   const gravity=clusterGravity(mapId);
+  const fuseProgrammer=moduleId==="fuse_programmer";
   // One launch-time broadphase is shared by all seven paths. Never cache moving geometry.
   const index=new CoverSpatialIndex(cover);
   // Trace from the eye; a muzzle offset must never spawn a shell beyond a nearby wall.
   const main=bouncingProjectilePath(origin,[dir[0]*29,dir[1]*29+3,dir[2]*29],cover,
-    {gravity,radius:.13,fuseMs:CLUSTER_SHELL_FUSE_MS,restitution:.52,friction:.8},index);
-  const result:ClusterShot[]=[{path:main,delayMs:0,damage,radius}];
-  for(let i=0;i<6;i++){
-    const a=i*Math.PI/3;
+    {gravity,radius:.13,fuseMs:fuseProgrammer?910:CLUSTER_SHELL_FUSE_MS,restitution:.52,friction:.8},index);
+  const result:ClusterShot[]=[{path:main,delayMs:0,damage:damage*(fuseProgrammer?1.18:1),radius}];
+  for(let i=0;i<(fuseProgrammer?3:6);i++){
+    const a=i*2*Math.PI/(fuseProgrammer?3:6);
     const start:Vec3=[main.impact[0],main.impact[1]+.06,main.impact[2]];
     const path=bouncingProjectilePath(start,[Math.cos(a)*6.2,4.5,Math.sin(a)*6.2],cover,
       {gravity,radius:.09,fuseMs:900+i*50,restitution:.46,friction:.74},index);
-    result.push({path,delayMs:main.flightMs,damage:damage*.625,radius:radius*.75});
+    result.push({path,delayMs:main.flightMs,damage:damage*(fuseProgrammer?.55:.625),radius:radius*.75});
   }
   return result;
 }
