@@ -587,6 +587,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </span>
             <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
           </div>
+        ) : hud.akimbo ? (
+          <div className="flex flex-col items-end">
+            <div className="flex items-end gap-3">
+              <span className="text-xs text-white/60">LMB · LEFT <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
+              <span className="text-xs text-white/60">RMB · RIGHT <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/6</span></span>
+            </div>
+            <div className="text-[10px] text-amber-300/70 mt-1">AKIMBO · NO ADS · R RELOAD</div>
+          </div>
         ) : (
           <div className="flex items-end justify-end gap-1">
             <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
