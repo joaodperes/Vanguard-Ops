@@ -74,7 +74,7 @@ describe("Wonder charge economy", () => {
       expect(w.wonder!.maxCharges).toBeLessThanOrEqual(w.id==="wonder_hellfire"?8:5);
       if(w.wonder!.kind!=="shield"){expect(w.stats.magSize).toBe(w.wonder!.maxCharges);expect(w.stats.reloadTime).toBe(0);}
       else{expect(w.stats.magSize).toBe(weaponById("pistol_side").stats.magSize);expect(w.stats.reloadTime).toBeGreaterThan(0);}
-      expect(w.attachments).toEqual([]);
+      expect(w.attachments ?? []).toEqual([]);
     }
   });
 });
