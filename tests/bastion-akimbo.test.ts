@@ -22,7 +22,7 @@ describe("Bastion .45 Akimbo",()=>{
     expect(dual.damage).toBe(base.damage);
     expect(dual.auto).toBe(false);
     expect(dual.fireRate).toBeCloseTo(base.fireRate*1.75);
-    expect(dual.reloadTime).toBeCloseTo(base.reloadTime*1.85);
+    expect(dual.reloadTime).toBeCloseTo(base.reloadTime*1.15);
     expect(dual.spread).toBeGreaterThan(base.spread);
   });
   test("each accepted trigger fires two cylinders at one combined-rate interval",()=>{
