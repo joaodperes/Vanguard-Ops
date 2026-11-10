@@ -34,7 +34,7 @@ const modules:WonderModule[]=[
   {id:"chilling_mist",wonderWeaponId:"wonder_whiteout",name:"Chilling Mist",description:"Wide slowdown cone, reduced damage.",cost:1,damageMul:.75,radiusMul:1.4},
   {id:"crystal_burst",wonderWeaponId:"wonder_whiteout",name:"Crystal Burst",description:"More damage in a narrow freezing stream.",cost:1,damageMul:1.3,radiusMul:.75},
   {id:"serrated_edge",wonderWeaponId:"wonder_ripper",name:"Serrated Edge",description:"More damage, fewer usable ricochets.",cost:1,damageMul:1.24,targets:2},
-  {id:"quick_return",wonderWeaponId:"wonder_ripper",name:"Quick Return",description:"Extra wall bounce, reduced damage.",cost:1,damageMul:.76,targets:4},
+  {id:"quick_return",wonderWeaponId:"wonder_ripper",name:"Quick Return",description:"One extra wall bounce, reduced damage.",cost:1,damageMul:.76,targets:5},
   {id:"siegebreaker",wonderWeaponId:"wonder_juggernaut",name:"Siegebreaker",description:"Extra armor, less agility and slower minigun spin-up.",cost:2,mobilityMul:.8},
   {id:"raider_configuration",wonderWeaponId:"wonder_juggernaut",name:"Raider Configuration",description:"Lighter armor, faster stride and shotgun cycling.",cost:2,mobilityMul:1.22},
   {id:"guardian_protocol",wonderWeaponId:"wonder_juggernaut",name:"Guardian Protocol",description:"Forward shield, smaller ammunition reserves.",cost:2},
@@ -61,6 +61,27 @@ const modules:WonderModule[]=[
 export const WONDER_MODULES:readonly WonderModule[]=modules;
 export const wonderModulesFor=(wonderWeaponId:string)=>WONDER_MODULES.filter(m=>m.wonderWeaponId===wonderWeaponId);
 export const wonderModuleById=(id:string)=>WONDER_MODULES.find(m=>m.id===id);
+/** Numeric, human-readable sidegrade changes shared by the Armory and firing range. */
+export function wonderModuleModifiers(module:WonderModule|undefined,weaponId=""):{
+  label:string;value:string
+}[]{
+  if(!module)return [];
+  const fields:[keyof WonderModule,string][]=[
+    ["damageMul","Damage"],["radiusMul","Area"],["rangeMul","Range"],["mobilityMul","Mobility"],
+    ["durationMul","Duration"],["rechargeMul","Recharge time"],["pullMul","Pull strength"],
+    ["knockbackMul","Knockback"],["scanMul","Scan range"],["chainMul","Chain jumps"],
+    ["armMul","Arm time"],["durabilityMul","Durability"]
+  ];
+  const changes=fields.flatMap(([key,label])=>{
+    const value=module[key];
+    if(typeof value!=="number")return [];
+    return [{label,value:`${value>=1?"+":""}${Math.round((value-1)*100)}%`}];
+  });
+  if(module.targets!==undefined)changes.push({
+    label:weaponId==="wonder_ripper"?"Max ricochets":"Target count",value:String(module.targets)
+  });
+  return changes;
+}
 export function validWonderModule(wonderWeaponId:string,moduleId:string):boolean{
  return !moduleId||!!WONDER_MODULES.find(m=>m.id===moduleId&&m.wonderWeaponId===wonderWeaponId);
 }

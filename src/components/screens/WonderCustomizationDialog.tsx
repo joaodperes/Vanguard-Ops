@@ -1,8 +1,9 @@
 "use client";
 
+import {useState} from "react";
 import {useGame} from "@/lib/game-store";
 import {type WeaponDef} from "@/lib/game-data";
-import {wonderModulesFor,wonderFinishesFor,wonderKillEffectsFor} from "@/lib/wonder-expansion";
+import {wonderModulesFor,wonderModuleById,wonderModuleModifiers,wonderFinishesFor,wonderKillEffectsFor} from "@/lib/wonder-expansion";
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {Button} from "@/components/ui/button";
@@ -17,6 +18,9 @@ export function WonderCustomizationDialog({weapon,open,onOpenChange,busy,onEquip
   const {profile,setRangeWeaponId,setScreen}=useGame();
   const setup=profile?.prestige.wonderSetups[weapon.id];
   const purchases=profile?.prestige.wonderPurchases??[];
+  const [previewModuleId,setPreviewModuleId]=useState<string|null>(null);
+  const previewValid=previewModuleId!==null&&wonderModulesFor(weapon.id).some(m=>m.id===previewModuleId);
+  const inspectedModule=wonderModuleById(previewValid?previewModuleId!:setup?.moduleId??"");
   const groups=[
     {id:"modules",label:"Modules",field:"wonderModuleId" as const,selected:setup?.moduleId??"",
       entries:wonderModulesFor(weapon.id).map(m=>({
@@ -63,13 +67,27 @@ export function WonderCustomizationDialog({weapon,open,onOpenChange,busy,onEquip
                       {!entry.owned&&<Lock className="w-4 h-4 ml-auto text-white/40"/>}
                     </div>
                     <p className="text-xs text-white/50 min-h-10">{entry.description}</p>
-                    <Button size="sm" className="mt-3 w-full" disabled={busy||selected||!entry.owned}
-                      onClick={()=>void onEquip(weapon.id,group.field,entry.id)}>
-                      {selected?"Equipped":entry.owned?"Equip":"Locked · Wonder Shop"}
-                    </Button>
+                    <div className="flex gap-2 mt-3">
+                      {group.id==="modules"&&<Button size="sm" variant="outline" className="border-violet-500/30 text-violet-200"
+                        onClick={()=>setPreviewModuleId(entry.id)}>Details</Button>}
+                      <Button size="sm" className="flex-1" disabled={busy||selected||!entry.owned}
+                        onClick={()=>void onEquip(weapon.id,group.field,entry.id)}>
+                        {selected?"Equipped":entry.owned?"Equip":"Locked · Wonder Shop"}
+                      </Button>
+                    </div>
                   </div>;
                 })}
               </div>
+              {group.id==="modules"&&<div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 mt-4" aria-live="polite">
+                <div className="text-violet-200 font-semibold text-sm">Module effects · {inspectedModule?.name??"Standard configuration"}</div>
+                <p className="text-white/60 text-xs mt-1">{inspectedModule?.description??weapon.description}</p>
+                <div className="mt-3 text-xs text-white/60">Base stats: {weapon.stats.damage} damage · {weapon.stats.range}m range · {weapon.wonder?.maxCharges??0} charges</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {wonderModuleModifiers(inspectedModule,weapon.id).map(mod=><span key={mod.label}
+                    className="rounded-md border border-violet-500/25 bg-black/30 px-2.5 py-1.5 text-xs text-violet-200">{mod.label}: {mod.value}</span>)}
+                  {!inspectedModule&&<span className="text-white/45 text-xs">No additional modifiers.</span>}
+                </div>
+              </div>}
             </TabsContent>)}
           </div>
           <aside className="rounded-xl border border-white/10 bg-black/40 p-4 overflow-y-auto">

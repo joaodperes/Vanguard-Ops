@@ -15,7 +15,7 @@ import {
 import { PERKS, perkById } from "@/lib/perks";
 import {COSMETICS} from "@/lib/cosmetics";
 import {rangeWonderWeapons, rangePrimarySelection, selectRangePrimary} from "@/lib/firing-range-loadout";
-import {wonderModulesFor,WONDER_FINISHES,WONDER_KILL_EFFECTS} from "@/lib/wonder-expansion";
+import {wonderModulesFor,wonderModuleById,wonderModuleModifiers,WONDER_FINISHES,WONDER_KILL_EFFECTS} from "@/lib/wonder-expansion";
 import { EQUIPMENT } from "@/lib/equipment";
 import {
   emptyRangeAttachments, normalizeRangeLoadout, rangePrimaryWeapons,
@@ -196,7 +196,7 @@ function RangeSession({ profile, requestedId, onExit }: {
       </div>
       {editing && (
         <div className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/35 bg-zinc-900 shadow-2xl p-4 sm:p-5">
+          <div className="w-full max-w-6xl h-[min(92dvh,850px)] flex flex-col overflow-hidden rounded-2xl border border-amber-500/35 bg-zinc-900 shadow-2xl p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
                 <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-widest text-lg"><Crosshair className="w-5 h-5" /> Firing Range</div>
@@ -215,7 +215,7 @@ function RangeSession({ profile, requestedId, onExit }: {
               <button role="tab" aria-selected={editorTab==="equipment"} onClick={()=>setEditorTab("equipment")}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${editorTab==="equipment"?"bg-amber-500 text-black":"border border-white/15 text-white/70 hover:bg-white/10"}`}>Weapons &amp; Equipment</button>
               <button role="tab" aria-selected={editorTab==="visuals"} onClick={()=>setEditorTab("visuals")}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${editorTab==="visuals"?"bg-violet-500 text-white":"border border-white/15 text-white/70 hover:bg-white/10"}`}>Visual customization (optional)</button>
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${editorTab==="visuals"?"bg-violet-500 text-white":"border border-white/15 text-white/70 hover:bg-white/10"}`}>Visual customization</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {editorTab==="equipment" && <>
@@ -273,7 +273,18 @@ function RangeSession({ profile, requestedId, onExit }: {
                           <option key={module.id} value={module.id}>{module.name}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-violet-200/70">Wonder Weapons use special modules, not standard sights, barrels, grips or magazines. Fire with 4 during the test.</p>
+
+                      <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3" aria-live="polite">
+                        <div className="text-sm font-semibold text-violet-100">{wonderModuleById(draft.wonderModuleId??"")?.name??"Standard configuration"}</div>
+                        <p className="text-xs text-white/60 mt-1">{wonderModuleById(draft.wonderModuleId??"")?.description??weaponById(draft.wonderWeaponId??"").description}</p>
+                        <div className="text-[11px] text-white/55 mt-2">Base: {weaponById(draft.wonderWeaponId??"").stats.damage} damage · {weaponById(draft.wonderWeaponId??"").stats.range}m range · {weaponById(draft.wonderWeaponId??"").wonder?.maxCharges} charges</div>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {wonderModuleModifiers(wonderModuleById(draft.wonderModuleId??""),draft.wonderWeaponId??"").map(mod=>(
+                            <span key={mod.label} className="rounded border border-violet-500/25 bg-black/30 px-2 py-1 text-[11px] text-violet-200">{mod.label}: {mod.value}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-violet-200/70">Wonder Weapons use modules rather than standard attachments. Fire with 4 during the test.</p>
                     </div>
                   ) : slots.filter(slot => weaponAttachmentSlots(weapon).includes(slot)).map(slot => (
                     <div key={slot}>
@@ -307,9 +318,9 @@ function RangeSession({ profile, requestedId, onExit }: {
                   onChange={e => setDraft(prev => normalizeRangeLoadout({ ...prev, perkId: perkById(e.target.value).id }))}>
                   {PERKS.filter(perk=>perk.id!=="wonder_weapon"||primaryIsWonder).map(perk => <option key={perk.id} value={perk.id}>{perk.name}</option>)}
                 </select>
-                <p aria-live="polite" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/85 leading-relaxed">
-                  {primaryIsWonder?"Wonder weapon takes your perk slot. Choose a standard primary to try other perks.":perkById(draft.perkId).description}
-                </p>
+                {!primaryIsWonder&&<p aria-live="polite" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/85 leading-relaxed">
+                  {perkById(draft.perkId).description}
+                </p>}
               </div>
             </div>
             </div>

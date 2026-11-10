@@ -111,12 +111,11 @@ export function Shop(){
                 careerTokens:profile?.career.tokens??0,wonderTokens:profile?.prestige.tokens??0,
               });
               return <article key={shopItemKey(item,offer.weaponId)} className="border border-white/10 bg-zinc-900/70 rounded-2xl p-4 flex flex-col">
-                <div className="h-16 rounded-lg mb-3 border border-white/10 flex items-center justify-center"
+                {item.currency!=="wonder"&&<div className="h-16 rounded-lg mb-3 border border-white/10 flex items-center justify-center"
                   style={{background:`linear-gradient(125deg,#080c13,${skin?.color??cosmetic?.color??"#444"}55,#111827)`}}>
-                  {item.currency==="wonder"&&<span className="text-2xl text-violet-200 font-semibold">✦ {item.kind==="wonderModule"?"MODULE":item.kind==="wonderSkin"?"ANIMATED CAMO":"KILL EFFECT"}</span>}
                   {cosmetic&&<span className="text-3xl" style={{color:cosmetic.color,textShadow:`0 0 10px ${cosmetic.color}88`}}>{cosmetic.symbol}</span>}
                   {skin&&<span className="text-xs font-semibold px-3 py-1 rounded border border-white/20 bg-black/30" style={{color:skin.color==="black"?"#fff":skin.color}}>{item.kind==="weaponSkin"?"WEAPON FINISH":"OPERATIVE"}</span>}
-                </div>
+                </div>}
                 <h3 className="font-semibold text-white">{item.name}{weapon?` [${weapon.name}]`:""}</h3>
                 <p className="text-sm text-white/55 mt-1 flex-1">{item.description}</p>
                 <Button type="button" className={`w-full mt-4 ${statusStyles[status]}`}
