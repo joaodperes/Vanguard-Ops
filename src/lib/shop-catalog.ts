@@ -74,7 +74,7 @@ export function shopItemKey(item:ShopItem,weaponId?:string):string {
   return item.id+(item.kind==="weaponSkin"?":"+(weaponId??""):"");
 }
 
-// Stable Shop sections shared by Credit and Career Token tabs.
+// Shop category taxonomy; only matching currency groups appear in each sidebar.
 export const SHOP_CATEGORIES = [
   {id:"all",label:"All"},
   {id:"weaponSkin",label:"Weapon finishes"},
@@ -89,7 +89,7 @@ export const SHOP_CATEGORIES = [
 export type ShopCategory = (typeof SHOP_CATEGORIES)[number]["id"];
 /** Only display categories with stock in the selected shop. */
 export function shopCategoriesForCurrency(currency:ShopCurrency){
-  return SHOP_CATEGORIES.filter(group=>group.id==="all"||
+  return SHOP_CATEGORIES.filter(group=>(group.id==="all"&&currency!=="wonder")||
     SHOP_ITEMS.some(item=>item.currency===currency&&item.kind===group.id));
 }
 export function shopCategoryLabel(currency:ShopCurrency,category:ShopCategory):string{
