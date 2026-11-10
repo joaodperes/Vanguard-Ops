@@ -49,46 +49,48 @@ export function wonderAircraftModel():WonderWorldVisual{
   group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});steel.dispose();light.dispose();}};
 }
 export function wonderHologramModel():WonderWorldVisual{
+ // Decoys need to pass for actual armed players at combat distance. Solid opaque
+ // uniform, body armour, helmet, hands and a rifle—not a transparent ghost.
  const group=new THREE.Group();
- const glow=new THREE.MeshBasicMaterial({color:0x5ac9ef,transparent:true,opacity:.37,depthWrite:false});
- const head=new THREE.Mesh(new THREE.SphereGeometry(.28,10,8),glow);head.position.y=1.7;group.add(head);
- const torso=new THREE.Mesh(new THREE.CylinderGeometry(.35,.39,.82,8),glow);torso.position.y=1.1;group.add(torso);
- for(const s of [-1,1]){
-  const arm=new THREE.Mesh(new THREE.CylinderGeometry(.13,.12,.84,6),glow);
-  arm.position.set(s*.49,1.13,0);group.add(arm);
-  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.14,.12,.85,6),glow);
-  leg.position.set(s*.19,.44,0);group.add(leg);
+ const uniform=new THREE.MeshStandardMaterial({color:0x455563,roughness:.88});
+ const armor=new THREE.MeshStandardMaterial({color:0x25323d,roughness:.75,metalness:.16});
+ const skin=new THREE.MeshStandardMaterial({color:0x987c6a,roughness:1});
+ const weapon=new THREE.MeshStandardMaterial({color:0x1c252c,metalness:.45,roughness:.45});
+ const strap=new THREE.MeshStandardMaterial({color:0x697c85,roughness:.8});
+ const cube=(w:number,h:number,d:number,x:number,y:number,z:number,mat:THREE.Material)=>{
+   const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);
+   mesh.castShadow=true;group.add(mesh);return mesh;
+ };
+ cube(.50,.68,.30,0,1.30,0,uniform);
+ cube(.58,.44,.38,0,1.34,-.01,armor);
+ cube(.57,.09,.39,0,1.59,.01,strap);
+ cube(.53,.16,.36,0,.96,.02,armor);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.205,12,10),skin);head.position.set(0,1.82,-.015);head.castShadow=true;group.add(head);
+ const helmet=new THREE.Mesh(new THREE.SphereGeometry(.225,12,8,0,Math.PI*2,0,Math.PI*.52),armor);
+ helmet.position.set(0,1.88,-.015);group.add(helmet);
+ cube(.44,.085,.29,0,1.91,-.03,armor);
+ for(const side of [-1,1]){
+   cube(.20,.52,.22,side*.36,1.32,-.11,uniform);
+   cube(.22,.16,.26,side*.36,1.49,-.12,armor);
+   cube(.14,.17,.15,side*.33,1.09,-.28,skin);
+   cube(.20,.66,.24,side*.16,.58,0,uniform);
+   cube(.22,.18,.27,side*.16,.53,-.08,armor);
+   cube(.25,.15,.34,side*.16,.15,-.07,weapon);
  }
+ // Rifle points forward (-Z) and is held at natural shoulder height.
+ cube(.14,.13,.65,0,1.17,-.39,weapon);
+ cube(.11,.10,.25,0,1.16,-.85,armor);
+ const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.025,.03,.51,10),weapon);
+ barrel.rotation.x=Math.PI/2;barrel.position.set(0,1.18,-.99);group.add(barrel);
+ cube(.09,.24,.10,0,.99,-.35,weapon);
+ cube(.13,.035,.22,0,1.25,-.49,strap);
+ const flash=new THREE.Mesh(new THREE.ConeGeometry(.105,.26,7),
+   new THREE.MeshBasicMaterial({color:0xffd285,transparent:true,opacity:.86,depthWrite:false}));
+ flash.name="phantom_muzzle_flash";flash.rotation.x=-Math.PI/2;
+ flash.position.set(0,1.18,-1.31);flash.visible=false;group.add(flash);
  return {group,dispose:()=>{group.removeFromParent();
-  group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
-  glow.dispose();}};
-}
-/** Hovering Harbinger scout (not the stationary Bullet Spitter silhouette). */
-export function wonderDroneModel():WonderWorldVisual{
- const group=new THREE.Group();
- const alloy=new THREE.MeshStandardMaterial({color:0x203d48,metalness:.65,roughness:.3});
- const glow=new THREE.MeshBasicMaterial({color:0x46e5cd});
- const dark=new THREE.MeshStandardMaterial({color:0x10242c,metalness:.4,roughness:.4});
- const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),alloy);
- group.add(body);
- for(let i=0;i<4;i++){
-  const a=i*Math.PI/2,x=Math.cos(a)*.48,z=Math.sin(a)*.48;
-  const arm=new THREE.Mesh(new THREE.BoxGeometry(.42,.065,.075),dark);
-  arm.position.set(x*.58,0,z*.58);arm.rotation.y=-a;group.add(arm);
-  const rotor=new THREE.Mesh(new THREE.TorusGeometry(.18,.026,8,18),alloy);
-  rotor.position.set(x,.07,z);rotor.rotation.x=Math.PI/2;group.add(rotor);
-  const light=new THREE.Mesh(new THREE.SphereGeometry(.05,8,8),glow);
-  light.position.set(x,.1,z);group.add(light);
- }
- const eye=new THREE.Mesh(new THREE.SphereGeometry(.12,12,10),glow);
- eye.position.z=-.25;group.add(eye);
- const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.055,.075,.45,10),dark);
- barrel.rotation.x=Math.PI/2;barrel.position.set(0,-.2,-.27);group.add(barrel);
- const ring=new THREE.Mesh(new THREE.TorusGeometry(.37,.02,8,24),glow);
- ring.rotation.x=Math.PI/2;ring.position.y=-.12;group.add(ring);
- return {group,dispose:()=>{group.removeFromParent();group.traverse(o=>{
-  if(o instanceof THREE.Mesh)o.geometry.dispose();
- });alloy.dispose();glow.dispose();dark.dispose();}};
+   group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+   [uniform,armor,skin,weapon,strap,flash.material as THREE.Material].forEach(m=>m.dispose());}};
 }
 export function wonderEventParticles(scene:THREE.Scene,pos:Vec3,color:number,n=16):void{
  const geometry=new THREE.SphereGeometry(.035,6,5);
