@@ -133,7 +133,7 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   if (Array.isArray(w)) for (const item of w) {
     if (item?.baseSightType && !(item.baseSightType in SIGHT_DEFS))
       issues.push("weapon " + item.id + ": unknown baseSightType " + item.baseSightType);
-    if (item?.category === "launcher" && !(typeof item?.explosive?.radius === "number" && item.explosive.radius > 0))
+    if (item?.category === "launcher" && item?.wonder?.kind !== "ricochet" && !(typeof item?.explosive?.radius === "number" && item.explosive.radius > 0))
       issues.push("weapon " + item.id + ": launcher requires a positive explosive radius");
     if (item?.category !== "launcher" && item?.explosive)
       issues.push("weapon " + item.id + ": non-launcher cannot declare explosive radius");
