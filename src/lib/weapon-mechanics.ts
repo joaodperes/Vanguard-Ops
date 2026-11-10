@@ -1,3 +1,26 @@
+/** Bastion .45: Akimbo occupies the grip slot and cannot combine with fanning. */
+export const AKIMBO_GRIP_ID = "grip_akimbo";
+export const AKIMBO_CYLINDER_CAPACITY = 6;
+export type AkimboHand = "left" | "right";
+export function isBastionAkimbo(weaponId: string, grip: string | null | undefined): boolean {
+  return weaponId === "pistol_bastion" && grip === AKIMBO_GRIP_ID;
+}
+/** Each hammer has its own mechanical recovery; the server still enforces combined cadence. */
+export function akimboHandReady(ammo: number, lastHandShot: number, lastSharedShot: number,
+  now: number, perHandRate: number, combinedRate: number): boolean {
+  return ammo > 0 && now - lastHandShot >= 900 / Math.max(.01, perHandRate) &&
+    now - lastSharedShot >= 900 / Math.max(.01, combinedRate);
+}
+/** Sequential left/right swing-out cylinders in one complete reload animation. */
+export function akimboReloadFraction(progress: number, hand: AkimboHand): number {
+  return Math.max(0, Math.min(1, progress * 2 - (hand === "right" ? 1 : 0)));
+}
+/** Hand crosses to the opposite hip during the holster/draw half of the shared swap. */
+export function akimboCrossDrawAmount(progress: number, incoming: boolean): number {
+  const p = Math.max(0, Math.min(1, progress));
+  return incoming ? 1 - p : p;
+}
+
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
 export const FAN_HAMMER_RATE_MULTIPLIER = 1.85;
 /** Fanning applies only to the Bastion's dedicated grip, never all revolvers. */
