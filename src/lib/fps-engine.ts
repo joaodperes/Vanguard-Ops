@@ -4116,6 +4116,7 @@ export class FPSEngine {
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
+      if(p.obj.name==="wonder_ripper_carried_saw")p.obj.rotateY(now*.019);
       const akimboSide=p.obj.userData.akimboHand as AkimboHand|undefined;
       if(this.viewmodelAkimbo&&akimboSide){
         const sign=akimboSide==="left"?-1:1;
@@ -6945,8 +6946,11 @@ export class FPSEngine {
         this.removeDeployCover(msg.id);
         break;
       case "equipmentStatus":
-        if(msg.effect==="cryo")this.localCryoSlowUntil=Math.max(this.localCryoSlowUntil,performance.now()+msg.durationMs);
-        if(msg.effect==="flash"){
+        if(msg.effect==="cryo"){
+          // Whiteout slows locomotion and adds frost, but does not stun
+          // aiming or prevent controls like the Taser tactical.
+          this.localCryoSlowUntil=Math.max(this.localCryoSlowUntil,performance.now()+msg.durationMs);
+        } else if(msg.effect==="flash"){
           const now=performance.now();
           this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+msg.durationMs);
           const visibleMs=msg.visualDurationMs??msg.durationMs;
