@@ -65,7 +65,8 @@
         "z": 0,
         "w": 4,
         "d": 8,
-        "h": 2.8
+        "h": 2.8,
+        "material": "reinforced"
       },
       {
         "id": "red-cargo-n",
@@ -74,7 +75,8 @@
         "z": -20,
         "w": 4.5,
         "d": 4.5,
-        "h": 1.6
+        "h": 1.6,
+        "material": "light_cover"
       },
       {
         "id": "red-cargo-s",
@@ -83,7 +85,8 @@
         "z": 20,
         "w": 4.5,
         "d": 4.5,
-        "h": 1.6
+        "h": 1.6,
+        "material": "light_cover"
       },
       {
         "id": "red-baffle-n",
@@ -112,7 +115,8 @@
         "z": -16,
         "w": 4.5,
         "d": 3,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "red-vent-s",
@@ -121,7 +125,8 @@
         "z": 16,
         "w": 4.5,
         "d": 3,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "red-vault-trim",
@@ -148,7 +153,8 @@
         "z": 0,
         "w": 4,
         "d": 8,
-        "h": 2.8
+        "h": 2.8,
+        "material": "reinforced"
       },
       {
         "id": "blue-cargo-n",
@@ -157,7 +163,8 @@
         "z": -20,
         "w": 4.5,
         "d": 4.5,
-        "h": 1.6
+        "h": 1.6,
+        "material": "light_cover"
       },
       {
         "id": "blue-cargo-s",
@@ -166,7 +173,8 @@
         "z": 20,
         "w": 4.5,
         "d": 4.5,
-        "h": 1.6
+        "h": 1.6,
+        "material": "light_cover"
       },
       {
         "id": "blue-baffle-n",
@@ -195,7 +203,8 @@
         "z": -16,
         "w": 4.5,
         "d": 3,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "blue-vent-s",
@@ -204,7 +213,8 @@
         "z": 16,
         "w": 4.5,
         "d": 3,
-        "h": 1.2
+        "h": 1.2,
+        "material": "sheet_metal"
       },
       {
         "id": "blue-vault-trim",
@@ -242,7 +252,8 @@
         "z": 18,
         "w": 5,
         "d": 5,
-        "h": 1.45
+        "h": 1.45,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-2",
@@ -251,7 +262,8 @@
         "z": -18,
         "w": 5,
         "d": 5,
-        "h": 1.45
+        "h": 1.45,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-3",
@@ -260,7 +272,8 @@
         "z": -18,
         "w": 5,
         "d": 5,
-        "h": 1.45
+        "h": 1.45,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-4",
@@ -269,7 +282,8 @@
         "z": 18,
         "w": 5,
         "d": 5,
-        "h": 1.45
+        "h": 1.45,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-5",
@@ -278,7 +292,8 @@
         "z": 5,
         "w": 5,
         "d": 2.5,
-        "h": 1.35
+        "h": 1.35,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-6",
@@ -287,7 +302,8 @@
         "z": 5,
         "w": 5,
         "d": 2.5,
-        "h": 1.35
+        "h": 1.35,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-7",
@@ -296,7 +312,8 @@
         "z": -5,
         "w": 5,
         "d": 2.5,
-        "h": 1.35
+        "h": 1.35,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-8",
@@ -305,7 +322,8 @@
         "z": -5,
         "w": 5,
         "d": 2.5,
-        "h": 1.35
+        "h": 1.35,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-9",
@@ -314,7 +332,8 @@
         "z": 33,
         "w": 6,
         "d": 2,
-        "h": 1.5
+        "h": 1.5,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-10",
@@ -323,7 +342,8 @@
         "z": 33,
         "w": 6,
         "d": 2,
-        "h": 1.5
+        "h": 1.5,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-11",
@@ -332,7 +352,8 @@
         "z": -33,
         "w": 6,
         "d": 2,
-        "h": 1.5
+        "h": 1.5,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-12",
@@ -341,7 +362,8 @@
         "z": -33,
         "w": 6,
         "d": 2,
-        "h": 1.5
+        "h": 1.5,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-13",
@@ -350,7 +372,8 @@
         "z": 17,
         "w": 5,
         "d": 2.5,
-        "h": 1.15
+        "h": 1.15,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-14",
@@ -359,7 +382,8 @@
         "z": 17,
         "w": 5,
         "d": 2.5,
-        "h": 1.15
+        "h": 1.15,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-15",
@@ -368,7 +392,8 @@
         "z": -17,
         "w": 5,
         "d": 2.5,
-        "h": 1.15
+        "h": 1.15,
+        "material": "reinforced"
       },
       {
         "id": "nexus-cover-expansion-16",
@@ -377,7 +402,8 @@
         "z": -17,
         "w": 5,
         "d": 2.5,
-        "h": 1.15
+        "h": 1.15,
+        "material": "reinforced"
       }
     ],
     "hazards": [
