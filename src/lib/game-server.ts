@@ -2,7 +2,7 @@ import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgr
 import { blastCanDamage } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical, reloadDurationMultiplier, recoilMultiplier, scavengerAmmoAmount, type TacticalStock } from "./perks";
-import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier } from "./bot-loadouts";
+import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity } from "./bot-loadouts";
 import {reactorObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge} from "./bot-appearances";
@@ -381,18 +381,21 @@ const SKILL_RANGE: Record<Exclude<BotDifficulty, "mixed">, [number, number]> = {
 };
 
 function botLoadout(archetype?: BotArchetype, variant=0, mode:GameMode="ffa",wave=1): LoadoutWire {
-  const perkId=botPerkForMode(mode,wave);
+  const role=archetype??"rifleman";
+  const perkId=botPerkForMode(mode,wave,Math.random,role);
   const wid=mode==="survival" ? botPrimaryForMode(mode) :
     archetype ? botArchetypeWeapon(archetype,variant) : botPrimaryForMode(mode);
+  const secondaryWeaponId=perkId==="well_prepared" ? botSecondaryPrimary(wid,Math.random,role) : undefined;
   return {
     weaponId: wid,
     perkId,
     wonderWeaponId: perkId==="wonder_weapon" ? botWonderForMode(mode) : undefined,
-    secondaryWeaponId: perkId==="well_prepared" ? botSecondaryPrimary(wid) : undefined,
-    equipmentId: botTacticalForArchetype(archetype ?? "rifleman", variant),
+    secondaryWeaponId,
+    equipmentId: botTacticalForArchetype(role,variant),
     weaponSkinId: "default",
     playerSkinId: botOperativeSkinId(Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length)),
-    attachments: { sight: null, barrel: null, grip: null, magazine: null },
+    attachments: botAttachmentsForMode(mode,role,wid),
+    secondaryAttachments: secondaryWeaponId ? botAttachmentsForMode(mode,role,secondaryWeaponId) : undefined,
   };
 }
 
@@ -429,12 +432,12 @@ function spawnBots(room: Room) {
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
     ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId);
-    if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=weaponById(loadout.secondaryWeaponId).stats.magSize;
+    if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=botMagazineCapacity(loadout.secondaryWeaponId,loadout.secondaryAttachments!);
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
     // weaponId is overridden to the first tier of the per-match weapon list.
     const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : loadout.weaponId;
-    ai.ammoInMag = weaponById(gungameWeaponId).stats.magSize;
+    ai.ammoInMag = botMagazineCapacity(gungameWeaponId,botActiveAttachments(loadout.weaponId,gungameWeaponId,loadout.attachments,loadout.secondaryWeaponId,loadout.secondaryAttachments));
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
@@ -1904,7 +1907,9 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       if(victim.weaponId===ORBITAL_REAPER_ID){
         const deadBot=room.bots.get(victim.id);
         victim.weaponId=deadBot?.loadout.weaponId??room.loadouts.get(victim.id)?.meleeWeaponId??"knife_tactical";
-        if(deadBot)deadBot.ai.ammoInMag=weaponById(victim.weaponId).stats.magSize;
+        if(deadBot)deadBot.ai.ammoInMag=botMagazineCapacity(victim.weaponId,
+          botActiveAttachments(deadBot.loadout.weaponId,victim.weaponId,deadBot.loadout.attachments,
+            deadBot.loadout.secondaryWeaponId,deadBot.loadout.secondaryAttachments));
       }
       io.to(room.id).emit("message",{t:"orbitalReward",playerId:victim.id,active:false} as S2C);
     }
@@ -1931,8 +1936,11 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     const killerPerk = attacker ? room.loadouts.get(attacker.id)?.perkId : null;
     if(attacker?.isBot && killerPerk==="scavenger"){
       const bot=room.bots.get(attacker.id);
-      if(bot)bot.ai.ammoInMag=Math.min(weaponById(bot.weaponId).stats.magSize,
-        bot.ai.ammoInMag+scavengerAmmoAmount(weaponById(bot.weaponId).stats.magSize));
+      if(bot){
+        const mag=botMagazineCapacity(bot.weaponId,botActiveAttachments(bot.loadout.weaponId,
+          bot.weaponId,bot.loadout.attachments,bot.loadout.secondaryWeaponId,bot.loadout.secondaryAttachments));
+        bot.ai.ammoInMag=Math.min(mag,bot.ai.ammoInMag+scavengerAmmoAmount(mag));
+      }
     }
     if (attacker && attacker.id!==victim.id && !attacker.isBot && shouldCreateScavengerDrop(attacker.id, victim.id, killerPerk)) {
       // Owner-only pack: never share the payload with other players' sockets.
@@ -3316,7 +3324,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
      (ai.secondaryAmmoInMag??0)>0){
     const next=bot.weaponId===bot.loadout.weaponId?bot.loadout.secondaryWeaponId:bot.loadout.weaponId;
     const oldAmmo=ai.ammoInMag;
-    ai.ammoInMag=ai.secondaryAmmoInMag??weaponById(next).stats.magSize;
+    ai.ammoInMag=ai.secondaryAmmoInMag??botMagazineCapacity(next,
+      botActiveAttachments(bot.loadout.weaponId,next,bot.loadout.attachments,
+        bot.loadout.secondaryWeaponId,bot.loadout.secondaryAttachments));
     ai.secondaryAmmoInMag=oldAmmo;
     bot.weaponId=next;ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
     ai.reloadingUntil=0;
@@ -3353,7 +3363,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     room.throwingKnives.set(bot.id,state);
     bot.ai.ammoInMag=state.charges;
   }
-  const eff = computeEffectiveStats(weapon, room.mode === "gungame" ? { sight:null, barrel:null, grip:null, magazine:null } : bot.loadout.attachments as Record<AttachmentSlot, string | null>);
+  const activeAttachments=botActiveAttachments(bot.loadout.weaponId,bot.weaponId,
+    bot.loadout.attachments,bot.loadout.secondaryWeaponId,bot.loadout.secondaryAttachments);
+  const eff = computeEffectiveStats(weapon,activeAttachments);
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   const rival = flashBlinded?null:nearestEnemy(room,bot);
   const hostiles=[...room.turrets.entries()].filter(([,t])=>
@@ -3762,10 +3774,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       // Reaper has its own purple pulse FX. It must not generate a gunshot
       // tracer or gunfire audio on other clients.
       if(weapon.category!=="melee" && !weapon.explosive){
-        io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
-        broadcastRadarPing(room, bot, room.mode !== "gungame" && bot.loadout.attachments.barrel === "barrel_suppressor");
+        io.to(room.id).emit("message", { t: "shotFx", origin, dir, weaponId: bot.weaponId, attackerId: bot.id, skinId: bot.weaponSkinId, suppressed: activeAttachments.barrel === "barrel_suppressor", coverPower:eff.coverPenetration,traceStop:Number.isFinite(shotCoverStop)?shotCoverStop:undefined } as S2C);
+        broadcastRadarPing(room, bot, activeAttachments.barrel === "barrel_suppressor");
         publishBotNoise(room,{sourceId:bot.id,pos:bot.pos,at:now,kind:"gunshot",
-          suppressed:room.mode!=="gungame"&&bot.loadout.attachments.barrel==="barrel_suppressor"});
+          suppressed:activeAttachments.barrel==="barrel_suppressor"});
       }
       if(weapon.category!=="melee")ai.ammoInMag--;
       clearSpawnProtection(room, bot); // bot firing also cancels its protective shield

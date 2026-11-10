@@ -6,7 +6,7 @@ import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggern
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
-import { SURVIVAL_BOT_WEAPONS, botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier } from "./bot-loadouts";
+import { SURVIVAL_BOT_WEAPONS, botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments, type BotAttachmentMap } from "./bot-loadouts";
 import {addOperativeSkinDetails} from "./operative-appearance";
 import { captureThirdPersonDeathPose, applyThirdPersonDeathPose, resetThirdPersonDeathPose, type ThirdPersonDeathPoseStart } from "./third-person-death-pose";
 import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
@@ -417,6 +417,8 @@ interface BotAI {
   sprinting?: boolean;
   aiming?: boolean;
   attachments: Record<AttachmentSlot, string | null>;
+  primaryAttachments?: BotAttachmentMap;
+  secondaryAttachments?: BotAttachmentMap;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
   highGroundPatrol?:HighGroundGoal|null;
@@ -5658,14 +5660,17 @@ export class FPSEngine {
       const sp = this.pickSpawn(team);
       const teamSlot = team === "ffa" ? i : Math.floor(i/2);
       const archetype = botArchetypeForSlot(teamSlot);
-      const perk=botPerkForMode(this.opts.mode);
+      const perk=botPerkForMode(this.opts.mode,1,Math.random,archetype);
       const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
       const ai=this.makeBotAI(sp,undefined,archetype);
       ai.moveSpeed*=botMovementPerkMultiplier(perk);
+      ai.primaryWeaponId=wid;
+      ai.primaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,wid);
+      ai.attachments=ai.primaryAttachments;
       if(perk==="well_prepared"){
-        ai.primaryWeaponId=wid;
-        ai.secondaryWeaponId=botSecondaryPrimary(wid);
-        ai.secondaryAmmoInMag=weaponById(ai.secondaryWeaponId).stats.magSize;
+        ai.secondaryWeaponId=botSecondaryPrimary(wid,Math.random,archetype);
+        ai.secondaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,ai.secondaryWeaponId);
+        ai.secondaryAmmoInMag=botMagazineCapacity(ai.secondaryWeaponId,ai.secondaryAttachments);
       }
       const wonderId=perk==="wonder_weapon" ? botWonderForMode(this.opts.mode) : undefined;
       const c: Combatant = {
@@ -5677,7 +5682,7 @@ export class FPSEngine {
         ai,
         gungameIndex: isGungame ? 0 : undefined,
       };
-      if(c.ai)c.ai.ammoInMag=weaponById(wid).stats.magSize;
+      if(c.ai)c.ai.ammoInMag=botMagazineCapacity(wid,c.ai.attachments);
       this.combatants.set(id, c);
       if(wonderId){
         const wonder=weaponById(wonderId).wonder;
@@ -11406,7 +11411,10 @@ export class FPSEngine {
       const oldAmmo=ai.ammoInMag;
       ai.ammoInMag=ai.secondaryAmmoInMag??weaponById(next).stats.magSize;
       ai.secondaryAmmoInMag=oldAmmo;
-      c.weaponId=next;ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
+      c.weaponId=next;
+      ai.attachments=botActiveAttachments(ai.primaryWeaponId??next,next,
+        ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
+      ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
       ai.reloadingUntil=0;
       this.rebuildCombatantMesh(c);
     }
@@ -11441,7 +11449,9 @@ export class FPSEngine {
       const next=tickThrowingKnives({charges:ai.ammoInMag,nextAt:ai.knifeNextAt??0},now,this.opts.mode==="gungame");
       ai.ammoInMag=next.charges;ai.knifeNextAt=next.nextAt;
     }
-    const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
+    const eff = computeEffectiveStats(w, botActiveAttachments(
+      ai.primaryWeaponId??c.weaponId,c.weaponId,ai.primaryAttachments??ai.attachments,
+      ai.secondaryWeaponId,ai.secondaryAttachments));
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     // Taser also produces small, collision-safe involuntary footwork in offline bots.
@@ -12190,7 +12200,8 @@ export class FPSEngine {
       headshot:false,killerTeam:attacker.team,victimTeam:victim.team};
     this.killFeed.unshift(entry);if(this.killFeed.length>6)this.killFeed.pop();
     this.opts.onKillFeed(entry);
-    if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=weaponById(attacker.weaponId).stats.magSize;
+    if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=
+      botMagazineCapacity(attacker.weaponId,attacker.ai.attachments);
     this.scheduleRespawn(victim);
     this.checkWin();
   }
@@ -12344,7 +12355,8 @@ export class FPSEngine {
           const entry: KillFeedEntry = { killer: attacker.name, victim: nearest.victim.name, weapon: attacker.weaponId, headshot: nearest.head, killerTeam: attacker.team, victimTeam: nearest.victim.team };
           this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
           this.opts.onKillFeed(entry);
-          if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=weaponById(attacker.weaponId).stats.magSize;
+          if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=
+      botMagazineCapacity(attacker.weaponId,attacker.ai.attachments);
           // Gun Game: advance the bot attacker's tier. If they were on the
           // knife tier, this kill wins the match for them.
           if (this.opts.mode === "gungame") {
