@@ -2944,7 +2944,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           return;
         }
       }
-      if(weapon.category==="melee"){
+      if(weapon.category==="melee"&&weapon.wonder?.kind!=="seismic"){
         applyMeleeStrike(room,p,weapon.id,now);
         io.to(room.id).emit("message",{t:"shotFx",origin:msg.origin,dir:msg.dir,
           weaponId:weapon.id,attackerId:p.id,skinId:msg.skinId,suppressed:false} as S2C);
