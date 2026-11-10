@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, Lock, Check, Coins, Zap, Crosshair, Wrench, Palette, Shirt, Sparkles, Target, TrendingUp, Wind, ZoomIn, ScanLine, ChevronDown, ChevronRight, Swords, X, TestTube2, Save, Trash2, Pencil, Award, Medal } from "lucide-react";
 import { toast } from "sonner";
 import { LoadoutSelector } from "@/components/screens/Loadout";
+import { WonderCustomizationDialog } from "@/components/screens/WonderCustomizationDialog";
 import { prestigeChallengeStatus, wonderUnlockChallenge } from "@/lib/weapon-prestige";
 import { perkById } from "@/lib/perks";
 import { WeaponStatsPreview, type AttachmentMap } from "@/components/screens/WeaponStatsPreview";
@@ -493,44 +494,26 @@ export function Armory() {
                     <span>{w.wonder!.kind === "shield" ? `Shield restores after ${w.wonder!.rechargeMs / 1000}s` : `${w.wonder!.rechargeMs / 1000}s per ${w.wonder!.kind === "flame" ? "fuel-second" : "charge"}`}</span>
                     <span>{w.wonder!.kind === "shield" ? `-${w.wonder!.killBonusMs / 1000}s per kill` : `-${w.wonder!.killBonusMs / 1000}s per regular kill`}</span>
                   </div>
-                  {owned&&<div className="rounded-lg border border-violet-500/20 p-3 space-y-3 bg-violet-500/5">
-                    <p className="text-[11px] uppercase tracking-wide text-violet-200 font-semibold">Wonder customization · one module at a time</p>
-                    {([
-                      {field:"wonderModuleId" as const,title:"Specialized module",value:profile?.prestige.wonderSetups[w.id]?.moduleId??"",
-                        options:wonderModulesFor(w.id).map(m=>({id:m.id,name:m.name,description:m.description,owned:profile?.prestige.wonderPurchases.includes("module_"+m.id)??false}))},
-                      {field:"wonderSkinId" as const,title:"Animated Wonder camo",value:profile?.prestige.wonderSetups[w.id]?.skinId??"",
-                        options:WONDER_FINISHES.map(f=>({id:f.id,name:f.name,description:f.description,owned:profile?.prestige.wonderPurchases.includes(f.id+"_"+w.id)??false}))},
-                      {field:"wonderKillEffectId" as const,title:"Elimination effect",value:profile?.prestige.wonderSetups[w.id]?.killEffectId??"",
-                        options:WONDER_KILL_EFFECTS.map(f=>({id:f.id,name:f.name,description:f.description,owned:profile?.prestige.wonderPurchases.includes(f.id+"_"+w.id)??false}))},
-                    ]).map(group=><label key={group.field} className="block text-xs text-white/65 space-y-1">
-                      <span>{group.title}</span>
-                      <select aria-label={w.name+" "+group.title} value={group.value}
-                        disabled={busy==="wonder-custom:"+w.id}
-                        onChange={e=>void setWonderCustomization(w.id,group.field,e.target.value)}
-                        className="w-full border border-violet-500/30 rounded-md px-2 py-2 bg-zinc-900 text-violet-100">
-                        <option value="">Default · no customization</option>
-                        {group.options.map(option=><option key={option.id} value={option.id} disabled={!option.owned}>
-                          {option.name}{option.owned?"":" · buy in Wonder Shop"}
-                        </option>)}
-                      </select>
-                      {group.value&&<span className="text-[11px] text-violet-300">
-                        {group.options.find(x=>x.id===group.value)?.description}
-                      </span>}
-                    </label>)}
-                    <p className="text-[11px] text-white/45">Unlock modules and visual effects permanently in the Wonder Token Shop.</p>
-                  </div>}
-                  {owned
-                    ? <Button variant="outline"
-                        disabled={(profile?.loadout.perkId==="wonder_weapon" && profile?.loadout.wonderWeaponId===w.id) || busy === "equip:" + w.id}
-                        onClick={() => equipWonder(w)}
-                        className="border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
-                        {profile?.loadout.perkId==="wonder_weapon" && profile?.loadout.wonderWeaponId===w.id
-                          ? <><Check className="w-4 h-4 mr-1.5" /> Equipped in slot 4</>
-                          : "Equip as Wonder Perk"}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {owned ? <>
+                      <Button variant="outline"
+                        disabled={(profile?.loadout.perkId==="wonder_weapon"&&profile?.loadout.wonderWeaponId===w.id)||busy==="equip:"+w.id}
+                        onClick={()=>void equipWonder(w)}
+                        className="flex-1 border-violet-400/40 text-violet-200 hover:bg-violet-500/15">
+                        {profile?.loadout.perkId==="wonder_weapon"&&profile?.loadout.wonderWeaponId===w.id
+                          ? <><Check className="w-4 h-4 mr-1.5"/> Equipped in slot 4</> : "Equip as Wonder Perk"}
                       </Button>
-                    : <Button disabled={!ready || busy === w.id} onClick={() => purchase("wonderWeapon", w.id, 0, w.name)} className="bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
-                        <Sparkles className="w-4 h-4 mr-1.5" /> {ready ? "Redeem · 1 Wonder unlock" : "Requires 1 Wonder unlock"}
-                      </Button>}
+                      <Button onClick={()=>setCustomizing({weapon:w,slot:"primary"})}
+                        className="flex-1 bg-violet-500 hover:bg-violet-400 text-white">
+                        <Wrench className="w-4 h-4 mr-1.5"/> Customize
+                      </Button>
+                    </> : <Button disabled={!ready||busy===w.id}
+                      onClick={()=>void purchase("wonderWeapon",w.id,0,w.name)}
+                      className="w-full bg-violet-500 hover:bg-violet-400 text-white disabled:opacity-40">
+                      <Sparkles className="w-4 h-4 mr-1.5"/>
+                      {ready?"Redeem · 1 Wonder unlock":"Requires 1 Wonder unlock"}
+                    </Button>}
+                  </div>
                 </div>;
               })}
             </div>
@@ -692,6 +675,7 @@ export function Armory() {
         onPurchase={purchase}
         onEquipAttachment={equipAttachment}
         onEquipSkin={equipSkin}
+        onWonderEquip={setWonderCustomization}
       />
     </div>
   );
@@ -957,10 +941,11 @@ interface CustomizeModalProps {
   onPurchase: (kind: "weapon" | "attachment" | "playerSkin" | "weaponSkin" | "wonderWeapon", itemId: string, cost: number, name: string, weaponId?: string) => void;
   onEquipAttachment: (slot: WeaponSlot, attSlot: AttachmentSlot, attId: string | null) => Promise<void>;
   onEquipSkin: (skinId: string) => Promise<void>;
+  onWonderEquip: (weaponId:string,field:"wonderModuleId"|"wonderSkinId"|"wonderKillEffectId",value:string)=>Promise<void>;
 }
 
 function CustomizeModal(props: CustomizeModalProps) {
-  const { weapon: w, slot, open, onOpenChange, profile, weaponOwned, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin } = props;
+  const { weapon: w, slot, open, onOpenChange, profile, weaponOwned, level, credits, attachmentsByWeapon, skinsByWeapon, progress, challengeViews, prestiged, busy, onPurchase, onEquipAttachment, onEquipSkin, onWonderEquip } = props;
   const [tab, setTab] = useState<string>("attachments");
   const {profile: account,playerKey,refreshProfile,setScreen} = useGame();
   const [cosmeticBusy,setCosmeticBusy]=useState(false);
@@ -988,7 +973,7 @@ function CustomizeModal(props: CustomizeModalProps) {
   const currentKey = open && w ? `${w.id}:${slot}` : null;
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
-    setTab(w?.wonder ? "reticles" : w?.category === "melee" ? "skins" : "attachments");
+    setTab(w?.wonder ? "modules" : w?.category === "melee" ? "skins" : "attachments");
     setPreviewAttachment(null);
     setActiveAttachmentSlot(null);
   }
@@ -996,6 +981,11 @@ function CustomizeModal(props: CustomizeModalProps) {
   if (!w || !slot || !profile) {
     return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="bg-zinc-950 border-white/10" /></Dialog>;
   }
+
+  if (w.wonder) return <WonderCustomizationDialog
+    key={w.id} weapon={w} open={open} onOpenChange={onOpenChange}
+    busy={busy==="wonder-custom:"+w.id} onEquip={onWonderEquip}
+  />;
 
   const supportedSlots = weaponAttachmentSlots(w);
   // The weapon's currently-equipped attachments for THIS slot (primary uses
