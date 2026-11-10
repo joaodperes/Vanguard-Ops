@@ -888,6 +888,8 @@ export class FPSEngine {
   // Visible laser beam (THREE.Line) — shown when a laser sight is equipped.
   private laserBeam: THREE.Line | null = null;
   private laserDot: THREE.Mesh | null = null;
+  private akimboLeftLaserBeam:THREE.Line|null=null;
+  private akimboLeftLaserDot:THREE.Mesh|null=null;
   // Thermal/NVG overlay: brighten the scene lights when ADS with NVG, dim for thermal contrast.
   private hemiLight!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
@@ -3440,8 +3442,17 @@ export class FPSEngine {
     // attachment or its own built-in scope — never another weapon's old slot
     // value or an incompatible/stale attachment identifier.
     const wDef = weaponById(this.weaponId);
-    if (category !== "melee" && !this.viewmodelAkimbo && (hasMountedSight(wDef, currentAtts) ||
+    if (category !== "melee" && (hasMountedSight(wDef, currentAtts) ||
         (!wDef.wonder && this.sightDef.type === "iron"))) {
+      // Every visible sight (including laser projector and iron posts) is built
+      // individually for both guns, with the same rigid hand tag as each receiver.
+      for(const hand of this.viewmodelAkimbo ? ["left","right"] as const : [null]){
+      const sightMount:typeof addPart=(obj,x,y,z)=>{
+        if(hand)obj.userData.akimboHand=hand;
+        const sign=hand==="left"?-1:1;
+        addPart(obj,x+(hand?sign*.34/this.vmScale:0),
+          y+(hand?-.045/this.vmScale:0),z);
+      };
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
       let bastionFront:THREE.Mesh | null=null;
@@ -3516,15 +3527,16 @@ export class FPSEngine {
       const bastionIron=wid==="pistol_bastion" && st==="iron";
       // This rear U-notch rests directly on the machined topstrap. A .09 Z
       // offset previously placed it behind the frame, floating in midair.
-      addPart(scopeGroup,bastionIron?BASTION_REAR_SIGHT.x:0,
+      sightMount(scopeGroup,bastionIron?BASTION_REAR_SIGHT.x:0,
         bastionIron?BASTION_REAR_SIGHT.y:mountHeight,
         bastionIron?BASTION_REAR_SIGHT.z:-.1);
       if (st === "iron") {
         // Front blade grows from the round barrel shroud's fitted pedestal.
         const front=bastionFront ?? new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
-        addPart(front,0,bastionFront?BASTION_FRONT_SIGHT_Y:mountHeight+.01,muzzleZ+.08);
+        sightMount(front,0,bastionFront?BASTION_FRONT_SIGHT_Y:mountHeight+.01,muzzleZ+.08);
       }
-      this.sightMesh = scopeGroup;
+      if(!this.viewmodelAkimbo)this.sightMesh=scopeGroup;
+      }
     }
     // Poison tips are part of the BOLT, not a muzzle suppressor.
     const hasMuzzleAttachment = !!currentAtts.barrel && currentAtts.barrel !== "barrel_poison";
@@ -3546,8 +3558,12 @@ export class FPSEngine {
       }
     }
     if (currentAtts.grip === "grip_laser") {
-      const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
-      addPart(laser, 0, -0.09, -0.2);
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
+        if(hand)laser.userData.akimboHand=hand;
+        addPart(laser,hand?(hand==="left"?-.34:.34)/this.vmScale:0,
+          -.09+(hand?-.045/this.vmScale:0),-.2);
+      }
     }
 
     // Permanent right-hand contact at the trigger. The left hand has its own
@@ -4250,6 +4266,18 @@ export class FPSEngine {
       (this.laserDot.material as THREE.Material).dispose();
       this.laserDot = null;
     }
+    for(const obj of [this.akimboLeftLaserBeam,this.akimboLeftLaserDot]){
+      if(!obj)continue;
+      this.scene.remove(obj);
+      if(obj instanceof THREE.Line){
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }else{
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }
+    }
+    this.akimboLeftLaserBeam=null;this.akimboLeftLaserDot=null;
     this.buildLaserIndicator();
   }
 
@@ -4274,6 +4302,18 @@ export class FPSEngine {
     );
     this.laserDot.frustumCulled = false;
     this.scene.add(this.laserDot);
+    if(this.viewmodelAkimbo){
+      this.akimboLeftLaserBeam=new THREE.Line(
+        this.laserBeam.geometry.clone(),
+        (this.laserBeam.material as THREE.LineBasicMaterial).clone());
+      this.akimboLeftLaserBeam.frustumCulled=false;
+      this.scene.add(this.akimboLeftLaserBeam);
+      this.akimboLeftLaserDot=new THREE.Mesh(
+        this.laserDot.geometry.clone(),
+        (this.laserDot.material as THREE.MeshBasicMaterial).clone());
+      this.akimboLeftLaserDot.frustumCulled=false;
+      this.scene.add(this.akimboLeftLaserDot);
+    }
   }
 
   // Each frame, recompute the laser's start (muzzle) and end (impact point) from
@@ -4283,10 +4323,14 @@ export class FPSEngine {
     if (!this.alive) {
       this.laserBeam.visible = false;
       this.laserDot.visible = false;
+      if(this.akimboLeftLaserBeam)this.akimboLeftLaserBeam.visible=false;
+      if(this.akimboLeftLaserDot)this.akimboLeftLaserDot.visible=false;
       return;
     }
     this.laserBeam.visible = true;
     this.laserDot.visible = true;
+    if(this.akimboLeftLaserBeam)this.akimboLeftLaserBeam.visible=true;
+    if(this.akimboLeftLaserDot)this.akimboLeftLaserDot.visible=true;
     // Raycast from the *crosshair* to determine the exact aim point. The
     // visible beam starts at the weapon's muzzle (in camera-local coordinates),
     // not at the camera eye: eye-origin lines collapse into screen-space streaks.
@@ -4327,6 +4371,16 @@ export class FPSEngine {
     // Pulse the dot opacity slightly for visibility
     const pulse = 0.7 + 0.3 * Math.sin(performance.now() * 0.012);
     (this.laserDot.material as THREE.MeshBasicMaterial).opacity = pulse;
+    if(this.akimboLeftLaserBeam&&this.akimboLeftLaserDot&&this.akimboLeftFlash){
+      const leftMuzzle=this.akimboLeftFlash.getWorldPosition(new THREE.Vector3());
+      const leftPositions=this.akimboLeftLaserBeam.geometry.getAttribute("position") as THREE.BufferAttribute;
+      leftPositions.setXYZ(0,leftMuzzle.x,leftMuzzle.y,leftMuzzle.z);
+      leftPositions.setXYZ(1,endX,endY,endZ);
+      leftPositions.needsUpdate=true;
+      this.akimboLeftLaserBeam.geometry.computeBoundingSphere();
+      this.akimboLeftLaserDot.position.set(endX,endY,endZ);
+      (this.akimboLeftLaserDot.material as THREE.MeshBasicMaterial).opacity=pulse;
+    }
   }
 
   /** Independent first-person quick-melee prop. Does not change the weapon slot,
