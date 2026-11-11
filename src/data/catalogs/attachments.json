@@ -370,7 +370,6 @@
       "assault",
       "smg",
       "shotgun",
-      "dmr",
       "pistol",
       "pdw",
       "launcher"
@@ -378,6 +377,26 @@
     "effects": {
       "adsTime": -15,
       "recoil": 6
+    }
+  },
+  {
+    "id": "grip_marksman_quick",
+    "name": "Quick-Set Grip",
+    "slot": "grip",
+    "unlockLevel": 15,
+    "unlockCost": 350,
+    "description": "Raises a marksman or sniper rifle into ADS faster, at the cost of increased recoil. No hipfire or sprint recovery bonus.",
+    "recommendedFor": [
+      "dmr",
+      "sniper"
+    ],
+    "weaponCategories": [
+      "dmr",
+      "sniper"
+    ],
+    "effects": {
+      "adsTime": -18,
+      "recoil": 12
     }
   },
   {
@@ -584,14 +603,20 @@
       "shotgun",
       "pistol",
       "pdw",
-      "launcher"
+      "launcher",
+      "dmr",
+      "sniper"
     ],
     "effects": {
       "moveSpeed": 5,
       "adsTime": -12,
       "range": -12,
       "recoil": 12
-    }
+    },
+    "recommendedFor": [
+      "dmr",
+      "sniper"
+    ]
   },
   {
     "id": "barrel_choke",
