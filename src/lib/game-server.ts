@@ -59,7 +59,7 @@ import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER
 import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
-import { canStartWeaponReload, crossbowReloadCycleMs, isFanHammer } from "./weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer } from "./weapon-mechanics";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -2888,7 +2888,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       } else if (!acceptedHand &&
         // Standard bolts are authoritatively paced by their reload, so
         // reclaiming one should not hit a second hidden fire-rate throttle.
-        !(weapon.special?.kind === "bolt" && !quiver && !heavy) &&
+        !(weapon.special?.kind === "bolt" && crossbowReloadControlsCadence(cadenceEff.magSize)) &&
         now - p.lastShotAt < interval * (weapon.category === "melee" ? 1 : .8)) return;
       // Validate the muzzle origin for new special weapons before doing any effects.
       if (weapon.special || weapon.wonder) {
@@ -2961,6 +2961,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         }else if(quiver){
           // No retrieval window and no collectible bolt drops.
           room.boltReadyAt.set(p.id,now+interval*.85);
+        }else if(crossbowMag==="mag_extended"){
+          // Two bolts can be fired before reloading. Unlike the single-bolt
+          // chamber, the fire-rate interval still controls its follow-up shot.
+          room.boltReadyAt.set(p.id,now+interval);
         }else{
           const reclaimed = charges > 0;
           if(reclaimed)room.boltCharges.set(p.id,charges-1);
