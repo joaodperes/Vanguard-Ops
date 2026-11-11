@@ -10779,7 +10779,7 @@ export class FPSEngine {
     this.positionViewmodel();
     // An equipment throw can pose the left arm above the camera. Akimbo hides
     // the offhand once that throw is done; the sleeve must stay hidden too.
-    syncFirstPersonSupportArmVisibility(this.fpSupportArm?.root ?? null,this.fpActionHand,this.mechActive);
+    syncFirstPersonSupportArmVisibility(this.fpSupportArm?.root ?? null,this.fpActionHand,!!this.mechActive);
     if(this.mechActive){
       if(this.fpActionHand)this.fpActionHand.visible=false;
       if(this.fpActionProp)this.fpActionProp.visible=false;
