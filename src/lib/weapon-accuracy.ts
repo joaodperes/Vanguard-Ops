@@ -16,8 +16,15 @@ export function shotSpread(
     category === "shotgun" ? 0.14 :
     category === "dmr" ? 0.014 : 0.012;
   const base = aiming ? Math.max(0.0007, stats.adsSpread) : Math.max(hipFloor, stats.spread);
-  return base * (aiming ? steadyAds ? 1.1 : 1.35 : 1.9) *
-    (1 + Math.max(0, motion) * 1.55 + Math.max(0, bloom) * (aiming ? 1.15 : 2));
+  // Keep accurate first shots for DMRs and snipers and the dedicated shotgun
+  // pellet pattern. LMGs should require bursts; assault rifles and pistols
+  // receive a smaller accuracy penalty instead of a blanket nerf.
+  const handling = category === "lmg" ? (aiming ? 1.12 : 1.15) :
+    category === "assault" ? 1.06 :
+    category === "pistol" ? (aiming ? 1.04 : 1.08) : 1;
+  return base * handling * (aiming ? steadyAds ? 1.1 : 1.35 : 1.9) *
+    (1 + Math.max(0, motion) * (aiming ? 1.9 : 1.55) +
+      Math.max(0, bloom) * (aiming ? 1.15 : 2));
 }
 
 export function shotBloomIncrease(fireRate: number): number {
@@ -25,5 +32,8 @@ export function shotBloomIncrease(fireRate: number): number {
 }
 
 export function recoilKickRadians(recoil: number, aiming: boolean, perkMultiplier = 1): number {
-  return Math.max(0, recoil) * 0.012 * (aiming ? 0.65 : 1) * Math.max(0, perkMultiplier);
+  // ADS stabilizes the gun, but no longer erases 35% of its vertical kick.
+  // The larger base kick makes single heavy shots and sustained fire demand
+  // deliberate correction without changing first-shot bullet direction.
+  return Math.max(0, recoil) * 0.0138 * (aiming ? 0.77 : 1) * Math.max(0, perkMultiplier);
 }
