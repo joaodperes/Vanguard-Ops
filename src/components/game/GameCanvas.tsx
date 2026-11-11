@@ -10,7 +10,7 @@ import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
-import { useGame } from "@/lib/game-store";
+import type { PlayerProfileView } from "@/lib/player-service";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
@@ -51,6 +51,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
+  const [queuedPresetId, setQueuedPresetId] = useState<string | null>(null);
   const menuOpenRef = useRef(false);
   const upgradePendingRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
@@ -225,10 +226,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     // On Escape, close cleanly; the next canvas click re-enters pointer lock.
     if (restorePointerLock) engineRef.current?.resumePointerLock();
   };
-  const queueSavedLoadout = () => {
-    const profile = useGame.getState().profile;
-    const saved = profile?.loadout;
-    if (!saved || !profile) return;
+  const queueSavedLoadout = (profile: PlayerProfileView, presetId: string) => {
+    const saved = profile.loadout;
+    if (!saved) return;
     const wire: LoadoutWire = {
       ...loadout,
       perkId: saved.perkId,
@@ -255,6 +255,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       meleeAttachments: { ...saved.meleeAttachments },
     };
     engineRef.current?.queueLoadout(wire);
+    setQueuedPresetId(presetId);
   };
   const changeMenuPage = (page: InGameMenuPage) => {
     menuPageRef.current = page;
@@ -435,7 +436,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       )}
       {menuOpen && !lobbyActive && !hud?.matchEnding && (
         <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
-          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} online={online} mode={mode} />
+          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} queuedPresetId={queuedPresetId} online={online} mode={mode} />
       )}
       {/* Failsafe exit button while lobby overlay is somehow missing but the
           engine is still in lobby (e.g. before the first lobbySnapshot arrives). */}

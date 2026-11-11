@@ -1,6 +1,7 @@
 "use client";
 import { Settings } from "@/components/screens/Settings";
-import { LoadoutSelector } from "@/components/screens/Loadout";
+import { SavedLoadoutPicker } from "./SavedLoadoutPicker";
+import type { PlayerProfileView } from "@/lib/player-service";
 import { QuestPanel } from "./QuestPanel";
 import type { GameMode } from "@/lib/game-protocol";
 import { ArrowLeft, DoorOpen, LogOut, Play, Settings2, Backpack, AlertTriangle, ScrollText } from "lucide-react";
@@ -12,17 +13,18 @@ interface Props {
   onPageChange: (page: InGameMenuPage) => void;
   onResume: () => void;
   onQuit: () => void;
-  onLoadoutSaved: () => void;
+  onLoadoutSaved: (profile: PlayerProfileView, presetId: string) => void;
+  queuedPresetId: string | null;
   online: boolean;
   mode: GameMode;
 }
 
-export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSaved, online, mode }: Props) {
+export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSaved, queuedPresetId, online, mode }: Props) {
   return (
     <div role="dialog" aria-modal="true" aria-label="In-game menu"
       className="absolute inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 text-white pointer-events-auto"
       onPointerDown={event => event.stopPropagation()}>
-      <div className={`w-full ${page === "loadout" ? "max-w-7xl" : page === "quests" ? "max-w-5xl" : "max-w-3xl"} max-h-[92vh] overflow-y-auto overscroll-contain rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70`}>
+      <div className={`w-full ${page === "loadout" ? "max-w-3xl" : page === "quests" ? "max-w-5xl" : "max-w-3xl"} max-h-[92vh] overflow-y-auto overscroll-contain rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70`}>
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-zinc-950/95 backdrop-blur px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-rose-600">
             <Settings2 className="h-5 w-5" />
@@ -45,22 +47,18 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
         {page === "main" && (
           <div className="space-y-3 p-5 sm:p-8">
             <MenuButton icon={<Settings2 className="h-5 w-5" />} title="Settings" help="Display, controls and audio · changes apply immediately" onClick={() => onPageChange("settings")} />
-            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Edit your next match loadout" : "Equip owned weapons and perks for your next respawn"} onClick={() => onPageChange("loadout")} />
+            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Choose a saved preset for your next match" : "Switch to a saved preset on your next respawn"} onClick={() => onPageChange("loadout")} />
             <MenuButton icon={<ScrollText className="h-5 w-5" />} title="Quests" help="Daily and weekly challenges · progress and rewards" onClick={() => onPageChange("quests")} />
             <MenuButton icon={<DoorOpen className="h-5 w-5" />} title="Quit Match" help="Leave and collect any earned match progression" onClick={() => onPageChange("quit")} danger />
             <div className="pt-2 text-xs text-white/35">Esc: close menu · Tab: scoreboard while playing</div>
           </div>
         )}
         {page === "settings" && <div className="p-4 sm:p-6"><Settings embedded /></div>}
-        {page === "loadout" && <div className="space-y-4 p-4 sm:p-6">
-          <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
-            {mode === "gungame"
-              ? <>Gun Game controls weapon progression. Your saved loadout will be used in a <strong>future match</strong>.</>
-              : <>Confirm your new kit to queue it for your <strong>next respawn</strong> (or Survival recovery). Your current life is unchanged.</>}
-            {online && mode !== "gungame" && <span className="block mt-1 text-amber-200/70">The server validates your unlocks before accepting the change.</span>}
+        {page === "loadout" && (
+          <div className="p-4 sm:p-6">
+            <SavedLoadoutPicker mode={mode} queuedPresetId={queuedPresetId} onPresetEquipped={onLoadoutSaved} />
           </div>
-          <LoadoutSelector compact onSaved={onLoadoutSaved} />
-        </div>}
+        )}
         {page === "quests" && <div className="p-4 sm:p-6"><QuestPanel /></div>}
         {page === "quit" && <div className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center gap-3 text-rose-300">
