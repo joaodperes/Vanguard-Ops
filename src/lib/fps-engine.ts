@@ -9820,12 +9820,27 @@ export class FPSEngine {
   }
 
   private applyRecoil() {
-    const kick = recoilKickRadians(this.eff.recoil, this.aiming, recoilMultiplier(this.activePerkId));
+    const weapon = weaponById(this.weaponId);
+    // The first shot remains predictable; heavy LMGs climb progressively while
+    // the trigger is held. Pausing and bursting lets bloom settle naturally.
+    const sustained = weapon.category === "lmg" && !weapon.wonder
+      ? 1 + Math.min(0.24, this.shotBloom * 0.16) : 1;
+    const heavyHandgun = weapon.id === "pistol_bastion" ? 1.08 : 1;
+    const kick = recoilKickRadians(this.eff.recoil, this.aiming,
+      recoilMultiplier(this.activePerkId)) * sustained * heavyHandgun;
     this.pitch += kick + (Math.random() - 0.5) * kick * 0.5;
-    this.yaw += (Math.random() - 0.5) * kick * 0.6;
-    // Kick the viewmodel back + up; decays each frame in the update loop.
-    this.vmRecoilZ = Math.min(0.08, this.vmRecoilZ + 0.04 * recoilMultiplier(this.activePerkId));
-    this.vmRecoilPitch = Math.min(0.12, this.vmRecoilPitch + 0.05 * recoilMultiplier(this.activePerkId));
+    // Horizontal drift is less predictable on heavy weapons, without
+    // replacing their learnable vertical climb with purely random spread.
+    const yawVariance = weapon.category === "lmg" ? 0.85 :
+      weapon.id === "pistol_bastion" ? 0.75 : 0.6;
+    this.yaw += (Math.random() - 0.5) * kick * yawVariance;
+    // A heavy shot must also be visible in the weapon/hands, not just the
+    // camera. This remains rigid-body motion shared by all viewmodel parts.
+    const visualWeight = Math.max(1, Math.min(1.7,
+      this.eff.recoil / 1.65 + (weapon.category === "lmg" ? 0.25 : 0)));
+    const perk = recoilMultiplier(this.activePerkId);
+    this.vmRecoilZ = Math.min(0.115, this.vmRecoilZ + 0.04 * visualWeight * perk);
+    this.vmRecoilPitch = Math.min(0.17, this.vmRecoilPitch + 0.05 * visualWeight * perk);
   }
 
   private triggerMuzzleFlash(akimboHand?: AkimboHand) {
