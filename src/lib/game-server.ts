@@ -3309,13 +3309,13 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
         const multiPelletShotgun = weapon.category === "shotgun" && !weapon.wonder && pellets > 1;
-        const shotgunAds = !tasered && (human
+        const shotgunAds = !tasered && !akimbo && (human
           ? room.adsStartedAt.has(p.id) && msg.aiming !== false
           : !!(p as PlayerNet & {ai?:BotAI}).ai?.aiming);
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
             ? shotgunPelletDirection(shotDir, {...eff,spread:eff.spread*
-                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)}, shotgunAds)
+                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)}, shotgunAds, undefined, i)
             : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
@@ -3817,7 +3817,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         didHit=true;
       }else for (let i = 0; i < pellets; i++) {
         const pdir = botShotgun
-          ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming)
+          ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming, undefined, i)
           : pellets > 1 ? normalize(add(dir, randSpread(mechanicalSpread))) : dir;
         const resolved=firePenetratingRay(room, bot.id, origin, pdir, eff.range, eff);
         const rayHits=resolved.hits;

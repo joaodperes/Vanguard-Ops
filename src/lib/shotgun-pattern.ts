@@ -16,15 +16,24 @@ export function shotgunConeRadians(
   return Math.max(0.001, aiming ? stats.adsSpread : stats.spread) * 0.65;
 }
 
-/** Return a normalized ray uniformly distributed across the shotgun's cone. */
+/** Return a normalized ray uniformly distributed across the shotgun's cone.
+ * Pellet zero follows the actual crosshair. This central buckshot pellet
+ * guarantees an aimed close-range volley can connect while the remaining
+ * pellets still use the full cone and normal cover / range rules.
+ *
+ * Keep the optional pellet index last so existing random-source callers retain
+ * their seeded behavior; firing paths must pass the index in buckshot loops.
+ */
 export function shotgunPelletDirection(
   center: Vec3,
   stats: Pick<WeaponStats, "spread" | "adsSpread">,
   aiming: boolean,
   random: () => number = Math.random,
+  pelletIndex?: number,
 ): Vec3 {
   const len = Math.hypot(...center) || 1;
   const forward: Vec3 = [center[0] / len, center[1] / len, center[2] / len];
+  if (pelletIndex === 0) return forward;
   // Two orthogonal basis vectors ensure a circular pattern in camera space.
   const upReference: Vec3 = Math.abs(forward[1]) < 0.98 ? [0, 1, 0] : [1, 0, 0];
   const right: Vec3 = [

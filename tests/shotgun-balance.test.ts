@@ -45,7 +45,7 @@ function benchmark(stats: EffectiveStats, distance: number, aiming: boolean, sho
       // Slugs retain the standard single-projectile aim jitter, unlike the
       // centered multi-pellet cone shared by buckshot and special shells.
       const dir = (stats.pellets ?? 1) > 1
-        ? shotgunPelletDirection(center, stats, aiming, random)
+        ? shotgunPelletDirection(center, stats, aiming, random, i)
         : (() => {
             const spread = shotSpread(stats, "shotgun", aiming, 0, 0, aiming);
             const ray: Vec3 = [
@@ -162,6 +162,36 @@ describe("shotgun attachment combinations", () => {
       expect(benchmark(base, 8, true).pelletHitRate).toBeGreaterThanOrEqual(
         benchmark(base, 8, false).pelletHitRate,
       );
+    }
+  });
+
+
+  test("Akimbo Breacher and Mauler retain close-range hit registration without ADS", () => {
+    for (const id of ["shotgun_br", "shotgun_combat"]) {
+      const weapon = shotguns.find(w => w.id === id)!;
+      const base = get(id);
+      const dual = computeEffectiveStats(weapon, { ...empty, grip: "grip_akimbo" });
+      expect(shotgunConeRadians(dual, false)).toBeCloseTo(shotgunConeRadians(base, false) * 2);
+      const close = benchmark(dual, 2, false, 500);
+      expect(close.pelletHitRate).toBeGreaterThan(0.75);
+      expect(close.damage).toBeGreaterThan(dual.damage * 5);
+      const distant = benchmark(dual, 12, false, 500);
+      expect(distant.damage).toBeLessThan(close.damage * 0.5);
+    }
+  });
+
+  test("center buckshot pellet stays on the crosshair for every permitted Akimbo shotgun", () => {
+    const origin: Vec3 = [0, 1.55, 0];
+    for (const id of ["shotgun_br", "shotgun_combat"]) {
+      const weapon = shotguns.find(w => w.id === id)!;
+      const stats = computeEffectiveStats(weapon, { ...empty, grip: "grip_akimbo" });
+      for (const distance of [1, 2, 4, 8]) {
+        const rayLength = Math.hypot(-0.36, distance);
+        const aim: Vec3 = [0, -0.36 / rayLength, distance / rayLength];
+        const center = shotgunPelletDirection(aim, stats, false, () => 0.999, 0);
+        expect(center).toEqual(aim);
+        expect(rayCombatantHit(origin, center, [0, 0, distance])).not.toBeNull();
+      }
     }
   });
 

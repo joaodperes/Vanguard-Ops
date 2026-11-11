@@ -1267,7 +1267,7 @@
     "slot": "grip",
     "unlockLevel": 18,
     "unlockCost": 730,
-    "description": "Dual-wield eligible pistols or Breacher/Mauler shotguns. Left-click fires left, right-click fires right; press both for simultaneous shots. No ADS. Pistol hipfire spread +135% (heavy revolvers +160%); shotgun spread +210%, with heavy recoil and long synchronized offscreen reloads.",
+    "description": "Dual-wield eligible pistols or Breacher/Mauler shotguns. Left-click fires left, right-click fires right; press both for simultaneous shots. No ADS. Pistol hipfire spread +135% (heavy revolvers +160%); shotgun hipfire spread +100%, with heavy recoil and long synchronized offscreen reloads.",
     "weaponCategories": [
       "pistol",
       "shotgun"
@@ -1291,7 +1291,7 @@
     "categoryEffects": {
       "shotgun": {
         "fireRate": 35,
-        "spread": 210,
+        "spread": 100,
         "recoil": 95,
         "magSize": 100,
         "reloadTime": 60,
@@ -1299,8 +1299,16 @@
       }
     },
     "weaponEffects": {
-      "pistol_magnum": { "spread": 160, "recoil": 65, "reloadTime": 35 },
-      "pistol_bastion": { "spread": 160, "recoil": 55, "reloadTime": 25 }
+      "pistol_magnum": {
+        "spread": 160,
+        "recoil": 65,
+        "reloadTime": 35
+      },
+      "pistol_bastion": {
+        "spread": 160,
+        "recoil": 55,
+        "reloadTime": 25
+      }
     }
   },
   {

@@ -9026,7 +9026,7 @@ export class FPSEngine {
       if(special?.kind!=="bolt")this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
       for (let i = 0; i < pellets; i++) {
         const pdir = multiPelletShotgun
-          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread}, this.aiming)
+          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread}, this.aiming, undefined, i)
           : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
         const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
@@ -12089,7 +12089,7 @@ export class FPSEngine {
           const pellets = eff.pellets ?? 1;
           for (let i = 0; i < pellets; i++) {
             const pdir = botShotgun
-              ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming)
+              ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming, undefined, i)
               : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
