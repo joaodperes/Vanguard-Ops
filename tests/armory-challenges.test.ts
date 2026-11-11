@@ -224,4 +224,45 @@ describe("permanent challenge-based Armory eligibility", () => {
     }
   });
 
+  test("attachment trials diversify weapon-wide, with meaningful repeat tiers", () => {
+    const situational = new Set(["airborne_kills", "multikill_kills", "comeback_kills"]);
+    let weaponCount = 0;
+    let attachmentCount = 0;
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const trials = weaponAttachmentSlots(weapon).flatMap(slot =>
+        compatibleAttachments(weapon.id, slot).map(id => attachmentChallenge(weapon.id, id)!));
+      if (!trials.length) continue;
+      weaponCount++;
+      attachmentCount += trials.length;
+      const metrics = new Set(trials.map(ch => ch.metric));
+      expect(metrics.size).toBeGreaterThanOrEqual(Math.min(4, trials.length));
+      for (const metric of metrics) {
+        const goals = trials.filter(ch => ch.metric === metric).map(ch => ch.goal).sort((a, b) => a - b);
+        for (let index = 1; index < goals.length; index++) {
+          // Two unlocks requiring the same action should not differ by
+          // only a kill or two (the previous generator could do exactly that).
+          expect(goals[index] - goals[index - 1]).toBeGreaterThanOrEqual(situational.has(metric) ? 4 : 9);
+        }
+      }
+      for (const trial of trials) {
+        // Anything requiring unusual circumstances must remain reasonable even
+        // when the attachment is expensive or sits late in a slot's list.
+        if (situational.has(trial.metric)) expect(trial.goal).toBeLessThanOrEqual(25);
+        if (trial.metric === "long_range_kills") expect(trial.goal).toBeLessThanOrEqual(50);
+        if (weapon.category === "sniper" || weapon.category === "dmr") {
+          expect(["hipfire_kills", "close_range_kills", "airborne_kills", "multikill_kills"]).not.toContain(trial.metric);
+        }
+        if (weapon.category === "shotgun") {
+          expect(["headshots", "long_range_kills"]).not.toContain(trial.metric);
+        }
+        if (weapon.category === "launcher") {
+          expect(["headshots", "close_range_kills", "airborne_kills", "long_range_kills"]).not.toContain(trial.metric);
+        }
+        expect(trial.description).toContain(String(trial.goal));
+      }
+    }
+    expect(weaponCount).toBeGreaterThan(20);
+    expect(attachmentCount).toBeGreaterThan(500);
+  });
+
 });
