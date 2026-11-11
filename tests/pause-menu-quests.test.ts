@@ -18,7 +18,7 @@ const weekly: WeeklyChallengeView[] = [{
 test("pause menu provides quests and removes the simulation warning", () => {
   const html = renderToStaticMarkup(createElement(InGameMenu, {
     page: "main", onPageChange: () => {}, onResume: () => {},
-    onQuit: () => {}, onLoadoutSaved: () => {}, online: true, mode: "tdm",
+    onQuit: () => {}, onLoadoutSaved: () => {}, queuedPresetId: null, online: true, mode: "tdm",
   }));
   expect(html).toContain("Quests");
   expect(html).toContain("Daily and weekly challenges");
@@ -28,11 +28,13 @@ test("pause menu provides quests and removes the simulation warning", () => {
   expect(html).not.toContain("other players are not paused");
 });
 
-test("loadout receives the wide container and quests a readable container", () => {
+test("saved-preset selector fits the compact menu while quests remain readable", () => {
   const props = { onPageChange: () => {}, onResume: () => {}, onQuit: () => {},
-    onLoadoutSaved: () => {}, online: false, mode: "tdm" as const };
+    onLoadoutSaved: () => {}, queuedPresetId: null, online: false, mode: "tdm" as const };
   const loadoutHtml = renderToStaticMarkup(createElement(InGameMenu, { ...props, page: "loadout" }));
-  expect(loadoutHtml).toContain("max-w-7xl");
+  expect(loadoutHtml).toContain("max-w-3xl");
+  expect(loadoutHtml).toContain("No saved loadouts");
+  expect(loadoutHtml).not.toContain("Swap Primary");
   const questHtml = renderToStaticMarkup(createElement(InGameMenu, { ...props, page: "quests" }));
   expect(questHtml).toContain("max-w-5xl");
   expect(questHtml).toContain("Loading quests");

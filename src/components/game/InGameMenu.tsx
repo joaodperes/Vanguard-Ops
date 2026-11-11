@@ -24,7 +24,7 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
     <div role="dialog" aria-modal="true" aria-label="In-game menu"
       className="absolute inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 text-white pointer-events-auto"
       onPointerDown={event => event.stopPropagation()}>
-      <div className={`w-full ${page === "loadout" ? "max-w-3xl" : page === "quests" ? "max-w-5xl" : "max-w-3xl"} max-h-[92vh] overflow-y-auto overscroll-contain rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70`}>
+      <div className={`w-full ${page === "quests" ? "max-w-5xl" : "max-w-3xl"} max-h-[92vh] overflow-y-auto overscroll-contain rounded-2xl border border-amber-500/25 bg-zinc-950 shadow-2xl shadow-black/70`}>
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-zinc-950/95 backdrop-blur px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-rose-600">
             <Settings2 className="h-5 w-5" />
