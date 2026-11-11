@@ -6235,11 +6235,11 @@ export class FPSEngine {
       const weaponFurniture = fullWorldLegendary
         ? weaponMat
         : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      if(c.akimbo&&wid==="pistol_bastion"){
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
         // Two receivers with symmetric true grip contacts: remote players also dual wield.
         for(const hand of ["left","right"] as const){
           const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
-          const shiftX=sign*.28/BOT_WEAPON_VISUAL_SCALE;
+          const shiftX=sign*(wcat==="shotgun"?.42:.28)/BOT_WEAPON_VISUAL_SCALE;
           const shiftY=-.035/BOT_WEAPON_VISUAL_SCALE;
           const muzzleZ=buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
             mesh.position.set(x+shiftX,y+shiftY,z);
@@ -6304,10 +6304,10 @@ export class FPSEngine {
       const contacts = weaponHoldPoints(wid);
       const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
         new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      if(c.akimbo&&wid==="pistol_bastion"){
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
         // Opposite hands now grip separate trigger guards rather than a support stock.
-        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(.28,-.035,0));
-        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(-.28,-.035,0));
+        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
+        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
       }else{
         weaponHoldRight=toBotHandSpace(contacts.trigger);
         weaponHoldLeft=toBotHandSpace(contacts.support);
