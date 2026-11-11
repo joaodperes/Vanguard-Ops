@@ -1038,8 +1038,12 @@ function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
     const id=coverIdForBox(first.box);
     if(id)damageServerCover(room,id,eff.damage);
   }
-  for (const impact of damageBallisticCoverOnShot(room.map,room.materialCoverHp,room.materialCoverDestroyed,
-    origin,dir,maxWeaponHitRange(eff.range,eff),eff.coverPenetration ?? 0,eff.damage,stopAt)) {
+  const impacts=damageBallisticCoverOnShot(room.map,room.materialCoverHp,room.materialCoverDestroyed,
+    origin,dir,maxWeaponHitRange(eff.range,eff),eff.coverPenetration ?? 0,eff.damage,stopAt);
+  // A previously shattered window must not remain in the city LOS broadphase:
+  // the next blast and the next shot can use the newly opened line of sight.
+  if(impacts.some(impact=>impact.destroyed))cityCoverIndexes.delete(room.map);
+  for (const impact of impacts) {
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
   }
 }
