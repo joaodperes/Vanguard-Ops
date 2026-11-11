@@ -92,7 +92,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
-import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
+import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
@@ -9828,8 +9828,7 @@ export class FPSEngine {
     const weapon = weaponById(this.weaponId);
     // The first shot remains predictable; heavy LMGs climb progressively while
     // the trigger is held. Pausing and bursting lets bloom settle naturally.
-    const sustained = weapon.category === "lmg" && !weapon.wonder
-      ? 1 + Math.min(0.24, this.shotBloom * 0.16) : 1;
+    const sustained = sustainedRecoilMultiplier(weapon.category, this.shotBloom, !!weapon.wonder);
     const heavyHandgun = weapon.id === "pistol_bastion" ? 1.08 : 1;
     const kick = recoilKickRadians(this.eff.recoil, this.aiming,
       recoilMultiplier(this.activePerkId)) * sustained * heavyHandgun;
