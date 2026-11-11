@@ -77,7 +77,9 @@ describe("multiplayer accuracy contract", () => {
   test("client sends a clean ray and waits for the server-confirmed tracer", () => {
     expect(client).toContain("this.aimDir(this.opts.online || multiPelletShotgun ? 0 : spread)");
     expect(client).toContain("this.spawnTracer(msg.origin,msg.dir,msg.skinId");
-    expect(client).not.toContain("this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);\n    } else {");
+    const onlineShot=client.slice(client.indexOf("// Each revolver sends its OWN shot;"),
+      client.indexOf("// Capture the tracer against PRE-destruction geometry;"));
+    expect(onlineShot).not.toContain("this.spawnTracer(");
   });
 
   test("server samples dispersion once, not a second automatic roll", () => {
