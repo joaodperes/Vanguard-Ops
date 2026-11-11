@@ -66,6 +66,7 @@
       "barrel_muzzle_brake"
     ],
     "grip": [
+      "grip_akimbo",
       "grip_angled",
       "grip_laser",
       "grip_runner_ads",
@@ -175,6 +176,7 @@
       "barrel_compensator"
     ],
     "grip": [
+      "grip_akimbo",
       "grip_laser",
       "grip_precision",
       "grip_runner_ads",
