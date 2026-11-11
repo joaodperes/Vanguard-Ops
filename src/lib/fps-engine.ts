@@ -92,7 +92,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
-import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier } from "./weapon-accuracy";
+import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
@@ -7273,6 +7273,18 @@ export class FPSEngine {
           if (shooter) shooter.lastFireRecoil = performance.now();
           // Enemy fire sound: distance-attenuated + muffled if suppressed.
           if(!isThrowingKnife(msg.weaponId))this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
+        } else {
+          // Self-fired shots were already given immediate audio/muzzle flash.
+          // Draw only their authoritative trajectory; do not replay the sound.
+          const confirmed = weaponById(msg.weaponId);
+          if (!!confirmed.explosive || ["singularity", "corrosion"].includes(confirmed.wonder?.kind ?? "")) {
+            this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
+          } else if(confirmed.category !== "melee" && confirmed.special?.kind !== "bolt" &&
+            !["cluster", "flame", "storm", "sludge", "seismic", "cryo", "ricochet",
+              "smart", "decoy", "turret", "mech", "chrono", "drone"].includes(confirmed.wonder?.kind ?? "")) {
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,
+              msg.coverPower??confirmed.stats.coverPenetration??0,confirmed.stats.range,msg.traceStop);
+          }
         }
         break;
       case "orbitalAbsorb":
@@ -8944,7 +8956,9 @@ export class FPSEngine {
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
     const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
-    const dir = this.aimDir(multiPelletShotgun ? 0 : spread);
+    // Online: send the clean aim ray; only the server rolls bullet dispersion.
+    // Offline: apply the exact same shared sampler here, once.
+    const dir = this.aimDir(this.opts.online || multiPelletShotgun ? 0 : spread);
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
@@ -8982,7 +8996,8 @@ export class FPSEngine {
         this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
       }
       // Offline: damage is applied locally when the projectile arrives (below).
-      this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, !this.opts.online);
+      if (!this.opts.online)
+        this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, true);
       if (!this.opts.online) {
         const first = closestCoverHit(this.map.cover, origin, dir, this.eff.range, rayBox);
         if (first?.box.environmentId && this.environmentWalls.has(first.box.environmentId)) {
@@ -9003,7 +9018,8 @@ export class FPSEngine {
         skinId:this.getCurrentSkinId(), aiming:akimboHand?false:this.aiming,
         akimboHand,
       } as C2S);
-      this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
+      // Multiplayer tracers use the server's accepted, spread-adjusted shotFx
+      // direction, not a speculative local ray that might register elsewhere.
     } else {
       // Capture the tracer against PRE-destruction geometry; the finishing
       // shot is still blocked by the panel it breaks.
@@ -9865,12 +9881,9 @@ export class FPSEngine {
 
   private aimDir(spread: number): Vec3 {
     const cp = Math.cos(this.pitch);
-    const dir: Vec3 = [
-      Math.sin(this.yaw) * cp + (Math.random() - 0.5) * spread,
-      Math.sin(this.pitch) + (Math.random() - 0.5) * spread,
-      Math.cos(this.yaw) * cp + (Math.random() - 0.5) * spread,
-    ];
-    return this.normalize(dir);
+    return spreadShotDirection([
+      Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp,
+    ], spread);
   }
 
   /** Render an actual spinning steel blade on a short trajectory, not a tracer. */
@@ -11511,14 +11524,11 @@ export class FPSEngine {
 
     // ---- Dynamic spread factor (drives HUD crosshair size) ----
     // 0 = perfectly accurate (still + ADS). 1 = max bloom (sprinting + jumping + firing).
-    let spread = 0;
-    if (this.sprinting) spread += 0.85;
-    else if (!this.onGround) spread += 0.5;
-    else if (this.vel.lengthSq() > 4) spread += 0.3;  // moving fast
-    if (this.mouseDown || this.touchFiring) spread += 0.15;
-    if (this.aiming) spread *= 0.3;  // ADS tightens everything
-    this.currentSpread = Math.min(1, spread + this.shotBloom * (this.aiming ? 0.22 : 0.45) +
-      (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now())?0.55:0));
+    this.currentSpread = firingMotionFactor({
+      sprinting: this.sprinting, airborne: !this.onGround, movingFast: this.vel.lengthSq() > 4,
+      firing: this.mouseDown || this.touchFiring, aiming: this.aiming, bloom: this.shotBloom,
+      tasered: isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()),
+    });
     // Advance the sprint-sway phase so the viewmodel bobs left/right while sprinting.
     if (this.sprinting) {
       this.sprintPhase += dt * 11;
