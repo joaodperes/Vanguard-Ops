@@ -36,6 +36,16 @@ describe("weapon-aware bot ADS and movement in offline and online matches",()=>{
     expect(botPatrolSprint(11)).toBe(true);
     expect(botPatrolSprint(4)).toBe(false);
   });
+  test("unscoped sniper bots have the same minimum dispersion as the player",()=>{
+    const sniper=weaponById("sniper_lr");
+    const stats=computeEffectiveStats(sniper,{sight:null,barrel:null,grip:null,magazine:null});
+    expect(botShotSpread(stats,false,"sniper")).toBeCloseTo(0.24*1.9,5);
+    expect(botShotSpread(stats,false,"sniper")).toBeGreaterThan(botShotSpread(stats,false));
+    expect(botShotSpread(stats,true,"sniper")).toBe(stats.adsSpread);
+    const dmr=weaponById("rifle_dm");
+    const dmrStats=computeEffectiveStats(dmr,{sight:null,barrel:null,grip:null,magazine:null});
+    expect(botShotSpread(dmrStats,false,"dmr")).toBe(dmrStats.spread);
+  });
   test("ADS uses attachment-adjusted mechanical spread for single shots AND shotgun pellets",()=>{
     for(const id of ["sniper_lr","shotgun_br","rifle_ar"]){
       const stats=computeEffectiveStats(weaponById(id),{sight:null,barrel:null,grip:null,magazine:null});
