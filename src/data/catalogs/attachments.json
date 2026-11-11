@@ -1267,20 +1267,40 @@
     "slot": "grip",
     "unlockLevel": 18,
     "unlockCost": 730,
-    "description": "Bastion .45 only: dual-wield two six-shot revolvers. Left-click fires left, right-click fires right; press both to fire simultaneously. No ADS. +75% combined bullet rate, +55% hipfire spread, +15% recoil, +15% reload time, -4% mobility.",
+    "description": "Dual-wield eligible pistols or Breacher/Mauler shotguns. Left-click fires left, right-click fires right; press both for simultaneous shots. No ADS. Pistol hipfire spread +135% (heavy revolvers +160%); shotgun spread +210%, with heavy recoil and long synchronized offscreen reloads.",
     "weaponCategories": [
-      "pistol"
+      "pistol",
+      "shotgun"
     ],
     "exclusiveWeaponIds": [
-      "pistol_bastion"
+      "pistol_side",
+      "pistol_ghost",
+      "pistol_magnum",
+      "pistol_bastion",
+      "shotgun_br",
+      "shotgun_combat"
     ],
     "effects": {
       "fireRate": 75,
-      "spread": 55,
-      "recoil": 15,
+      "spread": 135,
+      "recoil": 35,
       "magSize": 100,
-      "reloadTime": 15,
-      "moveSpeed": -4
+      "reloadTime": 25,
+      "moveSpeed": -5
+    },
+    "categoryEffects": {
+      "shotgun": {
+        "fireRate": 35,
+        "spread": 210,
+        "recoil": 95,
+        "magSize": 100,
+        "reloadTime": 60,
+        "moveSpeed": -10
+      }
+    },
+    "weaponEffects": {
+      "pistol_magnum": { "spread": 160, "recoil": 65, "reloadTime": 35 },
+      "pistol_bastion": { "spread": 160, "recoil": 55, "reloadTime": 25 }
     }
   },
   {
