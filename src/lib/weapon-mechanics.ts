@@ -1,9 +1,31 @@
-/** Bastion .45: Akimbo occupies the grip slot and cannot combine with fanning. */
+/** Standard semi-auto pistols, revolvers, and the two conventional shotguns.
+ * Burst, Arc and full-auto machine pistols are deliberately excluded.
+ * The same allowlist is used by the viewmodel, client trigger and server. */
 export const AKIMBO_GRIP_ID = "grip_akimbo";
-export const AKIMBO_CYLINDER_CAPACITY = 6;
+export const AKIMBO_WEAPON_IDS = [
+  "pistol_side", "pistol_ghost", "pistol_magnum", "pistol_bastion",
+  "shotgun_br", "shotgun_combat",
+] as const;
+export const AKIMBO_CYLINDER_CAPACITY = 6; // Bastion and Magnum base revolvers
 export type AkimboHand = "left" | "right";
-export function isBastionAkimbo(weaponId: string, grip: string | null | undefined): boolean {
-  return weaponId === "pistol_bastion" && grip === AKIMBO_GRIP_ID;
+export function isAkimboWeapon(weaponId:string,grip:string|null|undefined):boolean {
+  return grip===AKIMBO_GRIP_ID &&
+    (AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId);
+}
+export function isBastionAkimbo(weaponId:string,grip:string|null|undefined):boolean {
+  return weaponId==="pistol_bastion"&&isAkimboWeapon(weaponId,grip);
+}
+/** Effective dual magazine capacity is always even; each hand owns half. */
+export function akimboHandCapacity(combinedMagSize:number):number {
+  return Math.max(1,Math.floor(combinedMagSize/2));
+}
+/** Pump gun's fore-end travels rearward and returns after its own last shot.
+ * The other hand is never delayed by this animation. */
+export function akimboPumpStroke(msSinceShot:number):number {
+  if(msSinceShot<95||msSinceShot>485)return 0;
+  const t=(msSinceShot-95)/390;
+  return t<.43 ? Math.sin(Math.PI/2*t/.43) :
+    Math.cos(Math.PI/2*(t-.43)/.57);
 }
 /** The listed combined fire rate counts shots from BOTH guns. Each cylinder
  * therefore has its own two-bullet-equivalent recovery time. A shot from the
