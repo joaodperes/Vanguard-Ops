@@ -73,7 +73,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, isAkimboWeapon, isPdwAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, akimboServerShotTime, isAkimboWeapon, isPdwAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
@@ -2812,12 +2812,15 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // so two packets can both be accepted within the same server tick.
       const akimbo=room.mode!=="gungame" && isAkimboWeapon(weapon.id,cadenceAtts?.grip);
       const acceptedHand = authorizedAkimboHand(akimbo,msg.akimboHand);
+      let acceptedHandAt=now;
       if(acceptedHand){
         const last=room.akimboLastHandShot.get(p.id+":"+weapon.id);
-        // Full-auto PDWs observe the precise per-hand interval; never exceed
-        // the cap by applying the semi-auto packet-jitter grace to automatic fire.
-        if(!akimboHandReady(1,last?.[acceptedHand]??-Infinity,now,cadenceEff.fireRate,
-          isPdwAkimboWeapon(weapon.id,cadenceAtts?.grip)?1:.8))return;
+        const previous=last?.[acceptedHand]??-Infinity;
+        if(isPdwAkimboWeapon(weapon.id,cadenceAtts?.grip)){
+          const scheduled=akimboServerShotTime(previous,now,cadenceEff.fireRate);
+          if(scheduled===null)return;
+          acceptedHandAt=scheduled;
+        }else if(!akimboHandReady(1,previous,now,cadenceEff.fireRate,.8))return;
       }
       // Old/stale clients can send a hand without server-verified Akimbo (or
       // omit one while the server still has it equipped). In that case allow
@@ -2929,7 +2932,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       if(acceptedHand){
         const key=p.id+":"+weapon.id;
         const last=room.akimboLastHandShot.get(key)??{left:-Infinity,right:-Infinity};
-        last[acceptedHand]=now;
+        last[acceptedHand]=acceptedHandAt;
         room.akimboLastHandShot.set(key,last);
       }
       p.lastShotAt = now;

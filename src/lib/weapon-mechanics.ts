@@ -73,6 +73,21 @@ export function akimboTriggerReady(automatic:boolean,held:boolean,pendingAt:numb
   return (automatic ? held : now-pendingAt<520) &&
     akimboHandReady(ammo,lastHandShot,now,combinedFireRate,automatic ? 1 : .9);
 }
+/** Authoritative automatic Akimbo packet pacing. Small arrival-time jitter
+ * is tolerated, but accepting an early packet advances a VIRTUAL due time
+ * by the full per-hand interval. Repeated early packets cannot increase the
+ * sustainable combined rate above the PDW cap.
+ * Returns the next accepted virtual timestamp or null when too early. */
+export function akimboServerShotTime(lastVirtualShot:number,now:number,
+  combinedFireRate:number):number|null {
+  if(!Number.isFinite(now))return null;
+  if(!Number.isFinite(lastVirtualShot))return now;
+  const interval=akimboHandIntervalMs(combinedFireRate);
+  const jitterAllowance=Math.min(12,interval*.08);
+  const due=lastVirtualShot+interval;
+  if(now+jitterAllowance<due)return null;
+  return Math.max(now,due);
+}
 /** Both revolvers drop below the camera frame together, remain out while refreshed,
  * then return simultaneously. No third hand or sequential swing-out cylinder. */
 export function akimboReloadDip(progress:number):number {

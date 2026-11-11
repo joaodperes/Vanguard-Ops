@@ -5,7 +5,7 @@ import {
   PDW_AKIMBO_MAX_COMBINED_RATE,PDW_AKIMBO_RATE_MULTIPLIER,
   isAkimboWeapon,isPdwAkimboWeapon,isAkimboCapableWeapon,
   cappedPdwAkimboFireRate,authorizedAkimboHand,
-  akimboHandCapacity,akimboHandIntervalMs,akimboHandReady,akimboTriggerReady,
+  akimboHandCapacity,akimboHandIntervalMs,akimboHandReady,akimboTriggerReady,akimboServerShotTime,
 } from "../src/lib/weapon-mechanics";
 import {attachmentChallenge} from "../src/lib/armory-challenges";
 
@@ -94,5 +94,30 @@ describe("PDW Akimbo firing input and server authorization",()=>{
     for(const hand of ["left","right"] as const)
       expect(authorizedAkimboHand(isAkimboWeapon("pdw_mamba",PDW_AKIMBO_GRIP_ID),hand)).toBe(hand);
     expect(authorizedAkimboHand(isAkimboWeapon("pdw_mamba","grip_vertical"),"left")).toBeUndefined();
+  });
+});
+
+
+describe("authoritative PDW Akimbo packet pacing",()=>{
+  test("honors network jitter without increasing sustained rate above the cap",()=>{
+    const rate=16,perHandMs=akimboHandIntervalMs(rate);
+    const initial=akimboServerShotTime(-Infinity,1000,rate);
+    expect(initial).toBe(1000);
+    // The next packet arrives 10ms early; accept it but store the full
+    // virtual interval instead of the early wall-clock timestamp.
+    const second=akimboServerShotTime(initial!,1115,rate);
+    expect(second).toBe(1000+perHandMs);
+    expect(akimboServerShotTime(second!,1239,rate)).toBeNull();
+    expect(akimboServerShotTime(second!,1240,rate)).toBe(1000+perHandMs*2);
+    let accepted=0,last=-Infinity;
+    // Pathological sender attempts 2 barrels every 5ms. Only one per
+    // gun can count per scheduled interval (plus one initial grace burst).
+    for(let now=0;now<5000;now+=5){
+      const next=akimboServerShotTime(last,now,rate);
+      if(next!==null){accepted++;last=next;}
+    }
+    expect(accepted).toBeLessThanOrEqual(41); // ~8/s per gun for 5 seconds
+    expect(accepted).toBeGreaterThanOrEqual(39);
+    expect(akimboServerShotTime(last,Number.NaN,rate)).toBeNull();
   });
 });
