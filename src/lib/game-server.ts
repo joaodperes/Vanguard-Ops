@@ -2782,6 +2782,11 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(p.id)) return;
       const weapon = weaponById(msg.weaponId);
+      // Reject malformed rays before spending ammo/charges or creating FX.
+      // All accepted clients send normalized, finite camera aim vectors.
+      if (![...msg.origin,...msg.dir].every(Number.isFinite)) return;
+      const shotVectorLength=Math.hypot(...msg.dir);
+      if (shotVectorLength<0.8||shotVectorLength>1.2)return;
       if (weapon.disabled || (weapon.id===ORBITAL_REAPER_ID&&!room.orbitalHolders.has(p.id)) || weapon.id !== p.weaponId || (room.downed.has(p.id) && msg.weaponId !== (room.loadouts.get(p.id)?.secondaryWeaponId ?? "pistol_side"))) return;
       // Melee collision is resolved by the shared server-owned frontal arc.
       const now = Date.now();
@@ -2945,9 +2950,6 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // alone computes the shot's inaccuracy from trusted weapon/loadout,
       // observed movement, ADS state and authoritative burst history.
       // No second automatic bloom roll or taser jitter is stacked afterward.
-      if (![...msg.origin,...msg.dir].every(Number.isFinite)) return;
-      const rawLength=Math.hypot(...msg.dir);
-      if(rawLength<0.8||rawLength>1.2)return;
       let shotDir:Vec3=normalize(msg.dir);
       const tasered=isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(p.id)??0,now);
       const human=room.players.has(p.id);
