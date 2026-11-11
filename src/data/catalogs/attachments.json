@@ -1316,7 +1316,7 @@
     "name": "PDW Akimbo",
     "slot": "grip",
     "unlockLevel": 24,
-    "unlockCost": 1100,
+    "unlockCost": 850,
     "description": "Dual-wield automatic PDWs. Hold left-click to fire the left gun and right-click for the right; both can fire together. No ADS. Combined fire rate capped at 110% (max 16 shots/s); heavier recoil, wider hipfire, reduced damage and mobility, slower reloads.",
     "weaponCategories": [
       "pdw"
