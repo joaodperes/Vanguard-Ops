@@ -80,6 +80,8 @@ import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleR
 import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
+import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
+import { batchStaticPropMeshes } from "./static-prop-batching";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
@@ -654,6 +656,10 @@ export class FPSEngine {
   private map: MapDef;
   private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
   private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
+  // Only expensive A* searches are budgeted. Every bot still moves and collides each frame.
+  private botRouteBudget = new BotRouteBudget();
+  private botEnemySearchCache = new Map<string,{nextAt:number;targetId:string|null}>();
+  private botAnimationAt = new Map<string,number>();
   // Decorative interior detail is distance-culled; collision never is.
   private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
   private nextCityDetailUpdate=0;
@@ -2800,6 +2806,9 @@ export class FPSEngine {
         }
       }
       if(group.children.length){
+        // Reduce hundreds of separate façade draw calls; nested destructible
+        // interior furniture stays independent and collision is unchanged.
+        if(p.kind==="building")batchStaticPropMeshes(group);
         if(isCastlePropKind(p.kind)||p.kind==="bench"||p.kind==="building"||p.kind==="cargo_pallet"){
           // Detailed props may render many meshes for one ballistic cover part., slate and furniture models on top of
           // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
@@ -10382,6 +10391,7 @@ export class FPSEngine {
     this.timer.update();
     const dt = Math.min(0.05, this.timer.getDelta());
     const frameStart=performance.now();
+    this.botRouteBudget.beginTick(this.map.biome==="city"||this.map.biome==="city_day"?1:2);
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.renderer.render(this.scene, this.camera);
@@ -11332,8 +11342,16 @@ export class FPSEngine {
           c.shieldMesh.scale.setScalar(s);
         }
       }
-      // animate humanoid (only when alive — death animation overrides)
-      if (c.alive) this.animateHumanoid(c, dt, now);
+      // Offscreen/distant IK does not need sixty full rig solves each second.
+      // This is presentation-only: positions, weapon hits and AI update normally.
+      if (c.alive) {
+        const last=this.botAnimationAt.get(c.id)??now-dt*1000;
+        const far=Math.abs(c.pos[0]-this.pos.x)>90||Math.abs(c.pos[2]-this.pos.z)>90;
+        if(!far||now-last>=160){
+          this.animateHumanoid(c,far?Math.min(.2,(now-last)/1000):dt,now);
+          this.botAnimationAt.set(c.id,now);
+        }
+      }
     }
   }
 
@@ -12050,11 +12068,11 @@ export class FPSEngine {
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]) ||
           floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
-        if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+        if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
           ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
             this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
-          ai.nextRouteAt=now+850;
+          ai.nextRouteAt=now+850+botRouteJitter(c.id);
         }
         const waypoint=ai.routeWaypoint;
         if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],len=Math.hypot(wx,wz);
@@ -12262,10 +12280,10 @@ export class FPSEngine {
             floorMismatch || this.opts.mapId==="bunker" ||
             floodgateRouteNeedsDetour(c.pos,patrolPoint,floodAge,this.map.cover)) &&
             (!patrolGoal||d>4.5)){
-          if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+          if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
             ai.routeWaypoint=botNextWaypoint(c.pos,navPoint,this.map.cover,this.map.size,3,
               floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge);
-            ai.nextRouteAt=now+(this.coverIndex()?1500:850);
+            ai.nextRouteAt=now+(this.coverIndex()?1500:850)+botRouteJitter(c.id);
           }
           const waypoint=ai.routeWaypoint;
           if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
@@ -12580,6 +12598,15 @@ export class FPSEngine {
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
       weaponId: this.weaponId, weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
+    // Reuse a very short-lived perception decision across render frames. Actual
+    // attack checks below still test line of sight on the current positions.
+    const now=performance.now();
+    const cached=this.botEnemySearchCache.get(c.id);
+    if(cached&&now<cached.nextAt){
+      if(cached.targetId===null)return null;
+      const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
+      if(target?.alive)return target;
+    }
     const candidates = [...this.combatants.values(), selfC];
     // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
     // If no visible enemy exists, the bot wanders. This makes bots feel less
@@ -12598,6 +12625,8 @@ export class FPSEngine {
       bestD = d;
       best = e;
     }
+    this.botEnemySearchCache.set(c.id,{targetId:best?.id??null,
+      nextAt:now+130+botRouteJitter(c.id,90)});
     return best;
   }
 
