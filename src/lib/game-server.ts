@@ -3791,7 +3791,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const distSpread = dist > 25 ? (dist - 25) * 0.0015 : 0;
     const botTaserSpread=isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now)?
       TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
-    const mechanicalSpread=botShotSpread(eff,!!ai.aiming)*botTaserSpread;
+    const mechanicalSpread=botShotSpread(eff,!!ai.aiming,weapon.category)*botTaserSpread;
     const botShotgun = weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1;
     const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
