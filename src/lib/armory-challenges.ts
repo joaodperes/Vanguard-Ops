@@ -488,7 +488,8 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       const preferred = themed && options.includes(themed) ? themed : seed.metric;
       const candidates = themed && options.includes(themed)
         ? [themed]
-        : [preferred, ...options.filter(m => m !== preferred)].filter(m => options.includes(m));
+        : [preferred, ...options.filter(m => m !== preferred)]
+          .filter((m): m is WeaponChallengeMetric => (options as readonly ArmoryMetric[]).includes(m));
       if (!candidates.length) continue;
 
       // Prefer the attachment's curated style when usage is tied; otherwise
