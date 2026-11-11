@@ -10917,7 +10917,8 @@ export class FPSEngine {
             if (!blastCanDamage(ownerId,ownerTeam,c.id,c.team,this.opts.mode)) continue;
             const cx = c.pos[0], cy = c.pos[1] + PLAYER_HEIGHT / 2, cz = c.pos[2];
             const corrosion=weaponById(p.weaponId).wonder?.kind==="corrosion";
-            const contact=launcherSplashContact(shotOrigin,impact,[cx,cy,cz],corrosion);
+            // Bot owners are only hurt by the detonation, not by their own flight-path near miss.
+            const contact=launcherSplashContact(shotOrigin,impact,[cx,cy,cz],corrosion||c.id===ownerId);
             const d=contact.distance;
             if(d<=p.splashRadius&&this.hasLineOfSight(contact.visibilityOrigin,[cx,cy,cz])) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
