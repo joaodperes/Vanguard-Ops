@@ -1047,8 +1047,11 @@ function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
 /** Online detonations damage map cover only on the authoritative server. */
 function blastMaterialCover(room:Room,pos:Vec3,radius:number,damage:number,sourceId:string):void{
   blastServerCover(room,pos,radius,damage);
-  for(const impact of damageBallisticCoverFromExplosion(room.map,room.materialCoverHp,
-    room.materialCoverDestroyed,pos,radius,damage,sourceId))
+  const impacts=damageBallisticCoverFromExplosion(room.map,room.materialCoverHp,
+    room.materialCoverDestroyed,pos,radius,damage,sourceId);
+  // Shattered map panels must immediately leave Afterlight's cached LOS index.
+  if(impacts.some(impact=>impact.destroyed))cityCoverIndexes.delete(room.map);
+  for(const impact of impacts)
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
 }
 

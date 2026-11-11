@@ -12,6 +12,10 @@ export function makeEngineStub(): any {
       attachments:{sight:null,barrel:null,grip:null,magazine:null},
     }},
     deployedCovers:new Map(),
+    // Explosion regression tests use the actual destructible-cover resolver.
+    map:{cover:[]},
+    ballisticHp:new Map(),
+    ballisticDestroyed:new Set(),
     // Prototype-only instances skip FPSEngine class-field initializers.
     akimboAmmoBySlot:{primary:{left:0,right:0},secondary:{left:0,right:0}},
     akimboLastHandShotBySlot:{
