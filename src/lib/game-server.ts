@@ -45,7 +45,8 @@ import { type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { damageBallisticCoverOnShot, damageBallisticCoverFromExplosion } from "./material-cover-damage";
 import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
-import { automaticBloom, autoSpreadRadians } from "./automatic-spread";
+import { automaticBloom } from "./automatic-spread";
+import { firingMotionFactor, spreadShotDirection, shotBloomIncrease, shotSpread } from "./weapon-accuracy";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { shotgunPelletDirection } from "./shotgun-pattern";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
@@ -288,6 +289,8 @@ interface Room {
   /** Independent cooldowns: left and right shots can share a timestamp. */
   akimboLastHandShot: Map<string,{left:number;right:number}>;
   autoBloom: Map<string, { weaponId:string; value:number; at:number }>;
+  /** Server-observed movement; the client cannot request its own accuracy bonus. */
+  shotPosture: Map<string,{ movingFast:boolean; airborne:boolean; at:number }>;
   lastDamagedAt: Map<string, number>;
   scavengerDrops: Map<string, { id: string; pos: Vec3; expiresAt: number; ownerTeam: string; ownerId: string }>;
 
@@ -529,7 +532,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), shotPosture: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
@@ -702,7 +705,7 @@ function createLobbyRoom(
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), shotPosture: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
@@ -757,7 +760,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagDenials.clear();
   room.clusterVolleys.clear();
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
-  room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
+  room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.autoBloom.clear(); room.shotPosture.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.survivalRanks.clear();room.survivalOffers.clear();room.survivalUpgradeDeadline=null;room.survivalPauseStartedAt=null;room.survivalMenuPaused=false;room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
@@ -2938,22 +2941,41 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       if(weapon.category!=="melee" && weapon.wonder?.kind!=="flame" && weapon.wonder?.kind!=="turret")
         publishBotNoise(room,{sourceId:p.id,pos:p.pos,at:now,kind:"gunshot",
           suppressed:attsForShot?.barrel==="barrel_suppressor"});
-      let shotDir:Vec3=msg.dir;
+      // Multiplayer humans transmit an UNMODIFIED camera aim ray. The server
+      // alone computes the shot's inaccuracy from trusted weapon/loadout,
+      // observed movement, ADS state and authoritative burst history.
+      // No second automatic bloom roll or taser jitter is stacked afterward.
+      if (![...msg.origin,...msg.dir].every(Number.isFinite)) return;
+      const rawLength=Math.hypot(...msg.dir);
+      if(rawLength<0.8||rawLength>1.2)return;
+      let shotDir:Vec3=normalize(msg.dir);
       const tasered=isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(p.id)??0,now);
-      if(eff.auto && !(weapon.category === "shotgun" && !weapon.wonder && (eff.pellets ?? 1) > 1) && !weapon.wonder){
+      const human=room.players.has(p.id);
+      const multiPelletShotgun=weapon.category==="shotgun"&&!weapon.wonder&&(eff.pellets??1)>1;
+      const nonBallisticWonder=weapon.wonder &&
+        ["chrono","decoy","mech","drone","turret","seismic"].includes(weapon.wonder.kind);
+      if(human && weapon.category!=="melee" && !multiPelletShotgun && !nonBallisticWonder){
         const previous=room.autoBloom.get(p.id);
-        const bloom=automaticBloom(previous?.weaponId===weapon.id?previous.value:0,
-          eff.fireRate,now-(previous?.at??0));
-        room.autoBloom.set(p.id,{weaponId:weapon.id,value:bloom,at:now});
-        const scatter=autoSpreadRadians(eff.spread,bloom);
-        shotDir=normalize([msg.dir[0]+(Math.random()-.5)*scatter,
-          msg.dir[1]+(Math.random()-.5)*scatter,msg.dir[2]+(Math.random()-.5)*scatter]);
-      }
-      // The server enforces accuracy loss even if a client skips its own taser jitter.
-      if(tasered&&weapon.category!=="melee"){
-        const extra=Math.max(0.012,eff.spread*(TASER_HIPFIRE_SPREAD_MULTIPLIER-1));
-        shotDir=normalize([shotDir[0]+(Math.random()-.5)*extra,
-          shotDir[1]+(Math.random()-.5)*extra,shotDir[2]+(Math.random()-.5)*extra]);
+        const elapsed=previous?.weaponId===weapon.id?Math.max(0,now-previous.at):Infinity;
+        // Client bloom decays by 0.52/s between shots; the same recovery
+        // precedes the next shot's bloom accumulation on the server.
+        const bloom=previous?.weaponId===weapon.id
+          ? Math.max(0,previous.value-elapsed*.00052) : 0;
+        const posture=room.shotPosture.get(p.id);
+        const aiming=!tasered&&!room.sprintState.get(p.id)&&room.adsStartedAt.has(p.id)&&
+          msg.aiming!==false&&!akimbo;
+        const steadyAds=aiming&&now-(room.adsStartedAt.get(p.id)??now)>=250&&
+          !posture?.movingFast&&!posture?.airborne;
+        const motion=firingMotionFactor({
+          sprinting:!!room.sprintState.get(p.id), airborne:!!posture?.airborne,
+          movingFast:!!posture?.movingFast, firing:true, aiming,bloom,tasered,
+        });
+        const spread=shotSpread(eff,weapon.category,aiming,motion,bloom,steadyAds)*
+          (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1);
+        shotDir=spreadShotDirection(shotDir,spread);
+        const nextBloom=eff.auto?automaticBloom(bloom,eff.fireRate,elapsed):
+          Math.min(.28,bloom+shotBloomIncrease(eff.fireRate)*.32);
+        room.autoBloom.set(p.id,{weaponId:weapon.id,value:nextBloom,at:now});
       }
       // Preserve the struck cover for remote tracers even if it breaks before
       // shotFx is broadcast; attached ammo may also alter cover penetration.
@@ -3287,8 +3309,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const incendiary = weapon.category === "shotgun" && attsForShot?.magazine === "mag_dragons_breath";
         const pellets = eff.pellets ?? 1;
         const multiPelletShotgun = weapon.category === "shotgun" && !weapon.wonder && pellets > 1;
-        const shotgunAds = !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(p.id)??0,now) &&
-          (msg.aiming ?? room.adsStartedAt.has(p.id));
+        const shotgunAds = !tasered && (human
+          ? room.adsStartedAt.has(p.id) && msg.aiming !== false
+          : !!(p as PlayerNet & {ai?:BotAI}).ai?.aiming);
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
             ? shotgunPelletDirection(shotDir, {...eff,spread:eff.spread*
@@ -4313,6 +4336,12 @@ async function handle(socket: any, msg: C2S) {
         if(distance>maxTravel){const t=maxTravel/distance;next=[p.pos[0]+dx*t,next[1],p.pos[2]+dz*t];}
        }
        const moved=Math.hypot(next[0]-p.pos[0],next[2]-p.pos[2]);
+       const movementElapsed=Math.max(16,moveNow-(room.lastMotionAt.get(socket.id)??moveNow-50));
+       room.shotPosture.set(socket.id,{
+         movingFast:moved/movementElapsed>0.002,
+         airborne:Math.abs(next[1]-p.pos[1])>0.08,
+         at:moveNow,
+       });
        p.pos=next;
        if (!room.ended && room.preMatchCountdown <= 0 && lavaAt(room.map.environment, next)) {
          applyDamage(room, "world", p, p.health, false, LAVA_DEATH_SOURCE);
