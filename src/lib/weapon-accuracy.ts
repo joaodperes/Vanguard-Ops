@@ -37,3 +37,10 @@ export function recoilKickRadians(recoil: number, aiming: boolean, perkMultiplie
   // deliberate correction without changing first-shot bullet direction.
   return Math.max(0, recoil) * 0.0138 * (aiming ? 0.77 : 1) * Math.max(0, perkMultiplier);
 }
+
+/** LMGs develop extra climb during a long burst, without making a first shot
+ * inaccurate or interfering with ordinary/Wonder weapon recoil profiles. */
+export function sustainedRecoilMultiplier(category: WeaponCategory, bloom: number, wonder = false): number {
+  return category === "lmg" && !wonder
+    ? 1 + Math.min(0.24, Math.max(0, bloom) * 0.16) : 1;
+}
