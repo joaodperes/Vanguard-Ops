@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   DRAGONS_BREATH_BURN_MS, DRAGONS_BREATH_TICK_MS, DRAGONS_BREATH_TICK_DAMAGE,
-  DRAGONS_BREATH_DEATH_FLARE_MS,dragonBreathVisualUntil,dragonBreathIgnition,
+  dragonBreathVisualUntil,dragonBreathIgnition,
 } from "../src/lib/incendiary-status";
 import {computeEffectiveStats, weaponById} from "../src/lib/game-data";
 
@@ -36,13 +36,16 @@ describe("Dragon's Breath ignition",()=>{
     expect(dragonBreathIgnition(1000,true,true,true)).toBeNull();
     expect(dragonBreathIgnition(NaN,true,true)).toBeNull();
   });
-  test("lethal hits leave a visible 1-second flame flare but never apply DoT",()=>{
-    expect(DRAGONS_BREATH_DEATH_FLARE_MS).toBe(1050);
+  test("lethal hits immediately stop flames and never apply a DoT",()=>{
     expect(dragonBreathVisualUntil(1000,true,false,true)).toBe(4000);
-    expect(dragonBreathVisualUntil(1000,true,false,false)).toBe(2050);
+    expect(dragonBreathVisualUntil(1000,true,false,false)).toBeNull();
     expect(dragonBreathVisualUntil(1000,true,true,true)).toBeNull();
     expect(dragonBreathVisualUntil(1000,false,false,true)).toBeNull();
     expect(dragonBreathIgnition(1000,true,false)).toBeNull();
+    expect(engine).toContain("const burning = c.alive &&");
+    expect(engine).not.toContain("c.alive||falling");
+    expect(engine).toContain("this.localBurning.delete(victim.id)");
+    expect(engine).toContain("this.poisonByVictim.delete(victim.id)");
   });
   test("offline: both penetrative and ordinary hits start the same burn and DoT",()=>{
     const call="this.igniteDragonBreath(";
@@ -65,7 +68,7 @@ describe("Dragon's Breath ignition",()=>{
     expect(protocol).toContain('t: "burnFx"');
     expect(engine).toContain('case "burnFx":');
     expect(engine).toContain("this.onlineBurning.set(msg.victimId");
-    expect(engine).toContain("new THREE.ConeGeometry(.12,.42,7)");
-    expect(engine).toContain("burning?18:9");
+    expect(engine).toContain("new THREE.ConeGeometry(.10,.35,7)");
+    expect(engine).toContain("burning?14:9");
   });
 });
