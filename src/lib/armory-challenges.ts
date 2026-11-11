@@ -448,13 +448,13 @@ const ATTACHMENT_THEMED_METRICS: Partial<Record<string, WeaponChallengeMetric>> 
 };
 
 const ATTACHMENT_METRIC_TARGETS: Partial<Record<WeaponChallengeMetric, { first: number; gap: number }>> = {
-  kills: { first: 22, gap: 16 },
-  headshots: { first: 10, gap: 12 },
-  ads_kills: { first: 16, gap: 14 },
-  hipfire_kills: { first: 14, gap: 14 },
-  bare_kills: { first: 12, gap: 12 },
-  close_range_kills: { first: 14, gap: 14 },
-  long_range_kills: { first: 10, gap: 12 },
+  kills: { first: 20, gap: 14 },
+  headshots: { first: 8, gap: 10 },
+  ads_kills: { first: 12, gap: 10 },
+  hipfire_kills: { first: 12, gap: 10 },
+  bare_kills: { first: 10, gap: 10 },
+  close_range_kills: { first: 12, gap: 10 },
+  long_range_kills: { first: 8, gap: 10 },
   airborne_kills: { first: 4, gap: 5 },
   multikill_kills: { first: 4, gap: 5 },
   comeback_kills: { first: 5, gap: 5 },
@@ -503,8 +503,7 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
       const target = ATTACHMENT_METRIC_TARGETS[metric]!;
       // Cost modestly nudges the target; repeated metrics have a much larger
       // deliberate gap. This prevents 36/39/42-style near-duplicate unlocks.
-      const situational = metric === "airborne_kills" || metric === "multikill_kills" || metric === "comeback_kills";
-      const goal = target.first + tier * target.gap + (situational ? Math.min(1, difficulty) : difficulty);
+      const goal = target.first + tier * target.gap + Math.min(1, difficulty);
       const circumstance = ATTACHMENT_METRIC_DESCRIPTIONS[metric];
       const description = `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}${circumstance ? " " + circumstance : ""}.`;
       if (id === attachmentId) return { ...seed, metric, goal, description };
