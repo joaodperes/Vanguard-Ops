@@ -1312,6 +1312,32 @@
     }
   },
   {
+    "id": "grip_akimbo_pdw",
+    "name": "PDW Akimbo",
+    "slot": "grip",
+    "unlockLevel": 24,
+    "unlockCost": 1100,
+    "description": "Dual-wield automatic PDWs. Hold left-click to fire the left gun and right-click for the right; both can fire together. No ADS. Combined fire rate capped at 110% (max 16 shots/s); heavier recoil, wider hipfire, reduced damage and mobility, slower reloads.",
+    "weaponCategories": [
+      "pdw"
+    ],
+    "exclusiveWeaponIds": [
+      "pistol_machine",
+      "pdw_mamba",
+      "pdw_sentinel"
+    ],
+    "effects": {
+      "fireRate": 10,
+      "damage": -10,
+      "spread": 160,
+      "recoil": 110,
+      "magSize": 100,
+      "reloadTime": 70,
+      "moveSpeed": -12,
+      "range": -15
+    }
+  },
+  {
     "id": "grip_fan_hammer",
     "name": "Fan the Hammer",
     "slot": "grip",

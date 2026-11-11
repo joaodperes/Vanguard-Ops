@@ -125,7 +125,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isAkimboWeapon, isPdwAkimboWeapon, isAkimboCapableWeapon, akimboHandCapacity, akimboPumpStroke, akimboTriggerReady, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -6235,7 +6235,7 @@ export class FPSEngine {
       const weaponFurniture = fullWorldLegendary
         ? weaponMat
         : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+      if(c.akimbo&&isAkimboCapableWeapon(wid)){
         // Two receivers with symmetric true grip contacts: remote players also dual wield.
         for(const hand of ["left","right"] as const){
           const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
@@ -6304,7 +6304,7 @@ export class FPSEngine {
       const contacts = weaponHoldPoints(wid);
       const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
         new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+      if(c.akimbo&&isAkimboCapableWeapon(wid)){
         // Opposite hands now grip separate trigger guards rather than a support stock.
         weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
         weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
@@ -10651,18 +10651,23 @@ export class FPSEngine {
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
-      // Independent left/right triggers. Process BOTH ready edges within the same
-      // frame: neither hand is blocked by the other hand's firing timestamp.
+      // Standard Akimbo fires on individual trigger presses. PDW Akimbo is
+      // fully automatic: holding either trigger repeatedly fires that hand at
+      // half the capped COMBINED rate; holding both fires both independently.
       const now=performance.now(),w=weaponById(this.weaponId);
+      const pdwAutoAkimbo=isPdwAkimboWeapon(this.weaponId,this.getCurrentAttachments().grip);
+      const heldLeft=(this.mouseDown&&this.pointerLocked)||(this.touchMode&&this.touchFiring);
+      const heldRight=(this.akimboRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAkimboRight);
       if(!this.reloading){
         if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
         if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)
           this.akimboPending.right=now;
       }else this.akimboPending.left=this.akimboPending.right=-Infinity;
       const hands=(["left","right"] as const).filter(hand=>
-        now-this.akimboPending[hand]<520 &&
-        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
-          now,this.eff.fireRate));
+        akimboTriggerReady(pdwAutoAkimbo,
+          hand==="left"?heldLeft:heldRight,this.akimboPending[hand],
+          now,this.akimboAmmo[hand],this.akimboLastHandShot[hand],
+          this.eff.fireRate));
       if(hands.length && !this.reloading&&!this.sprinting&&this.alive&&
          !this.matchEnded&&now>=this.swapReadyAt){
         // Sample each direction from the SAME pre-recoil camera when both are
@@ -10687,8 +10692,8 @@ export class FPSEngine {
           this.sound.play("empty_click",{volume:.25,throttleMs:130});
         }
       }
-      // Keep the surviving cylinder usable; automatically reload only when BOTH
-      // cylinders are empty (or when the player explicitly presses R).
+      // Keep either surviving magazine usable; automatically reload only
+      // when BOTH magazines are empty (or when the player presses R).
       if(this.ammoInMag===0&&!this.reloading&&
         (this.mousePressedThisFrame||this.touchPressedThisFrame||
          this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();

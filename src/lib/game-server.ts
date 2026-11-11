@@ -73,7 +73,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, isAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, isAkimboWeapon, isPdwAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
@@ -2814,7 +2814,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       const acceptedHand = authorizedAkimboHand(akimbo,msg.akimboHand);
       if(acceptedHand){
         const last=room.akimboLastHandShot.get(p.id+":"+weapon.id);
-        if(!akimboHandReady(1,last?.[acceptedHand]??-Infinity,now,cadenceEff.fireRate,.8))return;
+        // Full-auto PDWs observe the precise per-hand interval; never exceed
+        // the cap by applying the semi-auto packet-jitter grace to automatic fire.
+        if(!akimboHandReady(1,last?.[acceptedHand]??-Infinity,now,cadenceEff.fireRate,
+          isPdwAkimboWeapon(weapon.id,cadenceAtts?.grip)?1:.8))return;
       }
       // Old/stale clients can send a hand without server-verified Akimbo (or
       // omit one while the server still has it equipped). In that case allow
@@ -2968,7 +2971,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const bloom=previous?.weaponId===weapon.id
           ? Math.max(0,previous.value-elapsed*.00052) : 0;
         const posture=room.shotPosture.get(p.id);
-        const aiming=!tasered&&!room.sprintState.get(p.id)&&room.adsStartedAt.has(p.id)&&
+        const aiming=!tasered&&!akimbo&&!room.sprintState.get(p.id)&&room.adsStartedAt.has(p.id)&&
           msg.aiming!==false&&!akimbo;
         const steadyAds=aiming&&now-(room.adsStartedAt.get(p.id)??now)>=250&&
           !posture?.movingFast&&!posture?.airborne;
@@ -4372,7 +4375,8 @@ async function handle(socket: any, msg: C2S) {
       const aimLoadout=room.loadouts.get(socket.id);
       const aimGrip=aimLoadout?.secondaryWeaponId===p.weaponId
         ? aimLoadout.secondaryAttachments?.grip : aimLoadout?.attachments?.grip;
-      const aiming=canAds && !!msg.aiming && !(room.mode!=="gungame" && isFanHammer(p.weaponId,aimGrip));
+      const aiming=canAds && !!msg.aiming &&
+        !(room.mode!=="gungame" && (isFanHammer(p.weaponId,aimGrip) || isAkimboWeapon(p.weaponId,aimGrip)));
       if(aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
       room.sprintState.set(socket.id, !room.playerMechs.has(socket.id) && !room.downed.has(socket.id) && !!msg.sprinting);
       p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;

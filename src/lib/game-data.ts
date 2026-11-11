@@ -5,7 +5,7 @@ import { equipmentAvailable, equipmentById } from "./equipment";
 // ============================================================================
 
 import type { HeatConfig } from "./weapon-mechanics";
-import { isFanHammer, isAkimboWeapon, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
+import { isFanHammer, isAkimboWeapon, isPdwAkimboWeapon, cappedPdwAkimboFireRate, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
 import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
@@ -394,7 +394,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   const fanHammer = isFanHammer(weapon.id, atts.grip) &&
     compatibleAttachments(weapon.id,"grip").includes("grip_fan_hammer");
   const akimbo = isAkimboWeapon(weapon.id,atts.grip) &&
-    compatibleAttachments(weapon.id,"grip").includes("grip_akimbo");
+    !!atts.grip && compatibleAttachments(weapon.id,"grip").includes(atts.grip);
+  const pdwAkimbo = isPdwAkimboWeapon(weapon.id,atts.grip) && akimbo;
   // Shell choice is a magazine attachment but alters projectile behavior. All
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
@@ -438,7 +439,9 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     auto: fanHammer || (weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" &&
       compatibleAttachments(weapon.id,"magazine").includes("mag_bolt_quiver")) ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
-    fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1) * (fanHammer ? FAN_HAMMER_RATE_MULTIPLIER : 1),
+    fireRate: pdwAkimbo
+      ? cappedPdwAkimboFireRate(base.fireRate,pct(base.fireRate,"fireRate"))
+      : pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1) * (fanHammer ? FAN_HAMMER_RATE_MULTIPLIER : 1),
     damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.
