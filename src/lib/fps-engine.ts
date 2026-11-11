@@ -3384,6 +3384,8 @@ export class FPSEngine {
     // (camera-local -Z) — used by the suppressor + muzzle flash blocks below.
     const category: WeaponCategory = weaponById(this.weaponId).category;
     const wid = this.weaponId;
+    // Dual shotguns need more lateral clearance than compact pistols.
+    const akimboOffset=category==="shotgun"?.50:.34;
     let muzzleZ = -0.7;  // default (assault); overridden per-category
 
     if (category === "melee") {
@@ -3393,12 +3395,12 @@ export class FPSEngine {
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
       if(this.viewmodelAkimbo){
-        // Build both complete revolvers separately; every part remembers its hand.
+        // Duplicate the complete weapon model for both hands.
         for(const hand of ["left","right"] as const){
           const sign=hand==="left"?-1:1;
           const mount:typeof addPart=(obj,x,y,z)=>{
             obj.userData.akimboHand=hand;
-            addPart(obj,x+sign*.34/this.vmScale,y-.045/this.vmScale,z);
+            addPart(obj,x+sign*akimboOffset/this.vmScale,y-.045/this.vmScale,z);
           };
           muzzleZ=buildFirstPersonWeapon(wid,this.weaponMat,accentMat,mount,
             fullLegendaryFinish?this.weaponMat:undefined,
@@ -3419,7 +3421,7 @@ export class FPSEngine {
       if(charm){
         const [x,y,z]=weaponCharmMountPoint(this.weaponId,"firstPerson");
         if(this.viewmodelAkimbo)charm.userData.akimboHand="right";
-        addPart(charm,x+(this.viewmodelAkimbo?.34/this.vmScale:0),y+(this.viewmodelAkimbo?-.045/this.vmScale:0),z);
+        addPart(charm,x+(this.viewmodelAkimbo?akimboOffset/this.vmScale:0),y+(this.viewmodelAkimbo?-.045/this.vmScale:0),z);
       }
     }
     // ---- Category accent band (Issue c round 2) ----
@@ -3452,15 +3454,14 @@ export class FPSEngine {
       // The band is a thin box positioned on top of the weapon body, near the
       // front (forward of the magazine). It's small enough to not clutter the
       // model but large enough to be clearly visible at a glance.
-      const band = new THREE.Mesh(
-        new THREE.BoxGeometry(0.105, 0.022, 0.115),
-        bandMat,
-      );
-      // Position the band just above the body center, forward of the sight mount.
-      // For most weapons this puts it on the receiver top, between the sight and
-      // the muzzle — visible from the player's POV.
-      const bandZ = muzzleZ * 0.35;  // ~35% of the way from origin to muzzle
-      addPart(band, 0, 0.045, bandZ);
+      // Akimbo needs two receiver accent bands, not one floating at screen centre.
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const band=new THREE.Mesh(new THREE.BoxGeometry(.105,.022,.115),bandMat);
+        if(hand)band.userData.akimboHand=hand;
+        const bandZ=muzzleZ*.35;
+        addPart(band,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
+          hand?-.045/this.vmScale+.045:.045,bandZ);
+      }
     }
     // ---- Sight (per-sight-type scope mesh) ----
     // The shape of the optic on the weapon varies by sight type so the player can
@@ -3481,7 +3482,7 @@ export class FPSEngine {
       const sightMount:typeof addPart=(obj,x,y,z)=>{
         if(hand)obj.userData.akimboHand=hand;
         const sign=hand==="left"?-1:1;
-        addPart(obj,x+(hand?sign*.34/this.vmScale:0),
+        addPart(obj,x+(hand?sign*akimboOffset/this.vmScale:0),
           y+(hand?-.045/this.vmScale:0),z);
       };
       const scopeGroup = new THREE.Group();
@@ -3590,7 +3591,7 @@ export class FPSEngine {
         const supp=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,12),accentMat);
         supp.rotation.x=Math.PI/2;
         if(hand)supp.userData.akimboHand=hand;
-        addPart(supp,hand?(hand==="left"?-.34:.34)/this.vmScale:0,
+        addPart(supp,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
           hand?-.045/this.vmScale:0,muzzleZ-.1);
       }
     }
@@ -3598,7 +3599,7 @@ export class FPSEngine {
       for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
         const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
         if(hand)laser.userData.akimboHand=hand;
-        addPart(laser,hand?(hand==="left"?-.34:.34)/this.vmScale:0,
+        addPart(laser,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
           -.09+(hand?-.045/this.vmScale:0),-.2);
         const rayOrigin=new THREE.Object3D();
         rayOrigin.position.set(0,0,-.041);
@@ -3618,7 +3619,7 @@ export class FPSEngine {
       const sign=hand==="left"?-1:1;
       const mount:typeof addPart=(obj,x,y,z)=>{
         if(hand)obj.userData.akimboHand=hand;
-        addPart(obj,x+(hand?sign*.34/this.vmScale:0),y+(hand?-.045/this.vmScale:0),z);
+        addPart(obj,x+(hand?sign*akimboOffset/this.vmScale:0),y+(hand?-.045/this.vmScale:0),z);
       };
       const glove=new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12),gloveMaterial);
       glove.rotation.z=-sign*.15;
@@ -3643,17 +3644,17 @@ export class FPSEngine {
     );
     if(this.viewmodelAkimbo){
       this.muzzleFlash.userData.akimboHand="right";
-      addPart(this.muzzleFlash,.34/this.vmScale,-.045/this.vmScale,flashZ);
+      addPart(this.muzzleFlash,akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
       this.muzzleLight=new THREE.PointLight(flashColor,0,6);
       this.muzzleLight.userData.akimboHand="right";
-      addPart(this.muzzleLight,.34/this.vmScale,-.045/this.vmScale,flashZ);
+      addPart(this.muzzleLight,akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
       this.akimboLeftFlash=new THREE.Mesh(new THREE.SphereGeometry(.07,8,8),
         new THREE.MeshBasicMaterial({color:flashColor,transparent:true,opacity:0}));
       this.akimboLeftFlash.userData.akimboHand="left";
-      addPart(this.akimboLeftFlash,-.34/this.vmScale,-.045/this.vmScale,flashZ);
+      addPart(this.akimboLeftFlash,-akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
       this.akimboLeftLight=new THREE.PointLight(flashColor,0,6);
       this.akimboLeftLight.userData.akimboHand="left";
-      addPart(this.akimboLeftLight,-.34/this.vmScale,-.045/this.vmScale,flashZ);
+      addPart(this.akimboLeftLight,-akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
     }else{
       addPart(this.muzzleFlash,0,0,flashZ);
       this.muzzleLight=new THREE.PointLight(flashColor,0,6);
@@ -4239,9 +4240,13 @@ export class FPSEngine {
           extraRoll+=sign*dip*.055;
         }
         this.akimboPoseQuat.setFromEuler(this.akimboPoseEuler.set(extraPitch,0,extraRoll,"XYZ"));
-        this.akimboPosePivot.set(ox+sign*.34,oy-.11,oz+.12);
+        this.akimboPosePivot.set(ox+sign*(wDef.category==="shotgun"?.50:.34),oy-.11,oz+.12);
         p.obj.position.sub(this.akimboPosePivot).applyQuaternion(this.akimboPoseQuat).add(this.akimboPosePivot);
         p.obj.quaternion.premultiply(this.akimboPoseQuat);
+        if(this.weaponId==="shotgun_br"&&p.obj.name==="weapon_pump_foregrip"){
+          // Independent receiver cycling: each pump follows its own last shot.
+          p.obj.translateZ(akimboPumpStroke(now-this.akimboLastHandShot[akimboSide])*.15*this.vmScale);
+        }
       }
       if(p.obj.userData.fpRevolverCylinder && this.weaponId==="pistol_bastion"){
         const fraction=this.reloading?(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs):1;
