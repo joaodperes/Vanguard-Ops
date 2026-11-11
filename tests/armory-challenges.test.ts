@@ -265,4 +265,27 @@ describe("permanent challenge-based Armory eligibility", () => {
     expect(attachmentCount).toBeGreaterThan(500);
   });
 
+  test("signature attachment unlocks keep challenges relevant to their function", () => {
+    const signatures = {
+      sight_laser: "hipfire_kills",
+      grip_akimbo: "hipfire_kills",
+      mag_quickdraw: "ads_kills",
+      mag_slug: "ads_kills",
+      mag_pellets: "hipfire_kills",
+      barrel_launcher_blast: "multikill_kills",
+    } as const;
+    let verified = 0;
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          const expected = signatures[id as keyof typeof signatures];
+          if (!expected) continue;
+          expect(attachmentChallenge(weapon.id, id)?.metric).toBe(expected);
+          verified++;
+        }
+      }
+    }
+    expect(verified).toBeGreaterThan(15);
+  });
+
 });
