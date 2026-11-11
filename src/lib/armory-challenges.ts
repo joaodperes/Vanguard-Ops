@@ -372,17 +372,79 @@ function baseAttachmentChallenge(weaponId: string, attachmentId: string): Armory
  * effectively identical unlock. Rare situational kills have small targets.
  * No trial requires owning its own attachment or a fully fitted weapon.
  */
-const ATTACHMENT_METRIC_POOL: Record<WeaponDef["category"], readonly WeaponChallengeMetric[]> = {
-  assault: ["ads_kills", "hipfire_kills", "bare_kills", "kills", "long_range_kills", "headshots", "close_range_kills", "multikill_kills", "comeback_kills"],
-  smg: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "airborne_kills", "multikill_kills", "comeback_kills", "headshots"],
-  shotgun: ["close_range_kills", "hipfire_kills", "ads_kills", "bare_kills", "kills", "multikill_kills", "comeback_kills"],
-  dmr: ["long_range_kills", "ads_kills", "headshots", "bare_kills", "kills", "comeback_kills"],
-  sniper: ["long_range_kills", "ads_kills", "headshots", "bare_kills", "kills", "comeback_kills"],
-  lmg: ["ads_kills", "bare_kills", "kills", "long_range_kills", "hipfire_kills", "multikill_kills", "comeback_kills", "headshots"],
-  pistol: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "headshots", "airborne_kills", "comeback_kills"],
-  pdw: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "headshots", "airborne_kills", "multikill_kills", "comeback_kills"],
-  launcher: ["kills", "ads_kills", "bare_kills", "multikill_kills", "comeback_kills"],
-  melee: [],
+const ATTACHMENT_METRIC_POOL: Record<WeaponDef["category"], Partial<Record<AttachmentSlot, readonly WeaponChallengeMetric[]>>> = {
+  assault: {
+    sight: ["hipfire_kills", "ads_kills", "long_range_kills", "headshots", "bare_kills"],
+    barrel: ["bare_kills", "ads_kills", "long_range_kills", "headshots", "hipfire_kills"],
+    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "bare_kills", "headshots"],
+    magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "long_range_kills", "headshots"],
+  },
+  smg: {
+    sight: ["hipfire_kills", "ads_kills", "close_range_kills", "headshots", "bare_kills"],
+    barrel: ["bare_kills", "ads_kills", "hipfire_kills", "close_range_kills", "headshots"],
+    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills", "bare_kills"],
+    magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "close_range_kills"],
+  },
+  shotgun: {
+    sight: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills"],
+    barrel: ["bare_kills", "close_range_kills", "hipfire_kills", "ads_kills", "kills"],
+    grip: ["hipfire_kills", "close_range_kills", "ads_kills", "bare_kills"],
+    magazine: ["ads_kills", "close_range_kills", "hipfire_kills", "bare_kills", "kills", "multikill_kills"],
+  },
+  dmr: {
+    sight: ["long_range_kills", "ads_kills", "headshots", "bare_kills"],
+    barrel: ["bare_kills", "ads_kills", "long_range_kills", "headshots"],
+    grip: ["ads_kills", "long_range_kills", "bare_kills", "headshots"],
+    magazine: ["kills", "ads_kills", "long_range_kills", "headshots", "bare_kills"],
+  },
+  sniper: {
+    sight: ["long_range_kills", "ads_kills", "headshots", "bare_kills"],
+    barrel: ["bare_kills", "ads_kills", "long_range_kills", "headshots"],
+    grip: ["ads_kills", "long_range_kills", "bare_kills", "headshots"],
+    magazine: ["kills", "ads_kills", "long_range_kills", "headshots", "bare_kills"],
+  },
+  lmg: {
+    sight: ["ads_kills", "long_range_kills", "bare_kills", "headshots", "hipfire_kills"],
+    barrel: ["bare_kills", "ads_kills", "long_range_kills", "multikill_kills", "headshots"],
+    grip: ["ads_kills", "multikill_kills", "long_range_kills", "bare_kills", "hipfire_kills"],
+    magazine: ["kills", "multikill_kills", "ads_kills", "long_range_kills", "bare_kills", "hipfire_kills"],
+  },
+  pistol: {
+    sight: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "headshots"],
+    barrel: ["bare_kills", "ads_kills", "hipfire_kills", "headshots", "close_range_kills"],
+    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills", "bare_kills"],
+    magazine: ["kills", "ads_kills", "hipfire_kills", "close_range_kills", "headshots"],
+  },
+  pdw: {
+    sight: ["hipfire_kills", "ads_kills", "close_range_kills", "headshots", "bare_kills"],
+    barrel: ["bare_kills", "ads_kills", "hipfire_kills", "close_range_kills", "headshots"],
+    grip: ["hipfire_kills", "ads_kills", "airborne_kills", "close_range_kills", "bare_kills"],
+    magazine: ["kills", "ads_kills", "hipfire_kills", "multikill_kills", "close_range_kills"],
+  },
+  launcher: {
+    sight: ["ads_kills", "bare_kills", "kills"],
+    barrel: ["bare_kills", "ads_kills", "multikill_kills", "kills"],
+    grip: ["ads_kills", "bare_kills", "kills"],
+    magazine: ["kills", "ads_kills", "bare_kills", "multikill_kills"],
+  },
+  melee: {},
+};
+
+/** Keep unmistakable attachment roles tied to their natural playstyle. */
+const ATTACHMENT_THEMED_METRICS: Partial<Record<string, WeaponChallengeMetric>> = {
+  sight_laser: "hipfire_kills",
+  grip_akimbo: "hipfire_kills",
+  grip_fan_hammer: "hipfire_kills",
+  mag_extended: "kills",
+  mag_quickdraw: "ads_kills",
+  mag_drum: "multikill_kills",
+  mag_balanced: "hipfire_kills",
+  mag_shell_carrier: "close_range_kills",
+  mag_slug: "ads_kills",
+  mag_pellets: "hipfire_kills",
+  mag_dragons_breath: "close_range_kills",
+  mag_penetrator: "long_range_kills",
+  barrel_launcher_blast: "multikill_kills",
 };
 
 const ATTACHMENT_METRIC_TARGETS: Partial<Record<WeaponChallengeMetric, { first: number; gap: number }>> = {
@@ -421,9 +483,12 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
     for (const id of compatibleAttachments(weaponId, slot)) {
       const seed = baseAttachmentChallenge(weaponId, id);
       if (!seed) continue;
-      const options = ATTACHMENT_METRIC_POOL[weapon.category];
-      const candidates = [seed.metric, ...options.filter(m => m !== seed.metric)]
-        .filter(m => options.includes(m));
+      const options = ATTACHMENT_METRIC_POOL[weapon.category][slot] ?? [];
+      const themed = ATTACHMENT_THEMED_METRICS[id];
+      const preferred = themed && options.includes(themed) ? themed : seed.metric;
+      const candidates = themed && options.includes(themed)
+        ? [themed]
+        : [preferred, ...options.filter(m => m !== preferred)].filter(m => options.includes(m));
       if (!candidates.length) continue;
 
       // Prefer the attachment's curated style when usage is tied; otherwise
