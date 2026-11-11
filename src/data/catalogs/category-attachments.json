@@ -97,7 +97,8 @@
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_marksman_quick"
+      "grip_marksman_quick",
+      "grip_patrol"
     ],
     "magazine": [
       "mag_extended",
@@ -123,7 +124,8 @@
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_marksman_quick"
+      "grip_marksman_quick",
+      "grip_patrol"
     ],
     "magazine": [
       "mag_extended",
