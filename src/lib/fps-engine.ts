@@ -2808,7 +2808,7 @@ export class FPSEngine {
       if(group.children.length){
         // Reduce hundreds of separate façade draw calls; nested destructible
         // interior furniture stays independent and collision is unchanged.
-        if(p.kind==="building")batchStaticPropMeshes(group);
+        if(p.kind==="building"||isCastlePropKind(p.kind))batchStaticPropMeshes(group);
         if(isCastlePropKind(p.kind)||p.kind==="bench"||p.kind==="building"||p.kind==="cargo_pallet"){
           // Detailed props may render many meshes for one ballistic cover part., slate and furniture models on top of
           // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
