@@ -238,7 +238,7 @@ export function armoryChallengeProgress(ch: ArmoryChallengeDef, stats: ArmoryCou
 }
 
 /** Weapon / attachment pair is the unlock unit, matching per-weapon ownership. */
-export function attachmentChallenge(weaponId: string, attachmentId: string): ArmoryChallengeDef | null {
+function baseAttachmentChallenge(weaponId: string, attachmentId: string): ArmoryChallengeDef | null {
   const weapon = WEAPONS.find(w => w.id === weaponId);
   const attachment = ATTACHMENTS.find(a => a.id === attachmentId);
   if (!weapon || !attachment || !weaponAttachmentSlots(weapon).includes(attachment.slot) ||
@@ -360,6 +360,91 @@ export function attachmentChallenge(weaponId: string, attachmentId: string): Arm
     title: `${attachment.name} Challenge`,
     description: `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}${circumstances[metric] ? " " + circumstances[metric] : ""}.`,
   };
+}
+
+
+/**
+ * Attachment trials share only a small pool of achievable, category-appropriate
+ * actions. Spread that pool across the whole weapon rather than assigning tiny
+ * numerical variations (e.g. 17 vs 18 ADS kills) to neighbouring attachments.
+ *
+ * A repeated action is a deliberately spaced mastery tier, not another
+ * effectively identical unlock. Rare situational kills have small targets.
+ * No trial requires owning its own attachment or a fully fitted weapon.
+ */
+const ATTACHMENT_METRIC_POOL: Record<WeaponDef["category"], readonly WeaponChallengeMetric[]> = {
+  assault: ["ads_kills", "hipfire_kills", "bare_kills", "kills", "long_range_kills", "headshots", "close_range_kills", "multikill_kills", "comeback_kills"],
+  smg: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "airborne_kills", "multikill_kills", "comeback_kills", "headshots"],
+  shotgun: ["close_range_kills", "hipfire_kills", "ads_kills", "bare_kills", "kills", "multikill_kills", "comeback_kills"],
+  dmr: ["long_range_kills", "ads_kills", "headshots", "bare_kills", "kills", "comeback_kills"],
+  sniper: ["long_range_kills", "ads_kills", "headshots", "bare_kills", "kills", "comeback_kills"],
+  lmg: ["ads_kills", "bare_kills", "kills", "long_range_kills", "hipfire_kills", "multikill_kills", "comeback_kills", "headshots"],
+  pistol: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "headshots", "airborne_kills", "comeback_kills"],
+  pdw: ["hipfire_kills", "ads_kills", "close_range_kills", "bare_kills", "kills", "headshots", "airborne_kills", "multikill_kills", "comeback_kills"],
+  launcher: ["kills", "ads_kills", "bare_kills", "multikill_kills", "comeback_kills"],
+  melee: [],
+};
+
+const ATTACHMENT_METRIC_TARGETS: Partial<Record<WeaponChallengeMetric, { first: number; gap: number }>> = {
+  kills: { first: 22, gap: 16 },
+  headshots: { first: 10, gap: 12 },
+  ads_kills: { first: 16, gap: 14 },
+  hipfire_kills: { first: 14, gap: 14 },
+  bare_kills: { first: 12, gap: 12 },
+  close_range_kills: { first: 14, gap: 14 },
+  long_range_kills: { first: 10, gap: 12 },
+  airborne_kills: { first: 4, gap: 4 },
+  multikill_kills: { first: 4, gap: 4 },
+  comeback_kills: { first: 5, gap: 4 },
+};
+
+const ATTACHMENT_METRIC_DESCRIPTIONS: Partial<Record<WeaponChallengeMetric, string>> = {
+  bare_kills: "without any attachments",
+  ads_kills: "while aiming down sights",
+  hipfire_kills: "without aiming down sights",
+  airborne_kills: "while airborne",
+  close_range_kills: "at 10m or closer",
+  long_range_kills: "from at least 35m away",
+  multikill_kills: "as part of a multi-kill (within 5 seconds)",
+  comeback_kills: "within 10 seconds of respawning",
+};
+
+export function attachmentChallenge(weaponId: string, attachmentId: string): ArmoryChallengeDef | null {
+  const weapon = WEAPONS.find(w => w.id === weaponId);
+  if (!weapon) return null;
+
+  // Fixed order makes the result stable regardless of how an individual weapon
+  // declares its supported slots. Eligibility never depends on challenge order.
+  const used: Partial<Record<WeaponChallengeMetric, number>> = {};
+  for (const slot of ["sight", "barrel", "grip", "magazine"] as const) {
+    if (!weaponAttachmentSlots(weapon).includes(slot)) continue;
+    for (const id of compatibleAttachments(weaponId, slot)) {
+      const seed = baseAttachmentChallenge(weaponId, id);
+      if (!seed) continue;
+      const options = ATTACHMENT_METRIC_POOL[weapon.category];
+      const candidates = [seed.metric, ...options.filter(m => m !== seed.metric)]
+        .filter(m => options.includes(m));
+      if (!candidates.length) continue;
+
+      // Prefer the attachment's curated style when usage is tied; otherwise
+      // select an underrepresented, viable playstyle before repeating a metric.
+      const metric = candidates.reduce((best, candidate) =>
+        (used[candidate] ?? 0) < (used[best] ?? 0) ? candidate : best);
+      const tier = used[metric] ?? 0;
+      used[metric] = tier + 1;
+
+      const attachment = ATTACHMENTS.find(a => a.id === id)!;
+      const difficulty = Math.max(0, Math.min(3, Math.floor(attachment.unlockCost / 180)));
+      const target = ATTACHMENT_METRIC_TARGETS[metric]!;
+      // Cost modestly nudges the target; repeated metrics have a much larger
+      // deliberate gap. This prevents 36/39/42-style near-duplicate unlocks.
+      const goal = target.first + tier * target.gap + difficulty;
+      const circumstance = ATTACHMENT_METRIC_DESCRIPTIONS[metric];
+      const description = `Get ${goal} ${metric === "headshots" ? "headshots" : "kills"} with the ${weapon.name}${circumstance ? " " + circumstance : ""}.`;
+      if (id === attachmentId) return { ...seed, metric, goal, description };
+    }
+  }
+  return null;
 }
 
 export const OPERATOR_CONTRACTS: ArmoryChallengeDef[] = [
