@@ -178,7 +178,9 @@ describe("shotgun attachment combinations", () => {
       const close = benchmark(dual, 2, false, 500);
       expect(close.pelletHitRate).toBeGreaterThan(0.75);
       expect(close.damage).toBeGreaterThan(dual.damage * 5);
-      const distant = benchmark(dual, 12, false, 500);
+      // 18m is outside either shotgun's effective range; pellet spread is
+      // intentionally no longer doubled, so 12m still has useful damage.
+      const distant = benchmark(dual, 18, false, 500);
       expect(distant.damage).toBeLessThan(close.damage * 0.5);
     }
   });
