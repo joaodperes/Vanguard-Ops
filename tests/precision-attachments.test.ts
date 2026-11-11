@@ -55,6 +55,22 @@ describe("precision-class attachment choices", () => {
     }
   });
 
+  test("Scout Tactical is a mobile DMR with a compact base magazine", () => {
+    const scout = WEAPONS.find(w => w.id === "dmr_scout");
+    expect(scout).toBeDefined();
+    if (!scout) return;
+    expect(scout.category).toBe("dmr");
+    expect(scout.stats.auto).toBe(false);
+    expect(scout.stats.magSize).toBe(16);
+    expect(computeEffectiveStats(scout, { ...EMPTY }).magSize).toBe(16);
+    // Magazine attachments must keep their capacity tradeoffs after the rework.
+    expect(computeEffectiveStats(scout, { ...EMPTY, magazine: "mag_extended" }).magSize).toBe(21);
+    expect(computeEffectiveStats(scout, { ...EMPTY, magazine: "mag_balanced" }).magSize).toBe(18);
+    expect(computeEffectiveStats(scout, { ...EMPTY, magazine: "mag_quickdraw" }).magSize).toBe(14);
+    expect(computeEffectiveStats(scout, { ...EMPTY, magazine: "mag_lightweight" }).magSize).toBe(13);
+    expect(computeEffectiveStats(scout, { ...EMPTY, magazine: "mag_penetrator" }).magSize).toBe(13);
+  });
+
   test("quick-set grip is a faster-ADS/recoil tradeoff, with no hipfire bonus", () => {
     const quick = ATTACHMENTS.find(a => a.id === "grip_marksman_quick");
     expect(quick?.effects).toEqual({ adsTime: -18, recoil: 12 });
