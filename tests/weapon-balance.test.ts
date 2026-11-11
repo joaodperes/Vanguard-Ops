@@ -3,7 +3,7 @@ import {
   WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
-import { canStartWeaponReload } from "../src/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs } from "../src/lib/weapon-mechanics";
 import { hitsToEliminate, idealTimeToKillMs } from "../src/lib/weapon-balance";
 
 describe("weapon range and damage falloff", () => {
@@ -116,6 +116,44 @@ describe("distinct DMR roles at 100 HP", () => {
     const heavy = computeEffectiveStats(reclaimer, { sight:null, barrel:null, grip:null, magazine:"mag_bolt_heavy" });
     expect(heavy.magSize).toBe(2);
     expect(heavy.damage).toBeGreaterThan(reclaimer.stats.damage);
+  });
+});
+
+describe("Reclaimer Crossbow baseline tempo", () => {
+  test("stock single-bolt firing is deliberate but no longer waits 2.1 seconds to re-nock", () => {
+    const w = weaponById("crossbow_reclaimer");
+    const bolt = w.special;
+    expect(bolt?.kind).toBe("bolt");
+    if (bolt?.kind !== "bolt") return;
+    expect(w.stats.magSize).toBe(1);
+    expect(w.stats.reloadTime).toBe(1.65);
+    expect(w.stats.fireRate).toBe(0.65);
+    expect(bolt.pickupRadius).toBe(3);
+    expect(hitsToEliminate(w.stats, 0, 1)).toBe(1);
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,bolt.quickReloadSeconds,false)).toBe(1650);
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,bolt.quickReloadSeconds,true)).toBe(650);
+  });
+
+  test("retrieval improves the next nock, while loadouts keep their distinctive limits", () => {
+    const w=weaponById("crossbow_reclaimer");
+    if(w.special?.kind!=="bolt")throw Error("crossbow lost recovery special");
+    const t=w.special.quickReloadSeconds;
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,t,true))
+      .toBeLessThan(crossbowReloadCycleMs(w.stats.reloadTime,t,false)*.5);
+    const none={sight:null,barrel:null,grip:null,magazine:null} as const;
+    const light=computeEffectiveStats(w,{...none,magazine:"mag_bolt_light_quiver"});
+    expect(light.magSize).toBe(1);
+    expect(light.auto).toBe(false);
+    expect(light.reloadTime).toBeCloseTo(1.65*.85,5);
+    expect(crossbowReloadCycleMs(light.reloadTime,t,false)).toBeCloseTo(1402.5,3);
+    expect(crossbowReloadCycleMs(light.reloadTime,t,false,.8)).toBeCloseTo(1122,3);
+    const quiver=computeEffectiveStats(w,{...none,magazine:"mag_bolt_quiver"});
+    const heavy=computeEffectiveStats(w,{...none,magazine:"mag_bolt_heavy"});
+    expect(quiver.auto).toBe(true);
+    expect(quiver.magSize).toBe(10);
+    expect(quiver.damage * quiver.headshotMult).toBeLessThan(100);
+    expect(heavy.magSize).toBe(2);
+    expect(heavy.auto).toBe(false);
   });
 });
 
