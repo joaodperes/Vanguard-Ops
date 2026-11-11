@@ -1568,6 +1568,7 @@ export type S2C =
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "knifeAmmo"; charges: number; rechargeMs: number }
+  | { t: "burnFx"; victimId: string; durationMs: number } // Immediate Dragon's Breath visuals; snapshots remain authoritative
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean; coverPower?: number; traceStop?: number }
   | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number } }
   | { t: "chat"; name: string; text: string; team: string }

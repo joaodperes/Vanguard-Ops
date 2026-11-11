@@ -47,6 +47,7 @@ import { damageBallisticCoverOnShot, damageBallisticCoverFromExplosion } from ".
 import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
 import { automaticBloom } from "./automatic-spread";
 import { firingMotionFactor, spreadShotDirection, shotBloomIncrease, shotSpread } from "./weapon-accuracy";
+import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-status";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { shotgunPelletDirection } from "./shotgun-pattern";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
@@ -892,8 +893,10 @@ function snapshot(room: Room): S2C {
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
+    // Dead victims keep a very short flame flare through their falling
+    // animation; never turn it into ongoing DoT or carry it to respawn.
     burning: [...room.burning.entries()].filter(([id, until]) => until > Date.now() &&
-      (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
+      (room.players.has(id) || room.bots.has(id))).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
@@ -1758,6 +1761,7 @@ function tickSpecialEffects(room: Room, now: number) {
       if (room.ended) break;
     }
   }
+  for (const [id, until] of room.burning) if(now>=until)room.burning.delete(id);
 }
 
 function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string, shieldHit=false, directLethal=false) {
@@ -3355,12 +3359,24 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
                 refundedRailShot=true;
               }
             }
-            if (!hit.shield && incendiary && hit.victim.alive) {
-              const burnUntil=now+3000;
-              room.poison.set(hit.victim.id, { attackerId:p.id, weaponId:msg.weaponId,
-                expiresAt:burnUntil, tickAt:now+500, damagePerTick:2 });
-              // Replicate the same burning effect already used for flame hits.
-              room.burning.set(hit.victim.id,burnUntil);
+            const shielded=!!hit.shield ||
+              !!(hit.victim.spawnProtectedUntil && hit.victim.spawnProtectedUntil>now);
+            const burn=dragonBreathIgnition(now,incendiary,hit.victim.alive,shielded);
+            const flareUntil=dragonBreathVisualUntil(now,incendiary,shielded,hit.victim.alive);
+            if(flareUntil!==null){
+              // Keep the orange fire visible through a lethal death animation.
+              // Deduplicate pellet events and replicate ongoing flames in snapshots.
+              const previousUntil=room.burning.get(hit.victim.id)??0;
+              room.burning.set(hit.victim.id,Math.max(previousUntil,flareUntil));
+              if(previousUntil<=now)io.to(room.id).emit("message",{
+                t:"burnFx",victimId:hit.victim.id,durationMs:flareUntil-now,
+              } as S2C);
+            }
+            if(burn){
+              // Actual burning damage remains server-authoritative; dead players
+              // only receive the short cosmetic flare, never ongoing DoT.
+              room.poison.set(hit.victim.id,{...burn,
+                attackerId:p.id,weaponId:msg.weaponId});
             }
             if (!hit.shield && weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (!hit.shield && weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {

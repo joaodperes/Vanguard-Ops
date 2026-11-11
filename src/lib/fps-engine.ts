@@ -87,6 +87,7 @@ import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, T
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
 import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
+import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-status";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
@@ -6566,6 +6567,11 @@ export class FPSEngine {
       case "clusterVolley":
         this.addClusterVolley({...msg.volley,launchedAt:gravityClientTime(msg.volley.launchedAt,msg.serverNow,Date.now())},false);
         break;
+      case "burnFx":
+        // Do not wait for the next 20Hz snapshot to show an incendiary hit.
+        // The next authoritative snapshot refreshes the same expiry.
+        this.onlineBurning.set(msg.victimId,Date.now()+Math.max(0,msg.durationMs));
+        break;
       case "snapshot":
         if(msg.deployedCovers)this.reconcileDeployCovers(msg.deployedCovers);
         for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
@@ -9157,6 +9163,20 @@ export class FPSEngine {
     }
   }
 
+  /** Apply Dragon's Breath after a real, unshielded hit, regardless of which
+   * bullet penetration path resolved it. All regular shotguns have nonzero
+   * coverPenetration, so a handler inside just the plain-ray path never ran. */
+  private igniteDragonBreath(victim:Combatant) {
+    const now=performance.now();
+    const incendiary=this.eff.shotgunAmmo==="dragons_breath";
+    const until=dragonBreathVisualUntil(now,incendiary,false,victim.alive);
+    if(until!==null)this.localBurning.set(victim.id,until);
+    const burn=dragonBreathIgnition(now,incendiary,victim.alive);
+    // Fatal hits still flare visibly through the falling animation, but
+    // they must never get a DoT that damages their next respawn.
+    if(burn)this.poisonByVictim.set(victim.id,{...burn,weaponId:this.weaponId});
+  }
+
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
     // Offline hitscan shares the server's body + explicitly tagged cover trace.
     if ((this.eff.bodyPenetration || this.eff.coverPenetration) && !isMelee) {
@@ -9199,6 +9219,7 @@ export class FPSEngine {
         const damage = damageAtRange(base, hit.t, this.eff.range, this.eff) * hit.damageScale;
         const willKill = victim.health - damage <= 0 && victim.alive;
         this.applyDamageLocal(victim, damage, hit.head);
+        this.igniteDragonBreath(victim);
         if(hit.head&&!refundedRailShot&&this.weaponId==="wonder_phasebreaker"){
           const rail=weaponById(this.weaponId),state=this.wonderStates.get(rail.id);
           if(state&&rail.wonder){
@@ -9264,14 +9285,7 @@ export class FPSEngine {
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
-      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive) {
-        const burnUntil=performance.now()+3000;
-        // Keep the existing DoT and display the flame particles/emissive body
-        // instead of rendering incendiary damage as green poison.
-        this.poisonByVictim.set(nearest.c.id, { expiresAt:burnUntil,
-          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:2 });
-        this.localBurning.set(nearest.c.id,burnUntil);
-      }
+      this.igniteDragonBreath(nearest.c);
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }
@@ -11068,18 +11082,35 @@ export class FPSEngine {
       fx = new THREE.Group();
       fx.userData.status = status;
       const burning=status==="burn";
-      const aura = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 10),
-        new THREE.MeshBasicMaterial({ color: burning?0xff4715:0x49ff68,
-          transparent: true, opacity: burning?.21:.16, depthWrite: false }));
-      aura.position.y = 0.98;
+      // The flame cannot rely on an emissive skin material: much of an
+      // operative's body consists of separate armor meshes. Use a highly
+      // visible, unlit envelope plus multiple moving tongues and embers.
+      const aura = new THREE.Mesh(new THREE.SphereGeometry(burning?.79:.72, 12, 10),
+        new THREE.MeshBasicMaterial({ color: burning?0xff5a0d:0x49ff68,
+          transparent: true, opacity: burning?.31:.16, depthWrite: false,
+          depthTest: true }));
+      aura.position.y = burning?1.03:.98;
       fx.add(aura);
-      const geo = burning ? new THREE.ConeGeometry(.065,.21,6) : new THREE.SphereGeometry(0.105, 8, 6);
-      const mat = new THREE.MeshBasicMaterial({ color: burning?0xffad2d:0x80ff61,
-        transparent: true, opacity: burning?.9:.78, depthWrite: false });
-      for (let i = 0; i < 9; i++) {
-        const bubble = new THREE.Mesh(geo, mat);
-        bubble.userData.poisonBubble = i;
-        fx.add(bubble);
+      const geo = burning ? new THREE.ConeGeometry(.12,.42,7) : new THREE.SphereGeometry(.105,8,6);
+      const fireMaterials = burning ? [0xffb01c,0xff6117,0xffd357].map(color =>
+        new THREE.MeshBasicMaterial({color,transparent:true,opacity:.94,depthWrite:false,depthTest:true}))
+        : [];
+      const poisonMat = burning ? null : new THREE.MeshBasicMaterial({color:0x80ff61,
+        transparent:true,opacity:.78,depthWrite:false});
+      for(let i=0;i<(burning?18:9);i++){
+        const flame=new THREE.Mesh(geo,burning?fireMaterials[i%3]:poisonMat!);
+        flame.userData.poisonBubble=i;
+        fx.add(flame);
+      }
+      if(burning){
+        const emberGeo=new THREE.SphereGeometry(.044,7,5);
+        const emberMat=new THREE.MeshBasicMaterial({color:0xffdc70,
+          transparent:true,opacity:.98,depthWrite:false,depthTest:true});
+        for(let i=0;i<9;i++){
+          const ember=new THREE.Mesh(emberGeo,emberMat);
+          ember.userData.burnEmber=i;
+          fx.add(ember);
+        }
       }
       this.scene.add(fx);
       this.poisonBubbles.set(id, fx);
@@ -11093,11 +11124,27 @@ export class FPSEngine {
       }
       const i = index - 2;
       const burning=status==="burn";
-      const t = (now * (burning?0.0013:0.00055) + i * 0.173) % 1;
-      const angle = i * 2.39996 + now * 0.0008;
-      child.position.set(Math.cos(angle) * (0.35 + i % 3 * 0.14), 0.18 + t * 1.7,
-        Math.sin(angle) * (0.35 + i % 3 * 0.14));
-      child.scale.setScalar((burning?.42:.6) + .6 * (1 - t));
+      if(burning){
+        const ember=child.userData.burnEmber!==undefined;
+        const phase=ember ? child.userData.burnEmber : i;
+        const t=(now*(ember?.0019:.00125)+phase*.163)%1;
+        const angle=phase*2.39996+now*.0011;
+        const radius=ember ? .25+(phase%3)*.19 : .28+(phase%4)*.14;
+        child.position.set(Math.cos(angle)*radius,
+          (ember?.42:.27)+t*(ember?1.68:1.53),
+          Math.sin(angle)*radius);
+        child.scale.setScalar(ember?.8+(.7*(1-t)):.65+(.63*(1-t)));
+        if(!ember){
+          child.rotation.z=Math.sin(now*.008+phase)*.25;
+          child.rotation.x=Math.cos(now*.007+phase)*.17;
+        }
+      }else{
+        const t=(now*.00055+i*.173)%1;
+        const angle=i*2.39996+now*.0008;
+        child.position.set(Math.cos(angle)*(.35+i%3*.14),.18+t*1.7,
+          Math.sin(angle)*(.35+i%3*.14));
+        child.scale.setScalar(.6+.6*(1-t));
+      }
     }
   }
 
@@ -11132,8 +11179,11 @@ export class FPSEngine {
       const frost=this.frozenFx.get(c.id);if(frost)frost.visible=frozen;
       const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
         || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
-      const burning = c.alive && ((this.onlineBurning.get(c.id) ?? 0) > Date.now()
-        || (this.localBurning.get(c.id) ?? 0) > now);
+      const falling=!c.alive&&!!c.deathAnimAt&&!!c.deathAnimDur&&
+        now-c.deathAnimAt<c.deathAnimDur;
+      const burning = (c.alive||falling) &&
+        ((this.onlineBurning.get(c.id) ?? 0) > Date.now() ||
+         (this.localBurning.get(c.id) ?? 0) > now);
       this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
       // The Juggernaut's oversized mech replaces its pilot silhouette.
