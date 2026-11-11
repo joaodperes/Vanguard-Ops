@@ -273,7 +273,7 @@ interface Room {
   boltCharges: Map<string, number>;
   droppedBolts: Map<string, { id: string; ownerId: string; pos: Vec3; expiresAt: number }>;
   poison: Map<string, { attackerId: string; weaponId: string; expiresAt: number; tickAt: number; damagePerTick?: number }>;
-  burning: Map<string, number>; // transient flame-hit visual only; no fire DoT
+  burning: Map<string, number>; // fire visuals; Dragon's Breath ticks are tracked in poison DoT state
   equipmentCharges: Map<string, number>;
   equipmentLastAt: Map<string, number>;
   equipmentBotNextAt: Map<string, number>;
@@ -3348,9 +3348,13 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
                 refundedRailShot=true;
               }
             }
-            if (!hit.shield && incendiary && hit.victim.alive)
+            if (!hit.shield && incendiary && hit.victim.alive) {
+              const burnUntil=now+3000;
               room.poison.set(hit.victim.id, { attackerId:p.id, weaponId:msg.weaponId,
-                expiresAt:now+3000, tickAt:now+500, damagePerTick:2 });
+                expiresAt:burnUntil, tickAt:now+500, damagePerTick:2 });
+              // Replicate the same burning effect already used for flame hits.
+              room.burning.set(hit.victim.id,burnUntil);
+            }
             if (!hit.shield && weapon.special?.kind === "arc" && !room.ended) applyArcChains(room, p, hit.victim, eff.damage, weapon.special);
             if (!hit.shield && weapon.special?.kind === "bolt" && !room.ended && attsForShot?.barrel === "barrel_poison" && hit.victim.alive) {
               room.poison.set(hit.victim.id, { attackerId: p.id, weaponId: msg.weaponId, expiresAt: now + 4000, tickAt: now + 500 });

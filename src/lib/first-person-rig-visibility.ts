@@ -17,3 +17,15 @@ export function hideFirstPersonRigOnDeath(
   if(prop)prop.visible=false;
   if(supportArm)supportArm.visible=false;
 }
+
+/** Keep the camera-parented offhand sleeve in lockstep with its glove.
+ * The frame update must not make the sleeve visible unconditionally after the
+ * equipment animation hides it, notably after Akimbo equipment throws.
+ */
+export function syncFirstPersonSupportArmVisibility(
+  arm: THREE.Object3D | null,
+  glove: THREE.Object3D | null,
+  mechActive: boolean,
+): void {
+  if (arm) arm.visible = !mechActive && !!glove?.visible;
+}

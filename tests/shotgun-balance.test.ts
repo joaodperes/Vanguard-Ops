@@ -174,7 +174,7 @@ describe("shotgun attachment combinations", () => {
       const dual = computeEffectiveStats(weapon, { ...empty, grip: "grip_akimbo" });
       // Akimbo removes ADS and makes recoil harder to control; it must not
       // triple the physical buckshot cone simply because there are two guns.
-      expect(shotgunConeRadians(dual, false)).toBeCloseTo(shotgunConeRadians(base, false) * 1.2);
+      expect(shotgunConeRadians(dual, false)).toBeCloseTo(shotgunConeRadians(base, false) * 1.4);
       const close = benchmark(dual, 2, false, 500);
       expect(close.pelletHitRate).toBeGreaterThan(0.75);
       expect(close.damage).toBeGreaterThan(dual.damage * 5);

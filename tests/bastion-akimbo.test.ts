@@ -93,7 +93,7 @@ describe("Akimbo eligible standard pistols and shotguns",()=>{
       expect(dual.damage).toBe(base.damage);
       expect(dual.pellets).toBe(base.pellets);
       expect(dual.auto).toBe(false);
-      expect(dual.spread/base.spread).toBeCloseTo(shotgun?1.2:heavy?2.6:2.35);
+      expect(dual.spread/base.spread).toBeCloseTo(shotgun?1.4:heavy?2.6:2.35);
       expect(dual.recoil).toBeGreaterThan(base.recoil);
       expect(dual.reloadTime).toBeGreaterThan(base.reloadTime);
       expect(dual.moveSpeed).toBeLessThan(base.moveSpeed);

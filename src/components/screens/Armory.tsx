@@ -6,7 +6,7 @@ import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { formatWeaponNumber, formatSpreadMrad } from "@/lib/weapon-numbers";
 import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
-import { attachmentViewPermissions, showPendingAttachmentChallenge } from "@/lib/armory-attachment-browse";
+import { attachmentViewPermissions, showPendingAttachmentChallenge, attachmentEffectLabel } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
@@ -52,28 +52,6 @@ interface WeaponChallengeView {
 }
 interface WeaponChallengesMap {
   [weaponId: string]: WeaponChallengeView[];
-}
-
-// Short label for an attachment effect key (used in the +/- chips).
-function effectLabelShort(key: string): string {
-  switch (key) {
-    case "damage": return "DMG";
-    case "recoil": return "recoil";
-    case "spread": return "hipfire";
-    case "adsSpread": return "ADS spread";
-    case "adsTime": return "ADS time";
-    case "magSize": return "mag";
-    case "reloadTime": return "reload";
-    case "moveSpeed": return "mobility";
-    case "range": return "range";
-    case "heatPerShot": return "heat/shot";
-    case "coolPerSecond": return "cooling/sec";
-    case "coolDelayMs": return "cool delay";
-    case "ventSeconds": return "vent time";
-    case "overheatAt": return "heat cap";
-    case "resumeAt": return "resume threshold";
-    default: return key;
-  }
 }
 
 // Determine whether an attachment stat bonus is BENEFICIAL for the player.
@@ -1528,10 +1506,10 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                   {sightInfo && <span className="text-[10px] text-cyan-400/80">{sightInfo.zoom}×</span>}
                 </div>
                 <div className="text-white/45 text-[11px] mb-1">{a.description}</div>
-                <div className="text-[11px] text-white/65 mb-2 flex flex-wrap gap-x-3 gap-y-1">
-                  <span>{isOwned ? "Owned for this weapon" : `Price: ${formatCredits(a.unlockCost)} CR`}</span>
-                  {!canPurchase && !isOwned && <span className="text-amber-300/80">Weapon purchase required</span>}
-                </div>
+                {!isOwned && <div className="text-[11px] text-white/65 mb-2 flex flex-wrap gap-x-3 gap-y-1">
+                  <span>Price: {formatCredits(a.unlockCost)} CR</span>
+                  {!canPurchase && <span className="text-amber-300/80">Weapon purchase required</span>}
+                </div>}
                 {showChallenge && chProgress && (
                   <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[12px] text-amber-100/80 mb-2 leading-relaxed">
                     <div className="text-[10px] font-bold uppercase tracking-wide mb-1 text-amber-300">Locked · Challenge</div>
@@ -1543,7 +1521,7 @@ function ModalAttachmentSlot({ attSlot, weaponId, equippedId, canEquip, canPurch
                 <div className="flex flex-wrap gap-1">
                   {Object.entries({ ...attachmentEffectsForWeapon(a,weaponById(weaponId)), ...(a.heatEffects ?? {}) }).map(([k, v]) => (
                     <span key={k} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${isBonusGood(k, v!) ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-rose-500/15 text-rose-300 border border-rose-500/20"}`}>
-                      {v! > 0 ? "+" : ""}{v}% {effectLabelShort(k)}
+                      {v! > 0 ? "+" : ""}{v}% {attachmentEffectLabel(k)}
                     </span>
                   ))}
                   {a.shotgunAmmo && <span className="text-[9px] rounded bg-amber-500/15 text-amber-200 px-1.5 py-0.5">Shell type: {a.name}</span>}

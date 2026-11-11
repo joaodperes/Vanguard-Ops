@@ -121,7 +121,7 @@ import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
 import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS, firstPersonPresentationScale, firstPersonHipPull, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE } from "@/lib/weapon-models";
-import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
+import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
@@ -9256,9 +9256,14 @@ export class FPSEngine {
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
-      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive)
-        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+3000,
+      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive) {
+        const burnUntil=performance.now()+3000;
+        // Keep the existing DoT and display the flame particles/emissive body
+        // instead of rendering incendiary damage as green poison.
+        this.poisonByVictim.set(nearest.c.id, { expiresAt:burnUntil,
           tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:2 });
+        this.localBurning.set(nearest.c.id,burnUntil);
+      }
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }
@@ -10772,7 +10777,9 @@ export class FPSEngine {
     syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
       this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     this.positionViewmodel();
-    if(this.fpSupportArm)this.fpSupportArm.root.visible=!this.mechActive;
+    // An equipment throw can pose the left arm above the camera. Akimbo hides
+    // the offhand once that throw is done; the sleeve must stay hidden too.
+    syncFirstPersonSupportArmVisibility(this.fpSupportArm?.root ?? null,this.fpActionHand,this.mechActive);
     if(this.mechActive){
       if(this.fpActionHand)this.fpActionHand.visible=false;
       if(this.fpActionProp)this.fpActionProp.visible=false;

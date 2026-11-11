@@ -5,7 +5,7 @@ import {
 } from "../src/lib/first-person-animation";
 import {firstPersonShellContacts,firstPersonPresentationScale} from "../src/lib/weapon-models";
 import {advanceIncrementalReload,ROUND_INSERT_FRACTION} from "../src/lib/incremental-reload";
-import {hideFirstPersonRigOnDeath} from "../src/lib/first-person-rig-visibility";
+import {hideFirstPersonRigOnDeath,syncFirstPersonSupportArmVisibility} from "../src/lib/first-person-rig-visibility";
 
 const close=(a:number,b:number)=>expect(Math.abs(a-b)).toBeLessThan(1e-7);
 const same=(a:readonly number[],b:readonly number[])=>{
@@ -133,5 +133,36 @@ describe("local death removes every first-person arm component",()=>{
     hideFirstPersonRigOnDeath([{obj:part}],null,null,null);
     expect(part.visible).toBe(false);
     hideFirstPersonRigOnDeath([],null,null,null);
+  });
+});
+
+describe("Akimbo equipment hand visibility",()=>{
+  test("returns a raised left sleeve to hidden immediately after a throw",()=>{
+    const glove=new THREE.Group(),arm=new THREE.Group();
+    const forearm=new THREE.Mesh(),elbow=new THREE.Mesh();
+    arm.add(forearm,elbow);
+    // Throw in progress: temporary offhand and sleeve are raised.
+    glove.visible=true;
+    syncFirstPersonSupportArmVisibility(arm,glove,false);
+    expect(arm.visible).toBe(true);
+    // Equipment completes: Akimbo hides the action glove. The sleeve MUST
+    // not be resurrected by the following per-frame visibility update.
+    glove.visible=false;
+    syncFirstPersonSupportArmVisibility(arm,glove,false);
+    expect(arm.visible).toBe(false);
+    expect(forearm.visible).toBe(true); // inherited visibility from root
+    syncFirstPersonSupportArmVisibility(arm,glove,false);
+    expect(arm.visible).toBe(false);
+  });
+  test("normal two-hand support returns and Juggernaut hides the sleeve",()=>{
+    const glove=new THREE.Group(),arm=new THREE.Group();
+    glove.visible=true;
+    syncFirstPersonSupportArmVisibility(arm,glove,false);
+    expect(arm.visible).toBe(true);
+    syncFirstPersonSupportArmVisibility(arm,glove,true);
+    expect(arm.visible).toBe(false);
+    syncFirstPersonSupportArmVisibility(arm,glove,false);
+    expect(arm.visible).toBe(true);
+    syncFirstPersonSupportArmVisibility(null,glove,false);
   });
 });
