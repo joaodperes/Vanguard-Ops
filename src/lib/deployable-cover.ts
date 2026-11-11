@@ -3,6 +3,7 @@
  * Snapping to cardinal directions keeps gameplay collision identical to visuals.
  */
 import type { CoverBox, Vec3 } from "./game-protocol";
+import { blastDistance } from "./explosion-damage-rules";
 export const DEPLOY_COVER_HP = 160; // Bulwark: 250
 export const DEPLOY_COVER_LIFETIME_MS = 40_000;
 export const DEPLOY_COVER_HALF_WIDTH = 1.6;
@@ -56,8 +57,19 @@ export function coverIdForBox(box:CoverBox):string|null {
 export function coverNextHp(hp:number,damage:number):number {
   return Math.max(0,hp-Math.max(0,damage));
 }
-export function coverExplosionDamage(cover:DeployedCover,point:Vec3,radius:number,damage:number):number{
-  const dist=Math.hypot(cover.pos[0]-point[0],cover.pos[2]-point[2]);
-  return radius>0&&dist<radius+DEPLOY_COVER_HALF_WIDTH
-    ? damage*Math.max(.15,1-dist/(radius+DEPLOY_COVER_HALF_WIDTH)):0;
+/** Nearest surface on the shield (rather than its foot position). */
+export function coverBlastContact(cover:DeployedCover,point:Vec3):Vec3 {
+  let closest:Vec3=cover.pos,best=Infinity;
+  for(const panel of coverPanels(cover)){
+    const face:Vec3=[0,1,2].map(i=>Math.max(panel.pos[i]-panel.size[i],
+      Math.min(point[i],panel.pos[i]+panel.size[i]))) as Vec3;
+    const d=blastDistance(point,face);
+    if(d<best){best=d;closest=face;}
+  }
+  return closest;
+}
+export function coverExplosionDamage(cover:DeployedCover,point:Vec3,radius:number,damage:number):number {
+  if(!(radius>0))return 0;
+  const d=blastDistance(point,coverBlastContact(cover,point));
+  return d<radius?damage*Math.max(.15,1-d/radius):0;
 }

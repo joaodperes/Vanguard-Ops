@@ -1,4 +1,5 @@
 import type { Vec3 } from "./game-protocol";
+import { blastDistance } from "./explosion-damage-rules";
 /** Shared impact-rocket splash profile for offline and authoritative matches.
  * Swarm has broad, persistent radial fragment damage rather than RL-7's
  * focused direct-hit bonus; still uses unguided impact detonation.
@@ -30,4 +31,21 @@ export function launcherBlastVisibilityOrigin(impact: Vec3, shotOrigin: Vec3): V
   if(!Number.isFinite(len)||len<1e-6)return [...impact];
   const step=Math.min(LAUNCHER_BLAST_SURFACE_OFFSET,len*.5)/len;
   return [impact[0]+dx*step,impact[1]+dy*step,impact[2]+dz*step];
+}
+
+/** The closest point on the travelled flight segment supplies near-miss splash;
+ * its visibility to the victim is checked before applying damage. Detonations
+ * at a wall are offset to the approach side to prevent through-wall hits.
+ * Plagueheart and self-damage are evaluated at the impact only.
+ */
+export function launcherSplashContact(start:Vec3,end:Vec3,target:Vec3,impactOnly=false):{
+  distance:number;visibilityOrigin:Vec3
+} {
+  const dx=end[0]-start[0],dy=end[1]-start[1],dz=end[2]-start[2];
+  const lenSq=dx*dx+dy*dy+dz*dz;
+  const t=impactOnly||lenSq<1e-9?1:Math.max(0,Math.min(1,
+    ((target[0]-start[0])*dx+(target[1]-start[1])*dy+(target[2]-start[2])*dz)/lenSq));
+  const closest:Vec3=[start[0]+t*dx,start[1]+t*dy,start[2]+t*dz];
+  return {distance:blastDistance(closest,target),
+    visibilityOrigin:t>=1-1e-6?launcherBlastVisibilityOrigin(end,start):closest};
 }

@@ -1,10 +1,10 @@
-import { blastCanDamage } from "./explosion-damage-rules";
+import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
 import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
 import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
-import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
+import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
 import { SURVIVAL_BOT_WEAPONS, botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments, type BotAttachmentMap } from "./bot-loadouts";
 import {addOperativeSkinDetails} from "./operative-appearance";
@@ -63,7 +63,7 @@ import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetrati
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
 import type { MaterialCoverImpact } from "./game-protocol";
-import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin, launcherSplashContact } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
@@ -4925,7 +4925,12 @@ export class FPSEngine {
   private damageDeployCoverBlast(pos:Vec3,radius:number,damage:number):void{
     if(this.opts.online)return;
     for(const item of [...this.deployedCovers.values()]){
-      item.cover.hp=coverNextHp(item.cover.hp,coverExplosionDamage(item.cover,pos,radius,damage));
+      const amount=coverExplosionDamage(item.cover,pos,radius,damage);
+      if(amount<=0)continue;
+      const target=coverBlastContact(item.cover,pos);
+      if(!blastUnobstructed(pos,target,this.coverAlong(pos,target,2),
+        DEPLOY_COVER_PREFIX+item.cover.id))continue;
+      item.cover.hp=coverNextHp(item.cover.hp,amount);
       if(item.cover.hp<=0)this.removeDeployCover(item.cover.id);else this.paintDeployCover(item);
     }
   }
@@ -5055,29 +5060,27 @@ export class FPSEngine {
         }
       } else {
         if(def.type==="blast"){
-          const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
-          if(selfDist<=def.radius&&this.hasLineOfSight(impact,[this.pos.x,this.pos.y+1,this.pos.z]))
-            this.takeDamage(fragDamage(selfDist),this.opts.playerName,this.opts.team,false,"equipment_frag");
+          const center:Vec3=[this.pos.x,this.pos.y+1,this.pos.z];
+          const d=blastExposureDistance(impact,center,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(d!==null)this.takeDamage(fragDamage(d),this.opts.playerName,this.opts.team,false,"equipment_frag");
         }
         if(def.type==="flash"){
-          const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
-          if(selfDist<def.radius){const eye: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
-            const delta: Vec3=[eye[0]-impact[0],eye[1]-impact[1],eye[2]-impact[2]];
-            const len=Math.hypot(...delta)||1;
-            if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox)){
-              const duration=flashDurationMs(selfDist), now=performance.now();
-              this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
-              const visibleMs=Math.round(duration*flashFacingExposure(eye,this.yaw,impact));
-              if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
-            }
+          const eye:Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
+          const d=blastExposureDistance(impact,eye,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(d!==null){
+            const duration=flashDurationMs(d),now=performance.now();
+            this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
+            const visualMs=Math.round(duration*flashFacingExposure(eye,this.yaw,impact));
+            if(visualMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visualMs);
           }
         }
         for(const c of targets){
-          const dist=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
-          if(dist>def.radius)continue;
-          const delta:Vec3=[c.pos[0]-impact[0],c.pos[1]+1-impact[1],c.pos[2]-impact[2]];
-          const len=Math.hypot(...delta)||1;
-          if(closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))continue;
+          const center:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
+          const dist=blastExposureDistance(impact,center,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(dist===null)continue;
           if(def.type==="blast")this.applyDamageLocal(c,fragDamage(dist),false,`equipment_${id}`);
           else if(def.type==="flash" && c.alive){
             const duration=Math.round(flashDurationMs(dist)*
@@ -5215,30 +5218,31 @@ export class FPSEngine {
       if (remaining) continue;
       this.removeDeathBomb(id);
       this.spawnExplosion(new THREE.Vector3(...bomb.pos));
-      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
+      // Destroy cover after resolving who was protected from the blast.
       for (const target of this.combatants.values()) {
         if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
-        const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
-        const damage = explonandoDamage(distance);
-        if (!damage || target.spawnProtectedUntil && target.spawnProtectedUntil > now) continue;
-        const origin: Vec3 = [bomb.pos[0], bomb.pos[1] + .5, bomb.pos[2]];
-        const delta: Vec3 = [target.pos[0] - origin[0], target.pos[1] + 1 - origin[1], target.pos[2] - origin[2]];
-        const len = Math.hypot(...delta) || 1;
-        if (closestCoverHit(this.map.cover, origin, [delta[0]/len,delta[1]/len,delta[2]/len], len, rayBox)) continue;
+        const origin:Vec3=[bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]];
+        const center:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+        const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>this.hasLineOfSight(from,to));
+        if(d===null||target.spawnProtectedUntil&&target.spawnProtectedUntil>now)continue;
+        const damage=explonandoDamage(d);
+        if(!damage)continue;
         const botOwner=this.combatants.get(bomb.ownerId);
         if(botOwner)this.damageFromOfflineBotTactical(botOwner,target,damage,"frag",false,"perk_explonando");
         else this.applyDamageLocal(target,damage,false,"perk_explonando");
       }
       if(bomb.ownerId!==this.selfId && this.alive &&
          blastCanDamage(bomb.ownerId,bomb.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)){
-        const distance=Math.hypot(this.pos.x-bomb.pos[0],this.pos.z-bomb.pos[2]);
-        const damage=explonandoDamage(distance);
-        if(damage>0&&this.hasLineOfSight([bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]],
-           [this.pos.x,this.pos.y+1,this.pos.z])){
+        const origin:Vec3=[bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]];
+        const center:Vec3=[this.pos.x,this.pos.y+1,this.pos.z];
+        const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>this.hasLineOfSight(from,to));
+        const damage=d===null?0:explonandoDamage(d);
+        if(damage>0){
           const owner=this.combatants.get(bomb.ownerId);
           this.takeDamage(damage,owner?.name??"Bot",bomb.ownerTeam,false,"perk_explonando",owner?.pos);
         }
       }
+      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
     }
   }
 
@@ -5488,7 +5492,7 @@ export class FPSEngine {
         (this.opts.mode==="ffa"||this.opts.team!==m.ownerTeam)&&
         this.selfSpawnProtectedUntil<=Date.now();
       const ground:Vec3=[m.pos[0],m.pos[1]+.2,m.pos[2]];
-      const distance=(p:Vec3)=>Math.hypot(p[0]-m.pos[0],p[2]-m.pos[2]);
+      const distance=(p:Vec3)=>blastDistance(ground,[p[0],p[1]+1,p[2]]);
       const canHit=(p:Vec3)=>this.hasLineOfSight(ground,[p[0],p[1]+1,p[2]]);
       const playerPos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
       const trigger=[...rivals.map(c=>({id:c.id,pos:c.pos})),
@@ -8744,7 +8748,6 @@ export class FPSEngine {
           if(v.offline&&!this.matchEnded){
             const point=s.path.impact;
             for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
-            this.damageDeployCoverBlast(point,s.radius,s.damage);
             if(v.ownerId===this.selfId && this.alive){
               const center:Vec3=[this.pos.x,this.pos.y+.85,this.pos.z];
               const d=clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s);
@@ -8775,6 +8778,7 @@ export class FPSEngine {
               if(owner)this.damageFromOfflineBotTactical(owner,target,dmg,"frag",false,CLUSTER_ID,true);
               else this.applyDamageLocal(target,dmg,false,CLUSTER_ID);
             }
+            this.damageLocalBallisticCoverExplosion(point,s.radius,s.damage,CLUSTER_ID);
           }
         }else{
           let mesh=v.meshes.get(i);
@@ -10906,30 +10910,16 @@ export class FPSEngine {
         // so near-misses deal partial damage (the rocket's value is area denial).
         // Self-damage is determined only by proximity to the detonation, never flight path.
         if (p.applyLocalSplash && explosionKind !== "singularity") {
-          // Trajectory segment: p.start → p.end (both THREE.Vector3 in world space).
-          const segDx = p.end.x - p.start.x;
-          const segDy = p.end.y - p.start.y;
-          const segDz = p.end.z - p.start.z;
-          const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
+          const shotOrigin:Vec3=[p.start.x,p.start.y,p.start.z];
+          const impact:Vec3=[p.end.x,p.end.y,p.end.z];
           for (const c of this.combatants.values()) {
             if (!c.alive) continue;
             if (!blastCanDamage(ownerId,ownerTeam,c.id,c.team,this.opts.mode)) continue;
             const cx = c.pos[0], cy = c.pos[1] + PLAYER_HEIGHT / 2, cz = c.pos[2];
-            // Project the combatant's center onto the trajectory segment.
-            // t = clamp(dot(AP, AB) / dot(AB, AB), 0, 1) gives the closest point.
-            const apx = cx - p.start.x, apy = cy - p.start.y, apz = cz - p.start.z;
-            let t = (apx * segDx + apy * segDy + apz * segDz) / segLenSq;
-            t = Math.max(0, Math.min(1, t));
-            const closestX = p.start.x + segDx * t;
-            const closestY = p.start.y + segDy * t;
-            const closestZ = p.start.z + segDz * t;
-            const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
-            // Plagueheart poisons an area around the actual impact only.
-            // Rockets alone retain proximity damage along their flight path.
-            const d = corrosion
-              ? corrosionImpactDistance([p.end.x,p.end.y,p.end.z],[cx,cy,cz])
-              : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
-            if (d <= p.splashRadius) {
+            const corrosion=weaponById(p.weaponId).wonder?.kind==="corrosion";
+            const contact=launcherSplashContact(shotOrigin,impact,[cx,cy,cz],corrosion);
+            const d=contact.distance;
+            if(d<=p.splashRadius&&this.hasLineOfSight(contact.visibilityOrigin,[cx,cy,cz])) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
               // ~10% at edge. This rewards direct hits much more than near-misses,
               // making the rocket feel powerful when it connects but not OP when it whiffs.
@@ -10947,9 +10937,8 @@ export class FPSEngine {
               }
             }
           }
-          const selfDistance=Math.hypot(this.pos.x-p.end.x,this.pos.y+PLAYER_HEIGHT/2-p.end.y,this.pos.z-p.end.z);
-          const blastLosOrigin=launcherBlastVisibilityOrigin(
-            [p.end.x,p.end.y,p.end.z],[p.start.x,p.start.y,p.start.z]);
+          const selfDistance=blastDistance(impact,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z]);
+          const blastLosOrigin=launcherBlastVisibilityOrigin(impact,shotOrigin);
           if(this.alive&&blastCanDamage(ownerId,ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)&&selfDistance<=p.splashRadius&&this.hasLineOfSight(
             blastLosOrigin,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
             const factor=launcherSplashFactor(p.weaponId,selfDistance,p.splashRadius);

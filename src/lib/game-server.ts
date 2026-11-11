@@ -1,6 +1,6 @@
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
-import { blastCanDamage } from "./explosion-damage-rules";
-import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
+import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
+import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical, reloadDurationMultiplier, recoilMultiplier, scavengerAmmoAmount, type TacticalStock } from "./perks";
 import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity } from "./bot-loadouts";
 import {reactorObjective,objectiveDistance} from "./map-objectives";
@@ -44,7 +44,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { damageBallisticCoverOnShot, damageBallisticCoverFromExplosion } from "./material-cover-damage";
-import { launcherSplashFactor, launcherBlastVisibilityOrigin } from "./launcher-effects";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin, launcherSplashContact } from "./launcher-effects";
 import { automaticBloom } from "./automatic-spread";
 import { firingMotionFactor, spreadShotDirection, shotBloomIncrease, shotSpread } from "./weapon-accuracy";
 import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-status";
@@ -1174,8 +1174,13 @@ function deployServerCover(room:Room,player:PlayerNet,now:number):boolean{
   return true;
 }
 function blastServerCover(room:Room,pos:Vec3,radius:number,damage:number):void{
-  for(const c of [...room.deployedCovers.values()])
-    damageServerCover(room,c.id,coverExplosionDamage(c,pos,radius,damage));
+  for(const c of [...room.deployedCovers.values()]){
+    const amount=coverExplosionDamage(c,pos,radius,damage);
+    if(amount<=0)continue;
+    const target=coverBlastContact(c,pos);
+    if(blastUnobstructed(pos,target,cityCoverAlong(room,pos,target,2),DEPLOY_COVER_PREFIX+c.id))
+      damageServerCover(room,c.id,amount);
+  }
 }
 function syncServerTactical(room:Room,id:string):void{
   if(!room.players.has(id))return;
@@ -1283,8 +1288,10 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
         for(const victim of allCombatants(room)) {
           if(!victim.alive || (def.type!=="flash" && !blastCanDamage(playerId,player.team,victim.id,victim.team,room.mode)))continue;
           if(victim.spawnProtectedUntil && victim.spawnProtectedUntil>Date.now())continue;
-          const dst=Math.hypot(victim.pos[0]-impact[0],victim.pos[2]-impact[2]);
-          if(dst>def.radius || !hasLineOfSight(room,[impact[0],impact[1]+.3,impact[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))continue;
+          const center:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
+          const dst=blastExposureDistance(impact,center,def.radius,(_from,to)=>
+            hasLineOfSight(room,[impact[0],impact[1]+.3,impact[2]],to));
+          if(dst===null)continue;
           if(def.type==="blast")applyDamage(room,playerId,victim,fragDamage(dst),false,`equipment_${def.id}`);
           if(def.type==="flash"){
             const duration=flashDurationMs(dst);
@@ -1665,7 +1672,6 @@ function tickClusters(room:Room,now:number){
    volley.done.add(index);
    const point=shot.path.impact;
    destroyTurretsNear(room,point,shot.radius);
-   blastServerCover(room,point,shot.radius,shot.damage);
    for(const target of allCombatants(room)){
     if(room.ended||!target.alive)continue;
     if(!blastCanDamage(volley.ownerId,volley.ownerTeam,target.id,target.team,room.mode))continue;
@@ -1675,6 +1681,7 @@ function tickClusters(room:Room,now:number){
     volley.dealt.set(target.id,(volley.dealt.get(target.id)??0)+dmg);
     applyDamage(room,volley.ownerId,target,dmg,false,CLUSTER_ID);
    }
+   blastMaterialCover(room,point,shot.radius,shot.damage,CLUSTER_ID);
   });
   if(now>=volley.launchedAt+clusterLifetime(volley.shots))room.clusterVolleys.delete(id);
  }
@@ -1695,15 +1702,17 @@ function tickSpecialEffects(room: Room, now: number) {
     room.deathBombs.delete(id); // disarm first: no repeat detonations
     io.to(room.id).emit("message", { t: "deathBombExplode", id, pos: bomb.pos } as S2C);
     destroyTurretsNear(room, bomb.pos, 5);
-    blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
+    // A destroyed panel still protects the victim during this very explosion.
     for (const target of allCombatants(room)) {
       if (!target.alive || !explonandoCanHit(room.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
-      const distance = Math.hypot(target.pos[0]-bomb.pos[0], target.pos[2]-bomb.pos[2]);
-      const damage = explonandoDamage(distance);
-      if (!damage) continue;
-      if (!hasLineOfSight(room, [bomb.pos[0], bomb.pos[1]+.5, bomb.pos[2]], [target.pos[0], target.pos[1]+1, target.pos[2]])) continue;
-      applyDamage(room, bomb.ownerId, target, damage, false, "perk_explonando");
+      const origin:Vec3=[bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]];
+      const center:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+      const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>hasLineOfSight(room,from,to));
+      if(d===null)continue;
+      const damage=explonandoDamage(d);
+      if(damage>0)applyDamage(room,bomb.ownerId,target,damage,false,"perk_explonando");
     }
+    blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
     if (room.ended) return;
   }
   for (const [id,mine] of room.equipmentMines) {
@@ -1723,25 +1732,26 @@ function tickSpecialEffects(room: Room, now: number) {
       !(c.spawnProtectedUntil && c.spawnProtectedUntil > now));
     const visible=(c:PlayerNet)=>hasLineOfSight(room,
       [mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]);
+    const distance=(c:PlayerNet)=>blastDistance(
+      [mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]);
     // Exactly one intruder is the trigger victim; other enemies may only take
     // the small 2.4-unit splash. Cover and spawn protection apply to both.
     const trigger=enemies.filter(c=>
-      Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2])<=MINE_TRIGGER_RADIUS && visible(c))
-      .sort((a,b)=>Math.hypot(a.pos[0]-mine.pos[0],a.pos[2]-mine.pos[2])-
-        Math.hypot(b.pos[0]-mine.pos[0],b.pos[2]-mine.pos[2]))[0];
+      distance(c)<=MINE_TRIGGER_RADIUS && visible(c))
+      .sort((a,b)=>distance(a)-distance(b))[0];
     if(!trigger)continue;
     room.equipmentMines.delete(id); // exactly one activation
     io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:"mine",position:mine.pos,ownerId:mine.ownerId,mineId:id,mineState:"triggered"} as S2C);
     destroyTurretsNear(room,mine.pos,MINE_SPLASH_RADIUS);
     for(const c of enemies){
-      const dist=Math.hypot(c.pos[0]-mine.pos[0],c.pos[2]-mine.pos[2]);
+      const dist=distance(c);
       if(dist>MINE_SPLASH_RADIUS||!visible(c))continue;
       const direct=c.id===trigger.id;
       const dmg=direct?equipmentById("mine").damage:mineSplashDamage(dist);
       if(dmg>0)applyDamage(room,mine.ownerId,c,dmg,false,"equipment_mine",false,direct);
     }
     if(owner.alive && (owner.spawnProtectedUntil??0)<=now){
-      const dist=Math.hypot(owner.pos[0]-mine.pos[0],owner.pos[2]-mine.pos[2]);
+      const dist=distance(owner);
       if(dist<=MINE_SPLASH_RADIUS&&visible(owner))
         applyDamage(room,mine.ownerId,owner,mineSplashDamage(dist),false,"equipment_mine");
     }
@@ -3289,41 +3299,17 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         } else {
         destroyTurretsNear(room, impact, projectileSplashRadius(weapon)*module.radiusMul);
         const splashRadius = projectileSplashRadius(weapon)*module.radiusMul;
-        // CRITICAL FIX: splash damage is computed against the rocket's FULL
-        // TRAJECTORY LINE SEGMENT (origin → impact), NOT just the impact point.
-        // A near-miss (rocket flies past an enemy and hits a far wall) still
-        // deals splash damage based on the closest approach distance. Previously
-        // only enemies within splashRadius of the IMPACT point took damage, so a
-        // rocket that narrowly missed an enemy but hit a wall behind them dealt
-        // ZERO damage. Now we project each enemy onto the trajectory segment and
-        // use the closest-point distance — near-misses deal partial damage.
-        const segDx = impact[0] - msg.origin[0];
-        const segDy = impact[1] - msg.origin[1];
-        const segDz = impact[2] - msg.origin[2];
-        const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
-        // Ray-box LOS would see t=0 against the surface this rocket just hit.
-        // Move the LOS origin slightly back along the incoming trajectory,
-        // keeping the impacted wall protective for anyone on its far side.
-        const blastLosOrigin=launcherBlastVisibilityOrigin(impact,msg.origin);
+        // Rockets keep trajectory near misses, but blast LOS now starts
+        // at the closest travelled point and cannot pass through hard cover.
         for (const e of allCombatants(room)) {
           if (!e.alive) continue;
           if (!blastCanDamage(p.id,p.team,e.id,e.team,room.mode)) continue;
           const cx = e.pos[0], cy = e.pos[1] + PLAYER_HEIGHT / 2, cz = e.pos[2];
-          // Project the combatant's center onto the trajectory segment.
-          const apx = cx - msg.origin[0], apy = cy - msg.origin[1], apz = cz - msg.origin[2];
-          let tt = (apx * segDx + apy * segDy + apz * segDz) / segLenSq;
-          tt = Math.max(0, Math.min(1, tt));
-          const closestX = msg.origin[0] + segDx * tt;
-          const closestY = msg.origin[1] + segDy * tt;
-          const closestZ = msg.origin[2] + segDz * tt;
-          const corrosion = weapon.wonder?.kind === "corrosion";
-          // Poison only enemies near Plagueheart's detonation. Other launchers
-          // deliberately preserve their flight-path splash mechanic.
-          const d = e.id===p.id
-            ? Math.hypot(cx-impact[0],cy-impact[1],cz-impact[2])
-            : corrosion?corrosionImpactDistance(impact,[cx,cy,cz])
-              : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
-          if (d<=splashRadius && (e.id!==p.id || hasLineOfSight(room,blastLosOrigin,[cx,cy,cz]))) {
+          const corrosion=weapon.wonder?.kind==="corrosion";
+          const contact=launcherSplashContact(msg.origin,impact,[cx,cy,cz],
+            corrosion||e.id===p.id);
+          const d=contact.distance;
+          if(d<=splashRadius && hasLineOfSight(room,contact.visibilityOrigin,[cx,cy,cz])){
             const falloff = launcherSplashFactor(weapon.id,d,splashRadius);
             const splashDmg = corrosion ? corrosionImpactDamage(eff.damage, falloff) : eff.damage * falloff;
             applyDamage(room, p.id, e, splashDmg, false, msg.weaponId);
