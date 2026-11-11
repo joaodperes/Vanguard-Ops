@@ -128,7 +128,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -7872,10 +7872,12 @@ export class FPSEngine {
       bolt.mesh.position.lerpVectors(flight.start, flight.end, t);
       if (t >= 1) this.boltFlights.delete(id);
     }
+    const boltSpecial = weaponById("crossbow_reclaimer").special;
+    const boltPickupRadius = boltSpecial?.kind === "bolt" ? boltSpecial.pickupRadius : 2;
     for (const [id, bolt] of this.boltPickups) {
       if (Date.now() >= bolt.expiresAt) { this.removeBoltPickup(id); continue; }
       if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !this.touchMode) continue;
-      if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > 2.0) continue;
+      if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > boltPickupRadius) continue;
       if (this.getCurrentAttachments().magazine==="mag_bolt_quiver" &&
           this.weaponId==="crossbow_reclaimer") continue;
       if (this.opts.online) {
@@ -7911,7 +7913,11 @@ export class FPSEngine {
       return;
     }
     if (this.weaponId === "crossbow_reclaimer" && this.reloading) {
-      this.reloadEndsAt = Math.min(this.reloadEndsAt, performance.now() + special.quickReloadSeconds * 1000);
+      // Keep the HUD/animation timeline aligned with an accelerated nock.
+      const newEnd = Math.min(this.reloadEndsAt,
+        performance.now() + crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, true));
+      this.reloadEndsAt = newEnd;
+      this.reloadDurationMs = Math.max(1, newEnd - this.reloadStartedAt);
     } else {
       this.boltCharges = Math.min(3, this.boltCharges + 1);
     }
@@ -10376,9 +10382,10 @@ export class FPSEngine {
       ? (currentWeapon.stats.reloadPerRound ?? this.eff.reloadTime / this.eff.magSize) *
         this.eff.reloadTime / Math.max(0.01, currentWeapon.stats.reloadTime)
       : this.eff.reloadTime;
-    if (special?.kind === "bolt" && this.boltCharges > 0) {
-      this.boltCharges--;
-      duration = special.quickReloadSeconds;
+    if (special?.kind === "bolt") {
+      const reclaimed = this.boltCharges > 0;
+      if (reclaimed) this.boltCharges--;
+      duration = crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, reclaimed) / 1000;
     }
     this.reloadStartedAt = performance.now();
     this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
@@ -10773,7 +10780,13 @@ export class FPSEngine {
             this.burstEndsAt = Infinity;  // locked until burst completes
           }
         } else if (isSemi) {
-          const ready=now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9;
+          // For an ordinary single-bolt crossbow the reload itself controls
+          // cadence. Heavy arrows still obey their slower fire-rate limit.
+          const singleBolt = w.special?.kind === "bolt" &&
+            this.getCurrentAttachments().magazine !== "mag_bolt_heavy";
+          const ready = singleBolt ||
+            now-this.lastShotAt > 1000/Math.max(w.special?.kind==="bolt" ? .1 : 1,this.eff.fireRate) *
+              (w.special?.kind==="bolt" ? 1 : .9);
           if(w.wonder?.kind==="rail"){
             // Railgun must be deliberately charged by holding fire. No accidental instant shot.
             if(this.ammoInMag<=0||this.reloading){
