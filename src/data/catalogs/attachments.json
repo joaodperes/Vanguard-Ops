@@ -400,6 +400,27 @@
     }
   },
   {
+    "id": "grip_patrol",
+    "name": "Patrol Grip",
+    "slot": "grip",
+    "unlockLevel": 13,
+    "unlockCost": 300,
+    "description": "Lighter field grip improves movement with precision rifles, but adds recoil and takes slightly longer to settle into ADS. No hipfire accuracy bonus.",
+    "recommendedFor": [
+      "dmr",
+      "sniper"
+    ],
+    "weaponCategories": [
+      "dmr",
+      "sniper"
+    ],
+    "effects": {
+      "moveSpeed": 7,
+      "recoil": 16,
+      "adsTime": 8
+    }
+  },
+  {
     "id": "mag_extended",
     "name": "Extended Mag",
     "slot": "magazine",
