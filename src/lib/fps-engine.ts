@@ -128,7 +128,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, crossbowReloadCycleMs, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -10783,7 +10783,7 @@ export class FPSEngine {
           // For an ordinary single-bolt crossbow the reload itself controls
           // cadence. Heavy arrows still obey their slower fire-rate limit.
           const singleBolt = w.special?.kind === "bolt" &&
-            this.getCurrentAttachments().magazine !== "mag_bolt_heavy";
+            crossbowReloadControlsCadence(this.eff.magSize);
           const ready = singleBolt ||
             now-this.lastShotAt > 1000/Math.max(w.special?.kind==="bolt" ? .1 : 1,this.eff.fireRate) *
               (w.special?.kind==="bolt" ? 1 : .9);
