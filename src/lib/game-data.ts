@@ -5,7 +5,7 @@ import { equipmentAvailable, equipmentById } from "./equipment";
 // ============================================================================
 
 import type { HeatConfig } from "./weapon-mechanics";
-import { isFanHammer, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
+import { isFanHammer, isAkimboWeapon, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
 import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
@@ -393,6 +393,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   // so illegal/forged secondary attachments cannot activate fanning.
   const fanHammer = isFanHammer(weapon.id, atts.grip) &&
     compatibleAttachments(weapon.id,"grip").includes("grip_fan_hammer");
+  const akimbo = isAkimboWeapon(weapon.id,atts.grip) &&
+    compatibleAttachments(weapon.id,"grip").includes("grip_akimbo");
   // Shell choice is a magazine attachment but alters projectile behavior. All
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
@@ -423,6 +425,9 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     shell === "beanbag" ? { pellets: 5, damageMul: .85, spreadMul: .72, rangeMul: .9, rateMul: 1.35 } :
     null;
     const magBonus = acc.magSize ?? 0;
+  // Each magazine / tube retains its own rounded attachment capacity. Round
+  // per hand BEFORE doubling so odd combined totals cannot lose a cartridge.
+  const akimboCapacity = akimbo ? 2*Math.max(1,Math.round(base.magSize*(1+(magBonus-100)/100))) : 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
   const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
   return {
@@ -445,7 +450,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
     range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
     // A single-chamber bolt-action rifle cannot gain extra chambered rounds from old attachments.
-    magSize: weapon.id === "sniper_heavy" ? 1 : Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
+    magSize: weapon.id === "sniper_heavy" ? 1 : akimbo ? akimboCapacity : Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
     sightType: sightDef.type,
   };
 }
