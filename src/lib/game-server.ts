@@ -62,6 +62,7 @@ import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from 
 import { canStartWeaponReload, isFanHammer } from "./weapon-mechanics";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
+import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
 import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
@@ -197,6 +198,8 @@ interface Room {
   // "playing" = match in progress (tick running, bots active); "ended" = cleaned up.
   state: "lobby" | "playing" | "ended";
   tick: NodeJS.Timeout | null;
+  // Not serialized: spreads CPU-heavy A* replans across server ticks.
+  routeBudget?: BotRouteBudget;
   respawnTimers: Map<string, number>;
   chat: { name: string; text: string; team: string; at: number }[];
   // survival mode state
@@ -2484,6 +2487,8 @@ function tickEnvironment(room: Room, dt: number): void {
 
 function tickRoom(room: Room) {
   if (room.ended) return;
+  room.routeBudget??=new BotRouteBudget();
+  room.routeBudget.beginTick(cityIndex(room)?1:2);
   if(room.mode==="survival"){
     const now=Date.now();
     if(survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused)){
@@ -2729,7 +2734,17 @@ function tickScavengerDrops(room: Room, now: number): void {
   }
 }
 
+const botEnemySearchCaches = new WeakMap<Room,Map<string,{nextAt:number;targetId:string|null}>>();
 function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
+  const now=Date.now();
+  let cache=botEnemySearchCaches.get(room);
+  if(!cache){cache=new Map();botEnemySearchCaches.set(room,cache);}
+  const previous=cache.get(p.id);
+  if(previous&&now<previous.nextAt){
+    if(previous.targetId===null)return null;
+    const target=room.bots.get(previous.targetId)??room.players.get(previous.targetId);
+    if(target?.alive)return target;
+  }
   let best: PlayerNet | null = null;
   let bestD = Infinity;
   // Bots require LINE OF SIGHT to acquire a target (they're no longer omniscient).
@@ -2749,6 +2764,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     bestD = d;
     best = e;
   }
+  cache.set(p.id,{targetId:best?.id??null,nextAt:now+130+botRouteJitter(p.id,90)});
   return best;
 }
 
@@ -3708,12 +3724,12 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
       botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]) ||
       floodgateRouteNeedsDetour(bot.pos,target.pos,floodAge,room.map.cover))) {
-      if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+      if(now>=(ai.nextRouteAt??0)&&room.routeBudget?.take()){
         const index=cityIndex(room);
         ai.routeWaypoint=botNextWaypoint(bot.pos,botMapRouteGoal(room.map.id,bot.pos,target.pos),room.map.cover,room.map.size,3,
           floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge) ??
           botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
-        ai.nextRouteAt=now+850;
+        ai.nextRouteAt=now+850+botRouteJitter(bot.id);
       }
       const waypoint=ai.routeWaypoint;
       if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],len=Math.hypot(wx,wz);
@@ -3951,11 +3967,11 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           floorMismatch||room.map.id==="bunker" ||
           floodgateRouteNeedsDetour(bot.pos,patrolPoint,floodAge,room.map.cover)) &&
           (!patrolGoal||d>4.5)){
-        if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
+        if(now>=(ai.nextRouteAt??0)&&room.routeBudget?.take()){
           const index=cityIndex(room);
           ai.routeWaypoint=botNextWaypoint(bot.pos,navPoint,room.map.cover,room.map.size,3,
             floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge);
-          ai.nextRouteAt=now+(index?1500:850);
+          ai.nextRouteAt=now+(index?1500:850)+botRouteJitter(bot.id);
         }
         const waypoint=ai.routeWaypoint;
         if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],wd=Math.hypot(wx,wz);
