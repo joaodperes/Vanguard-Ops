@@ -9172,8 +9172,7 @@ export class FPSEngine {
     const until=dragonBreathVisualUntil(now,incendiary,false,victim.alive);
     if(until!==null)this.localBurning.set(victim.id,until);
     const burn=dragonBreathIgnition(now,incendiary,victim.alive);
-    // Fatal hits still flare visibly through the falling animation, but
-    // they must never get a DoT that damages their next respawn.
+    // Lethal hits do not leave flames or damage-over-time on the corpse.
     if(burn)this.poisonByVictim.set(victim.id,{...burn,weaponId:this.weaponId});
   }
 
@@ -9383,6 +9382,10 @@ export class FPSEngine {
       if(sourceWeaponId===this.wonderWeaponId && this.wonderKillEffectId)this.showWonderBurst(victim.pos,this.wonderKillEffectId);
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
+      // Do not resurrect the burn overlay on a respawn or leave it on a
+      // falling corpse after Dragon's Breath finishes the target.
+      this.localBurning.delete(victim.id);
+      this.poisonByVictim.delete(victim.id);
       victim.deaths += 1;
       if (this.opts.mode==="ffa"||this.opts.mode==="gungame"||victim.team!==this.opts.team)
         this.recordOrbitalKill(victim.pos,[this.pos.x,this.pos.y,this.pos.z]);
@@ -11085,19 +11088,19 @@ export class FPSEngine {
       // The flame cannot rely on an emissive skin material: much of an
       // operative's body consists of separate armor meshes. Use a highly
       // visible, unlit envelope plus multiple moving tongues and embers.
-      const aura = new THREE.Mesh(new THREE.SphereGeometry(burning?.79:.72, 12, 10),
+      const aura = new THREE.Mesh(new THREE.SphereGeometry(burning?.73:.72, 12, 10),
         new THREE.MeshBasicMaterial({ color: burning?0xff5a0d:0x49ff68,
-          transparent: true, opacity: burning?.31:.16, depthWrite: false,
+          transparent: true, opacity: burning?.25:.16, depthWrite: false,
           depthTest: true }));
       aura.position.y = burning?1.03:.98;
       fx.add(aura);
-      const geo = burning ? new THREE.ConeGeometry(.12,.42,7) : new THREE.SphereGeometry(.105,8,6);
+      const geo = burning ? new THREE.ConeGeometry(.10,.35,7) : new THREE.SphereGeometry(.105,8,6);
       const fireMaterials = burning ? [0xffb01c,0xff6117,0xffd357].map(color =>
-        new THREE.MeshBasicMaterial({color,transparent:true,opacity:.94,depthWrite:false,depthTest:true}))
+        new THREE.MeshBasicMaterial({color,transparent:true,opacity:.86,depthWrite:false,depthTest:true}))
         : [];
       const poisonMat = burning ? null : new THREE.MeshBasicMaterial({color:0x80ff61,
         transparent:true,opacity:.78,depthWrite:false});
-      for(let i=0;i<(burning?18:9);i++){
+      for(let i=0;i<(burning?14:9);i++){
         const flame=new THREE.Mesh(geo,burning?fireMaterials[i%3]:poisonMat!);
         flame.userData.poisonBubble=i;
         fx.add(flame);
@@ -11106,7 +11109,7 @@ export class FPSEngine {
         const emberGeo=new THREE.SphereGeometry(.044,7,5);
         const emberMat=new THREE.MeshBasicMaterial({color:0xffdc70,
           transparent:true,opacity:.98,depthWrite:false,depthTest:true});
-        for(let i=0;i<9;i++){
+        for(let i=0;i<6;i++){
           const ember=new THREE.Mesh(emberGeo,emberMat);
           ember.userData.burnEmber=i;
           fx.add(ember);
@@ -11133,7 +11136,7 @@ export class FPSEngine {
         child.position.set(Math.cos(angle)*radius,
           (ember?.42:.27)+t*(ember?1.68:1.53),
           Math.sin(angle)*radius);
-        child.scale.setScalar(ember?.8+(.7*(1-t)):.65+(.63*(1-t)));
+        child.scale.setScalar(ember?.72+(.55*(1-t)):.59+(.53*(1-t)));
         if(!ember){
           child.rotation.z=Math.sin(now*.008+phase)*.25;
           child.rotation.x=Math.cos(now*.007+phase)*.17;
@@ -11179,9 +11182,9 @@ export class FPSEngine {
       const frost=this.frozenFx.get(c.id);if(frost)frost.visible=frozen;
       const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
         || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
-      const falling=!c.alive&&!!c.deathAnimAt&&!!c.deathAnimDur&&
-        now-c.deathAnimAt<c.deathAnimDur;
-      const burning = (c.alive||falling) &&
+      // Death immediately ends the flames, regardless of remaining DoT expiry.
+      // The downed death-animation mesh never carries a burning overlay.
+      const burning = c.alive &&
         ((this.onlineBurning.get(c.id) ?? 0) > Date.now() ||
          (this.localBurning.get(c.id) ?? 0) > now);
       this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);

@@ -59,6 +59,9 @@ describe("Dragon's Breath ignition",()=>{
     expect(server).toContain("burning: [...room.burning.entries()]");
     expect(server).toContain("dragonBreathVisualUntil(now,incendiary,shielded,hit.victim.alive)");
     expect(server).toContain("room.burning.delete(id)");
+    expect(server).toContain("if(killed)room.burning.delete(victim.id)");
+    expect(server).toContain("room.burning.delete(p.id)");
+    expect(server).toContain("room.players.get(id)?.alive || room.bots.get(id)?.alive");
     expect(protocol).toContain('t: "burnFx"');
     expect(engine).toContain('case "burnFx":');
     expect(engine).toContain("this.onlineBurning.set(msg.victimId");

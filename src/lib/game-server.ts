@@ -893,10 +893,9 @@ function snapshot(room: Room): S2C {
     turrets: [...room.turrets.entries()].map(([id,t]) => ({ id, ownerId: t.ownerId, pos: t.pos, yaw: t.yaw, expiresAt: t.expiresAt })),
     gravityWells: [...room.gravityWells.entries()].map(([id,w]) => ({ id, ownerId: w.ownerId, ownerTeam: w.ownerTeam, pos: w.pos, radius: w.radius, activatesAt: w.activatesAt, expiresAt: w.expiresAt })),
     poisoned: [...room.poison.entries()].filter(([id, dot]) => dot.expiresAt > Date.now() && (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, dot]) => ({ id, expiresAt: dot.expiresAt })),
-    // Dead victims keep a very short flame flare through their falling
-    // animation; never turn it into ongoing DoT or carry it to respawn.
+    // Only living targets can be on fire; dead bodies and respawns are clean.
     burning: [...room.burning.entries()].filter(([id, until]) => until > Date.now() &&
-      (room.players.has(id) || room.bots.has(id))).map(([id, expiresAt]) => ({id,expiresAt})),
+      (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
@@ -1846,6 +1845,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   victim.health -= dmg;
   if(weaponId === "wonder_hellfire" && dmg > 0) room.burning.set(victim.id,Date.now()+1100);
   const killed = victim.health <= 0;
+  if(killed)room.burning.delete(victim.id);
   // For rewards scaling: attach the victim's difficulty to the hit event when
   // it's a kill. Non-killing hits don't need it (only kills earn rewards).
   const killDiff: KillDifficulty | undefined = killed ? victimKillDifficulty(victim) : undefined;
@@ -2103,6 +2103,7 @@ function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
 function scheduleRespawn(room: Room, p: PlayerNet) {
   room.burstState.delete(p.id);
   room.poison.delete(p.id);
+  room.burning.delete(p.id);
   room.specialHeat.delete(p.id);
   room.boltReadyAt.delete(p.id);
   room.boltCharges.delete(p.id);
@@ -3364,8 +3365,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             const burn=dragonBreathIgnition(now,incendiary,hit.victim.alive,shielded);
             const flareUntil=dragonBreathVisualUntil(now,incendiary,shielded,hit.victim.alive);
             if(flareUntil!==null){
-              // Keep the orange fire visible through a lethal death animation.
-              // Deduplicate pellet events and replicate ongoing flames in snapshots.
+              // Ignite living victims only. De-duplicate pellet events and
+              // replicate the ongoing flames in authoritative snapshots.
               const previousUntil=room.burning.get(hit.victim.id)??0;
               room.burning.set(hit.victim.id,Math.max(previousUntil,flareUntil));
               if(previousUntil<=now)io.to(room.id).emit("message",{
@@ -3373,8 +3374,8 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
               } as S2C);
             }
             if(burn){
-              // Actual burning damage remains server-authoritative; dead players
-              // only receive the short cosmetic flare, never ongoing DoT.
+              // Actual burning damage remains server-authoritative. Lethal
+              // impacts receive neither burning status nor a cosmetic flare.
               room.poison.set(hit.victim.id,{...burn,
                 attackerId:p.id,weaponId:msg.weaponId});
             }

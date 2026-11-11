@@ -4,14 +4,13 @@
 export const DRAGONS_BREATH_BURN_MS = 3000;
 export const DRAGONS_BREATH_TICK_MS = 500;
 export const DRAGONS_BREATH_TICK_DAMAGE = 2;
-/** Cosmetic fire lingers through the short death animation even if the blast
- * was lethal. Dead operators never receive a damage-over-time status. */
-export const DRAGONS_BREATH_DEATH_FLARE_MS = 1050;
+/** Fire only follows living, unshielded targets. Killing a victim removes
+ * the visual immediately; there is no post-mortem flame flare. */
 export function dragonBreathVisualUntil(
   now:number,incendiary:boolean,shielded:boolean,victimAlive:boolean,
 ):number|null {
-  if(!Number.isFinite(now)||!incendiary||shielded)return null;
-  return now+(victimAlive?DRAGONS_BREATH_BURN_MS:DRAGONS_BREATH_DEATH_FLARE_MS);
+  if(!Number.isFinite(now)||!incendiary||shielded||!victimAlive)return null;
+  return now+DRAGONS_BREATH_BURN_MS;
 }
 
 export interface DragonBreathIgnition {
