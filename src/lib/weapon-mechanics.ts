@@ -1,33 +1,16 @@
-/** Dedicated grip-specific Akimbo allowlists shared by model, firing and server.
- * Full-auto PDWs use a different grip with a capped combined fire rate. */
+/** Standard semi-auto pistols, revolvers, and the two conventional shotguns.
+ * Burst, Arc and full-auto machine pistols are deliberately excluded.
+ * The same allowlist is used by the viewmodel, client trigger and server. */
 export const AKIMBO_GRIP_ID = "grip_akimbo";
 export const AKIMBO_WEAPON_IDS = [
   "pistol_side", "pistol_ghost", "pistol_magnum", "pistol_bastion",
   "shotgun_br", "shotgun_combat",
 ] as const;
-export const PDW_AKIMBO_GRIP_ID = "grip_akimbo_pdw";
-export const PDW_AKIMBO_WEAPON_IDS = ["pistol_machine","pdw_mamba","pdw_sentinel"] as const;
-/** Dual PDW rate is the COMBINED output of both barrels, not per barrel. */
-export const PDW_AKIMBO_MAX_COMBINED_RATE = 16;
-export const PDW_AKIMBO_RATE_MULTIPLIER = 1.10;
-export function isPdwAkimboWeapon(weaponId:string,grip:string|null|undefined):boolean {
-  return grip===PDW_AKIMBO_GRIP_ID &&
-    (PDW_AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId);
-}
-export function isAkimboCapableWeapon(weaponId:string):boolean {
-  return (AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId) ||
-    (PDW_AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId);
-}
-export function cappedPdwAkimboFireRate(baseRate:number,adjustedRate:number):number {
-  return Math.min(PDW_AKIMBO_MAX_COMBINED_RATE,
-    baseRate*PDW_AKIMBO_RATE_MULTIPLIER,adjustedRate);
-}
 export const AKIMBO_CYLINDER_CAPACITY = 6; // Bastion and Magnum base revolvers
 export type AkimboHand = "left" | "right";
 export function isAkimboWeapon(weaponId:string,grip:string|null|undefined):boolean {
-  return (grip===AKIMBO_GRIP_ID &&
-    (AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId)) ||
-    isPdwAkimboWeapon(weaponId,grip);
+  return grip===AKIMBO_GRIP_ID &&
+    (AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId);
 }
 /** The live server is authoritative for whether Akimbo is equipped.
  * When a client's loadout is stale (e.g. a swapped preset or an old packet),
@@ -65,28 +48,6 @@ export function akimboHandIntervalMs(combinedFireRate: number):number {
 export function akimboHandReady(ammo:number,lastHandShot:number,now:number,
   combinedFireRate:number,tolerance=.9):boolean {
   return ammo>0 && now-lastHandShot>=akimboHandIntervalMs(combinedFireRate)*tolerance;
-}
-/** Semi-auto grips buffer one press edge. Full-auto PDWs fire while their own
- * mouse/touch trigger is HELD, but still obey independent per-hand cadence. */
-export function akimboTriggerReady(automatic:boolean,held:boolean,pendingAt:number,
-  now:number,ammo:number,lastHandShot:number,combinedFireRate:number):boolean {
-  return (automatic ? held : now-pendingAt<520) &&
-    akimboHandReady(ammo,lastHandShot,now,combinedFireRate,automatic ? 1 : .9);
-}
-/** Authoritative automatic Akimbo packet pacing. Small arrival-time jitter
- * is tolerated, but accepting an early packet advances a VIRTUAL due time
- * by the full per-hand interval. Repeated early packets cannot increase the
- * sustainable combined rate above the PDW cap.
- * Returns the next accepted virtual timestamp or null when too early. */
-export function akimboServerShotTime(lastVirtualShot:number,now:number,
-  combinedFireRate:number):number|null {
-  if(!Number.isFinite(now))return null;
-  if(!Number.isFinite(lastVirtualShot))return now;
-  const interval=akimboHandIntervalMs(combinedFireRate);
-  const jitterAllowance=Math.min(12,interval*.08);
-  const due=lastVirtualShot+interval;
-  if(now+jitterAllowance<due)return null;
-  return Math.max(now,due);
 }
 /** Both revolvers drop below the camera frame together, remain out while refreshed,
  * then return simultaneously. No third hand or sequential swing-out cylinder. */

@@ -64,7 +64,7 @@ import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoa
 import {CoverSpatialIndex} from "./cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
-import { MOVEMENT } from "./movement-rules";
+import { MOVEMENT, sprintRecoverySpreadMultiplier } from "./movement-rules";
 import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, flagAtHome, otherFlag, CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
 import { countEligibleAssists, type Contribution } from "./combat-assists";
@@ -73,7 +73,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, akimboServerShotTime, isAkimboWeapon, isPdwAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, isAkimboWeapon, authorizedAkimboHand, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
@@ -237,6 +237,8 @@ interface Room {
   gungamePreset: "all" | "cqc" | "long_range";
   gungameMultiplier: number;
   sprintState: Map<string, boolean>;
+  /** Last server-received sprint frame; used to settle hipfire after release. */
+  sprintLastAt: Map<string, number>;
   // ---- Pre-match countdown (server-side) ----
   // When > 0, the match is in a "get ready" phase. Bots are frozen (no AI, no
   // shooting). Human players can still move and look around. The countdown
@@ -525,7 +527,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
     botDifficulty: "normal",
     gungameProgress: new Map(),
     gungameWeapons: [],
-    gungamePreset: "all", gungameMultiplier: 1, sprintState: new Map(),
+    gungamePreset: "all", gungameMultiplier: 1, sprintState: new Map(), sprintLastAt: new Map(),
     preMatchCountdown: 5,
     environmentTime: 0,
     floodgateBreachAt:null,
@@ -698,7 +700,7 @@ function createLobbyRoom(
     gungameWeapons: [],
     gungamePreset: normalizeGunGameConfig(cfg.gungamePreset, cfg.gungameMultiplier).preset,
     gungameMultiplier: normalizeGunGameConfig(cfg.gungamePreset, cfg.gungameMultiplier).multiplier,
-    sprintState: new Map(),
+    sprintState: new Map(), sprintLastAt: new Map(),
     preMatchCountdown: 0,  // lobby rooms set this when startMatch fires
     environmentTime: 0,
     floodgateBreachAt:null,
@@ -760,6 +762,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.tagDenials.clear();
   room.clusterVolleys.clear();
   room.wonderCharges.clear(); // Fresh match: Wonders start empty and must earn their first charge.
+  room.sprintState.clear(); room.sprintLastAt.clear();
   room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.autoBloom.clear(); room.shotPosture.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
   room.survivalRanks.clear();room.survivalOffers.clear();room.survivalUpgradeDeadline=null;room.survivalPauseStartedAt=null;room.survivalMenuPaused=false;room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
@@ -2812,15 +2815,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // so two packets can both be accepted within the same server tick.
       const akimbo=room.mode!=="gungame" && isAkimboWeapon(weapon.id,cadenceAtts?.grip);
       const acceptedHand = authorizedAkimboHand(akimbo,msg.akimboHand);
-      let acceptedHandAt=now;
       if(acceptedHand){
         const last=room.akimboLastHandShot.get(p.id+":"+weapon.id);
-        const previous=last?.[acceptedHand]??-Infinity;
-        if(isPdwAkimboWeapon(weapon.id,cadenceAtts?.grip)){
-          const scheduled=akimboServerShotTime(previous,now,cadenceEff.fireRate);
-          if(scheduled===null)return;
-          acceptedHandAt=scheduled;
-        }else if(!akimboHandReady(1,previous,now,cadenceEff.fireRate,.8))return;
+        if(!akimboHandReady(1,last?.[acceptedHand]??-Infinity,now,cadenceEff.fireRate,.8))return;
       }
       // Old/stale clients can send a hand without server-verified Akimbo (or
       // omit one while the server still has it equipped). In that case allow
@@ -2932,7 +2929,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       if(acceptedHand){
         const key=p.id+":"+weapon.id;
         const last=room.akimboLastHandShot.get(key)??{left:-Infinity,right:-Infinity};
-        last[acceptedHand]=acceptedHandAt;
+        last[acceptedHand]=now;
         room.akimboLastHandShot.set(key,last);
       }
       p.lastShotAt = now;
@@ -2974,7 +2971,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const bloom=previous?.weaponId===weapon.id
           ? Math.max(0,previous.value-elapsed*.00052) : 0;
         const posture=room.shotPosture.get(p.id);
-        const aiming=!tasered&&!akimbo&&!room.sprintState.get(p.id)&&room.adsStartedAt.has(p.id)&&
+        const aiming=!tasered&&!room.sprintState.get(p.id)&&room.adsStartedAt.has(p.id)&&
           msg.aiming!==false&&!akimbo;
         const steadyAds=aiming&&now-(room.adsStartedAt.get(p.id)??now)>=250&&
           !posture?.movingFast&&!posture?.airborne;
@@ -2982,8 +2979,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           sprinting:!!room.sprintState.get(p.id), airborne:!!posture?.airborne,
           movingFast:!!posture?.movingFast, firing:true, aiming,bloom,tasered,
         });
+        const postSprint=aiming?1:sprintRecoverySpreadMultiplier(now,
+          room.sprintLastAt.get(p.id)??0,attsForShot?.grip);
         const spread=shotSpread(eff,weapon.category,aiming,motion,bloom,steadyAds)*
-          (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1);
+          (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)*postSprint;
         shotDir=spreadShotDirection(shotDir,spread);
         const nextBloom=eff.auto?automaticBloom(bloom,eff.fireRate,elapsed):
           Math.min(.28,bloom+shotBloomIncrease(eff.fireRate)*.32);
@@ -3327,7 +3326,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         for (let i = 0; i < pellets; i++) {
           const dir = multiPelletShotgun
             ? shotgunPelletDirection(shotDir, {...eff,spread:eff.spread*
-                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)}, shotgunAds, undefined, i)
+                (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)*
+                (shotgunAds?1:sprintRecoverySpreadMultiplier(now,
+                  room.sprintLastAt.get(p.id)??0,attsForShot?.grip))}, shotgunAds, undefined, i)
             : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
@@ -4378,10 +4379,12 @@ async function handle(socket: any, msg: C2S) {
       const aimLoadout=room.loadouts.get(socket.id);
       const aimGrip=aimLoadout?.secondaryWeaponId===p.weaponId
         ? aimLoadout.secondaryAttachments?.grip : aimLoadout?.attachments?.grip;
-      const aiming=canAds && !!msg.aiming &&
-        !(room.mode!=="gungame" && (isFanHammer(p.weaponId,aimGrip) || isAkimboWeapon(p.weaponId,aimGrip)));
+      const aiming=canAds && !!msg.aiming && !msg.sprinting &&
+        !(room.mode!=="gungame" && isFanHammer(p.weaponId,aimGrip));
       if(aiming){if(!room.adsStartedAt.has(socket.id))room.adsStartedAt.set(socket.id,moveNow);}else room.adsStartedAt.delete(socket.id);
-      room.sprintState.set(socket.id, !room.playerMechs.has(socket.id) && !room.downed.has(socket.id) && !!msg.sprinting);
+      const activeSprint=!room.playerMechs.has(socket.id) && !room.downed.has(socket.id) && !!msg.sprinting;
+      room.sprintState.set(socket.id,activeSprint);
+      if(activeSprint)room.sprintLastAt.set(socket.id,moveNow);
       p.riotShieldRaised=p.weaponId===RIOT_SHIELD_ID && aiming && !msg.reloading && !msg.sprinting && (p.riotShieldHp??RIOT_SHIELD_HP)>0 && moveNow-(room.quickMeleeAt.get(socket.id)??0)>=riotBashProfile().swingMs;
       p.yaw = msg.yaw;
       p.pitch = msg.pitch;

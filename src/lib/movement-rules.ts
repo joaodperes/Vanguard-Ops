@@ -23,9 +23,32 @@ export const MOVEMENT = {
   touchSprintForward: 0.45,
 } as const;
 
-export const SPRINT_ADS_GRIP = "grip_runner_ads";
-export function allowsAdsWhileSprinting(grip?: string | null) {
-  return grip === SPRINT_ADS_GRIP;
+/** Keep the old catalog ID so existing unlocks and equipped loadouts retain
+ * their grip even though Sprint ADS has been replaced by Quick-Ready. */
+export const QUICK_READY_GRIP_ID = "grip_runner_ads";
+export const SPRINT_RECOVERY_STANDARD_MS = 300;
+export const SPRINT_RECOVERY_QUICK_MS = 95;
+export function isQuickReadyGrip(grip?:string|null):boolean {
+  return grip===QUICK_READY_GRIP_ID;
+}
+/** A sprint ends instantly for input, but a weapon needs a short moment to
+ * regain stable hipfire. Quick-Ready cuts that recovery from 300ms to 95ms.
+ * Shots are never suppressed by recovery, so quick taps are not lost. */
+export function sprintRecoverySpreadMultiplier(
+  now:number,lastSprintAt:number,grip?:string|null,
+):number {
+  if(!lastSprintAt || now<lastSprintAt)return 1;
+  const duration=isQuickReadyGrip(grip)?SPRINT_RECOVERY_QUICK_MS:SPRINT_RECOVERY_STANDARD_MS;
+  const elapsed=now-lastSprintAt;
+  return elapsed>=duration ? 1 : 1+.35*(1-elapsed/duration);
+}
+/** Immediate sight raise and camera-local viewmodel return after sprint.
+ * Ordinary weapons retain the established ADS animation rate. */
+export function sprintRecoveryAdsRate(
+  now:number,lastSprintAt:number,grip?:string|null,
+):number {
+  return isQuickReadyGrip(grip) && lastSprintAt>0 && now>=lastSprintAt &&
+    now-lastSprintAt<SPRINT_RECOVERY_STANDARD_MS ? 20 : 12;
 }
 
 /** Use the same sprint decision for the HUD joystick glow and gameplay. */

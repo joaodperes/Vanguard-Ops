@@ -361,11 +361,11 @@
   },
   {
     "id": "grip_runner_ads",
-    "name": "Sprint ADS Grip",
+    "name": "Quick-Ready Grip",
     "slot": "grip",
     "unlockLevel": 16,
     "unlockCost": 400,
-    "description": "Allows ADS during a sprint, but firing still requires ending the sprint.",
+    "description": "Regain accurate hipfire 3× faster after sprinting (95ms instead of 300ms) and raise sights faster. Still cannot fire while sprinting. Slightly more recoil.",
     "weaponCategories": [
       "assault",
       "smg",
@@ -376,7 +376,7 @@
       "launcher"
     ],
     "effects": {
-      "adsTime": 12,
+      "adsTime": -15,
       "recoil": 6
     }
   },
@@ -1309,32 +1309,6 @@
         "recoil": 55,
         "reloadTime": 25
       }
-    }
-  },
-  {
-    "id": "grip_akimbo_pdw",
-    "name": "PDW Akimbo",
-    "slot": "grip",
-    "unlockLevel": 24,
-    "unlockCost": 850,
-    "description": "Dual-wield automatic PDWs. Hold left-click to fire the left gun and right-click for the right; both can fire together. No ADS. Combined fire rate capped at 110% (max 16 shots/s); heavier recoil, wider hipfire, reduced damage and mobility, slower reloads.",
-    "weaponCategories": [
-      "pdw"
-    ],
-    "exclusiveWeaponIds": [
-      "pistol_machine",
-      "pdw_mamba",
-      "pdw_sentinel"
-    ],
-    "effects": {
-      "fireRate": 10,
-      "damage": -10,
-      "spread": 160,
-      "recoil": 110,
-      "magSize": 100,
-      "reloadTime": 70,
-      "moveSpeed": -12,
-      "range": -15
     }
   },
   {

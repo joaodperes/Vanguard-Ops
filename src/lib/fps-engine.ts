@@ -99,7 +99,7 @@ import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeD
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
-import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
+import { MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
@@ -125,7 +125,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isAkimboWeapon, isPdwAkimboWeapon, isAkimboCapableWeapon, akimboHandCapacity, akimboPumpStroke, akimboTriggerReady, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -4094,7 +4094,11 @@ export class FPSEngine {
     }
     // Interpolate the camera-local offset. During a swap, use a faster lerp so
     // the weapon snaps down quickly (the dip should feel responsive, not floaty).
-    const lerpRate = swapActive ? 0.4 : 0.25;
+    // Quick-Ready recovers from the lowered sprint pose faster; other grips
+    // retain the normal viewmodel smoothing and weapon-swap animation.
+    const quickReadyRaise=sprintRecoveryAdsRate(performance.now(),this.lastSprintAt,
+      this.getCurrentAttachments().grip)>12;
+    const lerpRate = swapActive ? 0.4 : quickReadyRaise ? 0.43 : 0.25;
     const tasered=this.alive && isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now());
     const twitchTime=performance.now()*0.001;
     // Subtle high-frequency hand tremor, separate from recoil or sprint motion.
@@ -6235,7 +6239,7 @@ export class FPSEngine {
       const weaponFurniture = fullWorldLegendary
         ? weaponMat
         : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      if(c.akimbo&&isAkimboCapableWeapon(wid)){
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
         // Two receivers with symmetric true grip contacts: remote players also dual wield.
         for(const hand of ["left","right"] as const){
           const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
@@ -6304,7 +6308,7 @@ export class FPSEngine {
       const contacts = weaponHoldPoints(wid);
       const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
         new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      if(c.akimbo&&isAkimboCapableWeapon(wid)){
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
         // Opposite hands now grip separate trigger guards rather than a support stock.
         weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
         weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
@@ -8952,7 +8956,11 @@ export class FPSEngine {
       && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
     const taserSpread=isTaserAdsBlocked(this.equipmentAdsBlockedUntil,now)&&!this.aiming?
       TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
-    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread;
+    // A just-lowered weapon is temporarily less precise. Quick-Ready
+    // restores hipfire after 95ms rather than the ordinary 300ms.
+    const sprintRecovery=this.aiming?1:sprintRecoverySpreadMultiplier(
+      now,this.lastSprintAt,this.getCurrentAttachments().grip);
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery;
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
     const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
@@ -9026,7 +9034,7 @@ export class FPSEngine {
       if(special?.kind!=="bolt")this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
       for (let i = 0; i < pellets; i++) {
         const pdir = multiPelletShotgun
-          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread}, this.aiming, undefined, i)
+          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread*sprintRecovery}, this.aiming, undefined, i)
           : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
         const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
@@ -10637,13 +10645,12 @@ export class FPSEngine {
       (this.touchMode&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
-    const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
     const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
     const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
       !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&
-      (!this.sprinting || allowSprintAds);
+      !this.sprinting;
     if(this.mechActive){
       const now=performance.now();
       if(wantFire)this.fireMech("minigun",now);
@@ -10651,23 +10658,18 @@ export class FPSEngine {
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
-      // Standard Akimbo fires on individual trigger presses. PDW Akimbo is
-      // fully automatic: holding either trigger repeatedly fires that hand at
-      // half the capped COMBINED rate; holding both fires both independently.
+      // Independent left/right triggers. Process BOTH ready edges within the same
+      // frame: neither hand is blocked by the other hand's firing timestamp.
       const now=performance.now(),w=weaponById(this.weaponId);
-      const pdwAutoAkimbo=isPdwAkimboWeapon(this.weaponId,this.getCurrentAttachments().grip);
-      const heldLeft=(this.mouseDown&&this.pointerLocked)||(this.touchMode&&this.touchFiring);
-      const heldRight=(this.akimboRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAkimboRight);
       if(!this.reloading){
         if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
         if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)
           this.akimboPending.right=now;
       }else this.akimboPending.left=this.akimboPending.right=-Infinity;
       const hands=(["left","right"] as const).filter(hand=>
-        akimboTriggerReady(pdwAutoAkimbo,
-          hand==="left"?heldLeft:heldRight,this.akimboPending[hand],
-          now,this.akimboAmmo[hand],this.akimboLastHandShot[hand],
-          this.eff.fireRate));
+        now-this.akimboPending[hand]<520 &&
+        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
+          now,this.eff.fireRate));
       if(hands.length && !this.reloading&&!this.sprinting&&this.alive&&
          !this.matchEnded&&now>=this.swapReadyAt){
         // Sample each direction from the SAME pre-recoil camera when both are
@@ -10692,8 +10694,8 @@ export class FPSEngine {
           this.sound.play("empty_click",{volume:.25,throttleMs:130});
         }
       }
-      // Keep either surviving magazine usable; automatically reload only
-      // when BOTH magazines are empty (or when the player presses R).
+      // Keep the surviving cylinder usable; automatically reload only when BOTH
+      // cylinders are empty (or when the player explicitly presses R).
       if(this.ammoInMag===0&&!this.reloading&&
         (this.mousePressedThisFrame||this.touchPressedThisFrame||
          this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
@@ -10776,7 +10778,10 @@ export class FPSEngine {
 
     // ADS smoothing
     const targetAds = this.aiming ? 1 : 0;
-    this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
+    // Quick-Ready raises sights faster ONLY for a short sprint-exit window.
+    this.adsProgress += (targetAds - this.adsProgress) * Math.min(1,
+      dt * sprintRecoveryAdsRate(performance.now(),this.lastSprintAt,
+        this.getCurrentAttachments().grip));
     // The optical zoom field determines actual magnification across all player FOV settings.
     // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
     syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
@@ -11364,12 +11369,15 @@ export class FPSEngine {
     const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map,this.weaponId);
     const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
-    const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    this.sprinting = !this.mechActive && isSprintKey && movingForward && (!this.aiming || sprintAdsPerk) && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
+    // Sprint ADS has been removed: all weapons must lower their sights during
+    // sprint and stop sprinting before firing, on mouse and touch alike.
+    const firingInput=this.mouseDown||this.touchFiring||this.akimboRightDown||this.touchAkimboRight;
+    this.sprinting = !this.mechActive && isSprintKey && movingForward && !this.aiming &&
+      !firingInput && this.alive && this.onGround && staminaAllowsSprint;
     if (this.sprinting && this.reloading && this.activePerkId !== "field_loader") {
       this.reloading = false; // interrupted; keep partial mag
     }
-    if (this.sprinting && !sprintAdsPerk) this.aiming = false;
+    if (this.sprinting) this.aiming = false;
     if (this.sprinting && !wasSprinting) {
       // Just started sprinting — play a subtle ADS-out SFX for feedback.
       this.sound.play("ads_out", { volume: 0.3 });
