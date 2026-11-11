@@ -72,7 +72,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
 import { normalizeSurvivalTier, survivalUnlocked, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalIncomingMultiplier, survivalOutgoingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks, type SurvivalUpgradeId } from "./survival-upgrades";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, type HeatState, type ArcCandidate } from "./weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, akimboHandReady, isAkimboWeapon, type HeatState, type ArcCandidate } from "./weapon-mechanics";
 import { Server } from "socket.io";
 import type {
   C2S, S2C, PlayerNet, GameMode, MatchConfig, SnapshotPlayer, KillFeedEntry,
@@ -945,12 +945,15 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     id: p.id, name: p.name, team: p.team, isBot: p.isBot,
     pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
     weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
-    akimbo:p.weaponId==="pistol_bastion" && loadout?.secondaryWeaponId===p.weaponId &&
-      loadout.secondaryAttachments?.grip==="grip_akimbo",
-    akimboSightId:p.weaponId==="pistol_bastion"&&loadout?.secondaryAttachments?.grip==="grip_akimbo"
-      ?loadout.secondaryAttachments.sight??undefined:undefined,
-    akimboBarrelId:p.weaponId==="pistol_bastion"&&loadout?.secondaryAttachments?.grip==="grip_akimbo"
-      ?loadout.secondaryAttachments.barrel??undefined:undefined,
+    akimbo:isAkimboWeapon(p.weaponId,p.weaponId===loadout?.weaponId
+      ?loadout.attachments?.grip:p.weaponId===loadout?.secondaryWeaponId
+        ?loadout.secondaryAttachments?.grip:null),
+    akimboSightId:isAkimboWeapon(p.weaponId,p.weaponId===loadout?.weaponId
+      ?loadout.attachments?.grip:loadout?.secondaryAttachments?.grip)
+      ?(p.weaponId===loadout?.weaponId?loadout.attachments?.sight:loadout?.secondaryAttachments?.sight)??undefined:undefined,
+    akimboBarrelId:isAkimboWeapon(p.weaponId,p.weaponId===loadout?.weaponId
+      ?loadout.attachments?.grip:loadout?.secondaryAttachments?.grip)
+      ?(p.weaponId===loadout?.weaponId?loadout.attachments?.barrel:loadout?.secondaryAttachments?.barrel)??undefined:undefined,
     charmId:currentCharm??"none",nameplateId:p.nameplateId,
     perkId:loadout?.perkId,
     bossMaxHealth:p.bossMaxHealth,
@@ -2799,11 +2802,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         : weapon.stats;
       // One input fires ONE revolver. Different hands have independent clocks,
       // so two packets can both be accepted within the same server tick.
-      const akimbo=room.mode!=="gungame" && weapon.id==="pistol_bastion" &&
-        cadenceAtts?.grip==="grip_akimbo";
+      const akimbo=room.mode!=="gungame" && isAkimboWeapon(weapon.id,cadenceAtts?.grip);
       if(akimbo){
         if(msg.akimboHand!=="left"&&msg.akimboHand!=="right")return;
-        const last=room.akimboLastHandShot.get(p.id);
+        const last=room.akimboLastHandShot.get(p.id+":"+weapon.id);
         if(!akimboHandReady(1,last?.[msg.akimboHand]??-Infinity,now,cadenceEff.fireRate,.8))return;
       }else if(msg.akimboHand)return;
       const interval=1000 /
@@ -2910,9 +2912,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         }
       }
       if(akimbo&&msg.akimboHand){
-        const last=room.akimboLastHandShot.get(p.id)??{left:-Infinity,right:-Infinity};
+        const key=p.id+":"+weapon.id;
+        const last=room.akimboLastHandShot.get(key)??{left:-Infinity,right:-Infinity};
         last[msg.akimboHand]=now;
-        room.akimboLastHandShot.set(p.id,last);
+        room.akimboLastHandShot.set(key,last);
       }
       p.lastShotAt = now;
       clearSpawnProtection(room, p); // accepted shot immediately removes visual shield + immunity
