@@ -14,6 +14,44 @@ describe("precision-class attachment choices", () => {
         expect(available).not.toContain(inappropriate);
       }
       expect(compatibleAttachments(weapon.id, "grip")).toContain("grip_marksman_quick");
+      expect(compatibleAttachments(weapon.id, "grip")).toContain("grip_patrol");
+    }
+  });
+
+
+  test("every DMR and sniper has at least four viable attachments per supported slot", () => {
+    for (const weapon of precisionWeapons) {
+      for (const slot of (["sight", "barrel", "grip", "magazine"] as const)) {
+        if (weapon.attachments && !weapon.attachments.includes(slot)) continue;
+        const valid = compatibleAttachments(weapon.id, slot);
+        expect(valid.length).toBeGreaterThanOrEqual(4);
+        expect(new Set(valid).size).toBe(valid.length);
+      }
+    }
+  });
+
+  test("patrol grip trades recoil and ADS speed for mobility without boosting hipfire", () => {
+    const patrol = ATTACHMENTS.find(a => a.id === "grip_patrol");
+    expect(patrol?.effects).toEqual({ moveSpeed: 7, recoil: 16, adsTime: 8 });
+    for (const weapon of precisionWeapons) {
+      const stock = computeEffectiveStats(weapon, { ...EMPTY });
+      const modified = computeEffectiveStats(weapon, { ...EMPTY, grip: "grip_patrol" });
+      expect(modified.moveSpeed).toBeGreaterThan(stock.moveSpeed);
+      expect(modified.recoil).toBeGreaterThan(stock.recoil);
+      expect(modified.adsTime).toBeGreaterThan(stock.adsTime);
+      expect(modified.spread).toBe(stock.spread);
+      expect(modified.adsSpread).toBe(stock.adsSpread);
+    }
+  });
+
+  test("snipers have extreme stationary hipfire dispersion but retain scoped precision", () => {
+    for (const weapon of precisionWeapons.filter(w => w.category === "sniper")) {
+      const hip = shotSpread(weapon.stats, weapon.category, false, 0, 0, false);
+      const scoped = shotSpread(weapon.stats, weapon.category, true, 0, 0, true);
+      // The floor is doubled from 0.12; all snipers inherit the same intentional penalty.
+      expect(hip).toBeCloseTo(0.24 * 1.9, 5);
+      expect(scoped).toBeCloseTo(Math.max(0.0007, weapon.stats.adsSpread) * 1.1, 6);
+      expect(hip).toBeGreaterThan(scoped * 50);
     }
   });
 
