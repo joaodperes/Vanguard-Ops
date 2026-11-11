@@ -7279,7 +7279,7 @@ export class FPSEngine {
           const confirmed = weaponById(msg.weaponId);
           if (!!confirmed.explosive || ["singularity", "corrosion"].includes(confirmed.wonder?.kind ?? "")) {
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
-          } else if(confirmed.category !== "melee" && confirmed.special?.kind !== "bolt" &&
+          } else if(confirmed.category !== "melee" &&
             !["cluster", "flame", "storm", "sludge", "seismic", "cryo", "ricochet",
               "smart", "decoy", "turret", "mech", "chrono", "drone"].includes(confirmed.wonder?.kind ?? "")) {
             this.spawnTracer(msg.origin,msg.dir,msg.skinId,
