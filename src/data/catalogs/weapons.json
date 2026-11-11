@@ -656,7 +656,7 @@
     "stats": {
       "damage": 53,
       "fireRate": 6,
-      "magSize": 24,
+      "magSize": 16,
       "reloadTime": 2.2,
       "spread": 0.006,
       "adsSpread": 0.002,
