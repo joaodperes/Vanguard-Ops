@@ -12,6 +12,18 @@ export function isAkimboWeapon(weaponId:string,grip:string|null|undefined):boole
   return grip===AKIMBO_GRIP_ID &&
     (AKIMBO_WEAPON_IDS as readonly string[]).includes(weaponId);
 }
+/** The live server is authoritative for whether Akimbo is equipped.
+ * When a client's loadout is stale (e.g. a swapped preset or an old packet),
+ * fall back to the regular global shot cadence instead of silently discarding
+ * EVERY shot with an unexpected hand flag. This does not grant two-gun cadence
+ * to an unequipped weapon: independent clocks require server-verified Akimbo. */
+export function authorizedAkimboHand(
+  serverAkimbo: boolean,
+  requestedHand: string | undefined,
+): AkimboHand | undefined {
+  return serverAkimbo && (requestedHand === "left" || requestedHand === "right")
+    ? requestedHand : undefined;
+}
 export function isBastionAkimbo(weaponId:string,grip:string|null|undefined):boolean {
   return weaponId==="pistol_bastion"&&isAkimboWeapon(weaponId,grip);
 }

@@ -5,6 +5,7 @@ import {
 } from "../src/lib/game-data";
 import { rayCombatantHit } from "../src/lib/combat-hitboxes";
 import { shotgunConeRadians, shotgunPelletDirection } from "../src/lib/shotgun-pattern";
+import { resolveMaterialPenetrationShot } from "../src/lib/cover-penetration";
 import { shotSpread } from "../src/lib/weapon-accuracy";
 import type { Vec3 } from "../src/lib/game-protocol";
 
@@ -171,12 +172,44 @@ describe("shotgun attachment combinations", () => {
       const weapon = shotguns.find(w => w.id === id)!;
       const base = get(id);
       const dual = computeEffectiveStats(weapon, { ...empty, grip: "grip_akimbo" });
-      expect(shotgunConeRadians(dual, false)).toBeCloseTo(shotgunConeRadians(base, false) * 2);
+      // Akimbo removes ADS and makes recoil harder to control; it must not
+      // triple the physical buckshot cone simply because there are two guns.
+      expect(shotgunConeRadians(dual, false)).toBeCloseTo(shotgunConeRadians(base, false) * 1.2);
       const close = benchmark(dual, 2, false, 500);
       expect(close.pelletHitRate).toBeGreaterThan(0.75);
       expect(close.damage).toBeGreaterThan(dual.damage * 5);
       const distant = benchmark(dual, 12, false, 500);
       expect(distant.damage).toBeLessThan(close.damage * 0.5);
+    }
+  });
+
+  test("Mauler Akimbo volleys deal damage through the authoritative penetration resolver", () => {
+    const weapon = shotguns.find(w => w.id === "shotgun_combat")!;
+    const stats = computeEffectiveStats(weapon, {...empty,grip:"grip_akimbo"});
+    const origin:Vec3=[0,1.6,0];
+    const random=randomFrom(123456);
+    for(const distance of [0.65,1,2,4,6]){
+      const feet:Vec3=[0,0,distance];
+      const magnitude=Math.hypot(1.17-origin[1],distance);
+      const aim:Vec3=[0,(1.17-origin[1])/magnitude,distance/magnitude];
+      let volleysWithDamage=0,minimumDamage=Infinity;
+      for(let volley=0;volley<250;volley++){
+        let volleyDamage=0;
+        for(let pellet=0;pellet<(stats.pellets??1);pellet++){
+          const direction=shotgunPelletDirection(aim,stats,false,random,pellet);
+          const rayHit=rayCombatantHit(origin,direction,feet);
+          const contacts=rayHit?[{target:"bot",t:rayHit.t,head:rayHit.head}]:[];
+          const resolved=resolveMaterialPenetrationShot(contacts,[],origin,direction,
+            maxWeaponHitRange(stats.range,stats),undefined,stats.coverPenetration);
+          for(const hit of resolved.hits)
+            volleyDamage+=damageAtRange(stats.damage*(hit.head?stats.headshotMult:1),
+              hit.t,stats.range,stats)*hit.damageScale;
+        }
+        if(volleyDamage>0)volleysWithDamage++;
+        minimumDamage=Math.min(minimumDamage,volleyDamage);
+      }
+      expect(volleysWithDamage).toBe(250);
+      if(distance<=4)expect(minimumDamage).toBeGreaterThanOrEqual(stats.damage*6);
     }
   });
 

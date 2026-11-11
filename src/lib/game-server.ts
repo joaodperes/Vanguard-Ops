@@ -2811,11 +2811,15 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // One input fires ONE revolver. Different hands have independent clocks,
       // so two packets can both be accepted within the same server tick.
       const akimbo=room.mode!=="gungame" && isAkimboWeapon(weapon.id,cadenceAtts?.grip);
-      if(akimbo){
-        if(msg.akimboHand!=="left"&&msg.akimboHand!=="right")return;
+      const acceptedHand = authorizedAkimboHand(akimbo,msg.akimboHand);
+      if(acceptedHand){
         const last=room.akimboLastHandShot.get(p.id+":"+weapon.id);
-        if(!akimboHandReady(1,last?.[msg.akimboHand]??-Infinity,now,cadenceEff.fireRate,.8))return;
-      }else if(msg.akimboHand)return;
+        if(!akimboHandReady(1,last?.[acceptedHand]??-Infinity,now,cadenceEff.fireRate,.8))return;
+      }
+      // Old/stale clients can send a hand without server-verified Akimbo (or
+      // omit one while the server still has it equipped). In that case allow
+      // ordinary firing at the global weapon cooldown rather than dropping
+      // every shot. Only a validated hand gets independent dual clocks.
       const interval=1000 /
         Math.max(.1, quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
       if(weapon.category==="melee" &&
@@ -2840,7 +2844,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             until: now + 1500, // abandoned bursts expire; never remain infinite
           });
         }
-      } else if (!akimbo && now - p.lastShotAt < interval * (weapon.category === "melee" ? 1 : .8)) return;
+      } else if (!acceptedHand && now - p.lastShotAt < interval * (weapon.category === "melee" ? 1 : .8)) return;
       // Validate the muzzle origin for new special weapons before doing any effects.
       if (weapon.special || weapon.wonder) {
         if (![...msg.origin, ...msg.dir].every(Number.isFinite)) return;
@@ -2919,10 +2923,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             crossbowMag==="mag_extended"?interval:weapon.stats.reloadTime*1000));
         }
       }
-      if(akimbo&&msg.akimboHand){
+      if(acceptedHand){
         const key=p.id+":"+weapon.id;
         const last=room.akimboLastHandShot.get(key)??{left:-Infinity,right:-Infinity};
-        last[msg.akimboHand]=now;
+        last[acceptedHand]=now;
         room.akimboLastHandShot.set(key,last);
       }
       p.lastShotAt = now;

@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {weaponById,computeEffectiveStats,compatibleAttachments,attachmentById} from "../src/lib/game-data";
-import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboHandIntervalMs,akimboReloadDip,akimboCrossDrawAmount,isAkimboWeapon,akimboHandCapacity,akimboPumpStroke,AKIMBO_WEAPON_IDS,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
+import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboHandIntervalMs,authorizedAkimboHand,akimboReloadDip,akimboCrossDrawAmount,isAkimboWeapon,akimboHandCapacity,akimboPumpStroke,AKIMBO_WEAPON_IDS,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
 
 const empty={sight:null,barrel:null,grip:null,magazine:null};
 describe("Bastion .45 Akimbo",()=>{
@@ -93,12 +93,27 @@ describe("Akimbo eligible standard pistols and shotguns",()=>{
       expect(dual.damage).toBe(base.damage);
       expect(dual.pellets).toBe(base.pellets);
       expect(dual.auto).toBe(false);
-      expect(dual.spread/base.spread).toBeCloseTo(shotgun?2:heavy?2.6:2.35);
+      expect(dual.spread/base.spread).toBeCloseTo(shotgun?1.2:heavy?2.6:2.35);
       expect(dual.recoil).toBeGreaterThan(base.recoil);
       expect(dual.reloadTime).toBeGreaterThan(base.reloadTime);
       expect(dual.moveSpeed).toBeLessThan(base.moveSpeed);
       expect(dual.fireRate/base.fireRate).toBeCloseTo(shotgun?1.35:1.75);
     }
+  });
+  test("server honors independent hand clocks only when Akimbo is actually equipped",()=>{
+    expect(authorizedAkimboHand(true,"left")).toBe("left");
+    expect(authorizedAkimboHand(true,"right")).toBe("right");
+    expect(authorizedAkimboHand(false,"left")).toBeUndefined();
+    expect(authorizedAkimboHand(false,"right")).toBeUndefined();
+    expect(authorizedAkimboHand(true,undefined)).toBeUndefined();
+    expect(authorizedAkimboHand(true,"invalid")).toBeUndefined();
+    // A mismatched/stale hand must use ordinary server cadence rather than
+    // bypassing cooldown or disappearing with no registered shot.
+    const active=false, lastShotAt=1000, now=1100, fireRate=2.7;
+    const hand=authorizedAkimboHand(active,"left");
+    expect(hand).toBeUndefined();
+    expect(now-lastShotAt).toBeLessThan(1000/fireRate*.8);
+    expect(now+400-lastShotAt).toBeGreaterThan(1000/fireRate*.8);
   });
   test("two attached extended magazines preserve the per-hand rounded capacity",()=>{
     const pistol=weaponById("pistol_side");
