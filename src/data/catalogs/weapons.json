@@ -134,10 +134,10 @@
     "category": "dmr",
     "unlockLevel": 19,
     "unlockCost": 1600,
-    "description": "Single-bolt precision crossbow. Lethal headshots within its effective range; recover fired bolts to shorten reloads.",
+    "description": "Single-bolt precision crossbow. Lethal headshots, quicker cocking, and faster follow-up shots by reclaiming fired bolts.",
     "special": {
       "kind": "bolt",
-      "pickupRadius": 2,
+      "pickupRadius": 3,
       "lifetimeMs": 18000,
       "quickReloadSeconds": 0.65
     },
@@ -145,7 +145,7 @@
       "damage": 57,
       "fireRate": 0.65,
       "magSize": 1,
-      "reloadTime": 2.1,
+      "reloadTime": 1.65,
       "spread": 0.009,
       "adsSpread": 0.001,
       "recoil": 0.35,
