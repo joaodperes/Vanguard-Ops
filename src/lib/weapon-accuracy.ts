@@ -44,3 +44,37 @@ export function sustainedRecoilMultiplier(category: WeaponCategory, bloom: numbe
   return category === "lmg" && !wonder
     ? 1 + Math.min(0.24, Math.max(0, bloom) * 0.16) : 1;
 }
+
+/** Shared shot-direction sampling. The caller controls WHEN spread is applied:
+ * offline at the client, multiplayer exactly once on the authoritative server.
+ * Supplying a random source also makes trajectory tests reproducible. */
+export function spreadShotDirection(
+  aim: readonly [number, number, number], spread: number, random: () => number = Math.random,
+): [number, number, number] {
+  const s = Number.isFinite(spread) ? Math.max(0, spread) : 0;
+  const x = aim[0] + (random() - 0.5) * s;
+  const y = aim[1] + (random() - 0.5) * s;
+  const z = aim[2] + (random() - 0.5) * s;
+  const len = Math.hypot(x, y, z) || 1;
+  return [x / len, y / len, z / len];
+}
+
+export interface FiringMotion {
+  sprinting: boolean;
+  airborne: boolean;
+  movingFast: boolean;
+  firing: boolean;
+  aiming: boolean;
+  bloom: number;
+  tasered: boolean;
+}
+
+/** Shared posture penalty for the HUD/offline shot model and online authority.
+ * Online posture is reconstructed from server-observed movement/state. */
+export function firingMotionFactor(state: FiringMotion): number {
+  let motion = state.sprinting ? 0.85 : state.airborne ? 0.5 : state.movingFast ? 0.3 : 0;
+  if (state.firing) motion += 0.15;
+  if (state.aiming) motion *= 0.3;
+  return Math.min(1, motion + Math.max(0, state.bloom) * (state.aiming ? 0.22 : 0.45) +
+    (state.tasered ? 0.55 : 0));
+}
