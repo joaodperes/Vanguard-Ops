@@ -125,7 +125,7 @@ import { hideFirstPersonRigOnDeath } from "./first-person-rig-visibility";
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, isFanHammer, isBastionAkimbo, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, AKIMBO_CYLINDER_CAPACITY, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -203,6 +203,7 @@ export interface HudState {
   akimbo?: boolean;
   akimboLeftAmmo?: number;
   akimboRightAmmo?: number;
+  akimboHandMagSize?: number;
   reloading: boolean;
   heat?: number;
   overheated?: boolean;
@@ -738,22 +739,44 @@ export class FPSEngine {
   // of THAT slot, or on respawn.
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
-  private akimboAmmo:Record<AkimboHand,number>={left:AKIMBO_CYLINDER_CAPACITY,right:AKIMBO_CYLINDER_CAPACITY};
-  private akimboLastHandShot:Record<AkimboHand,number>={left:-Infinity,right:-Infinity};
+  // Akimbo may be equipped in BOTH the primary shotgun and secondary pistol
+  // slots. Preserve each gun's independent magazines and fire clocks on swaps.
+  private akimboAmmoBySlot:Record<"primary"|"secondary",Record<AkimboHand,number>>={
+    primary:{left:6,right:6},secondary:{left:6,right:6},
+  };
+  private akimboLastHandShotBySlot:Record<"primary"|"secondary",Record<AkimboHand,number>>={
+    primary:{left:-Infinity,right:-Infinity},secondary:{left:-Infinity,right:-Infinity},
+  };
+  private akimboAmmo:Record<AkimboHand,number>=this.akimboAmmoBySlot.primary;
+  private akimboLastHandShot:Record<AkimboHand,number>=this.akimboLastHandShotBySlot.primary;
   private akimboPending:Record<AkimboHand,number>={left:-Infinity,right:-Infinity};
   private akimboRightDown=false;
   private akimboRightPressedThisFrame=false;
   private touchAkimboRight=false;
   private touchAkimboRightPressedThisFrame=false;
   private akimboKick:Record<AkimboHand,number>={left:0,right:0};
-  private resetAkimboAmmo(){
-    this.akimboAmmo.left=AKIMBO_CYLINDER_CAPACITY;
-    this.akimboAmmo.right=AKIMBO_CYLINDER_CAPACITY;
+  private useAkimboSlot(slot:WeaponSlot){
+    const key=slot==="secondary"?"secondary":"primary";
+    this.akimboAmmo=this.akimboAmmoBySlot[key];
+    this.akimboLastHandShot=this.akimboLastHandShotBySlot[key];
     this.akimboPending.left=this.akimboPending.right=-Infinity;
-    this.akimboLastHandShot.left=this.akimboLastHandShot.right=-Infinity;
+  }
+  private resetAkimboAmmo(){
+    for(const slot of ["primary","secondary"] as const){
+      const capacity=akimboHandCapacity(slot==="primary"
+        ?this.primaryEff.magSize:this.secondaryEff.magSize);
+      this.akimboAmmoBySlot[slot]={left:capacity,right:capacity};
+      this.akimboLastHandShotBySlot[slot]={left:-Infinity,right:-Infinity};
+    }
+    this.useAkimboSlot(this.currentSlot);
+  }
+  private refillCurrentAkimboAmmo(){
+    const capacity=akimboHandCapacity(this.eff.magSize);
+    this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
   }
   private isAkimboActive():boolean{
-    return isBastionAkimbo(this.weaponId,this.getCurrentAttachments().grip);
+    return isAkimboWeapon(this.weaponId,this.getCurrentAttachments().grip);
   }
   private meleeAmmoInMag = 1;
   private throwingKnifeState: ThrowingKnifeCharges = fullThrowingKnives();
@@ -5544,7 +5567,7 @@ export class FPSEngine {
         : this.wonderAmmoInMag;
     }
     this.reloading = false;
-    this.akimboPending.left=this.akimboPending.right=-Infinity;
+    this.useAkimboSlot(slot);
     this.akimboRightPressedThisFrame=false;
     this.touchAkimboRightPressedThisFrame=false;
     this.startWeaponSwapVisual(this.activePerkId === "quickdraw" ? 155 : 0);
@@ -7661,7 +7684,7 @@ export class FPSEngine {
         const gained=Math.min(this.eff.magSize-this.ammoInMag,scavengerAmmoAmount(this.eff.magSize));
         for(let n=0;n<gained;n++){
           const hand=this.akimboAmmo.left<=this.akimboAmmo.right?"left":"right";
-          if(this.akimboAmmo[hand]>=AKIMBO_CYLINDER_CAPACITY)break;
+          if(this.akimboAmmo[hand]>=akimboHandCapacity(this.eff.magSize))break;
           this.akimboAmmo[hand]++;
         }
         this.ammoInMag=this.akimboAmmo.left+this.akimboAmmo.right;
@@ -10274,7 +10297,7 @@ export class FPSEngine {
     const currentWeapon = weaponById(this.weaponId);
     // Shotguns and bolt-action rifles load one round at a time. Attachment
     // reload modifiers are applied to each shell/round, not the whole magazine.
-    let duration = currentWeapon.stats.reloadStyle === "incremental"
+    let duration = currentWeapon.stats.reloadStyle === "incremental" && !this.isAkimboActive()
       ? (currentWeapon.stats.reloadPerRound ?? this.eff.reloadTime / this.eff.magSize) *
         this.eff.reloadTime / Math.max(0.01, currentWeapon.stats.reloadTime)
       : this.eff.reloadTime;
@@ -10525,7 +10548,7 @@ export class FPSEngine {
       this.turretDeployFailedAt = performance.now();
     }
     this.shotBloom = Math.max(0, this.shotBloom - dt * 0.52);
-    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental") {
+    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" && !this.isAkimboActive()) {
       // Credit each shell at the actual insertion frame, not at the end of
       // the recovery animation. This updates both HUD ammo and the saved slot
       // before the player can interrupt the ongoing reload.
@@ -10556,13 +10579,13 @@ export class FPSEngine {
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
       else this.ammoInMag = this.eff.magSize;
       if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
-      if(this.isAkimboActive())this.resetAkimboAmmo();
+      if(this.isAkimboActive())this.refillCurrentAkimboAmmo();
       this.saveAmmoToSlot(this.currentSlot);
     }
     // A new trigger press interrupts an incremental reload as soon as there is
     // ammo to fire. Already-inserted shells remain available after a swap.
     if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" &&
-        this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
+        !this.isAkimboActive() && this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
       this.reloading = false;
     }
     const refreshedKnives=tickThrowingKnives(this.throwingKnifeState,performance.now(),this.opts.mode==="gungame");
@@ -12733,6 +12756,7 @@ export class FPSEngine {
       akimbo:this.isAkimboActive(),
       akimboLeftAmmo:this.isAkimboActive()?this.akimboAmmo.left:undefined,
       akimboRightAmmo:this.isAkimboActive()?this.akimboAmmo.right:undefined,
+      akimboHandMagSize:this.isAkimboActive()?akimboHandCapacity(this.eff.magSize):undefined,
       heat: weaponById(this.weaponId).special?.kind === "heat" ? (this.heatStates.get(this.weaponId)?.heat ?? 0) : undefined,
       overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
       boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
