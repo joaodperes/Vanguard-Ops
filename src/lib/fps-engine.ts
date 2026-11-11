@@ -12141,7 +12141,7 @@ export class FPSEngine {
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
       const botTaserSpread=isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now)?
         TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
-      const mechanicalSpread = botShotSpread(eff, !!ai.aiming)*botTaserSpread;
+      const mechanicalSpread = botShotSpread(eff, !!ai.aiming, w.category)*botTaserSpread;
       const botShotgun = w.category === "shotgun" && !w.wonder && (eff.pellets ?? 1) > 1;
       const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
 
