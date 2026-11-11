@@ -92,13 +92,12 @@
       "barrel_suppressor",
       "barrel_heavy",
       "barrel_match",
-      "barrel_ported"
+      "barrel_lightweight"
     ],
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads",
-      "grip_angled"
+      "grip_marksman_quick"
     ],
     "magazine": [
       "mag_extended",
@@ -124,8 +123,7 @@
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads",
-      "grip_angled"
+      "grip_marksman_quick"
     ],
     "magazine": [
       "mag_extended",
