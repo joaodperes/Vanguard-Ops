@@ -134,7 +134,7 @@
     "category": "dmr",
     "unlockLevel": 19,
     "unlockCost": 1600,
-    "description": "Recover standard bolts for quicker reloads.",
+    "description": "Single-bolt precision crossbow. Lethal headshots within its effective range; recover fired bolts to shorten reloads.",
     "special": {
       "kind": "bolt",
       "pickupRadius": 2,
@@ -153,7 +153,7 @@
       "adsTime": 0.28,
       "moveSpeed": 0.94,
       "auto": false,
-      "headshotMult": 1.6,
+      "headshotMult": 1.85,
       "falloffEndMultiplier": 1.45,
       "minDamageMultiplier": 0.46
     },
@@ -652,11 +652,11 @@
     "category": "dmr",
     "unlockLevel": 7,
     "unlockCost": 500,
-    "description": "Lightweight DMR. Faster handling than the Marksman, softer punch.",
+    "description": "Mobile semi-auto DMR with fast handling and follow-up shots. Three body hits to down a healthy target; rewarded for precise headshots.",
     "stats": {
-      "damage": 53,
+      "damage": 49,
       "fireRate": 6,
-      "magSize": 16,
+      "magSize": 14,
       "reloadTime": 2.2,
       "spread": 0.006,
       "adsSpread": 0.002,
