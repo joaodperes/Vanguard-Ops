@@ -75,6 +75,12 @@ export function crossbowReloadCycleMs(
     Math.max(0.1, durationMultiplier));
 }
 
+/** Only an actual single-bolt chamber is paced entirely by re-nocking.
+ * Two-bolt magazines retain their separate inter-shot cooldown. */
+export function crossbowReloadControlsCadence(magazineSize: number): boolean {
+  return magazineSize === 1;
+}
+
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
 export const FAN_HAMMER_RATE_MULTIPLIER = 1.85;
 /** Fanning applies only to the Bastion's dedicated grip, never all revolvers. */
