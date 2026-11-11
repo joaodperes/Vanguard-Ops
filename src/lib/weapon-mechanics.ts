@@ -64,6 +64,17 @@ export function akimboCrossDrawAmount(progress: number, incoming: boolean): numb
   return incoming ? 1 - p : p;
 }
 
+/** Standard crossbow bolts are paced by their nocking cycle rather than a
+ * second fire-rate throttle. Reclaimed bolts use a quick nock, but never
+ * increase stock magazine capacity. Shared by client and authoritative server. */
+export function crossbowReloadCycleMs(
+  standardSeconds: number, quickSeconds: number, reclaimed: boolean,
+  durationMultiplier = 1,
+): number {
+  return Math.max(150, (reclaimed ? quickSeconds : standardSeconds) * 1000 *
+    Math.max(0.1, durationMultiplier));
+}
+
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
 export const FAN_HAMMER_RATE_MULTIPLIER = 1.85;
 /** Fanning applies only to the Bastion's dedicated grip, never all revolvers. */
