@@ -12,6 +12,11 @@ export function makeEngineStub(): any {
       attachments:{sight:null,barrel:null,grip:null,magazine:null},
     }},
     deployedCovers:new Map(),
+    // Prototype-only instances skip FPSEngine class-field initializers.
+    akimboAmmoBySlot:{primary:{left:0,right:0},secondary:{left:0,right:0}},
+    akimboLastHandShotBySlot:{
+      primary:{left:-Infinity,right:-Infinity},secondary:{left:-Infinity,right:-Infinity},
+    },
     akimboAmmo:{left:0,right:0},
     akimboPending:{left:-Infinity,right:-Infinity},
     akimboLastHandShot:{left:-Infinity,right:-Infinity},

@@ -52,7 +52,13 @@ describe("weapon-mounted laser rendering", () => {
     const shifted = weaponLaserRay(emitter);
     expect(shifted.origin.distanceTo(before.origin)).toBeCloseTo(Math.hypot(.2,.24,.18),8);
     expect(shifted.direction.distanceTo(before.direction)).toBeLessThan(1e-8);
+    // Roll moves an off-axis emitter without changing the forward direction.
+    // Only yaw/pitch should steer the ray away from the reticle.
     weapon.rotateZ(-.3);
+    const rolled=weaponLaserRay(emitter);
+    expect(rolled.origin.distanceTo(shifted.origin)).toBeGreaterThan(.01);
+    expect(rolled.direction.distanceTo(shifted.direction)).toBeLessThan(1e-8);
+    weapon.rotateY(.3);
     expect(weaponLaserRay(emitter).direction.distanceTo(shifted.direction)).toBeGreaterThan(.01);
   });
 

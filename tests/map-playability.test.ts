@@ -11,7 +11,7 @@ describe("map scale and route accessibility",()=>{
     // Z +0.7. The authoritative collider must include both, even at an
     // elevated prop Y. This is not optional decoration: it blocks bullets.
     const [panel]=propColliders([{kind:"terminal",x:5,z:-7,y:3}],[]);
-    expect(panel).toEqual({kind:"cover",pos:[5,4.1,-7],size:[1,1.1,.75]});
+    expect(panel).toEqual({kind:"cover",material:"reinforced",pos:[5,4.1,-7],size:[1,1.1,.75]});
     expect(rayBox([5,4.1,-11],[0,0,1],panel.pos,panel.size)).toBeCloseTo(3.25);
     expect(rayBox([7,4.1,-11],[0,0,1],panel.pos,panel.size)).toBeNull();
     // A terminal's physical geometry cannot be removed merely because a

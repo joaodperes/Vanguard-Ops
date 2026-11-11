@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
-import {CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizeAllowed,roomCapacity,rayBox,type Vec3} from "../src/lib/game-protocol";
+import {CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizeAllowed,roomCapacity,rayBox,type CoverBox,type Vec3} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS,featureBoxes,regionBoundary,insideRegions,validateBlueprint,authoredHazardEnvironment} from "../src/lib/map-blueprints";
 import {makeEnvironmentMap,periodicHazardPhase,spikesActive,withinEnvironment,breakEnvironmentWall} from "../src/lib/dynamic-environment";
 import {createCtfFlags,ctfHome,ctfBase,ctfTouch,ctfDrop,ctfReturnExpired,ctfBotIntent,ctfStairWaypoint,CTF_PICKUP_RADIUS,CTF_CAPTURE_RADIUS} from "../src/lib/ctf-rules";
@@ -73,7 +73,17 @@ describe("Floodgate 16v16 CTF",()=>{
     expect(map.editorLegacyCoverCount).toBe(0);
     expect(map.environment).toHaveLength(plan.hazards!.length);
     const allSpawns=Object.values(plan.spawns).flat();
-    const expected=plan.features.flatMap(featureBoxes).length+propColliders(map.props!,allSpawns).length+
+    // Derive the compiled geometry from the blueprint. Spawn-blocking features
+    // are intentionally omitted, and authored crates must not be counted twice.
+    const overlapsSpawn=(box:CoverBox)=>allSpawns.some(p=>
+      Math.abs(p[0]-box.pos[0])<box.size[0]+1.25 &&
+      Math.abs(p[2]-box.pos[2])<box.size[2]+1.25 &&
+      p[1]+1.8>box.pos[1]-box.size[1] &&
+      p[1]<box.pos[1]+box.size[1]+(box.kind==="platform"?0:.3));
+    const safeFeatures=plan.features.filter(f=>!featureBoxes(f).some(overlapsSpawn));
+    expect(safeFeatures.length).toBeGreaterThan(0);
+    const expected=safeFeatures.flatMap(featureBoxes).length+
+      propColliders(map.props!,allSpawns,safeFeatures).length+
       regionBoundary(plan.regions).length;
     expect(map.cover).toHaveLength(expected);
     expect(map.cover.length).toBeLessThan(300);

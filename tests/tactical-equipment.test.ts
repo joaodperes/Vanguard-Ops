@@ -5,6 +5,7 @@ import { projectilePositionAt } from "../src/lib/bouncing-projectile";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { captureSavedLoadout, parseSavedLoadouts } from "../src/lib/saved-loadouts";
 import { FPSEngine } from "../src/lib/fps-engine";
+import { audioGainLevels, DEFAULT_AUDIO_MIX } from "../src/lib/audio-mix";
 import type { CoverBox, LoadoutWire } from "../src/lib/game-protocol";
 describe("tactical equipment loadout",()=>{
  test("the shared catalog contains unique, usable tactical items",()=>{
@@ -75,22 +76,40 @@ describe("tactical grenade physics and input",()=>{
   const e:any=Object.create(FPSEngine.prototype);
   const volumes:number[]=[];
   const weapons:number[]=[];
+  const feedback:number[]=[];
+  const channels:Array<{weapons:number;combat:number;ui:number}>=[];
   Object.assign(e,{
-    sound:{setMasterVolume:(v:number)=>volumes.push(v),setFootstepVolume:()=>{},setFxVolume:()=>{}},
-    weaponAudio:{setVolume:(v:number)=>weapons.push(v)},
+    sound:{
+      setMasterVolume:(v:number)=>volumes.push(v),
+      setFootstepVolume:()=>{},
+      setChannelVolumes:(v:{weapons:number;combat:number;ui:number})=>channels.push(v),
+    },
+    weaponAudio:{
+      setVolume:(v:number)=>weapons.push(v),
+      setFeedbackVolume:(v:number)=>feedback.push(v),
+    },
     equipmentFlashAudioUntil:0,flashAudioFactor:1,
   });
-  e.setAudioMix({masterVolume:80,footstepVolume:60,fxVolume:50});
-  expect(volumes.at(-1)).toBeCloseTo(0.8);
-  expect(weapons.at(-1)).toBeCloseTo(40);
+  const mix={...DEFAULT_AUDIO_MIX,masterVolume:80,footstepVolume:60,weaponVolume:50,combatVolume:75,uiVolume:45};
+  const levels=audioGainLevels(mix);
+  e.setAudioMix(mix);
+  expect(volumes.at(-1)).toBeCloseTo(levels.master);
+  expect(weapons.at(-1)).toBeCloseTo(levels.weaponOutputPercent);
+  expect(feedback.at(-1)).toBeCloseTo(levels.combatOutputPercent);
+  expect(channels.at(-1)).toEqual({weapons:levels.weapons,combat:levels.combat,ui:levels.ui});
   const now=performance.now();
   e.equipmentFlashAudioUntil=now+2000;
   e.updateFlashAudio(now);
-  expect(volumes.at(-1)).toBeCloseTo(0.12);
-  expect(weapons.at(-1)).toBeCloseTo(6);
+  expect(e.flashAudioFactor).toBeLessThan(1);
+  expect(e.flashAudioFactor).toBeGreaterThan(0);
+  expect(volumes.at(-1)).toBeCloseTo(levels.master*e.flashAudioFactor);
+  expect(weapons.at(-1)).toBeCloseTo(levels.weaponOutputPercent*e.flashAudioFactor);
+  expect(feedback.at(-1)).toBeCloseTo(levels.combatOutputPercent*e.flashAudioFactor);
   e.updateFlashAudio(now+2000);
-  expect(volumes.at(-1)).toBeCloseTo(0.8);
-  expect(weapons.at(-1)).toBeCloseTo(40);
+  expect(e.flashAudioFactor).toBe(1);
+  expect(volumes.at(-1)).toBeCloseTo(levels.master);
+  expect(weapons.at(-1)).toBeCloseTo(levels.weaponOutputPercent);
+  expect(feedback.at(-1)).toBeCloseTo(levels.combatOutputPercent);
  });
  test("animation commits exactly once after release",()=>{
   const e:any=Object.create(FPSEngine.prototype);

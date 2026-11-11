@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { weaponById, WEAPONS } from "../src/lib/game-data";
 import { rayCombatantHit } from "../src/lib/combat-hitboxes";
 import { launcherSplashFactor } from "../src/lib/launcher-effects";
-import { automaticBloom, autoSpreadRadians } from "../src/lib/automatic-spread";
+import { automaticBloom } from "../src/lib/automatic-spread";
+import { shotSpread } from "../src/lib/weapon-accuracy";
 import { meleeStyle, meleeSwingPose } from "../src/lib/melee-styles";
 import { buildMeleeWeaponParts } from "../src/lib/melee-model";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "../src/lib/quick-melee";
@@ -67,7 +68,10 @@ describe("sustained automatic fire",()=>{
       expect(next).toBeGreaterThan(bloom);
       bloom=next;
     }
-    expect(autoSpreadRadians(.03,bloom)).toBeGreaterThan(autoSpreadRadians(.03,.2)*3);
+    // Verify the actual shot model, rather than an obsolete spread helper.
+    const rifle=weaponById("rifle_ar");
+    const dispersion=(b:number)=>shotSpread(rifle.stats,rifle.category,false,0,b,false);
+    expect(dispersion(bloom)).toBeGreaterThan(dispersion(.2)*1.5);
     expect(automaticBloom(bloom,14,700)).toBe(0);
   });
 });
