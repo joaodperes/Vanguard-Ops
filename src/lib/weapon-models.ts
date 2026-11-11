@@ -709,7 +709,8 @@ export function buildFirstPersonWeapon(
     lowerGuard.name="weapon_under_guard";
   }
   if (p.features.includes("pump")) {
-    box(0,-.069,guardZ,.13,.085,.24,sig);  // moving pump grip
+    const pump=box(0,-.069,guardZ,.13,.085,.24,sig);  // moving pump grip
+    pump.name="weapon_pump_foregrip";
     tube(0,-.062,guardZ,.026,p.guardLength*.90,metal);
   }
   if (p.features.includes("shells")) {
