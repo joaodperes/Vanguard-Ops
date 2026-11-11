@@ -3,7 +3,7 @@ import {
   WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
-import { canStartWeaponReload, crossbowReloadCycleMs } from "../src/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence } from "../src/lib/weapon-mechanics";
 import { hitsToEliminate, idealTimeToKillMs } from "../src/lib/weapon-balance";
 
 describe("weapon range and damage falloff", () => {
@@ -143,6 +143,7 @@ describe("Reclaimer Crossbow baseline tempo", () => {
     const none={sight:null,barrel:null,grip:null,magazine:null} as const;
     const light=computeEffectiveStats(w,{...none,magazine:"mag_bolt_light_quiver"});
     expect(light.magSize).toBe(1);
+    expect(crossbowReloadControlsCadence(light.magSize)).toBe(true);
     expect(light.auto).toBe(false);
     expect(light.reloadTime).toBeCloseTo(1.65*.85,5);
     expect(crossbowReloadCycleMs(light.reloadTime,t,false)).toBeCloseTo(1402.5,3);
@@ -153,7 +154,12 @@ describe("Reclaimer Crossbow baseline tempo", () => {
     expect(quiver.magSize).toBe(10);
     expect(quiver.damage * quiver.headshotMult).toBeLessThan(100);
     expect(heavy.magSize).toBe(2);
+    expect(crossbowReloadControlsCadence(heavy.magSize)).toBe(false);
     expect(heavy.auto).toBe(false);
+    const extended=computeEffectiveStats(w,{...none,magazine:"mag_extended"});
+    expect(extended.magSize).toBe(2);
+    expect(crossbowReloadControlsCadence(extended.magSize)).toBe(false);
+    expect(extended.reloadTime).toBeGreaterThan(w.stats.reloadTime);
   });
 });
 
