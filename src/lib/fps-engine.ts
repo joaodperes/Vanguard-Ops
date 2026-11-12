@@ -709,9 +709,10 @@ export class FPSEngine {
       this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
     return this.highGroundCache!.goals;
   }
-  /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
+  /** Static cover broadphase for all maps; dynamic floodgate cover stays on its
+   * original full-list path. Structural cover replacement invalidates the cache. */
   private coverIndex():CoverSpatialIndex|null{
-    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
+    if(this.map.id==="floodgate")return null;
     if(this.staticCoverIndex?.source!==this.map.cover)
       this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
     return this.staticCoverIndex!.index;
@@ -12112,7 +12113,7 @@ export class FPSEngine {
           floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
         if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
           ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
-            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge) ??
+            this.map.regions,this.coverIndex()??undefined,this.isCityMap()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850+botRouteJitter(c.id);
         }
@@ -12324,8 +12325,8 @@ export class FPSEngine {
             (!patrolGoal||d>4.5)){
           if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
             ai.routeWaypoint=botNextWaypoint(c.pos,navPoint,this.map.cover,this.map.size,3,
-              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge);
-            ai.nextRouteAt=now+(this.coverIndex()?1500:850)+botRouteJitter(c.id);
+              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.isCityMap()?280:1000,floodAge);
+            ai.nextRouteAt=now+(this.isCityMap()?1500:850)+botRouteJitter(c.id);
           }
           const waypoint=ai.routeWaypoint;
           if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
