@@ -158,6 +158,8 @@ export const sight = z.strictObject({
   type: z.enum(SIGHT_TYPES), name: label, zoom: pos,
   reticle: z.enum(["iron","dot","holo","chevron","mildot","thermal","nvg","laser"]),
   adsFovReduction: num, adsSensMul: pos, description: label,
+  // Optics can impose minimum absolute dispersion, including on zero-spread sniper rifles.
+  adsSpreadFloor: num.nonnegative().optional(),
   overlay: z.enum(["thermal","nvg","laser"]).optional(),
 });
 
