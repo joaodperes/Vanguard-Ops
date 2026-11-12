@@ -59,6 +59,8 @@ export type SfxName =
   | "footstep"
   | "water_footstep"
   | "empty_click"
+  | "wonder_error"
+  | "mech_eject"
   | "swap"
   | "ads_in"
   | "ads_out"
@@ -93,6 +95,7 @@ export function soundChannelFor(name: SfxName): SfxChannel {
       name === "reload" || name === "revolver_reload" || name === "revolver_close" ||
       name === "empty_click" || name === "swap" || name === "ads_in" || name === "ads_out")
     return "weapons";
+  if (name === "mech_eject") return "combat";
   if (name === "hit_marker" || name === "headshot" || name === "kill" ||
       name === "death" || name === "hit_taken") return "combat";
   return "ui"; // Level-up, countdown, match and objective alerts.
@@ -355,6 +358,8 @@ export class SoundManager {
       case "footstep": this.synthFootstep(vol); break;
       case "water_footstep": this.synthWaterFootstep(vol); break;
       case "empty_click": this.synthBlip(1200, 0.02, vol * 0.3, "square"); break;
+      case "wonder_error": this.synthWonderError(vol); break;
+      case "mech_eject": this.synthEquipmentCue("equipment_frag", vol * .5); break;
       case "swap": this.synthSwap(vol); break;
       case "ads_in": this.synthBlip(440, 0.03, vol * 0.25, "sine"); break;
       case "ads_out": this.synthBlip(330, 0.03, vol * 0.25, "sine"); break;
@@ -655,6 +660,23 @@ export class SoundManager {
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(g).connect(this.masterGain!);
     osc.start(t); osc.stop(t + dur + 0.02);
+  }
+
+  /** Electronic double-buzz; scheduled through Web Audio, no JS timers. */
+  private synthWonderError(vol: number) {
+    const ctx=this.ctx!,start=ctx.currentTime;
+    for(let i=0;i<2;i++){
+      const at=start+i*.11,osc=ctx.createOscillator(),g=ctx.createGain();
+      osc.type="sawtooth";
+      osc.frequency.setValueAtTime(240-i*45,at);
+      osc.frequency.exponentialRampToValueAtTime(140-i*25,at+.085);
+      g.gain.setValueAtTime(.0001,at);
+      g.gain.linearRampToValueAtTime(Math.max(.0001,vol*.16),at+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,at+.09);
+      osc.connect(g).connect(this.masterGain!);
+      osc.start(at);osc.stop(at+.10);
+      osc.onended=()=>{osc.disconnect();g.disconnect();};
+    }
   }
 
   /** Hit marker: a high pitched ding-ding (two quick blips). */

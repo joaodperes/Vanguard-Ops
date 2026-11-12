@@ -376,6 +376,13 @@ export interface EffectiveStats extends WeaponStats {
   sightType: SightType;
 }
 
+/** Burst magazines must contain whole trigger pulls even after modifiers. */
+export function burstAlignedMagSize(capacity: number, burst: number | undefined): number {
+  const rounds = Math.max(1, Math.round(capacity));
+  const group = Math.max(1, Math.floor(burst ?? 1));
+  return group === 1 ? rounds : Math.max(group, Math.round(rounds / group) * group);
+}
+
 export function computeEffectiveStats(weapon: WeaponDef, atts: Record<AttachmentSlot, string | null>): EffectiveStats {
   const base = { ...weapon.stats };
   const acc: Record<string, number> = {};
@@ -456,7 +463,8 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
     range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
     // A single-chamber bolt-action rifle cannot gain extra chambered rounds from old attachments.
-    magSize: weapon.id === "sniper_heavy" ? 1 : akimbo ? akimboCapacity : Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
+    magSize: weapon.id === "sniper_heavy" ? 1 : akimbo ? akimboCapacity :
+      burstAlignedMagSize(base.magSize * (1 + magBonus / 100), base.burst),
     sightType: sightDef.type,
   };
 }

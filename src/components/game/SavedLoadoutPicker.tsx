@@ -60,7 +60,7 @@ export function SavedLoadoutPicker({ mode, queuedPresetId, onPresetEquipped }: P
       <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
         {gunGame
           ? "Gun Game controls your weapons. Choosing a preset only changes the kit used in future matches."
-          : "Choose an existing saved loadout. It will be equipped on your next respawn (or Survival recovery); your current life remains unchanged."}
+          : "Choose an existing saved loadout to be equipped on your next respawn."}
         <p className="mt-1 text-xs text-amber-200/65">Create and edit presets in the Armory outside a match.</p>
       </div>
       {presets.length === 0 ? (

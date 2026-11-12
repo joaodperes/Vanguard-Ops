@@ -316,6 +316,8 @@ export interface HudState {
   wonderCharges?: number;
   wonderChargeMax?: number;
   wonderSlotCooldownMs?: number;
+  wonderSlotChargeTotalMs?: number;
+  sightAttachmentId?: string | null;
   wonderShieldHp?: number;
   wonderShieldRechargeMs?: number;
   mechArmor?:number;
@@ -3453,7 +3455,7 @@ export class FPSEngine {
     // inherits all aim, reload, sway and recoil transforms automatically.
     const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
-    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"){
+    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
       const charm=createWeaponCharm(equippedCharm,true);
       if(charm){
         const [x,y,z]=weaponCharmMountPoint(this.weaponId,"firstPerson");
@@ -6386,7 +6388,7 @@ export class FPSEngine {
         },fullWorldLegendary?weaponMat:undefined,
           weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
       }
-      if(c.charmId && c.charmId!=="none"){
+      if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
         const charm=createWeaponCharm(c.charmId);
         if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
       }
@@ -7088,10 +7090,17 @@ export class FPSEngine {
         }
         break;
       }
-      case "mechDestroyed":
-        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;this.clearMechCockpit();this.sound.play("swap",{volume:.65});}
+      case "mechDestroyed": {
+        const drop=this.mechDrops.get(msg.id);
+        if(drop || this.mechActive?.id===msg.id) {
+          const pos=drop?.mech.group.position.clone() ??
+            new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z);
+          this.showMechExitFx(pos);
+        }
+        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;this.clearMechCockpit();}
         this.removeMechDrop(msg.id);
         break;
+      }
       case "mechAmmo":
         if(this.mechActive){this.mechActive.armor=msg.armor;this.mechActive.minigunAmmo=msg.minigunAmmo;this.mechActive.secondaryAmmo=msg.secondaryAmmo;}
         break;
@@ -8593,6 +8602,13 @@ export class FPSEngine {
     this.mechMuzzles={minigun:flash(-.49,-.35,-1.49),secondary:flash(.48,-.37,-1.34)};
     this.camera.add(rig);this.mechCockpit=rig;
   }
+  /** Cosmetic suit rupture: no damage, splash simulation or combat packets. */
+  private showMechExitFx(pos: THREE.Vector3) {
+    const listener=this.camera.position;
+    this.explosionEffects?.spawn(pos,"ordinary",1.55,performance.now(),listener);
+    const distance=pos.distanceTo(listener);
+    if(distance<55)this.sound.play("mech_eject",{volume:.45*Math.max(.12,1-distance/55),throttleMs:100});
+  }
   /** Voluntary ejection leaves normal health/ammo intact and consumes the suit. */
   public exitMech(){
     if(!this.mechActive||!this.alive)return;
@@ -8603,8 +8619,8 @@ export class FPSEngine {
     const id=this.mechActive.id;
     this.mechActive=null;
     this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;
+    this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
     this.clearMechCockpit();this.removeMechDrop(id);
-    this.sound.play("swap",{volume:.55});
   }
   private enterNearbyMech(){
     if(!this.alive||this.mechActive||this.opts.mode==="gungame")return;
@@ -8708,7 +8724,10 @@ export class FPSEngine {
       const first=v.group.children[0] as THREE.Mesh|undefined;
       if(first)(first.material as THREE.MeshBasicMaterial).opacity=.85*(1-fraction);
     }
-    if(this.mechActive&&time>=this.mechActive.expiresAt){this.mechActive=null;this.clearMechCockpit();}
+    if(this.mechActive&&time>=this.mechActive.expiresAt){
+      this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
+      this.removeMechDrop(this.mechActive.id);this.mechActive=null;this.clearMechCockpit();
+    }
   }
   private fireMech(mode:"minigun"|"secondary",now:number){
     const mech=this.mechActive;if(!mech||!this.alive||this.matchEnded||this.survivalDowned)return;
@@ -8942,7 +8961,7 @@ export class FPSEngine {
     if(w.wonder?.kind==="mech"&&
       (!juggernautDropPoint([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size)||
         [...this.mechDrops.values()].some(d=>d.ownerId===this.selfId&&d.expiresAt>Date.now()))){
-      this.sound.play("empty_click",{volume:.55});return;
+      this.sound.play("wonder_error",{volume:.7,throttleMs:240});return;
     }
     if (usesWonderCharges(w) && w.wonder) {
       const state = this.ensureWonderState(w.id,w.wonder,now);
@@ -8955,7 +8974,7 @@ export class FPSEngine {
         this.hellfireActiveUntil=spent.paidThrough;
       }else{
         const next=spendWonderCharge(state,{...w.wonder,rechargeMs:w.wonder.rechargeMs*wonderModuleEffects(w.id,this.wonderModuleId).rechargeMul},now);
-        if(!next){this.sound.play("empty_click",{volume:.4});return;}
+        if(!next){this.sound.play(w.wonder.kind==="mech"?"wonder_error":"empty_click",{volume:.5,throttleMs:240});return;}
         this.wonderStates.set(w.id,next);
       }
     }
@@ -10862,6 +10881,11 @@ export class FPSEngine {
          w.category!=="melee" && w.special?.kind!=="heat"){
         this.sound.play("empty_click",{volume:.36});
         this.startReload();
+      }
+      // A depleted Juggernaut remote still responds to a trigger press.
+      if (w.wonder?.kind === "mech" && wantFire &&
+          (this.mousePressedThisFrame || this.touchPressedThisFrame) && this.ammoInMag <= 0) {
+        this.sound.play("wonder_error", { volume: .7, throttleMs: 240 });
       }
       // ---- Burst-fire in progress: continue the burst even after trigger release ----
       if (this.burstShotsLeft > 0 && now >= this.burstNextAt && this.ammoInMag > 0) {
@@ -12918,7 +12942,11 @@ export class FPSEngine {
       if(this.mechActive.moduleId==="guardian_protocol"&&frontal)dmg*=.64;
       this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
       this.damageFlashAt=performance.now();
-      if(this.mechActive.armor<=0){if(this.mechActive.moduleId==="emergency_ejection")this.health=Math.max(30,this.health);this.removeMechDrop(this.mechActive.id);this.mechActive=null;}
+      if(this.mechActive.armor<=0){
+        if(this.mechActive.moduleId==="emergency_ejection")this.health=Math.max(30,this.health);
+        this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
+        this.removeMechDrop(this.mechActive.id);this.mechActive=null;this.clearMechCockpit();
+      }
       return;
     }
     this.health -= dmg;
@@ -13134,11 +13162,12 @@ export class FPSEngine {
       },
       aiming: this.aiming,
       sightType: weaponById(this.weaponId).category === "melee" ? "iron" : this.sightDef.type,
+      sightAttachmentId: this.getCurrentAttachments().sight,
       adsProgress: weaponById(this.weaponId).category === "melee" ? 0 : this.adsProgress,
       // `scoped` is true only when the player is meaningfully ADS-ing with a
       // sniper-class weapon (adsProgress past ~50% so the scope has actually
       // reached the eye). This drives the dedicated sniper-scope HUD overlay.
-      scoped: this.aiming && this.adsProgress > 0.5 && weaponById(this.weaponId).category === "sniper",
+      scoped: this.aiming && this.adsProgress > 0.5 && weaponById(this.weaponId).category === "sniper" && this.sightDef.zoom > 1,
       // Round 20h: Local player spawn protection (for first-person shield overlay).
       selfSpawnProtected: this.selfSpawnProtectedUntil > Date.now(),
       // Crosshair reflects both inherent hipfire inaccuracy and accumulated
@@ -13177,7 +13206,9 @@ export class FPSEngine {
       ...(this.wonderWeaponId && usesWonderCharges(weaponById(this.wonderWeaponId)) ? {
         wonderCharges:this.wonderStates.get(this.wonderWeaponId)?.charges??0,
         wonderChargeMax:weaponById(this.wonderWeaponId).wonder!.maxCharges,
-        wonderSlotCooldownMs:wonderCooldownMs(this.ensureWonderState(this.wonderWeaponId,weaponById(this.wonderWeaponId).wonder!,now),weaponById(this.wonderWeaponId).wonder!,now),
+        wonderSlotCooldownMs:wonderCooldownMs(this.ensureWonderState(this.wonderWeaponId,weaponById(this.wonderWeaponId).wonder!,now),
+          {...weaponById(this.wonderWeaponId).wonder!,rechargeMs:weaponById(this.wonderWeaponId).wonder!.rechargeMs*wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId).rechargeMul},now),
+        wonderSlotChargeTotalMs:weaponById(this.wonderWeaponId).wonder!.rechargeMs*wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId).rechargeMul,
       }:{}),
       ...(this.weaponId === "wonder_turret" ? {
         turretDeployPending: this.turretDeployPending,

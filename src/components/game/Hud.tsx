@@ -144,6 +144,13 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         ? `${hud.wonderCharges}/${hud.wonderChargeMax??1}`
         : `${Math.ceil((hud.wonderSlotCooldownMs??0)/1000)}s`;
 
+  const wonderSlotProgress = !hud.wonderWeaponId ? undefined :
+    hud.wonderWeaponId === "wonder_riot_shield"
+      ? (hud.wonderShieldHp ?? 0) > 0 ? 1 :
+        Math.max(0,1-(hud.wonderShieldRechargeMs ?? 0)/55000)
+      : (hud.wonderCharges ?? 0) > 0 ? 1 :
+        Math.max(0,Math.min(1,1-(hud.wonderSlotCooldownMs ?? 0)/Math.max(1,hud.wonderSlotChargeTotalMs ?? 1)));
+
   // ---- Local player's team (TDM scoreboard grouping) ----
   // In TDM mode the scoreboard is split into Red/Blue panels; we use this to
   // mark every teammate as an "ally" (Shield icon) since all players on your
@@ -489,11 +496,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       {/* Perk information stacks BELOW the radar, never across its markers.
           Minimap: top 56px, height 176px desktop / 128px touch. */}
       <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[234px]" : "top-[248px]"}`}>
-        {hud.perkName && (
-          <div className="px-2.5 py-1 rounded-md bg-black/75 border border-amber-500/20 text-amber-200 text-[11px] max-w-44 text-right">
-            Perk: {hud.perkName}
-          </div>
-        )}
+        
         {hud.perkName === "Scavenger" && (hud.scavengerPacksNearby ?? 0) > 0 && (
           <div className="rounded-md bg-black/80 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-bold">
             AMMO CACHE NEARBY ×{hud.scavengerPacksNearby}
@@ -661,7 +664,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <SlotPip n={1} name={hud.primaryName} active={slotNum === 1} color="emerald" weaponId={hud.primaryWeaponId} />
           <SlotPip n={2} name={hud.secondaryName} active={slotNum === 2} color="amber" weaponId={hud.secondaryWeaponId} />
           <SlotPip n={3} name={hud.meleeName} active={slotNum === 3} color="rose" weaponId={hud.meleeWeaponId} />
-          {hud.wonderWeaponId && <SlotPip n={4} name={hud.wonderName??"Wonder"} active={slotNum===4} color="violet" weaponId={hud.wonderWeaponId} status={wonderSlotStatus} />}
+          {hud.wonderWeaponId && <SlotPip n={4} name={hud.wonderName??"Wonder"} active={slotNum===4} color="violet" weaponId={hud.wonderWeaponId} status={wonderSlotStatus} chargeProgress={wonderSlotProgress} />}
         </div>
       </div>
       )}
@@ -705,7 +708,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
             </span>}
             {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">{hud.heat !== undefined ? "VENT" : "RLD"}</span>}
             {hud.wonderRechargeMs !== undefined && <span className="ml-1 text-violet-300 text-[9px] font-mono">{hud.wonderRechargeMs > 0 ? `${Math.ceil(hud.wonderRechargeMs / 1000)}s` : "READY"}</span>}
-            {hud.wonderWeaponId && slotNum!==4 && <span className="ml-1 text-violet-300 text-[9px] font-mono">W4 {wonderSlotStatus}</span>}
+            {hud.wonderWeaponId && slotNum!==4 && <span className="ml-1 inline-flex items-center gap-1 text-violet-300 text-[9px] font-mono"><WonderChargePip progress={wonderSlotProgress ?? 0} /> W4 {wonderSlotStatus}</span>}
           </div>
           {/* Bottom row: health + stamina bars (small, side by side) */}
           <div className="flex items-center gap-2">
@@ -1004,7 +1007,13 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit }: { team: "
 // ---- Weapon slot indicator pip ----
 // Small badge showing the slot number (1/2/3) + a short weapon name. The active
 // slot is highlighted with the slot's accent color; inactive slots are dim.
-function SlotPip({ n, name, active, color, weaponId, status }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose" | "violet"; weaponId?: string; status?: string }) {
+function WonderChargePip({progress}:{progress:number}) {
+  const pct=Math.round(Math.max(0,Math.min(1,progress))*100);
+  return <span role="img" aria-label={pct===100?"Wonder ready":`Wonder charging ${pct}%`}
+    className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-white/25"
+    style={{background:`conic-gradient(#22c55e ${pct}%, #080a0b ${pct}% 100%)`,boxShadow:pct===100?"0 0 7px #22c55e88":"none"}} />;
+}
+function SlotPip({ n, name, active, color, weaponId, status, chargeProgress }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose" | "violet"; weaponId?: string; status?: string; chargeProgress?: number }) {
   const colorClasses = {
     emerald: active ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-200" : "border-white/10 bg-black/40 text-white/40",
     amber: active ? "border-amber-400/70 bg-amber-500/20 text-amber-200" : "border-white/10 bg-black/40 text-white/40",
@@ -1020,7 +1029,7 @@ function SlotPip({ n, name, active, color, weaponId, status }: { n: number; name
   return (
     <div className={`px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors ${colorClasses[color]}`}>
       <span className="tabular-nums opacity-80">{n}</span>
-      {catDot}
+      {chargeProgress !== undefined ? <WonderChargePip progress={chargeProgress} /> : catDot}
       <span className="truncate max-w-[60px] text-[9px]">{name.split(" ")[0]}</span>
       {status && <span className="text-[9px] tabular-nums text-violet-300/90 ml-0.5 whitespace-nowrap">{status}</span>}
     </div>
@@ -1079,6 +1088,7 @@ function ScopeOrCrosshair({
   // The dedicated `scoped` flag also triggers it for snipers with non-scope sights.
   const showScope = scopeOverlay && (isMagnified || isSniperScoped) && adsP > 0.5;
   const hasReflex = sightType === "red_dot" || sightType === "holo";
+  const compactReflex = hud.sightAttachmentId === "sight_compact_reflex";
   // Reticle color per sight type. Snipers (scoped flag) use the dark sniper crosshair.
   const reticleColor =
     sightType === "thermal" ? "#ffb347" :
@@ -1104,12 +1114,19 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
-          {/* Reflex-window frame is part of the physical weapon mesh.
-              HUD renders only the reticle, never a contradictory round housing. */}
-          {hasReflex && sightType==="holo" && adsP>.3 && (
-            <div className="absolute rounded-full border pointer-events-none"
-              style={{width:29,height:29,transform:"translate(-50%,-50%)",
-                borderColor:reticleColor,opacity:Math.min(.7,(adsP-.3)*1.4)}}/>
+          {/* Reflex optic sight picture, small open lens without a dark vignette.
+              Compact Reflex uses the red-dot reticle but a smaller frame. */}
+          {hasReflex && scopeOverlay && adsP>.15 && (
+            <div className="absolute pointer-events-none"
+              style={{transform:"translate(-50%,-50%)",opacity:Math.min(.85,(adsP-.15)/.65),
+                width:compactReflex?62:sightType==="holo"?96:76,
+                height:compactReflex?46:sightType==="holo"?76:64}}>
+              <div className={`absolute inset-0 border-2 ${sightType==="holo"?"rounded-xl":"rounded-[45%]"}`}
+                style={{borderColor:"#4f626b",background:"radial-gradient(ellipse at center, rgba(130,198,218,.08) 0%, rgba(32,84,102,.14) 80%, rgba(3,13,20,.16) 100%)",
+                  boxShadow:"inset 0 0 0 2px #131f28, 0 0 0 2px #151e23, 0 2px 8px #0009"}} />
+              <div className="absolute bottom-[-5px] left-[35%] w-[30%] h-[5px] rounded-sm bg-[#283b45]" />
+              {sightType==="holo" && <div className="absolute inset-[22%] border border-emerald-400/30 rounded-full" />}
+            </div>
           )}
           {/* For red_dot/holo/laser, render a single dot in the reticle color instead of the crosshair */}
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
