@@ -94,6 +94,25 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
           </div>
         </Section>
 
+        <Section icon={<Eye className="w-4 h-4" />} title="Render Quality" desc="Resolution, shadows and distant detail; applies to the next match.">
+          <div className="grid grid-cols-3 gap-2">
+            {(["performance","balanced","quality"] as const).map(mode=>(
+              <button key={mode} type="button"
+                onClick={()=>update({renderQuality:mode})}
+                aria-pressed={settings.renderQuality===mode}
+                className={`rounded-lg border px-2 py-3 text-xs font-semibold capitalize transition-colors ${settings.renderQuality===mode
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
+                  : "border-white/10 bg-black/30 text-white/60 hover:bg-white/5"}`}>
+                {mode}
+              </button>
+            ))}
+          </div>
+          <p className="text-white/40 text-xs mt-3">
+            Performance gives the biggest frame-rate boost. Balanced automatically scales resolution.
+            Shooting distance, bot AI, collision and player visibility are unchanged.
+          </p>
+        </Section>
+
         {/* Sensitivity */}
         <Section icon={<MousePointer2 className="w-4 h-4" />} title="Mouse Sensitivity" desc="Multiplier applied to base look sensitivity">
           <div>

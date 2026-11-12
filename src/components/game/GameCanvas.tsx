@@ -79,6 +79,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       gungameMultiplier: roomConnect?.config?.gungameMultiplier,
       sensitivity: initialSettings.sensitivity,
       fov: initialSettings.fov,
+      renderQuality: initialSettings.renderQuality,
       autoAdsOnFire: initialSettings.autoAdsOnFire,
       invertY: initialSettings.invertY,
       botDifficulty,

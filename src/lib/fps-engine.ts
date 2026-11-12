@@ -82,6 +82,7 @@ import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } f
 import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
+import { botAnimationIntervalMs, cityDetailDistance, partitionCoverIntoRenderCells, pixelRatioCap, type RenderQuality } from "./render-performance";
 import { batchStaticPropMeshes } from "./static-prop-batching";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
@@ -183,6 +184,7 @@ export interface EngineOptions {
   invertY?: boolean;           // invert vertical look (default false)
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
+  renderQuality?: RenderQuality; // presentation only; never alters simulation or collision
   masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
   footstepVolume?: number;     // 0..100, relative to master
   weaponVolume?: number;       // 0..100, gunfire, reloads, weapon handling
@@ -666,29 +668,40 @@ export class FPSEngine {
   // Decorative interior detail is distance-culled; collision never is.
   private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
   private nextCityDetailUpdate=0;
-  private cityFrameMs=16.7;
-  private nextCityQualityCheck=0;
-  private cityResolutionScale=1.35;
-  private updateCityRenderBudget(now:number,elapsedMs:number){
-    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return;
-    // Exclude parked tabs and abnormal tab-switch catch-up times.
+  private renderFrameMs=16.7;
+  private nextRenderQualityCheck=0;
+  private renderResolutionScale=1;
+  private renderMode():RenderQuality { return this.opts.renderQuality??"balanced"; }
+  private isCityMap():boolean { return this.map.biome==="city"||this.map.biome==="city_day"; }
+  private renderCap():number {
+    return Math.min(window.devicePixelRatio,
+      pixelRatioCap(this.renderMode(),this.isCityMap(),
+        Math.max(this.opts.botCount,this.combatants.size)>=16));
+  }
+  private updateRenderBudget(now:number,elapsedMs:number){
+    // The last requestAnimationFrame interval includes both CPU and GPU stalls.
+    // Ignore background-tab catchup and adapt on all maps, not only the city.
     if(elapsedMs<=0||elapsedMs>=120)return;
-    this.cityFrameMs=this.cityFrameMs*.94+elapsedMs*.06;
-    if(now<this.nextCityQualityCheck)return;
-    this.nextCityQualityCheck=now+1800;
-    const next=this.cityFrameMs>28?Math.max(.75,this.cityResolutionScale-.15):
-      this.cityFrameMs<18?Math.min(1.35,this.cityResolutionScale+.10):this.cityResolutionScale;
-    if(Math.abs(next-this.cityResolutionScale)>.005){
-      this.cityResolutionScale=next;
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,next));
+    this.renderFrameMs=this.renderFrameMs*.94+elapsedMs*.06;
+    if(now<this.nextRenderQualityCheck)return;
+    this.nextRenderQualityCheck=now+1800;
+    const cap=this.renderCap();
+    const floor=Math.min(cap,Math.max(.7,cap*.65));
+    const next=this.renderFrameMs>28?Math.max(floor,this.renderResolutionScale-.12):
+      this.renderFrameMs<18?Math.min(cap,this.renderResolutionScale+.08):
+      Math.min(cap,this.renderResolutionScale);
+    if(Math.abs(next-this.renderResolutionScale)>.005){
+      this.renderResolutionScale=next;
+      this.renderer.setPixelRatio(next);
     }
   }
   private updateCityDetailVisibility(now:number){
     if(now<this.nextCityDetailUpdate)return;
     this.nextCityDetailUpdate=now+350;
     const x=this.camera.position.x,z=this.camera.position.z;
+    const distance=cityDetailDistance(this.renderMode());
     for(const item of this.cityInteriorDetailGroups)
-      item.node.visible=Math.abs(item.x-x)<52&&Math.abs(item.z-z)<52;
+      item.node.visible=Math.abs(item.x-x)<distance&&Math.abs(item.z-z)<distance;
   }
   private highGroundGoals():HighGroundGoal[]{
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
@@ -1502,12 +1515,13 @@ export class FPSEngine {
   // ---- Three.js setup ----
   private initThree() {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
-    // Dense city maps need a stable pixel budget; never render them at 2x DPI.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.map.biome==="city"||this.map.biome==="city_day"?1.35:2));
+    // Cap pixel fill rate on large maps and adjust it down on slow frames.
+    this.renderResolutionScale=this.renderCap();
+    this.renderer.setPixelRatio(this.renderResolutionScale);
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     // Thousands of city interior and stair boxes would otherwise issue an
     // additional expensive shadow pass every frame. Keep shadows elsewhere.
-    this.renderer.shadowMap.enabled = this.map.biome!=="city"&&this.map.biome!=="city_day";
+    this.renderer.shadowMap.enabled = !this.isCityMap()&&this.renderMode()!=="performance";
     // Nearest comparison avoids implementation-defined LINEAR depth texture
     // filtering in WebGL browsers (and the resulting console warnings).
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
@@ -1531,7 +1545,8 @@ export class FPSEngine {
     this.dirLight = dir;
     dir.position.set(30, 50, 20);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(2048, 2048);
+    const shadowSize=this.renderMode()==="quality"?2048:1024;
+    dir.shadow.mapSize.set(shadowSize, shadowSize);
     const shadowExtent = Math.min(230, Math.max(65, this.map.size));
     dir.shadow.camera.left = -shadowExtent; dir.shadow.camera.right = shadowExtent;
     dir.shadow.camera.top = shadowExtent; dir.shadow.camera.bottom = -shadowExtent;
@@ -1675,19 +1690,25 @@ export class FPSEngine {
       const transform=new THREE.Object3D();
       const unit=new THREE.BoxGeometry(1,1,1);
       for(const [kind,boxes] of buckets){
-        if(!boxes.length)continue;
-        const instanced=new THREE.InstancedMesh(unit,materials[kind],boxes.length);
-        instanced.frustumCulled=false; // instance bounding volume spans the whole map
-        instanced.castShadow=false;instanced.receiveShadow=true;
-        for(let i=0;i<boxes.length;i++){
-          const c=boxes[i];
-          transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
-          transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
-          transform.updateMatrix();
-          instanced.setMatrixAt(i,transform.matrix);
+        // Map-wide batches always render whenever one wall is in view. Spatial
+        // batches let Three.js reject entire unseen city blocks.
+        for(const cell of partitionCoverIntoRenderCells(boxes,64)){
+          const instanced=new THREE.InstancedMesh(unit,materials[kind],cell.length);
+          instanced.castShadow=false;instanced.receiveShadow=true;
+          for(let i=0;i<cell.length;i++){
+            const c=cell[i];
+            transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
+            transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
+            transform.updateMatrix();
+            instanced.setMatrixAt(i,transform.matrix);
+          }
+          instanced.instanceMatrix.needsUpdate=true;
+          // Bounding sphere covers the actual geometry, including scaled boxes
+          // crossing partition boundaries. Never hide legitimate nearby cover.
+          instanced.computeBoundingSphere();
+          instanced.frustumCulled=true;
+          this.scene.add(instanced);
         }
-        instanced.instanceMatrix.needsUpdate=true;
-        this.scene.add(instanced);
       }
     }else for(const c of this.map.cover) {
       if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
@@ -10418,7 +10439,7 @@ export class FPSEngine {
     } else {
       this.renderer.render(this.scene, this.camera);
     }
-    this.updateCityRenderBudget(frameStart,dt*1000);
+    this.updateRenderBudget(frameStart,dt*1000);
   };
 
   private update(dt: number) {
@@ -11362,9 +11383,14 @@ export class FPSEngine {
       // This is presentation-only: positions, weapon hits and AI update normally.
       if (c.alive) {
         const last=this.botAnimationAt.get(c.id)??now-dt*1000;
-        const far=Math.abs(c.pos[0]-this.pos.x)>90||Math.abs(c.pos[2]-this.pos.z)>90;
-        if(!far||now-last>=160){
-          this.animateHumanoid(c,far?Math.min(.2,(now-last)/1000):dt,now);
+        const dx=c.pos[0]-this.pos.x,dz=c.pos[2]-this.pos.z;
+        const far=Math.abs(dx)>90||Math.abs(dz)>90;
+        // Do not solve cosmetic limb IK at 60 Hz behind the player.
+        const behind=dx*dx+dz*dz>225 &&
+          dx*Math.sin(this.yaw)+dz*Math.cos(this.yaw)<-6;
+        const interval=botAnimationIntervalMs(this.renderMode(),far,behind);
+        if(!interval||now-last>=interval){
+          this.animateHumanoid(c,interval?Math.min(.27,(now-last)/1000):dt,now);
           this.botAnimationAt.set(c.id,now);
         }
       }

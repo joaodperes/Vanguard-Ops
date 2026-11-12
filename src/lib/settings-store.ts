@@ -1,12 +1,14 @@
 "use client";
 import { create } from "zustand";
 import { DEFAULT_AUDIO_MIX, migrateLegacyAudioMix, type AudioMixSettings } from "./audio-mix";
+import type { RenderQuality } from "./render-performance";
 
 export interface GameSettings extends AudioMixSettings {
   sensitivity: number;     // 0.5 .. 3.0
   fov: number;             // 70 .. 110
   crosshairColor: string;  // hex
   crosshairSize: number;   // 4 .. 14
+  renderQuality: RenderQuality;
   showFps: boolean;
   showPing: boolean;
   showHealthBars: boolean; // Floating health bars over other operatives (not your HUD health)
@@ -22,6 +24,7 @@ const DEFAULTS: GameSettings = {
   fov: 90,
   crosshairColor: "#22c55e",
   crosshairSize: 8,
+  renderQuality: "balanced",
   showFps: false,
   showPing: true,
   showHealthBars: true,
@@ -44,7 +47,9 @@ function loadSettings(): GameSettings {
     const migratedAudio = migrateLegacyAudioMix(saved);
     delete saved.musicVolume; // Discard legacy music preference.
     delete saved.fxVolume; // Replaced by weapon/combat/UI controls.
-    return { ...DEFAULTS, ...saved, ...migratedAudio } as GameSettings;
+    const renderQuality = saved.renderQuality === "performance" || saved.renderQuality === "quality"
+      ? saved.renderQuality : "balanced";
+    return { ...DEFAULTS, ...saved, ...migratedAudio, renderQuality } as GameSettings;
   } catch {
     return DEFAULTS;
   }
