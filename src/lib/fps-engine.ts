@@ -12583,7 +12583,7 @@ export class FPSEngine {
     const path=plan.path,id=state.id;
     if(id==="mine"){
       const position=groundMineImpact(path.impact,bot.pos[1],this.map.cover);
-      this.offlineMines.push({pos:position,expiresAt:now+45000,mesh:this.makeMineMarker(position),
+      this.offlineMines.push({pos:position,mesh:this.makeMineMarker(position),
         ownerId:bot.id,ownerTeam:bot.team});
       this.playEquipmentCue(id,"placed",position);
       return;
