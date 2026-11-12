@@ -644,6 +644,8 @@ function groundHeightAt(cover: CoverBox[], x: number, z: number, feetY: number, 
   return ground;
 }
 
+type OfflineProximityMine = { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string };
+
 export class FPSEngine {
   private container: HTMLElement;
   private opts: EngineOptions;
@@ -1029,7 +1031,7 @@ export class FPSEngine {
   // mesh, its start position, end position (impact point), birth time, and travel
   // duration. The projectile animates from start to end over `travelMs`, then
   // spawns an explosion at the impact point.
-  private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean; ownerId?:string; ownerTeam?:string }[] = [];
+  private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean; ownerId?:string; ownerTeam?:string; mineTarget?:OfflineProximityMine }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosionEffects!: ExplosionEffects;
   private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean; ownerId:string; ownerTeam:string }>();
@@ -1128,7 +1130,7 @@ export class FPSEngine {
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
   private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
-  private offlineMines: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
+  private offlineMines: OfflineProximityMine[] = [];
   private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number;rechargeAt?:number }>();
   private botWonderCharges = new Map<string,WonderChargeState>();
   private botFlashUntil = new Map<string,number>(); // Sensory blindness only, never immobilization
@@ -5505,7 +5507,7 @@ export class FPSEngine {
   }
 
   /** Remove an offline mine exactly once, including its owned 3D marker. */
-  private removeOfflineMine(mine: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string }): void {
+  private removeOfflineMine(mine: OfflineProximityMine): void {
     const at = this.offlineMines.indexOf(mine);
     if (at < 0) return;
     this.offlineMines.splice(at, 1);
@@ -5515,7 +5517,7 @@ export class FPSEngine {
   /** Both stepping onto a mine and shooting it run the SAME owner-credited
    * explosion. Only a proximity intruder receives the guaranteed direct hit. */
   private detonateOfflineMine(
-    mine: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string },
+    mine: OfflineProximityMine,
     triggerId?: string,
   ): void {
     if (!this.offlineMines.includes(mine)) return;
@@ -10232,6 +10234,11 @@ export class FPSEngine {
       const hit = rayCapsule(origin, ndir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
       if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
+    // Local launchers stop at a mine and set it off on actual projectile
+    // arrival, not immediately on the shooter's button press.
+    const mineTarget = applyLocalSplash && weaponById(weaponId).explosive
+      ? closestShotMine(this.offlineMines, origin, ndir, maxT) : null;
+    if (mineTarget) maxT = mineTarget.distance;
     const isGravity = weaponById(weaponId).wonder?.kind === "singularity";
     if (isGravity) {
       const candidates = [...this.combatants.values()].filter(c => c.alive && c.id !== this.selfId &&
@@ -10309,7 +10316,7 @@ export class FPSEngine {
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
     const splashRadius = projectileSplashRadius(weaponById(weaponId));
-    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash, ownerId:rocketOwnerId, ownerTeam:rocketOwnerTeam });
+    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash, ownerId:rocketOwnerId, ownerTeam:rocketOwnerTeam, mineTarget:mineTarget?.mine });
   }
 
   // Reuse bounded visuals and one permanent light; never vary the scene's light count per blast.
@@ -10990,6 +10997,8 @@ export class FPSEngine {
       const ownerId=p.ownerId??this.selfId,ownerTeam=p.ownerTeam??(this.opts.team as string);
       const botOwner=this.combatants.get(ownerId);
       if (age >= p.travelMs) {
+        // Owner-credited mine blast occurs before this launcher's own splash.
+        if (p.applyLocalSplash && p.mineTarget) this.detonateOfflineMine(p.mineTarget);
         // Projectile reached the impact point — spawn explosion + remove.
         const rawExplosionKind = weaponById(p.weaponId).wonder?.kind;
         const explosionKind = rawExplosionKind === "singularity" || rawExplosionKind === "corrosion" ? rawExplosionKind : undefined;
