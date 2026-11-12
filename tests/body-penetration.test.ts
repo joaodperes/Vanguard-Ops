@@ -99,7 +99,9 @@ describe("built-in penetration and Penetrator Rounds", () => {
     expect(before.damage).toBe(35);
     expect(after.damage * 3).toBeGreaterThanOrEqual(100);
     expect(after.damage).toBeLessThan(before.damage);
-    expect(after.magSize).toBe(24);
+    // 24-round VK-12 base with -20% Penetrator capacity now yields 19 rounds.
+    expect(before.magSize).toBe(24);
+    expect(after.magSize).toBe(19);
     expect(after.recoil).toBeGreaterThan(before.recoil);
     expect(selectBodyPenetrationHits(aligned, 200, Infinity, after.bodyPenetration).length).toBe(2);
   });
