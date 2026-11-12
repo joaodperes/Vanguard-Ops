@@ -33,7 +33,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
-import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, flashFacingExposure, taserMovementJitter, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, flashFacingExposure, taserMovementJitter, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, closestShotMine, mineOwnerActive, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -283,7 +283,7 @@ interface Room {
   equipmentCharges: Map<string, number>;
   equipmentLastAt: Map<string, number>;
   equipmentBotNextAt: Map<string, number>;
-  equipmentMines: Map<string, { pos: Vec3; ownerId: string; expiresAt: number }>;
+  equipmentMines: Map<string, { pos: Vec3; ownerId: string }>;
   equipmentRechargeAt: Map<string, number>;
   deployedCovers: Map<string, DeployedCover>;
   equipmentFlashUntil: Map<string, number>; // AI sensory blindness only; player controls unaffected
@@ -1059,6 +1059,55 @@ function blastMaterialCover(room:Room,pos:Vec3,radius:number,damage:number,sourc
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
 }
 
+/** Remove mines immediately when an owner dies or exits, and sync all clients. */
+function removeMinesOwnedBy(room: Room, ownerId: string): void {
+  for (const [id, mine] of room.equipmentMines) {
+    if (mine.ownerId !== ownerId) continue;
+    room.equipmentMines.delete(id);
+    io.to(room.id).emit("message", { t: "equipmentMineRemoved", mineId: id } as S2C);
+  }
+}
+
+/** One detonation entry point for proximity and shot-triggered mines.
+ * Gunfire causes ordinary splash; a proximity trigger additionally receives
+ * the direct lethal hit. All damage and kills belong to the mine's owner. */
+function detonateEquipmentMine(room: Room, id: string, mine: { pos: Vec3; ownerId: string }, triggerId?: string): void {
+  if (!room.equipmentMines.has(id)) return;
+  room.equipmentMines.delete(id); // prevents double detonation
+  const owner = room.players.get(mine.ownerId) ?? room.bots.get(mine.ownerId);
+  if (!mineOwnerActive(owner)) {
+    io.to(room.id).emit("message", { t: "equipmentMineRemoved", mineId: id } as S2C);
+    return;
+  }
+  io.to(room.id).emit("message", { t: "equipmentFx", equipmentId: "mine", position: mine.pos,
+    ownerId: mine.ownerId, mineId: id, mineState: "triggered" } as S2C);
+  destroyTurretsNear(room, mine.pos, MINE_SPLASH_RADIUS);
+  const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
+  for (const victim of allCombatants(room)) {
+    if (!victim.alive || victim.spawnProtectedUntil && victim.spawnProtectedUntil > Date.now()) continue;
+    if (victim.id !== mine.ownerId && room.mode !== "ffa" && room.mode !== "gungame" &&
+        victim.team === owner.team) continue;
+    const contact = mineContactPoint(origin, victim.pos);
+    const distance = blastDistance(origin, contact);
+    if (distance > MINE_SPLASH_RADIUS || !hasLineOfSight(room, origin, contact)) continue;
+    const direct = victim.id === triggerId;
+    const damage = direct ? equipmentById("mine").damage : mineSplashDamage(distance);
+    if (damage > 0) applyDamage(room, mine.ownerId, victim, damage, false, "equipment_mine", false, direct);
+    if (room.ended) break;
+  }
+  blastMaterialCover(room, mine.pos, MINE_SPLASH_RADIUS, equipmentById("mine").damage, "mine");
+}
+
+/** Called only for accepted, server-validated firing rays. */
+function shootEquipmentMine(room: Room, origin: Vec3, dir: Vec3, maxDistance: number): number | null {
+  if (!room.equipmentMines.size || maxDistance <= 0) return null;
+  const candidates = [...room.equipmentMines].map(([id, mine]) => ({ id, pos: mine.pos, ownerId: mine.ownerId }));
+  const hit = closestShotMine(candidates, origin, dir, maxDistance);
+  if (!hit) return null;
+  detonateEquipmentMine(room, hit.mine.id, hit.mine);
+  return hit.distance;
+}
+
 /** Conventional hitscan rounds can cross explicitly tagged thin cover.
  * Structural cover, Bulwark shields and protected spawns still absorb shots. */
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
@@ -1244,7 +1293,7 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   if(def.type==="mine") {
     const mineId=genId("mine");
     const grounded=groundMineImpact(impact,player.pos[1],room.map.cover);
-    room.equipmentMines.set(mineId,{ownerId:playerId,pos:grounded,expiresAt:now+45000});
+    room.equipmentMines.set(mineId,{ownerId:playerId,pos:grounded});
     io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:grounded,ownerId:playerId,mineId,mineState:"placed"} as S2C);
   } else {
     // Clients reconstruct the full throw from sampled positions. This first
@@ -1723,47 +1772,22 @@ function tickSpecialEffects(room: Room, now: number) {
     blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
     if (room.ended) return;
   }
-  for (const [id,mine] of room.equipmentMines) {
-    if (now > mine.expiresAt) {
-      room.equipmentMines.delete(id);
-      io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
-      continue;
-    }
+  for (const [id, mine] of room.equipmentMines) {
     const owner = room.players.get(mine.ownerId) ?? room.bots.get(mine.ownerId);
-    if (!owner) {
-      room.equipmentMines.delete(id);
-      io.to(room.id).emit("message",{t:"equipmentMineRemoved",mineId:id} as S2C);
+    if (!mineOwnerActive(owner)) {
+      removeMinesOwnedBy(room, mine.ownerId);
       continue;
     }
+    const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
     const enemies = allCombatants(room).filter(c => c.alive && c.id !== mine.ownerId &&
-      (room.mode === "ffa" || c.team !== owner.team) &&
+      (room.mode === "ffa" || room.mode === "gungame" || c.team !== owner.team) &&
       !(c.spawnProtectedUntil && c.spawnProtectedUntil > now));
-    const origin:Vec3=[mine.pos[0],mine.pos[1]+.2,mine.pos[2]];
-    const contact=(c:PlayerNet)=>mineContactPoint(origin,c.pos);
-    const visible=(c:PlayerNet)=>hasLineOfSight(room,origin,contact(c));
-    const distance=(c:PlayerNet)=>blastDistance(origin,contact(c));
-    // Exactly one intruder is the trigger victim; other enemies may only take
-    // the small 2.4-unit splash. Cover and spawn protection apply to both.
-    const trigger=enemies.filter(c=>
-      distance(c)<=MINE_TRIGGER_RADIUS && visible(c))
-      .sort((a,b)=>distance(a)-distance(b))[0];
-    if(!trigger)continue;
-    room.equipmentMines.delete(id); // exactly one activation
-    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:"mine",position:mine.pos,ownerId:mine.ownerId,mineId:id,mineState:"triggered"} as S2C);
-    destroyTurretsNear(room,mine.pos,MINE_SPLASH_RADIUS);
-    for(const c of enemies){
-      const dist=distance(c);
-      if(dist>MINE_SPLASH_RADIUS||!visible(c))continue;
-      const direct=c.id===trigger.id;
-      const dmg=direct?equipmentById("mine").damage:mineSplashDamage(dist);
-      if(dmg>0)applyDamage(room,mine.ownerId,c,dmg,false,"equipment_mine",false,direct);
-    }
-    if(owner.alive && (owner.spawnProtectedUntil??0)<=now){
-      const dist=distance(owner);
-      if(dist<=MINE_SPLASH_RADIUS&&visible(owner))
-        applyDamage(room,mine.ownerId,owner,mineSplashDamage(dist),false,"equipment_mine");
-    }
-    blastMaterialCover(room,mine.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage,"mine");
+    const distance = (c: PlayerNet) => blastDistance(origin, mineContactPoint(origin, c.pos));
+    const trigger = enemies.filter(c => distance(c) <= MINE_TRIGGER_RADIUS &&
+      hasLineOfSight(room, origin, mineContactPoint(origin, c.pos)))
+      .sort((a, b) => distance(a) - distance(b))[0];
+    if (!trigger) continue;
+    detonateEquipmentMine(room, id, mine, trigger.id);
     if (room.ended) return;
   }
   for (const [id, drop] of room.droppedBolts) {
@@ -1943,6 +1967,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       }
     }
     victim.alive = false;
+    removeMinesOwnedBy(room, victim.id);
     victim.deaths += 1;
     if(room.orbitalHolders.delete(victim.id)){
       if(victim.weaponId===ORBITAL_REAPER_ID){
@@ -2598,6 +2623,7 @@ function tickRoom(room: Room) {
       room.survivalSelfReviveUntil.delete(id);
       const player=room.players.get(id);
       if(player)player.alive=false;
+      removeMinesOwnedBy(room, id);
       io.to(room.id).emit("message",{t:"survivalReviveExpired",playerId:id} as S2C);
     }
     if (room.downed.size > 0 && room.survivalSelfReviveUntil.size===0 &&
@@ -4222,7 +4248,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (room) {
       if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
-      room.players.delete(socket.id);
+      room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
         if(room.players.size===0)room.survivalMenuPaused=false;
@@ -4351,7 +4377,7 @@ async function handle(socket: any, msg: C2S) {
       const room = rooms.get(roomId);
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
-        room.players.delete(socket.id);
+        room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
         if(room.players.size===0)room.survivalMenuPaused=false;
@@ -4922,7 +4948,7 @@ async function handle(socket: any, msg: C2S) {
       const room = rooms.get(roomId);
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
-        room.players.delete(socket.id);
+        room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
         if(room.players.size===0)room.survivalMenuPaused=false;
