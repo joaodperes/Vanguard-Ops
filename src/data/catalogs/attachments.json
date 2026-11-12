@@ -174,7 +174,7 @@
     "sightType": "hunter",
     "unlockLevel": 16,
     "unlockCost": 300,
-    "description": "Two-power precision optic balances magnification and aimed precision.",
+    "description": "Lightweight two-power scope: faster ADS than a standard sniper optic, at the cost of wider aimed shot dispersion.",
     "recommendedFor": [
       "sniper",
       "dmr"
@@ -184,8 +184,8 @@
       "dmr"
     ],
     "effects": {
-      "adsTime": 8,
-      "adsSpread": -12
+      "adsTime": -20,
+      "adsSpread": 20
     }
   },
   {
