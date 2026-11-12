@@ -33,7 +33,7 @@ import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineIn
 // ============================================================================
 import { canHearGunshot, friendlyOnRadar, radarExpiresAt, radarDurationMs } from "./radar";
 import { equipmentById } from "./equipment";
-import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, flashFacingExposure, taserMovementJitter, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, flashFacingExposure, taserMovementJitter, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, fragDamage, flashDurationMs, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "./bot-tactical";
 import { tacticalGrenadePath } from "./tactical-grenades";
 import type { TimedProjectilePath } from "./bouncing-projectile";
@@ -1243,8 +1243,9 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   const impact=path.impact;
   if(def.type==="mine") {
     const mineId=genId("mine");
-    room.equipmentMines.set(mineId,{ownerId:playerId,pos:impact,expiresAt:now+45000});
-    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:impact,ownerId:playerId,mineId,mineState:"placed"} as S2C);
+    const grounded=groundMineImpact(impact,player.pos[1],room.map.cover);
+    room.equipmentMines.set(mineId,{ownerId:playerId,pos:grounded,expiresAt:now+45000});
+    io.to(room.id).emit("message",{t:"equipmentFx",equipmentId:def.id,position:grounded,ownerId:playerId,mineId,mineState:"placed"} as S2C);
   } else {
     // Clients reconstruct the full throw from sampled positions. This first
     // event is visual only; impact damage is applied after the flight time.
@@ -1737,10 +1738,10 @@ function tickSpecialEffects(room: Room, now: number) {
     const enemies = allCombatants(room).filter(c => c.alive && c.id !== mine.ownerId &&
       (room.mode === "ffa" || c.team !== owner.team) &&
       !(c.spawnProtectedUntil && c.spawnProtectedUntil > now));
-    const visible=(c:PlayerNet)=>hasLineOfSight(room,
-      [mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]);
-    const distance=(c:PlayerNet)=>blastDistance(
-      [mine.pos[0],mine.pos[1]+.2,mine.pos[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]);
+    const origin:Vec3=[mine.pos[0],mine.pos[1]+.2,mine.pos[2]];
+    const contact=(c:PlayerNet)=>mineContactPoint(origin,c.pos);
+    const visible=(c:PlayerNet)=>hasLineOfSight(room,origin,contact(c));
+    const distance=(c:PlayerNet)=>blastDistance(origin,contact(c));
     // Exactly one intruder is the trigger victim; other enemies may only take
     // the small 2.4-unit splash. Cover and spawn protection apply to both.
     const trigger=enemies.filter(c=>
