@@ -430,6 +430,12 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
   const akimboCapacity = akimbo ? 2*Math.max(1,Math.round(base.magSize*(1+(magBonus-100)/100))) : 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
   const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
+  // Percentage-only ADS spread penalties have no effect on zero-spread snipers.
+  // Low-magnification optics can enforce a small absolute precision penalty.
+  // Ignore floors from sights that aren't compatible with this weapon.
+  const sightSpreadFloor = !atts.sight || compatibleAttachments(weapon.id, "sight").includes(atts.sight)
+    ? (sightDef.adsSpreadFloor ?? 0) : 0;
+  const aimedSpreadBase = Math.max(base.adsSpread, sightSpreadFloor);
   return {
     ...base,
     bodyPenetration,
@@ -444,7 +450,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     // Hipfire spread: clamp so an attachment can't make it negative.
     spread: Math.max(0.0005, base.spread * (1 + (acc.spread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     // An explicit ADS effect is required to influence ADS accuracy.
-    adsSpread: Math.max(0.0, base.adsSpread * (1 + (acc.adsSpread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
+    adsSpread: Math.max(0.0, aimedSpreadBase * (1 + (acc.adsSpread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     adsTime: Math.max(0.05, base.adsTime * (1 + (acc.adsTime ?? 0) / 100)),
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
