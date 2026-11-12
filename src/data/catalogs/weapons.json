@@ -369,7 +369,7 @@
     "stats": {
       "damage": 35,
       "fireRate": 9,
-      "magSize": 30,
+      "magSize": 24,
       "reloadTime": 2.2,
       "spread": 0.012,
       "adsSpread": 0.003,
@@ -774,7 +774,7 @@
     "stats": {
       "damage": 35,
       "fireRate": 4,
-      "magSize": 21,
+      "magSize": 18,
       "reloadTime": 2,
       "spread": 0.012,
       "adsSpread": 0.004,
@@ -933,7 +933,7 @@
     "stats": {
       "damage": 48,
       "fireRate": 6,
-      "magSize": 20,
+      "magSize": 24,
       "reloadTime": 2.8,
       "spread": 0.01,
       "adsSpread": 0.003,

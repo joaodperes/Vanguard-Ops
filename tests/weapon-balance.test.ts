@@ -34,6 +34,35 @@ describe("weapon range and damage falloff", () => {
   });
 });
 
+describe("2026 magazine kill-potential tuning", () => {
+  test("VK-12 and Behemoth carry 24 rounds, Burst Pistol carries six complete bursts", () => {
+    const cases = [
+      ["rifle_ar", 24, 3, 8],
+      ["rifle_heavy", 24, 3, 8],
+      ["pistol_burst", 18, 3, 6],
+    ] as const;
+    for (const [weaponId, magazine, bodyHits, bodyKillPotential] of cases) {
+      const weapon = weaponById(weaponId);
+      const base = computeEffectiveStats(weapon, { sight:null, barrel:null, grip:null, magazine:null });
+      expect(weapon.stats.magSize).toBe(magazine);
+      expect(base.magSize).toBe(magazine);
+      expect(hitsToEliminate(base)).toBe(bodyHits);
+      expect(Math.floor(base.magSize / bodyHits)).toBe(bodyKillPotential);
+      if (base.burst) expect(base.magSize % base.burst).toBe(0);
+    }
+  });
+
+  test("magazine attachments scale from the new baseline without incomplete pistol bursts", () => {
+    const empty = { sight:null, barrel:null, grip:null, magazine:null };
+    expect(computeEffectiveStats(weaponById("rifle_ar"), { ...empty, magazine:"mag_extended" }).magSize).toBe(31);
+    expect(computeEffectiveStats(weaponById("rifle_heavy"), { ...empty, magazine:"mag_extended" }).magSize).toBe(31);
+    for (const mag of compatibleAttachments("pistol_burst", "magazine")) {
+      const effective = computeEffectiveStats(weaponById("pistol_burst"), { ...empty, magazine:mag });
+      expect(effective.magSize % 3).toBe(0);
+    }
+  });
+});
+
 describe("Marksman DMR magazine balance", () => {
   test("smaller 12-round base magazine still benefits from extended magazines", () => {
     const weapon = weaponById("rifle_dm");

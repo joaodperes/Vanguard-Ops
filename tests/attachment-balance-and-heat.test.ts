@@ -16,7 +16,7 @@ describe("class-sensitive magazine tuning",()=>{
     expect(attachmentEffectsForWeapon(base,rifle).magSize).toBe(30);
     expect(attachmentEffectsForWeapon(base,lmg).magSize).toBe(20);
     expect(attachmentEffectsForWeapon(base,pistol).magSize).toBe(25);
-    expect(computeEffectiveStats(rifle,withAttachment("magazine","mag_extended")).magSize).toBe(39);
+    expect(computeEffectiveStats(rifle,withAttachment("magazine","mag_extended")).magSize).toBe(31);
     expect(computeEffectiveStats(lmg,withAttachment("magazine","mag_extended")).magSize).toBe(120);
     expect(computeEffectiveStats(pistol,withAttachment("magazine","mag_extended")).magSize).toBe(15);
     expect(computeEffectiveStats(lmg,withAttachment("magazine","mag_extended")).moveSpeed)
