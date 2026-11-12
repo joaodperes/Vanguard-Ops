@@ -3,7 +3,7 @@ import { ownsOperativeSkin } from "@/lib/collection-ownership";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
 import { validWonderModule, validWonderFinish, validWonderKillEffect } from "@/lib/wonder-expansion";
-import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { parseSavedLoadouts, presetWonderEquipFields } from "@/lib/saved-loadouts";
 import { EQUIPMENT, equipmentUnlocked } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
@@ -83,7 +83,12 @@ export async function POST(req: NextRequest) {
     if (!preset) return NextResponse.json({ error: "Saved loadout not found" }, { status: 404 });
     // Presets remain usable if their archived melee choice is now disabled.
     // Keep the saved snapshot unchanged for possible future reactivation.
-    body = { ...preset, meleeWeapon: activeMeleeWeaponId(preset.meleeWeapon), playerKey: rawBody.playerKey };
+    body = {
+      ...preset,
+      ...presetWonderEquipFields(preset),
+      meleeWeapon: activeMeleeWeaponId(preset.meleeWeapon),
+      playerKey: rawBody.playerKey,
+    };
   }
   const {
     playerKey: bodyKey,
