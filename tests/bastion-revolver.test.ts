@@ -32,7 +32,9 @@ describe("Bastion .45 six-shot revolver",()=>{
     expect(stats.recoil).toBeGreaterThan(magnum.recoil);
     expect(stats.coverPenetration).toBeGreaterThan(magnum.coverPenetration!);
     expect(stats.bodyPenetration?.maxTargets).toBe(2);
-    expect(stats.bodyPenetration?.damageRetention).toBeLessThan(magnum.bodyPenetration!.damageRetention);
+    // Bastion now specializes in follow-through penetration rather than precision one-taps.
+    expect(stats.bodyPenetration?.damageRetention).toBe(0.4);
+    expect(stats.bodyPenetration?.damageRetention).toBeGreaterThan(magnum.bodyPenetration!.damageRetention);
     expect(hitsToEliminate(stats,0)).toBe(2);
     expect(hitsToEliminate(stats,0,1)).toBe(2);
     expect(idealTimeToKillMs(bastion,stats)).toBeCloseTo(1000/1.55,5);
