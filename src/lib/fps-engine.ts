@@ -9265,6 +9265,23 @@ export class FPSEngine {
   }
 
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
+    // The mine is a physical, shootable floor target, not an enemy entity.
+    // Compare the intersection against both blocking cover and the nearest
+    // combatant, so bullets cannot detonate a mine through someone or a wall.
+    if (!isMelee && this.offlineMines.length) {
+      const range = maxWeaponHitRange(this.eff.range, this.eff);
+      const coverStop = traceCoverPenetration(this.map.cover, origin, dir, range,
+        this.eff.coverPenetration ?? 0, this.weaponId === "wonder_phasebreaker").blockedAt;
+      let firstBody = Infinity;
+      for (const c of this.combatants.values()) {
+        if (!c.alive || this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+        const body = rayCombatantHit(origin, dir, c.pos);
+        const shield = rayRiotShield(origin, dir, c);
+        if (body) firstBody = Math.min(firstBody, body.t);
+        if (shield !== null) firstBody = Math.min(firstBody, shield);
+      }
+      if (this.shootOfflineMine(origin, dir, Math.min(range, coverStop ?? Infinity, firstBody))) return null;
+    }
     // Offline hitscan shares the server's body + explicitly tagged cover trace.
     if ((this.eff.bodyPenetration || this.eff.coverPenetration) && !isMelee) {
       const maxDistance = maxWeaponHitRange(this.eff.range, this.eff);
@@ -12756,6 +12773,13 @@ export class FPSEngine {
     const resolved=resolveMaterialPenetrationShot(contacts,this.map.cover,origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
     const hits=resolved.hits;
+    if (!isThrowingKnife(attacker.weaponId) && this.offlineMines.length) {
+      const coverStop = traceCoverPenetration(this.map.cover, origin, dir, maxDistance,
+        eff.coverPenetration ?? 0).blockedAt;
+      const firstBody = hits.reduce((min, hit) => Math.min(min, hit.t), Infinity);
+      if (this.shootOfflineMine(origin, dir,
+        Math.min(maxDistance, coverStop ?? Infinity, resolved.stoppedAt, firstBody))) return;
+    }
     if(!isThrowingKnife(attacker.weaponId))
       this.damageLocalBallisticCover(origin,dir,maxDistance,eff.coverPenetration??0,eff.damage,
         resolved.stoppedAt);
@@ -12884,6 +12908,7 @@ export class FPSEngine {
          canUseSelfRevive(this.survivalUpgradeRanks,this.survivalSelfReviveUsedWave,this.survivalWave)){
         this.survivalSelfReviveUsedWave=this.survivalWave;
         this.survivalDowned=true;
+        for (const mine of [...this.offlineMines]) if (mine.ownerId === this.selfId) this.removeOfflineMine(mine);
         this.survivalDownedUntil=performance.now()+SURVIVAL_SELF_REVIVE_MS;
         this.health=1;this.alive=true;this.deaths++;
         this.currentNoDeathStreak=0;
@@ -12896,6 +12921,7 @@ export class FPSEngine {
         return;
       }
       this.health = 0; this.alive = false; this.deaths += 1;
+      for (const mine of [...this.offlineMines]) if (mine.ownerId === this.selfId) this.removeOfflineMine(mine);
       this.currentNoDeathStreak = 0;
       // Falling, environmental hazards and friendly damage must not charge
       // the reactor; only a legitimate opposing-team kill contributes.
