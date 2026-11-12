@@ -4389,6 +4389,12 @@ async function handle(socket: any, msg: C2S) {
       };
       socket.emit("message", joined);
       socket.emit("message", snapshot(room));
+      // Late joiners must see mines deployed before they arrived. Mines no
+      // longer expire, so placement-only replication would leave them hidden.
+      for (const [mineId, mine] of room.equipmentMines) {
+        socket.emit("message", { t: "equipmentFx", equipmentId: "mine",
+          position: mine.pos, ownerId: mine.ownerId, mineId, mineState: "placed" } as S2C);
+      }
       break;
     }
     case "leaveMatch": {
