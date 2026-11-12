@@ -48,7 +48,7 @@ import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { equipmentSoundFor, equipmentSoundVolume, type EquipmentAudioPhase } from "@/lib/equipment-audio";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
-import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -5023,9 +5023,10 @@ export class FPSEngine {
     }
     const path=this.equipmentTrajectory(id);
     if(def.type==="mine"){
-      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
+      const position=groundMineImpact(path.impact,this.pos.y,this.map.cover);
+      this.offlineMines.push({pos:position,expiresAt:now+45000,mesh:this.makeMineMarker(position),
         ownerId:this.selfId,ownerTeam:this.opts.team as string});
-      this.playEquipmentCue(id,"placed",path.impact);
+      this.playEquipmentCue(id,"placed",position);
       return;
     }
     this.playEquipmentCue(id,"release",path.points[0]);
@@ -5492,8 +5493,9 @@ export class FPSEngine {
         (this.opts.mode==="ffa"||this.opts.team!==m.ownerTeam)&&
         this.selfSpawnProtectedUntil<=Date.now();
       const ground:Vec3=[m.pos[0],m.pos[1]+.2,m.pos[2]];
-      const distance=(p:Vec3)=>blastDistance(ground,[p[0],p[1]+1,p[2]]);
-      const canHit=(p:Vec3)=>this.hasLineOfSight(ground,[p[0],p[1]+1,p[2]]);
+      const contact=(p:Vec3)=>mineContactPoint(ground,p);
+      const distance=(p:Vec3)=>blastDistance(ground,contact(p));
+      const canHit=(p:Vec3)=>this.hasLineOfSight(ground,contact(p));
       const playerPos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
       const trigger=[...rivals.map(c=>({id:c.id,pos:c.pos})),
         ...(playerRival?[{id:this.selfId,pos:playerPos}]:[])]
@@ -12474,9 +12476,10 @@ export class FPSEngine {
     bot.yaw=plan.yaw;bot.pitch=plan.pitch;
     const path=plan.path,id=state.id;
     if(id==="mine"){
-      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact),
+      const position=groundMineImpact(path.impact,bot.pos[1],this.map.cover);
+      this.offlineMines.push({pos:position,expiresAt:now+45000,mesh:this.makeMineMarker(position),
         ownerId:bot.id,ownerTeam:bot.team});
-      this.playEquipmentCue(id,"placed",path.impact);
+      this.playEquipmentCue(id,"placed",position);
       return;
     }
     this.playEquipmentCue(id,"release",path.points[0]);
