@@ -1054,7 +1054,8 @@ function GunGameProgress({ index, total, currentWeaponId, compact }: { index: nu
 // Renders the appropriate reticle based on the equipped sight type. For 1x sights
 // (iron/red_dot/holo/laser) we render the standard crosshair. For magnified sights
 // (acog/hunter/thermal/nvg) we render a scope circle + reticle, with tinted overlays
-// for thermal (amber) and NVG (green). Fades in/out with ADS progress.
+// for thermal (amber). NVG color grading happens inside the 3D-rendered scope
+// lens, preserving enemy green against desaturated world colors.
 function ScopeOrCrosshair({
   hud, crosshairColor, crosshairSize, reticleStyle, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
 }: {
@@ -1145,12 +1146,11 @@ function ScopeOrCrosshair({
   const scopeOpacity = Math.min(1, (adsP - 0.5) / 0.45);  // 0..1 fade-in
   const tintBg =
     sightType === "thermal" ? "rgba(255,140,30,0.10)" :
-    sightType === "nvg" ? "rgba(40,180,60,0.12)" :
     "rgba(0,0,0,0)";
   return (
     <>
-      {/* Tinted full-screen wash for thermal/NVG (skipped for sniper/hunter/acog which use a clean dark scope) */}
-      {sightType !== "hunter" && sightType !== "acog" && sightType !== "sniper_scope" && !isSniperScoped && (
+      {/* The renderer grades NVG only inside the lens; thermal keeps its HUD tint. */}
+      {sightType === "thermal" && !isSniperScoped && (
         <div className="absolute inset-0 pointer-events-none" style={{ background: tintBg, opacity: scopeOpacity }} />
       )}
       {/* Scope vignette: black ring around the visible circle */}

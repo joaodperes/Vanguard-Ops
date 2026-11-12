@@ -4,6 +4,7 @@ import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
 import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
+import { NvgScopePass, nvgScopeBlend } from "./nvg-scope-pass";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical } from "./perks";
 import { SURVIVAL_BOT_WEAPONS, botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments, type BotAttachmentMap } from "./bot-loadouts";
@@ -645,6 +646,8 @@ export class FPSEngine {
   private container: HTMLElement;
   private opts: EngineOptions;
   private renderer!: THREE.WebGLRenderer;
+  // Lazy NVG lens pass; no extra allocations for normal gameplay.
+  private nvgScopePass: NvgScopePass | null = null;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   // Timer replaces deprecated THREE.Clock. Advance it once per animation frame.
@@ -10407,7 +10410,14 @@ export class FPSEngine {
     this.botRouteBudget.beginTick(this.map.biome==="city"||this.map.biome==="city_day"?1:2);
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
-    this.renderer.render(this.scene, this.camera);
+    // Desaturate only the NVG lens. Other optics and hipfire keep the original render.
+    const nvgBlend = nvgScopeBlend(this.sightDef.overlay, this.adsProgress, this.alive);
+    if (nvgBlend > 0) {
+      if (!this.nvgScopePass) this.nvgScopePass = new NvgScopePass();
+      this.nvgScopePass.render(this.renderer, this.scene, this.camera, nvgBlend);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
     this.updateCityRenderBudget(frameStart,dt*1000);
   };
 
@@ -11171,7 +11181,7 @@ export class FPSEngine {
     // combatants emit a bright amber glow so they're visible through walls
     // (like a real thermal scope). Also brighten the scene for NVG.
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
-    const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
+    const isNvgAds = this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
     for (const id of this.poisonBubbles.keys()) {
       if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], null, now);
     }
@@ -11229,9 +11239,10 @@ export class FPSEngine {
           c.skinMaterial.emissive.setHex(0xff6600);
           c.skinMaterial.emissiveIntensity = 1.2;
         } else if (isNvgAds && isEnemy && !c.isSelf) {
-          // Green tint for NVG
-          c.skinMaterial.emissive.setHex(0x33ff66);
-          c.skinMaterial.emissiveIntensity = 0.4;
+          // Bright green signature survives the scope's selective color grading;
+          // remains depth-tested, so enemies never glow through solid cover.
+          c.skinMaterial.emissive.setHex(0x22ff55);
+          c.skinMaterial.emissiveIntensity = 1.15;
         } else {
           // Reset to original skin emissive
           const skin = playerSkinById(c.playerSkinId);
@@ -13319,6 +13330,8 @@ export class FPSEngine {
       }
       this.surfaceMaterials=null;
     }
+    this.nvgScopePass?.dispose();
+    this.nvgScopePass = null;
     this.renderer.dispose();
     // Promptly free the graphics context between matches and dev remounts.
     this.renderer.forceContextLoss();
