@@ -610,6 +610,7 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
   for (const [bid, b] of room.bots) {
     if (b.team === team) {
       room.bots.delete(bid);
+      removeMinesOwnedBy(room, bid);
       room.equipmentFlashUntil.delete(bid);
       room.equipmentAdsBlockedUntil.delete(bid);
       room.loadouts.delete(bid);
