@@ -2,6 +2,7 @@
  * Distances are gameplay world units. Geometry/LOS is checked by callers.
  */
 import { equipmentById } from "./equipment";
+import type { CoverBox, Vec3 } from "./game-protocol";
 
 /** Taser jams precision aiming, without immobilizing or disarming the target. */
 export const TASER_ADS_BLOCK_MS = 2400;
@@ -49,6 +50,29 @@ export function isTaserAdsBlocked(adsBlockedUntil:number,now:number):boolean {
 export const MINE_TRIGGER_RADIUS = 1.55;
 export const MINE_SPLASH_RADIUS = 2.4;
 export const MINE_SPLASH_MAX_DAMAGE = 38;
+
+/** Mine throws project 1.2m ahead of the player. Snap the mine to the actual
+ * supporting tread/platform there, not the thrower's feet height. A low step
+ * may be climbed; tall overhead cover must never be treated as floor. */
+export function groundMineImpact(impact: Vec3, deployerFeetY: number, cover: readonly CoverBox[]): Vec3 {
+  let floorY = 0;
+  for (const box of cover) {
+    if (box.kind === "accent") continue;
+    const top = box.pos[1] + box.size[1];
+    if (top <= floorY || top > deployerFeetY + 0.55 + 1e-4) continue;
+    if (Math.abs(impact[0] - box.pos[0]) <= box.size[0] + 1e-4 &&
+        Math.abs(impact[2] - box.pos[2]) <= box.size[2] + 1e-4) floorY = top;
+  }
+  return [impact[0], floorY + 0.12, impact[2]];
+}
+
+/** A floor mine senses the intruder's lower body, not the torso centre.
+ * Use one contact point for BOTH trigger and damage checks, including stairs.
+ * Full 3D range and line of sight still prevent hits between floors. */
+export function mineContactPoint(mine: Vec3, targetFeet: Vec3): Vec3 {
+  return [targetFeet[0], Math.min(targetFeet[1] + 1.4,
+    Math.max(targetFeet[1] + 0.35, mine[1] + 0.2)), targetFeet[2]];
+}
 
 export function fragDamage(distance:number):number {
   const {radius,damage}=equipmentById("frag");
