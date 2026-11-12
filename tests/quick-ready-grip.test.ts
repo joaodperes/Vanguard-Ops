@@ -21,19 +21,24 @@ describe("Sprint ADS replacement: Quick-Ready Grip",()=>{
     expect(isQuickReadyGrip("grip_vertical")).toBe(false);
     expect(ATTACHMENTS.some(a=>a.id==="grip_akimbo_pdw")).toBe(false);
   });
-  test("keeps at least four grips for every previously affected conventional weapon",()=>{
+  test("keeps four handling choices while precision rifles use their own quick-set grip",()=>{
     const affected=[
       "rifle_electron","crossbow_reclaimer","pistol_arc","sniper_lr",
       "pistol_burst","pistol_machine","launcher_rocket","sniper_scout",
       "sniper_heavy","pdw_mamba","pdw_sentinel","launcher_breach","launcher_swarm",
     ];
     for(const id of affected){
-      const list=compatibleAttachments(id,"grip");
-      expect(list).toContain(QUICK_READY_GRIP_ID);
-      expect(list.length).toBeGreaterThanOrEqual(4);
       const weapon=weaponById(id);
+      const list=compatibleAttachments(id,"grip");
+      expect(list.length).toBeGreaterThanOrEqual(4);
+      // Sniper/DMR grips were deliberately reworked to remove sprint-focused
+      // upgrades. They retain a different fast-ADS alternative (Quick-Set).
+      const precision=weapon.category==="sniper"||weapon.category==="dmr";
+      const quickGrip=precision?"grip_marksman_quick":QUICK_READY_GRIP_ID;
+      if(precision) expect(list).not.toContain(QUICK_READY_GRIP_ID);
+      expect(list).toContain(quickGrip);
       const base=computeEffectiveStats(weapon,empty);
-      const tuned=computeEffectiveStats(weapon,{...empty,grip:QUICK_READY_GRIP_ID});
+      const tuned=computeEffectiveStats(weapon,{...empty,grip:quickGrip});
       expect(tuned.adsTime).toBeLessThan(base.adsTime);
       expect(tuned.recoil).toBeGreaterThan(base.recoil);
     }
