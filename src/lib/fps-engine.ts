@@ -49,7 +49,7 @@ import { resolveGameServerConnection } from "@/lib/game-network";
 import { equipmentById, type EquipmentId } from "@/lib/equipment";
 import { equipmentSoundFor, equipmentSoundVolume, type EquipmentAudioPhase } from "@/lib/equipment-audio";
 import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
-import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, closestShotMine, mineOwnerActive, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
 import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
 import { tacticalGrenadePath } from "@/lib/tactical-grenades";
 import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
@@ -1128,7 +1128,7 @@ export class FPSEngine {
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
   private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
-  private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
+  private offlineMines: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string }[] = [];
   private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number;rechargeAt?:number }>();
   private botWonderCharges = new Map<string,WonderChargeState>();
   private botFlashUntil = new Map<string,number>(); // Sensory blindness only, never immobilization
@@ -5049,7 +5049,7 @@ export class FPSEngine {
     const path=this.equipmentTrajectory(id);
     if(def.type==="mine"){
       const position=groundMineImpact(path.impact,this.pos.y,this.map.cover);
-      this.offlineMines.push({pos:position,expiresAt:now+45000,mesh:this.makeMineMarker(position),
+      this.offlineMines.push({pos:position,mesh:this.makeMineMarker(position),
         ownerId:this.selfId,ownerTeam:this.opts.team as string});
       this.playEquipmentCue(id,"placed",position);
       return;
@@ -5504,62 +5504,104 @@ export class FPSEngine {
     }
   }
 
+  /** Remove an offline mine exactly once, including its owned 3D marker. */
+  private removeOfflineMine(mine: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string }): void {
+    const at = this.offlineMines.indexOf(mine);
+    if (at < 0) return;
+    this.offlineMines.splice(at, 1);
+    this.removeMineMarker(mine.mesh);
+  }
+
+  /** Both stepping onto a mine and shooting it run the SAME owner-credited
+   * explosion. Only a proximity intruder receives the guaranteed direct hit. */
+  private detonateOfflineMine(
+    mine: { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string },
+    triggerId?: string,
+  ): void {
+    if (!this.offlineMines.includes(mine)) return;
+    const owner = mine.ownerId === this.selfId ? null : this.combatants.get(mine.ownerId);
+    if (!mineOwnerActive(mine.ownerId === this.selfId ? { alive: this.alive } : owner)) {
+      this.removeOfflineMine(mine);
+      return;
+    }
+    this.removeOfflineMine(mine); // clear before damage can cause more deaths
+    this.playEquipmentCue("mine", "triggered", mine.pos);
+    this.spawnEquipmentVisual(mine.pos, 0xffb448);
+    this.spawnTacticalBlastRing(mine.pos, MINE_SPLASH_RADIUS, false);
+    const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
+    const distance = (feet: Vec3) => blastDistance(origin, mineContactPoint(origin, feet));
+    const visible = (feet: Vec3) => this.hasLineOfSight(origin, mineContactPoint(origin, feet));
+    const rivals = [...this.combatants.values()].filter(c => c.alive && c.id !== mine.ownerId &&
+      (this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== mine.ownerTeam) &&
+      !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()));
+    for (const victim of rivals) {
+      const d = distance(victim.pos);
+      if (d > MINE_SPLASH_RADIUS || !visible(victim.pos)) continue;
+      const direct = victim.id === triggerId;
+      const damage = direct ? equipmentById("mine").damage : mineSplashDamage(d);
+      if (damage <= 0) continue;
+      if (owner) this.damageFromOfflineBotTactical(owner, victim, damage, "mine", direct);
+      else this.applyDamageLocal(victim, damage, false, "equipment_mine", direct);
+    }
+    const playerPos: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    if (this.alive && distance(playerPos) <= MINE_SPLASH_RADIUS && visible(playerPos) &&
+        this.selfSpawnProtectedUntil <= Date.now()) {
+      if (mine.ownerId === this.selfId) {
+        this.takeDamage(mineSplashDamage(distance(playerPos)), this.opts.playerName,
+          this.opts.team, false, "equipment_mine");
+      } else if (this.opts.mode === "ffa" || this.opts.mode === "gungame" || this.opts.team !== mine.ownerTeam) {
+        const direct = triggerId === this.selfId;
+        const damage = direct
+          ? Math.max(this.health * 8, equipmentById("mine").damage)
+          : mineSplashDamage(distance(playerPos));
+        if (damage > 0) this.takeDamage(damage, owner?.name ?? "Proximity Mine",
+          mine.ownerTeam, false, "equipment_mine", owner?.pos);
+      }
+    }
+    if (owner?.alive && distance(owner.pos) <= MINE_SPLASH_RADIUS && visible(owner.pos)) {
+      this.damageFromOfflineBotTactical(owner, owner, mineSplashDamage(distance(owner.pos)),
+        "mine", false, "equipment_mine", true);
+    }
+    this.damageLocalBallisticCoverExplosion(mine.pos, MINE_SPLASH_RADIUS, equipmentById("mine").damage, "mine");
+  }
+
+  /** Local bullets and bot bullets can detonate either team's mines. The
+   * shooter's identity is never passed to explosion damage or kill accounting. */
+  private shootOfflineMine(origin: Vec3, dir: Vec3, maxDistance: number): boolean {
+    if (!this.offlineMines.length || maxDistance <= 0) return false;
+    const hit = closestShotMine(this.offlineMines, origin, dir, maxDistance);
+    if (!hit) return false;
+    this.detonateOfflineMine(hit.mine);
+    return true;
+  }
+
   private tickOfflineMines(now: number): void {
-    if(this.opts.online||!this.offlineMines.length||this.matchEnded)return;
-    this.offlineMines=this.offlineMines.filter(m=>{
-      const owner=this.combatants.get(m.ownerId);
-      if(now>m.expiresAt || (m.ownerId!==this.selfId&&!owner)){
-        this.removeMineMarker(m.mesh);return false;
+    if (this.opts.online || !this.offlineMines.length) return;
+    // Iterate a snapshot, because explosions and deaths remove mines mid-tick.
+    for (const mine of [...this.offlineMines]) {
+      if (!this.offlineMines.includes(mine)) continue;
+      const owner = mine.ownerId === this.selfId ? { alive: this.alive && !this.survivalDowned } :
+        this.combatants.get(mine.ownerId);
+      if (!mineOwnerActive(owner)) {
+        this.removeOfflineMine(mine);
+        continue;
       }
-      const rivals=[...this.combatants.values()].filter(c=>c.alive&&c.id!==m.ownerId&&
-        (this.opts.mode==="ffa"||c.team!==m.ownerTeam)&&
-        !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
-      const playerRival=this.alive&&m.ownerId!==this.selfId&&
-        (this.opts.mode==="ffa"||this.opts.team!==m.ownerTeam)&&
-        this.selfSpawnProtectedUntil<=Date.now();
-      const ground:Vec3=[m.pos[0],m.pos[1]+.2,m.pos[2]];
-      const contact=(p:Vec3)=>mineContactPoint(ground,p);
-      const distance=(p:Vec3)=>blastDistance(ground,contact(p));
-      const canHit=(p:Vec3)=>this.hasLineOfSight(ground,contact(p));
-      const playerPos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
-      const trigger=[...rivals.map(c=>({id:c.id,pos:c.pos})),
-        ...(playerRival?[{id:this.selfId,pos:playerPos}]:[])]
-        .filter(p=>distance(p.pos)<=MINE_TRIGGER_RADIUS&&canHit(p.pos))
-        .sort((a,b)=>distance(a.pos)-distance(b.pos))[0];
-      if(!trigger)return true;
-      this.removeMineMarker(m.mesh);
-      this.playEquipmentCue("mine","triggered",m.pos);
-      this.spawnEquipmentVisual(m.pos,0xffb448);
-      this.spawnTacticalBlastRing(m.pos,MINE_SPLASH_RADIUS,false);
-      for(const c of rivals){
-        const d=distance(c.pos);
-        if(d>MINE_SPLASH_RADIUS||!canHit(c.pos))continue;
-        const direct=c.id===trigger.id;
-        const damage=direct?equipmentById("mine").damage:mineSplashDamage(d);
-        if(!damage)continue;
-        if(owner)this.damageFromOfflineBotTactical(owner,c,damage,"mine",direct);
-        else this.applyDamageLocal(c,damage,false,"equipment_mine",direct);
-      }
-      if(playerRival){
-        const d=distance(playerPos);
-        if(d<=MINE_SPLASH_RADIUS&&canHit(playerPos)){
-          const direct=trigger.id===this.selfId;
-          const damage=direct?Math.max(this.health*8,equipmentById("mine").damage):mineSplashDamage(d);
-          if(damage>0)this.takeDamage(damage,owner?.name??"Proximity Mine",m.ownerTeam,false,"equipment_mine",owner?.pos);
-        }
-      }
-      if(m.ownerId===this.selfId&&this.alive){
-        const d=distance(playerPos);
-        if(d<=MINE_SPLASH_RADIUS&&canHit(playerPos))
-          this.takeDamage(mineSplashDamage(d),this.opts.playerName,this.opts.team,false,"equipment_mine");
-      }else if(owner?.alive){
-        const d=distance(owner.pos);
-        if(d<=MINE_SPLASH_RADIUS&&canHit(owner.pos))
-          this.applyDamageLocal(owner,mineSplashDamage(d),false,"equipment_mine");
-      }
-      this.damageLocalBallisticCoverExplosion(m.pos,MINE_SPLASH_RADIUS,equipmentById("mine").damage,"mine");
-      return false;
-    });
+      if (this.matchEnded) continue;
+      const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
+      const distance = (feet: Vec3) => blastDistance(origin, mineContactPoint(origin, feet));
+      const visible = (feet: Vec3) => this.hasLineOfSight(origin, mineContactPoint(origin, feet));
+      const rivals = [...this.combatants.values()].filter(c => c.alive && c.id !== mine.ownerId &&
+        (this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== mine.ownerTeam) &&
+        !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()));
+      const playerIsRival = this.alive && mine.ownerId !== this.selfId &&
+        (this.opts.mode === "ffa" || this.opts.mode === "gungame" || this.opts.team !== mine.ownerTeam) &&
+        this.selfSpawnProtectedUntil <= Date.now();
+      const targets = [...rivals.map(c => ({ id: c.id, pos: c.pos })),
+        ...(playerIsRival ? [{ id: this.selfId, pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3 }] : [])];
+      const trigger = targets.filter(target => distance(target.pos) <= MINE_TRIGGER_RADIUS && visible(target.pos))
+        .sort((a, b) => distance(a.pos) - distance(b.pos))[0];
+      if (trigger) this.detonateOfflineMine(mine, trigger.id);
+    }
   }
 
   /** Cosmetic transition only. Ready/firing timers stay with the caller. */
