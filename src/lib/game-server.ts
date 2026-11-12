@@ -1023,6 +1023,12 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
       if (!nearest || hit.t < nearest.t) nearest = { victim: p, t: hit.t, head: hit.head };
     }
   }
+  // The first bullet collision can be an armed mine, even with no combatant
+  // in sight. A character or opaque cover in front of it blocks the shot.
+  const maxDistance = range * falloffEndMultiplier;
+  const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
+  if (shootEquipmentMine(room, origin, dir,
+    Math.min(maxDistance, coverStop ?? Infinity, nearest?.t ?? Infinity)) !== null) return null;
   if (!nearest) return null;
   if (losBlocked(room, origin, dir, nearest.t)) return null;
   return nearest;
@@ -1134,6 +1140,14 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   }
   const resolved=resolveMaterialPenetrationShot(contacts,room.map.cover,origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration,phasebreaker);
+  // Material-penetrating ammunition still requires an unobstructed ray to the
+  // mine and cannot detonate one through a combatant in front of it.
+  const firstVictimAt = resolved.hits.reduce((min, hit) => Math.min(min, hit.t), Infinity);
+  const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance,
+    eff.coverPenetration ?? 0, phasebreaker).blockedAt;
+  const mineAt = shootEquipmentMine(room, origin, dir,
+    Math.min(maxDistance, coverStop ?? Infinity, resolved.stoppedAt, firstVictimAt));
+  if (mineAt !== null) return { hits: [], stoppedAt: mineAt };
   return {hits:resolved.hits.map(({ target, t, head, shield, damageScale }) => (
     { victim: target, t, head, shield, damageScale })),stoppedAt:resolved.stoppedAt};
 }
@@ -3313,6 +3327,12 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
           const hit = rayCapsule(msg.origin, dir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
           if (hit && hit.t >= 0 && hit.t < impactT) impactT = hit.t;
+        }
+        // A launcher that directly hits a mine detonates it with owner credit.
+        // The projectile itself still explodes at the same impact point.
+        if (weapon.explosive) {
+          const mineAt = shootEquipmentMine(room, msg.origin, dir, impactT);
+          if (mineAt !== null) impactT = mineAt;
         }
         // A gravity projectile should bloom beside an enemy near the crosshair,
         // not keep flying to the distant back wall on a slight aim miss.
