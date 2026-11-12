@@ -1009,7 +1009,7 @@ function clearSpawnProtection(room: Room, combatant: PlayerNet) {
   io.to(room.id).emit("message", { t: "protectionEnded", playerId: combatant.id } as S2C);
 }
 
-function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weaponId: string, range: number, falloffEndMultiplier = 1.6): { victim: PlayerNet; t: number; head: boolean; shield?: boolean } | null {
+function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weaponId: string, range: number, falloffEndMultiplier = 1.6, hitMines = true): { victim: PlayerNet; t: number; head: boolean; shield?: boolean } | null {
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const attackerTeam = attacker?.team;
   let nearest: { victim: PlayerNet; t: number; head: boolean; shield?: boolean } | null = null;
@@ -1026,10 +1026,12 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   }
   // The first bullet collision can be an armed mine, even with no combatant
   // in sight. A character or opaque cover in front of it blocks the shot.
-  const maxDistance = range * falloffEndMultiplier;
-  const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
-  if (shootEquipmentMine(room, origin, dir,
-    Math.min(maxDistance, coverStop ?? Infinity, nearest?.t ?? Infinity)) !== null) return null;
+  if (hitMines) {
+    const maxDistance = range * falloffEndMultiplier;
+    const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
+    if (shootEquipmentMine(room, origin, dir,
+      Math.min(maxDistance, coverStop ?? Infinity, nearest?.t ?? Infinity)) !== null) return null;
+  }
   if (!nearest) return null;
   if (losBlocked(room, origin, dir, nearest.t)) return null;
   return nearest;
@@ -1120,7 +1122,12 @@ function shootEquipmentMine(room: Room, origin: Vec3, dir: Vec3, maxDistance: nu
 function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3,
   range: number, eff: WeaponStats, phasebreaker=false): { hits:{ victim: PlayerNet; t: number; head: boolean; shield?: boolean; damageScale: number }[]; stoppedAt:number } {
   if (!eff.bodyPenetration && !(eff.coverPenetration ?? 0)) {
-    const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier);
+    const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier, false);
+    const maxDistance = maxWeaponHitRange(range, eff);
+    const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
+    const mineAt = shootEquipmentMine(room, origin, dir,
+      Math.min(maxDistance, coverStop ?? Infinity, first?.t ?? Infinity));
+    if (mineAt !== null) return { hits: [], stoppedAt: mineAt };
     return {hits:first ? [{ ...first, damageScale: 1 }] : [],stoppedAt:first?.t??Infinity};
   }
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
