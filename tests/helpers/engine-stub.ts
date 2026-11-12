@@ -4,6 +4,7 @@
  * unrelated combat tests. Favor pure-function tests for new features.
  */
 import {FPSEngine} from "../../src/lib/fps-engine";
+import * as THREE from "three";
 export function makeEngineStub(): any {
   return Object.assign(Object.create(FPSEngine.prototype), {
     // Tests that bypass the browser-only WebGL constructor should share these
@@ -11,6 +12,11 @@ export function makeEngineStub(): any {
     opts:{mode:"ffa",online:false,loadout:{
       attachments:{sight:null,barrel:null,grip:null,magazine:null},
     }},
+    // Browser-only constructor is bypassed by isolated engine tests.
+    // These defaults support cosmetic events without requiring a live camera.
+    pos:new THREE.Vector3(),
+    camera:{position:new THREE.Vector3()},
+    offlineMines:[],
     deployedCovers:new Map(),
     // Explosion regression tests use the actual destructible-cover resolver.
     map:{cover:[]},
