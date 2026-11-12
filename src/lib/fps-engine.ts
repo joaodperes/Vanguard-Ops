@@ -5556,8 +5556,22 @@ export class FPSEngine {
         const damage = direct
           ? Math.max(this.health * 8, equipmentById("mine").damage)
           : mineSplashDamage(distance(playerPos));
-        if (damage > 0) this.takeDamage(damage, owner?.name ?? "Proximity Mine",
-          mine.ownerTeam, false, "equipment_mine", owner?.pos);
+        if (damage > 0) {
+          const deathsBefore = this.deaths;
+          this.takeDamage(damage, owner?.name ?? "Proximity Mine",
+            mine.ownerTeam, false, "equipment_mine", owner?.pos);
+          // Offline bot tactical damage to the local human uses takeDamage,
+          // which records the death but not the attacker's statistics. Credit
+          // the mine-owning bot, NOT whoever happened to shoot its mine.
+          if (owner && this.deaths > deathsBefore) {
+            owner.kills += 1;
+            if (this.opts.mode !== "ctf" && this.opts.mode !== "killconfirmed") owner.score = owner.kills;
+            if (this.opts.mode === "tdm") this.teamScores[owner.team as "red" | "blue"] += 1;
+            if (this.opts.mode === "gungame") {
+              if (this.advanceCombatantGungameTier(owner)) this.finalizeMatchLocal();
+            } else this.checkWin();
+          }
+        }
       }
     }
     if (owner?.alive && distance(owner.pos) <= MINE_SPLASH_RADIUS && visible(owner.pos)) {
@@ -5577,7 +5591,7 @@ export class FPSEngine {
     return true;
   }
 
-  private tickOfflineMines(now: number): void {
+  private tickOfflineMines(_now: number): void {
     if (this.opts.online || !this.offlineMines.length) return;
     // Iterate a snapshot, because explosions and deaths remove mines mid-tick.
     for (const mine of [...this.offlineMines]) {
