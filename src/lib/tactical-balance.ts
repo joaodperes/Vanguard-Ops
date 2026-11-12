@@ -79,7 +79,7 @@ export function closestShotMine<T extends { pos: Vec3 }>(
 }
 
 /** Mines have no fuse/expiry; only an active owner may keep them deployed. */
-export function mineOwnerActive(owner: { alive: boolean } | null | undefined): boolean {
+export function mineOwnerActive<T extends { alive: boolean }>(owner: T | null | undefined): owner is T {
   return !!owner?.alive;
 }
 
